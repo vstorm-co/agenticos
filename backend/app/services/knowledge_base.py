@@ -98,6 +98,28 @@ def _with_counts(kb: KnowledgeBase, counts: CollectionCounts | None) -> Knowledg
     )
 
 
+async def _drop_collection_if_unreferenced(store: "BaseVectorStore", collection: str) -> None:
+    """Drop a collection's vector table after the commit, unless its name was reclaimed.
+
+    Deferred past the request's commit by :meth:`KnowledgeBaseService.delete`, so a
+    rolled-back delete leaves the `rag_<collection>` table beside the knowledge-base
+    and document rows it restores rather than dropping a table those rows still
+    describe (#1347). The reference check is re-read on a session of its own, because
+    the collection name is not tenant-unique: a second organization can claim it in the
+    window between the commit and this drop, and its table must survive (#913) - the
+    same re-check `OrganizationService.purge`'s durable cleanup makes. Runs in-process
+    on the request's own loop, so the pooled `get_db_context` is right; the store rides
+    the process's vector engine, not the request session, so holding it here is safe.
+    """
+    from app.db.session import get_db_context
+
+    async with get_db_context() as db:
+        if await knowledge_base_repo.list_by_collection_name(db, collection):
+            return
+    with contextlib.suppress(SQLAlchemyError):
+        await store.delete_collection(collection)
+
+
 class KnowledgeBaseService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -485,9 +507,12 @@ class KnowledgeBaseService:
         the name, which is not tenant-unique (#913). The store is required, not
         optional, so a delete route cannot silently skip the teardown again.
 
-        The stored files are unlinked after the commit (`spawn_after_commit`), so a
-        rollback keeps them beside the rows it restores rather than stranding those
-        rows on missing files (#1293).
+        The stored files and the vector table are torn down after the commit
+        (`spawn_after_commit`), so a rollback keeps them beside the rows it restores
+        rather than stranding those rows on a missing file or a table that is gone
+        (#1293, #1347). The deferred drop re-reads the reference check on its own
+        session, because the name is not tenant-unique and a second org can reclaim it
+        in the window between the commit and the drop (#913).
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
@@ -518,8 +543,13 @@ class KnowledgeBaseService:
             # connector and vault credential, but stops being scheduled.
             for source in await sync_source_repo.get_all(self.db, collection_name=collection):
                 await sync_source_repo.update(self.db, source.id, is_active=False)
-            with contextlib.suppress(SQLAlchemyError):
-                await vector_store.delete_collection(collection)
+            from app.core.background import spawn_after_commit
+
+            spawn_after_commit(
+                self.db,
+                _drop_collection_if_unreferenced(vector_store, collection),
+                name="delete-kb-collection",
+            )
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
         if scope == KBScope.APP.value and not ctx.is_app_admin:

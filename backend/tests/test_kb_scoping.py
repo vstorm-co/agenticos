@@ -1,6 +1,7 @@
 """Tests for Knowledge Base scoping - personal / org / app access rules."""
 
 import uuid
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -106,12 +107,21 @@ def _readable_kb(collection_name: str) -> KnowledgeBase:
     )
 
 
+@asynccontextmanager
+async def _fake_db_ctx():
+    """Stand in for `get_db_context`, so the deferred collection drop's re-check has a
+    session to run on; the `list_by_collection_name` lookup itself is patched per test."""
+    yield MagicMock()
+
+
 class TestKBAccessControl:
     """Service-level access checks for all 3 scopes (PostgreSQL async)."""
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        db = MagicMock()
+        db.info = {}
+        return db
 
     @pytest.mark.anyio
     async def test_personal_kb_visible_to_owner(self, mock_db):
@@ -287,12 +297,18 @@ class TestKBAccessControl:
                 new=AsyncMock(return_value=[]),
             ),
             patch("app.repositories.sync_source.get_all", new=AsyncMock(return_value=[])),
+            patch("app.db.session.get_db_context", new=_fake_db_ctx),
         ):
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
+            # The row is not the whole teardown: with nothing else on the collection,
+            # its vector table is dropped too - but after the commit, so a rollback
+            # keeps it beside the rows it restores (#1266, #1347).
+            store.delete_collection.assert_not_awaited()
 
-        # The row is not the whole teardown: with nothing else on the collection,
-        # its vector table is dropped too, not left orphaned (#1266).
+            background.start_deferred(mock_db)
+            await background.drain(timeout=5.0)
+
         store.delete_collection.assert_awaited_once_with(kb.collection_name)
 
     @pytest.mark.anyio
@@ -356,9 +372,12 @@ class TestKBAccessControl:
             ),
             patch("app.repositories.sync_source.get_all", new=get_all),
             patch("app.repositories.sync_source.update", new=update),
+            patch("app.db.session.get_db_context", new=_fake_db_ctx),
         ):
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
+            background.start_deferred(mock_db)
+            await background.drain(timeout=5.0)
 
         lock.assert_awaited_once_with(mock_db, kb.id)
         get_all.assert_awaited_once_with(mock_db, collection_name=kb.collection_name)
@@ -395,6 +414,68 @@ class TestKBAccessControl:
         store.delete_collection.assert_not_awaited()
         get_all.assert_not_awaited()
         update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_rolled_back_kb_delete_keeps_the_vector_table(self, mock_db):
+        """The drop is discarded when the transaction that removed the rows did not
+        commit, so the restored KB and document rows still describe a live table
+        (#1347)."""
+        user_id = uuid.uuid4()
+        kb = _kb("personal", owner_user_id=user_id)
+        store = MagicMock(delete_collection=AsyncMock())
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.repositories.sync_source.get_all", new=AsyncMock(return_value=[])),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
+            background.discard_deferred(mock_db)
+            await background.drain(timeout=5.0)
+
+        store.delete_collection.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_collection_reclaimed_before_the_drop_keeps_its_table(self, mock_db):
+        """The deferred drop re-reads the reference check on its own session, so a base
+        that claims the name in the window between the commit and the drop keeps its
+        table and the drop is skipped (#913, #1347)."""
+        user_id = uuid.uuid4()
+        kb = _kb("personal", owner_user_id=user_id)
+        store = MagicMock(delete_collection=AsyncMock())
+        # Nobody holds the name at delete time (so the drop is deferred), but a base has
+        # claimed it by the time the deferred re-check runs.
+        referenced = AsyncMock(side_effect=[[], [MagicMock()]])
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.repositories.knowledge_base_repo.list_by_collection_name", new=referenced),
+            patch("app.repositories.sync_source.get_all", new=AsyncMock(return_value=[])),
+            patch("app.db.session.get_db_context", new=_fake_db_ctx),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
+            background.start_deferred(mock_db)
+            await background.drain(timeout=5.0)
+
+        store.delete_collection.assert_not_awaited()
+        assert referenced.await_count == 2
 
     @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):

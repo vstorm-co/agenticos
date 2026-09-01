@@ -62,14 +62,19 @@ def _row(*, vector_document_id: str | None, storage_path: str = "") -> MagicMock
 
 
 class TestDeletingATrackedDocument:
-    async def test_the_vectors_go_with_the_row(self, monkeypatch):
+    async def test_the_vectors_go_after_the_row_commits(self, monkeypatch):
+        """The vector removal is deferred past the commit, so a rolled-back delete
+        keeps the vectors beside the row it restores (#1347)."""
         row = _row(vector_document_id="vector-doc-1")
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
         monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
         ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
+        db = _deferring_db()
 
-        await RAGDocumentService(MagicMock()).delete_document(str(row.id), ingestion)
+        await RAGDocumentService(db).delete_document(str(row.id), ingestion)
+        ingestion.remove_document.assert_not_awaited()
 
+        await _run_deferred(db)
         ingestion.remove_document.assert_awaited_once_with("docs", "vector-doc-1")
 
     async def test_a_document_with_no_vectors_asks_for_nothing(self, monkeypatch):
@@ -85,8 +90,8 @@ class TestDeletingATrackedDocument:
         ingestion.remove_document.assert_not_awaited()
 
     async def test_the_stored_file_is_unlinked_after_the_commit(self, monkeypatch):
-        """The row and its vectors go in the transaction; the file is unlinked only
-        once it commits, so a rollback keeps it beside the restored row (#1293)."""
+        """The row goes in the transaction; its vectors and its file are removed only
+        once it commits, so a rollback keeps both beside the restored row (#1293, #1347)."""
         row = _row(vector_document_id="vector-doc-1", storage_path="rag/docs/report.pdf")
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
         monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
@@ -101,18 +106,24 @@ class TestDeletingATrackedDocument:
         await _run_deferred(db)
         storage.delete.assert_awaited_once_with("rag/docs/report.pdf")
 
-    async def test_a_store_that_refuses_still_removes_the_row(self, monkeypatch):
-        """The cleanup is best-effort by design: a row kept because the store was
-        briefly unreachable is a document a reader cannot delete at all."""
-        row = _row(vector_document_id="vector-doc-1")
+    async def test_a_rolled_back_delete_keeps_the_vectors_and_the_file(self, monkeypatch):
+        """Both side effects are discarded when the transaction that removed the row
+        did not commit, so the restored row still points at its vectors and its file
+        (#1293, #1347)."""
+        row = _row(vector_document_id="vector-doc-1", storage_path="rag/docs/report.pdf")
         monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
-        deleted = AsyncMock(return_value=True)
-        monkeypatch.setattr(rag_document_repo, "delete", deleted)
-        ingestion = MagicMock(remove_document=AsyncMock(side_effect=RuntimeError("no such table")))
+        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        storage = MagicMock(delete=AsyncMock())
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
+        db = _deferring_db()
 
-        await RAGDocumentService(MagicMock()).delete_document(str(row.id), ingestion)
+        await RAGDocumentService(db).delete_document(str(row.id), ingestion)
+        background.discard_deferred(db)
+        await background.drain(timeout=5.0)
 
-        deleted.assert_awaited_once()
+        ingestion.remove_document.assert_not_awaited()
+        storage.delete.assert_not_awaited()
 
 
 class TestTheRouteThatTheDocumentsTabUses:
