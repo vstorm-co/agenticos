@@ -26,6 +26,8 @@ from app.agents.capabilities.memory import (
 )
 from app.agents.capabilities.memory._toolset import _NO_PERSON, _NO_SCOPE, MemoryToolset
 from app.agents.deps import AgentDeps
+from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import ApiKeySecret
 from app.services import memory as memory_store
 from app.services.memory import FactHit, MemoryFileIndexEntry
 
@@ -346,6 +348,12 @@ class TestConfig:
         assert config.enable_files is True
         assert config.enable_facts is True
         assert config.partition == "shared"
+        assert config.backend == "native"
+
+    def test_mem0_without_facts_normalizes_to_native(self):
+        """mem0 stores facts only, so a facts-off config cannot require its key (H1)."""
+        assert MemoryConfig(backend="mem0", enable_facts=False).backend == "native"
+        assert MemoryConfig(backend="mem0", enable_facts=True).backend == "mem0"
 
 
 class TestBuilder:
@@ -374,3 +382,59 @@ class TestBuilder:
     def test_it_is_registered_and_builds_through_the_registry(self):
         (capability,) = build([CapabilityBinding(capability_id="memory", config={})])
         assert capability.id == "memory"
+
+    def test_mem0_backend_reads_the_secret(self):
+        sid = uuid4()
+        (capability,) = build(
+            [CapabilityBinding(capability_id="memory", config={"backend": "mem0"}, secret_id=sid)],
+            secrets={sid: ApiKeySecret(api_key="k-9")},
+        )
+        assert capability.get_toolset()._mem0_key == "k-9"
+
+    def test_mem0_backend_without_a_secret_is_refused(self):
+        with pytest.raises(BadRequestError):
+            build([CapabilityBinding(capability_id="memory", config={"backend": "mem0"})])
+
+
+class TestMem0Backend:
+    def _mem0_toolset(self) -> MemoryToolset:
+        return MemoryToolset(
+            partition="shared",
+            enable_files=False,
+            enable_facts=True,
+            backend="mem0",
+            mem0_api_key="k",
+            mem0_base_url="https://m",
+        )
+
+    async def test_remember_routes_to_mem0(self, monkeypatch):
+        mem0, native = AsyncMock(), AsyncMock()
+        monkeypatch.setattr(memory_store, "mem0_remember", mem0)
+        monkeypatch.setattr(memory_store, "remember", native)
+        out = await self._mem0_toolset().remember(_ctx(_deps()), "likes tea")
+        assert out == "Remembered."
+        native.assert_not_awaited()
+        assert mem0.await_args.kwargs["api_key"] == "k"
+        assert mem0.await_args.kwargs["base_url"] == "https://m"
+
+    async def test_recall_routes_to_mem0(self, monkeypatch):
+        monkeypatch.setattr(
+            memory_store,
+            "mem0_recall",
+            AsyncMock(return_value=[FactHit(content="likes tea", score=0.9)]),
+        )
+        native = AsyncMock()
+        monkeypatch.setattr(memory_store, "recall", native)
+        out = await self._mem0_toolset().recall(_ctx(_deps()), "q")
+        assert out == "- likes tea"
+        native.assert_not_awaited()
+
+    def test_the_native_backend_ignores_a_stray_key(self):
+        toolset = MemoryToolset(
+            partition="shared",
+            enable_files=False,
+            enable_facts=True,
+            backend="native",
+            mem0_api_key="k",
+        )
+        assert toolset._mem0_key is None
