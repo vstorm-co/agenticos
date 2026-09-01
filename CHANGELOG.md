@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.353] - 2026-09-01
+
+### Changed
+
+- `knip` to 6.32.2 from 5.88.1. `bun run lint:deps` - the narrowed run that gates
+  `lint-frontend` on a declared dependency nothing imports - is clean on the major
+  with the existing `knip.jsonc`. The bump arrived with `frontend/package.json`
+  changed and `bun.lock` untouched, which is not a lockfile drift the frontend jobs
+  tolerate: `bun install --frozen-lockfile` refused it, so `test-frontend` and `e2e`
+  failed before either ran a test. The lockfile is refreshed in the same change.
+  (#1358)
+
 ## [0.0.352] - 2026-09-01
 
 ### Changed
