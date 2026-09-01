@@ -91,11 +91,6 @@ plugin, no notebook, nothing configured for this file in particular.
 
 </div>
 
-Somebody who knows what the agent should say edits this, publishes a version, and
-every surface serves that version.
-
-<img src="docs/assets/builder.png" alt="The agent builder: instructions, model, capabilities and limits, with a published version pinned" width="100%">
-
 ### Every module
 
 Screenshots follow your GitHub theme — light or dark, whichever you are reading
