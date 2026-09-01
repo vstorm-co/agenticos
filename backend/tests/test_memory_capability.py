@@ -24,7 +24,14 @@ from app.agents.capabilities.memory import (
     derive_end_user_scope_key,
     per_user_partition_requested,
 )
-from app.agents.capabilities.memory._toolset import _NO_PERSON, _NO_SCOPE, MemoryToolset
+from app.agents.capabilities.memory._toolset import (
+    _MAX_DESCRIPTION,
+    _MAX_KIND,
+    _MAX_NAME,
+    _NO_PERSON,
+    _NO_SCOPE,
+    MemoryToolset,
+)
 from app.agents.deps import AgentDeps
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret
@@ -230,6 +237,27 @@ class TestWriteMemory:
         monkeypatch.setattr(memory_store, "write_file", write)
         out = await _toolset("per_user").write_memory(_ctx(_deps(scope_key=None)), "prefs", "x")
         assert out == _NO_PERSON
+        write.assert_not_awaited()
+
+    async def test_metadata_past_a_column_width_is_refused_before_the_database(self, monkeypatch):
+        # A name/kind/description past its column width would be an asyncpg
+        # `DataError` that fails the run; the tool refuses it with a note the model
+        # can shorten and retry, and never reaches the store.
+        write = AsyncMock()
+        monkeypatch.setattr(memory_store, "write_file", write)
+        toolset = _toolset("shared")
+
+        long_name = await toolset.write_memory(_ctx(_deps()), "n" * (_MAX_NAME + 1), "body")
+        long_kind = await toolset.write_memory(
+            _ctx(_deps()), "prefs", "body", kind="k" * (_MAX_KIND + 1)
+        )
+        long_desc = await toolset.write_memory(
+            _ctx(_deps()), "prefs", "body", description="d" * (_MAX_DESCRIPTION + 1)
+        )
+
+        assert "too long" in long_name and f"under {_MAX_NAME}" in long_name
+        assert "too long" in long_kind and f"under {_MAX_KIND}" in long_kind
+        assert "too long" in long_desc and f"under {_MAX_DESCRIPTION}" in long_desc
         write.assert_not_awaited()
 
 

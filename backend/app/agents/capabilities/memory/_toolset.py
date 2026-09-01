@@ -34,6 +34,14 @@ _NO_PERSON = (
     "This is expected on a public or anonymous surface."
 )
 
+# The `agent_memory_files` metadata column widths. A runtime write past them is an
+# asyncpg `DataError` that fails the whole run, so `write_memory` refuses over-long
+# metadata with a note the model *can* act on - shorten and retry. The body is a
+# `Text` column and is not bounded here.
+_MAX_NAME = 64
+_MAX_KIND = 32
+_MAX_DESCRIPTION = 500
+
 
 class MemoryToolset(FunctionToolset[AgentDeps]):
     """Read and write the agent's own memory - files and/or facts - in one partition.
@@ -180,6 +188,15 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, scope_key = scope
+        if len(name) > _MAX_NAME:
+            return f"That name is too long ({len(name)} chars); keep it under {_MAX_NAME}."
+        if len(kind) > _MAX_KIND:
+            return f"That kind is too long ({len(kind)} chars); keep it under {_MAX_KIND}."
+        if description is not None and len(description) > _MAX_DESCRIPTION:
+            return (
+                f"That description is too long ({len(description)} chars); "
+                f"keep it under {_MAX_DESCRIPTION}."
+            )
         created = await memory_store.write_file(
             organization_id=organization_id,
             agent_id=agent_id,
