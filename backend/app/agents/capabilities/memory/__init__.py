@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.agents.capabilities._registry import (
     CapabilityBinding,
@@ -15,6 +15,7 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.memory._capability import Memory
+from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
 
 __all__ = [
     "MEMORY_CAPABILITY_ID",
@@ -48,6 +49,33 @@ class MemoryConfig(BaseModel):
             }
         },
     )
+    backend: Literal["native", "mem0"] = Field(
+        default="native",
+        description="Where facts are stored: this deployment's pgvector, or a mem0 service.",
+        json_schema_extra={
+            "x-enum-labels": {
+                "native": "Native — facts in this deployment's own pgvector store",
+                "mem0": "mem0 — facts in a mem0 service (cloud or self-hosted); needs an API key",
+            }
+        },
+    )
+    mem0_base_url: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Base URL of a self-hosted mem0; omit for mem0's managed cloud.",
+    )
+
+    @model_validator(mode="after")
+    def _mem0_requires_facts(self) -> MemoryConfig:
+        """mem0 stores facts and nothing else, so it is meaningless without them.
+
+        Normalising `backend` to `native` when facts are off is what lets the
+        conditional `SecretRequirement` key on `backend == "mem0"` alone: without
+        this, a files-only agent that happened to pick `mem0` would be asked for
+        an API key it can never use (H1, the `browser_use` pattern)."""
+        if not self.enable_facts:
+            self.backend = "native"
+        return self
 
 
 def per_user_partition_requested(bindings: Iterable[CapabilityBinding]) -> bool:
@@ -144,19 +172,35 @@ def derive_end_user_scope_key(
         ),
     ),
     config_schema=MemoryConfig,
+    secret=SecretRequirement(
+        kind=SecretKind.API_KEY,
+        description="The mem0 API key, when facts are stored in a mem0 service",
+        # Only the mem0 backend authenticates; native pgvector needs no key. The
+        # config validator forces backend to native when facts are off, so this
+        # is asked for exactly when it will be used (H1).
+        required_when=SecretCondition(field="backend", equals=("mem0",)),
+    ),
 )
 def _build(ctx: CapabilityBuildContext) -> Memory | None:
     """Build the memory capability from its validated config.
 
     Returns `None` when both stores are off, so an agent with memory disabled
     carries no memory tools and no dead switch - the "contributes nothing when
-    its config says so" contract every capability keeps.
+    its config says so" contract every capability keeps. When facts are backed by
+    mem0, the unsealed key is read from `ctx.secret` and handed to the capability;
+    the model never sees it, and files stay native regardless of the backend.
     """
     config = ctx.config if isinstance(ctx.config, MemoryConfig) else MemoryConfig()
     if not (config.enable_files or config.enable_facts):
         return None
+    mem0_api_key = (
+        ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
+    )
     return Memory(
         partition=config.partition,
         enable_files=config.enable_files,
         enable_facts=config.enable_facts,
+        backend=config.backend,
+        mem0_base_url=config.mem0_base_url,
+        mem0_api_key=mem0_api_key,
     )

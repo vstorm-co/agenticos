@@ -45,9 +45,25 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
     flags, so a facts-only or files-only agent carries only the tools it uses.
     """
 
-    def __init__(self, *, partition: str, enable_files: bool, enable_facts: bool) -> None:
+    def __init__(
+        self,
+        *,
+        partition: str,
+        enable_files: bool,
+        enable_facts: bool,
+        backend: str = "native",
+        mem0_base_url: str | None = None,
+        mem0_api_key: str | None = None,
+    ) -> None:
         super().__init__()
         self._partition = partition
+        # Facts route to mem0 exactly when the backend is mem0 and a key is present
+        # (publish requires one for `mem0`, so a missing key here is a broken
+        # binding, not a normal path). Held as the key itself so the `is not None`
+        # check both selects the backend and narrows the key to `str`. Files are
+        # always native.
+        self._mem0_key = mem0_api_key if backend == "mem0" else None
+        self._mem0_base_url = mem0_base_url
         if enable_files:
             self.add_function(self.list_memory, name="list_memory")
             self.add_function(self.read_memory, name="read_memory")
@@ -257,9 +273,22 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, scope_key = scope
-        await memory_store.remember(
-            organization_id=organization_id, agent_id=agent_id, scope_key=scope_key, content=content
-        )
+        if self._mem0_key is not None:
+            await memory_store.mem0_remember(
+                base_url=self._mem0_base_url,
+                api_key=self._mem0_key,
+                organization_id=organization_id,
+                agent_id=agent_id,
+                scope_key=scope_key,
+                content=content,
+            )
+        else:
+            await memory_store.remember(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                scope_key=scope_key,
+                content=content,
+            )
         return "Remembered."
 
     async def recall(self, ctx: RunContext[AgentDeps], query: str, limit: int = 5) -> str:
@@ -281,13 +310,24 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, scope_key = scope
-        hits = await memory_store.recall(
-            organization_id=organization_id,
-            agent_id=agent_id,
-            scope_key=scope_key,
-            query=query,
-            limit=limit,
-        )
+        if self._mem0_key is not None:
+            hits = await memory_store.mem0_recall(
+                base_url=self._mem0_base_url,
+                api_key=self._mem0_key,
+                organization_id=organization_id,
+                agent_id=agent_id,
+                scope_key=scope_key,
+                query=query,
+                limit=limit,
+            )
+        else:
+            hits = await memory_store.recall(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                scope_key=scope_key,
+                query=query,
+                limit=limit,
+            )
         if not hits:
             return "No relevant memories."
         return "\n".join(f"- {hit.content}" for hit in hits)

@@ -49,6 +49,14 @@ class Memory(AbstractCapability[AgentDepsT]):
     partition: str = "shared"
     enable_files: bool = True
     enable_facts: bool = False
+    # Where facts live. `native` is this deployment's pgvector; `mem0` sends them
+    # to a mem0 service, and then `mem0_api_key`/`mem0_base_url` are set from the
+    # binding's secret and config. Files are always native. The key is the
+    # resolved plaintext (never a spec, never logged, never shown to the model);
+    # the toolset uses it for the mem0 HTTP call and nothing else.
+    backend: str = "native"
+    mem0_base_url: str | None = None
+    mem0_api_key: str | None = field(default=None, repr=False)
 
     # `AbstractToolset[Any]`, like `knowledge`: the toolset is concrete in
     # `AgentDeps` (its tools read `AgentDeps` fields), which does not unify with
@@ -64,5 +72,8 @@ class Memory(AbstractCapability[AgentDepsT]):
                 partition=self.partition,
                 enable_files=self.enable_files,
                 enable_facts=self.enable_facts,
+                backend=self.backend,
+                mem0_base_url=self.mem0_base_url,
+                mem0_api_key=self.mem0_api_key,
             )
         return self._toolset

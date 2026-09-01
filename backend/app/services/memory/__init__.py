@@ -12,6 +12,7 @@ External callers import from here, not from the submodules.
 """
 
 from app.repositories.memory import FactHit
+from app.services.memory._mem0 import mem0_recall, mem0_remember
 from app.services.memory._native import (
     MemoryFileIndexEntry,
     MutationResult,
@@ -33,6 +34,8 @@ __all__ = [
     "delete_file",
     "edit_file",
     "list_files",
+    "mem0_recall",
+    "mem0_remember",
     "read_file",
     "recall",
     "remember",
