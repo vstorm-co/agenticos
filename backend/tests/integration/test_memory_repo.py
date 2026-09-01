@@ -222,10 +222,23 @@ class TestListForAgent:
             db,
             organization_id=agent.organization_id,
             agent_id=agent.id,
-            all_partitions=True,
             sort="updated",
+            all_partitions=True,
         )
         assert {row.name for row in by_update} == {"alpha", "beta"}
+
+    async def test_scoped_only_lists_every_per_user_partition_and_not_the_shared(self, db) -> None:
+        person = await _user(db)
+        agent = await _agent(db, org=await _org(db, owner=person))
+        await _create(db, agent=agent, scope_key=None, name="company")
+        await _create(db, agent=agent, scope_key="user:1", name="alice")
+        await _create(db, agent=agent, scope_key="chan:2", name="bob")
+
+        scoped, total = await memory_repo.list_for_agent(
+            db, organization_id=agent.organization_id, agent_id=agent.id, scoped_only=True
+        )
+        assert {row.name for row in scoped} == {"alice", "bob"}
+        assert total == 2
 
 
 class TestMutationAndCascade:
@@ -246,6 +259,32 @@ class TestMutationAndCascade:
         await db.flush()
         remaining = await db.scalar(select(AgentMemoryFile).where(AgentMemoryFile.id == file.id))
         assert remaining is None
+
+    async def test_delete_all_files_clears_every_partition_and_counts(self, db) -> None:
+        person = await _user(db)
+        agent = await _agent(db, org=await _org(db, owner=person))
+        await _create(db, agent=agent, scope_key=None, name="shared")
+        await _create(db, agent=agent, scope_key="user:1", name="private")
+
+        removed = await memory_repo.delete_all_files(
+            db, organization_id=agent.organization_id, agent_id=agent.id
+        )
+        assert removed == 2
+        _, total = await memory_repo.list_for_agent(
+            db, organization_id=agent.organization_id, agent_id=agent.id, all_partitions=True
+        )
+        assert total == 0
+
+    async def test_delete_all_files_is_scoped_to_the_agent(self, db) -> None:
+        person = await _user(db)
+        org = await _org(db, owner=person)
+        agent = await _agent(db, org=org)
+        other = await _agent(db, org=org)
+        await _create(db, agent=agent, scope_key=None, name="mine")
+        kept = await _create(db, agent=other, scope_key=None, name="theirs")
+
+        await memory_repo.delete_all_files(db, organization_id=org.id, agent_id=agent.id)
+        assert await memory_repo.get(db, kept.id, organization_id=org.id) is not None
 
 
 def test_repr_names_the_agent_and_origin() -> None:
@@ -359,6 +398,34 @@ class TestFacts:
             search="coffee",
         )
         assert {fact.content for fact in hits} == {"prefers coffee"}
+
+    async def test_facts_scoped_only_lists_the_per_user_partitions(self, db, facts_table) -> None:
+        agent = await _agent(db, org=await _org(db, owner=await _user(db)))
+        await _add_fact(db, agent, content="company fact", at=0, dim=facts_table)
+        await _add_fact(
+            db, agent, content="private fact", at=1, dim=facts_table, scope_key="user:1"
+        )
+        scoped, total = await memory_repo.list_facts(
+            db, organization_id=agent.organization_id, agent_id=agent.id, scoped_only=True
+        )
+        assert {fact.content for fact in scoped} == {"private fact"}
+        assert total == 1
+
+    async def test_delete_all_facts_clears_every_partition_and_counts(
+        self, db, facts_table
+    ) -> None:
+        agent = await _agent(db, org=await _org(db, owner=await _user(db)))
+        await _add_fact(db, agent, content="one", at=0, dim=facts_table)
+        await _add_fact(db, agent, content="two", at=1, dim=facts_table, scope_key="user:1")
+
+        removed = await memory_repo.delete_all_facts(
+            db, organization_id=agent.organization_id, agent_id=agent.id
+        )
+        assert removed == 2
+        _, total = await memory_repo.list_facts(
+            db, organization_id=agent.organization_id, agent_id=agent.id, all_partitions=True
+        )
+        assert total == 0
 
     async def test_get_and_delete_a_fact(self, db, facts_table) -> None:
         agent = await _agent(db, org=await _org(db, owner=await _user(db)))

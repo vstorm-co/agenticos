@@ -95,6 +95,7 @@ class MemoryService:
         agent_id: UUID,
         scope_key: str | None = None,
         all_partitions: bool = False,
+        scoped_only: bool = False,
         search: str | None = None,
         sort: MemorySort = "name",
         skip: int = 0,
@@ -108,6 +109,7 @@ class MemoryService:
             agent_id=agent_id,
             scope_key=scope_key,
             all_partitions=all_partitions,
+            scoped_only=scoped_only,
             search=search,
             sort=sort,
             skip=skip,
@@ -230,6 +232,7 @@ class MemoryService:
         agent_id: UUID,
         scope_key: str | None = None,
         all_partitions: bool = False,
+        scoped_only: bool = False,
         search: str | None = None,
         skip: int = 0,
         limit: int = 50,
@@ -244,6 +247,7 @@ class MemoryService:
             agent_id=agent_id,
             scope_key=scope_key,
             all_partitions=all_partitions,
+            scoped_only=scoped_only,
             search=search,
             skip=skip,
             limit=limit,
@@ -267,6 +271,50 @@ class MemoryService:
             action="memory.fact.deleted",
             target_type="memory",
             target_id=str(fact_id),
+        )
+
+    async def clear(self, ctx: AuthContext, agent_id: UUID) -> None:
+        """Delete every file and fact for an agent, in every partition.
+
+        The danger-zone counterpart to per-row delete: a memory store nobody can
+        clear is a liability (#788). One agent-scoped action, checked against
+        `AGENTS_EDIT` like every other write, and audited with what it removed.
+        """
+        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        files = await memory_repo.delete_all_files(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        facts = await memory_repo.delete_all_facts(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.cleared",
+            target_type="memory",
+            target_id=str(agent_id),
+            details={"files": files, "facts": facts},
+        )
+
+    async def clear_facts(self, ctx: AuthContext, agent_id: UUID) -> None:
+        """Delete every fact for an agent, leaving its files untouched.
+
+        The facts pane's own clear, for resetting what the agent has learned
+        without discarding the reference files an operator authored.
+        """
+        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        facts = await memory_repo.delete_all_facts(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.facts.cleared",
+            target_type="memory",
+            target_id=str(agent_id),
+            details={"facts": facts},
         )
 
     async def resolve_injectable(self, ctx: AuthContext, agent_id: UUID) -> list[AgentMemoryFile]:

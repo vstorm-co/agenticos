@@ -15,6 +15,7 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import ColumnElement, func, or_, select, text
+from sqlalchemy import delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -111,6 +112,7 @@ async def list_for_agent(
     agent_id: UUID,
     scope_key: str | None = None,
     all_partitions: bool = False,
+    scoped_only: bool = False,
     search: str | None = None,
     sort: MemorySort = "name",
     skip: int = 0,
@@ -119,16 +121,19 @@ async def list_for_agent(
     """A page of an agent's memory files and the total — the operator index.
 
     `all_partitions` lists every partition at once (the management "All" filter);
-    otherwise the listing is confined to `scope_key` (`None` = the shared store).
-    Search covers name and description, the two things a person remembers about a
-    file; the body is what the model reads. "updated" sorting falls back to
-    `created_at`, which is never null.
+    `scoped_only` lists every per-user partition and not the shared store (the
+    "Per-user" filter); otherwise the listing is confined to `scope_key`
+    (`None` = the shared store). Search covers name and description, the two
+    things a person remembers about a file; the body is what the model reads.
+    "updated" sorting falls back to `created_at`, which is never null.
     """
     where = [
         AgentMemoryFile.organization_id == organization_id,
         AgentMemoryFile.agent_id == agent_id,
     ]
-    if not all_partitions:
+    if scoped_only:
+        where.append(AgentMemoryFile.end_user_scope_key.is_not(None))
+    elif not all_partitions:
         where.append(_in_partition(scope_key))
     if search:
         where.append(
@@ -196,6 +201,24 @@ async def update(
 async def delete(db: AsyncSession, file: AgentMemoryFile) -> None:
     await db.delete(file)
     await db.flush()
+
+
+async def delete_all_files(db: AsyncSession, *, organization_id: UUID, agent_id: UUID) -> int:
+    """Delete every memory file for one agent, in every partition; returns the count.
+
+    A set-based delete rather than a row-by-row loop: the danger-zone "clear all"
+    is a single statement, and there are no ORM cascades on this table to miss.
+    """
+    result = await db.execute(
+        sa_delete(AgentMemoryFile).where(
+            AgentMemoryFile.organization_id == organization_id,
+            AgentMemoryFile.agent_id == agent_id,
+        )
+    )
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns a `CursorResult`, which does (as `resource_grant`).
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 
 @dataclass(frozen=True)
@@ -312,12 +335,15 @@ async def list_facts(
     agent_id: UUID,
     scope_key: str | None = None,
     all_partitions: bool = False,
+    scoped_only: bool = False,
     search: str | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[AgentMemoryFact], int]:
     """A page of an agent's facts and the total - the operator listing.
 
+    Partition filtering matches `list_for_agent`: `all_partitions` spans every
+    store, `scoped_only` every per-user store, otherwise `scope_key` alone.
     Search is a substring match on `content`, not a semantic one: a KNN query
     would embed the operator's text off the run's spend ledger (N4/BONUS-3), so
     semantic recall stays the agent's runtime tool. Newest first, because a fact
@@ -327,7 +353,9 @@ async def list_facts(
         AgentMemoryFact.organization_id == organization_id,
         AgentMemoryFact.agent_id == agent_id,
     ]
-    if not all_partitions:
+    if scoped_only:
+        where.append(AgentMemoryFact.end_user_scope_key.is_not(None))
+    elif not all_partitions:
         where.append(_fact_scope(scope_key))
     if search:
         where.append(contains_ci(AgentMemoryFact.content, search))
@@ -345,3 +373,17 @@ async def list_facts(
 async def delete_fact(db: AsyncSession, fact: AgentMemoryFact) -> None:
     await db.delete(fact)
     await db.flush()
+
+
+async def delete_all_facts(db: AsyncSession, *, organization_id: UUID, agent_id: UUID) -> int:
+    """Delete every fact for one agent, in every partition; returns the count."""
+    result = await db.execute(
+        sa_delete(AgentMemoryFact).where(
+            AgentMemoryFact.organization_id == organization_id,
+            AgentMemoryFact.agent_id == agent_id,
+        )
+    )
+    await db.flush()
+    # A DML statement returns a `CursorResult` with `rowcount`, though `execute`
+    # is typed to return a `Result` without it (as `resource_grant`).
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]

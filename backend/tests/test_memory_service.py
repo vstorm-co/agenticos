@@ -284,3 +284,82 @@ class TestFacts:
             await service.delete_fact(_ctx(), fact.id)
         remove.assert_awaited_once()
         assert audit.call_args.kwargs["action"] == "memory.fact.deleted"
+
+
+class TestScopedListing:
+    async def test_per_user_files_listing_asks_the_repo_for_scoped_only(self):
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.list_for_agent",
+                new=AsyncMock(return_value=([], 0)),
+            ) as listing,
+        ):
+            await service.list_files(_ctx(), agent_id=uuid.uuid4(), scoped_only=True)
+        assert listing.await_args.kwargs["scoped_only"] is True
+
+    async def test_per_user_facts_listing_asks_the_repo_for_scoped_only(self):
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.list_facts",
+                new=AsyncMock(return_value=([], 0)),
+            ) as listing,
+        ):
+            await service.list_facts(_ctx(), agent_id=uuid.uuid4(), scoped_only=True)
+        assert listing.await_args.kwargs["scoped_only"] is True
+
+
+class TestClear:
+    async def test_clear_removes_files_and_facts_and_audits_the_counts(self):
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.delete_all_files", new=AsyncMock(return_value=3)
+            ) as df,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.delete_all_facts", new=AsyncMock(return_value=2)
+            ) as dfa,
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.clear(_ctx(), uuid.uuid4())
+        df.assert_awaited_once()
+        dfa.assert_awaited_once()
+        assert audit.call_args.kwargs["action"] == "memory.cleared"
+        assert audit.call_args.kwargs["details"] == {"files": 3, "facts": 2}
+
+    async def test_clear_facts_removes_only_facts(self):
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.delete_all_facts", new=AsyncMock(return_value=5)
+            ) as dfa,
+            patch(f"{MEMORY_PATH}.memory_repo.delete_all_files", new=AsyncMock()) as df,
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.clear_facts(_ctx(), uuid.uuid4())
+        dfa.assert_awaited_once()
+        df.assert_not_awaited()
+        assert audit.call_args.kwargs["action"] == "memory.facts.cleared"
+
+    async def test_clearing_an_unreachable_agent_is_refused(self):
+        service = _service()
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=None)),
+            patch(f"{MEMORY_PATH}.memory_repo.delete_all_files", new=AsyncMock()) as df,
+            pytest.raises(NotFoundError),
+        ):
+            await service.clear(_ctx(), uuid.uuid4())
+        df.assert_not_awaited()

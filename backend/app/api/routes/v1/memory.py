@@ -34,7 +34,7 @@ async def list_memory_files(
     agent_id: UUID = Query(description="The agent whose memory to list"),
     partition: str = Query(
         "all",
-        description="`all`, `shared`, or an end-user key to confine the listing to one partition",
+        description="`all`, `shared`, `per_user`, or an end-user key to confine the listing",
     ),
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     sort: MemorySort = Query("name", description="`name` A-Z, or `updated` newest change first"),
@@ -45,8 +45,9 @@ async def list_memory_files(
     return await service.list_files(
         ctx,
         agent_id=agent_id,
-        scope_key=None if partition in ("all", "shared") else partition,
+        scope_key=None if partition in ("all", "shared", "per_user") else partition,
         all_partitions=partition == "all",
+        scoped_only=partition == "per_user",
         search=q,
         sort=sort,
         skip=skip,
@@ -91,7 +92,7 @@ async def list_memory_facts(
     agent_id: UUID = Query(description="The agent whose facts to list"),
     partition: str = Query(
         "all",
-        description="`all`, `shared`, or an end-user key to confine the listing to one partition",
+        description="`all`, `shared`, `per_user`, or an end-user key to confine the listing",
     ),
     q: str | None = Query(None, max_length=100, description="Substring match on the fact text"),
     skip: int = Query(0, ge=0),
@@ -102,8 +103,9 @@ async def list_memory_facts(
     return await service.list_facts(
         ctx,
         agent_id=agent_id,
-        scope_key=None if partition in ("all", "shared") else partition,
+        scope_key=None if partition in ("all", "shared", "per_user") else partition,
         all_partitions=partition == "all",
+        scoped_only=partition == "per_user",
         search=q,
         skip=skip,
         limit=limit,
@@ -120,3 +122,25 @@ async def delete_memory_fact(fact_id: UUID, service: MemorySvc, ctx: Auth) -> No
     """Forget a fact. Operators do not create or edit facts - only the agent does,
     at runtime - but clearing one is a management action."""
     await service.delete_fact(ctx, fact_id)
+
+
+@router.delete("/facts", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def clear_memory_facts(
+    service: MemorySvc,
+    ctx: Auth,
+    agent_id: UUID = Query(description="The agent whose facts to clear"),
+) -> None:
+    """Forget every fact for an agent, in every partition, leaving its files -
+    what the agent has learned, reset without discarding operator-authored files."""
+    await service.clear_facts(ctx, agent_id)
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def clear_memory(
+    service: MemorySvc,
+    ctx: Auth,
+    agent_id: UUID = Query(description="The agent whose memory to clear"),
+) -> None:
+    """Delete every file and fact for an agent, in every partition - the danger
+    zone. A memory store nobody can clear is a liability (#788)."""
+    await service.clear(ctx, agent_id)

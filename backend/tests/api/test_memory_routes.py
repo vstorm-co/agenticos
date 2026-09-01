@@ -105,11 +105,21 @@ class TestListing:
         assert "content" not in by_name["prefs"]
 
     @pytest.mark.parametrize(
-        ("partition", "all_partitions", "scope_key"),
-        [("all", True, None), ("shared", False, None), ("user:42", False, "user:42")],
+        ("partition", "all_partitions", "scope_key", "scoped_only"),
+        [
+            ("all", True, None, False),
+            ("shared", False, None, False),
+            ("per_user", False, None, True),
+            ("user:42", False, "user:42", False),
+        ],
     )
     async def test_the_partition_filter_translates_to_service_arguments(
-        self, client: OpenClient, partition: str, all_partitions: bool, scope_key: str | None
+        self,
+        client: OpenClient,
+        partition: str,
+        all_partitions: bool,
+        scope_key: str | None,
+        scoped_only: bool,
     ):
         get_agent, allow = _reachable()
         with (
@@ -123,6 +133,7 @@ class TestListing:
                 await http.get(_url(f"/files?agent_id={_AGENT_ID}&partition={partition}"))
         assert listed.call_args.kwargs["all_partitions"] is all_partitions
         assert listed.call_args.kwargs["scope_key"] == scope_key
+        assert listed.call_args.kwargs["scoped_only"] is scoped_only
 
     async def test_a_listing_without_an_agent_is_refused(self, client: OpenClient):
         async with client() as http:
@@ -261,3 +272,38 @@ class TestFacts:
             async with client() as http:
                 response = await http.delete(_url(f"/facts/{fact.id}"))
         assert response.status_code == 204
+
+
+class TestClear:
+    async def test_clearing_all_memory_answers_204(self, client: OpenClient):
+        get_agent, allow = _reachable()
+        with (
+            get_agent,
+            allow,
+            patch(f"{FACADE}.memory_repo.delete_all_files", new=AsyncMock(return_value=2)) as files,
+            patch(f"{FACADE}.memory_repo.delete_all_facts", new=AsyncMock(return_value=1)) as facts,
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            async with client() as http:
+                response = await http.delete(_url(f"?agent_id={_AGENT_ID}"))
+        assert response.status_code == 204
+        files.assert_awaited_once()
+        facts.assert_awaited_once()
+
+    async def test_clearing_all_facts_answers_204(self, client: OpenClient):
+        get_agent, allow = _reachable()
+        with (
+            get_agent,
+            allow,
+            patch(f"{FACADE}.memory_repo.delete_all_facts", new=AsyncMock(return_value=3)) as facts,
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            async with client() as http:
+                response = await http.delete(_url(f"/facts?agent_id={_AGENT_ID}"))
+        assert response.status_code == 204
+        facts.assert_awaited_once()
+
+    async def test_clearing_without_an_agent_is_refused(self, client: OpenClient):
+        async with client() as http:
+            response = await http.delete(_url())
+        assert response.status_code == 422
