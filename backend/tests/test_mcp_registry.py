@@ -11,6 +11,12 @@ tries to connect to.
 
 from __future__ import annotations
 
+from typing import Any
+
+import httpx
+import pytest
+
+from app.commands import mcp_registry as mcp_registry_cmd
 from app.db.models.mcp_registry_server import McpRegistryServer
 from app.services import mcp_registry
 
@@ -70,3 +76,94 @@ class TestWhatIsSeeded:
                 cap = limits.get(field)
                 if cap is not None:
                     assert len(value) <= cap, f"{field} of {row['id']} is {len(value)}"
+
+
+class TestALiveFetchThatDoesNotFinish:
+    """Pruning is keyed on `synced_at`, so an incomplete fetch that pruned anyway
+    would delete every row on the pages it never reached - a transient outage
+    turning a complete mirror into a partial one until the next good sync.
+    """
+
+    @staticmethod
+    def _page(servers: list[dict[str, Any]], cursor: str | None) -> dict[str, Any]:
+        return {"servers": servers, "metadata": ({"nextCursor": cursor} if cursor else {})}
+
+    @staticmethod
+    def _record(name: str, host: str) -> dict[str, Any]:
+        return {
+            "_meta": {
+                "io.modelcontextprotocol.registry/official": {
+                    "isLatest": True,
+                    "status": "active",
+                }
+            },
+            "server": {
+                "name": name,
+                "title": name,
+                "description": "a server",
+                "remotes": [{"url": f"https://{host}/mcp"}],
+            },
+        }
+
+    @pytest.mark.anyio
+    async def test_pagination_that_runs_out_of_cursor_is_complete(self, monkeypatch):
+        pages = [self._page([self._record("a/one", "one.example")], None)]
+        monkeypatch.setattr(mcp_registry_cmd, "_curated_hosts", lambda: set())
+        self._serve(monkeypatch, pages)
+
+        fetched = await mcp_registry_cmd._fetch_live()
+
+        assert fetched.complete is True
+        assert [entry["id"] for entry in fetched.entries] == ["a/one"]
+
+    @pytest.mark.anyio
+    async def test_a_page_that_raises_leaves_the_fetch_incomplete(self, monkeypatch):
+        """The entries collected so far are still returned - they are true - but
+        the caller must not prune on them."""
+        pages = [self._page([self._record("a/one", "one.example")], "next"), httpx.ReadTimeout("x")]
+        monkeypatch.setattr(mcp_registry_cmd, "_curated_hosts", lambda: set())
+        self._serve(monkeypatch, pages)
+
+        fetched = await mcp_registry_cmd._fetch_live()
+
+        assert fetched.complete is False
+        assert [entry["id"] for entry in fetched.entries] == ["a/one"]
+
+    @pytest.mark.anyio
+    async def test_a_cursor_still_open_at_the_page_limit_is_incomplete(self, monkeypatch):
+        monkeypatch.setattr(mcp_registry_cmd, "PAGE_LIMIT", 2)
+        monkeypatch.setattr(mcp_registry_cmd, "_curated_hosts", lambda: set())
+        self._serve(
+            monkeypatch,
+            [
+                self._page([self._record("a/one", "one.example")], "n1"),
+                self._page([self._record("b/two", "two.example")], "n2"),
+            ],
+        )
+
+        fetched = await mcp_registry_cmd._fetch_live()
+
+        assert fetched.complete is False
+        assert len(fetched.entries) == 2
+
+    @staticmethod
+    def _serve(monkeypatch, pages: list[Any]) -> None:
+        """Answer each GET with the next page, or raise it if it is an exception."""
+        remaining = list(pages)
+
+        class _Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+            async def get(self, url: str):
+                nxt = remaining.pop(0)
+                if isinstance(nxt, Exception):
+                    raise nxt
+                # A request has to be attached, or `raise_for_status` raises
+                # RuntimeError instead of answering about the status.
+                return httpx.Response(200, json=nxt, request=httpx.Request("GET", url))
+
+        monkeypatch.setattr(mcp_registry_cmd.httpx, "AsyncClient", lambda **_: _Client())

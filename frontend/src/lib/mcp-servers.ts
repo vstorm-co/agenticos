@@ -220,6 +220,33 @@ export function rowsForEntries(
  * foot of every page, five times over, until a search for "notion" brought the
  * entry onto the page and it merged again.
  */
+/**
+ * The custom rows a search and a category filter leave standing.
+ *
+ * They are appended to the last page rather than fetched with it, so the
+ * server's `query` and `category` never reached them: searching for an
+ * unrelated server still listed every custom connection, and picking a curated
+ * category listed rows whose category is `custom`. Applied here, before the row
+ * count the page control divides by, so the count and the page agree.
+ *
+ * A custom row has a name and a URL and no description, so those two are what a
+ * query can match - the same fields somebody typing a search would expect.
+ */
+export function matchingCustomRows(
+  rows: McpServerRow[],
+  query: string,
+  category: string,
+): McpServerRow[] {
+  const needle = query.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (category && category !== CUSTOM_CATEGORY) return false;
+    if (!needle) return true;
+    return (
+      row.name.toLowerCase().includes(needle) || (row.url ?? "").toLowerCase().includes(needle)
+    );
+  });
+}
+
 export function customRows(
   catalog: McpCatalogEntry[],
   organization: OrgMcpConnectionRecord[],

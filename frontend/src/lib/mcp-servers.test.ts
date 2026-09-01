@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { McpConnectionRecord } from "./mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "./org-mcp-connections-api";
-import { CUSTOM_CATEGORY, connectionState, mergeServers } from "./mcp-servers";
+import { CUSTOM_CATEGORY, connectionState, matchingCustomRows, mergeServers } from "./mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const GITHUB: McpCatalogEntry = {
@@ -238,5 +238,50 @@ describe("several accounts on one server", () => {
     );
 
     expect(rows.at(-1)?.category).toBe(CUSTOM_CATEGORY);
+  });
+});
+
+describe("matchingCustomRows", () => {
+  const row = (name: string, url: string) => ({
+    key: name,
+    name,
+    description: null,
+    descriptionKey: "customAddedByYou",
+    category: CUSTOM_CATEGORY,
+    auth: "none" as const,
+    url,
+    docsUrl: null,
+    tokenHint: null,
+    entry: null,
+    organizations: [],
+    personals: [],
+  });
+  const rows = [
+    row("Ours", "https://ours.example/mcp"),
+    row("Theirs", "https://theirs.example/mcp"),
+  ];
+
+  it("keeps everything when nothing is being filtered", () => {
+    expect(matchingCustomRows(rows, "", "")).toHaveLength(2);
+  });
+
+  it("drops a custom row a search does not name", () => {
+    expect(matchingCustomRows(rows, "ours", "").map((r) => r.name)).toEqual(["Ours"]);
+  });
+
+  it("matches on the URL as well as the name, because a custom row has no description", () => {
+    expect(matchingCustomRows(rows, "theirs.example", "").map((r) => r.name)).toEqual(["Theirs"]);
+  });
+
+  it("ignores case and surrounding space in the query", () => {
+    expect(matchingCustomRows(rows, "  OURS  ", "")).toHaveLength(1);
+  });
+
+  it("hides every custom row while a curated category is selected", () => {
+    expect(matchingCustomRows(rows, "", "productivity")).toEqual([]);
+  });
+
+  it("shows them when the selected category is the custom one", () => {
+    expect(matchingCustomRows(rows, "", CUSTOM_CATEGORY)).toHaveLength(2);
   });
 });

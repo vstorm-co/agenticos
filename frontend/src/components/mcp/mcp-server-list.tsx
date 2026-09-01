@@ -38,6 +38,7 @@ import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
   connectionState,
   CUSTOM_CATEGORY,
+  matchingCustomRows,
   customRows,
   isReviewed,
   MCP_AUTH_LABEL,
@@ -128,8 +129,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   // everything the catalog and the mirror hold, because that is where "and these
   // are yours" belongs in a list of five thousand.
   const customs = useMemo(
-    () => customRows(catalog.servers, organization.connections, personal.connections),
-    [catalog.servers, organization.connections, personal.connections],
+    () =>
+      matchingCustomRows(
+        customRows(catalog.servers, organization.connections, personal.connections),
+        query,
+        category === "all" ? "" : category,
+      ),
+    [catalog.servers, organization.connections, personal.connections, query, category],
   );
 
   const pageCount = Math.max(1, Math.ceil((listing.total + customs.length) / MCP_PAGE_SIZE));

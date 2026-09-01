@@ -62,7 +62,7 @@ from app.core.secret_kinds import SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo
+from app.repositories import mcp_connection_repo, mcp_registry_server_repo
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
@@ -1160,19 +1160,34 @@ class McpConnectionService:
             self.db, organization_id=ctx.organization_id
         )
 
+    async def _known_catalog_key(self, catalog_key: str) -> bool:
+        """Whether a key names a server this deployment can identify.
+
+        Two catalogs answer to this, and the second is the reason the check is
+        not `get_entry` alone: the listing serves 99 curated entries beside
+        5,703 mirrored from the public registry, and it hands back the registry
+        row's own id as the key. Validating against the curated set alone
+        refused every unreviewed server with `Unknown catalog server` - so the
+        mirror was searchable and connectable personally, and unusable for the
+        organization connections agents actually bind to.
+        """
+        if get_entry(catalog_key) is not None:
+            return True
+        return await mcp_registry_server_repo.get(self.db, catalog_key) is not None
+
     async def create_for_org(self, ctx: AuthContext, data: OrgMcpConnectionCreate) -> McpConnection:
         """Seal a credential for this organization and store the connection.
 
         Raises:
-            BadRequestError: If `catalog_key` names no catalog entry. A key
-                nothing recognises would show up in the Builder as a server with
-                no name and no logo, which reads as a broken row rather than as
-                the typo it is.
+            BadRequestError: If `catalog_key` names neither a curated catalog
+                entry nor a mirrored registry row. A key nothing recognises
+                would show up in the Builder as a server with no name and no
+                logo, which reads as a broken row rather than as the typo it is.
             AlreadyExistsError: If the name is taken inside this organization.
                 The name becomes the agent's tool prefix, so two servers sharing
                 one is two sets of tools nobody can tell apart.
         """
-        if data.catalog_key is not None and get_entry(data.catalog_key) is None:
+        if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
             raise BadRequestError(
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},

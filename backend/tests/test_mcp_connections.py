@@ -2139,6 +2139,19 @@ class TestOrganizationConnections:
         monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
         return mock_repo
 
+    @pytest.fixture(autouse=True)
+    def mirror(self, monkeypatch):
+        """The registry mirror, empty unless a test stages a row.
+
+        Autouse because `catalog_key` is now validated against two catalogs, and
+        a live repository call against a mocked session answers with a Mock -
+        which is truthy, so every unknown key would read as known.
+        """
+        mock_mirror = MagicMock()
+        mock_mirror.get = AsyncMock(return_value=None)
+        monkeypatch.setattr(mcp_connection_service, "mcp_registry_server_repo", mock_mirror)
+        return mock_mirror
+
     @pytest.fixture
     def audit(self, monkeypatch):
         recorder = AsyncMock()
@@ -2243,6 +2256,31 @@ class TestOrganizationConnections:
                 ),
             )
         repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_mirrored_registry_key_is_accepted_for_an_organization(
+        self, service, ctx, repo, audit, mirror
+    ):
+        """The listing serves 5,703 mirrored servers beside the 99 curated ones
+        and hands back the registry row's own id as the key. Validating against
+        the curated catalog alone refused every one of them, so the mirror was
+        searchable, connectable personally, and unusable for the organization
+        connections agents actually bind to."""
+        mirror.get = AsyncMock(return_value=object())
+
+        await service.create_for_org(
+            ctx,
+            OrgMcpConnectionCreate(
+                name="obscure",
+                url="https://example.com/mcp",
+                catalog_key="io.github.someone/obscure-server",
+            ),
+        )
+
+        assert (
+            repo.create_org_scoped.call_args.kwargs["catalog_key"]
+            == "io.github.someone/obscure-server"
+        )
 
     @pytest.mark.anyio
     async def test_creating_blocks_internal_urls(self, service, ctx, repo, audit):

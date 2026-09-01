@@ -12,7 +12,7 @@ first sync deterministic and possible on a box with no outbound access.
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlencode, urlparse
 
 import click
@@ -57,17 +57,36 @@ before the failure is still written - a partial refresh is better than none, and
 """
 
 
-async def _fetch_live() -> list[dict[str, str]]:
+class Fetched(NamedTuple):
+    """What a live read came back with, and whether it came back whole.
+
+    The second field is load-bearing rather than informational. Pruning is keyed
+    on `synced_at`, so a fetch that stopped half way through pagination and was
+    pruned anyway would delete every row on the pages it never reached - turning
+    a transient outage into a mirror that lost thousands of servers until the
+    next successful sync.
+    """
+
+    entries: list[dict[str, str]]
+    complete: bool
+
+
+async def _fetch_live() -> Fetched:
     """Every active server with a hosted https endpoint, from the live registry.
 
     Only `isLatest` and `active` records, only a `remotes` entry with an https
     URL, and never a URL holding a `{placeholder}` - that is a shape rather than
     an address, and pasting one produces a request to a hostname with braces in
     it.
+
+    Returns what was collected and whether pagination finished. It finishes when
+    the registry stops handing out a cursor; a request that raised, or a page
+    budget that ran out, are both incomplete.
     """
     found: dict[str, dict[str, str]] = {}
     curated = _curated_hosts()
     cursor: str | None = None
+    complete = False
     async with httpx.AsyncClient(timeout=30.0) as client:
         for page in range(PAGE_LIMIT):
             params = {"limit": "100"}
@@ -86,10 +105,13 @@ async def _fetch_live() -> list[dict[str, str]]:
                     found[entry["id"]] = entry
             cursor = (payload.get("metadata") or {}).get("nextCursor")
             if not cursor:
+                complete = True
                 break
             if (page + 1) % 20 == 0:
                 info(f"  {len(found)} servers so far...")
-    return list(found.values())
+        else:
+            error(f"Registry fetch hit the {PAGE_LIMIT}-page limit with a cursor still open.")
+    return Fetched(entries=list(found.values()), complete=complete)
 
 
 def _row(record: dict[str, Any]) -> dict[str, str] | None:
@@ -141,10 +163,19 @@ def mcp_registry_sync(fetch: bool, prune: bool) -> None:
 
     async def _run() -> None:
         started = datetime.now(UTC)
-        entries = await _fetch_live() if fetch else list(seed_entries())
+        if fetch:
+            entries, complete = await _fetch_live()
+        else:
+            entries, complete = list(seed_entries()), True
         if not entries:
             error("Nothing to write - the source returned no servers.")
             raise SystemExit(1)
+        # A separate name, not a rebinding of `prune`: assigning to the outer
+        # parameter inside this closure would make it local and unreadable above.
+        pruning = prune and complete
+        if prune and not complete:
+            error("Fetch was incomplete, so nothing will be pruned - rows the")
+            error("unreached pages hold would have been deleted. Re-run to prune.")
 
         written = 0
         async with get_db_context() as db:
@@ -153,7 +184,7 @@ def mcp_registry_sync(fetch: bool, prune: bool) -> None:
                     db, entries[start : start + BATCH]
                 )
                 info(f"  {written}/{len(entries)}")
-            removed = await mcp_registry_server_repo.delete_stale(db, started) if prune else 0
+            removed = await mcp_registry_server_repo.delete_stale(db, started) if pruning else 0
             total = await mcp_registry_server_repo.count(db)
 
         success(f"Mirrored {written} servers ({total} in the table).")
