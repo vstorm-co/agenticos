@@ -79,19 +79,164 @@ write for your own use case.
 
 ## What it looks like
 
+A CSV dropped into the chat, one sentence of instruction, and the agent writes
+Python, runs it in a sandbox and answers with charts it drew from the data — no
+plugin, no notebook, nothing configured for this file in particular.
+
+<div align="center">
+
+<video src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/chat-live-demo.mp4"
+       poster="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/chat-live-demo-poster.webp"
+       controls muted loop playsinline width="100%">
+  <img src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
+</video>
+
+</div>
+
 Somebody who knows what the agent should say edits this, publishes a version, and
 every surface serves that version.
 
 <img src="docs/assets/builder.png" alt="The agent builder: instructions, model, capabilities and limits, with a published version pinned" width="100%">
 
-Published agents, each with the version that is live and who may reach it.
+### Every module
 
-<img src="docs/assets/agents.png" alt="The agent catalog, four published agents with their slugs and visibility" width="100%">
+Screenshots follow your GitHub theme — light or dark, whichever you are reading
+in. [All 27 screens, both themes](docs/screens.md).
 
-The same runner answers in the dashboard's chat, and in Slack, and behind an API
-key — with the same budget, the same approval gate and the same audit trail.
+<table>
+<tr>
+<td width="50%">
 
-<img src="docs/assets/chat.png" alt="Web chat: the agent picker, the composer, and the prompt cards a new conversation opens with" width="100%">
+**Agents** — The catalog. Every agent carries the version that is live, who may reach it, and whether a draft is waiting to be published.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/agents.webp">
+  <img alt="Agents" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/agents.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**One run, opened** — Tokens in and out, cost to four decimal places, how long it took, and the timeline of every turn and tool call it made.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/activity-run-detail.webp">
+  <img alt="One run, opened" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/activity-run-detail.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Parsing, per upload** — PyMuPDF, LiteParse or LlamaParse; chunking strategy, size and overlap; OCR and its language. Set on the collection, overridable on the next file you add - a scanned rate card and a Markdown runbook do not want the same parser.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
+  <img alt="Parsing, per upload" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**A collection** — Documents, their chunk counts and what failed to ingest. Upload here, then choose in chat which collections an agent may search.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/knowledge-base-detail.webp">
+  <img alt="A collection" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/knowledge-base-detail.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Approvals** — Everything waiting on a person, with what the agent intends to do. Decided exactly once - a second decision on a settled approval is refused.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/activity-approvals.webp">
+  <img alt="Approvals" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/activity-approvals.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Spend** — What the organization actually spent, by period. A budget is checked <i>before</i> the model request, so a run that breaches one stops mid-answer and still records what it cost.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/activity-spend.webp">
+  <img alt="Spend" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/activity-spend.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Vault** — Every key this organization has stored, sealed per tenant. Replaceable, never readable again - and rotating one is invisible to a published agent, which references the secret rather than its value.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/vault.webp">
+  <img alt="Vault" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/vault.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**MCP servers** — Connect any MCP server by URL and its tools become switches in the Builder. Organization-wide, or private to your own chat.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/mcp-servers.webp">
+  <img alt="MCP servers" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/mcp-servers.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Channels** — The chat platforms this organization answers on - Slack, Telegram, Mattermost. One bot serves one agent, bound under that agent's Availability tab.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/channels.webp">
+  <img alt="Channels" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/channels.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Routines** — What agents do with nobody typing: a schedule, or an event that arrives. The run is recorded and budgeted like any other.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/routines.webp">
+  <img alt="Routines" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/routines.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Sandboxes** — Where agents run shell commands and keep files. An agent names a connection by id, so moving to another host is one edit here rather than republishing every agent.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/sandboxes.webp">
+  <img alt="Sandboxes" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/sandboxes.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Dashboard** — Arrangeable widgets over the whole deployment and then this organization - runs, spend, service health, answer quality. Each card is gated on the permission its data needs.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/dashboard.webp">
+  <img alt="Dashboard" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/dashboard.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+</table>
 
 ## ⚡ Get to a running agent
 
@@ -382,18 +527,6 @@ agents. Everything below runs on [Pydantic AI](https://ai.pydantic.dev).
 | **[content-skills](https://github.com/vstorm-co/content-skills)** | Content studio skill pack for coding agents — brand-aware, with built-in anti-slop | [![Stars](https://img.shields.io/github/stars/vstorm-co/content-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/content-skills) |
 
 Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
-
-## ⭐ Stars
-
-If AgenticOS saved you from building budgets, approvals and tenant isolation by
-hand — **[give it a star](https://github.com/vstorm-co/agenticos)**. It is the
-single biggest thing that helps the project grow.
-
-<div align="center">
-<a href="https://star-history.com/#vstorm-co/agenticos&Date">
-  <img src="https://api.star-history.com/svg?repos=vstorm-co/agenticos&type=Date" alt="Star history" width="600">
-</a>
-</div>
 
 ## Licence
 

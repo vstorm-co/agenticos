@@ -28,6 +28,7 @@ exclude_docs: |
   audits/
   ROADMAP.md
   about/design.md
+  assets/screens/README.md
 
 theme:
   name: material
@@ -172,6 +173,7 @@ nav:
           - first-agent.md
           - concepts.md
           - console.md
+          - screens.md
       - Build the agent:
           - choosing-models.md
           - models.md

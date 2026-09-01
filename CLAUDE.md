@@ -394,6 +394,7 @@ say so and move on. Run it yourself any time with
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
+| Every module, screenshotted in both themes | `docs/screens.md` |
 | The sandbox: sessions, runtimes, isolation, lifetimes | `docs/sandbox.md` |
 | Routes → services → repositories | `docs/architecture.md` |
 | The Next.js console, for a contributor | `docs/frontend.md` |
