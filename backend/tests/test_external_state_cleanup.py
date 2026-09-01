@@ -38,7 +38,7 @@ class TestDispatch:
             await dispatch_external_state_cleanup(["a/one.txt"], ["docs"])
 
         run.assert_awaited_once_with(
-            name="external-state-cleanup/external-state-cleanup",
+            name="org-purge-cleanup/org-purge-cleanup",
             parameters={"storage_paths": ["a/one.txt"], "collections": ["docs"]},
             timeout=0,
         )
@@ -49,7 +49,7 @@ class TestDispatch:
             await dispatch_external_state_cleanup([], ["docs"])
 
         run.assert_awaited_once_with(
-            name="external-state-cleanup/external-state-cleanup",
+            name="org-purge-cleanup/org-purge-cleanup",
             parameters={"storage_paths": [], "collections": ["docs"]},
             timeout=0,
         )

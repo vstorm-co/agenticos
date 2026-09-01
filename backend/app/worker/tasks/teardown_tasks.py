@@ -35,7 +35,13 @@ from app.core.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
-_CLEANUP_DEPLOYMENT = "external-state-cleanup/external-state-cleanup"
+# The Prefect deployment identifier stays `org-purge-cleanup`, the name #1274
+# registered, even though the flow it serves is now general: renaming a live
+# deployment strands any run still queued under the old name across a rolling
+# upgrade - the new process registers only the new name and stops polling the old,
+# and the run has no row left to reconstruct it (#1349 review). The Python symbols
+# carry the general name; only this external identifier is held put.
+_CLEANUP_DEPLOYMENT = "org-purge-cleanup/org-purge-cleanup"
 
 # One run carries at most this many storage paths. A large org - or a large
 # collection - can leave tens of thousands of files behind, and a path can be long;
@@ -133,8 +139,13 @@ async def cleanup_external_state(
 
     storage = get_file_storage()
     for storage_path in storage_paths:
-        with contextlib.suppress(Exception):
+        # Best-effort but not silent: the row that named this file is committed-gone,
+        # so a swallowed failure leaves an orphan nothing else can find - the warning
+        # is its only remaining trace of which path it was (#1293).
+        try:
             await storage.delete(storage_path)
+        except Exception as exc:
+            logger.warning("Failed to unlink stored file %s: %s", storage_path, exc)
 
     dropped = 0
     if collections:
@@ -163,7 +174,10 @@ async def cleanup_external_state(
     return {"unlinked": len(storage_paths), "dropped": dropped}
 
 
-@flow(name="external-state-cleanup", log_prints=True, retries=3, retry_delay_seconds=30)
+# Flow name held at `org-purge-cleanup` deliberately - it is half the deployment
+# identifier, and renaming it strands in-flight runs across an upgrade (see
+# `_CLEANUP_DEPLOYMENT`). The Python name is general; the Prefect name is not renamed.
+@flow(name="org-purge-cleanup", log_prints=True, retries=3, retry_delay_seconds=30)
 async def external_state_cleanup_flow(
     storage_paths: list[str], collections: list[str]
 ) -> dict[str, int]:

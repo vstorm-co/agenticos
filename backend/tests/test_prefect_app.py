@@ -79,7 +79,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "sync-collection",
         "rag-sync-check",
         "run-scheduled-trigger",
-        "external-state-cleanup",
+        "org-purge-cleanup",
         "agent-triggers-check",
         "portal-poll",
         "sandbox-log-sweep",

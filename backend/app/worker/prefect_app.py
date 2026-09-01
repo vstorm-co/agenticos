@@ -74,10 +74,10 @@ async def main() -> None:
     )
     # On-demand: the external cleanup a committed delete leaves - a purged org's
     # tables and files (#1274), a dropped RAG collection's (#1349) - submitted after
-    # the delete commits so it survives the request process dying mid-cleanup.
-    deployments.append(
-        await external_state_cleanup_flow.ato_deployment(name="external-state-cleanup")
-    )
+    # the delete commits so it survives the request process dying mid-cleanup. The
+    # deployment name stays `org-purge-cleanup` (its #1274 name) so an upgrade does
+    # not strand runs queued under the old identifier; the flow it serves is general.
+    deployments.append(await external_state_cleanup_flow.ato_deployment(name="org-purge-cleanup"))
     # Every minute: fire the agent triggers that have come due.
     deployments.append(
         await check_agent_triggers_flow.ato_deployment(
