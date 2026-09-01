@@ -95,7 +95,7 @@ they say.
 ### Inside one agent
 
 An agent is a form, not a codebase: instructions, a model, tools, limits.
-Nothing ships until **Publish** — here v40 is live while a draft is still open.
+Nothing ships until **Publish**.
 
 <img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: instructions, model, and the version that is live" width="100%">
 
@@ -329,48 +329,40 @@ leaves your machine.
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-<table>
-<tr><td width="33%">
+<details>
+<summary><b>macOS</b></summary>
 
-**macOS**
-
-Docker Desktop or [OrbStack](https://orbstack.dev). `git`, `make` and `python3`
-come with the Xcode command line tools:
+Docker Desktop or [OrbStack](https://orbstack.dev), then:
 
 ```bash
 xcode-select --install
 ```
 
-</td><td width="33%">
+</details>
 
-**Linux**
-
-Docker, and the compose plugin:
+<details>
+<summary><b>Linux</b></summary>
 
 ```bash
 curl -fsSL https://get.docker.com | sh
-sudo apt install make git python3 \
-     docker-compose-plugin
+sudo apt install make git python3 docker-compose-plugin
 ```
 
-</td><td width="33%">
+</details>
 
-**Windows**
+<details>
+<summary><b>Windows</b></summary>
 
-Through WSL2, which is one command in an administrator PowerShell:
+Through WSL2. In an administrator PowerShell:
 
 ```powershell
 wsl --install
 ```
 
 Then Docker Desktop with WSL2 integration on, and run the installer inside the
-Ubuntu shell.
+Ubuntu shell it gives you.
 
-</td></tr>
-</table>
-
-**`uv` and `bun` are not needed.** They are for working *on* AgenticOS; the stack
-and the console both run as containers.
+</details>
 
 ### What it asks
 
