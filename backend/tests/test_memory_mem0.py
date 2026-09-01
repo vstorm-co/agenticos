@@ -22,15 +22,20 @@ ORG, AGENT = uuid4(), uuid4()
 
 
 class _Response:
-    def __init__(self, *, data=None, error: Exception | None = None):
+    def __init__(
+        self, *, data=None, error: Exception | None = None, json_error: Exception | None = None
+    ):
         self._data = data
         self._error = error
+        self._json_error = json_error
 
     def raise_for_status(self) -> None:
         if self._error is not None:
             raise self._error
 
     def json(self):
+        if self._json_error is not None:
+            raise self._json_error
         return self._data
 
 
@@ -160,3 +165,45 @@ class TestRecall:
                 query="q",
                 limit=5,
             )
+
+    async def test_a_body_that_is_not_json_becomes_a_controlled_refusal(self, transport):
+        # A 200 whose body is not JSON (an HTML error page) makes `response.json()`
+        # raise a `JSONDecodeError`, a `ValueError` - a garbled response is a
+        # service failure, not a crash mid-run.
+        transport.response = _Response(json_error=ValueError("no json here"))
+        with pytest.raises(ExternalServiceError):
+            await _mem0.mem0_recall(
+                base_url=None,
+                api_key="k",
+                organization_id=ORG,
+                agent_id=AGENT,
+                scope_key=None,
+                query="q",
+                limit=5,
+            )
+
+    async def test_a_body_that_is_neither_list_nor_envelope_yields_no_hits(self, transport):
+        transport.response = _Response(data="unexpected")
+        hits = await _mem0.mem0_recall(
+            base_url=None,
+            api_key="k",
+            organization_id=ORG,
+            agent_id=AGENT,
+            scope_key=None,
+            query="q",
+            limit=5,
+        )
+        assert hits == []
+
+    async def test_a_row_that_is_not_an_object_is_skipped(self, transport):
+        transport.response = _Response(data={"results": ["not an object", {"memory": "kept"}]})
+        hits = await _mem0.mem0_recall(
+            base_url=None,
+            api_key="k",
+            organization_id=ORG,
+            agent_id=AGENT,
+            scope_key=None,
+            query="q",
+            limit=5,
+        )
+        assert [h.content for h in hits] == ["kept"]

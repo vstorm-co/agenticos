@@ -103,18 +103,28 @@ async def mem0_recall(
             )
             response.raise_for_status()
             data = response.json()
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, ValueError) as exc:
+        # `ValueError` covers a `JSONDecodeError` from a body that is not JSON at
+        # all - an HTML error page answered `200`, say. A garbled response is a
+        # service failure, not a crash mid-run.
         logger.exception("mem0_recall_failed")
         raise ExternalServiceError(
             message="Could not search the mem0 memory service",
             details={"operation": "recall"},
         ) from exc
     # mem0 has returned both a bare list and a `{"results": [...]}` envelope across
-    # versions, and names the text `memory`, `text` or `content`; be liberal.
+    # versions, and names the text `memory`, `text` or `content`; be liberal, but
+    # anything that is not a list of objects is treated as no hits rather than
+    # iterated into an `AttributeError`.
     rows = data.get("results", []) if isinstance(data, dict) else data
     hits: list[FactHit] = []
-    for row in rows or []:
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
         text = row.get("memory") or row.get("text") or row.get("content")
         if text:
-            hits.append(FactHit(content=text, score=float(row.get("score") or 0.0)))
+            score = row.get("score")
+            hits.append(
+                FactHit(content=text, score=float(score) if isinstance(score, int | float) else 0.0)
+            )
     return hits
