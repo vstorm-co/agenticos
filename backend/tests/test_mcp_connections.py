@@ -1742,6 +1742,29 @@ class TestMcpConnectionService:
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_oauth_start_refuses_a_catalog_key_no_catalog_knows(
+        self, service, repo, monkeypatch
+    ):
+        """A key nothing recognises would be stored and then never match.
+
+        The whole point of the key is that a personal connection can stand in for
+        the organization's; one naming a server neither the curated catalog nor
+        the registry mirror holds can never be substituted for anything, so it is
+        refused at the door rather than written and left inert.
+        """
+        _allow_any_url(monkeypatch)
+        repo.get_by_name.return_value = None
+        monkeypatch.setattr(service, "_known_catalog_key", AsyncMock(return_value=False))
+
+        with pytest.raises(BadRequestError) as refusal:
+            await service.oauth_start(
+                user_id=uuid4(), name="whatever", url="https://srv/mcp", catalog_key="no-such"
+            )
+
+        assert refusal.value.details == {"catalog_key": "no-such"}
+        repo.create.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_oauth_start_registers_and_persists_pending(self, service, repo, monkeypatch):
         _allow_any_url(monkeypatch)
         discovered = mcp_oauth.DiscoveredServer(

@@ -64,16 +64,6 @@ CATALOG: tuple[CatalogEntry, ...] = catalog.load(
 BY_KEY: dict[str, CatalogEntry] = {entry.key: entry for entry in CATALOG}
 
 
-def categories() -> tuple[str, ...]:
-    """Every category the catalog uses, sorted.
-
-    Answered here rather than derived in the console from a page of rows: a page
-    holds whichever categories happened to land on it, so a filter built from one
-    offers a different set on page two.
-    """
-    return tuple(sorted({entry.category for entry in CATALOG}))
-
-
 def matching(query: str, *, category: str = "") -> tuple[CatalogEntry, ...]:
     """Curated entries a query matches, in catalog order.
 
