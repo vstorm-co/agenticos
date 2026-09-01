@@ -374,7 +374,7 @@ EOF
 
 main() {
   say ""
-  say "${BOLD}AgenticOS${RESET} — the operating system for your company's AI agents"
+  say "${BOLD}AgenticOS${RESET} — build, run and govern your company's AI agents"
   note "Self-hosted, Apache-2.0. This runs entirely on this machine."
 
   detect_platform

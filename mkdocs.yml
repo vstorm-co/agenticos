@@ -5,7 +5,7 @@
 # is a copy that disagrees with the one contributors read. The nav below decides
 # what an outside reader meets first; nothing is duplicated for them.
 site_name: AgenticOS
-site_description: The operating system for your company's AI agents. Self-hosted, open source, and yours.
+site_description: One place to build, run and govern your company's AI agents. Self-hosted, open source, and yours.
 site_url: https://vstorm-co.github.io/agenticos/
 repo_url: https://github.com/vstorm-co/agenticos
 repo_name: vstorm-co/agenticos

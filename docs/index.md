@@ -5,8 +5,9 @@
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-The operating system for your company's AI agents. Processes, permissions,
-resource limits, drivers and an audit log. Self-hosted, open source, and yours.
+One place to build, run and govern your company's AI agents. Self-hosted, open source, and yours.
+Why it is called an operating system is
+<a href="#why-it-is-called-an-operating-system">seven functions further down</a>.
 </p>
 
 <p class="agenticos-hero__badges">

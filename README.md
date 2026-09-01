@@ -5,9 +5,10 @@
 <h1>AgenticOS</h1>
 
 <p>
-  <b>The operating system for your company's AI agents.</b><br>
-  Processes, permissions, resource limits, drivers and an audit log — self-hosted,
-  on your Postgres, in your Docker, under your domain.
+  <b>One place to build, run and govern your company's AI agents.</b><br>
+  Self-hosted and open source — on your Postgres, in your Docker, under your
+  domain.<br>
+  <sub>The OS in the name is a claim we make good on: <a href="#why-it-is-called-an-operating-system">seven functions, seven mechanisms</a>.</sub>
 </p>
 
 <p>
