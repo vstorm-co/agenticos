@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.350] - 2026-09-01
+
+### Changed
+
+- `pydantic-ai-slim` to 2.35.3, both extras sets - the runtime one
+  (`anthropic`, `cohere`, `duckduckgo`, `google`, `groq`, `huggingface`,
+  `mistral`, `openrouter`, `web-fetch`, `xai`) and `mcp` - from 2.33.0. The agent
+  runtime is the one dependency where a lag is felt in every run, so the group
+  moves on its own. (#1345)
+
 ## [0.0.349] - 2026-09-01
 
 ### Fixed
