@@ -25,6 +25,7 @@ tools listed.
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
+| `memory` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall` | — | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
@@ -124,6 +125,45 @@ Bound with nothing usable — no files, or only `link` files with the read tool
 turned off — this capability contributes **nothing** and is not attached, the
 same way `knowledge` bound to no collections is not. Files are managed under
 `/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
+
+## Memory
+
+`list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`,
+`remember`, `recall`
+
+An agent's own store, written during one conversation and read back in a later
+one. Where `context` is a library a person authors and binds to many agents,
+memory is the agent's own: it writes through tools mid-run, and an operator
+inspects, seeds or clears it under `/api/v1/memory`. It is not bound by id —
+enabling the capability gives the agent its store.
+
+Two independent shapes, each with its own switch. **Files** (`enable_files`) are
+named notes the agent writes, edits and reads back by name — a durable, editable
+record. **Facts** (`enable_facts`) are short things it remembers and recalls by
+*meaning*: `remember` embeds a sentence, `recall` returns the nearest ones by
+vector similarity. An agent can have either or both; with both off the capability
+contributes nothing. Facts embed on the deployment's embedding model, and the
+embedding cost is metered to the run like any other model call — a fact query an
+operator typed would escape that ledger, so operators never create or search
+facts, only list, read and clear them (the listing search is a plain substring
+match).
+
+**Partition** is `shared` — one store per agent, read by every end-user it
+serves, for a single trusted audience — or `per_user`, a private store per
+end-user. The per-end-user key is derived server-side from the request identity
+and never chosen by the model, so a run reaches only the store it was admitted
+to; a `per_user` run on a surface with no identified person (a hosted page, an
+anonymous widget) refuses rather than falling back to a shared store.
+
+Every file records an `origin`: `operator` (written by a person) or `agent`
+(written by a tool mid-run). It is a trust tier. The agent may read an
+operator-authored note but not edit or delete it, so it cannot rewrite content a
+person vouched for; turning an agent note into an operator one is a deliberate
+"promote" action, never a side effect of an edit. Facts carry no `origin` — they
+are always the agent's own and are never injected into instructions, only reached
+through `recall`. Access to the management API rides on the parent agent —
+whoever may view the agent may read its memory, whoever may edit the agent may
+change it — so there is no `memory:*` scope.
 
 ## Web search
 
