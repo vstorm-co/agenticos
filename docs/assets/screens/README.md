@@ -88,11 +88,21 @@ rather than a break.
 
 **A `<video>` with a relative `src` does not work at all**, and nesting an
 `<img>` inside it does not save the situation: fallback content is shown when a
-browser cannot handle the *element*, not when its source resolves to nothing. So
-the README hero is the animated WebP, which autoplays and loops everywhere, with
-the mp4 behind a link beside it. A real player needs a URL GitHub itself serves
-— `raw.githubusercontent.com/.../main/...` once this is on `main`, or an
-attachment URL from dragging the file into an issue comment once.
+browser cannot handle the *element*, not when its source resolves to nothing. A
+real player needs a URL GitHub itself serves, so the README points at an
+attachment on GitHub's own CDN:
+
+    https://github.com/user-attachments/assets/4d97bc60-f7be-43f2-97fe-cc4e0765e8ed
+
+That URL answers a range request with `206`, which is what makes the timeline
+scrubbable rather than a play button. It was produced by dropping the 9.3 MB
+master into an issue comment — the upload happens on drop, so the comment itself
+never has to be posted. Replacing the clip means repeating that and swapping the
+URL; the master does not belong in the repository, because it is not served from
+there.
+
+`chat-live-demo.webp` stays nested inside the `<video>` as fallback content, for
+a renderer that strips the tag — npm, some PyPI mirrors, a few aggregators.
 
 ## How the split was made
 

@@ -85,9 +85,9 @@ plugin, no notebook, nothing configured for this file in particular.
 
 <div align="center">
 
-<img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
-
-<sub><a href="docs/assets/screens/chat-live-demo.mp4">The same twenty seconds as video</a> — full quality, with controls.</sub>
+<video src="https://github.com/user-attachments/assets/4d97bc60-f7be-43f2-97fe-cc4e0765e8ed" controls muted loop playsinline width="100%">
+  <img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
+</video>
 
 </div>
 
