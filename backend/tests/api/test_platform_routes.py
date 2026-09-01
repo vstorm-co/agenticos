@@ -132,6 +132,7 @@ _SERVICE_DEPS = (
     deps.get_approval_service,
     deps.get_skill_service,
     deps.get_context_service,
+    deps.get_memory_service,
     deps.get_model_profile_service,
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
@@ -665,6 +666,10 @@ _PLATFORM_PREFIXES = (
     # Context files, shaped exactly like skills: the collection routes gate on
     # context:view/edit, the per-file routes resolve grants in the service.
     "/context",
+    # Memory files, owned by the agent rather than a person: no route carries a
+    # `require()`, because every one acts on one agent's memory and the service
+    # resolves access against that agent - so the sweep must reach them here.
+    "/memory",
     "/providers",
     "/audit",
     # The organization's MCP servers. `/me/mcp-connections` is a different
@@ -796,6 +801,10 @@ RESOURCE_AWARE_SERVICES = (
     # or delete one is its grants' answer, resolved inside the service. Every
     # per-file route (`GET/PATCH/DELETE /context/{id}`) depends on it.
     deps.get_context_service,
+    # A memory file rides on its parent agent: MemoryService resolves access to
+    # the agent before every read or write, so its routes decide per agent rather
+    # than per role. Every `/memory` route depends on it.
+    deps.get_memory_service,
     # A knowledge base is a shared resource like the rest: reads resolve
     # through `readable_kb`, writes through `get_for_write`, both of which end
     # at `resolve_access` for org rows. Every per-KB route depends on it.

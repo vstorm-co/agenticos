@@ -48,6 +48,7 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.sandbox_connection import SandboxConnection
@@ -68,6 +69,7 @@ from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
+from app.schemas.memory import AgentMemoryFileUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
@@ -85,6 +87,7 @@ from app.schemas.user_slash_command import UserSlashCommandUpdate
 # parked there to silence the gate.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    AgentMemoryFileUpdate: AgentMemoryFile,
     ChannelBotUpdate: ChannelBot,
     ContextFileUpdate: ContextFile,
     ConversationUpdate: Conversation,

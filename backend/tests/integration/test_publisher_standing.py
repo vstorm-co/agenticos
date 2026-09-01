@@ -14,6 +14,7 @@ recorded, and no longer able to sign in.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -70,6 +71,38 @@ class TestWhichRoleAnAnonymousTurnBorrows:
         )
 
         assert ctx.role == OrgRoleName.OWNER.value
+        # `user_id` is the publisher, not whoever is chatting - so the fallback
+        # flag is set, and per-user memory refuses rather than attributing a
+        # stranger's note to the owner (#788).
+        assert ctx.subject_is_publisher_fallback is True
+
+
+async def test_a_publisher_context_is_always_flagged_a_fallback() -> None:
+    """The flag is unconditional: with no publisher recorded the DB is never
+    touched, and the context is still a fallback that per-user memory must refuse."""
+    from unittest.mock import MagicMock
+
+    ctx = await publisher_context(MagicMock(), organization_id=uuid.uuid4(), publisher_user_id=None)
+    assert ctx.subject_is_publisher_fallback is True
+    assert ctx.role == OrgRoleName.VIEWER.value
+
+
+def test_only_publisher_context_sets_the_fallback_flag() -> None:
+    """The N1 guarantee that per-user memory never leaks into the owner's store
+    rests on `subject_is_publisher_fallback` being set `True` in exactly one place.
+    A second stand-in constructor that forgot it would run a visitor's turn as the
+    owner without the flag, and per-user memory would attribute the visitor's notes
+    to the owner. This pins the one assignment site by grep - the same discipline
+    that keeps `AuthContext.anonymous` the sole subject-less constructor - so a new
+    one has to be argued for in a diff rather than added quietly.
+    """
+    app_root = Path(__file__).resolve().parents[2] / "app"
+    setters = sorted(
+        path.relative_to(app_root).as_posix()
+        for path in app_root.rglob("*.py")
+        if "subject_is_publisher_fallback=True" in path.read_text(encoding="utf-8")
+    )
+    assert setters == ["services/access.py"], setters
 
     async def test_a_deactivated_publisher_lends_nothing(self, db) -> None:
         """The row that made this worth an integration test. Deactivating a user
