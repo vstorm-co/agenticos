@@ -148,6 +148,7 @@ own key for:
 | Exa | `web_research` |
 | Logfire | Per-agent [observability](reference/spec.md#observability) — traces to a project of its own |
 | LlamaParse | PDF parsing, billed to the organization's own key |
+| mem0 | [`memory`](reference/capabilities.md#memory) — when an agent's facts are stored in a mem0 service (cloud or self-hosted) rather than the deployment's pgvector. The key is required only for that backend; mem0 bills its own embedding out of band, and sending facts to mem0's cloud is a data-residency choice the Builder names. |
 
 ## What never happens
 

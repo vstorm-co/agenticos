@@ -155,6 +155,16 @@ and never chosen by the model, so a run reaches only the store it was admitted
 to; a `per_user` run on a surface with no identified person (a hosted page, an
 anonymous widget) refuses rather than falling back to a shared store.
 
+**Backend** decides where facts live. `native` keeps them in this deployment's
+own pgvector store, and the embedding cost is metered as above. `mem0` sends them
+to a [mem0](https://mem0.ai) service instead — cloud, or self-hosted via
+`mem0_base_url` — which needs an API key from the organization's vault; there a
+scope key of `organization:agent:partition` isolates one store from every other,
+and mem0 bills its own embedding out of band, so the deployment's ledger does not
+see it. Files are always native — mem0 has no named-file concept — so `backend`
+moves facts only, and a files-only agent is forced back to `native` so it is
+never asked for a key it cannot use.
+
 Every file records an `origin`: `operator` (written by a person) or `agent`
 (written by a tool mid-run). It is a trust tier. The agent may read an
 operator-authored note but not edit or delete it, so it cannot rewrite content a
