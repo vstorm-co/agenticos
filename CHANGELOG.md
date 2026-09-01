@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.345] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths did their vector-store work inside the request
+  transaction.** #1293 deferred the file unlinks; the store side effects stayed
+  where they were, so the same rollback left the vectors gone.
+  `RAGDocumentService.delete_document`'s `remove_document` and
+  `KnowledgeBaseService.delete`'s `delete_collection` `DROP TABLE` now go over with
+  `spawn_after_commit` too. The collection drop is the sharper of the two: a
+  rollback used to restore the knowledge-base and `rag_documents` rows pointing at
+  a table that no longer existed, which is a correctness fault rather than a
+  recoverable leak. The deferred drop re-reads its `list_by_collection_name`
+  reference check on a session of its own, because the name is not tenant-unique
+  and a second organization can reclaim it in the window between the commit and
+  the drop (#913) - the same re-check the org purge's durable cleanup makes. (#1347)
+- Still deferred in-process, so a crash between the commit and the dispatch loses
+  the cleanup; that durability gap is #1349. (#1347)
+
 ## [0.0.344] - 2026-09-01
 
 ### Fixed
