@@ -85,10 +85,10 @@ plugin, no notebook, nothing configured for this file in particular.
 
 <div align="center">
 
-<video src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/chat-live-demo.mp4"
-       poster="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/chat-live-demo-poster.webp"
+<video src="docs/assets/screens/chat-live-demo.mp4"
+       poster="docs/assets/screens/chat-live-demo-poster.webp"
        controls muted loop playsinline width="100%">
-  <img src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
+  <img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
 </video>
 
 </div>
@@ -110,8 +110,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Agents** — The catalog. Every agent carries the version that is live, who may reach it, and whether a draft is waiting to be published.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/agents.webp">
-  <img alt="Agents" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/agents.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp">
+  <img alt="Agents" src="docs/assets/screens/light/agents.webp" width="100%">
 </picture>
 
 </td>
@@ -120,8 +120,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **One run, opened** — Tokens in and out, cost to four decimal places, how long it took, and the timeline of every turn and tool call it made.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/activity-run-detail.webp">
-  <img alt="One run, opened" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/activity-run-detail.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-run-detail.webp">
+  <img alt="One run, opened" src="docs/assets/screens/light/activity-run-detail.webp" width="100%">
 </picture>
 
 </td>
@@ -132,8 +132,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Parsing, per upload** — PyMuPDF, LiteParse or LlamaParse; chunking strategy, size and overlap; OCR and its language. Set on the collection, overridable on the next file you add - a scanned rate card and a Markdown runbook do not want the same parser.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
-  <img alt="Parsing, per upload" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
+  <img alt="Parsing, per upload" src="docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
 </picture>
 
 </td>
@@ -142,8 +142,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **A collection** — Documents, their chunk counts and what failed to ingest. Upload here, then choose in chat which collections an agent may search.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/knowledge-base-detail.webp">
-  <img alt="A collection" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/knowledge-base-detail.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-detail.webp">
+  <img alt="A collection" src="docs/assets/screens/light/knowledge-base-detail.webp" width="100%">
 </picture>
 
 </td>
@@ -154,8 +154,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Approvals** — Everything waiting on a person, with what the agent intends to do. Decided exactly once - a second decision on a settled approval is refused.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/activity-approvals.webp">
-  <img alt="Approvals" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/activity-approvals.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-approvals.webp">
+  <img alt="Approvals" src="docs/assets/screens/light/activity-approvals.webp" width="100%">
 </picture>
 
 </td>
@@ -164,8 +164,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Spend** — What the organization actually spent, by period. A budget is checked <i>before</i> the model request, so a run that breaches one stops mid-answer and still records what it cost.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/activity-spend.webp">
-  <img alt="Spend" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/activity-spend.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
+  <img alt="Spend" src="docs/assets/screens/light/activity-spend.webp" width="100%">
 </picture>
 
 </td>
@@ -176,8 +176,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Vault** — Every key this organization has stored, sealed per tenant. Replaceable, never readable again - and rotating one is invisible to a published agent, which references the secret rather than its value.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/vault.webp">
-  <img alt="Vault" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/vault.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
+  <img alt="Vault" src="docs/assets/screens/light/vault.webp" width="100%">
 </picture>
 
 </td>
@@ -186,8 +186,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **MCP servers** — Connect any MCP server by URL and its tools become switches in the Builder. Organization-wide, or private to your own chat.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/mcp-servers.webp">
-  <img alt="MCP servers" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/mcp-servers.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
+  <img alt="MCP servers" src="docs/assets/screens/light/mcp-servers.webp" width="100%">
 </picture>
 
 </td>
@@ -198,8 +198,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Channels** — The chat platforms this organization answers on - Slack, Telegram, Mattermost. One bot serves one agent, bound under that agent's Availability tab.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/channels.webp">
-  <img alt="Channels" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/channels.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/channels.webp">
+  <img alt="Channels" src="docs/assets/screens/light/channels.webp" width="100%">
 </picture>
 
 </td>
@@ -208,8 +208,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Routines** — What agents do with nobody typing: a schedule, or an event that arrives. The run is recorded and budgeted like any other.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/routines.webp">
-  <img alt="Routines" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/routines.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/routines.webp">
+  <img alt="Routines" src="docs/assets/screens/light/routines.webp" width="100%">
 </picture>
 
 </td>
@@ -220,8 +220,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Sandboxes** — Where agents run shell commands and keep files. An agent names a connection by id, so moving to another host is one edit here rather than republishing every agent.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/sandboxes.webp">
-  <img alt="Sandboxes" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/sandboxes.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/sandboxes.webp">
+  <img alt="Sandboxes" src="docs/assets/screens/light/sandboxes.webp" width="100%">
 </picture>
 
 </td>
@@ -230,8 +230,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 **Dashboard** — Arrangeable widgets over the whole deployment and then this organization - runs, spend, service health, answer quality. Each card is gated on the permission its data needs.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/dark/dashboard.webp">
-  <img alt="Dashboard" src="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docs/assets/screens/light/dashboard.webp" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp">
+  <img alt="Dashboard" src="docs/assets/screens/light/dashboard.webp" width="100%">
 </picture>
 
 </td>

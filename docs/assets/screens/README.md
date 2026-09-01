@@ -57,6 +57,19 @@ ffmpeg -i <master>.mp4 -an -vf scale=1280:-2 -c:v libx264 -crf 27 \
 - **No sign-in or onboarding.** Whatever a first-time visitor meets is
   undocumented here.
 
+## Paths
+
+The README references these with **relative** paths (`docs/assets/screens/...`),
+not `raw.githubusercontent.com/.../main/...`: a raw URL resolves against `main`,
+so every image on a feature branch is a 404 until the branch merges, which makes
+the one place you want to check the layout the one place it cannot be checked.
+
+Relative `src` on an `<img>` is rewritten by GitHub and works. Relative `srcset`
+on a `<source>` inside `<picture>` is less certain — if GitHub does not rewrite
+it, a dark-mode reader simply gets the light image, which is a degradation
+rather than a break. The `<video>` is the same bargain: if a relative video
+`src` does not play, the animated WebP nested inside it does.
+
 ## How the split was made
 
 By mean luminance, not by hand: dark screens measure 17–31 and light ones
