@@ -8,14 +8,14 @@
   <b>One place to build, run and govern your company's AI agents.</b><br>
   Self-hosted and open source — on your Postgres, in your Docker, under your
   domain.<br>
-  <sub>The OS in the name is a claim we make good on: <a href="#why-it-is-called-an-operating-system">seven functions, seven mechanisms</a>.</sub>
+  <sub>The OS in the name is a claim we make good on: <a href="#the-best-agentic-os-you-can-run-yourself">seven functions, seven mechanisms</a>.</sub>
 </p>
 
 <p>
   <a href="#-quick-start">Quick start</a> &middot;
   <a href="#what-it-looks-like">Screens</a> &middot;
   <a href="docs/index.md">Docs</a> &middot;
-  <a href="#why-it-is-called-an-operating-system">Why an OS</a> &middot;
+  <a href="#the-best-agentic-os-you-can-run-yourself">Why an OS</a> &middot;
   <a href="#compared-with-the-alternatives">Comparison</a>
 </p>
 
@@ -312,10 +312,11 @@ Nothing ships until **Publish**.
 
 <sub>Screenshots follow your GitHub theme. <a href="docs/screens.md">All 35 screens</a>.</sub>
 
-## Why it is called an operating system
+## The best agentic OS you can run yourself
 
-The word is a specification here, not a label. An operating system does seven
-things, and each row is a mechanism you can read in the source.
+That is a claim, and the only honest way to make one is to hand over the criteria
+and let you count. An operating system does seven things. Each row below is a
+mechanism you can read in the source, not a promise.
 
 | What an operating system does | What AgenticOS does |
 |---|---|
@@ -332,10 +333,18 @@ like to be judged on, and
 [When to use something else](docs/about/comparison.md) is where we run it against
 the alternatives - including the rows where the honest answer here is "not yet".
 
-Apply the same seven to anything else in the category. That is the test we would
-like to be judged on, and
-[When to use something else](docs/about/comparison.md) runs it against the
-alternatives — including the rows where the honest answer here is "not yet".
+**Now apply the same seven to anything else in the category** — including the
+ones with a thousand times our stars. None of them explains why it is an
+operating system, because most of them are a workspace with the letters on the
+box. That is the whole claim: not that we have the most users, but that we are
+the only one that states the criteria and then meets them in code you can read.
+
+Where the honest answer here is still "not yet", it is a row in the comparison
+below and a line on the [roadmap](docs/ROADMAP.md).
+[When to use something else](docs/about/comparison.md) is the long version,
+including where this one loses, and
+[what makes something an operating system for agents](docs/about/index.md) is the
+criteria on their own — take them and score anybody, us included.
 
 ## What an agent can do
 
