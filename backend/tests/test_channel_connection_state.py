@@ -13,6 +13,7 @@ Redis is not configured.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -169,3 +170,34 @@ class TestTheStoredShape:
             "state": "down",
             "reason": "Add the xapp- token.",
         }
+
+
+class TestKeepingAQuietConnectionAlive:
+    """`record_up` fires once, when the stream opens, and the entry expires on a
+    TTL - so every healthy bot read `unknown` after fifteen quiet minutes and the
+    listing lost its health signal during entirely normal operation.
+    """
+
+    async def test_it_restamps_on_its_own_clock(self, monkeypatch):
+        redis = _Redis()
+        connection_state.configure(redis)
+        bot = uuid4()
+        slept: list[float] = []
+
+        async def _sleep(seconds: float) -> None:
+            slept.append(seconds)
+            if len(slept) == 3:
+                raise asyncio.CancelledError
+
+        monkeypatch.setattr(connection_state.asyncio, "sleep", _sleep)
+
+        with pytest.raises(asyncio.CancelledError):
+            await connection_state.heartbeat(bot)
+
+        assert slept == [connection_state.HEARTBEAT_SECONDS] * 3
+        assert json.loads(redis.store[f"channel:conn:{bot}"])["state"] == "up"
+
+    def test_the_interval_leaves_room_for_a_missed_beat(self):
+        """Two beats can be missed before the entry expires; one slow round trip
+        must not make a healthy bot read `unknown`."""
+        assert connection_state.HEARTBEAT_SECONDS * 2 < connection_state.TTL_SECONDS

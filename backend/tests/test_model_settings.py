@@ -242,12 +242,29 @@ class TestSpecsPublishedBeforeThisExisted:
 
         assert [ref.connection_id for ref in spec.mcp_servers] == [_ID]
 
-    def test_legacy_ids_that_are_not_a_list_are_left_to_pydantic(self):
-        """Dropped rather than coerced: a spec this malformed is not one to
-        guess at, and `mcp_servers` then fails on its own terms."""
-        spec = AgentSpec.model_validate({"name": "x", "mcp_server_ids": None})
+    def test_legacy_ids_that_are_not_a_list_are_refused(self):
+        """Left in place rather than dropped, so validation names the field.
 
-        assert spec.mcp_servers == []
+        This test used to assert the opposite - that the field was removed and
+        the spec loaded with no bindings - which is what the code did and is a
+        silent discard of what the author was binding. Imported YAML saying
+        `mcp_server_ids: <uuid>` published happily having thrown the server
+        away, where the old schema had reported it.
+        """
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate({"name": "x", "mcp_server_ids": None})
+
+    def test_a_malformed_legacy_field_is_refused_even_beside_a_good_binding(self):
+        """A value this wrong is a mistake worth naming, not one to ignore
+        because another field happens to say something valid."""
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate(
+                {
+                    "name": "x",
+                    "mcp_server_ids": str(_ID),
+                    "mcp_servers": [{"connection_id": str(_ID)}],
+                }
+            )
 
     def test_a_spec_that_is_not_a_mapping_is_left_to_pydantic(self):
         """The migration must not swallow a malformed document."""

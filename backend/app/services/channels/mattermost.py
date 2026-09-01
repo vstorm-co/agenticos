@@ -727,14 +727,19 @@ class MattermostAdapter(ChannelAdapter):
                 self._own_ids[bot_id] = own
             await connection_state.record_up(bot_id)
             keepalive = asyncio.create_task(self._keepalive(socket))
+            # The entry expires on a TTL and the frame loop below may sit quiet
+            # for hours, so it is re-stamped on its own clock rather than by
+            # traffic (#1351). Torn down with the ping it sits beside.
+            beat = asyncio.create_task(connection_state.heartbeat(bot_id))
             try:
                 async for frame in socket:
                     await self._on_frame(frame, bot_id)
             finally:
                 self._sockets.pop(bot_id, None)
-                keepalive.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await keepalive
+                for task in (keepalive, beat):
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
 
     async def _keepalive(self, socket: Any) -> None:
         seq = 2

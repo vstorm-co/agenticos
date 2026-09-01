@@ -24,6 +24,7 @@ whose API worker was replaced is not down, it is unknown.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -85,6 +86,28 @@ async def record_up(bot_id: UUID | str) -> None:
 async def record_down(bot_id: UUID | str, reason: str) -> None:
     """The stream is not running, and this is what an operator can do about it."""
     await _write(bot_id, ChannelConnection(state="down", reason=reason))
+
+
+HEARTBEAT_SECONDS = TTL_SECONDS // 3
+"""How often a live supervisor re-stamps its entry.
+
+A third of the TTL, so two heartbeats can be missed before the entry expires -
+one slow Redis round trip must not make a healthy bot read `unknown`.
+"""
+
+
+async def heartbeat(bot_id: UUID | str) -> None:
+    """Keep this bot's `up` entry alive for as long as this task runs.
+
+    Never returns; cancel it when the stream closes. It exists because
+    `record_up` fires once, when the stream opens, and the entry expires after
+    `TTL_SECONDS` - so every healthy Slack, Telegram or Mattermost connection
+    read `unknown` after fifteen quiet minutes, and the channels listing lost
+    its health signal during entirely normal operation.
+    """
+    while True:
+        await asyncio.sleep(HEARTBEAT_SECONDS)
+        await record_up(bot_id)
 
 
 async def forget(bot_id: UUID | str) -> None:

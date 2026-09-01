@@ -484,8 +484,10 @@ class SlackAdapter(ChannelAdapter):
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
         await client.connect()
         await connection_state.record_up(bot_id)
-        while True:
-            await asyncio.sleep(1)
+        # Blocks for the life of the connection, as the bare sleep loop it
+        # replaces did - and re-stamps the entry while it waits, so a bot nobody
+        # has messaged for fifteen minutes does not read `unknown` (#1351).
+        await connection_state.heartbeat(bot_id)
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Slack doesn't have a register webhook API - configuration is done

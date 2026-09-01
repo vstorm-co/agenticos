@@ -893,12 +893,21 @@ class AgentSpec(BaseModel):
 
         An explicit `mcp_servers` wins, so re-reading a migrated spec changes
         nothing.
+
+        A legacy value that is not a list is **left in place** rather than
+        dropped. Removing it made the document valid with no MCP bindings at
+        all, so imported YAML saying `mcp_server_ids: <uuid>` published happily
+        having silently discarded the server its author was binding - where the
+        old schema had reported the field. Left where it is, `extra="forbid"`
+        refuses the document and names the field.
         """
         if not isinstance(data, dict) or "mcp_server_ids" not in data:
             return data
         legacy = data["mcp_server_ids"]
+        if not isinstance(legacy, list):
+            return data
         migrated = {key: value for key, value in data.items() if key != "mcp_server_ids"}
-        if "mcp_servers" in data or not isinstance(legacy, list):
+        if "mcp_servers" in data:
             return migrated
         migrated["mcp_servers"] = [{"connection_id": value} for value in legacy]
         return migrated

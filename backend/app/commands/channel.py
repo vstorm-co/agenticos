@@ -89,7 +89,19 @@ def _org_option(fn):
 
 
 def _coerce_bot_id(bot_id: str) -> Any:
-    return UUID(bot_id)
+    """The option as the id the service takes.
+
+    Raises:
+        NotFoundError: If it is not a UUID. Deliberately the same refusal a
+            missing bot produces, because to an operator who mistyped the option
+            they are the same mistake - and a `ValueError` here reached the top
+            of three commands as a traceback, which reads as a broken tool
+            rather than as a typo.
+    """
+    try:
+        return UUID(bot_id)
+    except ValueError as exc:
+        raise NotFoundError(message="Bot not found", details={"bot_id": bot_id}) from exc
 
 
 @command("channel-list-bots", help="List all registered channel bots")
