@@ -80,10 +80,9 @@ write for your own use case.
 
 ## What it looks like
 
-Somebody drops a spreadsheet into the chat and asks, in one sentence, to see it
-as charts. The agent works out how, does the arithmetic itself in a locked box,
-and answers with the charts and what they say. Nobody built a report for this
-file, and nobody wrote any code.
+A spreadsheet dropped into the chat, one sentence asking for charts. The agent
+writes the code, runs it in a locked box, and answers with the charts and what
+they say.
 
 <div align="center">
 
@@ -95,26 +94,23 @@ file, and nobody wrote any code.
 
 ### Inside one agent
 
-An agent is defined on a form, not in a codebase: what it should do, which model
-answers, what it is allowed to touch, and what it may spend. So the person who
-actually knows the answer writes it — support writes the support agent — and
-nothing reaches a customer until somebody presses **Publish**. The badge here
-says v40 is live while the draft is still being worked on.
+An agent is a form, not a codebase: instructions, a model, tools, limits.
+Nothing ships until **Publish** — here v40 is live while a draft is still open.
 
-<img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: what it should do, which model answers, and the version that is live" width="100%">
+<img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: instructions, model, and the version that is live" width="100%">
 
 <table>
 <tr>
 <td width="50%">
 
-**Toolbox** — A language model on its own can only write text back at you. **Tools** are what let it act — search your own documents, read a web page, do the arithmetic, open a ticket. Everything wrapped around the model to make it useful and keep it in bounds is what the industry now calls an **AI harness**, and this is where you assemble one: switch on what this agent may do, and set anything consequential to ask a person first.
+**Toolbox** — What the agent may do, as switches — your documents, a browser, Python, charts, delegation. Each one can require a person's approval first. This is the **AI harness**, assembled in a form.
 
 <img alt="Toolbox" src="docs/assets/screens/dark/builder-toolbox.webp" width="100%">
 
 </td>
 <td width="50%">
 
-**Visual map** — The same agent as a picture, for the conversation where somebody asks what it can reach. Solid boxes are things it has; a dashed one is something nobody attached — a spending ceiling that was never set shows up as a gap rather than hiding as a default.
+**Visual map** — The agent as a graph: what reaches it, what it reaches for. A dashed box is something nobody attached.
 
 <img alt="Visual map" src="docs/assets/screens/dark/builder-visual-map.webp" width="100%">
 
@@ -123,14 +119,14 @@ says v40 is live while the draft is still being worked on.
 <tr>
 <td width="50%">
 
-**Limits** — The two ways an AI project surprises you on the invoice, both capped here. A monthly ceiling per agent, checked *before* each question goes to the model rather than added up afterwards — and a step limit for the other case, an agent that loops cheaply and never stops.
+**Limits** — A monthly cap per agent, checked *before* each model call rather than added up after — plus a step limit, for the loop that is cheap and never stops.
 
 <img alt="Limits" src="docs/assets/screens/dark/builder-limits.webp" width="100%">
 
 </td>
 <td width="50%">
 
-**History** — Every version this agent has ever had, still readable. What it was told to say in March is a question with an answer, and going back to it is a click rather than an investigation.
+**History** — Every version it has had, still readable. Rolling back is a click.
 
 <img alt="History" src="docs/assets/screens/dark/builder-history.webp" width="100%">
 
@@ -138,18 +134,15 @@ says v40 is live while the draft is still being worked on.
 </tr>
 </table>
 
-<sub>These four are dark only — the light half of this screen has not been captured, so unlike every other screenshot here they do not follow your theme.</sub>
+<sub>These four are dark only — the light half has not been captured.</sub>
 
 ### Everything else it takes to run forty of them
-
-Screenshots follow your GitHub theme — light or dark, whichever you are reading
-in. [All 35 screens](docs/screens.md).
 
 <table>
 <tr>
 <td width="50%">
 
-**Agents** — Every agent the company runs, in one list, with the version that is live and who is allowed to use it. The point of one list: somebody can finally answer *what do we run, and who signed off on it*.
+**Agents** — Every agent you run, with the version that is live and who may use it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp">
@@ -159,7 +152,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**Templates** — You do not start from a blank page. Pick something close to your industry, and you get a draft to adjust and publish — a first working agent in an afternoon rather than a project.
+**Templates** — Start from one built for your industry; you get a draft to adjust and publish.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents-templates-dialog.webp">
@@ -171,7 +164,7 @@ in. [All 35 screens](docs/screens.md).
 <tr>
 <td width="50%">
 
-**One answer, opened up** — Every time an agent answers anybody, it is recorded: what it was asked, what it looked at, what it decided, how long it took and what it cost — to a fraction of a cent. This is the screen that turns *the AI said something odd* into something you can actually check.
+**One answer, opened up** — Every answer recorded: the question, what it looked at, every tool call, the duration, the cost to a fraction of a cent.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-run-detail.webp">
@@ -181,7 +174,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**How your documents are read** — A PDF is not text — somebody has to read it out of the page, and a scanned price list, a contract and a spreadsheet each need a different reader. Most products choose one for you and hide it; here you choose per folder, or for the next file you upload. Wrong reader is the difference between an answer and *I cannot find that*.
+**How your documents are read** — Three PDF readers — PyMuPDF, LiteParse, LlamaParse — plus chunking and OCR. Per collection, overridable on the next file. A scanned price list and a contract do not want the same one.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
@@ -193,7 +186,7 @@ in. [All 35 screens](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Your documents** — A folder of documents an agent may read — handbooks, policies, price lists. Upload them here, and then say which agents may look inside which folders.
+**Your documents** — A folder an agent may read. Upload, then say which agents see which folders.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-detail.webp">
@@ -203,7 +196,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**Skills** — A procedure written once, in plain language, and used by every agent that needs it: how a refund is handled, how a complaint is answered. Change the wording here and every agent using it is current on its next answer — no release, no developer.
+**Skills** — A procedure written once in plain language, used by every agent bound to it. Edit here; live on the next answer, with no release.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
@@ -215,7 +208,7 @@ in. [All 35 screens](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Context** — The standing facts an agent should never get wrong: what your products are called, which policy applies, how the company sounds in writing. Written in one place instead of pasted into forty prompts.
+**Context** — Standing facts — product names, policy, house tone — in one place instead of forty prompts.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
@@ -225,7 +218,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**It asks before it acts** — Anything that leaves a mark — sending the email, raising the ticket, issuing the refund — stops here and waits for a person, with what the agent intends to do written out. Decided once and only once: nobody can approve what somebody else already rejected.
+**It asks before it acts** — Anything that sends, files or refunds waits for a person, with the intended action written out. Decided exactly once.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-approvals.webp">
@@ -237,7 +230,7 @@ in. [All 35 screens](docs/screens.md).
 <tr>
 <td width="50%">
 
-**What it costs** — What the company spent, by period and by agent. Every agent has a monthly ceiling checked before it asks the model anything, so a runaway stops mid-sentence instead of arriving as a surprise invoice at the end of the month.
+**What it costs** — Spend by period and by agent. The cap is checked before the model is asked, so a runaway stops mid-sentence instead of arriving as an invoice.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
@@ -247,7 +240,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**Keys and credentials** — Every key the company has given its agents, encrypted and separated per team. Replaceable, never readable again — including by whoever runs the server. Rotating one takes a paste and nothing has to be republished.
+**Keys and credentials** — Every key, encrypted and separated per team. Replaceable, never readable again — including by whoever runs the server.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
@@ -259,7 +252,7 @@ in. [All 35 screens](docs/screens.md).
 <tr>
 <td width="50%">
 
-**The tools you already pay for** — Agents can use the systems the company already runs — a helpdesk, a CRM, a repository, a database — through the open standard those products are publishing for exactly this (MCP). 99 connections checked by us plus 5,703 from the public directory, searchable by name. Connect one for the company, or just for yourself.
+**The tools you already pay for** — Any MCP server by URL: 99 checked with their OAuth wired, plus 5,703 mirrored from the public registry and searchable by name. No connector to write.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
@@ -269,7 +262,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**Where people meet it** — The same agent answers wherever your team already works — Slack, Telegram, Mattermost, a widget on your website, or your own software through the API. One agent, published once, with the same limits and the same record everywhere.
+**Where people meet it** — Slack, Telegram, Mattermost, a website widget, your own software over the API. Published once; same limits everywhere.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/channels.webp">
@@ -281,7 +274,7 @@ in. [All 35 screens](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Work nobody has to start** — Agents that run on a schedule, or when something happens: the Monday summary, the alert that gets triaged at 07:00, the inbox that gets sorted overnight. Same limits, same approvals, same record as anything a person asked for.
+**Work nobody has to start** — Schedules and event triggers — the 07:00 triage, the Monday summary. Same limits, same record.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/routines.webp">
@@ -291,7 +284,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**Where code runs** — When an agent needs to compute something it writes the code and runs it — in a locked box with its own files, not on your servers. You can read afterwards exactly what it ran.
+**Where code runs** — Code the agent writes runs in a locked box with its own files, not on your servers. Readable afterwards.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/sandboxes.webp">
@@ -303,7 +296,7 @@ in. [All 35 screens](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Teams, kept apart** — One installation, many teams or clients, and no way for one to see another's agents, documents or costs — separation the database enforces rather than the application remembering to. Who can do what is granted, not assumed.
+**Teams, kept apart** — Many teams or clients on one install. The separation is in the database schema, not in the application remembering.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/organizations.webp">
@@ -313,7 +306,7 @@ in. [All 35 screens](docs/screens.md).
 </td>
 <td width="50%">
 
-**One screen for the morning** — What ran, what it cost, what is waiting on somebody, and whether anything is unhealthy — arranged the way you want to read it. Each card only appears for people allowed to see what is on it.
+**One screen for the morning** — What ran, what it cost, what is waiting, what is unhealthy. Each card only shows for people allowed to see it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp">
@@ -323,6 +316,8 @@ in. [All 35 screens](docs/screens.md).
 </td>
 </tr>
 </table>
+
+<sub>Screenshots follow your GitHub theme. <a href="docs/screens.md">All 35 screens</a>.</sub>
 
 ## ⚡ Get it running
 
