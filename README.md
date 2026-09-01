@@ -491,27 +491,3 @@ Built with care by <a href="https://vstorm.co"><b>Vstorm</b></a> ·
 <a href="https://oss.vstorm.co">oss.vstorm.co</a>
 
 </div>
-
----
-
-<div align="center">
-
-### Need help putting agents into production?
-
-<p>
-We are <a href="https://vstorm.co"><b>Vstorm</b></a> — an applied agentic AI engineering
-consultancy with 30+ production agent implementations.<br>
-AgenticOS is what we build them on, and we deploy it inside client
-infrastructure: your cloud, your data centre, or air-gapped.
-</p>
-
-<a href="https://vstorm.co/contact-us/">
-  <img src="https://img.shields.io/badge/Talk%20to%20us%20%E2%86%92-0066FF?style=for-the-badge&logoColor=white" alt="Talk to us">
-</a>
-
-<br><br>
-
-Built with care by <a href="https://vstorm.co"><b>Vstorm</b></a> ·
-<a href="https://oss.vstorm.co">oss.vstorm.co</a>
-
-</div>
