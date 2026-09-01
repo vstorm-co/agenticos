@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
 import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
-import { useMemoryFacts, type MemoryScope } from "@/hooks/use-memory";
+import { useMemoryDangerZone, useMemoryFacts, type MemoryScope } from "@/hooks/use-memory";
 import { getErrorMessage } from "@/lib/api-error";
 import type { MemoryFact } from "@/types/memory";
 
@@ -40,13 +40,15 @@ interface MemoryFactsPaneProps {
 export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProps) {
   const t = useTranslations("memory");
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const format = useFormatter();
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const search = useDebounced(query);
 
-  const { facts, total, isLoading, error, remove } = useMemoryFacts({
+  const { clearFacts } = useMemoryDangerZone(agentId);
+  const { facts, total, isLoading, error, refetch, remove } = useMemoryFacts({
     agentId,
     scope,
     search,
@@ -55,20 +57,28 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
   });
 
   const [pendingDelete, setPendingDelete] = useState<MemoryFact | null>(null);
+  const [clearOpen, setClearOpen] = useState(false);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltering = search.trim() !== "";
 
   const controls = (
-    <SearchInput
-      value={query}
-      onChange={(next) => {
-        setQuery(next);
-        setPage(0);
-      }}
-      placeholder={t("filterFacts")}
-      className="sm:w-56"
-    />
+    <div className="flex flex-wrap items-center gap-2">
+      <SearchInput
+        value={query}
+        onChange={(next) => {
+          setQuery(next);
+          setPage(0);
+        }}
+        placeholder={t("filterFacts")}
+        className="sm:w-56"
+      />
+      {canEdit && total > 0 && (
+        <Button variant="outline" size="sm" onClick={() => setClearOpen(true)}>
+          {t("clearFacts")}
+        </Button>
+      )}
+    </div>
   );
 
   return (
@@ -84,7 +94,10 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
         controls={controls}
       >
         {error ? (
-          <ErrorState description={getErrorMessage(error, tErrors)} />
+          <ErrorState
+            description={getErrorMessage(error, tErrors)}
+            cta={{ label: tc("retry"), onClick: () => void refetch() }}
+          />
         ) : isLoading ? (
           <LoadingState variant="skeleton-cards" rows={3} />
         ) : facts.length === 0 ? (
@@ -150,6 +163,22 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
           onConfirm={async () => {
             await remove.mutateAsync(pendingDelete.id);
             setPendingDelete(null);
+          }}
+        />
+      )}
+
+      {clearOpen && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setClearOpen(false)}
+          title={t("clearFactsConfirm")}
+          description={t("clearFactsHint")}
+          confirmLabel={t("clearFacts")}
+          destructive
+          loading={clearFacts.isPending}
+          onConfirm={async () => {
+            await clearFacts.mutateAsync();
+            setClearOpen(false);
           }}
         />
       )}

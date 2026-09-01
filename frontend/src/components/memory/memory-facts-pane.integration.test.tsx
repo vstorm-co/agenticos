@@ -142,5 +142,42 @@ describe("MemoryFactsPane", () => {
     await screen.findByText("Acme's fiscal year starts in April.");
 
     expect(screen.queryByRole("button", { name: "Forget fact" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all facts" })).not.toBeInTheDocument();
+  });
+
+  it("clears every fact from the pane, behind a confirm", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    mount();
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear all facts" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Clear all facts" }));
+
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/memory/facts?agent_id=a1"));
+  });
+
+  it("backs out of clearing facts without deleting anything", async () => {
+    mount();
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear all facts" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed load rather than stranding an error", async () => {
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new ApiError(502, "upstream", null))
+      .mockResolvedValue({ items: [FACT_SHARED], total: 1 });
+    mount();
+    expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Acme's fiscal year starts in April.")).toBeInTheDocument();
   });
 });

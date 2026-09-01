@@ -16,12 +16,12 @@ export type MemorySort = "name" | "updated";
 /**
  * Which partition to list.
  *
- * `all` spans every partition; `shared` is the one store every end-user reads.
- * The per-user partitions are surfaced within `all` by their partition badge —
- * a dedicated per-user filter is a later step, because naming an end-user needs
- * an identity the raw `user:`/`chan:` key does not carry.
+ * `all` spans every partition, `shared` the one store every end-user reads, and
+ * `per_user` every private per-end-user store at once. A `per_user` listing
+ * shows the raw `user:`/`chan:` key rather than a person's name — naming the
+ * end-user behind a key needs an identity the key does not carry, a later step.
  */
-export type MemoryScope = "all" | "shared";
+export type MemoryScope = "all" | "shared" | "per_user";
 
 /** The fields an operator sets when authoring a trusted memory file. */
 interface NewMemoryFile {
@@ -72,7 +72,7 @@ export function useMemoryFiles({
   const t = useTranslations("memory");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.memory.files(agentId, { scope, search, sort, skip, limit }),
     queryFn: () => {
       const params = new URLSearchParams({ agent_id: agentId, partition: scope, sort });
@@ -115,7 +115,6 @@ export function useMemoryFiles({
     total: data?.total ?? 0,
     isLoading,
     error,
-    refetch,
     create,
     remove,
   };
@@ -229,4 +228,38 @@ export function useMemoryFacts({
     refetch,
     remove,
   };
+}
+
+/**
+ * The two danger-zone clears.
+ *
+ * `clearMemory` deletes every file and fact for the agent in every partition
+ * (so it invalidates the whole agent root); `clearFacts` deletes only the facts.
+ * Both are single agent-scoped requests, so a confirm dialog is the only guard
+ * the UI owes them.
+ */
+export function useMemoryDangerZone(agentId: string) {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("memory");
+  const queryClient = useQueryClient();
+
+  const clearMemory = useMutation({
+    mutationFn: () => apiClient.delete<void>(`/memory?agent_id=${agentId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.memory.all(agentId) });
+      toast.success(t("cleared"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  const clearFacts = useMutation({
+    mutationFn: () => apiClient.delete<void>(`/memory/facts?agent_id=${agentId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.memory.factsRoot(agentId) });
+      toast.success(t("factsCleared"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return { clearMemory, clearFacts };
 }

@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useMemoryFacts, useMemoryFile, useMemoryFiles } from "./use-memory";
+import { useMemoryDangerZone, useMemoryFacts, useMemoryFile, useMemoryFiles } from "./use-memory";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 
@@ -264,6 +264,46 @@ describe("useMemoryFacts", () => {
     const { result } = renderHook(() => useMemoryFacts({ agentId: "a1" }), { wrapper });
 
     await expect(result.current.remove.mutateAsync("x1")).rejects.toThrow();
+    expect(toastError).toHaveBeenCalled();
+  });
+});
+
+describe("useMemoryDangerZone", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("clears an agent's whole memory and reports it", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useMemoryDangerZone("a1"), { wrapper });
+
+    await result.current.clearMemory.mutateAsync();
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/memory?agent_id=a1");
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("clears an agent's facts and reports it", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useMemoryDangerZone("a1"), { wrapper });
+
+    await result.current.clearFacts.mutateAsync();
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/memory/facts?agent_id=a1");
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("toasts when a clear-all fails", async () => {
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useMemoryDangerZone("a1"), { wrapper });
+
+    await expect(result.current.clearMemory.mutateAsync()).rejects.toThrow();
+    expect(toastError).toHaveBeenCalled();
+  });
+
+  it("toasts when clearing facts fails", async () => {
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useMemoryDangerZone("a1"), { wrapper });
+
+    await expect(result.current.clearFacts.mutateAsync()).rejects.toThrow();
     expect(toastError).toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -131,10 +131,45 @@ describe("MemoryPanel", () => {
     expect(screen.getByText("Memory is off")).toBeInTheDocument();
   });
 
-  it("passes read-only through to a viewer", async () => {
+  it("filters both halves to the per-user partitions", async () => {
+    mount();
+    await screen.findByText("user-preferences");
+
+    await userEvent.click(screen.getByRole("button", { name: "Per-user" }));
+
+    await waitFor(() => expect(lastFilesCall()).toContain("partition=per_user"));
+  });
+
+  it("clears all memory from the danger zone, behind a confirm", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    mount();
+    await screen.findByText("user-preferences");
+
+    // The card's button and the confirm's share the label; the card's is first.
+    await userEvent.click(screen.getAllByRole("button", { name: "Clear all memory" })[0]!);
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Clear all memory" }));
+
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/memory?agent_id=a1"));
+  });
+
+  it("backs out of clearing memory without deleting anything", async () => {
+    mount();
+    await screen.findByText("user-preferences");
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Clear all memory" })[0]!);
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("passes read-only through to a viewer, danger zone included", async () => {
     mount({ canEdit: false });
     await screen.findByText("user-preferences");
 
     expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all memory" })).not.toBeInTheDocument();
   });
 });

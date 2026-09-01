@@ -250,6 +250,9 @@ export const qk = {
   // reached by the invalidation, which leaves a promoted file showing its old
   // untrusted state. A mutation also writes its result back over the detail.
   memory: {
+    // The whole of one agent's memory — the root a clear-all invalidates, since
+    // it removes both files and facts at once.
+    all: (agentId: string) => ["memory", agentId] as const,
     filesRoot: (agentId: string) => ["memory", agentId, "files"] as const,
     files: (
       agentId: string,

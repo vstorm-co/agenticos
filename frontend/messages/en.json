@@ -2648,6 +2648,10 @@
         "title": "Put it to work",
         "body": "Availability is where a published agent goes live — a web chat, an embed on your site, Slack or Telegram — and where you decide who to share it with."
       },
+      "agent-memory": {
+        "title": "What it remembers",
+        "body": "When an agent has memory, this tab is where you review, seed and clear what it keeps across runs — trusted files you author and the facts it learns, per shared or per-user store."
+      },
       "agent-history": {
         "title": "Every version, kept",
         "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
@@ -4775,7 +4779,16 @@
     "noFactMatches": "No facts match",
     "noFactMatchesHint": "The filter is a substring match on the fact text.",
     "nothingEnabled": "Memory is off",
-    "nothingEnabledHint": "Neither files nor facts are enabled. Turn one on in the Toolbox to use memory."
+    "nothingEnabledHint": "Neither files nor facts are enabled. Turn one on in the Toolbox to use memory.",
+    "scopePerUser": "Per-user",
+    "clearMemory": "Clear all memory",
+    "clearMemoryConfirm": "Clear all memory?",
+    "clearMemoryHint": "Permanently delete every file and fact for this agent, in every partition. A store nobody can clear is a liability.",
+    "cleared": "Memory cleared",
+    "clearFacts": "Clear all facts",
+    "clearFactsConfirm": "Forget every fact?",
+    "clearFactsHint": "Every fact this agent has remembered is deleted, in every partition. Its files are left. This cannot be undone.",
+    "factsCleared": "All facts forgotten"
   },
   "avatarColor": {
     "auto": "Automatic colour",

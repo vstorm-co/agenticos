@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 
-import { Badge } from "@/components/ui";
+import { Badge, Button, Card, CardContent, ConfirmDialog } from "@/components/ui";
 import { EmptyState } from "@/components/states";
 import { Database } from "lucide-react";
 import { Chip } from "@/components/memory/memory-chip";
 import { MemoryFactsPane } from "@/components/memory/memory-facts-pane";
 import { MemoryFilesPane } from "@/components/memory/memory-files-pane";
-import type { MemoryScope } from "@/hooks/use-memory";
+import { useMemoryDangerZone, type MemoryScope } from "@/hooks/use-memory";
 import { useTranslations } from "next-intl";
 
 interface MemoryPanelProps {
@@ -47,11 +47,13 @@ export function MemoryPanel({
 
   const showSwitcher = enableFiles && enableFacts;
   const active: SubTab = showSwitcher ? sub : enableFiles ? "files" : "facts";
+  const { clearMemory } = useMemoryDangerZone(agentId);
+  const [clearOpen, setClearOpen] = useState(false);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-tour="agent-memory">
           <Badge variant="secondary">
             {t(partition === "per_user" ? "cfgPerUser" : "cfgShared")}
           </Badge>
@@ -64,6 +66,9 @@ export function MemoryPanel({
           </Chip>
           <Chip active={scope === "shared"} onClick={() => setScope("shared")}>
             {t("scopeShared")}
+          </Chip>
+          <Chip active={scope === "per_user"} onClick={() => setScope("per_user")}>
+            {t("scopePerUser")}
           </Chip>
         </div>
       </div>
@@ -89,6 +94,36 @@ export function MemoryPanel({
         <MemoryFilesPane key={scope} agentId={agentId} canEdit={canEdit} scope={scope} />
       ) : (
         <MemoryFactsPane key={scope} agentId={agentId} canEdit={canEdit} scope={scope} />
+      )}
+
+      {canEdit && (enableFiles || enableFacts) && (
+        <Card className="border-destructive/40">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+            <div className="min-w-0 space-y-1">
+              <p className="text-destructive text-sm font-medium">{t("clearMemory")}</p>
+              <p className="text-muted-foreground text-sm">{t("clearMemoryHint")}</p>
+            </div>
+            <Button variant="destructive" onClick={() => setClearOpen(true)}>
+              {t("clearMemory")}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {clearOpen && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setClearOpen(false)}
+          title={t("clearMemoryConfirm")}
+          description={t("clearMemoryHint")}
+          confirmLabel={t("clearMemory")}
+          destructive
+          loading={clearMemory.isPending}
+          onConfirm={async () => {
+            await clearMemory.mutateAsync();
+            setClearOpen(false);
+          }}
+        />
       )}
     </div>
   );
