@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.346] - 2026-09-01
+
+### Changed
+
+- **The bulk RAG teardown's cleanup is durable across a restart.** #1293 and #1347
+  moved the file unlinks and the vector-store work past the request commit with
+  `spawn_after_commit`, which fixed the ordering but not the durability: an
+  in-process task dies with the worker that queued it, orphaning the files and
+  tables it had left to clean. The durable Prefect deployment #1274 gave the org
+  purge now serves both callers - `org_purge_cleanup` becomes
+  `external_state_cleanup`, same `(storage_paths, collections)` signature, and its
+  #913 reference re-check runs on the worker's own session. `rag_document`'s
+  `_retire_superseded` and `delete_by_collection` dispatch it instead of an
+  in-process unlink, and `knowledge_base.delete` dispatches the files *and* the
+  collection drop in one durable run - so it no longer takes a `vector_store`, and
+  the `delete_knowledge_base` route drops the parameter with it. Sync-source
+  deactivation stays inline. (#1349)
+- `delete_document` - a single document - stays in-process on purpose: what a lost
+  task strands there is one file and one document's vectors, which a durable
+  Prefect run per delete is disproportionate to, and making it durable would undo
+  #992's structural guarantee. Its docstring says so. (#1349)
+- The commit-to-dispatch window #1274 documented stays open: a crash after the
+  commit but before `run_deployment` fires still loses the cleanup, which only an
+  outbox closes. (#1349)
+
 ## [0.0.345] - 2026-09-01
 
 ### Fixed
