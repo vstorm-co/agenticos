@@ -1229,6 +1229,13 @@ class TestMcpConnectionService:
     def service(self):
         return McpConnectionService(db=AsyncMock())
 
+    @pytest.fixture(autouse=True)
+    def locks(self, monkeypatch):
+        """The advisory lock a nomination takes, which needs a real session."""
+        held = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "hold_name", held)
+        return held
+
     @pytest.fixture
     def repo(self, monkeypatch):
         mock_repo = MagicMock()
@@ -1544,6 +1551,55 @@ class TestMcpConnectionService:
             "except_id": conn.id,
         }
         assert repo.update.call_args.kwargs["update_data"]["is_default"] is True
+
+    @pytest.mark.anyio
+    async def test_a_nomination_is_serialized_per_member_and_service(self, service, repo, locks):
+        """Two nominations racing on one service each locked only their own row,
+        each found no sibling still marked, and both wrote `is_default` - so one
+        hit the partial unique index and answered 500. Taken *before* the
+        clear, because the clear is what makes room for the set."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key="notion")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=True)
+        )
+
+        assert locks.await_args.args[2] == f"{user_id}:notion"
+        assert locks.await_args.args[1] is mcp_connection_service.LockScope.MCP_DEFAULT_ACCOUNT
+
+    @pytest.mark.anyio
+    async def test_repointing_the_url_drops_the_cached_tool_list(
+        self, service, repo, locks, monkeypatch
+    ):
+        """The Builder reads that cache without probing, so leaving it presented
+        the previous host's tools as the new server's - and an allowlist saved
+        from that list hides every tool the replacement actually offers."""
+        _allow_any_url(monkeypatch)
+        conn = _connection(url="https://old.example/mcp")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=conn.user_id,
+            connection_id=conn.id,
+            data=McpConnectionUpdate(url="https://new.example/mcp"),
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["last_tools"] is None
+
+    @pytest.mark.anyio
+    async def test_a_change_that_leaves_the_url_alone_keeps_the_tool_list(self, service, repo):
+        """A relabelled connection is the same server; blanking the list would
+        leave an agent author with nothing to choose from."""
+        conn = _connection(url="https://same.example/mcp")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=conn.user_id, connection_id=conn.id, data=McpConnectionUpdate(label="Work")
+        )
+
+        assert "last_tools" not in repo.update.call_args.kwargs["update_data"]
 
     @pytest.mark.anyio
     async def test_un_nominating_leaves_the_siblings_alone(self, service, repo):

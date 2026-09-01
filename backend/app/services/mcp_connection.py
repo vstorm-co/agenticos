@@ -60,6 +60,7 @@ from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
+from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
 from app.repositories import mcp_connection_repo, mcp_registry_server_repo
@@ -553,6 +554,15 @@ class McpConnectionService:
         # OAuth tokens are bound to the resource they were issued for - never
         # carry them over to a different host. The user re-authorizes instead.
         moved = "url" in update_data and update_data["url"] != db_connection.url
+
+        # A different server offers different tools, and the Builder reads this
+        # cache without probing - so leaving it presented the previous host's
+        # tools as the new one's, and an allowlist saved from that list hides
+        # every tool the replacement actually has. Cleared on a move only: a
+        # failed probe against the same host says nothing about what it offers,
+        # which is why `test` leaves the list alone on error.
+        if moved:
+            update_data.setdefault("last_tools", None)
         if moved and db_connection.auth_type == "oauth":
             update_data["oauth_payload"] = None
             update_data["oauth_pending_payload"] = None
@@ -573,6 +583,16 @@ class McpConnectionService:
                     "so nothing says which service it is. Reconnect it from the catalog "
                     "to speak as it.",
                 )
+            # Serialized per member and service before the clear, because the
+            # clear is what makes room for the set. Two nominations racing on
+            # one service each locked only their own row, each found no sibling
+            # still marked, and both wrote `is_default` - so one hit
+            # `uq_mcp_connections_user_default` and answered 500. The lock is
+            # held for the rest of the transaction, which is exactly as long as
+            # the index cares about.
+            await hold_name(
+                self.db, LockScope.MCP_DEFAULT_ACCOUNT, f"{user_id}:{db_connection.catalog_key}"
+            )
             # Cleared on the siblings first, so the partial unique index is
             # never asked to hold two at once. One statement rather than a read
             # and a loop: the index is the constraint, and this is what keeps
@@ -1319,6 +1339,13 @@ class McpConnectionService:
             update_data["oauth_pending_payload"] = None
             update_data["oauth_state"] = None
             update_data["granted_scopes"] = None
+
+        # The same reason as on the personal path, and it matters more here:
+        # every agent bound to this connection reads the Builder's cached tool
+        # list, so a repointed URL would offer the old host's tools to all of
+        # them at once.
+        if moved:
+            update_data.setdefault("last_tools", None)
 
         if not update_data:
             return db_connection

@@ -36,6 +36,10 @@ class LockScope(IntEnum):
     #: referenced. `collection_name` is not tenant-unique (#913), so two
     #: teardowns can be about one table.
     COLLECTION_NAME = 3
+    #: Which of a member's accounts on one service is the default. The partial
+    #: unique index allows one, and the write is read-then-clear-then-set - so
+    #: two nominations racing each found no sibling to clear and both set it.
+    MCP_DEFAULT_ACCOUNT = 4
 
 
 def _key(subject: UUID) -> int:
