@@ -233,7 +233,7 @@ class TestKnowledgeBaseCreate:
         created.assert_not_awaited()
 
     async def test_a_near_miss_name_is_still_created(self) -> None:
-        service = KnowledgeBaseService(MagicMock())
+        service = KnowledgeBaseService(MagicMock(execute=AsyncMock()))
         created = AsyncMock(return_value=MagicMock())
 
         with (
