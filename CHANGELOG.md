@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.348] - 2026-09-01
+
+### Fixed
+
+- **The last two collection drops that ran in the request now go through the
+  durable teardown.** `DELETE /rag/collections/{name}` dropped the table directly,
+  with no #913 reference re-check and no lock, so it could drop a table a second
+  knowledge base still referenced and could race a concurrent claim of the name;
+  `UserService._purge_personal_collections` (#1131) re-checked and then dropped with
+  nothing held in between. Both now delete their document and knowledge-base rows
+  in the request and hand the files and the table drop to
+  `dispatch_external_state_cleanup`, which takes the `COLLECTION_TEARDOWN` lock,
+  re-reads the reference check on its own session, and drops only what no base
+  still claims. `drop_collection`'s drop moves into
+  `KnowledgeBaseService.delete_for_rag_collection`, so the route loses its
+  `vector_store` dependency the way `delete_knowledge_base` did. (#1359)
+- The reserved-name refusal that gated `drop_collection` in-request is now the
+  store's, inside the flow: the route answers 204 and removes the records, and a
+  pre-rule collection whose name folds onto a model table keeps that table. The
+  same deferral tradeoff `delete_knowledge_base` already makes. (#1359)
+- The window every deferred drop leaves - a populated table with no row naming it,
+  which a concurrent claim can adopt - is closed by 0.0.349 (#1362), the tip of
+  this arc. (#1359)
+
 ## [0.0.347] - 2026-09-01
 
 ### Fixed
