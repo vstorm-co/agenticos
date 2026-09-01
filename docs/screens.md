@@ -76,6 +76,59 @@ Standing context every agent can draw on - a glossary, a policy, a brand voice. 
 ![Context](assets/screens/light/context.webp#only-light)
 ![Context](assets/screens/dark/context.webp#only-dark)
 
+## Inside one agent
+
+The Builder, tab by tab. These eight are **dark only** - the light half has
+not been captured, so unlike every other screen on this page they do not
+follow your palette.
+
+### Build
+
+Instructions, model and endpoint. The behaviour lives here rather than in code, in Markdown the model reads for structure - and the header carries `published` beside `Draft differs from v40`, which is the whole point: editing does not ship.
+
+![Build](assets/screens/dark/builder-build.webp)
+
+### Toolbox
+
+Every capability as a switch - knowledge search, a browser, Python in a sandbox, charts, delegation - and the per-tool approval gate beside each. Configuration reaches only what code registered.
+
+![Toolbox](assets/screens/dark/builder-toolbox.webp)
+
+### MCP servers
+
+Which connections this agent may reach, and which of their tools. The organization's list still bounds it; an agent can narrow inside that and cannot reach past it.
+
+![MCP servers](assets/screens/dark/builder-mcp-servers.webp)
+
+### Limits
+
+One monthly cap and a step ceiling. The cap is checked before each model request, and the step limit catches the other runaway - a tool loop that is cheap per call and never finishes.
+
+![Limits](assets/screens/dark/builder-limits.webp)
+
+### Availability
+
+Where this agent answers: the dashboard and the API always, plus any chat bot bound here. An agent is mentionable by `@handle` only on the bots it is bound to.
+
+![Availability](assets/screens/dark/builder-availability.webp)
+
+### Routines, on the agent
+
+What it does with nobody typing, on this same tab - a schedule that can be paused, or an event trigger.
+
+![Routines, on the agent](assets/screens/dark/builder-routines.webp)
+
+### History
+
+Every version this agent has had. The one that was live in March is still readable, which is what makes a rollback a choice rather than an archaeology project.
+
+![History](assets/screens/dark/builder-history.webp)
+
+### Visual map
+
+The same agent as a graph: what reaches it, and what it reaches for. A dashed box is something nothing is attached to - a budget with no ceiling of its own reads as a gap rather than as a default.
+
+![Visual map](assets/screens/dark/builder-visual-map.webp)
 ## Knowledge
 
 ### Knowledge bases
@@ -217,10 +270,9 @@ This deployment's own identity and policy: sign-up, invitations, notices, and wh
 ![Deployment](assets/screens/light/admin-deployment.webp#only-light)
 ![Deployment](assets/screens/dark/admin-deployment.webp#only-dark)
 
-## Two screens that are not here yet
+## What is not here yet
 
-- **The Builder itself** - Build, Toolbox, MCP servers, Limits, Availability
-  and History on one agent. `docs/first-agent.md` walks through it in prose.
+- **The light half of the Builder** - the eight shots above exist in dark only.
 - **Sign-in and onboarding**, which is what a first-time visitor actually meets.
 
 ## Recap

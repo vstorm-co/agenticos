@@ -91,6 +91,50 @@ plugin, no notebook, nothing configured for this file in particular.
 
 </div>
 
+### Inside one agent
+
+An agent is configuration, not code — and the header says `published` beside
+`Draft differs from v40`, because editing does not ship.
+
+<img src="docs/assets/screens/dark/builder-build.webp" alt="The agent builder: instructions, model and endpoint, with the published version and a differing draft" width="100%">
+
+<table>
+<tr>
+<td width="50%">
+
+**Toolbox** — Every capability as a switch, with the per-tool approval gate beside each. Configuration reaches only what code registered.
+
+<img alt="Toolbox" src="docs/assets/screens/dark/builder-toolbox.webp" width="100%">
+
+</td>
+<td width="50%">
+
+**Visual map** — The same agent as a graph: what reaches it, and what it reaches for. A dashed box is something nothing is attached to.
+
+<img alt="Visual map" src="docs/assets/screens/dark/builder-visual-map.webp" width="100%">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Limits** — One monthly cap, checked before each model request, and a step ceiling for the other runaway: a tool loop that is cheap per call and never finishes.
+
+<img alt="Limits" src="docs/assets/screens/dark/builder-limits.webp" width="100%">
+
+</td>
+<td width="50%">
+
+**History** — Every version this agent has had. The one that was live in March is still readable, which makes a rollback a choice rather than an excavation.
+
+<img alt="History" src="docs/assets/screens/dark/builder-history.webp" width="100%">
+
+</td>
+</tr>
+</table>
+
+<sub>These four are dark only — the light half of the Builder has not been captured, so unlike every other screenshot here they do not follow your theme.</sub>
+
 ### Every module
 
 Screenshots follow your GitHub theme — light or dark, whichever you are reading

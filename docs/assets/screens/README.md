@@ -39,6 +39,23 @@ it in the nav.
 | `admin-deployment.webp` | Workspace administration → Deployment settings |
 | `chat-sandbox-commands.webp` | Chat, mid-run: the agent thinking, then the shell commands it ran in the sandbox |
 
+## The Builder — dark only
+
+Eight more screens, added 2026-09-01 and in `dark/` alone. Every other screen on
+this page is a pair; these are not, so a light-theme reader gets a dark image
+until the light eight are captured.
+
+| File | What it shows |
+|---|---|
+| `builder-build.webp` | Instructions, model, endpoint - and `Draft differs from v40` beside `published` |
+| `builder-toolbox.webp` | Capabilities as switches, with the per-tool approval gate |
+| `builder-mcp-servers.webp` | Which connections and which of their tools this agent may reach |
+| `builder-limits.webp` | The monthly cap and the step ceiling |
+| `builder-availability.webp` | Where it answers, and which bots it is bound to |
+| `builder-routines.webp` | Schedules and event triggers on the same tab |
+| `builder-history.webp` | Every version it has had |
+| `builder-visual-map.webp` | The agent as a graph; a dashed box is an unattached thing |
+
 `chat-live-demo.mp4` — the chat recording, 20 s, 1280 wide, no audio, 968 KB,
 with `chat-live-demo-poster.webp` and an animated `chat-live-demo.webp` beside it
 for readers whose renderer will not play a video. The 8.9 MB 1912-wide master it
