@@ -1,4 +1,4 @@
-.PHONY: install format lint lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
+.PHONY: install format lint lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build presentation
 
 # === Environments ===========================================================
 # Three, one compose file each, with a matching frontend file beside it:
@@ -540,6 +540,20 @@ docs:
 # would otherwise ship.
 docs-build:
 	uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
+
+# The client presentation is `docs/presentation/index.html` - a published page,
+# and the only copy. This renders the same file to a PDF for sending, and checks
+# it. The PDF is not committed: at 6 MB it is over the large-file limit, and it
+# is a derivative of a file that is already here.
+#
+# DECK_TOOLS points at the `deck-build` skill, which is not in this repository.
+DECK_TOOLS ?= $(HOME)/.claude/skills/deck-build/tools/deck
+DECK_PDF ?= $(HOME)/notes/001_System/Assets/agenticos-deck/out/agenticos-client-deck.pdf
+presentation:
+	@test -d "$(DECK_TOOLS)" || { echo "deck-build skill not found at $(DECK_TOOLS)"; exit 1; }
+	python3 "$(DECK_TOOLS)/finalise.py" docs/presentation/index.html
+	python3 "$(DECK_TOOLS)/build.py" pdf docs/presentation/index.html -o "$(DECK_PDF)"
+	python3 "$(DECK_TOOLS)/verify.py" deck "$(DECK_PDF)" --expect-slides 20
 
 # Migrations against a real database, forwards and back. The only way to know a
 # backfill or a check constraint actually works.

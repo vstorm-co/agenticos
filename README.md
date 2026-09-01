@@ -14,6 +14,7 @@
 <p>
   <a href="#-quick-start">Quick start</a> &middot;
   <a href="#what-it-looks-like">Screens</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Presentation</a> &middot;
   <a href="docs/index.md">Docs</a> &middot;
   <a href="#the-best-agentic-os-you-can-run-yourself">Why an OS</a> &middot;
   <a href="#compared-with-the-alternatives">Comparison</a>
@@ -49,6 +50,12 @@ agent writes the code, runs it in a locked box, and answers.
   <img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
 </video>
 
+</div>
+
+<div align="center">
+<sub>
+Not a reader? <a href="https://vstorm-co.github.io/agenticos/presentation/"><b>The whole thing in twenty slides</b></a> — what the problem is, what a spec holds, where it answers, and what it refuses.
+</sub>
 </div>
 
 ## ⚡ Quick start
@@ -103,7 +110,7 @@ Ubuntu shell it gives you.
 | **Which model** | OpenAI, Anthropic, Google, OpenRouter — or *decide later*, which creates everything and lets you paste a key in the console |
 | **Your key** | Typed hidden, stored encrypted in your own database, never printed back |
 | **Your login and organization name** | Defaults are fine for a look around |
-| **Two switches** | Start the web console; mirror the public MCP registry so 5,703 tool servers are searchable by name |
+| **Two switches** | Start the web console; mirror the public MCP registry so all 5,802 tool servers are searchable by name |
 
 Add `--check` to only find out what is missing, `--dry-run` to see every command
 it would run without running one, or drive it unattended:
@@ -141,14 +148,20 @@ only question that matters — can this deployment actually run an agent — and
   instructions written once, attached to every agent that needs them.
 - 🎓 **Skills.** A procedure written once in plain language, loaded when the
   agent decides it is relevant. Edit it; live on the next answer, no release.
-- 🔌 **MCP, at registry scale.** Any server by URL: **99 checked** with OAuth
-  wired, plus **5,703 mirrored** from the public registry, searchable by name.
+- 🔌 **MCP, at registry scale.** **5,802 servers** in the catalogue, searchable
+  by name — 99 of them checked by hand with their OAuth wired. Or any URL.
+- 📚 **Documents read properly.** Pick the PDF reader per collection, or for one
+  file: PyMuPDF built in, LlamaParse where the tables carry the meaning,
+  self-hosted LiteParse OCR for scans. Plus how it is split, and OCR language.
 - ⏰ **Automations.** Schedules and event triggers — the 07:00 triage, the Monday
   summary. Same limits and same record as anything a person asked for.
 - 📡 **One runner, every surface.** Web chat, a hosted page, a widget, the HTTP
   API, a raw WebSocket, Slack, Telegram, Mattermost. Published once.
 - 🛡️ **Governed.** Budgets that stop a run before the model request, approval on
   anything side-effecting, an audit trail, tenant isolation in the schema.
+- 📊 **A dashboard each person arranges.** 35 cards — runs, spend, service
+  health, answer quality, sandbox capacity — each gated on what that reader may
+  see. A finance lead and an engineer keep different ones on one deployment.
 
 **Code defines, configuration composes.** A business team assembles agents in a
 browser and never opens Python; engineers extend what there is to assemble, and
@@ -200,6 +213,18 @@ Nothing ships until **Publish**.
 </table>
 
 <sub>These four are dark only — the light half has not been captured.</sub>
+
+### The first screen
+
+**Dashboard** — 35 cards, laid out by whoever is reading: runs, spend, service
+health, answer quality, sync freshness, sandbox capacity. Each one gated on what
+that person is allowed to see, so a finance lead and an engineer keep different
+dashboards on the same deployment.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp">
+  <img alt="The dashboard: 35 arrangeable cards" src="docs/assets/screens/light/dashboard.webp" width="100%">
+</picture>
 
 ### Running forty of them
 
@@ -295,7 +320,7 @@ Nothing ships until **Publish**.
 <tr>
 <td width="50%">
 
-**The tools you already pay for** — Any MCP server by URL: 99 checked with their OAuth wired, plus 5,703 mirrored from the public registry and searchable by name. No connector to write.
+**The tools you already pay for** — 5,802 MCP servers in the catalogue, searchable by name, 99 of them checked by hand with their OAuth wired. Or any server by URL. No connector to write.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
@@ -314,6 +339,7 @@ Nothing ships until **Publish**.
 
 </td>
 </tr>
+</table>
 
 
 <sub>Screenshots follow your GitHub theme. <a href="docs/screens.md">All 35 screens</a>.</sub>
@@ -364,7 +390,7 @@ permission scope and — where it acts on the outside world — its own approval
 | **Do the work** | Run Python, keep a [sandbox](docs/sandbox.md) with files and a shell, draw charts, generate images |
 | **Handle what is too big for one answer** | Delegate to subagents, keep a task list, think longer, compact a long conversation |
 | **Stay inside the lines** | Guardrails that redact or block, per-tool output caps, and the clock |
-| **Anything else** | [Any MCP server by URL](docs/mcp.md) - 99 checked with their OAuth flows wired, plus 5,703 mirrored from the public registry, and no connector to write |
+| **Anything else** | [Any MCP server by URL](docs/mcp.md) - 5,802 in the catalogue, 99 of them checked with their OAuth flows wired, and no connector to write |
 
 ## Where it answers
 
@@ -398,7 +424,7 @@ own, with agents a non-engineer edits and an accountant can audit.
 | Human approval on side-effecting tools | ✅ | ✅ | ~ | DIY |
 | Multi-tenant isolation in the schema | ✅ | ~ | ✅ | DIY |
 | Per-organization secret vault | ✅ | ✅ | ✅ | DIY |
-| **Any MCP server by URL, 99 checked + 5,703 mirrored** | ✅ | ✅ | ~ | ~ |
+| **Any MCP server by URL, 5,802 in the catalogue** | ✅ | ✅ | ~ | ~ |
 | **Slack, Telegram, widget, hosted page and API from one runner** | ✅ | — | ~ | DIY |
 | ACL-aware connectors to 275+ SaaS systems | — | ~ | ✅ | — |
 | Evaluation harness | — | — | ✅ | ~ |
