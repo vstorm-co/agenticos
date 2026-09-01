@@ -1,10 +1,11 @@
 # memory
 
-Gives an agent a store of its own: named files it writes during one
-conversation and reads back in a later one. Where `context` is a library a
-*person* authors and binds to many agents (read-only to the model), memory is
+Gives an agent a store of its own across conversations, in two shapes: named
+**files** it writes and reads back by name, and short **facts** it remembers and
+recalls by meaning (semantic search over pgvector). Where `context` is a library
+a *person* authors and binds to many agents (read-only to the model), memory is
 the agent's own — agent-written, addressed by the agent plus an end-user
-partition, and inspected or seeded by operators through `/api/v1/memory`.
+partition, and inspected, seeded or cleared by operators through `/api/v1/memory`.
 
 ## Why it is not `context`, and not a knowledge base
 
@@ -36,17 +37,23 @@ shared one is the cross-user leak the capability exists to prevent. The
 derivation lives in `derive_end_user_scope_key` and is wired in the factory; it
 reads the request identity and no permission.
 
-## What this commit deliberately does not do yet
+## Shapes and backends
 
-- **No prompt injection.** `operator`-authored files are the injectable, trusted
-  tier, but wiring `get_instructions` and the runner resolution that feeds it is
-  the next commit; this one ships the store and the runtime tools. The config
-  therefore carries no `injection` field yet.
-- **No facts.** The semantic-recall half of #788 (a `remember`/`recall` pair
-  over pgvector) is C2. This is the file half only, so `tools=` lists five file
-  tools; the fact tools and `enable_facts` join them in C2, and the drift test's
-  `CONFIGS["memory"]` grows with them.
-- **No mem0.** The alternative backend is C3.
+Two shapes, each behind its own flag — **files** (`enable_files`) and **facts**
+(`enable_facts`) — for seven tools: five file tools
+(`list`/`read`/`write`/`edit`/`delete`) and two fact tools
+(`remember`/`recall`). Facts embed on the deployment's embedding model and live
+either in this deployment's own pgvector (`backend=native`, the default) or in a
+mem0 service (`backend=mem0`, which needs an API key); files are always native,
+because mem0 has no named-file concept.
+
+## What is not wired yet
+
+- **No prompt injection.** `operator`-authored files are the trusted, injectable
+  tier by design, but the `get_instructions` resolution that would splice them
+  into the prompt is not shipped — so there is no `injection` config field yet.
+  `promote` still earns its keep: it moves a reviewed `agent` row into the
+  trusted tier the console shows, the gate that feature will read.
 - **Root agent only.** A delegate does not derive its own end-user key
   (`clone_for_subagent` is untouched), so `per_user` memory refuses inside a
   delegation. Shared memory a delegate reaches is the parent agent's, because a

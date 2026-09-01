@@ -246,17 +246,6 @@ class TestDelete:
         assert audit.call_args.kwargs["action"] == "memory.file.deleted"
 
 
-class TestResolveInjectable:
-    async def test_it_asks_for_shared_operator_rows_only(self):
-        service = _service()
-        with patch(
-            f"{MEMORY_PATH}.memory_repo.list_in_partition", new=AsyncMock(return_value=[])
-        ) as listed:
-            await service.resolve_injectable(_ctx(), uuid.uuid4())
-        assert listed.call_args.kwargs["end_user_scope_key"] is None
-        assert listed.call_args.kwargs["origin"] == MemoryOrigin.OPERATOR.value
-
-
 class TestFacts:
     async def test_listing_summarises_the_facts(self):
         service = _service()

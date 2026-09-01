@@ -196,11 +196,15 @@ class MemoryService:
         return updated
 
     async def promote(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
-        """Mark an agent-authored file trusted, so injection may splice it in.
+        """Mark an agent-authored file as operator-authored (trusted).
 
-        The one path from `agent` to `operator`, and it is deliberate rather than
-        a side effect of editing: a person is vouching that this content is safe
-        to treat as instruction rather than as data.
+        The one path from `agent` to `operator`, deliberate rather than a side
+        effect of editing: a person vouches that the content is safe to treat as
+        the operator's own. `origin` is what the poisoning defense turns on - an
+        agent-authored file is untrusted - so promoting is how a reviewed note
+        graduates. Splicing trusted files into the prompt is a separate capability
+        not shipped in v1; for now the trust this confers is the badge the console
+        shows, and the gate that later feature will read.
         """
         file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_EDIT)
         updated = await memory_repo.update(
@@ -326,23 +330,4 @@ class MemoryService:
             target_type="memory",
             target_id=str(agent_id),
             details={"facts": facts},
-        )
-
-    async def resolve_injectable(self, ctx: AuthContext, agent_id: UUID) -> list[AgentMemoryFile]:
-        """The trusted files an agent injects into its instructions.
-
-        Only operator-authored files in the shared partition: agent-authored
-        content is never injected (it is untrusted), and a per-user partition is
-        not known until a run has an end-user, so standing injection is the
-        shared store's operator rows. Scoped to the run's organization and not to
-        the runner's own access, the same rule context files follow - the binding
-        was checked when the agent was published, and re-checking here would make
-        an agent's instructions change with who asked.
-        """
-        return await memory_repo.list_in_partition(
-            self.db,
-            organization_id=ctx.organization_id,
-            agent_id=agent_id,
-            end_user_scope_key=None,
-            origin=MemoryOrigin.OPERATOR.value,
         )
