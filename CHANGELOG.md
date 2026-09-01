@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.347] - 2026-09-01
+
+### Fixed
+
+- **A collection's name could be claimed while its vector table was being
+  dropped.** The teardown re-reads `list_by_collection_name` before dropping a
+  `rag_<name>` table (#913), but the re-check and the drop are two statements and
+  the claim path is two more: under READ COMMITTED a claim reading "this name is
+  free" and a drop reading "no base holds this name" both act, and the drop then
+  removes the table the claim just created and committed a row against. `POST
+  /rag/collections/{name}` creates the table before committing its row, so the
+  window was reachable. Both ends now take a transaction-scoped advisory lock keyed
+  on the collection name - `hold_name`, the string-subject sibling of
+  `hold_subject`, under a new `COLLECTION_TEARDOWN` scope in `app/db/locks.py`.
+  `CollectionAccessService.claim` takes it after the identifier rule and before the
+  taken-check, holding it past `create_collection` until the request commits;
+  `cleanup_external_state` takes it before each collection's re-check and holds it
+  through the drop. Either the claim commits first and the drop's re-check skips,
+  or the drop commits first and the claim recreates the table its row points at.
+  (#1355)
+- Two pre-existing in-request drops still bypass that teardown - `DELETE
+  /rag/collections/{name}` and `_purge_personal_collections` - so the invariant
+  stays reachable through them until #1359. (#1355)
+
 ## [0.0.346] - 2026-09-01
 
 ### Changed
