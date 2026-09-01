@@ -17,6 +17,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.349] - 2026-09-01
+
+### Fixed
+
+- **A name freed by a deferred drop could adopt the table it was about to drop.**
+  The teardown removes a collection's `rag_<name>` table only after the request that
+  deleted its knowledge-base rows commits, so between the commit and the drop the
+  name is free of any row while the populated table lingers - and a concurrent `POST
+  /rag/collections/{name}` had `_ensure_collection`'s `CREATE TABLE IF NOT EXISTS`
+  adopt it and read another tenant's chunks. The #1355 advisory lock serializes
+  claim against drop; it does not stop the claim winning the race. A tombstone
+  committed with the delete does: the new `collection_teardowns` table (the name is
+  the key, deployment-global) with an idempotent `reserve` / `is_reserved` /
+  `release`, reserved in the delete's own transaction by every path that schedules a
+  drop - `KnowledgeBaseService.delete`, `delete_for_rag_collection`,
+  `OrganizationService.purge`, `UserService._purge_personal_collections`. `claim`
+  refuses a reserved name, and `cleanup_external_state` drops the table and then
+  releases the reservation, so the name is never free while the populated table
+  exists and a failed drop keeps it for the retry. The flow drops unconditionally
+  now, and the "is another base still on this name?" check runs inline in each
+  delete path instead of once in the flow. (#1362)
+- **Dropping a default collection clears its table** rather than leaving the deleted
+  chunks searchable; the default row is kept, so the table recreates empty on the
+  next write. The inline reference check excludes the base being torn down, which is
+  what the flow's own check could not do. (#1362)
+
+### Added
+
+- `collection_teardowns` - the drop reservation, one row per name, released by the
+  cleanup that finishes the drop. (#1362)
+
 ## [0.0.348] - 2026-09-01
 
 ### Fixed
