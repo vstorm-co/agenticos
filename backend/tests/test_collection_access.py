@@ -18,6 +18,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -29,6 +30,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
+from app.repositories import collection_teardown_repo
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
 
 pytestmark = pytest.mark.anyio
@@ -132,6 +134,7 @@ def _grant_repo(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessService:
     from app.repositories import (
+        collection_teardown_repo,
         knowledge_base_repo,
         rag_document_repo,
         sync_log_repo,
@@ -140,6 +143,11 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
 
     async def list_by_collection_name(_db: object, collection_name: str) -> list[KnowledgeBase]:
         return [kb for kb in rows.collections if kb.collection_name == collection_name]
+
+    async def not_reserved(_db: object, _name: str) -> bool:
+        return False
+
+    monkeypatch.setattr(collection_teardown_repo, "is_reserved", not_reserved)
 
     async def get_accessible(_db: object, **_kwargs: object) -> list[KnowledgeBase]:
         return rows.accessible
@@ -164,7 +172,9 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
     monkeypatch.setattr(rag_document_repo, "get_by_id", by_id("documents"))
     monkeypatch.setattr(sync_source_repo, "get_by_id", by_id("sources"))
     monkeypatch.setattr(sync_log_repo, "get_by_id", by_id("logs"))
-    return CollectionAccessService(db=None)  # ty: ignore[invalid-argument-type]
+    # A stand-in session whose only job is to carry the advisory-lock execute the
+    # claim path takes (#1355); every repository call the tests exercise is patched.
+    return CollectionAccessService(db=MagicMock(execute=AsyncMock()))  # ty: ignore[invalid-argument-type]
 
 
 class TestWhoMayReadACollection:
@@ -337,11 +347,39 @@ class TestClaimingACollectionName:
 
         await service.claim(_ctx(), "handbook")
 
+    async def test_claiming_a_valid_name_takes_the_teardown_lock(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The claim and a concurrent teardown of the same name serialize on one lock,
+        so a base created between the drop's re-check and its DROP keeps its table
+        (#1355). Taken after the identifier rule, which needs no database."""
+        from app.db.locks import LockScope
+
+        rows.collections = []
+        lock = AsyncMock()
+        monkeypatch.setattr("app.services.collection_access.hold_name", lock)
+
+        await service.claim(_ctx(), "handbook")
+
+        lock.assert_awaited_once_with(service.db, LockScope.COLLECTION_TEARDOWN, "handbook")
+
     async def test_a_name_another_organization_owns_is_refused(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
         """They would share one vector table, which is the whole problem."""
         rows.collections = [_kb("handbook", organization_id=OTHER_ORG)]
+
+        with pytest.raises(AlreadyExistsError):
+            await service.claim(_ctx(), "handbook")
+
+    async def test_a_reserved_name_is_refused_until_its_teardown_finishes(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A name whose last row is gone but whose table has not been dropped yet
+        carries a teardown reservation; claiming it would adopt that lingering,
+        populated table, so it is refused until the cleanup releases it (#1362)."""
+        rows.collections = []
+        monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=True))
 
         with pytest.raises(AlreadyExistsError):
             await service.claim(_ctx(), "handbook")

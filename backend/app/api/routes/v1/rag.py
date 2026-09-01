@@ -35,12 +35,10 @@ page already reports ingestion status by polling the org-scoped document
 listing, which is why the stream was not worth rebuilding.
 """
 
-import contextlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.deps import (
     Auth,
@@ -183,13 +181,12 @@ async def create_collection(
 )
 async def drop_collection(
     name: str,
-    vector_store: VectorStoreSvc,
     rag_doc_svc: RAGDocumentSvc,
     kb_svc: KnowledgeBaseSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> None:
-    """Drop a collection - vectors, SQL document records, and the KB row.
+    """Drop a collection - its vectors, SQL document records, and the KB row.
 
     A name no knowledge base in the caller's reach owns is a 404. It used to be
     204 for absolutely anything, which is two problems in one answer: a
@@ -197,17 +194,13 @@ async def drop_collection(
     be used to confirm a deletion, and that 204 was also what another tenant's
     collection returned.
 
-    The vector table may not exist yet for a zero-document KB, so the
-    vector-store drop is best-effort - but only against the database. It used to
-    suppress `Exception`, which now also covers the store *refusing* the name:
-    the drop would be skipped, the row and the document records deleted anyway,
-    and the table left behind with nobody left who can name it. `SQLAlchemyError`
-    is the "no such table" case this was written for; a `BadRequestError` is the
-    store saying it will not touch that name, and the caller has to hear it.
+    The document rows and the KB row go in the request; the stored files and the
+    vector table are torn down by the durable cleanup the services hand over after
+    the commit, which takes the collection-teardown lock and re-reads the reference
+    check before dropping only what no base still claims (#1347, #1349, #1355, #913).
+    So the route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
-    with contextlib.suppress(SQLAlchemyError):
-        await vector_store.delete_collection(collection.collection_name)
     await rag_doc_svc.delete_by_collection(collection.collection_name)
     await kb_svc.delete_for_rag_collection(collection)
 

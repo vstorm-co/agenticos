@@ -1055,9 +1055,7 @@ class TestTenantIsolation:
         home = rag_estate.home
 
         with pytest.raises(NotFoundError):
-            await KnowledgeBaseService(db).delete(
-                rag_estate.other_collection.id, ctx=home.ctx, vector_store=MagicMock()
-            )
+            await KnowledgeBaseService(db).delete(rag_estate.other_collection.id, ctx=home.ctx)
 
         assert await db.get(KnowledgeBase, rag_estate.other_collection.id) is not None
 
@@ -1074,7 +1072,7 @@ class TestTenantIsolation:
         home = rag_estate.home
 
         with pytest.raises(NotFoundError):
-            await KnowledgeBaseService(db).delete(theirs.id, ctx=home.ctx, vector_store=MagicMock())
+            await KnowledgeBaseService(db).delete(theirs.id, ctx=home.ctx)
 
     async def test_a_deployment_wide_base_is_refused_as_forbidden_rather_than_missing(
         self, db, rag_estate: RagEstate

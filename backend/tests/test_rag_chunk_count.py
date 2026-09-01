@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core import background
 from app.repositories import rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
@@ -36,6 +37,35 @@ from app.services.rag_document import RAGDocumentService
 from app.worker.tasks.rag_tasks import _run_ingestion
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_leftover_tasks():
+    """A deferred unlink one test starts must not be drained by the next."""
+    background._running.clear()
+    yield
+    background._running.clear()
+
+
+def _deferring_db() -> MagicMock:
+    """A session stand-in whose `info` is a real dict, so `spawn_after_commit`
+    queues on it the way a live session's does."""
+    db = MagicMock()
+    db.info = {}
+    return db
+
+
+async def _run_deferred(db: MagicMock) -> None:
+    """What `_managed_session` does the instant its commit returns."""
+    background.start_deferred(db)
+    await background.drain(timeout=5.0)
+
+
+def _patch_dispatch(monkeypatch) -> AsyncMock:
+    """Stand in for the durable cleanup dispatch a committed retire hands to Prefect."""
+    dispatch = AsyncMock()
+    monkeypatch.setattr("app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch)
+    return dispatch
 
 
 def _document(*, chunks: int) -> Document:
@@ -222,7 +252,6 @@ class TestRetiringWhatAReplacementDeleted:
         stale = MagicMock(id=stale_id, storage_path="rag/docs/handbook.md")
         current = MagicMock(id=uuid.uuid4(), collection_name="docs")
         deleted: list[uuid.UUID] = []
-        storage = MagicMock(delete=AsyncMock())
 
         monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
         monkeypatch.setattr(rag_document_repo, "get_superseded", AsyncMock(return_value=[stale]))
@@ -231,9 +260,10 @@ class TestRetiringWhatAReplacementDeleted:
             "delete",
             AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
         )
-        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+        dispatch = _patch_dispatch(monkeypatch)
 
-        service = RAGDocumentService(MagicMock())
+        db = _deferring_db()
+        service = RAGDocumentService(db)
         monkeypatch.setattr(service, "get_document", AsyncMock(return_value=current))
         await service.complete_ingestion(
             str(current.id),
@@ -242,49 +272,19 @@ class TestRetiringWhatAReplacementDeleted:
             replaced_document_id="old-vector-doc",
         )
 
+        # The row goes in the transaction; the file's unlink is handed to a durable
+        # cleanup only once it commits, so a rollback keeps it (#1293, #1349).
         assert deleted == [stale_id]
-        storage.delete.assert_awaited_once_with("rag/docs/handbook.md")
+        dispatch.assert_not_awaited()
+        await _run_deferred(db)
+        dispatch.assert_awaited_once_with(["rag/docs/handbook.md"], [])
 
-    async def test_a_storage_backend_that_refuses_still_loses_the_row(self, monkeypatch):
-        """The database must not go on describing vectors nobody holds because a
-        file could not be unlinked - the same terms `delete_document` takes.
-        """
-        stale = MagicMock(id=uuid.uuid4(), storage_path="rag/docs/handbook.md")
-        deleted: list[uuid.UUID] = []
-
-        monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
-        monkeypatch.setattr(rag_document_repo, "get_superseded", AsyncMock(return_value=[stale]))
-        monkeypatch.setattr(
-            rag_document_repo,
-            "delete",
-            AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
-        )
-        monkeypatch.setattr(
-            "app.services.rag_document.get_file_storage",
-            lambda: MagicMock(delete=AsyncMock(side_effect=OSError("read-only volume"))),
-        )
-
-        service = RAGDocumentService(MagicMock())
-        monkeypatch.setattr(
-            service,
-            "get_document",
-            AsyncMock(return_value=MagicMock(id=uuid.uuid4(), collection_name="docs")),
-        )
-        await service.complete_ingestion(
-            "doc",
-            vector_document_id="new-vector-doc",
-            chunk_count=9,
-            replaced_document_id="old-vector-doc",
-        )
-
-        assert deleted == [stale.id]
-
-    async def test_a_row_with_no_stored_file_is_deleted_without_touching_storage(self, monkeypatch):
+    async def test_a_row_with_no_stored_file_is_deleted_without_a_cleanup(self, monkeypatch):
         """The sync path creates its tracking rows with no `storage_path` at all,
-        and it is the path that accumulates them fastest.
+        and it is the path that accumulates them fastest - nothing to unlink, so no
+        durable run is dispatched for it.
         """
         stale = MagicMock(id=uuid.uuid4(), storage_path="")
-        storage = MagicMock(delete=AsyncMock())
         deleted: list[uuid.UUID] = []
 
         monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
@@ -294,9 +294,10 @@ class TestRetiringWhatAReplacementDeleted:
             "delete",
             AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
         )
-        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+        dispatch = _patch_dispatch(monkeypatch)
 
-        service = RAGDocumentService(MagicMock())
+        db = _deferring_db()
+        service = RAGDocumentService(db)
         monkeypatch.setattr(
             service,
             "get_document",
@@ -308,9 +309,10 @@ class TestRetiringWhatAReplacementDeleted:
             chunk_count=9,
             replaced_document_id="old-vector-doc",
         )
+        await _run_deferred(db)
 
         assert deleted == [stale.id]
-        storage.delete.assert_not_awaited()
+        dispatch.assert_not_awaited()
 
     async def test_an_ingest_that_replaced_nothing_looks_for_no_stale_row(self, monkeypatch):
         superseded = AsyncMock(return_value=[])

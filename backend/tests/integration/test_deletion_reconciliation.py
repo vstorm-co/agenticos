@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import uuid
-from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -31,13 +30,10 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
-from app.db.models.teardown_intent import TeardownIntent
 from app.db.models.user import User
-from app.db.session import get_worker_db_context
 from app.repositories import (
     knowledge_base_repo,
     member_repo,
-    teardown_intent_repo,
     user_repo,
 )
 from app.services.file_storage import get_file_storage
@@ -68,16 +64,7 @@ def _route_purge_dispatch_to_impl(monkeypatch: pytest.MonkeyPatch) -> None:
 
     async def _run(*, name: str, parameters: dict[str, Any], timeout: float) -> None:
         del name, timeout
-        intent_id = uuid.UUID(parameters["intent_id"])
-        async with get_worker_db_context() as db:
-            intent = await teardown_intent_repo.get(db, intent_id)
-            if intent is None:
-                return
-            paths, collections = list(intent.storage_paths), list(intent.collections)
-        await teardown_tasks.purge_org_external_state(paths, collections)
-        async with get_worker_db_context() as db:
-            await teardown_intent_repo.finish(db, intent_id)
-            await db.commit()
+        await teardown_tasks.cleanup_external_state(**parameters)
 
     monkeypatch.setattr(teardown_tasks, "run_deployment", AsyncMock(side_effect=_run))
 
@@ -282,6 +269,11 @@ class TestDeletingAUser:
         async with factory() as s:
             await UserService(s, vector_store=store).delete(user_id)
             await s.commit()
+            # The personal-collection teardown is now deferred like the org purge's
+            # (#1359): a real request starts it from `_managed_session` after the
+            # commit; a raw session starts it here, then drains the run.
+            start_deferred(s)
+        await drain()
 
         async with factory() as s:
             assert await s.get(KnowledgeBase, kb_id) is None
@@ -546,12 +538,25 @@ class TestDeletingAnOrg:
         assert storage.get_full_path(stored_path) is not None
         await storage.delete(stored_path)
 
-    async def test_a_recreated_collection_survives_the_deferred_drop(
+    async def test_a_reclaim_during_the_deferred_drop_is_refused_until_it_finishes(
         self, engine: AsyncEngine
     ) -> None:
-        """The drop runs after the commit that frees the collection name, so a
-        second org can reclaim it before the cleanup fires; the deferred cleanup
-        re-checks references and leaves the new tenant's table in place (#1137)."""
+        """The drop runs after the commit that frees the name, so between the two the
+        name is reserved (#1362): a second org's claim is refused rather than adopting
+        the victim's still-populated table, and once the cleanup drops it and releases
+        the name a fresh claim succeeds against a table that is gone."""
+        from app.core.exceptions import AlreadyExistsError
+        from app.core.permissions import AuthContext, OrgRoleName
+        from app.services.collection_access import CollectionAccessService
+
+        def _ctx(user_id: uuid.UUID, org_id: uuid.UUID) -> AuthContext:
+            return AuthContext(
+                user_id=user_id,
+                organization_id=org_id,
+                role=OrgRoleName.OWNER.value,
+                is_app_admin=False,
+            )
+
         store = PgVectorStore(
             settings=app_settings.rag,
             embedding_service=MagicMock(),
@@ -575,21 +580,30 @@ class TestDeletingAnOrg:
             org = await s.get(Organization, org_id)
             await OrganizationService(s, vector_store=store).purge(org)
             await s.commit()
-            # A second org claims the freed name before the deferred cleanup runs.
+            # The name is reserved until the drop runs, so a second org's claim of it
+            # in the window is refused - it cannot adopt the lingering populated table.
             async with factory() as claimant:
                 other = _user()
                 claimant.add(other)
                 await claimant.flush()
                 other_org = await _org(claimant, other)
-                claimant.add(_org_collection(other_org.id, collection))
-                await claimant.commit()
+                with pytest.raises(AlreadyExistsError):
+                    await CollectionAccessService(claimant).claim(
+                        _ctx(other.id, other_org.id), collection
+                    )
+                await claimant.rollback()
             start_deferred(s)
         await drain()
 
+        # The cleanup dropped the table and released the name, so it is now claimable
+        # afresh against a table that no longer holds the first org's chunks.
         async with factory() as s:
-            assert (
-                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
-            ).scalar() is not None
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+            user2 = _user()
+            s.add(user2)
+            await s.flush()
+            org2 = await _org(s, user2)
+            await CollectionAccessService(s).claim(_ctx(user2.id, org2.id), collection)
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
@@ -806,231 +820,3 @@ class TestConcurrentSelfDeletes:
             await holder.commit()
 
         assert deleted.id == owner_id
-
-
-class TestTwoTeardownsSharingOneCollectionName:
-    """`collection_name` is not tenant-unique (#913), so two can be one table.
-
-    Each transaction deletes its own base and then counts the bases still
-    claiming the name. Under READ COMMITTED each saw the other's pre-delete row,
-    both took the "still referenced, skip the drop" branch, both committed, and
-    the table nobody references was left behind (#1273). It is the exact inverse
-    of #1269's risk, where a stale check drops a table it should not.
-    """
-
-    async def test_the_second_teardown_drops_the_table_the_first_could_not(
-        self, engine: AsyncEngine
-    ) -> None:
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        collection = f"kb_shared_{uuid.uuid4().hex[:8]}"
-
-        async with factory() as setup:
-            first, second = _user(), _user()
-            setup.add_all([first, second])
-            await setup.flush()
-            for owner in (first, second):
-                org = await _org(setup, owner, is_personal=True)
-                setup.add(_personal_kb(org.id, owner.id, collection))
-            await setup.commit()
-            first_id, second_id = first.id, second.id
-
-        dropped: list[str] = []
-
-        def store() -> MagicMock:
-            vector_store = MagicMock()
-            vector_store.delete_collection = AsyncMock(side_effect=dropped.append)
-            return vector_store
-
-        # Both live at once, each having deleted its own base before either
-        # commits - the interleaving that produced the leak. The advisory lock on
-        # the name is what makes the second read the first's committed absence
-        # rather than its pre-delete row.
-        async def run_delete(user_id: uuid.UUID) -> None:
-            async with factory() as session:
-                await UserService(session, vector_store=store()).delete(user_id)
-                await session.commit()
-
-        await asyncio.gather(run_delete(first_id), run_delete(second_id))
-
-        assert dropped == [collection], (
-            "the table both teardowns released was dropped by neither: each saw "
-            "the other's pre-delete row and skipped it (#1273)"
-        )
-
-    async def test_a_name_a_surviving_base_still_claims_is_not_dropped(
-        self, engine: AsyncEngine
-    ) -> None:
-        """The lock serializes the decision; it does not change it."""
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        collection = f"kb_kept_{uuid.uuid4().hex[:8]}"
-
-        async with factory() as setup:
-            going, staying = _user(), _user()
-            setup.add_all([going, staying])
-            await setup.flush()
-            for owner in (going, staying):
-                org = await _org(setup, owner, is_personal=True)
-                setup.add(_personal_kb(org.id, owner.id, collection))
-            await setup.commit()
-            going_id = going.id
-
-        vector_store = MagicMock()
-        vector_store.delete_collection = AsyncMock()
-
-        async with factory() as session:
-            await UserService(session, vector_store=vector_store).delete(going_id)
-            await session.commit()
-
-        vector_store.delete_collection.assert_not_awaited()
-
-
-class TestTheTeardownOutbox:
-    """A crash between the purge's commit and the hand-off (#1269).
-
-    `spawn_after_commit` is not a durable queue. Before the intent row, a process
-    that died in that window lost the cleanup outright - and the committed delete
-    had already removed the document paths and collection names a retry would
-    need to find, so nothing was left to reconstruct it. The row is written in
-    the purge's own transaction, so it survives whatever the process does next.
-    """
-
-    @staticmethod
-    async def _purge_without_dispatching(engine: AsyncEngine, collection: str) -> uuid.UUID:
-        """Purge an org, then discard the hand-off - a crash, in one line."""
-        store = PgVectorStore(
-            settings=app_settings.rag,
-            embedding_service=MagicMock(),
-            resolver=MagicMock(),
-            engine=engine,
-        )
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as s:
-            user = _user()
-            s.add(user)
-            await s.flush()
-            org = await _org(s, user)
-            s.add(_org_collection(org.id, collection))
-            await s.commit()
-            org_id = org.id
-
-        async with factory() as s:
-            org = await s.get(Organization, org_id)
-            await OrganizationService(s, vector_store=store).purge(org)
-            await s.commit()
-            # The process dies here. Everything queued for after the commit goes
-            # with it; the intent, committed above, does not.
-            discard_deferred(s)
-        return org_id
-
-    async def test_the_intent_survives_a_crash_before_the_hand_off(
-        self, engine: AsyncEngine
-    ) -> None:
-        collection = f"kbout{uuid.uuid4().hex[:12]}"
-        org_id = await self._purge_without_dispatching(engine, collection)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        async with factory() as s:
-            assert await s.get(Organization, org_id) is None
-            intents = (
-                (
-                    await s.execute(
-                        select(TeardownIntent).where(TeardownIntent.organization_id == org_id)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-
-        assert len(intents) == 1
-        assert intents[0].collections == [collection]
-        # Never handed over, which is exactly what the sweep looks for.
-        assert intents[0].dispatched_at is None
-
-    async def test_the_sweep_claims_what_was_never_dispatched(self, engine: AsyncEngine) -> None:
-        collection = f"kbout{uuid.uuid4().hex[:12]}"
-        org_id = await self._purge_without_dispatching(engine, collection)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        async with factory() as s:
-            claimed = await teardown_intent_repo.claim_stale(
-                s, older_than=timedelta(minutes=15), limit=50
-            )
-            await s.commit()
-
-        assert [intent.organization_id for intent in claimed] == [org_id]
-        assert claimed[0].attempts == 1
-
-    async def test_a_freshly_dispatched_intent_is_left_alone(self, engine: AsyncEngine) -> None:
-        """Otherwise the sweep duplicates every run a healthy purge makes."""
-        collection = f"kbout{uuid.uuid4().hex[:12]}"
-        org_id = await self._purge_without_dispatching(engine, collection)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        async with factory() as s:
-            intent = (
-                (
-                    await s.execute(
-                        select(TeardownIntent).where(TeardownIntent.organization_id == org_id)
-                    )
-                )
-                .scalars()
-                .one()
-            )
-            await teardown_intent_repo.mark_dispatched(s, intent.id)
-            await s.commit()
-
-        async with factory() as s:
-            claimed = await teardown_intent_repo.claim_stale(
-                s, older_than=timedelta(minutes=15), limit=50
-            )
-            await s.commit()
-
-        assert [one.id for one in claimed] == []
-
-    async def test_finishing_removes_the_row_so_nothing_sweeps_it_again(
-        self, engine: AsyncEngine
-    ) -> None:
-        """The row's absence is the completion."""
-        collection = f"kbout{uuid.uuid4().hex[:12]}"
-        org_id = await self._purge_without_dispatching(engine, collection)
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        async with factory() as s:
-            intent = (
-                (
-                    await s.execute(
-                        select(TeardownIntent).where(TeardownIntent.organization_id == org_id)
-                    )
-                )
-                .scalars()
-                .one()
-            )
-            await teardown_intent_repo.finish(s, intent.id)
-            await s.commit()
-
-        async with factory() as s:
-            claimed = await teardown_intent_repo.claim_stale(
-                s, older_than=timedelta(minutes=15), limit=50
-            )
-            await s.commit()
-
-        assert claimed == []
-
-    async def test_two_sweeps_at_once_take_different_rows(self, engine: AsyncEngine) -> None:
-        """`skip_locked`, so a second worker does not queue behind the first."""
-        first = await self._purge_without_dispatching(engine, f"kbout{uuid.uuid4().hex[:12]}")
-        second = await self._purge_without_dispatching(engine, f"kbout{uuid.uuid4().hex[:12]}")
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        async with factory() as one, factory() as two:
-            claimed_one = await teardown_intent_repo.claim_stale(
-                one, older_than=timedelta(minutes=15), limit=1
-            )
-            claimed_two = await teardown_intent_repo.claim_stale(
-                two, older_than=timedelta(minutes=15), limit=1
-            )
-            await one.commit()
-            await two.commit()
-
-        taken = {intent.organization_id for intent in claimed_one + claimed_two}
-        assert taken == {first, second}

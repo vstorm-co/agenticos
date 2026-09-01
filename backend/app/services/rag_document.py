@@ -2,8 +2,6 @@
 """RAG document service."""
 
 import anyio
-import contextlib
-import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -35,8 +33,6 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     IngestionOverride,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
@@ -361,9 +357,12 @@ class RAGDocumentService:
         gone, and a directory synced nightly accumulates one dead row per file
         per run.
 
-        The stored file goes with it, on the same best-effort terms as
-        `delete_document`: a storage backend that refuses must not leave the
-        database describing vectors nobody holds.
+        The stored files are unlinked by a durable cleanup handed over after the
+        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a
+        rollback leaves them beside the rows it restores rather than gone (#1293),
+        and a worker restart mid-drain no longer orphans the ones still queued -
+        the run is recorded on the Prefect server and retried (#1349). An unlink
+        before the commit would strand a restored row on a missing file.
         """
         superseded = await rag_document_repo.get_superseded(
             self.db,
@@ -371,13 +370,18 @@ class RAGDocumentService:
             vector_document_id=vector_document_id,
             keep_id=keep_id,
         )
+        storage_paths = [stale.storage_path for stale in superseded if stale.storage_path]
         for stale in superseded:
-            if stale.storage_path:
-                try:
-                    await get_file_storage().delete(stale.storage_path)
-                except Exception as exc:
-                    logger.warning("Failed to delete superseded file: %s", exc)
             await rag_document_repo.delete(self.db, stale.id)
+        if storage_paths:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, []),
+                name="retire-superseded-cleanup",
+            )
 
     async def fail_ingestion(self, doc_id: str, error_message: str) -> None:
         """Mark a document ingestion as failed."""
@@ -445,11 +449,22 @@ class RAGDocumentService:
         doc_id: str,
         ingestion_service: IngestionService,
     ) -> None:
-        """Delete a document with cascading cleanup.
+        """Delete a document's row, then its vectors and its file after the commit.
 
-        Removes the record from the database and attempts to clean up the vector
-        store entry and stored file. Failures in cleanup are logged but do not
-        prevent the DB deletion.
+        The row goes in the request's transaction; the vector-store entry and the
+        stored file are removed only once it commits (`spawn_after_commit`). Doing
+        either before the commit strands a rolled-back delete on state already gone -
+        a restored row pointing at vectors, or a file, the failed request deleted
+        anyway (#1293, #1347). Both are best-effort in the background: `remove_document`
+        catches its own store failures, and an escaped one is logged by the background
+        runner rather than raised. The store rides the process's vector engine, not
+        this request's session, so the deferred coroutine may hold it safely.
+
+        A single document's cleanup stays in-process, where the bulk teardown paths
+        (`delete_by_collection`, `_retire_superseded`, `KnowledgeBaseService.delete`)
+        hand theirs to a durable Prefect run (#1349): the leak a lost single-document
+        task would strand is one file and one document's vectors, and a durable run
+        per document delete is disproportionate to that.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -461,38 +476,49 @@ class RAGDocumentService:
         the caller may omit is an argument some caller will.
         """
         doc = await self.get_document(doc_id)
-
-        if doc.vector_document_id:
-            try:
-                await ingestion_service.remove_document(doc.collection_name, doc.vector_document_id)
-            except Exception as e:
-                logger.warning("Failed to delete from vector store: %s", e)
-
-        if doc.storage_path:
-            try:
-                storage = get_file_storage()
-                await storage.delete(doc.storage_path)
-            except Exception as e:
-                logger.warning("Failed to delete file: %s", e)
-
+        collection_name = doc.collection_name
+        vector_document_id = doc.vector_document_id
+        storage_path = doc.storage_path
         await rag_document_repo.delete(self.db, doc.id)
+
+        from app.core.background import spawn_after_commit
+
+        if vector_document_id:
+            spawn_after_commit(
+                self.db,
+                ingestion_service.remove_document(collection_name, vector_document_id),
+                name="delete-document-vectors",
+            )
+        if storage_path:
+            from app.services.file_storage import delete_files_best_effort
+
+            spawn_after_commit(
+                self.db, delete_files_best_effort([storage_path]), name="delete-document-file"
+            )
 
     async def delete_by_collection(self, collection_name: str) -> None:
         """Delete a collection's document rows and unlink their stored uploads.
 
         The bulk row delete used to return only a count, so nothing removed the
         uploaded files and every one was orphaned on disk when a collection was
-        dropped (#1265). The unlink is best-effort - a file already gone is not a
-        reason to fail the drop - and mirrors the org purge's teardown.
-
-        `get_file_storage()` is resolved inside the suppression, and only when
-        there is a path to unlink: it `mkdir`s `MEDIA_DIR` on construction, so a
-        misconfigured storage backend would otherwise raise here and 500 a drop
-        whose vector table the route has already removed.
+        dropped (#1265). The unlink is handed to a durable cleanup after the commit
+        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
+        keeps the files beside the rows it restores (#1293) and a worker restart
+        mid-drain no longer loses the ones still queued - the run is recorded on the
+        Prefect server and retried (#1349). Best-effort: the cleanup resolves the
+        storage backend only when it runs, so a misconfigured backend fails the
+        background run, not the drop.
         """
-        for storage_path in await rag_document_repo.delete_by_collection(self.db, collection_name):
-            with contextlib.suppress(Exception):
-                await get_file_storage().delete(storage_path)
+        storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
+        if storage_paths:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, []),
+                name="delete-collection-cleanup",
+            )
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore

@@ -1,11 +1,8 @@
-import contextlib
 import logging
 import re
 import secrets
-from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
@@ -16,6 +13,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import (
+    collection_teardown_repo,
     knowledge_base_repo,
     organization_secret_repo,
     rag_document_repo,
@@ -31,7 +29,6 @@ from app.schemas.knowledge_base import (
 )
 from app.services.access import COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
-from app.services.file_storage import get_file_storage
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
@@ -40,9 +37,6 @@ from app.services.ingestion_config import (
     deployment_embedding,
 )
 from app.services.rag import embedding_providers
-
-if TYPE_CHECKING:
-    from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -209,19 +203,43 @@ class KnowledgeBaseService:
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
-        """Delete the KB row a dropped collection belonged to.
+        """Delete the KB row a dropped collection belonged to, and drop its table.
 
         Keeps the KB table in sync when a collection is dropped via
-        `DELETE /rag/collections/{name}`. A default KB is left intact so the
-        org keeps a usable knowledge base.
+        `DELETE /rag/collections/{name}`. A default KB is left intact so the org
+        keeps a usable knowledge base - and its row then still references the name,
+        so the table is kept too. Clearing a kept default's vectors is #1364, not
+        this: an upload authorises through that row and would race the drop.
 
         Takes the row rather than the name: the caller has already resolved
         which knowledge base it is allowed to act on, and looking the name up
         again would find whichever row the database returned first - possibly
         another organization's, where two of them share a collection name.
+
+        The vector table is dropped by the durable cleanup handed over after the
+        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), not in the
+        request. In-request the /rag route's drop stranded a rolled-back delete on a
+        dropped table, lost it to a worker restart, dropped a table a second base
+        still referenced, and raced a concurrent claim of the name (#1347, #1349,
+        #1355, #913). The name is held against a claim while the reference check and
+        the reservation are made, and reserved until the drop runs, so a create
+        cannot slip a new base onto the name and have this drop destroy its table
+        (#1362).
         """
+        collection = kb.collection_name
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+        if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+            await collection_teardown_repo.reserve(self.db, collection)
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup([], [collection]),
+                name="drop-rag-collection",
+            )
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""
@@ -473,20 +491,28 @@ class KnowledgeBaseService:
         await service.check_llamaparse_secret(ctx.organization_id, chosen)
         return chosen
 
-    async def delete(
-        self, kb_id: UUID, *, ctx: AuthContext, vector_store: "BaseVectorStore"
-    ) -> None:
+    async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:
         """Delete a knowledge base and everything it owns.
 
         The row is not the whole of it: deleting only the `knowledge_bases` row
         left the `rag_documents` rows (their FK is `SET NULL`, so they survived
         detached and readable by a later same-named collection), the uploaded
         files, and the physical `rag_<collection>` vector table all behind, with
-        the collection name still blocking reuse (#1266). So the documents and
-        their files go, then the row, then the table - dropped only when no other
-        base still references the name, which is not tenant-unique (#913). The
-        store is required, not optional, so a delete route cannot silently skip
-        the teardown again.
+        the collection name still blocking reuse (#1266). So the documents go, then
+        the row, then the table - dropped only when no other base still references
+        the name, which is not tenant-unique (#913).
+
+        The stored files and the vector table are torn down by a durable cleanup
+        handed over after the commit (`spawn_after_commit` →
+        `dispatch_external_state_cleanup`). Deferring past the commit means a
+        rollback keeps them beside the rows it restores rather than stranding those
+        rows on a missing file or a dropped table (#1293, #1347); a Prefect
+        deployment run rather than an in-process task means a worker restart
+        mid-cleanup no longer orphans them - the run is recorded on the server and
+        retried (#1349). The flow re-reads the reference check on its own session
+        before dropping, because the name is not tenant-unique and a second org can
+        reclaim it in the window between the commit and the drop (#913), and it
+        builds its own vector engine - which is why this no longer takes a store.
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
@@ -503,17 +529,18 @@ class KnowledgeBaseService:
         # took the "still referenced" branch, and the table nobody referenced was
         # left behind (#1273). Held for the transaction, so the second teardown
         # reads the first one's committed absence.
-        await hold_name(self.db, LockScope.COLLECTION_NAME, collection)
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         # Lock the base before enumerating its documents, so a concurrent upload
         # or sync inserting a row cannot slip in between the enumeration and the
         # base delete and survive detached under `ON DELETE SET NULL` (#1266).
         await knowledge_base_repo.lock(self.db, kb.id)
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
-        storage = get_file_storage()
-        for storage_path in storage_paths:
-            with contextlib.suppress(Exception):
-                await storage.delete(storage_path)
+        collections_to_drop: list[str] = []
+        # Hold the name against a concurrent claim while the last-reference check and
+        # the reservation are made, so a create cannot slip a new base onto the name
+        # between them and have the deferred drop destroy its table (#1362).
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it
@@ -522,8 +549,19 @@ class KnowledgeBaseService:
             # connector and vault credential, but stops being scheduled.
             for source in await sync_source_repo.get_all(self.db, collection_name=collection):
                 await sync_source_repo.update(self.db, source.id, is_active=False)
-            with contextlib.suppress(SQLAlchemyError):
-                await vector_store.delete_collection(collection)
+            collections_to_drop = [collection]
+            # Reserve the name against reuse until the deferred drop runs, so a
+            # concurrent claim cannot adopt the still-populated table (#1362).
+            await collection_teardown_repo.reserve(self.db, collection)
+        if storage_paths or collections_to_drop:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
+                name="delete-kb-cleanup",
+            )
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
         if scope == KBScope.APP.value and not ctx.is_app_admin:

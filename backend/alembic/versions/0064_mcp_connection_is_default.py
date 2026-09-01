@@ -23,8 +23,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0063_mcp_connection_is_default"
-down_revision: str | None = "0062_org_chat_approval_waiver"
+revision: str = "0064_mcp_connection_is_default"
+down_revision: str | None = "0063_collection_teardowns"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

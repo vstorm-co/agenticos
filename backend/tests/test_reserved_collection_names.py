@@ -44,6 +44,15 @@ from app.services.rag.vectorstore import PgVectorStore
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def _not_reserved(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A create reaches `claim`, which reads the teardown-reservation repo (#1362);
+    mock it at the boundary so a name is free unless a test says otherwise."""
+    from app.repositories import collection_teardown_repo
+
+    monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+
+
 def _modelled_collection_names() -> list[str]:
     """The collection name each prefixed model table would answer to."""
     return sorted(
@@ -233,7 +242,7 @@ class TestKnowledgeBaseCreate:
         created.assert_not_awaited()
 
     async def test_a_near_miss_name_is_still_created(self) -> None:
-        service = KnowledgeBaseService(MagicMock())
+        service = KnowledgeBaseService(MagicMock(execute=AsyncMock()))
         created = AsyncMock(return_value=MagicMock())
 
         with (

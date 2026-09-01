@@ -26,7 +26,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0065_mcp_connection_label"
-down_revision: str | None = "0064_teardown_intents"
+down_revision: str | None = "0064_mcp_connection_is_default"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

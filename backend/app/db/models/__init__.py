@@ -18,6 +18,7 @@ from app.db.models.channel_session import ChannelSession
 from app.db.models.organization import Invitation, Organization, OrganizationMember
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.collection_teardown import CollectionTeardown
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.dashboard_layout import DashboardLayout
@@ -42,7 +43,6 @@ from app.db.models.context import ContextFile, ContextMode
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
-from app.db.models.teardown_intent import TeardownIntent
 
 __all__ = [
     "User",
@@ -66,6 +66,7 @@ __all__ = [
     "Invitation",
     "AppAdminAuditLog",
     "KnowledgeBase",
+    "CollectionTeardown",
     "UserSlashCommand",
     "DeploymentSettings",
     "DashboardLayout",
@@ -103,5 +104,4 @@ __all__ = [
     "ResourceGrant",
     "GrantLevel",
     "Visibility",
-    "TeardownIntent",
 ]

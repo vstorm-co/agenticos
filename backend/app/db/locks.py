@@ -17,7 +17,6 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
-import hashlib
 from enum import IntEnum
 from uuid import UUID
 
@@ -32,10 +31,8 @@ class LockScope(IntEnum):
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
-    #: Which teardown gets to decide whether a physical vector table is still
-    #: referenced. `collection_name` is not tenant-unique (#913), so two
-    #: teardowns can be about one table.
-    COLLECTION_NAME = 3
+    #: A collection name's claim-and-create against its vector-table drop (#1355).
+    COLLECTION_TEARDOWN = 3
     #: Which of a member's accounts on one service is the default. The partial
     #: unique index allows one, and the write is read-then-clear-then-set - so
     #: two nominations racing each found no sibling to clear and both set it.
@@ -52,25 +49,6 @@ def _key(subject: UUID) -> int:
     return (subject.int & 0xFFFFFFFF) - 0x80000000
 
 
-def _name_key(subject: str) -> int:
-    """A name as the integer the lock takes, with the same collision bargain.
-
-    `blake2b` rather than `hash()`, which is salted per process: two workers
-    would key one collection differently and the lock would serialize nothing.
-    """
-    digest = hashlib.blake2b(subject.encode(), digest_size=4).digest()
-    return int.from_bytes(digest, "big") - 0x80000000
-
-
-async def hold_name(db: AsyncSession, scope: LockScope, subject: str) -> None:
-    """Take the lock for one named subject, until this transaction ends.
-
-    The string half of :func:`hold_subject`, for a subject that is a name rather
-    than a row - a collection name, which several rows can claim.
-    """
-    await db.execute(select(func.pg_advisory_xact_lock(scope.value, _name_key(subject))))
-
-
 async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> None:
     """Take the lock for one subject, until this transaction ends.
 
@@ -79,3 +57,17 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     count both callers read is already stale.
     """
     await db.execute(select(func.pg_advisory_xact_lock(scope.value, _key(subject))))
+
+
+async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:
+    """Take the lock for a string subject - a collection name - until this tx ends.
+
+    The subject here is not a row's id but a name in the deployment-global vector
+    namespace, so the key is `hashtext(name)` rather than a UUID's low bits. Same
+    contract as :func:`hold_subject`: call it *before* the check it protects, so a
+    claim that reads "this name is free" and a teardown that reads "no base holds
+    this name" cannot both act - one drops the table the other just created (#1355).
+    Collisions cost a moment of waiting against an unrelated name, never a wrong
+    answer, because `hashtext` and the scope are the whole key.
+    """
+    await db.execute(select(func.pg_advisory_xact_lock(scope.value, func.hashtext(name))))

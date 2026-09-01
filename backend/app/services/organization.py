@@ -13,14 +13,14 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_name, hold_subject
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
+    collection_teardown_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
     rag_document_repo,
-    teardown_intent_repo,
 )
 from app.schemas.organization import (
     OrganizationCreate,
@@ -362,17 +362,14 @@ class OrganizationService:
         table or a file already gone (#1137). A Prefect deployment run rather than
         an in-process task means a process that dies after the commit no longer
         takes the cleanup with it - the run is recorded on the server and retried
-        by a worker (#1274). The flow re-checks each collection against the KB
-        table before dropping it, because `collection_name` is not tenant-unique
-        (#913): a name a second org has claimed between this commit and the drop
-        keeps its table.
-
-        What is left to release is written as a `TeardownIntent` in *this*
-        transaction, so it commits with the delete. That closes the last window -
-        a crash between the commit and the hand-off - because the row survives it
-        and a sweep re-dispatches whatever nothing finished. The flow deletes the
-        row when it is done, so an empty table means nothing is outstanding
-        (#1269).
+        by a worker (#1274). A collection another organization still references is
+        not dropped - `collection_name` is not tenant-unique (#913) - and each name
+        that is dropped is reserved in `collection_teardowns`, committed with the
+        delete, so a claim of the name in the commit-to-drop window is refused rather
+        than adopting the still-populated table (#1362). The gap this does not close
+        is commit-to-dispatch - a crash before `spawn_after_commit` fires still loses
+        the cleanup, which only a record committed with the delete (an outbox) would
+        close.
         """
         await organization_repo.get_by_id_for_update(self.db, org.id)
         collections: list[str] = []
@@ -383,27 +380,28 @@ class OrganizationService:
             await knowledge_base_repo.delete(self.db, kb.id)
         await organization_repo.delete(self.db, org)
 
-        # A store is wired only on the teardown path, and it is the signal to
-        # clean up the vector tables; the flow re-checks each name and drops only
-        # the unreferenced ones. Files are unlinked whether or not one was wired.
-        to_drop = list(dict.fromkeys(collections)) if self._vector_store is not None else []
+        # A store is wired only on the teardown path, and it is the signal to clean
+        # up the vector tables. A collection another organization still references is
+        # left alone - the name is not tenant-unique (#913) - and the rest are reserved
+        # against reuse until the deferred drop runs, so a concurrent claim cannot adopt
+        # a still-populated table (#1362). Files are unlinked whether or not one was wired.
+        to_drop: list[str] = []
+        if self._vector_store is not None:
+            for collection in dict.fromkeys(collections):
+                # Hold the name against a concurrent claim while the reference check
+                # and reservation are made (#1362).
+                await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+                if await knowledge_base_repo.list_by_collection_name(self.db, collection):
+                    continue
+                to_drop.append(collection)
+                await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or to_drop:
             from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_org_purge_cleanup
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
-            # Written in *this* transaction, so the record of what to release
-            # commits with the delete that released it. The hand-off below is
-            # then an optimisation rather than the only chance: lose it to a
-            # crash and the sweep finds the row and dispatches it again (#1269).
-            intent = await teardown_intent_repo.create(
-                self.db,
-                organization_id=org.id,
-                storage_paths=storage_paths,
-                collections=to_drop,
-            )
             spawn_after_commit(
                 self.db,
-                dispatch_org_purge_cleanup(intent.id),
+                dispatch_external_state_cleanup(storage_paths, to_drop),
                 name="org_purge_cleanup",
             )
 

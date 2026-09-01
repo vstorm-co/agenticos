@@ -17,6 +17,228 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.354] - 2026-09-01
+
+### Fixed
+
+- **An agent's knowledge search could be handed a database connection made on
+  another event loop.** The capability caches its retrieval store for the life of
+  the process, and since #948 took the store's private pool away that store rode
+  `vector_engine`, the process's shared vector pool. A pooled asyncpg connection
+  belongs to the loop that opened it, and an agent is the one vector caller that
+  does not know which loop it is on - it runs on the API's loop in one process and
+  on a Prefect flow's loop in another - so a worker running two flows in one
+  process handed the second loop a connection the first had opened and the search
+  failed with `InterfaceError: attached to a different loop`, intermittently and
+  invisibly to any test with one loop in it. (#1079)
+- **The rule is now stated once, in the layer that owns the engines.** The API's
+  lifespan claims the process pools with `claim_pooled_engines`: it serves every
+  request and disposes them at shutdown, so it is the one loop whose connections
+  they may cache. `get_db_context` is pooled on that loop and behaves like
+  `get_worker_db_context` anywhere else - a `NullPool` engine for the call,
+  disposed at the end - and `close_db` gives the claim up, so a second lifespan in
+  one process (a test, a reload) does not inherit a stamp naming a loop that has
+  gone. That half was found reviewing the first fix and reaches further than the
+  agent: `get_db_context` is also reached from five worker flows - the report, MCP
+  refresh, invitation and approval tasks and the channel loops - and from
+  `embeddings_for_collection`, which every search consults before querying
+  vectors. (#1079)
+- The knowledge capability follows the same rule for its vector store: the process
+  store on the owning loop, and a store on the new pool-less `agent_vector_engine`
+  anywhere else. Keeping the pooled store for the API is what bounds this -
+  `NullPool` opens a connection per checkout and caps nothing, where the pool
+  queues at `DB_POOL_SIZE + DB_MAX_OVERFLOW` - and off that loop the bound is the
+  worker's own flow concurrency. (#1079)
+
+### Changed
+
+- #1128 is closed rather than merged. It keyed the cached store on the running
+  loop, which was right for the store's pre-#948 private pool and buys nothing
+  once the store shares the process pool - two loops keyed separately still check
+  out of one pool. Its trade-off note is what pointed at the layer below. (#1079)
+
+## [0.0.353] - 2026-09-01
+
+### Changed
+
+- `knip` to 6.32.2 from 5.88.1. `bun run lint:deps` - the narrowed run that gates
+  `lint-frontend` on a declared dependency nothing imports - is clean on the major
+  with the existing `knip.jsonc`. The bump arrived with `frontend/package.json`
+  changed and `bun.lock` untouched, which is not a lockfile drift the frontend jobs
+  tolerate: `bun install --frozen-lockfile` refused it, so `test-frontend` and `e2e`
+  failed before either ran a test. The lockfile is refreshed in the same change.
+  (#1358)
+
+## [0.0.352] - 2026-09-01
+
+### Changed
+
+- GitHub Actions: `openai/codex-action` 1.12, `astral-sh/setup-uv` 10.0.1 and
+  `docker/setup-buildx-action` 4.3.0. (#1357)
+
+## [0.0.351] - 2026-09-01
+
+### Changed
+
+- Backend dependencies: `pydantic[email]` 2.13.5, `prefect` 3.8.4,
+  `pydantic-ai-harness` 0.27.0, `llama-cloud` 2.15.0, `liteparse` 2.14.2,
+  `google-auth` 2.57.0, `boto3` 1.43.83, `click` 8.5.0, `tavily-python` 0.8.0,
+  `cryptography` 50.0.1, `aiogram` 3.31.0, `slack-sdk` 3.44.0, and the dev pins
+  `ruff` 0.16.5 and `ty` 0.0.75. (#1367)
+
+## [0.0.350] - 2026-09-01
+
+### Changed
+
+- `pydantic-ai-slim` to 2.35.3, both extras sets - the runtime one
+  (`anthropic`, `cohere`, `duckduckgo`, `google`, `groq`, `huggingface`,
+  `mistral`, `openrouter`, `web-fetch`, `xai`) and `mcp` - from 2.33.0. The agent
+  runtime is the one dependency where a lag is felt in every run, so the group
+  moves on its own. (#1345)
+
+## [0.0.349] - 2026-09-01
+
+### Fixed
+
+- **A name freed by a deferred drop could adopt the table it was about to drop.**
+  The teardown removes a collection's `rag_<name>` table only after the request that
+  deleted its knowledge-base rows commits, so between the commit and the drop the
+  name is free of any row while the populated table lingers - and a concurrent `POST
+  /rag/collections/{name}` had `_ensure_collection`'s `CREATE TABLE IF NOT EXISTS`
+  adopt it and read another tenant's chunks. The #1355 advisory lock serializes
+  claim against drop; it does not stop the claim winning the race. A tombstone
+  committed with the delete does: the new `collection_teardowns` table (the name is
+  the key, deployment-global) with an idempotent `reserve` / `is_reserved` /
+  `release`, reserved in the delete's own transaction by every path that schedules a
+  drop - `KnowledgeBaseService.delete`, `delete_for_rag_collection`,
+  `OrganizationService.purge`, `UserService._purge_personal_collections`. `claim`
+  refuses a reserved name, and `cleanup_external_state` drops the table and then
+  releases the reservation, so the name is never free while the populated table
+  exists and a failed drop keeps it for the retry. The flow drops unconditionally
+  now, and the "is another base still on this name?" check runs inline in each
+  delete path instead of once in the flow. (#1362)
+- **Dropping a default collection clears its table** rather than leaving the deleted
+  chunks searchable; the default row is kept, so the table recreates empty on the
+  next write. The inline reference check excludes the base being torn down, which is
+  what the flow's own check could not do. (#1362)
+
+### Added
+
+- `collection_teardowns` - the drop reservation, one row per name, released by the
+  cleanup that finishes the drop. (#1362)
+
+## [0.0.348] - 2026-09-01
+
+### Fixed
+
+- **The last two collection drops that ran in the request now go through the
+  durable teardown.** `DELETE /rag/collections/{name}` dropped the table directly,
+  with no #913 reference re-check and no lock, so it could drop a table a second
+  knowledge base still referenced and could race a concurrent claim of the name;
+  `UserService._purge_personal_collections` (#1131) re-checked and then dropped with
+  nothing held in between. Both now delete their document and knowledge-base rows
+  in the request and hand the files and the table drop to
+  `dispatch_external_state_cleanup`, which takes the `COLLECTION_TEARDOWN` lock,
+  re-reads the reference check on its own session, and drops only what no base
+  still claims. `drop_collection`'s drop moves into
+  `KnowledgeBaseService.delete_for_rag_collection`, so the route loses its
+  `vector_store` dependency the way `delete_knowledge_base` did. (#1359)
+- The reserved-name refusal that gated `drop_collection` in-request is now the
+  store's, inside the flow: the route answers 204 and removes the records, and a
+  pre-rule collection whose name folds onto a model table keeps that table. The
+  same deferral tradeoff `delete_knowledge_base` already makes. (#1359)
+- The window every deferred drop leaves - a populated table with no row naming it,
+  which a concurrent claim can adopt - is closed by 0.0.349 (#1362), the tip of
+  this arc. (#1359)
+
+## [0.0.347] - 2026-09-01
+
+### Fixed
+
+- **A collection's name could be claimed while its vector table was being
+  dropped.** The teardown re-reads `list_by_collection_name` before dropping a
+  `rag_<name>` table (#913), but the re-check and the drop are two statements and
+  the claim path is two more: under READ COMMITTED a claim reading "this name is
+  free" and a drop reading "no base holds this name" both act, and the drop then
+  removes the table the claim just created and committed a row against. `POST
+  /rag/collections/{name}` creates the table before committing its row, so the
+  window was reachable. Both ends now take a transaction-scoped advisory lock keyed
+  on the collection name - `hold_name`, the string-subject sibling of
+  `hold_subject`, under a new `COLLECTION_TEARDOWN` scope in `app/db/locks.py`.
+  `CollectionAccessService.claim` takes it after the identifier rule and before the
+  taken-check, holding it past `create_collection` until the request commits;
+  `cleanup_external_state` takes it before each collection's re-check and holds it
+  through the drop. Either the claim commits first and the drop's re-check skips,
+  or the drop commits first and the claim recreates the table its row points at.
+  (#1355)
+- Two pre-existing in-request drops still bypass that teardown - `DELETE
+  /rag/collections/{name}` and `_purge_personal_collections` - so the invariant
+  stays reachable through them until #1359. (#1355)
+
+## [0.0.346] - 2026-09-01
+
+### Changed
+
+- **The bulk RAG teardown's cleanup is durable across a restart.** #1293 and #1347
+  moved the file unlinks and the vector-store work past the request commit with
+  `spawn_after_commit`, which fixed the ordering but not the durability: an
+  in-process task dies with the worker that queued it, orphaning the files and
+  tables it had left to clean. The durable Prefect deployment #1274 gave the org
+  purge now serves both callers - `org_purge_cleanup` becomes
+  `external_state_cleanup`, same `(storage_paths, collections)` signature, and its
+  #913 reference re-check runs on the worker's own session. `rag_document`'s
+  `_retire_superseded` and `delete_by_collection` dispatch it instead of an
+  in-process unlink, and `knowledge_base.delete` dispatches the files *and* the
+  collection drop in one durable run - so it no longer takes a `vector_store`, and
+  the `delete_knowledge_base` route drops the parameter with it. Sync-source
+  deactivation stays inline. (#1349)
+- `delete_document` - a single document - stays in-process on purpose: what a lost
+  task strands there is one file and one document's vectors, which a durable
+  Prefect run per delete is disproportionate to, and making it durable would undo
+  #992's structural guarantee. Its docstring says so. (#1349)
+- The commit-to-dispatch window #1274 documented stays open: a crash after the
+  commit but before `run_deployment` fires still loses the cleanup, which only an
+  outbox closes. (#1349)
+
+## [0.0.345] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths did their vector-store work inside the request
+  transaction.** #1293 deferred the file unlinks; the store side effects stayed
+  where they were, so the same rollback left the vectors gone.
+  `RAGDocumentService.delete_document`'s `remove_document` and
+  `KnowledgeBaseService.delete`'s `delete_collection` `DROP TABLE` now go over with
+  `spawn_after_commit` too. The collection drop is the sharper of the two: a
+  rollback used to restore the knowledge-base and `rag_documents` rows pointing at
+  a table that no longer existed, which is a correctness fault rather than a
+  recoverable leak. The deferred drop re-reads its `list_by_collection_name`
+  reference check on a session of its own, because the name is not tenant-unique
+  and a second organization can reclaim it in the window between the commit and
+  the drop (#913) - the same re-check the org purge's durable cleanup makes. (#1347)
+- Still deferred in-process, so a crash between the commit and the dispatch loses
+  the cleanup; that durability gap is #1349. (#1347)
+
+## [0.0.344] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths unlinked stored uploads inside the request transaction.**
+  `rag_document.delete_by_collection`, `delete_document`, `complete_ingestion`'s
+  `_retire_superseded` and `knowledge_base.delete` all removed the file before the
+  commit, so a commit that then failed rolled the `rag_documents` rows back and left
+  the files gone - a restored row pointing at a missing upload, its download and
+  re-ingestion broken, and the original that could have rebuilt the vectors lost. All
+  four now hand the unlink to `spawn_after_commit` after deleting the rows, through
+  one shared `delete_files_best_effort(paths)` in `app/services/file_storage.py`
+  which holds only ids, resolves the storage backend when it runs, and suppresses a
+  file already gone. The table drop and the sync-source deactivation stay in the
+  transaction. (#1293)
+- The vector-store half of those same paths - `delete_document`'s `remove_document`
+  and `knowledge_base.delete`'s `DROP TABLE` - still runs before the commit, which is
+  the same rollback class on the store's own engine and needs the #913 reference
+  re-check moved with it. Filed as #1347 rather than widened into this change. (#1293)
+
 ## [0.0.343] - 2026-08-28
 
 ### Changed

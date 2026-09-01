@@ -226,7 +226,7 @@ from itertools import batched
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.db.session import vector_engine
+from app.db.session import agent_vector_engine, vector_engine
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
@@ -759,13 +759,39 @@ def process_vector_store(
     while the store asks for a second (`app.db.session.vector_engine` says why
     that is a circular wait) - and the resolver has to be the platform's, which
     one of five sites once forgot, billing every collection's embeddings to the
-    deployment key (#306). The worker's flows are deliberately *not* this: they
-    build an engine per flow, because a pooled connection made on one event
-    loop breaks the next (`app.worker.tasks.rag_tasks._ingestion_service`).
+    deployment key (#306).
+
+    Two callers are deliberately *not* this, both because a pooled connection
+    made on one event loop breaks whoever checks it out on the next: the
+    worker's flows, which build an engine per flow
+    (`app.worker.tasks.rag_tasks._ingestion_service`), and the knowledge
+    capability, which cannot know which loop it is on and takes
+    `unpooled_vector_store` instead (#1079).
     """
     return PgVectorStore(
         settings=settings,
         embedding_service=embedding_service,
         resolver=embeddings_for_collection,
         engine=vector_engine,
+    )
+
+
+def unpooled_vector_store(
+    settings: RAGSettings, embedding_service: EmbeddingService
+) -> PgVectorStore:
+    """A store safe to use from any event loop, at one connect per query.
+
+    The same construction as `process_vector_store` and the same resolver, on
+    `agent_vector_engine` rather than the process's vector pool. For a caller
+    that does not own its event loop and cannot be given one: an agent's
+    knowledge search runs on the API's loop in one process and on a Prefect
+    flow's loop in another, and a pooled store shared between two loops in one
+    worker process hands the second a connection the first opened (#1079).
+    `NullPool` keeps no connection to hand over, so one store serves every loop.
+    """
+    return PgVectorStore(
+        settings=settings,
+        embedding_service=embedding_service,
+        resolver=embeddings_for_collection,
+        engine=agent_vector_engine,
     )

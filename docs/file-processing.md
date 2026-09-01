@@ -308,27 +308,23 @@ The same applies to a sync: the `SyncLog` row exists before its flow does. See
 **Each flow builds its own engine for the vector store, and disposes it with the
 flow's work.**
 
-The store itself owns no engine — it borrows whatever it is handed, which in the API
-process is the application's own
-([#12](https://github.com/vstorm-co/agenticos/issues/12)).
+**One loop owns the process's pools, and everything else builds its own
+engine.** The API's lifespan claims them at startup: it serves every request and
+disposes them at shutdown, so it is the one loop whose connections they may
+cache. Off that loop `get_db_context` behaves like `get_worker_db_context` — a
+`NullPool` engine for the call, disposed at the end — because it is reached from
+Prefect flows (the report, MCP refresh, invitation and approval tasks, the
+channel loops) and from an agent's embedding resolver, each on a loop of its own
+([#1079](https://github.com/vstorm-co/agenticos/issues/1079)).
 
-The worker cannot borrow that one: each flow runs in an event loop of its own, the
-same cross-event-loop reason `get_worker_db_context` creates a `NullPool` engine per
-call. So `_ingestion_service` in `rag_tasks.py` builds an engine per flow, and its
-exit disposes it on every path out.
-
-A pooled engine abandoned there keeps its connections until the worker process
-exits. Two hundred uploads used to mean two hundred abandoned pools, and somewhere
-short of a hundred documents the worker reached the database's `max_connections` and
-every query after that failed — including the one that would have marked the
-document failed, so the upload sat at `processing` with the reason only in a log
-([#948](https://github.com/vstorm-co/agenticos/issues/948)).
-
-Pooling *within* one flow is worth having, because a document's chunks are written
-over that connection.
-
-!!! tip "If ingestion starts failing part-way through a large batch with a connection error, this is the shape to look for."
-
+An agent's knowledge search follows the same rule for its vector store: the
+process store on the owning loop, and `agent_vector_engine` — pool-less —
+anywhere else. It is the one vector caller that cannot know which loop it is on,
+and its retrieval store is cached for the life of the process, so a pooled store
+shared between two loops in one worker hands the second a connection the first
+opened. Keeping the pool for the API is what bounds this: `NullPool` opens a
+connection per checkout and caps nothing, where the pool queues at
+`DB_POOL_SIZE + DB_MAX_OVERFLOW`.
 
 ### Supported formats
 
@@ -597,6 +593,16 @@ one of them is theirs.
 
 A name a caller does not supply is derived from the display name plus six random hex
 characters, and is claimed on the same path rather than trusted for being random.
+
+**And a name mid-teardown is not free either.** Dropping a collection removes its
+knowledge-base rows in the request but drops the physical `rag_<name>` vector table
+only *after* the request commits, handed to a durable worker — so a rollback keeps
+the table beside the rows it restores, and a process that dies mid-cleanup does not
+orphan it. Between that commit and the drop the name has no row but its table still
+holds the old tenant's chunks, so `claim` also refuses a name reserved in
+`collection_teardowns` — a row committed *with* the delete and cleared once the table
+is gone. Without it, a claim in that window would have `CREATE TABLE IF NOT EXISTS`
+adopt the lingering table and read another tenant's data (#1362).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
