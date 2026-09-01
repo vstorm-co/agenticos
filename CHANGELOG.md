@@ -17,6 +17,46 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.354] - 2026-09-01
+
+### Fixed
+
+- **An agent's knowledge search could be handed a database connection made on
+  another event loop.** The capability caches its retrieval store for the life of
+  the process, and since #948 took the store's private pool away that store rode
+  `vector_engine`, the process's shared vector pool. A pooled asyncpg connection
+  belongs to the loop that opened it, and an agent is the one vector caller that
+  does not know which loop it is on - it runs on the API's loop in one process and
+  on a Prefect flow's loop in another - so a worker running two flows in one
+  process handed the second loop a connection the first had opened and the search
+  failed with `InterfaceError: attached to a different loop`, intermittently and
+  invisibly to any test with one loop in it. (#1079)
+- **The rule is now stated once, in the layer that owns the engines.** The API's
+  lifespan claims the process pools with `claim_pooled_engines`: it serves every
+  request and disposes them at shutdown, so it is the one loop whose connections
+  they may cache. `get_db_context` is pooled on that loop and behaves like
+  `get_worker_db_context` anywhere else - a `NullPool` engine for the call,
+  disposed at the end - and `close_db` gives the claim up, so a second lifespan in
+  one process (a test, a reload) does not inherit a stamp naming a loop that has
+  gone. That half was found reviewing the first fix and reaches further than the
+  agent: `get_db_context` is also reached from five worker flows - the report, MCP
+  refresh, invitation and approval tasks and the channel loops - and from
+  `embeddings_for_collection`, which every search consults before querying
+  vectors. (#1079)
+- The knowledge capability follows the same rule for its vector store: the process
+  store on the owning loop, and a store on the new pool-less `agent_vector_engine`
+  anywhere else. Keeping the pooled store for the API is what bounds this -
+  `NullPool` opens a connection per checkout and caps nothing, where the pool
+  queues at `DB_POOL_SIZE + DB_MAX_OVERFLOW` - and off that loop the bound is the
+  worker's own flow concurrency. (#1079)
+
+### Changed
+
+- #1128 is closed rather than merged. It keyed the cached store on the running
+  loop, which was right for the store's pre-#948 private pool and buys nothing
+  once the store shares the process pool - two loops keyed separately still check
+  out of one pool. Its trade-off note is what pointed at the layer below. (#1079)
+
 ## [0.0.353] - 2026-09-01
 
 ### Changed
