@@ -36,6 +36,10 @@ A company ends up with agents in five places and cannot answer four questions:
 **what do we run, what did it cost, what did it touch, and who said it could.**
 AgenticOS is one place to build them and one set of books for all of them.
 
+**The harness, as a product**: skills, context files — `AGENTS.md` as a page —
+MCP at registry scale, automations on a schedule or a trigger, and a budget that
+stops a run *before* the model call.
+
 Below: a spreadsheet dropped into the chat, one sentence asking for charts. The
 agent writes the code, runs it in a locked box, and answers.
 
@@ -130,19 +134,21 @@ only question that matters — can this deployment actually run an agent — and
 
 ## What you get
 
-- 🏗️ **Built by whoever knows the answer.** Instructions, a model, capabilities
-  and limits, edited in a browser and published as a version. Changing what an
-  agent says is not a pull request, a review and a release.
-- 🧰 **Agents that do the work.** Retrieval over your own documents, a real
-  browser, Python in a sandbox with files and a shell, charts, images, delegation
-  — and [any MCP server by URL](docs/mcp.md): 99 checked, 5,703 more mirrored
-  from the public registry.
-- 🔌 **Everywhere, from one runner.** Web chat, a hosted page with no login, an
-  embeddable widget, the HTTP API, a raw WebSocket, Slack, Telegram, Mattermost,
-  and schedules that need nobody typing.
-- 🛡️ **Governed, because forty agents need it.** Budgets that stop a run before
-  the model request, approval on anything side-effecting, an audit trail, and
-  tenant isolation enforced by the schema.
+- 🧰 **The harness, as a form.** Retrieval over your documents, a real browser,
+  Python in a sandbox with files and a shell, charts, images, delegation —
+  switched on per agent, not wired into code.
+- 📄 **Context files.** `AGENTS.md` and `CLAUDE.md` as a page: standing
+  instructions written once, attached to every agent that needs them.
+- 🎓 **Skills.** A procedure written once in plain language, loaded when the
+  agent decides it is relevant. Edit it; live on the next answer, no release.
+- 🔌 **MCP, at registry scale.** Any server by URL: **99 checked** with OAuth
+  wired, plus **5,703 mirrored** from the public registry, searchable by name.
+- ⏰ **Automations.** Schedules and event triggers — the 07:00 triage, the Monday
+  summary. Same limits and same record as anything a person asked for.
+- 📡 **One runner, every surface.** Web chat, a hosted page, a widget, the HTTP
+  API, a raw WebSocket, Slack, Telegram, Mattermost. Published once.
+- 🛡️ **Governed.** Budgets that stop a run before the model request, approval on
+  anything side-effecting, an audit trail, tenant isolation in the schema.
 
 **Code defines, configuration composes.** A business team assembles agents in a
 browser and never opens Python; engineers extend what there is to assemble, and
