@@ -1,0 +1,232 @@
+"""The agent's runtime memory store - a short-lived session per operation.
+
+A run must not read or write memory on the session it runs on. Holding that
+session across a model call is the idle-in-transaction the budget baseline opens
+its own session to avoid (#12), and `autoflush` would turn a later read into a
+flush of a half-written row. So each function here opens its own session with
+`get_db_context` - the pattern `embeddings_for_collection` uses to reach the
+database mid-run - does one operation, and lets the context manager commit and
+close it. That is also why a memory written in a run that later fails still
+persists: the write committed on its own session the moment it was made, which
+is what a memory is supposed to do.
+
+The scope is fixed by the caller from the request identity and the capability's
+partition, never by the model: `scope_key=None` is the shared store, a
+`user:<id>`/`chan:<id>` is one end-user's. Every write here is `origin="agent"` -
+untrusted content that a later run may read as a tool result but that is never
+spliced into instructions (see the capability README).
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from typing import Literal
+from uuid import UUID
+
+from app.core.config import settings
+from app.db.models.memory import MemoryOrigin
+from app.db.session import get_db_context
+from app.repositories import memory_repo
+from app.repositories.memory import FactHit
+from app.services.rag.embeddings import EmbeddingService
+
+_embedder: EmbeddingService | None = None
+
+
+def _embedder_service() -> EmbeddingService:
+    """The deployment embedder, built once and reused.
+
+    Facts embed on the deployment `EMBEDDING_MODEL` (F-N2), so one instance
+    serves every run; its client is lazy, so holding it costs no credential
+    check until something actually embeds.
+    """
+    global _embedder
+    if _embedder is None:
+        _embedder = EmbeddingService(settings.rag)
+    return _embedder
+
+
+async def _embed(text: str) -> list[float]:
+    """Embed off the event loop so a tool call does not block it for an HTTP
+    round trip. `metered_by` copies into the thread, so the embedding is still
+    booked to the run's ledger (N4)."""
+    return await asyncio.to_thread(_embedder_service().embed_query, text)
+
+
+MutationResult = Literal["ok", "missing", "protected"]
+"""The outcome of an agent's edit or delete.
+
+`protected` is an agent reaching a row it may read but not change - an
+operator-authored file. The agent can only ever *write* `agent` rows, so
+`protected` is what stops it from mutating trusted, injectable content and
+turning a poisoned edit into a prompt (the poisoning defense the capability
+README describes).
+"""
+
+
+@dataclass(frozen=True)
+class MemoryFileIndexEntry:
+    """One row of the runtime index - enough to decide whether to read the body."""
+
+    name: str
+    description: str | None
+    kind: str
+
+
+async def list_files(
+    *, organization_id: UUID, agent_id: UUID, scope_key: str | None
+) -> list[MemoryFileIndexEntry]:
+    """The names, descriptions and kinds in one partition, detached from the session."""
+    async with get_db_context() as db:
+        rows = await memory_repo.list_in_partition(
+            db, organization_id=organization_id, agent_id=agent_id, end_user_scope_key=scope_key
+        )
+        return [
+            MemoryFileIndexEntry(name=row.name, description=row.description, kind=row.kind)
+            for row in rows
+        ]
+
+
+async def read_file(
+    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, name: str
+) -> str | None:
+    """One file's body by name, or None when the partition has no such file."""
+    async with get_db_context() as db:
+        row = await memory_repo.get_by_name(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=scope_key,
+            name=name,
+        )
+        return None if row is None else row.content
+
+
+async def write_file(
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    scope_key: str | None,
+    name: str,
+    content: str,
+    description: str | None,
+    kind: str,
+) -> bool:
+    """Create a new file in the partition. False when the name is already taken.
+
+    A collision is reported rather than silently overwritten: overwriting is
+    `edit_file`, a deliberately separate act, so the model cannot lose a note by
+    reaching for the wrong verb.
+    """
+    async with get_db_context() as db:
+        existing = await memory_repo.get_by_name(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=scope_key,
+            name=name,
+        )
+        if existing is not None:
+            return False
+        await memory_repo.create(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=scope_key,
+            name=name,
+            description=description,
+            content=content,
+            content_format="md",
+            kind=kind,
+            origin=MemoryOrigin.AGENT.value,
+        )
+        return True
+
+
+async def edit_file(
+    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, name: str, content: str
+) -> MutationResult:
+    """Replace an existing agent-authored file's body.
+
+    An operator-authored file in the same partition is `protected`: the agent may
+    read it but must not change it, or it could edit trusted, injectable content
+    into a poisoned prompt. The origin of an edited row is left `agent`.
+    """
+    async with get_db_context() as db:
+        row = await memory_repo.get_by_name(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=scope_key,
+            name=name,
+        )
+        if row is None:
+            return "missing"
+        if row.origin != MemoryOrigin.AGENT.value:
+            return "protected"
+        await memory_repo.update(db, file=row, update_data={"content": content})
+        return "ok"
+
+
+async def delete_file(
+    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, name: str
+) -> MutationResult:
+    """Remove an agent-authored file from the partition.
+
+    An operator-authored file is `protected` for the same reason it is in
+    `edit_file`: the agent may read the operator's standing memory but not delete
+    it.
+    """
+    async with get_db_context() as db:
+        row = await memory_repo.get_by_name(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=scope_key,
+            name=name,
+        )
+        if row is None:
+            return "missing"
+        if row.origin != MemoryOrigin.AGENT.value:
+            return "protected"
+        await memory_repo.delete(db, row)
+        return "ok"
+
+
+async def remember(
+    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, content: str
+) -> None:
+    """Embed a fact and store it in the partition.
+
+    The embedding is computed before the session is opened - it is the slow part,
+    and holding a session across it is the idle-in-transaction the file store
+    avoids too. A fact written in a run that later fails still persists, the same
+    as a file.
+    """
+    embedding = await _embed(content)
+    async with get_db_context() as db:
+        await memory_repo.create_fact(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=scope_key,
+            content=content,
+            embedding=embedding,
+        )
+
+
+async def recall(
+    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, query: str, limit: int = 5
+) -> list[FactHit]:
+    """The facts most similar to a query, within the partition, most-similar first."""
+    embedding = await _embed(query)
+    async with get_db_context() as db:
+        return await memory_repo.recall_facts(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=scope_key,
+            query_embedding=embedding,
+            limit=limit,
+        )

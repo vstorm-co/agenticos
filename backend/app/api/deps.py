@@ -508,6 +508,16 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.memory import MemoryService
+
+
+def get_memory_service(db: DBSession) -> MemoryService:
+    """Create MemoryService instance with database session."""
+    return MemoryService(db)
+
+
+MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
+
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
     return SkillProposalService(db)

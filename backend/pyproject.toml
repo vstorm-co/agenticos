@@ -331,6 +331,11 @@ ignore = [
 # [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is
 # the correct pattern, not an exception to it.
 "app/services/rag/vectorstore.py" = ["S608"]
+# The memory facts recall is the same shape: the interpolated pieces are the
+# halfvec cast (built from an int dimension) and a fixed `IS NULL` / `= :scope`
+# choice, and every value is bound. The vector column has no SQLAlchemy type, so
+# this is the only way to run the KNN, not an exception to the bound-value rule.
+"app/repositories/memory.py" = ["S608"]
 # FastAPI exception handlers run while sys.exc_info() is still set, so
 # logger.exception() captures the traceback correctly here despite not being
 # lexically inside an `except` block.
@@ -615,6 +620,10 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/repositories/memory.py",
+    "app/services/memory/_native.py",
+    "app/services/memory/facade.py",
+    "app/api/routes/v1/memory.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
     # What this deployment calls itself, who may register, and whether it is open
@@ -876,6 +885,10 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/repositories/memory.py",
+    "app/services/memory/_native.py",
+    "app/services/memory/facade.py",
+    "app/api/routes/v1/memory.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
     # What this deployment calls itself, who may register, and whether it is open

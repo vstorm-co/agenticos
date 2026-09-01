@@ -280,4 +280,10 @@ async def publisher_context(
         organization_id=organization_id,
         role=role,
         channel_identity_id=channel_identity_id,
+        # `user_id` is the publisher standing in for an asker nobody signed in
+        # as. The flag is what lets per-user memory tell this apart from a real
+        # subject and refuse rather than attribute a stranger's note to the
+        # owner (#788); the memory key still prefers `channel_identity_id` when
+        # an unlinked channel supplies one.
+        subject_is_publisher_fallback=True,
     )

@@ -1,0 +1,289 @@
+"""Operator-facing management of an agent's memory files.
+
+A memory file has no human owner - the agent writes it - so access is not a
+per-row grant the way a context file's is. It rides on the parent agent: whoever
+may view the agent may read its memory, whoever may edit the agent may change it.
+The check is :func:`resolve_access` against the agent, and a denial is a 404 on
+the file rather than a 403, because whether an agent (and therefore its memory)
+exists is itself something the caller may not learn.
+
+This is the operator half of the `memory` capability. The agent's own runtime
+reads and writes go through `app.services.memory._native`, which opens its own
+session; this service runs on the request's session like every other.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import cast
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.audit import record_audit
+from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import Agent
+from app.db.models.memory import AgentMemoryFact, AgentMemoryFile, MemoryOrigin
+from app.db.updates import writable
+from app.repositories import agent_repo, memory_repo
+from app.repositories.memory import MemorySort
+from app.schemas.memory import (
+    AgentMemoryFactList,
+    AgentMemoryFactRead,
+    AgentMemoryFileCreate,
+    AgentMemoryFileList,
+    AgentMemoryFileSummary,
+    AgentMemoryFileUpdate,
+    MemoryOriginLiteral,
+)
+from app.services.access import AGENT, resolve_access
+
+logger = logging.getLogger(__name__)
+
+
+def _summary(file: AgentMemoryFile) -> AgentMemoryFileSummary:
+    """A memory file as the index shows it - the body is a byte count only."""
+    return AgentMemoryFileSummary(
+        id=file.id,
+        name=file.name,
+        description=file.description,
+        format=file.format,
+        kind=file.kind,
+        origin=cast(MemoryOriginLiteral, file.origin),
+        end_user_scope_key=file.end_user_scope_key,
+        size_bytes=len(file.content.encode("utf-8")),
+    )
+
+
+class MemoryService:
+    """Manage an agent's memory files on behalf of an operator."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def _agent_or_404(self, ctx: AuthContext, agent_id: UUID, *, perm: Perm) -> Agent:
+        """The parent agent, if the caller may exercise `perm` on it; else a 404.
+
+        Both misses are one answer: an agent in another organization, and an
+        agent this caller may not reach, are equally "not found" - neither may
+        be distinguished from a truly absent one.
+        """
+        agent = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+        if agent is None or not await resolve_access(
+            self.db, ctx, agent, perm, resource_type=AGENT
+        ):
+            raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
+        return agent
+
+    async def _file_or_404(self, ctx: AuthContext, file_id: UUID, *, perm: Perm) -> AgentMemoryFile:
+        """One memory file, if the caller may exercise `perm` on its agent; else 404."""
+        file = await memory_repo.get(self.db, file_id, organization_id=ctx.organization_id)
+        if file is None:
+            raise NotFoundError(message="Memory file not found", details={"file_id": str(file_id)})
+        # The agent decides access; a denial hides the file the same as a miss.
+        await self._agent_or_404(ctx, file.agent_id, perm=perm)
+        return file
+
+    async def get(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
+        return await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
+
+    async def list_files(
+        self,
+        ctx: AuthContext,
+        *,
+        agent_id: UUID,
+        scope_key: str | None = None,
+        all_partitions: bool = False,
+        search: str | None = None,
+        sort: MemorySort = "name",
+        skip: int = 0,
+        limit: int = 50,
+    ) -> AgentMemoryFileList:
+        """A page of one agent's memory files, and the total the pager needs."""
+        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_VIEW)
+        items, total = await memory_repo.list_for_agent(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            scope_key=scope_key,
+            all_partitions=all_partitions,
+            search=search,
+            sort=sort,
+            skip=skip,
+            limit=limit,
+        )
+        return AgentMemoryFileList(items=[_summary(file) for file in items], total=total)
+
+    async def create(self, ctx: AuthContext, data: AgentMemoryFileCreate) -> AgentMemoryFile:
+        """Create an operator-authored (trusted) memory file.
+
+        Raises:
+            AlreadyExistsError: If the name is taken in that partition - the name
+                is how the agent and a person refer to a file, so two with one
+                name in one partition is an ambiguity nothing can resolve.
+        """
+        await self._agent_or_404(ctx, data.agent_id, perm=Perm.AGENTS_EDIT)
+        if await memory_repo.get_by_name(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=data.agent_id,
+            end_user_scope_key=data.end_user_scope_key,
+            name=data.name,
+        ):
+            raise AlreadyExistsError(
+                message=f"A memory file named '{data.name}' already exists in this partition.",
+                details={"name": data.name},
+            )
+        file = await memory_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=data.agent_id,
+            end_user_scope_key=data.end_user_scope_key,
+            name=data.name,
+            description=data.description,
+            content=data.content,
+            content_format=data.format,
+            kind=data.kind,
+            origin=MemoryOrigin.OPERATOR.value,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.file.created",
+            target_type="memory",
+            target_id=str(file.id),
+            details={"agent_id": str(data.agent_id), "name": data.name},
+        )
+        return file
+
+    async def update(
+        self, ctx: AuthContext, file_id: UUID, data: AgentMemoryFileUpdate
+    ) -> AgentMemoryFile:
+        """Edit a memory file's content or metadata.
+
+        The `origin` is deliberately not touched: editing an agent-authored file
+        does not make it trusted. Promoting it is a separate, explicit act
+        (:meth:`promote`), so a Save can never quietly turn untrusted content
+        into something the prompt will splice in.
+        """
+        file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_EDIT)
+        update_data = writable(data, over=AgentMemoryFile)
+        updated = await memory_repo.update(self.db, file=file, update_data=update_data)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.file.updated",
+            target_type="memory",
+            target_id=str(file.id),
+            details={"name": file.name, "fields": sorted(update_data)},
+        )
+        return updated
+
+    async def promote(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
+        """Mark an agent-authored file trusted, so injection may splice it in.
+
+        The one path from `agent` to `operator`, and it is deliberate rather than
+        a side effect of editing: a person is vouching that this content is safe
+        to treat as instruction rather than as data.
+        """
+        file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_EDIT)
+        updated = await memory_repo.update(
+            self.db, file=file, update_data={"origin": MemoryOrigin.OPERATOR.value}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.file.promoted",
+            target_type="memory",
+            target_id=str(file.id),
+            details={"name": file.name},
+        )
+        return updated
+
+    async def delete(self, ctx: AuthContext, file_id: UUID) -> None:
+        file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_EDIT)
+        await memory_repo.delete(self.db, file)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.file.deleted",
+            target_type="memory",
+            target_id=str(file_id),
+        )
+
+    async def _fact_or_404(self, ctx: AuthContext, fact_id: UUID, *, perm: Perm) -> AgentMemoryFact:
+        fact = await memory_repo.get_fact(self.db, fact_id, organization_id=ctx.organization_id)
+        if fact is None:
+            raise NotFoundError(message="Memory fact not found", details={"fact_id": str(fact_id)})
+        await self._agent_or_404(ctx, fact.agent_id, perm=perm)
+        return fact
+
+    async def list_facts(
+        self,
+        ctx: AuthContext,
+        *,
+        agent_id: UUID,
+        scope_key: str | None = None,
+        all_partitions: bool = False,
+        search: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> AgentMemoryFactList:
+        """A page of an agent's facts. Search is a substring match, not semantic -
+        an operator's KNN query would embed off the run's spend ledger (N4), so
+        semantic recall stays the agent's runtime tool."""
+        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_VIEW)
+        items, total = await memory_repo.list_facts(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            scope_key=scope_key,
+            all_partitions=all_partitions,
+            search=search,
+            skip=skip,
+            limit=limit,
+        )
+        return AgentMemoryFactList(
+            items=[AgentMemoryFactRead.model_validate(fact) for fact in items], total=total
+        )
+
+    async def get_fact(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFact:
+        return await self._fact_or_404(ctx, fact_id, perm=Perm.AGENTS_VIEW)
+
+    async def delete_fact(self, ctx: AuthContext, fact_id: UUID) -> None:
+        """Forget a fact. There is no operator create or edit - facts are the
+        agent's own runtime writes - but clearing one is a management action."""
+        fact = await self._fact_or_404(ctx, fact_id, perm=Perm.AGENTS_EDIT)
+        await memory_repo.delete_fact(self.db, fact)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.fact.deleted",
+            target_type="memory",
+            target_id=str(fact_id),
+        )
+
+    async def resolve_injectable(self, ctx: AuthContext, agent_id: UUID) -> list[AgentMemoryFile]:
+        """The trusted files an agent injects into its instructions.
+
+        Only operator-authored files in the shared partition: agent-authored
+        content is never injected (it is untrusted), and a per-user partition is
+        not known until a run has an end-user, so standing injection is the
+        shared store's operator rows. Scoped to the run's organization and not to
+        the runner's own access, the same rule context files follow - the binding
+        was checked when the agent was published, and re-checking here would make
+        an agent's instructions change with who asked.
+        """
+        return await memory_repo.list_in_partition(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            end_user_scope_key=None,
+            origin=MemoryOrigin.OPERATOR.value,
+        )

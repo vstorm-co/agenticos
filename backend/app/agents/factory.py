@@ -46,6 +46,10 @@ from app.agents.capabilities.compaction import (
     ContextGauge,
     build_gauge,
 )
+from app.agents.capabilities.memory import (
+    derive_end_user_scope_key,
+    per_user_partition_requested,
+)
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
@@ -124,6 +128,8 @@ def build_agent(
     run_id: UUID | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
+    channel_identity_id: UUID | None = None,
+    subject_is_publisher_fallback: bool = False,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
@@ -231,12 +237,28 @@ def build_agent(
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
 
+    # Derived only when a per-user memory capability is bound, so the run carries
+    # an end-user identity exactly when a feature needs one - and stays `None`
+    # (inert) for every other agent. `None` under a per-user binding means the
+    # surface gave no per-person signal, and the memory tool refuses rather than
+    # attribute the note to the publisher (#788).
+    end_user_scope_key = (
+        derive_end_user_scope_key(
+            channel_identity_id=channel_identity_id,
+            user_id=user_id,
+            subject_is_publisher_fallback=subject_is_publisher_fallback,
+        )
+        if per_user_partition_requested(bindings)
+        else None
+    )
+
     deps = AgentDeps(
         organization_id=organization_id,
         agent_id=agent_id,
         run_id=run_id,
         user_id=user_id,
         user_name=user_name,
+        end_user_scope_key=end_user_scope_key,
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),

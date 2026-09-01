@@ -56,6 +56,15 @@ class AgentDeps:
     agent_id: UUID | None = None
     run_id: UUID | None = None
 
+    # The per-end-user memory partition for this run, derived server-side in the
+    # factory from the request identity when a `per_user` memory capability is
+    # bound, and `None` otherwise - which includes every agent without per-user
+    # memory and every delegate (`clone_for_subagent` does not carry it, so
+    # per-user memory is a root-agent concern in v1). `None` under a `per_user`
+    # binding means the run had no per-person signal, and the memory tool refuses
+    # rather than write into a shared partition it was not given.
+    end_user_scope_key: str | None = None
+
     # Collection names this agent may search, resolved from its bindings.
     kb_collection_names: list[str] = field(default_factory=list)
 

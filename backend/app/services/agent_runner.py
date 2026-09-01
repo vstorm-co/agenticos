@@ -1973,6 +1973,12 @@ class AgentRunnerService:
             # looks like an answer.
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
+            # Who actually asked, for per-user memory: the channel account when
+            # one spoke, and whether `user_id` is only the publisher standing in
+            # for an unidentified visitor. The factory derives an end-user key
+            # from these solely when a per-user memory capability is bound.
+            channel_identity_id=ctx.channel_identity_id,
+            subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,

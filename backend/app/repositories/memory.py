@@ -1,0 +1,347 @@
+"""Agent-memory-file repository (PostgreSQL async).
+
+Every read is scoped to an agent and a partition. The partition key is nullable
+and `NULL` means the one shared store, so "in this partition" is `col IS NULL`
+for the shared case and `col = key` otherwise — a plain `col = NULL` is never
+true and would make the shared partition silently unreadable. The unique index
+enforces the same rule at write time with `NULLS NOT DISTINCT`, so a read and a
+uniqueness check agree on what "the same partition" means.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Literal
+from uuid import UUID, uuid4
+
+from sqlalchemy import ColumnElement, func, or_, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.db.models.memory import AgentMemoryFact, AgentMemoryFile
+from app.repositories._search import contains_ci
+
+MemorySort = Literal["name", "updated"]
+
+# pgvector's HNSW index takes a `vector` column up to this width; past it the
+# column is indexed and searched as `halfvec`. The same fixed pgvector limit the
+# RAG store and the facts migration use; kept here because the recall query has
+# to cast the same way the index was built or Postgres refuses the operator.
+_HNSW_MAX_VECTOR_DIM = 2000
+
+
+def _in_partition(scope_key: str | None) -> ColumnElement[bool]:
+    """ "In this partition", with `NULL` meaning the one shared store."""
+    column = AgentMemoryFile.end_user_scope_key
+    return column.is_(None) if scope_key is None else column == scope_key
+
+
+async def get(db: AsyncSession, file_id: UUID, *, organization_id: UUID) -> AgentMemoryFile | None:
+    result = await db.execute(
+        select(AgentMemoryFile).where(
+            AgentMemoryFile.id == file_id,
+            AgentMemoryFile.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_by_name(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    end_user_scope_key: str | None,
+    name: str,
+) -> AgentMemoryFile | None:
+    """One file by name within a single partition — the runtime read/edit lookup."""
+    result = await db.execute(
+        select(AgentMemoryFile).where(
+            AgentMemoryFile.organization_id == organization_id,
+            AgentMemoryFile.agent_id == agent_id,
+            _in_partition(end_user_scope_key),
+            AgentMemoryFile.name == name,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_in_partition(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    end_user_scope_key: str | None,
+    origin: str | None = None,
+    limit: int = 200,
+) -> list[AgentMemoryFile]:
+    """Every file in one partition, most-recently-updated first — the runtime index.
+
+    `origin` narrows to trusted (`operator`) rows when injection asks for them;
+    the runtime index tool passes `None` and sees the agent's own writes too.
+    Capped at `limit`, and ordered newest-first so that the cap keeps the recent
+    memories rather than the alphabetically-first ones: a partition an agent has
+    written to for months is not an index the model should be handed in full, and
+    what it most wants is what it learned last. `updated_at` is null until a row
+    is edited, so it falls back to `created_at`, which never is.
+    """
+    where = [
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.agent_id == agent_id,
+        _in_partition(end_user_scope_key),
+    ]
+    if origin is not None:
+        where.append(AgentMemoryFile.origin == origin)
+    result = await db.execute(
+        select(AgentMemoryFile)
+        .where(*where)
+        .order_by(
+            func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
+            AgentMemoryFile.name.asc(),
+        )
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def list_for_agent(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    scope_key: str | None = None,
+    all_partitions: bool = False,
+    search: str | None = None,
+    sort: MemorySort = "name",
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[AgentMemoryFile], int]:
+    """A page of an agent's memory files and the total — the operator index.
+
+    `all_partitions` lists every partition at once (the management "All" filter);
+    otherwise the listing is confined to `scope_key` (`None` = the shared store).
+    Search covers name and description, the two things a person remembers about a
+    file; the body is what the model reads. "updated" sorting falls back to
+    `created_at`, which is never null.
+    """
+    where = [
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.agent_id == agent_id,
+    ]
+    if not all_partitions:
+        where.append(_in_partition(scope_key))
+    if search:
+        where.append(
+            or_(
+                contains_ci(AgentMemoryFile.name, search),
+                contains_ci(AgentMemoryFile.description, search),
+            )
+        )
+    order_by = (
+        (
+            func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
+            AgentMemoryFile.name.asc(),
+        )
+        if sort == "updated"
+        else (AgentMemoryFile.name.asc(),)
+    )
+    items = await db.execute(
+        select(AgentMemoryFile).where(*where).order_by(*order_by).offset(skip).limit(limit)
+    )
+    total = await db.scalar(select(func.count(AgentMemoryFile.id)).where(*where))
+    return list(items.scalars().all()), total or 0
+
+
+async def create(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    end_user_scope_key: str | None,
+    name: str,
+    description: str | None,
+    content: str,
+    content_format: str,
+    kind: str,
+    origin: str,
+) -> AgentMemoryFile:
+    file = AgentMemoryFile(
+        organization_id=organization_id,
+        agent_id=agent_id,
+        end_user_scope_key=end_user_scope_key,
+        name=name,
+        description=description,
+        content=content,
+        format=content_format,
+        kind=kind,
+        origin=origin,
+    )
+    db.add(file)
+    await db.flush()
+    await db.refresh(file)
+    return file
+
+
+async def update(
+    db: AsyncSession, *, file: AgentMemoryFile, update_data: dict[str, Any]
+) -> AgentMemoryFile:
+    for field, value in update_data.items():
+        setattr(file, field, value)
+    db.add(file)
+    await db.flush()
+    await db.refresh(file)
+    return file
+
+
+async def delete(db: AsyncSession, file: AgentMemoryFile) -> None:
+    await db.delete(file)
+    await db.flush()
+
+
+@dataclass(frozen=True)
+class FactHit:
+    """One recalled fact and how close it was, detached from the session."""
+
+    content: str
+    score: float
+
+
+def _fact_scope(scope_key: str | None) -> ColumnElement[bool]:
+    column = AgentMemoryFact.end_user_scope_key
+    return column.is_(None) if scope_key is None else column == scope_key
+
+
+async def create_fact(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    end_user_scope_key: str | None,
+    content: str,
+    embedding: list[float],
+) -> None:
+    """Write one fact and its vector.
+
+    Raw SQL because `embedding` has no SQLAlchemy type in this project (see
+    `AgentMemoryFact`); pgvector parses the vector from the text form `str(list)`
+    produces, the same as the RAG store's insert. `id` is generated here and
+    `created_at` is left to the column default.
+    """
+    await db.execute(
+        text(
+            "INSERT INTO agent_memory_facts "
+            "(id, organization_id, agent_id, end_user_scope_key, content, embedding) "
+            "VALUES (:id, :organization_id, :agent_id, :scope, :content, :embedding)"
+        ),
+        {
+            "id": uuid4(),
+            "organization_id": organization_id,
+            "agent_id": agent_id,
+            "scope": end_user_scope_key,
+            "content": content,
+            "embedding": str(embedding),
+        },
+    )
+
+
+async def recall_facts(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    end_user_scope_key: str | None,
+    query_embedding: list[float],
+    limit: int = 5,
+) -> list[FactHit]:
+    """The nearest facts in one partition, most-similar first.
+
+    Cosine distance (`<=>`) over the HNSW index, scored `1 - distance` so higher
+    is closer. The query vector is cast the same way the column is indexed - a
+    `halfvec` past 2000 dimensions - or Postgres compares a halfvec against a
+    vector and refuses the operator, exactly as the RAG search does. Scoped to
+    the partition (`IS NULL` for the shared store) before the KNN, so a run only
+    ever recalls from the store it was admitted to.
+    """
+    dim = settings.rag.embeddings_config.dim
+    wide = dim > _HNSW_MAX_VECTOR_DIM
+    distance = f"(embedding::halfvec({dim}))" if wide else "embedding"
+    query_expr = f"(:query_vec)::halfvec({dim})" if wide else ":query_vec"
+    scope_sql = (
+        "end_user_scope_key IS NULL"
+        if end_user_scope_key is None
+        else ("end_user_scope_key = :scope")
+    )
+    params: dict[str, Any] = {
+        "organization_id": organization_id,
+        "agent_id": agent_id,
+        "query_vec": str(query_embedding),
+        "limit": limit,
+    }
+    if end_user_scope_key is not None:
+        params["scope"] = end_user_scope_key
+    result = await db.execute(
+        text(
+            f"SELECT content, 1 - ({distance} <=> {query_expr}) AS score "
+            "FROM agent_memory_facts "
+            "WHERE organization_id = :organization_id AND agent_id = :agent_id "
+            f"AND {scope_sql} "
+            f"ORDER BY {distance} <=> {query_expr} "
+            "LIMIT :limit"
+        ),
+        params,
+    )
+    return [FactHit(content=row[0], score=float(row[1])) for row in result.fetchall()]
+
+
+async def get_fact(
+    db: AsyncSession, fact_id: UUID, *, organization_id: UUID
+) -> AgentMemoryFact | None:
+    result = await db.execute(
+        select(AgentMemoryFact).where(
+            AgentMemoryFact.id == fact_id,
+            AgentMemoryFact.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_facts(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    scope_key: str | None = None,
+    all_partitions: bool = False,
+    search: str | None = None,
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[AgentMemoryFact], int]:
+    """A page of an agent's facts and the total - the operator listing.
+
+    Search is a substring match on `content`, not a semantic one: a KNN query
+    would embed the operator's text off the run's spend ledger (N4/BONUS-3), so
+    semantic recall stays the agent's runtime tool. Newest first, because a fact
+    has no name to sort by and what an operator scanning them wants is the latest.
+    """
+    where = [
+        AgentMemoryFact.organization_id == organization_id,
+        AgentMemoryFact.agent_id == agent_id,
+    ]
+    if not all_partitions:
+        where.append(_fact_scope(scope_key))
+    if search:
+        where.append(contains_ci(AgentMemoryFact.content, search))
+    items = await db.execute(
+        select(AgentMemoryFact)
+        .where(*where)
+        .order_by(AgentMemoryFact.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    total = await db.scalar(select(func.count(AgentMemoryFact.id)).where(*where))
+    return list(items.scalars().all()), total or 0
+
+
+async def delete_fact(db: AsyncSession, fact: AgentMemoryFact) -> None:
+    await db.delete(fact)
+    await db.flush()

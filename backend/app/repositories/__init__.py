@@ -41,6 +41,7 @@ from app.repositories import credential as credential_repo
 from app.repositories import resource_grant as resource_grant_repo
 from app.repositories import skill as skill_repo
 from app.repositories import context as context_repo
+from app.repositories import memory as memory_repo
 
 from app.repositories import invitation as invitation_repo
 from app.repositories import member as member_repo
@@ -97,4 +98,5 @@ __all__ = [
     "ingestion_spend_repo",
     "skill_repo",
     "context_repo",
+    "memory_repo",
 ]
