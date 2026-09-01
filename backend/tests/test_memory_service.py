@@ -10,6 +10,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -168,6 +169,27 @@ class TestCreate:
         assert result is created
         assert create.call_args.kwargs["origin"] == MemoryOrigin.OPERATOR.value
         assert audit.call_args.kwargs["action"] == "memory.file.created"
+
+    async def test_a_racing_duplicate_becomes_a_conflict_not_a_500(self):
+        # The name check and the insert are not atomic; a concurrent create that
+        # wins the race raises IntegrityError at the unique index, which the
+        # service turns into the same AlreadyExistsError a sequential duplicate
+        # gets, not a bare 500.
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        with (
+            get_agent,
+            allow,
+            patch(f"{MEMORY_PATH}.memory_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch(
+                f"{MEMORY_PATH}.memory_repo.create",
+                new=AsyncMock(side_effect=IntegrityError("insert", {}, Exception("dup"))),
+            ),
+            pytest.raises(AlreadyExistsError),
+        ):
+            await service.create(
+                _ctx(), AgentMemoryFileCreate(agent_id=uuid.uuid4(), name="prefs", content="x")
+            )
 
 
 class TestUpdate:

@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.db.models.memory import MemoryOrigin
 from app.repositories.memory import FactHit
@@ -108,6 +109,37 @@ class TestWriteFile:
             )
         assert created is False
         create.assert_not_awaited()
+
+    async def test_a_racing_create_is_reported_taken_rather_than_crashing(self, monkeypatch):
+        # Two writers pass the name check, and the second loses the unique-index
+        # race. The IntegrityError is rolled back and the name reported taken, not
+        # left to crash the run.
+        session = MagicMock()
+        session.rollback = AsyncMock()
+
+        @asynccontextmanager
+        async def _session():
+            yield session
+
+        monkeypatch.setattr(f"{NATIVE}.get_db_context", _session)
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)),
+            patch(
+                f"{REPO}.create",
+                new=AsyncMock(side_effect=IntegrityError("insert", {}, Exception("duplicate"))),
+            ),
+        ):
+            created = await _native.write_file(
+                organization_id=ORG,
+                agent_id=AGENT,
+                scope_key=None,
+                name="prefs",
+                content="x",
+                description=None,
+                kind="note",
+            )
+        assert created is False
+        session.rollback.assert_awaited_once()
 
 
 class TestEditFile:

@@ -18,6 +18,7 @@ import logging
 from typing import cast
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -137,18 +138,28 @@ class MemoryService:
                 message=f"A memory file named '{data.name}' already exists in this partition.",
                 details={"name": data.name},
             )
-        file = await memory_repo.create(
-            self.db,
-            organization_id=ctx.organization_id,
-            agent_id=data.agent_id,
-            end_user_scope_key=data.end_user_scope_key,
-            name=data.name,
-            description=data.description,
-            content=data.content,
-            content_format=data.format,
-            kind=data.kind,
-            origin=MemoryOrigin.OPERATOR.value,
-        )
+        try:
+            file = await memory_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=data.agent_id,
+                end_user_scope_key=data.end_user_scope_key,
+                name=data.name,
+                description=data.description,
+                content=data.content,
+                content_format=data.format,
+                kind=data.kind,
+                origin=MemoryOrigin.OPERATOR.value,
+            )
+        except IntegrityError as exc:
+            # The `get_by_name` check above and this insert are not atomic; a
+            # concurrent create with the same name in the same partition loses the
+            # race here. The unique index is the real guard, so a race gets the
+            # same 409 as a sequential duplicate rather than a 500.
+            raise AlreadyExistsError(
+                message=f"A memory file named '{data.name}' already exists in this partition.",
+                details={"name": data.name},
+            ) from exc
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

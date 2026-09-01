@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from app.core.config import settings
 from app.db.models.memory import MemoryOrigin
 from app.db.session import get_db_context
@@ -129,18 +131,26 @@ async def write_file(
         )
         if existing is not None:
             return False
-        await memory_repo.create(
-            db,
-            organization_id=organization_id,
-            agent_id=agent_id,
-            end_user_scope_key=scope_key,
-            name=name,
-            description=description,
-            content=content,
-            content_format="md",
-            kind=kind,
-            origin=MemoryOrigin.AGENT.value,
-        )
+        try:
+            await memory_repo.create(
+                db,
+                organization_id=organization_id,
+                agent_id=agent_id,
+                end_user_scope_key=scope_key,
+                name=name,
+                description=description,
+                content=content,
+                content_format="md",
+                kind=kind,
+                origin=MemoryOrigin.AGENT.value,
+            )
+        except IntegrityError:
+            # A concurrent write took the name between the check above and this
+            # insert; the unique index is the real guard. Roll back the failed
+            # flush and report the name taken, like a sequential collision, rather
+            # than let the DataError-shaped crash end the run.
+            await db.rollback()
+            return False
         return True
 
 
