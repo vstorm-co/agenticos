@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.344] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths unlinked stored uploads inside the request transaction.**
+  `rag_document.delete_by_collection`, `delete_document`, `complete_ingestion`'s
+  `_retire_superseded` and `knowledge_base.delete` all removed the file before the
+  commit, so a commit that then failed rolled the `rag_documents` rows back and left
+  the files gone - a restored row pointing at a missing upload, its download and
+  re-ingestion broken, and the original that could have rebuilt the vectors lost. All
+  four now hand the unlink to `spawn_after_commit` after deleting the rows, through
+  one shared `delete_files_best_effort(paths)` in `app/services/file_storage.py`
+  which holds only ids, resolves the storage backend when it runs, and suppresses a
+  file already gone. The table drop and the sync-source deactivation stay in the
+  transaction. (#1293)
+- The vector-store half of those same paths - `delete_document`'s `remove_document`
+  and `knowledge_base.delete`'s `DROP TABLE` - still runs before the commit, which is
+  the same rollback class on the store's own engine and needs the #913 reference
+  re-check moved with it. Filed as #1347 rather than widened into this change. (#1293)
+
 ## [0.0.343] - 2026-08-28
 
 ### Changed
