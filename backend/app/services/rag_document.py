@@ -2,7 +2,6 @@
 """RAG document service."""
 
 import anyio
-import contextlib
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -361,9 +360,10 @@ class RAGDocumentService:
         gone, and a directory synced nightly accumulates one dead row per file
         per run.
 
-        The stored file goes with it, on the same best-effort terms as
-        `delete_document`: a storage backend that refuses must not leave the
-        database describing vectors nobody holds.
+        The stored files are unlinked after the commit (`spawn_after_commit`), so
+        a rollback leaves them beside the rows it restores rather than gone; an
+        unlink before the commit would strand a restored row on a missing file
+        (#1293). Best-effort on the same terms as `delete_document`.
         """
         superseded = await rag_document_repo.get_superseded(
             self.db,
@@ -371,13 +371,16 @@ class RAGDocumentService:
             vector_document_id=vector_document_id,
             keep_id=keep_id,
         )
+        storage_paths = [stale.storage_path for stale in superseded if stale.storage_path]
         for stale in superseded:
-            if stale.storage_path:
-                try:
-                    await get_file_storage().delete(stale.storage_path)
-                except Exception as exc:
-                    logger.warning("Failed to delete superseded file: %s", exc)
             await rag_document_repo.delete(self.db, stale.id)
+        if storage_paths:
+            from app.core.background import spawn_after_commit
+            from app.services.file_storage import delete_files_best_effort
+
+            spawn_after_commit(
+                self.db, delete_files_best_effort(storage_paths), name="retire-superseded-files"
+            )
 
     async def fail_ingestion(self, doc_id: str, error_message: str) -> None:
         """Mark a document ingestion as failed."""
@@ -447,9 +450,10 @@ class RAGDocumentService:
     ) -> None:
         """Delete a document with cascading cleanup.
 
-        Removes the record from the database and attempts to clean up the vector
-        store entry and stored file. Failures in cleanup are logged but do not
-        prevent the DB deletion.
+        Removes the record and the vector store entry; the stored file is unlinked
+        after the commit (`spawn_after_commit`), so a rollback keeps it beside the
+        row it restores rather than stranding it on a missing file (#1293). Cleanup
+        failures are logged, not raised.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -468,31 +472,36 @@ class RAGDocumentService:
             except Exception as e:
                 logger.warning("Failed to delete from vector store: %s", e)
 
-        if doc.storage_path:
-            try:
-                storage = get_file_storage()
-                await storage.delete(doc.storage_path)
-            except Exception as e:
-                logger.warning("Failed to delete file: %s", e)
-
+        storage_path = doc.storage_path
         await rag_document_repo.delete(self.db, doc.id)
+
+        if storage_path:
+            from app.core.background import spawn_after_commit
+            from app.services.file_storage import delete_files_best_effort
+
+            spawn_after_commit(
+                self.db, delete_files_best_effort([storage_path]), name="delete-document-file"
+            )
 
     async def delete_by_collection(self, collection_name: str) -> None:
         """Delete a collection's document rows and unlink their stored uploads.
 
         The bulk row delete used to return only a count, so nothing removed the
         uploaded files and every one was orphaned on disk when a collection was
-        dropped (#1265). The unlink is best-effort - a file already gone is not a
-        reason to fail the drop - and mirrors the org purge's teardown.
-
-        `get_file_storage()` is resolved inside the suppression, and only when
-        there is a path to unlink: it `mkdir`s `MEDIA_DIR` on construction, so a
-        misconfigured storage backend would otherwise raise here and 500 a drop
-        whose vector table the route has already removed.
+        dropped (#1265). The unlink runs after the commit (`spawn_after_commit`),
+        so a rollback keeps the files beside the rows it restores rather than
+        stranding them on missing files (#1293). It is best-effort, and
+        `delete_files_best_effort` resolves the storage backend only when it runs -
+        a misconfigured backend fails the background unlink, not the drop.
         """
-        for storage_path in await rag_document_repo.delete_by_collection(self.db, collection_name):
-            with contextlib.suppress(Exception):
-                await get_file_storage().delete(storage_path)
+        storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
+        if storage_paths:
+            from app.core.background import spawn_after_commit
+            from app.services.file_storage import delete_files_best_effort
+
+            spawn_after_commit(
+                self.db, delete_files_best_effort(storage_paths), name="delete-collection-files"
+            )
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore

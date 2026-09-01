@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core import background
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -14,6 +15,14 @@ from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
+
+
+@pytest.fixture(autouse=True)
+def _no_leftover_tasks():
+    """A deferred unlink one test starts must not be drained by the next."""
+    background._running.clear()
+    yield
+    background._running.clear()
 
 
 def _ctx(
@@ -285,6 +294,39 @@ class TestKBAccessControl:
         # The row is not the whole teardown: with nothing else on the collection,
         # its vector table is dropped too, not left orphaned (#1266).
         store.delete_collection.assert_awaited_once_with(kb.collection_name)
+
+    @pytest.mark.anyio
+    async def test_deleting_a_kb_defers_the_file_unlinks_past_the_commit(self, monkeypatch):
+        """The stored files are unlinked after the commit, so a rollback keeps them
+        beside the rows it restores rather than stranding them (#1293)."""
+        user_id = uuid.uuid4()
+        kb = _kb("personal", owner_user_id=user_id)
+        storage = MagicMock(delete=AsyncMock())
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        db = MagicMock()
+        db.info = {}
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                new=AsyncMock(return_value=["rag/docs/a.pdf", "rag/docs/b.md"]),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[MagicMock()]),
+            ),
+        ):
+            svc = KnowledgeBaseService(db)
+            await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=MagicMock())
+            storage.delete.assert_not_awaited()
+
+            background.start_deferred(db)
+            await background.drain(timeout=5.0)
+
+        assert storage.delete.await_count == 2
 
     @pytest.mark.anyio
     async def test_deleting_the_last_kb_locks_it_and_deactivates_its_sources(self, mock_db):
