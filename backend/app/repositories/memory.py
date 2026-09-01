@@ -217,7 +217,7 @@ async def delete_all_files(db: AsyncSession, *, organization_id: UUID, agent_id:
     )
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
-    # statement actually returns a `CursorResult`, which does (as `resource_grant`).
+    # statement actually returns a `CursorResult`, which does (see `resource_grant`).
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 
@@ -385,5 +385,5 @@ async def delete_all_facts(db: AsyncSession, *, organization_id: UUID, agent_id:
     )
     await db.flush()
     # A DML statement returns a `CursorResult` with `rowcount`, though `execute`
-    # is typed to return a `Result` without it (as `resource_grant`).
+    # is typed to return a `Result` without it (see `resource_grant`).
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]

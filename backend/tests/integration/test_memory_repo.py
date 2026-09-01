@@ -427,6 +427,21 @@ class TestFacts:
         )
         assert total == 0
 
+    async def test_delete_all_facts_is_scoped_to_the_agent(self, db, facts_table) -> None:
+        org = await _org(db, owner=await _user(db))
+        agent = await _agent(db, org=org)
+        other = await _agent(db, org=org)
+        await _add_fact(db, agent, content="mine", at=0, dim=facts_table)
+        await _add_fact(db, other, content="theirs", at=1, dim=facts_table)
+
+        await memory_repo.delete_all_facts(db, organization_id=org.id, agent_id=agent.id)
+
+        kept, total = await memory_repo.list_facts(
+            db, organization_id=org.id, agent_id=other.id, all_partitions=True
+        )
+        assert {fact.content for fact in kept} == {"theirs"}
+        assert total == 1
+
     async def test_get_and_delete_a_fact(self, db, facts_table) -> None:
         agent = await _agent(db, org=await _org(db, owner=await _user(db)))
         await _add_fact(db, agent, content="a fact", at=0, dim=facts_table)
