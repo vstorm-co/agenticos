@@ -314,18 +314,23 @@ one flow is worth having, because a document's chunks are written over that
 connection. **If ingestion starts failing part-way through a large batch with a
 connection error, this is the shape to look for.**
 
-**An agent's knowledge search borrows a third engine, and that one is
-pool-less.** The capability is the one vector caller that cannot know which loop
-it is on: an agent runs on the API's loop in one process and on a flow's loop in
-another, and its retrieval store is cached for the life of the process. A pooled
-store shared between two loops in one worker hands the second a connection the
-first opened — `InterfaceError: attached to a different loop`, intermittent, and
-invisible to any test with one loop in it
-([#1079](https://github.com/vstorm-co/agenticos/issues/1079)). So the search
-rides `agent_vector_engine`, a `NullPool` engine that caches no connection to
-hand to the wrong loop, and one store serves every loop at the price of one
-connect per search — beside an embedding request that costs an order of
-magnitude more.
+**One loop owns the process's pools, and everything else builds its own
+engine.** The API's lifespan claims them at startup: it serves every request and
+disposes them at shutdown, so it is the one loop whose connections they may
+cache. Off that loop `get_db_context` behaves like `get_worker_db_context` — a
+`NullPool` engine for the call, disposed at the end — because it is reached from
+Prefect flows (the report, MCP refresh, invitation and approval tasks, the
+channel loops) and from an agent's embedding resolver, each on a loop of its own
+([#1079](https://github.com/vstorm-co/agenticos/issues/1079)).
+
+An agent's knowledge search follows the same rule for its vector store: the
+process store on the owning loop, and `agent_vector_engine` — pool-less —
+anywhere else. It is the one vector caller that cannot know which loop it is on,
+and its retrieval store is cached for the life of the process, so a pooled store
+shared between two loops in one worker hands the second a connection the first
+opened. Keeping the pool for the API is what bounds this: `NullPool` opens a
+connection per checkout and caps nothing, where the pool queues at
+`DB_POOL_SIZE + DB_MAX_OVERFLOW`.
 
 ### Supported Formats
 

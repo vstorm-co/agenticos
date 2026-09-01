@@ -16,7 +16,7 @@ from app.api.router import api_router
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.knowledge import reset_retrieval_service
 from app.core.config import settings
-from app.db.session import close_db, get_db_context
+from app.db.session import claim_pooled_engines, close_db, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
 from app.core.logfire_setup import instrument_asyncpg
 from app.core.logfire_setup import instrument_redis
@@ -84,6 +84,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     See: https://asgi.readthedocs.io/en/latest/specs/lifespan.html#lifespan-state
     """
     state: LifespanState = {}
+    # Before anything opens a session: this loop serves every request and
+    # disposes the pools at shutdown, so it is the one loop allowed to use them.
+    # Without the claim `get_db_context` builds an engine per call, which is
+    # correct but pays a connect per request (#1079).
+    claim_pooled_engines()
     watchdog = EventLoopWatchdog(wedged_after=settings.EVENT_LOOP_WEDGED_AFTER)
     setup_logfire()
     # Capability modules register themselves on import; nothing the Builder can

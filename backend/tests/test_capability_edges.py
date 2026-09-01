@@ -582,18 +582,18 @@ class TestLastMileBranches:
         import app.agents.capabilities.knowledge._search as search_module
 
         sentinel = object()
-        original = search_module._retrieval_service
-        search_module._retrieval_service = sentinel  # type: ignore[assignment]
+        original = search_module._unpooled_service
+        search_module._unpooled_service = sentinel  # type: ignore[assignment]
         try:
             assert search_module.get_retrieval_service() is sentinel
         finally:
-            search_module._retrieval_service = original
+            search_module._unpooled_service = original
 
     def test_the_retrieval_service_is_built_on_first_use(self):
         import app.agents.capabilities.knowledge._search as search_module
 
-        original = search_module._retrieval_service
-        search_module._retrieval_service = None
+        original = search_module._unpooled_service
+        search_module._unpooled_service = None
         try:
             with (
                 patch.object(search_module, "EmbeddingService"),
@@ -602,7 +602,7 @@ class TestLastMileBranches:
             ):
                 assert search_module.get_retrieval_service() is service_cls.return_value
         finally:
-            search_module._retrieval_service = original
+            search_module._unpooled_service = original
 
 
 class TestServerCatalog:
