@@ -314,6 +314,19 @@ one flow is worth having, because a document's chunks are written over that
 connection. **If ingestion starts failing part-way through a large batch with a
 connection error, this is the shape to look for.**
 
+**An agent's knowledge search borrows a third engine, and that one is
+pool-less.** The capability is the one vector caller that cannot know which loop
+it is on: an agent runs on the API's loop in one process and on a flow's loop in
+another, and its retrieval store is cached for the life of the process. A pooled
+store shared between two loops in one worker hands the second a connection the
+first opened — `InterfaceError: attached to a different loop`, intermittent, and
+invisible to any test with one loop in it
+([#1079](https://github.com/vstorm-co/agenticos/issues/1079)). So the search
+rides `agent_vector_engine`, a `NullPool` engine that caches no connection to
+hand to the wrong loop, and one store serves every loop at the price of one
+connect per search — beside an embedding request that costs an order of
+magnitude more.
+
 ### Supported Formats
 
 `.txt`, `.md` and `.docx` are read by the built-in Python parsers whatever the

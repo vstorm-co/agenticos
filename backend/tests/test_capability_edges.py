@@ -597,7 +597,7 @@ class TestLastMileBranches:
         try:
             with (
                 patch.object(search_module, "EmbeddingService"),
-                patch.object(search_module, "process_vector_store"),
+                patch.object(search_module, "unpooled_vector_store"),
                 patch.object(search_module, "RetrievalService") as service_cls,
             ):
                 assert search_module.get_retrieval_service() is service_cls.return_value

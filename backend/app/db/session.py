@@ -38,6 +38,23 @@ vector_engine = create_async_engine(
     pool_timeout=settings.DB_POOL_TIMEOUT,
 )
 
+# The knowledge capability's store, and pool-less on purpose. A pooled asyncpg
+# connection belongs to the event loop that opened it, and the capability is the
+# one vector caller that runs on a loop nobody here chose: an agent runs inside
+# a Prefect worker as well as inside the API, so a second flow run in one worker
+# process reaches this from a *different* loop and a pooled connection made on
+# the first breaks it (`InterfaceError: attached to a different loop`) (#1079).
+# `NullPool` caches nothing, so there is no connection to hand to the wrong
+# loop, no second `DB_POOL_SIZE + DB_MAX_OVERFLOW` pool of the kind #948
+# removed, and no circular wait against a request that already holds a
+# connection (#12) - at the price of one connect per search, which sits beside
+# an embedding request that costs an order of magnitude more.
+agent_vector_engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DB_ECHO,
+    poolclass=NullPool,
+)
+
 async_session_maker = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -146,6 +163,7 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def close_db() -> None:
-    """Close database connections - both process pools."""
+    """Close database connections - both process pools and the agents' engine."""
     await engine.dispose()
     await vector_engine.dispose()
+    await agent_vector_engine.dispose()

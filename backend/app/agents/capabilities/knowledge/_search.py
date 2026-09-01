@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.retrieval import RetrievalService
-from app.services.rag.vectorstore import process_vector_store
+from app.services.rag.vectorstore import unpooled_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +19,24 @@ _retrieval_service: "BaseRetrievalService | None" = None
 
 
 def get_retrieval_service() -> "BaseRetrievalService":
-    """Get or create retrieval service singleton.
+    """Get or create the retrieval service singleton, on any event loop.
 
-    The store rides the process's own engine rather than building a pool of its
-    own - it used to, which put a second `DB_POOL_SIZE + DB_MAX_OVERFLOW` pool
-    beside the application's in every process that ever searched (#948, #12).
+    The store builds no pool of its own - it used to, which put a second
+    `DB_POOL_SIZE + DB_MAX_OVERFLOW` pool beside the application's in every
+    process that ever searched (#948, #12) - and it does not take the process's
+    vector pool either, which is what `unpooled_vector_store` buys here.
+
+    An agent is the one vector caller that does not know which loop it is on: it
+    runs on the API's loop in one process and on a Prefect flow's loop in
+    another. A pooled store cached for the life of the process is right for the
+    first and wrong for the second, because a pooled asyncpg connection belongs
+    to the loop that opened it - so a worker running two flows in one process
+    handed the second loop a connection made on the first, and the search failed
+    with `InterfaceError: attached to a different loop`, intermittently and
+    invisibly to any single-loop test (#1079). On `NullPool` there is no cached
+    connection to hand to the wrong loop, so one singleton serves every loop and
+    a search costs one connect - beside an embedding request an order of
+    magnitude dearer.
     """
     global _retrieval_service
     if _retrieval_service is not None:
@@ -32,7 +45,7 @@ def get_retrieval_service() -> "BaseRetrievalService":
     rag_settings = settings.rag
     embedding_service = EmbeddingService(rag_settings)
     _retrieval_service = RetrievalService(
-        process_vector_store(rag_settings, embedding_service), rag_settings
+        unpooled_vector_store(rag_settings, embedding_service), rag_settings
     )
     return _retrieval_service
 
@@ -42,10 +55,11 @@ def reset_retrieval_service() -> None:
 
     The store is built on the first knowledge search and then held for the life
     of the process, which is right - rebuilding it per search would rebuild its
-    embedding client per turn. It owns no pool of its own any more; what a
-    shutdown owes is only that the next search builds afresh, so a shutdown
-    followed by more work - a test, a reload - does not search through a store
-    whose engine `close_db` has disposed.
+    embedding client per turn - and it is held across event loops, which
+    `unpooled_vector_store` is what makes safe (#1079). It owns no pool of its
+    own; what a shutdown owes is only that the next search builds afresh, so a
+    shutdown followed by more work - a test, a reload - does not search through
+    a store whose engine `close_db` has disposed.
     """
     global _retrieval_service
     _retrieval_service = None

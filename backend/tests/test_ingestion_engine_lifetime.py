@@ -359,14 +359,16 @@ class TestTheProcessEngineStore:
 
 
 class TestTheKnowledgeCapabilitysStore:
-    def test_the_first_search_builds_a_process_store(self):
+    def test_the_first_search_builds_an_unpooled_store(self):
         """The capability's cached store used to open the second private pool an
-        API process ran; it rides the application's engine now."""
+        API process ran (#948); it takes the pool-less engine now, because it is
+        the one vector caller that cannot know which event loop it is on
+        (#1079)."""
         import app.agents.capabilities.knowledge._search as search_module
 
         with (
             patch.object(search_module, "EmbeddingService"),
-            patch.object(search_module, "process_vector_store") as factory,
+            patch.object(search_module, "unpooled_vector_store") as factory,
             patch.object(search_module, "RetrievalService") as retrieval_cls,
         ):
             search_module._retrieval_service = None
@@ -384,7 +386,7 @@ class TestTheKnowledgeCapabilitysStore:
 
         with (
             patch.object(search_module, "EmbeddingService"),
-            patch.object(search_module, "process_vector_store") as factory,
+            patch.object(search_module, "unpooled_vector_store") as factory,
             patch.object(search_module, "RetrievalService", side_effect=lambda *a, **k: object()),
         ):
             search_module._retrieval_service = None
@@ -397,3 +399,58 @@ class TestTheKnowledgeCapabilitysStore:
 
         assert first is not second
         assert factory.call_count == 2
+
+    def test_the_capabilitys_engine_caches_no_connection_for_another_loop(self):
+        """The store the capability is handed must be usable from any loop.
+
+        A pooled asyncpg connection belongs to the loop that opened it, so a
+        store cached for the life of the process and shared by two loops in one
+        worker handed the second a connection made on the first
+        (`InterfaceError: attached to a different loop`) (#1079). `NullPool`
+        keeps no connection to hand over, which is the whole of the fix: assert
+        the engine's pool class, because a pooled engine here passes every
+        single-loop test and fails only in a worker running two flows."""
+        from sqlalchemy.pool import NullPool
+
+        from app.db.session import agent_vector_engine, vector_engine
+        from app.services.embedding_resolution import embeddings_for_collection
+        from app.services.rag import vectorstore
+
+        with patch.object(vectorstore, "PgVectorStore") as store_cls:
+            store = vectorstore.unpooled_vector_store(MagicMock(), MagicMock())
+
+        assert store is store_cls.return_value
+        assert store_cls.call_args.kwargs["engine"] is agent_vector_engine
+        assert store_cls.call_args.kwargs["engine"] is not vector_engine
+        assert store_cls.call_args.kwargs["resolver"] is embeddings_for_collection
+        assert isinstance(agent_vector_engine.pool, NullPool)
+
+    async def test_one_store_serves_two_event_loops(self):
+        """The singleton is handed to whichever loop asks, and that is only safe
+        because it caches no connection: the same instance answers a second loop
+        rather than being rebuilt per loop, and rebuilding per loop could not
+        dispose the pool of a loop that had moved on anyway (#1079)."""
+        import asyncio
+
+        import app.agents.capabilities.knowledge._search as search_module
+
+        with (
+            patch.object(search_module, "EmbeddingService"),
+            patch.object(search_module, "unpooled_vector_store"),
+            patch.object(search_module, "RetrievalService", side_effect=lambda *a, **k: object()),
+        ):
+            search_module._retrieval_service = None
+            try:
+                on_this_loop = search_module.get_retrieval_service()
+
+                def on_another_loop() -> object:
+                    return asyncio.run(_ask())
+
+                async def _ask() -> object:
+                    return search_module.get_retrieval_service()
+
+                elsewhere = await asyncio.to_thread(on_another_loop)
+            finally:
+                search_module._retrieval_service = None
+
+        assert elsewhere is on_this_loop
