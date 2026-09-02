@@ -25,6 +25,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.session import get_worker_db_context
 from app.repositories import (
+    collection_teardown_repo,
     ingestion_spend_repo,
     knowledge_base_repo,
     organization_secret_repo,
@@ -241,19 +242,25 @@ async def _config_for_collection(
     )
 
 
-async def _document_row_exists(document_id: str) -> bool:
-    """Whether a document's tracking row still exists - i.e. its collection was
-    not dropped while the file parsed.
+async def _still_ingestable(document_id: str, collection_name: str) -> bool:
+    """Whether a parsed file may still be indexed: its tracking row exists and its
+    collection is not mid-teardown.
 
     The row, not the collection's knowledge base: a collection drop deletes every
     `rag_documents` row for the name, even for a default KB whose row it keeps, so
     checking the row is what tells a sync into a default collection to stop rather
-    than recreate the table the drop just emptied. Fail-safe: any error answers
-    yes, so the guard only ever skips a write it is certain is unwanted, never
-    blocks a legitimate ingestion (#1275).
+    than recreate the table the drop just emptied (#1275). The reservation covers the
+    window the row check misses: a default cleared with an active sync keeps its row,
+    so the row still exists while the table is reserved for the deferred drop - and a
+    reserved name is being torn down, so indexing now would recreate the very table
+    the drop is about to destroy (#1382). Fail-safe: any error answers yes, so the
+    guard only ever skips a write it is certain is unwanted, never blocks a legitimate
+    ingestion.
     """
     try:
         async with get_worker_db_context() as db:
+            if await collection_teardown_repo.is_reserved(db, collection_name):
+                return False
             return await rag_document_repo.get_by_id(db, UUID(document_id)) is not None
     except Exception:
         logger.warning("Could not confirm document %s still exists; indexing anyway", document_id)
@@ -364,7 +371,7 @@ async def _run_ingestion(
                     collection_name=collection_name,
                     replace=replace,
                     source_path=source_path,
-                    still_wanted=lambda: _document_row_exists(rag_document_id),
+                    still_wanted=lambda: _still_ingestable(rag_document_id, collection_name),
                 )
         except Exception as exc:
             # `ingest_file` reports a failed parse or a failed index by returning
@@ -518,7 +525,7 @@ async def _run_sync(
                         filepath=filepath,
                         collection_name=collection_name,
                         replace=True,
-                        still_wanted=lambda rid=row_id: _document_row_exists(rid),
+                        still_wanted=lambda rid=row_id: _still_ingestable(rid, collection_name),
                         # The address this flow already looks documents up by. It
                         # was omitted, so the stored document identified itself by
                         # filename while the lookup asked for a path - the
@@ -872,7 +879,9 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             result = await ingester.ingest_file(
                                 filepath=local_path,
                                 collection_name=collection_name,
-                                still_wanted=lambda rid=row_id: _document_row_exists(rid),
+                                still_wanted=lambda rid=row_id: _still_ingestable(
+                                    rid, collection_name
+                                ),
                                 # Unconditional, as in `sync_local_flow`: once this
                                 # has decided to ingest, whatever it matched has to
                                 # go, or the collection grows a copy.

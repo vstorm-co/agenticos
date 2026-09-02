@@ -587,7 +587,12 @@ adopt the lingering table and read another tenant's data (#1362). An **upload** 
 reserved name is refused on the same grounds: `RAGDocumentService.dispatch_upload`
 checks the reservation before it creates the collection, so an ingest slipped into the
 window cannot recreate the table the drop is about to destroy and lose its own chunks
-to it (#1364).
+to it (#1364). The **worker** ingestion paths — a sync, a retry — check it too, at the
+`still_wanted` gate right before the vector write, so a sync into a cleared default
+(whose row the clear keeps) stops rather than repopulating a table being dropped. And
+every one of these takes the teardown lock *before* the `knowledge_bases` row lock —
+one order shared by every teardown and every write — so serialising a write against a
+concurrent drop cannot deadlock (#1382).
 
 A reservation whose drop never ran — lost to a crash between the commit and the
 dispatch, or to a drop that fails for good — would block its name forever, since
