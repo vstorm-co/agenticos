@@ -3,16 +3,17 @@
 Unlike `context` (a human-authored library injected or linked, read-only to the
 model), memory is the agent's *own* store: it writes named files and short facts
 through tools mid-run and reads them back in a later conversation. The capability
-holds only the run-invariant part of that - which partition to use and which of
-the two stores are on - and builds the toolset that does the work; the store
-itself is reached through `app.services.memory`, which opens its own session so a
-mid-run read or write never rides the session the run is on (see that module).
+holds only the run-invariant part of that - which of the two stores are on - and
+builds the toolset that does the work; the store itself is reached through
+`app.services.memory`, which opens its own session so a mid-run read or write
+never rides the session the run is on (see that module).
 
-The partition is `shared` (one store per organization+agent, for a single
-trusted audience) or `per_user` (a private store per end-user). The model never
-chooses it - it is fixed here from the agent's config, and the per-end-user key
-is derived server-side in the factory - so a run can only ever reach the store
-it was admitted to.
+Memory is two-tier: a shared store (one per organization+agent) and, when a run
+has an identified person, that person's personal store. Reads union the two;
+writes let the model choose the *tier* while the per-end-user key is derived
+server-side in the factory - so a run can never reach another person's store. A
+standing preamble (`get_instructions`) tells the agent how the two tiers work and
+how to classify a write, the same guidance the tool descriptions carry.
 """
 
 from __future__ import annotations
@@ -28,6 +29,20 @@ from app.agents.capabilities.memory._toolset import MemoryToolset
 
 __all__ = ["Memory"]
 
+# The standing note that teaches the agent its two-tier memory and how to classify
+# a write. The narrowing default (personal when unsure) is stated here and defaulted
+# in the tools, because a personal-to-shared misclassification exposes one person's
+# note to everyone (#788).
+_MEMORY_PREAMBLE = (
+    "You have a two-tier memory: a shared store (organisation-wide, the same for "
+    "everyone) and, when this conversation has an identified person, that person's "
+    "personal store. Reading always searches both. When you save something, choose "
+    "its scope: 'personal' for anything specific to this person, 'shared' only for "
+    "facts true for the whole organisation, and 'personal' when you are unsure. "
+    "Where there is no identified person, personal memory is unavailable and you can "
+    "only save to shared."
+)
+
 
 @dataclass
 class Memory(AbstractCapability[AgentDepsT]):
@@ -36,17 +51,17 @@ class Memory(AbstractCapability[AgentDepsT]):
     Attached only when at least one store is enabled; the builder returns `None`
     when both are off, so an agent with memory switched off carries no memory
     tools. The two stores are independent: an agent can have named files, semantic
-    facts, or both.
+    facts, or both. Both are two-tier - shared and, per run, the current person's -
+    and the tier is resolved per operation, not fixed on the capability.
 
     ```python
     from pydantic_ai import Agent
     from app.agents.capabilities.memory import Memory
 
-    agent = Agent('anthropic:claude-sonnet-4-6', capabilities=[Memory(partition='shared')])
+    agent = Agent('anthropic:claude-sonnet-4-6', capabilities=[Memory(enable_files=True)])
     ```
     """
 
-    partition: str = "shared"
     enable_files: bool = True
     enable_facts: bool = False
     # Where facts live. `native` is this deployment's pgvector; `mem0` sends them
@@ -65,11 +80,19 @@ class Memory(AbstractCapability[AgentDepsT]):
         default=None, init=False, repr=False, compare=False
     )
 
+    def get_instructions(self) -> str | None:
+        """A standing note on how the two-tier memory works and how to classify a write.
+
+        Present whenever memory is - the builder attaches the capability only when a
+        store is on - so the model reads the shared/personal split and the narrowing
+        default before its first tool call, not only in each tool's own description.
+        """
+        return _MEMORY_PREAMBLE
+
     def get_toolset(self) -> AbstractToolset[Any]:
         """The memory tools this agent's config asks for, built once per instance."""
         if self._toolset is None:
             self._toolset = MemoryToolset(
-                partition=self.partition,
                 enable_files=self.enable_files,
                 enable_facts=self.enable_facts,
                 backend=self.backend,

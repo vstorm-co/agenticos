@@ -129,33 +129,34 @@ class TestFactory:
         assert built.model_label == "GPT-4.1 (prod)"
         assert [type(c).__name__ for c in built.capabilities] == ["Clock", "Knowledge"]
 
-    def _memory_agent(self, partition: str, **identity):
+    def _memory_agent(self, *, bind_memory: bool = True, **identity):
+        capabilities = [{"id": "memory", "config": {}}] if bind_memory else [{"id": "clock"}]
         return build_agent(
-            AgentSpec(
-                name="Support",
-                instructions="Remember.",
-                capabilities=[{"id": "memory", "config": {"partition": partition}}],
-            ),
+            AgentSpec(name="Support", instructions="Remember.", capabilities=capabilities),
             _model_spec(),
             organization_id=uuid.uuid4(),
             **identity,
         )
 
-    def test_per_user_memory_derives_the_end_user_key(self):
-        """A per-user binding turns the request identity into a partition key."""
-        built = self._memory_agent("per_user", user_id="u-1", subject_is_publisher_fallback=False)
+    def test_memory_derives_the_end_user_key_from_identity(self):
+        """Any memory binding turns the request identity into the person's partition
+        key, so the run can reach that person's personal store as well as shared."""
+        built = self._memory_agent(user_id="u-1", subject_is_publisher_fallback=False)
         assert built.deps.end_user_scope_key == "user:u-1"
 
-    def test_per_user_memory_refuses_a_publisher_fallback(self):
+    def test_memory_refuses_a_publisher_fallback(self):
         """N1: on a hosted/widget run `user_id` is the publisher, so no key is
-        derived and the memory tool will refuse rather than leak into the owner's
-        store."""
-        built = self._memory_agent("per_user", user_id="owner", subject_is_publisher_fallback=True)
+        derived - the run reads shared alone and a personal write is refused rather
+        than attributed to the owner."""
+        built = self._memory_agent(user_id="owner", subject_is_publisher_fallback=True)
         assert built.deps.end_user_scope_key is None
 
-    def test_shared_memory_carries_no_end_user_key(self):
-        """Shared memory needs no per-person identity, so none is derived."""
-        built = self._memory_agent("shared", user_id="u-1", subject_is_publisher_fallback=False)
+    def test_an_agent_without_memory_carries_no_end_user_key(self):
+        """The derivation is inert unless memory is bound, so an identity signal
+        alone derives nothing."""
+        built = self._memory_agent(
+            bind_memory=False, user_id="u-1", subject_is_publisher_fallback=False
+        )
         assert built.deps.end_user_scope_key is None
 
     @pytest.mark.anyio

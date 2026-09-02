@@ -5,7 +5,8 @@ shared partition is a `NULL` key that has to mean "the one shared store", the
 constraint is `NULLS NOT DISTINCT` - two shared files with one name collide,
 which a plain SQL `NULL` would not catch. The `origin` CHECK refuses a value the
 trust tier cannot branch on. Reads are scoped to the organization (cross-tenant)
-and to the partition (cross-user), and deleting the agent takes its memory.
+and union the shared store with one person's, never another's (cross-user);
+deleting the agent takes its memory.
 """
 
 from __future__ import annotations
@@ -26,7 +27,6 @@ from app.repositories import memory_repo
 pytestmark = pytest.mark.anyio
 
 AGENT = MemoryOrigin.AGENT.value
-OPERATOR = MemoryOrigin.OPERATOR.value
 
 
 async def _user(db) -> User:
@@ -152,40 +152,60 @@ class TestScoping:
         )
         assert missing is None
 
-    async def test_list_in_partition_isolates_users_and_filters_origin(self, db) -> None:
+    async def test_get_readable_by_name_prefers_the_personal_copy(self, db) -> None:
         person = await _user(db)
         agent = await _agent(db, org=await _org(db, owner=person))
+        await _create(db, agent=agent, scope_key=None, name="prefs", content="shared body")
+        await _create(db, agent=agent, scope_key="user:1", name="prefs", content="personal body")
+
+        # A name in both tiers resolves to the current person's own copy.
+        personal = await memory_repo.get_readable_by_name(
+            db,
+            organization_id=agent.organization_id,
+            agent_id=agent.id,
+            personal_key="user:1",
+            name="prefs",
+        )
+        assert personal is not None and personal.content == "personal body"
+
+        # With no person, only the shared copy is readable.
+        shared = await memory_repo.get_readable_by_name(
+            db,
+            organization_id=agent.organization_id,
+            agent_id=agent.id,
+            personal_key=None,
+            name="prefs",
+        )
+        assert shared is not None and shared.content == "shared body"
+
+    async def test_list_readable_unions_shared_and_the_person_and_isolates_others(self, db) -> None:
+        person = await _user(db)
+        agent = await _agent(db, org=await _org(db, owner=person))
+        await _create(db, agent=agent, scope_key=None, name="company")
         await _create(db, agent=agent, scope_key="user:a", name="a-note")
         await _create(db, agent=agent, scope_key="user:b", name="b-note")
-        await _create(db, agent=agent, scope_key="user:a", name="a-policy", origin=OPERATOR)
 
-        for_a = await memory_repo.list_in_partition(
-            db,
-            organization_id=agent.organization_id,
-            agent_id=agent.id,
-            end_user_scope_key="user:a",
+        for_a = await memory_repo.list_readable(
+            db, organization_id=agent.organization_id, agent_id=agent.id, personal_key="user:a"
         )
-        assert {row.name for row in for_a} == {"a-note", "a-policy"}
+        # Shared plus user:a's own - never user:b's.
+        assert {row.name for row in for_a} == {"company", "a-note"}
 
-        operator_only = await memory_repo.list_in_partition(
-            db,
-            organization_id=agent.organization_id,
-            agent_id=agent.id,
-            end_user_scope_key="user:a",
-            origin=OPERATOR,
+        anonymous = await memory_repo.list_readable(
+            db, organization_id=agent.organization_id, agent_id=agent.id, personal_key=None
         )
-        assert {row.name for row in operator_only} == {"a-policy"}
+        assert {row.name for row in anonymous} == {"company"}
 
-    async def test_list_in_partition_respects_the_limit(self, db) -> None:
+    async def test_list_readable_respects_the_limit(self, db) -> None:
         person = await _user(db)
         agent = await _agent(db, org=await _org(db, owner=person))
         for i in range(3):
             await _create(db, agent=agent, scope_key=None, name=f"n{i}")
-        capped = await memory_repo.list_in_partition(
+        capped = await memory_repo.list_readable(
             db,
             organization_id=agent.organization_id,
             agent_id=agent.id,
-            end_user_scope_key=None,
+            personal_key=None,
             limit=2,
         )
         assert len(capped) == 2
@@ -343,26 +363,32 @@ class TestFacts:
             db,
             organization_id=agent.organization_id,
             agent_id=agent.id,
-            end_user_scope_key=None,
+            personal_key=None,
             query_embedding=_unit_vector(facts_table, 0),
             limit=5,
         )
         assert [hit.content for hit in hits] == ["likes tea", "lives in Berlin"]
         assert hits[0].score > hits[1].score
 
-    async def test_recall_isolates_users(self, db, facts_table) -> None:
+    async def test_recall_unions_shared_and_the_person_and_isolates_others(
+        self, db, facts_table
+    ) -> None:
         agent = await _agent(db, org=await _org(db, owner=await _user(db)))
-        await _add_fact(db, agent, content="a-secret", at=0, dim=facts_table, scope_key="user:a")
-        await _add_fact(db, agent, content="b-secret", at=0, dim=facts_table, scope_key="user:b")
+        await _add_fact(db, agent, content="company fact", at=0, dim=facts_table)
+        await _add_fact(db, agent, content="a-secret", at=1, dim=facts_table, scope_key="user:a")
+        await _add_fact(db, agent, content="b-secret", at=2, dim=facts_table, scope_key="user:b")
         for_a = await memory_repo.recall_facts(
             db,
             organization_id=agent.organization_id,
             agent_id=agent.id,
-            end_user_scope_key="user:a",
-            query_embedding=_unit_vector(facts_table, 0),
+            personal_key="user:a",
+            query_embedding=_unit_vector(facts_table, 1),
             limit=5,
         )
-        assert [hit.content for hit in for_a] == ["a-secret"]
+        names = {hit.content for hit in for_a}
+        assert "a-secret" in names  # the person's own
+        assert "company fact" in names  # and the shared store
+        assert "b-secret" not in names  # never another person's
 
     async def test_recall_isolates_organizations(self, db, facts_table) -> None:
         person = await _user(db)
@@ -373,7 +399,7 @@ class TestFacts:
             db,
             organization_id=other.organization_id,
             agent_id=other.id,
-            end_user_scope_key=None,
+            personal_key=None,
             query_embedding=_unit_vector(facts_table, 0),
             limit=5,
         )

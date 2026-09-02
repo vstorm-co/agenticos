@@ -48,7 +48,7 @@ from app.agents.capabilities.compaction import (
 )
 from app.agents.capabilities.memory import (
     derive_end_user_scope_key,
-    per_user_partition_requested,
+    memory_requested,
 )
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
@@ -237,18 +237,18 @@ def build_agent(
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
 
-    # Derived only when a per-user memory capability is bound, so the run carries
-    # an end-user identity exactly when a feature needs one - and stays `None`
-    # (inert) for every other agent. `None` under a per-user binding means the
-    # surface gave no per-person signal, and the memory tool refuses rather than
-    # attribute the note to the publisher (#788).
+    # Derived whenever memory is bound, so a memory run carries the current person's
+    # partition key when the surface can identify them - and stays `None` (inert) for
+    # every agent without memory. `None` under a memory binding means the surface gave
+    # no per-person signal: the run reads shared memory and a personal write is refused
+    # rather than attributed to the publisher (#788).
     end_user_scope_key = (
         derive_end_user_scope_key(
             channel_identity_id=channel_identity_id,
             user_id=user_id,
             subject_is_publisher_fallback=subject_is_publisher_fallback,
         )
-        if per_user_partition_requested(bindings)
+        if memory_requested(bindings)
         else None
     )
 

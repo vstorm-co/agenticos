@@ -1,10 +1,12 @@
-"""Tests for the memory capability - the agent's own file store and its tools.
+"""Tests for the memory capability - the agent's own two-tier store and its tools.
 
-The things worth guarding: the tools reach only the partition the run was
-admitted to (and a per-user run with no person refuses rather than falling back
-to a shared store), an agent cannot edit or delete operator-authored files, an
-unknown read is a retry not a crash, and a disabled store contributes nothing.
-The per-end-user key derivation is the N1 refusal surface and is tested in full.
+The things worth guarding: reads union the shared store with the current person's
+and never reach another person's; writes let the model pick the *tier* but the
+personal key is server-derived, so a poisoned tier choice can only ever land in
+the current person's own store; a personal write with no identified person is
+refused rather than silently written to shared (the N1 graceful degradation);
+shared always works; an agent cannot edit or delete operator-authored files; and
+the per-end-user key derivation - the isolation surface - is tested in full.
 """
 
 from unittest.mock import AsyncMock
@@ -22,13 +24,14 @@ from app.agents.capabilities.memory import (
     MemoryConfig,
     _build,
     derive_end_user_scope_key,
-    per_user_partition_requested,
+    memory_requested,
 )
+from app.agents.capabilities.memory._capability import _MEMORY_PREAMBLE
 from app.agents.capabilities.memory._toolset import (
     _MAX_DESCRIPTION,
     _MAX_KIND,
     _MAX_NAME,
-    _NO_PERSON,
+    _NO_PERSON_WRITE,
     _NO_SCOPE,
     MemoryToolset,
 )
@@ -54,13 +57,19 @@ def _ctx(deps: AgentDeps, *, retry: int = 0, max_retries: int = 1) -> RunContext
     )
 
 
-def _toolset(partition: str = "shared") -> MemoryToolset:
+def _toolset() -> MemoryToolset:
     """A toolset with both stores on, so any tool under test is present."""
-    return MemoryToolset(partition=partition, enable_files=True, enable_facts=True)
+    return MemoryToolset(enable_files=True, enable_facts=True)
+
+
+def _entry(
+    name: str, *, description: str | None = None, kind: str = "note", personal: bool
+) -> MemoryFileIndexEntry:
+    return MemoryFileIndexEntry(name=name, description=description, kind=kind, personal=personal)
 
 
 class TestPerUserKeyDerivation:
-    """N1: a per-user key attributes a memory to the person asking, never the
+    """N1: a personal key attributes a memory to the person asking, never the
     publisher standing in for an unidentified visitor."""
 
     def test_a_channel_identity_keys_per_account(self):
@@ -98,146 +107,180 @@ class TestPerUserKeyDerivation:
         )
 
 
-class TestPerUserPartitionRequested:
-    def test_true_only_for_an_enabled_per_user_memory_binding(self):
-        assert per_user_partition_requested(
-            [CapabilityBinding(capability_id="memory", config={"partition": "per_user"})]
-        )
-
-    def test_a_shared_binding_is_not_per_user(self):
-        assert not per_user_partition_requested(
-            [CapabilityBinding(capability_id="memory", config={"partition": "shared"})]
-        )
-
-    def test_an_absent_partition_defaults_to_shared(self):
-        assert not per_user_partition_requested(
-            [CapabilityBinding(capability_id="memory", config={})]
-        )
+class TestMemoryRequested:
+    def test_true_for_any_enabled_memory_binding(self):
+        assert memory_requested([CapabilityBinding(capability_id="memory", config={})])
 
     def test_a_disabled_binding_does_not_count(self):
-        assert not per_user_partition_requested(
-            [
-                CapabilityBinding(
-                    capability_id="memory", config={"partition": "per_user"}, enabled=False
-                )
-            ]
+        assert not memory_requested(
+            [CapabilityBinding(capability_id="memory", config={}, enabled=False)]
         )
 
     def test_another_capability_does_not_count(self):
-        assert not per_user_partition_requested(
-            [CapabilityBinding(capability_id="knowledge", config={"partition": "per_user"})]
-        )
+        assert not memory_requested([CapabilityBinding(capability_id="knowledge", config={})])
 
 
-class TestScopeResolution:
-    def test_shared_uses_the_null_partition(self):
-        toolset = _toolset("shared")
-        assert toolset._scope(_ctx(_deps(scope_key="user:ignored"))) == (ORG, AGENT, None)
+class TestReadScope:
+    """A read always resolves - shared alone when there is no person - and never
+    refuses for want of one."""
 
-    def test_per_user_uses_the_derived_key(self):
-        toolset = _toolset("per_user")
-        assert toolset._scope(_ctx(_deps(scope_key="user:42"))) == (ORG, AGENT, "user:42")
+    def test_a_run_with_a_person_reads_that_persons_and_shared(self):
+        assert _toolset()._read_scope(_ctx(_deps(scope_key="user:42"))) == (ORG, AGENT, "user:42")
 
-    def test_per_user_without_a_key_refuses(self):
-        toolset = _toolset("per_user")
-        assert toolset._scope(_ctx(_deps(scope_key=None))) == _NO_PERSON
+    def test_a_run_without_a_person_reads_shared_alone(self):
+        assert _toolset()._read_scope(_ctx(_deps(scope_key=None))) == (ORG, AGENT, None)
 
     def test_a_run_without_org_or_agent_refuses(self):
-        toolset = _toolset("shared")
-        assert toolset._scope(_ctx(AgentDeps())) == _NO_SCOPE
+        assert _toolset()._read_scope(_ctx(AgentDeps())) == _NO_SCOPE
 
     def test_a_delegate_does_not_inherit_the_end_user_key(self):
-        """`clone_for_subagent` drops the per-user key, so per_user memory refuses
-        inside a delegation - memory is a root-agent concern in v1, and a delegate
-        that shares the parent's `agent_id` must not read the parent's per-user
-        partition as if it were the visitor's."""
+        """`clone_for_subagent` drops the personal key, so a delegate that shares the
+        parent's `agent_id` cannot read the parent's personal store as the visitor's -
+        memory is a root-agent concern in v1."""
         root = AgentDeps(organization_id=ORG, agent_id=AGENT, end_user_scope_key="user:1")
         assert root.clone_for_subagent().end_user_scope_key is None
 
 
+class TestWriteScope:
+    """The model picks the tier; the server picks the key. A personal write can only
+    ever reach the current person's own store, and is refused - never redirected to
+    shared - when there is no person."""
+
+    def test_shared_resolves_to_the_shared_partition(self):
+        assert _toolset()._write_scope(_ctx(_deps(scope_key="user:1")), "shared") == (
+            ORG,
+            AGENT,
+            None,
+        )
+
+    def test_personal_resolves_to_the_runs_own_key(self):
+        assert _toolset()._write_scope(_ctx(_deps(scope_key="user:42")), "personal") == (
+            ORG,
+            AGENT,
+            "user:42",
+        )
+
+    def test_personal_without_a_person_is_refused_never_shared(self):
+        assert _toolset()._write_scope(_ctx(_deps(scope_key=None)), "personal") == _NO_PERSON_WRITE
+
+    def test_a_run_without_org_or_agent_refuses(self):
+        assert _toolset()._write_scope(_ctx(AgentDeps()), "shared") == _NO_SCOPE
+
+
 class TestListMemory:
-    async def test_it_lists_names_kinds_and_descriptions(self, monkeypatch):
+    async def test_it_lists_both_tiers_with_labels(self, monkeypatch):
         monkeypatch.setattr(
             memory_store,
             "list_files",
             AsyncMock(
                 return_value=[
-                    MemoryFileIndexEntry(
-                        name="prefs", description="what they like", kind="profile"
-                    ),
-                    MemoryFileIndexEntry(name="scratch", description=None, kind="note"),
+                    _entry("policy", description="the rules", kind="profile", personal=False),
+                    _entry("prefs", description="what they like", kind="profile", personal=True),
+                    _entry("scratch", description=None, kind="note", personal=True),
                 ]
             ),
         )
-        out = await _toolset("shared").list_memory(_ctx(_deps()))
-        assert "- prefs [profile]: what they like" in out
-        assert "- scratch [note]" in out
+        out = await _toolset().list_memory(_ctx(_deps(scope_key="user:1")))
+        assert "- [shared] policy [profile]: the rules" in out
+        assert "- [personal] prefs [profile]: what they like" in out
+        assert "- [personal] scratch [note]" in out
+
+    async def test_it_reads_with_the_runs_personal_key(self, monkeypatch):
+        list_files = AsyncMock(return_value=[])
+        monkeypatch.setattr(memory_store, "list_files", list_files)
+        await _toolset().list_memory(_ctx(_deps(scope_key="user:9")))
+        assert list_files.await_args.kwargs["personal_key"] == "user:9"
 
     async def test_an_empty_store_says_so(self, monkeypatch):
         monkeypatch.setattr(memory_store, "list_files", AsyncMock(return_value=[]))
-        out = await _toolset("shared").list_memory(_ctx(_deps()))
+        out = await _toolset().list_memory(_ctx(_deps()))
         assert "No memories saved yet." in out
 
-    async def test_it_refuses_a_per_user_run_with_no_person(self, monkeypatch):
+    async def test_a_run_without_org_or_agent_refuses(self, monkeypatch):
         called = AsyncMock()
         monkeypatch.setattr(memory_store, "list_files", called)
-        out = await _toolset("per_user").list_memory(_ctx(_deps(scope_key=None)))
-        assert out == _NO_PERSON
+        out = await _toolset().list_memory(_ctx(AgentDeps()))
+        assert out == _NO_SCOPE
         called.assert_not_awaited()
 
 
 class TestReadMemory:
-    async def test_it_returns_the_body(self, monkeypatch):
-        monkeypatch.setattr(memory_store, "read_file", AsyncMock(return_value="the body"))
-        out = await _toolset("shared").read_memory(_ctx(_deps()), "prefs")
+    async def test_it_returns_the_body_reading_with_the_personal_key(self, monkeypatch):
+        read = AsyncMock(return_value="the body")
+        monkeypatch.setattr(memory_store, "read_file", read)
+        out = await _toolset().read_memory(_ctx(_deps(scope_key="user:1")), "prefs")
         assert out == "the body"
+        assert read.await_args.kwargs["personal_key"] == "user:1"
 
     async def test_an_unknown_name_is_a_retry_naming_what_exists(self, monkeypatch):
         monkeypatch.setattr(memory_store, "read_file", AsyncMock(return_value=None))
         monkeypatch.setattr(
             memory_store,
             "list_files",
-            AsyncMock(
-                return_value=[MemoryFileIndexEntry(name="prefs", description=None, kind="n")]
-            ),
+            AsyncMock(return_value=[_entry("prefs", personal=True)]),
         )
         with pytest.raises(ModelRetry, match="prefs"):
-            await _toolset("shared").read_memory(_ctx(_deps()), "missing")
+            await _toolset().read_memory(_ctx(_deps(scope_key="user:1")), "missing")
 
     async def test_the_last_attempt_answers_rather_than_ending_the_run(self, monkeypatch):
         monkeypatch.setattr(memory_store, "read_file", AsyncMock(return_value=None))
         monkeypatch.setattr(memory_store, "list_files", AsyncMock(return_value=[]))
-        answered = await _toolset("shared").read_memory(_ctx(_deps(), retry=1), "missing")
+        answered = await _toolset().read_memory(_ctx(_deps(), retry=1), "missing")
         assert "missing" in answered and "none" in answered
 
-    async def test_it_refuses_a_per_user_run_with_no_person(self, monkeypatch):
+    async def test_a_run_without_org_or_agent_refuses(self, monkeypatch):
         monkeypatch.setattr(memory_store, "read_file", AsyncMock())
-        out = await _toolset("per_user").read_memory(_ctx(_deps(scope_key=None)), "prefs")
-        assert out == _NO_PERSON
+        out = await _toolset().read_memory(_ctx(AgentDeps()), "prefs")
+        assert out == _NO_SCOPE
 
 
 class TestWriteMemory:
-    async def test_it_saves_a_new_file_scoped_to_the_partition(self, monkeypatch):
+    async def test_personal_saves_to_the_runs_own_partition(self, monkeypatch):
         write = AsyncMock(return_value=True)
         monkeypatch.setattr(memory_store, "write_file", write)
-        out = await _toolset("per_user").write_memory(
-            _ctx(_deps(scope_key="user:9")), "prefs", "likes tea", description="d", kind="profile"
+        out = await _toolset().write_memory(
+            _ctx(_deps(scope_key="user:9")), "prefs", "likes tea", scope="personal", kind="profile"
         )
         assert out == "Saved memory 'prefs'."
         assert write.await_args.kwargs["scope_key"] == "user:9"
-        assert write.await_args.kwargs["organization_id"] == ORG
+
+    async def test_shared_saves_to_the_shared_partition(self, monkeypatch):
+        write = AsyncMock(return_value=True)
+        monkeypatch.setattr(memory_store, "write_file", write)
+        out = await _toolset().write_memory(
+            _ctx(_deps(scope_key="user:9")), "policy", "org-wide", scope="shared"
+        )
+        assert out == "Saved memory 'policy'."
+        assert write.await_args.kwargs["scope_key"] is None
+
+    async def test_it_defaults_to_personal(self, monkeypatch):
+        write = AsyncMock(return_value=True)
+        monkeypatch.setattr(memory_store, "write_file", write)
+        await _toolset().write_memory(_ctx(_deps(scope_key="user:9")), "prefs", "x")
+        assert write.await_args.kwargs["scope_key"] == "user:9"
+
+    async def test_a_personal_write_with_no_person_is_refused_never_shared(self, monkeypatch):
+        write = AsyncMock()
+        monkeypatch.setattr(memory_store, "write_file", write)
+        out = await _toolset().write_memory(
+            _ctx(_deps(scope_key=None)), "prefs", "x", scope="personal"
+        )
+        assert out == _NO_PERSON_WRITE
+        write.assert_not_awaited()
+
+    async def test_a_shared_write_works_with_no_person(self, monkeypatch):
+        write = AsyncMock(return_value=True)
+        monkeypatch.setattr(memory_store, "write_file", write)
+        out = await _toolset().write_memory(
+            _ctx(_deps(scope_key=None)), "policy", "x", scope="shared"
+        )
+        assert out == "Saved memory 'policy'."
+        assert write.await_args.kwargs["scope_key"] is None
 
     async def test_a_taken_name_is_reported_not_overwritten(self, monkeypatch):
         monkeypatch.setattr(memory_store, "write_file", AsyncMock(return_value=False))
-        out = await _toolset("shared").write_memory(_ctx(_deps()), "prefs", "x")
+        out = await _toolset().write_memory(_ctx(_deps(scope_key="user:1")), "prefs", "x")
         assert "already exists" in out and "edit_memory" in out
-
-    async def test_it_refuses_a_per_user_run_with_no_person(self, monkeypatch):
-        write = AsyncMock()
-        monkeypatch.setattr(memory_store, "write_file", write)
-        out = await _toolset("per_user").write_memory(_ctx(_deps(scope_key=None)), "prefs", "x")
-        assert out == _NO_PERSON
-        write.assert_not_awaited()
 
     async def test_metadata_past_a_column_width_is_refused_before_the_database(self, monkeypatch):
         # A name/kind/description past its column width would be an asyncpg
@@ -245,14 +288,15 @@ class TestWriteMemory:
         # can shorten and retry, and never reaches the store.
         write = AsyncMock()
         monkeypatch.setattr(memory_store, "write_file", write)
-        toolset = _toolset("shared")
+        toolset = _toolset()
+        deps = _deps(scope_key="user:1")
 
-        long_name = await toolset.write_memory(_ctx(_deps()), "n" * (_MAX_NAME + 1), "body")
+        long_name = await toolset.write_memory(_ctx(deps), "n" * (_MAX_NAME + 1), "body")
         long_kind = await toolset.write_memory(
-            _ctx(_deps()), "prefs", "body", kind="k" * (_MAX_KIND + 1)
+            _ctx(deps), "prefs", "body", kind="k" * (_MAX_KIND + 1)
         )
         long_desc = await toolset.write_memory(
-            _ctx(_deps()), "prefs", "body", description="d" * (_MAX_DESCRIPTION + 1)
+            _ctx(deps), "prefs", "body", description="d" * (_MAX_DESCRIPTION + 1)
         )
 
         assert "too long" in long_name and f"under {_MAX_NAME}" in long_name
@@ -262,63 +306,85 @@ class TestWriteMemory:
 
 
 class TestEditMemory:
-    async def test_it_updates_an_existing_file(self, monkeypatch):
-        monkeypatch.setattr(memory_store, "edit_file", AsyncMock(return_value="ok"))
-        out = await _toolset("shared").edit_memory(_ctx(_deps()), "prefs", "new")
+    async def test_it_updates_an_existing_file_in_the_default_personal_tier(self, monkeypatch):
+        edit = AsyncMock(return_value="ok")
+        monkeypatch.setattr(memory_store, "edit_file", edit)
+        out = await _toolset().edit_memory(_ctx(_deps(scope_key="user:1")), "prefs", "new")
         assert out == "Updated memory 'prefs'."
+        assert edit.await_args.kwargs["scope_key"] == "user:1"
+
+    async def test_shared_edits_the_shared_partition(self, monkeypatch):
+        edit = AsyncMock(return_value="ok")
+        monkeypatch.setattr(memory_store, "edit_file", edit)
+        await _toolset().edit_memory(
+            _ctx(_deps(scope_key="user:1")), "policy", "new", scope="shared"
+        )
+        assert edit.await_args.kwargs["scope_key"] is None
 
     async def test_a_missing_file_says_to_write_one(self, monkeypatch):
         monkeypatch.setattr(memory_store, "edit_file", AsyncMock(return_value="missing"))
-        out = await _toolset("shared").edit_memory(_ctx(_deps()), "gone", "x")
+        out = await _toolset().edit_memory(_ctx(_deps(scope_key="user:1")), "gone", "x")
         assert "No memory named 'gone'" in out and "write_memory" in out
 
     async def test_an_operator_file_is_protected(self, monkeypatch):
         monkeypatch.setattr(memory_store, "edit_file", AsyncMock(return_value="protected"))
-        out = await _toolset("shared").edit_memory(_ctx(_deps()), "policy", "x")
+        out = await _toolset().edit_memory(
+            _ctx(_deps(scope_key="user:1")), "policy", "x", scope="shared"
+        )
         assert "operator" in out and "cannot be changed" in out
 
-    async def test_it_refuses_a_per_user_run_with_no_person(self, monkeypatch):
+    async def test_a_personal_edit_with_no_person_is_refused(self, monkeypatch):
         monkeypatch.setattr(memory_store, "edit_file", AsyncMock())
-        out = await _toolset("per_user").edit_memory(_ctx(_deps(scope_key=None)), "p", "x")
-        assert out == _NO_PERSON
+        out = await _toolset().edit_memory(_ctx(_deps(scope_key=None)), "p", "x", scope="personal")
+        assert out == _NO_PERSON_WRITE
 
 
 class TestDeleteMemory:
     async def test_it_forgets_a_file(self, monkeypatch):
         monkeypatch.setattr(memory_store, "delete_file", AsyncMock(return_value="ok"))
-        out = await _toolset("shared").delete_memory(_ctx(_deps()), "prefs")
+        out = await _toolset().delete_memory(_ctx(_deps(scope_key="user:1")), "prefs")
         assert out == "Forgot memory 'prefs'."
 
     async def test_a_missing_file_says_so(self, monkeypatch):
         monkeypatch.setattr(memory_store, "delete_file", AsyncMock(return_value="missing"))
-        out = await _toolset("shared").delete_memory(_ctx(_deps()), "gone")
+        out = await _toolset().delete_memory(_ctx(_deps(scope_key="user:1")), "gone")
         assert out == "No memory named 'gone' to forget."
 
     async def test_an_operator_file_is_protected(self, monkeypatch):
         monkeypatch.setattr(memory_store, "delete_file", AsyncMock(return_value="protected"))
-        out = await _toolset("shared").delete_memory(_ctx(_deps()), "policy")
+        out = await _toolset().delete_memory(
+            _ctx(_deps(scope_key="user:1")), "policy", scope="shared"
+        )
         assert "operator" in out and "cannot be removed" in out
 
-    async def test_it_refuses_a_per_user_run_with_no_person(self, monkeypatch):
+    async def test_a_personal_delete_with_no_person_is_refused(self, monkeypatch):
         monkeypatch.setattr(memory_store, "delete_file", AsyncMock())
-        out = await _toolset("per_user").delete_memory(_ctx(_deps(scope_key=None)), "p")
-        assert out == _NO_PERSON
+        out = await _toolset().delete_memory(_ctx(_deps(scope_key=None)), "p", scope="personal")
+        assert out == _NO_PERSON_WRITE
 
 
 class TestRemember:
-    async def test_it_stores_a_fact_scoped_to_the_partition(self, monkeypatch):
+    async def test_personal_stores_a_fact_in_the_runs_partition(self, monkeypatch):
         remember = AsyncMock()
         monkeypatch.setattr(memory_store, "remember", remember)
-        out = await _toolset("per_user").remember(_ctx(_deps(scope_key="user:9")), "likes tea")
+        out = await _toolset().remember(_ctx(_deps(scope_key="user:9")), "likes tea")
         assert out == "Remembered."
         assert remember.await_args.kwargs["scope_key"] == "user:9"
         assert remember.await_args.kwargs["content"] == "likes tea"
 
-    async def test_it_refuses_a_per_user_run_with_no_person(self, monkeypatch):
+    async def test_shared_stores_a_fact_org_wide(self, monkeypatch):
         remember = AsyncMock()
         monkeypatch.setattr(memory_store, "remember", remember)
-        out = await _toolset("per_user").remember(_ctx(_deps(scope_key=None)), "x")
-        assert out == _NO_PERSON
+        await _toolset().remember(
+            _ctx(_deps(scope_key="user:9")), "the fiscal year starts in April", scope="shared"
+        )
+        assert remember.await_args.kwargs["scope_key"] is None
+
+    async def test_a_personal_fact_with_no_person_is_refused(self, monkeypatch):
+        remember = AsyncMock()
+        monkeypatch.setattr(memory_store, "remember", remember)
+        out = await _toolset().remember(_ctx(_deps(scope_key=None)), "x", scope="personal")
+        assert out == _NO_PERSON_WRITE
         remember.assert_not_awaited()
 
 
@@ -334,25 +400,31 @@ class TestRecall:
                 ]
             ),
         )
-        out = await _toolset("shared").recall(_ctx(_deps()), "what do they like")
+        out = await _toolset().recall(_ctx(_deps(scope_key="user:1")), "what do they like")
         assert out == "- likes tea\n- lives in Berlin"
+
+    async def test_it_recalls_across_both_tiers(self, monkeypatch):
+        recall = AsyncMock(return_value=[])
+        monkeypatch.setattr(memory_store, "recall", recall)
+        await _toolset().recall(_ctx(_deps(scope_key="user:9")), "q")
+        assert recall.await_args.kwargs["personal_key"] == "user:9"
 
     async def test_nothing_relevant_says_so(self, monkeypatch):
         monkeypatch.setattr(memory_store, "recall", AsyncMock(return_value=[]))
-        out = await _toolset("shared").recall(_ctx(_deps()), "anything")
+        out = await _toolset().recall(_ctx(_deps()), "anything")
         assert out == "No relevant memories."
 
-    async def test_it_refuses_a_per_user_run_with_no_person(self, monkeypatch):
+    async def test_a_run_without_org_or_agent_refuses(self, monkeypatch):
         recall = AsyncMock()
         monkeypatch.setattr(memory_store, "recall", recall)
-        out = await _toolset("per_user").recall(_ctx(_deps(scope_key=None)), "x")
-        assert out == _NO_PERSON
+        out = await _toolset().recall(_ctx(AgentDeps()), "x")
+        assert out == _NO_SCOPE
         recall.assert_not_awaited()
 
 
 class TestCapability:
     def test_the_toolset_is_built_once(self):
-        cap = Memory(partition="shared")
+        cap = Memory()
         assert cap.get_toolset() is cap.get_toolset()
 
     def test_the_toolset_carries_the_tools_its_config_enables(self):
@@ -365,23 +437,31 @@ class TestCapability:
         both = Memory(enable_files=True, enable_facts=True).get_toolset()
         assert set(both.tools) == files | facts
 
+    def test_it_carries_a_two_tier_preamble(self):
+        instructions = Memory(enable_files=True).get_instructions()
+        assert instructions == _MEMORY_PREAMBLE
+        assert "shared" in instructions and "personal" in instructions
+
 
 class TestConfig:
-    def test_partition_rejects_an_unknown_value(self):
-        with pytest.raises(ValueError):
-            MemoryConfig(partition="everyone")  # ty: ignore[invalid-argument-type]
-
     def test_defaults(self):
         config = MemoryConfig()
         assert config.enable_files is True
         assert config.enable_facts is True
-        assert config.partition == "shared"
         assert config.backend == "native"
+
+    def test_backend_rejects_an_unknown_value(self):
+        with pytest.raises(ValueError):
+            MemoryConfig(backend="pinecone")  # ty: ignore[invalid-argument-type]
 
     def test_mem0_without_facts_normalizes_to_native(self):
         """mem0 stores facts only, so a facts-off config cannot require its key (H1)."""
         assert MemoryConfig(backend="mem0", enable_facts=False).backend == "native"
         assert MemoryConfig(backend="mem0", enable_facts=True).backend == "mem0"
+
+    def test_the_partition_toggle_is_gone(self):
+        """The two tiers coexist now, so there is no partition to choose."""
+        assert "partition" not in MemoryConfig.model_fields
 
 
 class TestBuilder:
@@ -395,11 +475,10 @@ class TestBuilder:
     def test_one_store_on_builds_the_capability(self):
         ctx = CapabilityBuildContext(
             binding=CapabilityBinding(capability_id="memory"),
-            config=MemoryConfig(enable_files=False, enable_facts=True, partition="per_user"),
+            config=MemoryConfig(enable_files=False, enable_facts=True),
         )
         cap = _build(ctx)
         assert isinstance(cap, Memory)
-        assert cap.partition == "per_user"
         assert cap.enable_files is False
         assert cap.enable_facts is True
 
@@ -427,7 +506,6 @@ class TestBuilder:
 class TestMem0Backend:
     def _mem0_toolset(self) -> MemoryToolset:
         return MemoryToolset(
-            partition="shared",
             enable_files=False,
             enable_facts=True,
             backend="mem0",
@@ -439,13 +517,14 @@ class TestMem0Backend:
         mem0, native = AsyncMock(), AsyncMock()
         monkeypatch.setattr(memory_store, "mem0_remember", mem0)
         monkeypatch.setattr(memory_store, "remember", native)
-        out = await self._mem0_toolset().remember(_ctx(_deps()), "likes tea")
+        out = await self._mem0_toolset().remember(_ctx(_deps(scope_key="user:1")), "likes tea")
         assert out == "Remembered."
         native.assert_not_awaited()
         assert mem0.await_args.kwargs["api_key"] == "k"
         assert mem0.await_args.kwargs["base_url"] == "https://m"
+        assert mem0.await_args.kwargs["scope_key"] == "user:1"
 
-    async def test_recall_routes_to_mem0(self, monkeypatch):
+    async def test_recall_routes_to_mem0_across_tiers(self, monkeypatch):
         monkeypatch.setattr(
             memory_store,
             "mem0_recall",
@@ -453,13 +532,18 @@ class TestMem0Backend:
         )
         native = AsyncMock()
         monkeypatch.setattr(memory_store, "recall", native)
-        out = await self._mem0_toolset().recall(_ctx(_deps()), "q")
+        out = await self._mem0_toolset().recall(_ctx(_deps(scope_key="user:1")), "q")
         assert out == "- likes tea"
         native.assert_not_awaited()
 
+    async def test_recall_passes_the_personal_key_to_mem0(self, monkeypatch):
+        recall = AsyncMock(return_value=[])
+        monkeypatch.setattr(memory_store, "mem0_recall", recall)
+        await self._mem0_toolset().recall(_ctx(_deps(scope_key="user:9")), "q")
+        assert recall.await_args.kwargs["personal_key"] == "user:9"
+
     def test_the_native_backend_ignores_a_stray_key(self):
         toolset = MemoryToolset(
-            partition="shared",
             enable_files=False,
             enable_facts=True,
             backend="native",

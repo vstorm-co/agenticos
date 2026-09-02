@@ -78,7 +78,7 @@ async def mem0_remember(
         ) from exc
 
 
-async def mem0_recall(
+async def _mem0_search_namespace(
     *,
     base_url: str | None,
     api_key: str,
@@ -88,7 +88,7 @@ async def mem0_recall(
     query: str,
     limit: int,
 ) -> list[FactHit]:
-    """The facts most relevant to a query in the mem0 service, within the partition."""
+    """The facts most relevant to a query in one mem0 namespace."""
     payload: dict[str, Any] = {
         "query": query,
         "user_id": _namespace(organization_id, agent_id, scope_key),
@@ -128,3 +128,38 @@ async def mem0_recall(
                 FactHit(content=text, score=float(score) if isinstance(score, int | float) else 0.0)
             )
     return hits
+
+
+async def mem0_recall(
+    *,
+    base_url: str | None,
+    api_key: str,
+    organization_id: UUID,
+    agent_id: UUID,
+    personal_key: str | None,
+    query: str,
+    limit: int,
+) -> list[FactHit]:
+    """The facts most relevant to a query - shared plus the current person's - most-relevant first.
+
+    mem0 searches one namespace per call, so the two-tier read queries the shared
+    namespace and, when the run has an identified person, that person's too, then
+    merges by score and caps at `limit`. `personal_key=None` searches shared alone;
+    the key is server-derived, so the personal namespace is only ever this person's.
+    """
+    scope_keys: list[str | None] = [None] if personal_key is None else [None, personal_key]
+    hits: list[FactHit] = []
+    for scope_key in scope_keys:
+        hits.extend(
+            await _mem0_search_namespace(
+                base_url=base_url,
+                api_key=api_key,
+                organization_id=organization_id,
+                agent_id=agent_id,
+                scope_key=scope_key,
+                query=query,
+                limit=limit,
+            )
+        )
+    hits.sort(key=lambda hit: hit.score, reverse=True)
+    return hits[:limit]

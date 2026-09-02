@@ -132,7 +132,7 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            scope_key=None,
+            personal_key=None,
             query="q",
             limit=5,
         )
@@ -147,11 +147,64 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            scope_key=None,
+            personal_key=None,
             query="q",
             limit=5,
         )
         assert [h.content for h in hits] == ["a", "b"]
+
+    async def test_no_person_searches_only_the_shared_namespace(self, transport):
+        transport.response = _Response(data={"results": []})
+        await _mem0.mem0_recall(
+            base_url=None,
+            api_key="k",
+            organization_id=ORG,
+            agent_id=AGENT,
+            personal_key=None,
+            query="q",
+            limit=5,
+        )
+        assert len(transport.client.calls) == 1
+        assert transport.client.calls[0][1]["user_id"] == f"{ORG}:{AGENT}:shared"
+
+    async def test_it_unions_shared_and_personal_merged_by_score_and_capped(self, monkeypatch):
+        # With a person, both the shared and the personal namespace are searched;
+        # hits merge, sort by score descending, and cap at `limit`, so a person's
+        # closer hit outranks a shared one. The personal namespace is the run's own
+        # key, so the union can never reach another person's facts.
+        responses = {
+            f"{ORG}:{AGENT}:shared": {
+                "results": [{"memory": "s1", "score": 0.4}, {"memory": "s2", "score": 0.3}]
+            },
+            f"{ORG}:{AGENT}:user:1": {
+                "results": [{"memory": "p1", "score": 0.95}, {"memory": "p2", "score": 0.35}]
+            },
+        }
+        queried: list[str] = []
+
+        class _MultiClient:
+            async def __aenter__(self) -> "_MultiClient":
+                return self
+
+            async def __aexit__(self, *exc: object) -> bool:
+                return False
+
+            async def post(self, url: str, *, json: dict, headers: dict) -> _Response:
+                queried.append(json["user_id"])
+                return _Response(data=responses[json["user_id"]])
+
+        monkeypatch.setattr(_mem0.httpx, "AsyncClient", lambda **_kwargs: _MultiClient())
+        hits = await _mem0.mem0_recall(
+            base_url=None,
+            api_key="k",
+            organization_id=ORG,
+            agent_id=AGENT,
+            personal_key="user:1",
+            query="q",
+            limit=3,
+        )
+        assert set(queried) == {f"{ORG}:{AGENT}:shared", f"{ORG}:{AGENT}:user:1"}
+        assert [h.content for h in hits] == ["p1", "s1", "p2"]
 
     async def test_a_network_error_becomes_a_controlled_refusal(self, transport):
         transport.response = _Response(error=httpx.HTTPError("boom"))
@@ -161,7 +214,7 @@ class TestRecall:
                 api_key="k",
                 organization_id=ORG,
                 agent_id=AGENT,
-                scope_key=None,
+                personal_key=None,
                 query="q",
                 limit=5,
             )
@@ -177,7 +230,7 @@ class TestRecall:
                 api_key="k",
                 organization_id=ORG,
                 agent_id=AGENT,
-                scope_key=None,
+                personal_key=None,
                 query="q",
                 limit=5,
             )
@@ -189,7 +242,7 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            scope_key=None,
+            personal_key=None,
             query="q",
             limit=5,
         )
@@ -202,7 +255,7 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            scope_key=None,
+            personal_key=None,
             query="q",
             limit=5,
         )

@@ -37,6 +37,22 @@ def _in_partition(scope_key: str | None) -> ColumnElement[bool]:
     return column.is_(None) if scope_key is None else column == scope_key
 
 
+def _readable(personal_key: str | None) -> ColumnElement[bool]:
+    """ "Readable in this run": the shared store, plus one person's when the run has
+    an identified person.
+
+    The two-tier read - a run always sees the agent's shared store, and when it
+    carries an end-user it also sees that person's personal store. `personal_key`
+    is `None` on a surface with no identified person, and the run reads shared
+    alone. Isolation holds because the key is derived server-side, never named by
+    the model, so the `= personal_key` arm can only ever match the current person's
+    rows (#788)."""
+    column = AgentMemoryFile.end_user_scope_key
+    if personal_key is None:
+        return column.is_(None)
+    return or_(column.is_(None), column == personal_key)
+
+
 async def get(db: AsyncSession, file_id: UUID, *, organization_id: UUID) -> AgentMemoryFile | None:
     result = await db.execute(
         select(AgentMemoryFile).where(
@@ -67,35 +83,29 @@ async def get_by_name(
     return result.scalar_one_or_none()
 
 
-async def list_in_partition(
+async def list_readable(
     db: AsyncSession,
     *,
     organization_id: UUID,
     agent_id: UUID,
-    end_user_scope_key: str | None,
-    origin: str | None = None,
+    personal_key: str | None,
     limit: int = 200,
 ) -> list[AgentMemoryFile]:
-    """Every file in one partition, most-recently-updated first — the runtime index.
+    """Every file this run may read - shared plus the current person's - newest first.
 
-    `origin` narrows to trusted (`operator`) rows when injection asks for them;
-    the runtime index tool passes `None` and sees the agent's own writes too.
-    Capped at `limit`, and ordered newest-first so that the cap keeps the recent
-    memories rather than the alphabetically-first ones: a partition an agent has
-    written to for months is not an index the model should be handed in full, and
-    what it most wants is what it learned last. `updated_at` is null until a row
-    is edited, so it falls back to `created_at`, which never is.
+    The runtime index behind `list_memory`: the agent's shared store, unioned with
+    the end-user's personal store when the run has one (`personal_key`). Capped at
+    `limit` and ordered newest-first so a long-lived store hands the model what it
+    learned last rather than the alphabetically-first rows; `updated_at` is null
+    until a row is edited, so it falls back to `created_at`, which never is.
     """
-    where = [
-        AgentMemoryFile.organization_id == organization_id,
-        AgentMemoryFile.agent_id == agent_id,
-        _in_partition(end_user_scope_key),
-    ]
-    if origin is not None:
-        where.append(AgentMemoryFile.origin == origin)
     result = await db.execute(
         select(AgentMemoryFile)
-        .where(*where)
+        .where(
+            AgentMemoryFile.organization_id == organization_id,
+            AgentMemoryFile.agent_id == agent_id,
+            _readable(personal_key),
+        )
         .order_by(
             func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
             AgentMemoryFile.name.asc(),
@@ -103,6 +113,38 @@ async def list_in_partition(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def get_readable_by_name(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    personal_key: str | None,
+    name: str,
+) -> AgentMemoryFile | None:
+    """One readable file by name, the personal copy winning a cross-tier name clash.
+
+    `read_memory` under the two-tier model: a name may exist in both the shared and
+    the personal store - they are distinct rows, since the unique index treats a
+    NULL and a non-NULL scope as different partitions - and the personal one is the
+    current person's own, so it is returned first. `personal_key=None` reads shared
+    alone.
+    """
+    result = await db.execute(
+        select(AgentMemoryFile)
+        .where(
+            AgentMemoryFile.organization_id == organization_id,
+            AgentMemoryFile.agent_id == agent_id,
+            _readable(personal_key),
+            AgentMemoryFile.name == name,
+        )
+        # Personal (non-NULL scope) before shared (NULL), so a name in both tiers
+        # resolves to the current person's copy.
+        .order_by(AgentMemoryFile.end_user_scope_key.is_(None).asc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
 
 
 async def list_for_agent(
@@ -272,18 +314,19 @@ async def recall_facts(
     *,
     organization_id: UUID,
     agent_id: UUID,
-    end_user_scope_key: str | None,
+    personal_key: str | None,
     query_embedding: list[float],
     limit: int = 5,
 ) -> list[FactHit]:
-    """The nearest facts in one partition, most-similar first.
+    """The nearest facts a run may recall, most-similar first.
 
     Cosine distance (`<=>`) over the HNSW index, scored `1 - distance` so higher
     is closer. The query vector is cast the same way the column is indexed - a
     `halfvec` past 2000 dimensions - or Postgres compares a halfvec against a
-    vector and refuses the operator, exactly as the RAG search does. Scoped to
-    the partition (`IS NULL` for the shared store) before the KNN, so a run only
-    ever recalls from the store it was admitted to.
+    vector and refuses the operator, exactly as the RAG search does. Scoped before
+    the KNN to the shared store, unioned with the current person's when the run has
+    one (`personal_key`), so a run only ever recalls from stores it was admitted
+    to; the key is server-derived, so the union can never reach another person's.
     """
     dim = settings.rag.embeddings_config.dim
     wide = dim > _HNSW_MAX_VECTOR_DIM
@@ -291,8 +334,8 @@ async def recall_facts(
     query_expr = f"(:query_vec)::halfvec({dim})" if wide else ":query_vec"
     scope_sql = (
         "end_user_scope_key IS NULL"
-        if end_user_scope_key is None
-        else ("end_user_scope_key = :scope")
+        if personal_key is None
+        else "(end_user_scope_key IS NULL OR end_user_scope_key = :scope)"
     )
     params: dict[str, Any] = {
         "organization_id": organization_id,
@@ -300,8 +343,8 @@ async def recall_facts(
         "query_vec": str(query_embedding),
         "limit": limit,
     }
-    if end_user_scope_key is not None:
-        params["scope"] = end_user_scope_key
+    if personal_key is not None:
+        params["scope"] = personal_key
     result = await db.execute(
         text(
             f"SELECT content, 1 - ({distance} <=> {query_expr}) AS score "

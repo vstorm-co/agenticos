@@ -22,7 +22,7 @@ __all__ = [
     "Memory",
     "MemoryConfig",
     "derive_end_user_scope_key",
-    "per_user_partition_requested",
+    "memory_requested",
 ]
 
 MEMORY_CAPABILITY_ID = "memory"
@@ -38,16 +38,6 @@ class MemoryConfig(BaseModel):
     enable_facts: bool = Field(
         default=True,
         description="Short facts the agent remembers and recalls by meaning (semantic search).",
-    )
-    partition: Literal["shared", "per_user"] = Field(
-        default="shared",
-        description="Whether memory is one shared store or a private store per end-user.",
-        json_schema_extra={
-            "x-enum-labels": {
-                "shared": "Shared — one memory per agent, for a single trusted audience",
-                "per_user": "Per-user — a private memory for each end-user (needs an identified person)",
-            }
-        },
     )
     backend: Literal["native", "mem0"] = Field(
         default="native",
@@ -78,20 +68,19 @@ class MemoryConfig(BaseModel):
         return self
 
 
-def per_user_partition_requested(bindings: Iterable[CapabilityBinding]) -> bool:
-    """Whether any enabled memory binding uses the `per_user` partition.
+def memory_requested(bindings: Iterable[CapabilityBinding]) -> bool:
+    """Whether any enabled memory binding is present.
 
-    Read off the raw binding config rather than a built capability, because the
-    factory needs the answer *before* it derives the end-user key and builds
-    anything. The default partition is `shared`, so an absent field is not
-    `per_user` - which is what keeps the derivation (and the identity it reads)
-    inert for every agent that does not ask for per-user memory.
+    The factory derives the per-end-user partition key whenever memory is bound,
+    because every memory agent now reads its shared store and, when the run has an
+    identified person, that person's personal store too. Read off the raw binding
+    config rather than a built capability, because the factory needs the answer
+    before it derives the key and builds anything; the key stays `None`, and
+    personal memory inert, for every agent without memory and for a run with no
+    per-person signal.
     """
     return any(
-        binding.enabled
-        and binding.capability_id == MEMORY_CAPABILITY_ID
-        and binding.config.get("partition") == "per_user"
-        for binding in bindings
+        binding.enabled and binding.capability_id == MEMORY_CAPABILITY_ID for binding in bindings
     )
 
 
@@ -197,7 +186,6 @@ def _build(ctx: CapabilityBuildContext) -> Memory | None:
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
     return Memory(
-        partition=config.partition,
         enable_files=config.enable_files,
         enable_facts=config.enable_facts,
         backend=config.backend,

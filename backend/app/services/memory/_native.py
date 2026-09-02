@@ -10,11 +10,13 @@ close it. That is also why a memory written in a run that later fails still
 persists: the write committed on its own session the moment it was made, which
 is what a memory is supposed to do.
 
-The scope is fixed by the caller from the request identity and the capability's
-partition, never by the model: `scope_key=None` is the shared store, a
-`user:<id>`/`chan:<id>` is one end-user's. Every write here is `origin="agent"` -
-untrusted content that a later run may read as a tool result but that is never
-spliced into instructions (see the capability README).
+Reads union the shared store with the current person's, when the run has one:
+`personal_key=None` is a run with no identified person and reads shared alone.
+Writes take a single resolved `scope_key` - `None` for shared, a
+`user:<id>`/`chan:<id>` for the person's own - chosen by the caller from the tier
+the agent asked for, never by the model naming a partition. Every write here is
+`origin="agent"` - untrusted content a later run may read as a tool result but
+that is never spliced into instructions (see the capability README).
 """
 
 from __future__ import annotations
@@ -69,37 +71,56 @@ README describes).
 
 @dataclass(frozen=True)
 class MemoryFileIndexEntry:
-    """One row of the runtime index - enough to decide whether to read the body."""
+    """One row of the runtime index - enough to decide whether to read the body.
+
+    `personal` is the tier the row came from - `True` for the current person's
+    own store, `False` for the agent's shared store - so `list_memory` can label
+    it and the agent can tell an organisation-wide note from this person's.
+    """
 
     name: str
     description: str | None
     kind: str
+    personal: bool
 
 
 async def list_files(
-    *, organization_id: UUID, agent_id: UUID, scope_key: str | None
+    *, organization_id: UUID, agent_id: UUID, personal_key: str | None
 ) -> list[MemoryFileIndexEntry]:
-    """The names, descriptions and kinds in one partition, detached from the session."""
+    """The readable files - shared plus the current person's - detached from the session.
+
+    Each entry is tagged with the tier it came from, so the index can show which
+    store a file lives in. `personal_key=None` lists the shared store alone.
+    """
     async with get_db_context() as db:
-        rows = await memory_repo.list_in_partition(
-            db, organization_id=organization_id, agent_id=agent_id, end_user_scope_key=scope_key
+        rows = await memory_repo.list_readable(
+            db, organization_id=organization_id, agent_id=agent_id, personal_key=personal_key
         )
         return [
-            MemoryFileIndexEntry(name=row.name, description=row.description, kind=row.kind)
+            MemoryFileIndexEntry(
+                name=row.name,
+                description=row.description,
+                kind=row.kind,
+                personal=row.end_user_scope_key is not None,
+            )
             for row in rows
         ]
 
 
 async def read_file(
-    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, name: str
+    *, organization_id: UUID, agent_id: UUID, personal_key: str | None, name: str
 ) -> str | None:
-    """One file's body by name, or None when the partition has no such file."""
+    """One readable file's body by name, or None when nothing readable matches.
+
+    Searches the shared store and the current person's; a name in both tiers
+    resolves to the person's own copy (see `get_readable_by_name`).
+    """
     async with get_db_context() as db:
-        row = await memory_repo.get_by_name(
+        row = await memory_repo.get_readable_by_name(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            end_user_scope_key=scope_key,
+            personal_key=personal_key,
             name=name,
         )
         return None if row is None else row.content
@@ -227,16 +248,16 @@ async def remember(
 
 
 async def recall(
-    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, query: str, limit: int = 5
+    *, organization_id: UUID, agent_id: UUID, personal_key: str | None, query: str, limit: int = 5
 ) -> list[FactHit]:
-    """The facts most similar to a query, within the partition, most-similar first."""
+    """The facts most similar to a query - shared plus the current person's - most-similar first."""
     embedding = await _embed(query)
     async with get_db_context() as db:
         return await memory_repo.recall_facts(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            end_user_scope_key=scope_key,
+            personal_key=personal_key,
             query_embedding=embedding,
             limit=limit,
         )

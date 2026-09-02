@@ -36,39 +36,45 @@ def _own_session(monkeypatch):
     monkeypatch.setattr(f"{NATIVE}.get_db_context", _fake_session)
 
 
-def _row(*, origin=MemoryOrigin.AGENT.value, content="body"):
+def _row(*, origin=MemoryOrigin.AGENT.value, content="body", scope_key=None):
     row = MagicMock()
     row.origin = origin
     row.content = content
     row.name = "prefs"
     row.description = "d"
     row.kind = "note"
+    row.end_user_scope_key = scope_key
     return row
 
 
 class TestListFiles:
-    async def test_it_returns_detached_index_entries(self):
-        with patch(f"{REPO}.list_in_partition", new=AsyncMock(return_value=[_row()])):
-            entries = await _native.list_files(organization_id=ORG, agent_id=AGENT, scope_key=None)
+    async def test_it_returns_detached_index_entries_tagged_by_tier(self):
+        rows = [_row(scope_key=None), _row(scope_key="user:1")]
+        with patch(f"{REPO}.list_readable", new=AsyncMock(return_value=rows)):
+            entries = await _native.list_files(
+                organization_id=ORG, agent_id=AGENT, personal_key="user:1"
+            )
         assert entries[0].name == "prefs"
         assert entries[0].kind == "note"
+        assert entries[0].personal is False
+        assert entries[1].personal is True
 
 
 class TestReadFile:
     async def test_it_returns_the_body(self):
-        with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=_row(content="tea"))):
+        with patch(f"{REPO}.get_readable_by_name", new=AsyncMock(return_value=_row(content="tea"))):
             assert (
                 await _native.read_file(
-                    organization_id=ORG, agent_id=AGENT, scope_key=None, name="prefs"
+                    organization_id=ORG, agent_id=AGENT, personal_key=None, name="prefs"
                 )
                 == "tea"
             )
 
     async def test_a_missing_file_is_none(self):
-        with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)):
+        with patch(f"{REPO}.get_readable_by_name", new=AsyncMock(return_value=None)):
             assert (
                 await _native.read_file(
-                    organization_id=ORG, agent_id=AGENT, scope_key=None, name="gone"
+                    organization_id=ORG, agent_id=AGENT, personal_key=None, name="gone"
                 )
                 is None
             )
@@ -246,7 +252,7 @@ class TestRecall:
         hits = [FactHit(content="likes tea", score=0.9)]
         with patch(f"{REPO}.recall_facts", new=AsyncMock(return_value=hits)) as recall:
             out = await _native.recall(
-                organization_id=ORG, agent_id=AGENT, scope_key=None, query="q", limit=3
+                organization_id=ORG, agent_id=AGENT, personal_key=None, query="q", limit=3
             )
         assert out == hits
         assert recall.await_args.kwargs["query_embedding"] == [0.3]

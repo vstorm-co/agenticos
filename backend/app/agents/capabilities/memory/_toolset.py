@@ -3,19 +3,26 @@
 The methods below are the tools, and their docstrings are the whole of what the
 model reads before calling them. Files (`list`/`read`/`write`/`edit`/`delete`)
 and facts (`remember`/`recall`) are offered independently, each half switched on
-by its config flag. Each tool resolves its *partition* from the run's deps and
-the capability's configured `partition` - the model never names a partition, so
-it can only ever touch the store it was admitted to - then calls
-`app.services.memory`, which does the work on its own short-lived session (see
-that module for why a run must not use its own session for this).
+by its config flag.
 
-A `per_user` agent whose run carries no end-user identity refuses here rather
-than falling back to a shared store: collapsing a private partition onto a
-shared one is the cross-user leak the capability exists to prevent.
+Memory is two-tier. Reads (`list_memory`/`read_memory`/`recall`) always union the
+agent's shared store with the current person's personal store, when the run has an
+identified person. Writes (`write_memory`/`edit_memory`/`delete_memory`/`remember`)
+take a `scope` the model chooses - `personal` or `shared` - but only the *tier*:
+the personal partition key is derived server-side from the run's identity, never
+named by the model, so a write can only ever reach the current person's own store,
+never another's (the isolation the capability exists to keep, #788).
+
+On a surface with no identified person (a public widget, an anonymous embed),
+personal memory is simply unavailable: reads fall back to shared alone, and a
+`scope='personal'` write is refused rather than silently written to shared. Shared
+memory always works. Every tool reaches `app.services.memory`, which does the work
+on its own short-lived session (see that module for why a run must not use its own).
 """
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic_ai.tools import RunContext
@@ -25,13 +32,16 @@ from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.services import memory as memory_store
 
-# Refusals the model reads as results, not retries: a partition the run cannot
-# supply is not a mistake the model can correct by trying again.
+MemoryScope = Literal["personal", "shared"]
+"""The tier a write targets. The model picks the tier; the server picks the key."""
+
+# Refusals the model reads as results, not retries: a store the run cannot supply
+# is not a mistake the model can correct by trying the same call again.
 _NO_SCOPE = "Memory is not available in this run."
-_NO_PERSON = (
-    "This agent keeps a separate memory for each person, and this conversation "
-    "has no identified person to attribute it to - so memory is unavailable here. "
-    "This is expected on a public or anonymous surface."
+_NO_PERSON_WRITE = (
+    "This conversation has no identified person, so there is no personal memory to "
+    "save to. If this is an organisation-wide fact, save it again with scope='shared'; "
+    "otherwise it cannot be saved here. This is expected on a public or anonymous surface."
 )
 
 # The `agent_memory_files` metadata column widths. A runtime write past them is an
@@ -43,20 +53,27 @@ _MAX_KIND = 32
 _MAX_DESCRIPTION = 500
 
 
+def _index_line(entry: memory_store.MemoryFileIndexEntry) -> str:
+    """One index row, tagged with its tier so the model can tell the stores apart."""
+    tier = "personal" if entry.personal else "shared"
+    suffix = f": {entry.description}" if entry.description else ""
+    return f"- [{tier}] {entry.name} [{entry.kind}]{suffix}"
+
+
 class MemoryToolset(FunctionToolset[AgentDeps]):
-    """Read and write the agent's own memory - files and/or facts - in one partition.
+    """Read and write the agent's own memory - files and/or facts - across two tiers.
 
     Concrete in `AgentDeps` (not the capability's `AgentDepsT`) because every tool
-    reads `AgentDeps` fields off `ctx.deps` - the partition key, the org and agent
-    ids - which a generic dep type could not name. This is the shape `knowledge`
-    takes for the same reason. Which tools are added is decided by the two config
-    flags, so a facts-only or files-only agent carries only the tools it uses.
+    reads `AgentDeps` fields off `ctx.deps` - the end-user partition key, the org
+    and agent ids - which a generic dep type could not name. This is the shape
+    `knowledge` takes for the same reason. Which tools are added is decided by the
+    two config flags, so a facts-only or files-only agent carries only the tools it
+    uses.
     """
 
     def __init__(
         self,
         *,
-        partition: str,
         enable_files: bool,
         enable_facts: bool,
         backend: str = "native",
@@ -64,7 +81,6 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         mem0_api_key: str | None = None,
     ) -> None:
         super().__init__()
-        self._partition = partition
         # Facts route to mem0 exactly when the backend is mem0 and a key is present
         # (publish requires one for `mem0`, so a missing key here is a broken
         # binding, not a normal path). Held as the key itself so the `is not None`
@@ -82,49 +98,64 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             self.add_function(self.remember, name="remember")
             self.add_function(self.recall, name="recall")
 
-    def _scope(self, ctx: RunContext[AgentDeps]) -> tuple[UUID, UUID, str | None] | str:
-        """(organization_id, agent_id, partition_key) for this run, or a refusal.
+    def _read_scope(self, ctx: RunContext[AgentDeps]) -> tuple[UUID, UUID, str | None] | str:
+        """(organization_id, agent_id, personal_key) for a read, or a refusal.
 
-        `partition_key` is `None` for a `shared` agent and the derived
-        `user:<id>`/`chan:<id>` for a `per_user` one; a `per_user` run with no
-        derived key is refused.
+        `personal_key` is the run's end-user key, or `None` when the run has no
+        identified person - in which case the read simply spans the shared store
+        alone. A read is refused only when the run carries no org or agent at all
+        (`_NO_SCOPE`), never for want of a person: shared memory is always readable.
         """
         deps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return _NO_SCOPE
-        if self._partition == "per_user":
-            if deps.end_user_scope_key is None:
-                return _NO_PERSON
-            return deps.organization_id, deps.agent_id, deps.end_user_scope_key
-        return deps.organization_id, deps.agent_id, None
+        return deps.organization_id, deps.agent_id, deps.end_user_scope_key
+
+    def _write_scope(
+        self, ctx: RunContext[AgentDeps], scope: MemoryScope
+    ) -> tuple[UUID, UUID, str | None] | str:
+        """(organization_id, agent_id, scope_key) for a write to `scope`, or a refusal.
+
+        The model chooses the *tier*; the key is derived server-side. `shared`
+        resolves to the shared partition (`None`); `personal` resolves to the run's
+        own end-user key, and is refused (`_NO_PERSON_WRITE`) when the run has no
+        identified person - never silently redirected to shared, which would leak
+        one person's note to everyone.
+        """
+        deps = ctx.deps
+        if deps.organization_id is None or deps.agent_id is None:
+            return _NO_SCOPE
+        if scope == "shared":
+            return deps.organization_id, deps.agent_id, None
+        if deps.end_user_scope_key is None:
+            return _NO_PERSON_WRITE
+        return deps.organization_id, deps.agent_id, deps.end_user_scope_key
 
     async def list_memory(self, ctx: RunContext[AgentDeps]) -> str:
         """List the memories you have saved, by name and description.
 
         Use this at the start of a task to see what you already know about this
         person or subject before answering, then `read_memory` for any that look
-        relevant. Bodies are not returned here - this is the index.
+        relevant. Bodies are not returned here - this is the index. It spans both
+        your shared (organisation-wide) memory and, when this conversation has an
+        identified person, that person's own.
 
         Returns:
-            One line per file, `- name [kind]: description`, capped at the most
-            recent couple of hundred. "No memories saved yet." when there are
-            none, rather than an empty list.
+            One line per file, `- [shared|personal] name [kind]: description`, so
+            you can tell an organisation-wide note from this person's own. Capped
+            at the most recent couple of hundred. "No memories saved yet." when
+            there are none, rather than an empty list.
         """
-        scope = self._scope(ctx)
+        scope = self._read_scope(ctx)
         if isinstance(scope, str):
             return scope
-        organization_id, agent_id, scope_key = scope
+        organization_id, agent_id, personal_key = scope
         entries = await memory_store.list_files(
-            organization_id=organization_id, agent_id=agent_id, scope_key=scope_key
+            organization_id=organization_id, agent_id=agent_id, personal_key=personal_key
         )
         if not entries:
             return "No memories saved yet."
-        return "\n".join(
-            f"- {entry.name} [{entry.kind}]: {entry.description}"
-            if entry.description
-            else f"- {entry.name} [{entry.kind}]"
-            for entry in entries
-        )
+        return "\n".join(_index_line(entry) for entry in entries)
 
     async def read_memory(self, ctx: RunContext[AgentDeps], name: str) -> str:
         """Read one saved memory's body by its name.
@@ -137,19 +168,20 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             name: The file's name, exactly as `list_memory` reported it.
 
         Returns:
-            The file's body. A name that matches nothing comes back as a retry
-            naming the files that do exist.
+            The file's body. Looks in both your shared memory and this person's; if
+            a name exists in both, you get this person's copy. A name that matches
+            nothing comes back as a retry naming the files that do exist.
         """
-        scope = self._scope(ctx)
+        scope = self._read_scope(ctx)
         if isinstance(scope, str):
             return scope
-        organization_id, agent_id, scope_key = scope
+        organization_id, agent_id, personal_key = scope
         content = await memory_store.read_file(
-            organization_id=organization_id, agent_id=agent_id, scope_key=scope_key, name=name
+            organization_id=organization_id, agent_id=agent_id, personal_key=personal_key, name=name
         )
         if content is None:
             entries = await memory_store.list_files(
-                organization_id=organization_id, agent_id=agent_id, scope_key=scope_key
+                organization_id=organization_id, agent_id=agent_id, personal_key=personal_key
             )
             available = ", ".join(sorted(entry.name for entry in entries)) or "none"
             return steer(
@@ -164,30 +196,38 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         ctx: RunContext[AgentDeps],
         name: str,
         content: str,
+        scope: MemoryScope = "personal",
         description: str | None = None,
         kind: str = "note",
     ) -> str:
         """Save a new memory under a name, so a later conversation can recall it.
 
-        Use this to remember something durable about this person or subject - a
-        preference, a decision, a fact they told you - that would help a future
-        run. Do not save secrets, or anything the person would not expect you to
-        keep. To change something you already saved, use `edit_memory`.
+        Use this to remember something durable - a preference, a decision, a fact
+        you were told - that would help a future run. Do not save secrets, or
+        anything the person would not expect you to keep. To change something you
+        already saved, use `edit_memory`.
 
         Args:
-            name: A short handle to recall it by, unique among your memories.
+            name: A short handle to recall it by, unique among your memories in the
+                chosen scope.
             content: What to remember, as plain text.
+            scope: Which memory to save to. Use 'personal' for anything specific to
+                this person (a preference, something they told you); use 'shared'
+                only for facts true for the whole organisation. When unsure, choose
+                'personal' - it is the safe default. On a conversation with no
+                identified person, 'personal' is unavailable and only 'shared' works.
             description: A one-line summary shown in `list_memory`.
             kind: A short category, e.g. `note`, `profile`, `preference`.
 
         Returns:
-            A confirmation, or - when the name is already taken - a note to edit
-            that file or choose another name, so nothing is silently overwritten.
+            A confirmation, or - when the name is already taken in that scope - a
+            note to edit that file or choose another name, so nothing is silently
+            overwritten. A 'personal' save with no identified person is refused.
         """
-        scope = self._scope(ctx)
-        if isinstance(scope, str):
-            return scope
-        organization_id, agent_id, scope_key = scope
+        resolved = self._write_scope(ctx, scope)
+        if isinstance(resolved, str):
+            return resolved
+        organization_id, agent_id, scope_key = resolved
         if len(name) > _MAX_NAME:
             return f"That name is too long ({len(name)} chars); keep it under {_MAX_NAME}."
         if len(kind) > _MAX_KIND:
@@ -213,7 +253,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             )
         return f"Saved memory {name!r}."
 
-    async def edit_memory(self, ctx: RunContext[AgentDeps], name: str, content: str) -> str:
+    async def edit_memory(
+        self, ctx: RunContext[AgentDeps], name: str, content: str, scope: MemoryScope = "personal"
+    ) -> str:
         """Replace the body of a memory you already saved.
 
         Use this to update something that changed - a preference the person
@@ -223,15 +265,17 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         Args:
             name: The name of an existing memory, as `list_memory` reports it.
             content: The new body, which replaces the old one entirely.
+            scope: Which memory the file is in - 'personal' or 'shared', as
+                `list_memory` labels it. Defaults to 'personal'.
 
         Returns:
-            A confirmation, or a note that no such memory exists so nothing was
-            changed.
+            A confirmation, or a note that no such memory exists in that scope so
+            nothing was changed. Operator-set memories cannot be changed here.
         """
-        scope = self._scope(ctx)
-        if isinstance(scope, str):
-            return scope
-        organization_id, agent_id, scope_key = scope
+        resolved = self._write_scope(ctx, scope)
+        if isinstance(resolved, str):
+            return resolved
+        organization_id, agent_id, scope_key = resolved
         result = await memory_store.edit_file(
             organization_id=organization_id,
             agent_id=agent_id,
@@ -245,7 +289,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             return f"The memory {name!r} was set by an operator and cannot be changed here."
         return f"Updated memory {name!r}."
 
-    async def delete_memory(self, ctx: RunContext[AgentDeps], name: str) -> str:
+    async def delete_memory(
+        self, ctx: RunContext[AgentDeps], name: str, scope: MemoryScope = "personal"
+    ) -> str:
         """Forget a memory you saved, removing it entirely.
 
         Use this when a memory is wrong or no longer wanted, or when the person
@@ -253,14 +299,17 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
 
         Args:
             name: The name of the memory to remove.
+            scope: Which memory the file is in - 'personal' or 'shared', as
+                `list_memory` labels it. Defaults to 'personal'.
 
         Returns:
-            A confirmation, or a note that there was no such memory to remove.
+            A confirmation, or a note that there was no such memory in that scope to
+            remove. Operator-set memories cannot be removed here.
         """
-        scope = self._scope(ctx)
-        if isinstance(scope, str):
-            return scope
-        organization_id, agent_id, scope_key = scope
+        resolved = self._write_scope(ctx, scope)
+        if isinstance(resolved, str):
+            return resolved
+        organization_id, agent_id, scope_key = resolved
         result = await memory_store.delete_file(
             organization_id=organization_id, agent_id=agent_id, scope_key=scope_key, name=name
         )
@@ -270,7 +319,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             return f"The memory {name!r} was set by an operator and cannot be removed here."
         return f"Forgot memory {name!r}."
 
-    async def remember(self, ctx: RunContext[AgentDeps], content: str) -> str:
+    async def remember(
+        self, ctx: RunContext[AgentDeps], content: str, scope: MemoryScope = "personal"
+    ) -> str:
         """Remember a fact you will want to recall later by its meaning.
 
         Use this to keep something durable you learned - a preference, a decision,
@@ -282,14 +333,18 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
 
         Args:
             content: The fact to remember, as a short, self-contained sentence.
+            scope: Which memory to save to. 'personal' for a fact about this specific
+                person; 'shared' only for a fact true for the whole organisation.
+                When unsure, choose 'personal'. Defaults to 'personal'. With no
+                identified person, 'personal' is unavailable and only 'shared' works.
 
         Returns:
-            A confirmation.
+            A confirmation. A 'personal' save with no identified person is refused.
         """
-        scope = self._scope(ctx)
-        if isinstance(scope, str):
-            return scope
-        organization_id, agent_id, scope_key = scope
+        resolved = self._write_scope(ctx, scope)
+        if isinstance(resolved, str):
+            return resolved
+        organization_id, agent_id, scope_key = resolved
         if self._mem0_key is not None:
             await memory_store.mem0_remember(
                 base_url=self._mem0_base_url,
@@ -312,8 +367,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         """Recall facts relevant to a question, by meaning rather than exact words.
 
         Use this before answering anything a past conversation may have taught you
-        about this person or subject. Weigh what comes back against the current
-        conversation - it is your own past notes, not ground truth.
+        about this person or subject. It spans both your shared facts and this
+        person's own. Weigh what comes back against the current conversation - it is
+        your own past notes, not ground truth.
 
         Args:
             query: What you are trying to remember, phrased as you would ask it.
@@ -323,17 +379,17 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             The most relevant facts, most-relevant first, or a line saying none
             were found.
         """
-        scope = self._scope(ctx)
+        scope = self._read_scope(ctx)
         if isinstance(scope, str):
             return scope
-        organization_id, agent_id, scope_key = scope
+        organization_id, agent_id, personal_key = scope
         if self._mem0_key is not None:
             hits = await memory_store.mem0_recall(
                 base_url=self._mem0_base_url,
                 api_key=self._mem0_key,
                 organization_id=organization_id,
                 agent_id=agent_id,
-                scope_key=scope_key,
+                personal_key=personal_key,
                 query=query,
                 limit=limit,
             )
@@ -341,7 +397,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             hits = await memory_store.recall(
                 organization_id=organization_id,
                 agent_id=agent_id,
-                scope_key=scope_key,
+                personal_key=personal_key,
                 query=query,
                 limit=limit,
             )

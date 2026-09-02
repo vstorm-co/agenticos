@@ -73,8 +73,8 @@ class TestWhichRoleAnAnonymousTurnBorrows:
 
         assert ctx.role == OrgRoleName.OWNER.value
         # `user_id` is the publisher, not whoever is chatting - so the fallback
-        # flag is set, and per-user memory refuses rather than attributing a
-        # stranger's note to the owner (#788).
+        # flag is set, and a personal-memory write is refused rather than
+        # attributing a stranger's note to the owner (#788).
         assert ctx.subject_is_publisher_fallback is True
 
     async def test_a_deactivated_publisher_lends_nothing(self, db) -> None:
@@ -117,7 +117,8 @@ class TestWhichRoleAnAnonymousTurnBorrows:
 
 async def test_a_publisher_context_is_always_flagged_a_fallback() -> None:
     """The flag is unconditional: with no publisher recorded the DB is never
-    touched, and the context is still a fallback that per-user memory must refuse."""
+    touched, and the context is still a fallback whose personal-memory writes must
+    be refused."""
     ctx = await publisher_context(MagicMock(), organization_id=uuid.uuid4(), publisher_user_id=None)
     assert ctx.subject_is_publisher_fallback is True
     assert ctx.role == OrgRoleName.VIEWER.value
