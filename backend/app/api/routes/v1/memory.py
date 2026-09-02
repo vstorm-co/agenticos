@@ -76,7 +76,8 @@ async def update_memory_file(
 
 @router.post("/files/{file_id}/promote", response_model=AgentMemoryFileRead)
 async def promote_memory_file(file_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
-    """Mark an agent-authored file trusted, so injection may splice it in."""
+    """Mark an agent-authored file operator-trusted; v1 shows the trust as a badge,
+    it is not yet spliced into the prompt."""
     return await service.promote(ctx, file_id)
 
 

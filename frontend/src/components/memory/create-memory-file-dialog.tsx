@@ -114,7 +114,7 @@ export function CreateMemoryFileDialog({
         name,
         description: description.trim() === "" ? null : description.trim(),
         content,
-        format: format.trim() || DEFAULT_FORMAT,
+        format,
         kind: kind.trim() || DEFAULT_KIND,
         end_user_scope_key: scopeKey,
       });

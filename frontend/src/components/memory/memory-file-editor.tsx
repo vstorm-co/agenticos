@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { FileEditor } from "@/components/files";
 import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
-import { DEFAULT_FORMAT, FORMATS, displayName } from "@/components/context/file-name";
+import { FORMATS, displayName } from "@/components/context/file-name";
 import type { MemoryEdit } from "@/hooks/use-memory";
 import type { MemoryFile } from "@/types/memory";
 import { useTranslations } from "next-intl";
@@ -69,7 +69,7 @@ export function MemoryFileEditor({
   }, [file.format]);
 
   const editedDescription = description.trim() === "" ? null : description.trim();
-  const editedFormat = format.trim() || DEFAULT_FORMAT;
+  const editedFormat = format;
   const editedKind = kind.trim() || file.kind;
   const changed =
     editedDescription !== file.description ||

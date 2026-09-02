@@ -98,7 +98,7 @@ export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProp
         placeholder={t("search")}
         className="sm:w-56"
       />
-      <Button size="sm" data-tour="agent-memory-new" onClick={() => setCreateOpen(true)}>
+      <Button size="sm" onClick={() => setCreateOpen(true)}>
         <Plus className="h-4 w-4" />
         {t("newFile")}
       </Button>
