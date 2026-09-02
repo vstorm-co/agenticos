@@ -546,14 +546,12 @@ class UserService:
         collections_to_drop: list[str] = []
         for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id):
             collection = kb.collection_name
-            # Teardown lock before the row delete - the one-way order (teardown lock,
-            # then the knowledge_bases row lock) every teardown and every write share,
-            # so the lock graph cannot cycle into a deadlock (#1382). It also holds the
-            # name against a claim across the reference check and reservation, so a
-            # create cannot slip a new base onto it and lose its table (#1362).
-            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
+            # Hold the name against a concurrent claim while the reference check and
+            # reservation are made, then reserve it until the deferred drop runs, so a
+            # create cannot slip a new base onto the name and lose its table (#1362).
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
             if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
                 collections_to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)

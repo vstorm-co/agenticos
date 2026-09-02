@@ -375,10 +375,6 @@ class OrganizationService:
         collections: list[str] = []
         storage_paths: list[str] = []
         for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
-            # Teardown lock before the row delete - the one-way order (teardown lock,
-            # then the knowledge_bases row lock) every teardown and every write share,
-            # so the lock graph cannot cycle into a deadlock (#1382).
-            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, kb.collection_name)
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             collections.append(kb.collection_name)
             await knowledge_base_repo.delete(self.db, kb.id)
@@ -392,8 +388,9 @@ class OrganizationService:
         to_drop: list[str] = []
         if self._vector_store is not None:
             for collection in dict.fromkeys(collections):
-                # The teardown lock is already held from the delete loop above, across
-                # this reference check and reservation (#1362, #1382).
+                # Hold the name against a concurrent claim while the reference check
+                # and reservation are made (#1362).
+                await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
                 if await knowledge_base_repo.list_by_collection_name(self.db, collection):
                     continue
                 to_drop.append(collection)

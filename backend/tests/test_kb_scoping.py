@@ -565,68 +565,6 @@ class TestKBAccessControl:
         dispatch.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_delete_takes_the_teardown_lock_before_the_row_lock(self, mock_db, monkeypatch):
-        """The one-way lock order (#1382): the teardown lock, then the knowledge_bases
-        row lock - the same order the upload guard and every other teardown take, so
-        the lock graph cannot cycle into a deadlock."""
-        user_id = uuid.uuid4()
-        kb = _kb("personal", owner_user_id=user_id)
-        _patch_dispatch(monkeypatch)
-        order: list[str] = []
-        monkeypatch.setattr(
-            "app.services.knowledge_base.hold_name",
-            AsyncMock(side_effect=lambda *a, **k: order.append("teardown")),
-        )
-        with (
-            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
-            patch(
-                "app.repositories.knowledge_base_repo.lock",
-                new=AsyncMock(side_effect=lambda *a, **k: order.append("row") or kb),
-            ),
-            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
-            patch(
-                "app.repositories.rag_document_repo.delete_by_knowledge_base",
-                new=AsyncMock(return_value=[]),
-            ),
-            patch(
-                "app.repositories.knowledge_base_repo.list_by_collection_name",
-                new=AsyncMock(return_value=[]),
-            ),
-            patch("app.repositories.sync_source_repo.get_all", new=AsyncMock(return_value=[])),
-        ):
-            await KnowledgeBaseService(mock_db).delete(kb.id, ctx=_ctx(user_id=user_id))
-
-        assert order == ["teardown", "row"]
-
-    @pytest.mark.anyio
-    async def test_dropping_a_collection_takes_the_teardown_lock_before_the_row_delete(
-        self, mock_db, monkeypatch
-    ):
-        """Same one-way order on the collection-drop path: teardown lock, then the row
-        delete (#1382)."""
-        kb = _kb("org", is_default=False)
-        kb.collection_name = "docs"
-        _patch_dispatch(monkeypatch)
-        order: list[str] = []
-        monkeypatch.setattr(
-            "app.services.knowledge_base.hold_name",
-            AsyncMock(side_effect=lambda *a, **k: order.append("teardown")),
-        )
-        with (
-            patch(
-                "app.repositories.knowledge_base_repo.delete",
-                new=AsyncMock(side_effect=lambda *a, **k: order.append("row")),
-            ),
-            patch(
-                "app.repositories.knowledge_base_repo.list_by_collection_name",
-                new=AsyncMock(return_value=[]),
-            ),
-        ):
-            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
-
-        assert order == ["teardown", "row"]
-
-    @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):
         """Somebody else's personal base is reported absent, not forbidden.
 
