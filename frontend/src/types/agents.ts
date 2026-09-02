@@ -181,7 +181,7 @@ export interface SubagentRef {
  * A typed subset of `AgentSpec` on purpose, using the same
  * `CapabilityBindingSpec` - so one editor serves both and there is no second
  * notion of "agent" for publish validation to miss. `budget`, `notifications`,
- * `observability`, `mcp_server_ids` and `subagents` are deliberately absent:
+ * `observability`, `mcp_servers` and `subagents` are deliberately absent:
  * each only means something for a thing with a version, an owner, or a depth
  * left to spend.
  */
@@ -222,6 +222,25 @@ export interface SubagentsConfig {
   share_with_delegates: string[];
 }
 
+/** One MCP connection an agent may call, and on whose account. */
+export interface McpServerRef {
+  /** The organization's connection. A personal one is refused at publish. */
+  connection_id: string;
+  /**
+   * Let a run reach this service through the runner's own connection, where the
+   * conversation is theirs alone - the dashboard chat, or a one-to-one direct
+   * message. Off by default: the organization's account is the answer an agent
+   * is reviewed against, and this is the one place that can differ per run.
+   */
+  use_personal_when_available: boolean;
+  /**
+   * Which of the server's tools this agent may call. `null` is every tool the
+   * connection allows. Narrowing only: the connection's own allowlist is an
+   * administrator's ceiling and the two intersect at run time.
+   */
+  allowed_tools: string[] | null;
+}
+
 export interface AgentSpec {
   /**
    * Stamped by the server, never authored here.
@@ -242,7 +261,7 @@ export interface AgentSpec {
   collection_ids: string[];
   skill_ids: string[];
   context_ids: string[];
-  mcp_server_ids: string[];
+  mcp_servers: McpServerRef[];
   /**
    * Delegates, each pinned to a published version.
    *

@@ -26,13 +26,13 @@ from app.api.deps import Auth, McpConnectionSvc, require
 from app.core.permissions import Perm
 from app.schemas.mcp_connection import (
     GithubOAuthStart,
+    McpConnectionRead,
     McpConnectionTestResult,
     McpOAuthStart,
     McpOAuthStartResult,
     McpToolRead,
     OrgMcpConnectionCreate,
     OrgMcpConnectionList,
-    OrgMcpConnectionRead,
     OrgMcpConnectionUpdate,
 )
 
@@ -48,14 +48,14 @@ async def list_org_mcp_connections(service: McpConnectionSvc, ctx: Auth) -> Any:
     """The MCP servers this organization has connected."""
     items, total = await service.list_for_org(ctx)
     return OrgMcpConnectionList(
-        items=[OrgMcpConnectionRead.from_model(c) for c in items],
+        items=[McpConnectionRead.from_model(c) for c in items],
         total=total,
     )
 
 
 @router.post(
     "",
-    response_model=OrgMcpConnectionRead,
+    response_model=McpConnectionRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require(Perm.MCP_MANAGE))],
 )
@@ -64,7 +64,7 @@ async def create_org_mcp_connection(
 ) -> Any:
     """Connect a server for the whole organization. The URL is SSRF-validated."""
     connection = await service.create_for_org(ctx, data)
-    return OrgMcpConnectionRead.from_model(connection)
+    return McpConnectionRead.from_model(connection)
 
 
 @router.post(
@@ -144,7 +144,7 @@ async def start_org_polled_portal_oauth(
 
 @router.patch(
     "/{connection_id}",
-    response_model=OrgMcpConnectionRead,
+    response_model=McpConnectionRead,
     dependencies=[Depends(require(Perm.MCP_MANAGE))],
 )
 async def update_org_mcp_connection(
@@ -155,7 +155,7 @@ async def update_org_mcp_connection(
 ) -> Any:
     """Patch a connection. `auth_token: ""` clears the stored credential."""
     connection = await service.update_for_org(ctx, connection_id=connection_id, data=data)
-    return OrgMcpConnectionRead.from_model(connection)
+    return McpConnectionRead.from_model(connection)
 
 
 @router.delete(

@@ -27,10 +27,14 @@ from app.schemas.model_profile import (
     ProviderInfo,
     ProviderModelList,
     ProviderModelRead,
+    SpeechToTextModelRead,
+    SpeechToTextProviderList,
+    SpeechToTextProviderRead,
 )
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
 from app.services.model_profile import provider_catalog
+from app.services.speech_to_text import providers as speech_to_text_providers
 
 router = APIRouter()
 
@@ -139,6 +143,48 @@ async def list_image_models() -> Any:
             for entry in providers
         ],
         total=len(providers),
+    )
+
+
+@router.get(
+    "/speech-to-text-models",
+    response_model=SpeechToTextProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_speech_to_text_models() -> Any:
+    """Which providers can transcribe a voice note, and with which models.
+
+    The same shape and the same reasoning as `/image-models`: both halves are the
+    platform's, so a console that kept either would hold a copy that a catalog
+    change makes wrong. The filtering matters more here than the listing does - an
+    entry whose credential is not a plain API key, or whose API shape has no
+    client, is dropped, because a picker entry that fails when somebody sends a
+    voice note is worse than one that is absent.
+
+    No credential is read. This says what the deployment can offer, not what this
+    organization has a key for - the key is resolved from its model profiles when a
+    recording actually arrives, and a bot configured for a provider with no key
+    reports that in the log rather than here.
+
+    Declared before `/{provider}/models`, which would otherwise match
+    "speech-to-text-models" as a provider.
+    """
+    offered = speech_to_text_providers()
+    return SpeechToTextProviderList(
+        items=[
+            SpeechToTextProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                models=[
+                    SpeechToTextModelRead(
+                        id=model.id, name=model.name, description=model.description
+                    )
+                    for model in entry.models
+                ],
+            )
+            for entry in offered
+        ],
+        total=len(offered),
     )
 
 

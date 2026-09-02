@@ -33,6 +33,10 @@ class LockScope(IntEnum):
     AGENTS_PER_ORGANIZATION = 2
     #: A collection name's claim-and-create against its vector-table drop (#1355).
     COLLECTION_TEARDOWN = 3
+    #: Which of a member's accounts on one service is the default. The partial
+    #: unique index allows one, and the write is read-then-clear-then-set - so
+    #: two nominations racing each found no sibling to clear and both set it.
+    MCP_DEFAULT_ACCOUNT = 4
 
 
 def _key(subject: UUID) -> int:

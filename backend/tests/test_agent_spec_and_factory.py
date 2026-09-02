@@ -22,6 +22,7 @@ from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities import load_builtins
+from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.factory import DEFAULT_MAX_STEPS, BuiltAgent, build_agent
@@ -440,6 +441,37 @@ class TestBudgetComposition:
         )
 
         assert self._lookups(built)[BudgetScope.AGENT] is None
+
+
+class TestAskingAboutEveryTool:
+    """`gate_every_tool` reaching the gate the factory installs.
+
+    The middle link of the chain #1326 broke. The runner decides the flag from
+    the mode a run was admitted on and the gate refuses a rejected call; between
+    them is this, and an argument that stopped arriving here would silently undo
+    both ends while each kept its own tests green.
+    """
+
+    @staticmethod
+    def _gate(built: BuiltAgent) -> ApprovalGate:
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        return next(one for one in attached if isinstance(one, ApprovalGate))
+
+    def test_the_flag_reaches_the_gate(self):
+        built = build_agent(
+            AgentSpec(name="Clerk"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+        )
+
+        assert self._gate(built).gate_every_tool is True
+
+    def test_it_is_off_unless_a_session_asked(self):
+        built = build_agent(AgentSpec(name="Clerk"), _model_spec(), organization_id=uuid.uuid4())
+
+        assert self._gate(built).gate_every_tool is False
 
 
 class TestAnApprovalTheGateCouldNotEnforce:

@@ -22,7 +22,7 @@ export const SITE = {
    * `[locale]` segment and so have no locale to translate against.
    */
   // i18n-exempt: see above.
-  tagline: "The operating system for your company's AI agents",
+  tagline: "One place to build, run and govern your company's AI agents",
   /** One-paragraph default description (≤160 chars for SERP truncation). */
   description:
     // i18n-exempt: the tagline's reason, one line up - metadata read above `[locale]`.

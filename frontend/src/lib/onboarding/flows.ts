@@ -608,7 +608,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
       ...mcpDialogSteps(AGENT_BUILDER, "flow-agent-mcp-ask"),
       // The connection exists, but nothing has given it to the agent: the builder
-      // writes `spec.mcp_server_ids` only when the picker is toggled. So the detour
+      // writes `spec.mcp_servers` only when the picker is toggled. So the detour
       // ends where the knowledge and skill ones do - back at the control that
       // attaches what was just made - rather than publishing an agent that cannot
       // reach the server the walk had the reader connect for it.

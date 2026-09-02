@@ -25,6 +25,7 @@ from app.agents.mcp import (
     probe_mcp_server,
 )
 from app.agents.mcp_oauth import McpOAuthPayload
+from app.agents.spec import McpServerRef
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -37,7 +38,6 @@ from app.schemas.mcp_connection import (
     McpConnectionRead,
     McpConnectionUpdate,
     OrgMcpConnectionCreate,
-    OrgMcpConnectionRead,
     OrgMcpConnectionUpdate,
 )
 from app.services import mcp_connection as mcp_connection_service
@@ -79,6 +79,8 @@ def _connection(**overrides) -> McpConnection:
         # for a reason that has nothing to do with what the test is about.
         "scope": "user",
         "catalog_key": None,
+        "is_default": False,
+        "label": None,
         "name": "github",
         "url": "https://example.com/mcp",
         "auth_token": None,
@@ -331,7 +333,7 @@ class TestToolsetsForAgent:
         )
 
         toolsets = await mcp_connection_service.build_toolsets_for_agent(
-            AsyncMock(), organization_id=uuid4(), connection_ids=[bound.id]
+            AsyncMock(), organization_id=uuid4(), refs=[McpServerRef(connection_id=bound.id)]
         )
 
         assert toolsets == ["linear"]
@@ -350,7 +352,9 @@ class TestToolsetsForAgent:
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
-            AsyncMock(), organization_id=organization_id, connection_ids=[connection_id]
+            AsyncMock(),
+            organization_id=organization_id,
+            refs=[McpServerRef(connection_id=connection_id)],
         )
 
         assert lookup.await_args.kwargs == {
@@ -370,7 +374,7 @@ class TestToolsetsForAgent:
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
-            AsyncMock(), organization_id=uuid4(), connection_ids=[bound.id]
+            AsyncMock(), organization_id=uuid4(), refs=[McpServerRef(connection_id=bound.id)]
         )
 
         assert seen[0][0].allowed_tools == ["search_issues"]
@@ -397,7 +401,7 @@ class TestToolsetsForAgent:
         )
 
         toolsets = await mcp_connection_service.build_toolsets_for_agent(
-            AsyncMock(), organization_id=uuid4(), connection_ids=[uuid4()]
+            AsyncMock(), organization_id=uuid4(), refs=[McpServerRef(connection_id=uuid4())]
         )
 
         assert toolsets == []
@@ -419,10 +423,369 @@ class TestToolsetsForAgent:
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
-            AsyncMock(), organization_id=uuid4(), connection_ids=[broken.id, healthy.id]
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=broken.id), McpServerRef(connection_id=healthy.id)],
         )
 
         assert [spec.name for spec in seen[0]] == ["github"]
+
+
+class TestWhichToolsABindingMayCall:
+    """Two allowlists, and neither overrides the other (#1341).
+
+    `allowed_tools` on the connection is one administrator's decision for
+    everybody bound to it; on the binding it narrows within that, per agent. So
+    the same server can serve a read-only agent and an editing one, and neither
+    can reach past the ceiling - not even an agent published before a tool was
+    excluded from the connection.
+    """
+
+    @staticmethod
+    def _capture(monkeypatch) -> list[list[McpServerSpec]]:
+        seen: list[list[McpServerSpec]] = []
+
+        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+            seen.append(specs)
+            return [spec.name for spec in specs]
+
+        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        return seen
+
+    async def _tools(self, monkeypatch, *, on_connection, on_binding) -> list[str] | None:
+        seen = self._capture(monkeypatch)
+        bound = _connection(name="notion", allowed_tools=on_connection)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_id",
+            AsyncMock(return_value=bound),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=bound.id, allowed_tools=on_binding)],
+        )
+        return seen[0][0].allowed_tools
+
+    @pytest.mark.anyio
+    async def test_neither_narrowing_is_every_tool_the_server_offers(self, monkeypatch):
+        assert await self._tools(monkeypatch, on_connection=None, on_binding=None) is None
+
+    @pytest.mark.anyio
+    async def test_the_binding_alone_narrows_to_what_it_names(self, monkeypatch):
+        """The case the field exists for: two agents, one server, different reach."""
+        assert await self._tools(monkeypatch, on_connection=None, on_binding=["search"]) == [
+            "search"
+        ]
+
+    @pytest.mark.anyio
+    async def test_the_connection_alone_still_decides(self, monkeypatch):
+        """A binding that names nothing takes the connection's list, which is
+        what every binding did before this field existed."""
+        assert await self._tools(monkeypatch, on_connection=["search"], on_binding=None) == [
+            "search"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_binding_cannot_reach_past_the_connections_ceiling(self, monkeypatch):
+        """Named on the binding, excluded on the connection: excluded. An
+        administrator's decision is not something a spec can widen."""
+        tools = await self._tools(
+            monkeypatch, on_connection=["search"], on_binding=["search", "create-pages"]
+        )
+
+        assert tools == ["search"]
+
+    @pytest.mark.anyio
+    async def test_a_binding_naming_only_excluded_tools_loses_them_not_the_server(
+        self, monkeypatch
+    ):
+        """The server stays attached with no tools rather than the run failing:
+        the same narrowing every other broken binding gets."""
+        assert await self._tools(monkeypatch, on_connection=["search"], on_binding=["delete"]) == []
+
+
+class TestSpeakingAsTheMemberWhoAsked:
+    """The one case where an agent's reach depends on who is running it.
+
+    Every test here is a way the substitution is *not* made, because that is
+    what the feature mostly is: a binding that did not ask, a room with a second
+    reader in it, a connection with nothing to match a personal one against, and
+    a person holding two accounts and no way to say which.
+    """
+
+    @staticmethod
+    def _capture(monkeypatch) -> list[list[McpServerSpec]]:
+        seen: list[list[McpServerSpec]] = []
+
+        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+            seen.append(specs)
+            return [spec.name for spec in specs]
+
+        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        return seen
+
+    @staticmethod
+    def _bound(monkeypatch, connection) -> None:
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_id",
+            AsyncMock(return_value=connection),
+        )
+
+    @staticmethod
+    def _owns(monkeypatch, connections) -> AsyncMock:
+        lookup = AsyncMock(return_value=connections)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "list_user_scoped_by_catalog_key",
+            lookup,
+        )
+        return lookup
+
+    @pytest.mark.anyio
+    async def test_the_members_own_account_answers_under_the_organizations_tool_name(
+        self, monkeypatch
+    ):
+        """The credential is substituted; the tool prefix is not.
+
+        A tool the model was told about must not change its name because of who
+        is in the chat - the agent presents the same tools to everyone, and only
+        the account behind them differs.
+        """
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", url="https://mcp.notion.com/mcp", catalog_key="notion")
+        mine = _connection(
+            name="my-notion",
+            url="https://mcp.notion.com/mcp",
+            catalog_key="notion",
+            allowed_tools=["search"],
+        )
+        self._bound(monkeypatch, org)
+        self._owns(monkeypatch, [mine])
+        user_id = uuid4()
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=user_id,
+        )
+
+        assert [spec.name for spec in seen[0]] == ["notion"]
+        assert seen[0][0].allowed_tools == ["search"]
+
+    @pytest.mark.anyio
+    async def test_a_binding_that_did_not_ask_keeps_the_organizations_account(self, monkeypatch):
+        """The default, and the reviewable answer. Off unless the spec says so."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        owned = self._owns(monkeypatch, [_connection(name="mine", catalog_key="notion")])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == org.url
+        owned.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_conversation_somebody_else_can_read_keeps_the_organizations_account(
+        self, monkeypatch
+    ):
+        """`personal_for_user_id` is `None` for a channel, a widget and an API
+        key. Substituting there would lend one person's account to a room."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        owned = self._owns(monkeypatch, [_connection(name="mine", catalog_key="notion")])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+        )
+
+        assert seen[0][0].url == org.url
+        owned.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_member_with_no_account_of_their_own_still_gets_the_organizations(
+        self, monkeypatch
+    ):
+        """The common case on the day the flag is turned on."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        self._owns(monkeypatch, [])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == org.url
+
+    @pytest.mark.anyio
+    async def test_the_account_they_nominated_is_the_one_that_answers(self, monkeypatch):
+        """Two accounts, one marked. The mark is the whole answer (#1342)."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="side", url="https://side/mcp", catalog_key="notion"),
+                _connection(
+                    name="work", url="https://work/mcp", catalog_key="notion", is_default=True
+                ),
+            ],
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == "https://work/mcp"
+
+    @pytest.mark.anyio
+    async def test_one_account_needs_no_nomination(self, monkeypatch):
+        """There is nothing to choose between, so an unmarked single account
+        answers - which is why no upgrade has to backfill a default."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        self._owns(
+            monkeypatch, [_connection(name="mine", url="https://mine/mcp", catalog_key="notion")]
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == "https://mine/mcp"
+
+    @pytest.mark.anyio
+    async def test_two_accounts_of_their_own_are_not_guessed_between(self, monkeypatch):
+        """Nothing records which of them they meant, and picking the older
+        Notion workspace silently is worse than answering as the organization.
+        They nominate one; until they do, this is the answer (#1342)."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="work", url="https://a/mcp", catalog_key="notion"),
+                _connection(name="side", url="https://b/mcp", catalog_key="notion"),
+            ],
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == org.url
+
+    @pytest.mark.anyio
+    async def test_a_connection_with_no_catalog_entry_has_nothing_to_match_on(self, monkeypatch):
+        """Refused at publish, so this is a spec stored before that check
+        existed. The organization's account is the safe answer."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="crm", catalog_key=None)
+        self._bound(monkeypatch, org)
+        owned = self._owns(monkeypatch, [])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == org.url
+        owned.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_lookup_is_scoped_to_the_person_and_the_service(self, monkeypatch):
+        self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        owned = self._owns(monkeypatch, [])
+        user_id = uuid4()
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=user_id,
+        )
+
+        assert owned.await_args.kwargs == {"user_id": user_id, "catalog_key": "notion"}
+
+    @pytest.mark.anyio
+    async def test_the_organizations_tool_ceiling_survives_the_substitution(self, monkeypatch):
+        """Substitution replaces the credential and nothing else.
+
+        The ceiling used to be read off the personal connection, so an
+        organization restricted to read tools gained write ones as soon as the
+        run belonged to somebody whose own account allowed everything - a
+        private run reaching past what an administrator had excluded.
+        """
+        seen = self._capture(monkeypatch)
+        org = _connection(name="crm", catalog_key="crm", allowed_tools=["read_record"])
+        mine = _connection(name="mine", catalog_key="crm", allowed_tools=None, is_default=True)
+        self._bound(monkeypatch, org)
+        self._owns(monkeypatch, [mine])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == mine.url, "the credential should have been substituted"
+        assert seen[0][0].allowed_tools == ["read_record"]
+
+    @pytest.mark.anyio
+    async def test_the_members_own_exclusions_still_narrow(self, monkeypatch):
+        """The fold is an intersection in both directions: the organization is a
+        ceiling, and the member's own list can only take more away."""
+        seen = self._capture(monkeypatch)
+        org = _connection(
+            name="crm", catalog_key="crm", allowed_tools=["read_record", "write_record"]
+        )
+        mine = _connection(
+            name="mine", catalog_key="crm", allowed_tools=["read_record"], is_default=True
+        )
+        self._bound(monkeypatch, org)
+        self._owns(monkeypatch, [mine])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].allowed_tools == ["read_record"]
 
 
 class TestAuthHeaders:
@@ -866,6 +1229,13 @@ class TestMcpConnectionService:
     def service(self):
         return McpConnectionService(db=AsyncMock())
 
+    @pytest.fixture(autouse=True)
+    def locks(self, monkeypatch):
+        """The advisory lock a nomination takes, which needs a real session."""
+        held = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "hold_name", held)
+        return held
+
     @pytest.fixture
     def repo(self, monkeypatch):
         mock_repo = MagicMock()
@@ -878,6 +1248,7 @@ class TestMcpConnectionService:
         mock_repo.create = AsyncMock()
         mock_repo.update = AsyncMock()
         mock_repo.delete = AsyncMock()
+        mock_repo.clear_default_for_catalog_key = AsyncMock()
         monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
         return mock_repo
 
@@ -1117,6 +1488,149 @@ class TestMcpConnectionService:
         assert update_data["last_status"] is None
 
     @pytest.mark.anyio
+    async def test_a_label_is_stored_beside_the_slug_the_model_reads(self, service, repo):
+        """`name` is the tool prefix and is constrained to what a tool name can
+        carry, which makes it a poor label for two accounts on one service."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id,
+            connection_id=conn.id,
+            data=McpConnectionUpdate(label="  Kacper - workspace firmowy  "),
+        )
+
+        # Trimmed, and the name untouched: the two answer different questions.
+        assert repo.update.call_args.kwargs["update_data"] == {
+            "label": "Kacper - workspace firmowy"
+        }
+
+    @pytest.mark.anyio
+    async def test_an_empty_label_clears_it_rather_than_storing_a_blank(self, service, repo):
+        """`None` is "unchanged" everywhere in a PATCH body, so it cannot also
+        mean "remove". Storing `""` would render a blank line where the slug
+        used to be."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, label="Old name")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(label="")
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["label"] is None
+
+    @pytest.mark.anyio
+    async def test_a_label_nobody_sent_is_left_alone(self, service, repo):
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, label="Kept")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_enabled=False)
+        )
+
+        assert "label" not in repo.update.call_args.kwargs["update_data"]
+
+    @pytest.mark.anyio
+    async def test_nominating_an_account_clears_the_siblings_first(self, service, repo):
+        """The partial unique index is the constraint, so it is never asked to
+        hold two: the others are cleared before this row is written (#1342)."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key="notion")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=True)
+        )
+
+        assert repo.clear_default_for_catalog_key.await_args.kwargs == {
+            "user_id": user_id,
+            "catalog_key": "notion",
+            "except_id": conn.id,
+        }
+        assert repo.update.call_args.kwargs["update_data"]["is_default"] is True
+
+    @pytest.mark.anyio
+    async def test_a_nomination_is_serialized_per_member_and_service(self, service, repo, locks):
+        """Two nominations racing on one service each locked only their own row,
+        each found no sibling still marked, and both wrote `is_default` - so one
+        hit the partial unique index and answered 500. Taken *before* the
+        clear, because the clear is what makes room for the set."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key="notion")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=True)
+        )
+
+        assert locks.await_args.args[2] == f"{user_id}:notion"
+        assert locks.await_args.args[1] is mcp_connection_service.LockScope.MCP_DEFAULT_ACCOUNT
+
+    @pytest.mark.anyio
+    async def test_repointing_the_url_drops_the_cached_tool_list(
+        self, service, repo, locks, monkeypatch
+    ):
+        """The Builder reads that cache without probing, so leaving it presented
+        the previous host's tools as the new server's - and an allowlist saved
+        from that list hides every tool the replacement actually offers."""
+        _allow_any_url(monkeypatch)
+        conn = _connection(url="https://old.example/mcp")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=conn.user_id,
+            connection_id=conn.id,
+            data=McpConnectionUpdate(url="https://new.example/mcp"),
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["last_tools"] is None
+
+    @pytest.mark.anyio
+    async def test_a_change_that_leaves_the_url_alone_keeps_the_tool_list(self, service, repo):
+        """A relabelled connection is the same server; blanking the list would
+        leave an agent author with nothing to choose from."""
+        conn = _connection(url="https://same.example/mcp")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=conn.user_id, connection_id=conn.id, data=McpConnectionUpdate(label="Work")
+        )
+
+        assert "last_tools" not in repo.update.call_args.kwargs["update_data"]
+
+    @pytest.mark.anyio
+    async def test_un_nominating_leaves_the_siblings_alone(self, service, repo):
+        """Turning one off says nothing about which should be on instead."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key="notion", is_default=True)
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=False)
+        )
+
+        repo.clear_default_for_catalog_key.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_connection_with_no_catalog_entry_cannot_be_nominated(self, service, repo):
+        """The key is what says this account and the organization's are the same
+        service, so a default without one would never be read."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key=None)
+        repo.get_by_id.return_value = conn
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.update(
+                user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=True)
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "is_default"
+        repo.update.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_update_url_revalidates_ssrf(self, service, repo):
         user_id = uuid4()
         conn = _connection(user_id=user_id)
@@ -1225,6 +1739,29 @@ class TestMcpConnectionService:
             await service.oauth_start(user_id=uuid4(), name="github", url="https://srv/mcp")
 
         repo.update.assert_not_called()
+        repo.create.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_oauth_start_refuses_a_catalog_key_no_catalog_knows(
+        self, service, repo, monkeypatch
+    ):
+        """A key nothing recognises would be stored and then never match.
+
+        The whole point of the key is that a personal connection can stand in for
+        the organization's; one naming a server neither the curated catalog nor
+        the registry mirror holds can never be substituted for anything, so it is
+        refused at the door rather than written and left inert.
+        """
+        _allow_any_url(monkeypatch)
+        repo.get_by_name.return_value = None
+        monkeypatch.setattr(service, "_known_catalog_key", AsyncMock(return_value=False))
+
+        with pytest.raises(BadRequestError) as refusal:
+            await service.oauth_start(
+                user_id=uuid4(), name="whatever", url="https://srv/mcp", catalog_key="no-such"
+            )
+
+        assert refusal.value.details == {"catalog_key": "no-such"}
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
@@ -1723,11 +2260,26 @@ class TestOrganizationConnections:
         mock_repo.get_org_scoped_by_id = AsyncMock(return_value=None)
         mock_repo.get_org_scoped_by_name = AsyncMock(return_value=None)
         mock_repo.get_by_id = AsyncMock()
+        mock_repo.get_by_name = AsyncMock(return_value=None)
+        mock_repo.create = AsyncMock()
         mock_repo.create_org_scoped = AsyncMock()
         mock_repo.update = AsyncMock()
         mock_repo.delete = AsyncMock()
         monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
         return mock_repo
+
+    @pytest.fixture(autouse=True)
+    def mirror(self, monkeypatch):
+        """The registry mirror, empty unless a test stages a row.
+
+        Autouse because `catalog_key` is now validated against two catalogs, and
+        a live repository call against a mocked session answers with a Mock -
+        which is truthy, so every unknown key would read as known.
+        """
+        mock_mirror = MagicMock()
+        mock_mirror.get = AsyncMock(return_value=None)
+        monkeypatch.setattr(mcp_connection_service, "mcp_registry_server_repo", mock_mirror)
+        return mock_mirror
 
     @pytest.fixture
     def audit(self, monkeypatch):
@@ -1835,6 +2387,60 @@ class TestOrganizationConnections:
         repo.create_org_scoped.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_a_personal_connection_keeps_the_catalog_key_it_was_created_with(
+        self, service, ctx, repo, mirror
+    ):
+        """Without it the substitution join matches nothing, so
+        `use_personal_when_available` was a switch that could never fire: every
+        personal row carried `catalog_key = NULL`."""
+        await service.create(
+            user_id=ctx.user_id,
+            data=McpConnectionCreate(
+                name="mine", url="https://example.com/mcp", catalog_key="notion"
+            ),
+        )
+
+        assert repo.create.call_args.kwargs["catalog_key"] == "notion"
+
+    @pytest.mark.anyio
+    async def test_a_personal_connection_with_an_unknown_key_is_refused(
+        self, service, ctx, repo, mirror
+    ):
+        with pytest.raises(BadRequestError, match="Unknown catalog server"):
+            await service.create(
+                user_id=ctx.user_id,
+                data=McpConnectionCreate(
+                    name="mine", url="https://example.com/mcp", catalog_key="notoin"
+                ),
+            )
+        repo.create.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_mirrored_registry_key_is_accepted_for_an_organization(
+        self, service, ctx, repo, audit, mirror
+    ):
+        """The listing serves 5,703 mirrored servers beside the 99 curated ones
+        and hands back the registry row's own id as the key. Validating against
+        the curated catalog alone refused every one of them, so the mirror was
+        searchable, connectable personally, and unusable for the organization
+        connections agents actually bind to."""
+        mirror.get = AsyncMock(return_value=object())
+
+        await service.create_for_org(
+            ctx,
+            OrgMcpConnectionCreate(
+                name="obscure",
+                url="https://example.com/mcp",
+                catalog_key="io.github.someone/obscure-server",
+            ),
+        )
+
+        assert (
+            repo.create_org_scoped.call_args.kwargs["catalog_key"]
+            == "io.github.someone/obscure-server"
+        )
+
+    @pytest.mark.anyio
     async def test_creating_blocks_internal_urls(self, service, ctx, repo, audit):
         with pytest.raises(BadRequestError) as excinfo:
             await service.create_for_org(
@@ -1900,6 +2506,33 @@ class TestOrganizationConnections:
         assert "ghp-secret-9876" not in str(recorded)
 
     # -- updating -------------------------------------------------------
+
+    @pytest.mark.anyio
+    async def test_an_organizations_connection_takes_a_label_too(self, service, ctx, repo):
+        """The same two names as a personal one: a slug the model reads, and
+        prose a person does. An organization holding two Notion accounts is the
+        case the field exists for (#1341)."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        await service.update_for_org(
+            ctx,
+            connection_id=conn.id,
+            data=OrgMcpConnectionUpdate(label="  Marketing workspace  "),
+        )
+
+        assert repo.update.call_args.kwargs["update_data"] == {"label": "Marketing workspace"}
+
+    @pytest.mark.anyio
+    async def test_clearing_an_organizations_label_stores_no_blank(self, service, ctx, repo):
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        await service.update_for_org(
+            ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(label="")
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["label"] is None
 
     @pytest.mark.anyio
     async def test_a_replacement_credential_is_resealed_for_this_organization(
@@ -2226,7 +2859,7 @@ class TestOrgReadSchema:
             secret_key_version=sealed.key_version,
         )
 
-        read = OrgMcpConnectionRead.from_model(conn)
+        read = McpConnectionRead.from_model(conn)
 
         assert (read.has_auth_token, read.catalog_key) == (True, "github")
         rendered = read.model_dump_json()

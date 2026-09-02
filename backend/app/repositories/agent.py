@@ -72,6 +72,17 @@ async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def list_slugs(db: AsyncSession, *, organization_id: UUID) -> set[str]:
+    """Every agent slug in this organization.
+
+    One query rather than a lookup per shipped template: the template catalog
+    marks two dozen rows as installed, and a slug is what an install would
+    collide on.
+    """
+    result = await db.execute(select(Agent.slug).where(Agent.organization_id == organization_id))
+    return set(result.scalars().all())
+
+
 async def list_visible(
     db: AsyncSession,
     *,

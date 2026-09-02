@@ -5,7 +5,7 @@
 # is a copy that disagrees with the one contributors read. The nav below decides
 # what an outside reader meets first; nothing is duplicated for them.
 site_name: AgenticOS
-site_description: The operating system for your company's AI agents. Self-hosted, open source, and yours.
+site_description: One place to build, run and govern your company's AI agents. Self-hosted, open source, and yours.
 site_url: https://vstorm-co.github.io/agenticos/
 repo_url: https://github.com/vstorm-co/agenticos
 repo_name: vstorm-co/agenticos
@@ -13,11 +13,22 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
-# Design artifacts (review demos and their notes) are engineering material for
-# pull-request review, not site pages - unlisted they would still build and
-# publish as orphans nothing links to, which is how a page goes stale unseen.
+# Working material - design demos for pull-request review, change plans, audit
+# reports - is engineering notes rather than site pages. Unlisted they would
+# still build and publish as orphans nothing links to, which is how a page goes
+# stale unseen; they stay readable in the repository, where they are written.
+# `ROADMAP.md` and `about/design.md` are the same kind of material one level up:
+# delivery state written in board shorthand, and the six decisions a contributor
+# needs before their first change. Both are read in the repository, by somebody
+# who has already decided to work on this - publishing them put an internal
+# status report in a tab a prospective user meets first.
 exclude_docs: |
   design/
+  plans/
+  audits/
+  ROADMAP.md
+  about/design.md
+  assets/screens/README.md
 
 theme:
   name: material
@@ -25,10 +36,9 @@ theme:
   # One mark, drawn as paths in `docs/assets/mark.svg`, hand-authored rather
   # than imported from an icon package - the same bargain
   # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark
-  # this product draws. The README's hero embeds the same shapes inline
-  # (`.github/assets/hero-*.svg`), because a `<picture>` there cannot reach a
-  # separate file per theme and a second copy of nine path commands is cheaper
-  # than a build step for one graphic.
+  # this product draws. The README shows this same file rather than a second
+  # rendering of it; one accent that reads on both a light and a dark page is
+  # what lets one mark serve the tab, the site header and the README.
   logo: assets/mark.svg
   favicon: assets/mark.svg
   palette:
@@ -49,20 +59,37 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
+    # The seven tabs are the top-level shape of this site, so they stay on
+    # screen while a page scrolls - a reader three sections into `governance.md`
+    # can still see that Reference is one click away.
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
     - navigation.instant
     - navigation.tracking
     - navigation.indexes
+    # Learn is a sequence, not a bag of pages. The footer's previous/next is what
+    # makes reading it in order the default rather than a thing you have to
+    # navigate back to the sidebar for.
+    - navigation.footer
     - toc.follow
     - search.highlight
     - search.suggest
+    - search.share
     - content.code.copy
     - content.code.annotate
+    - content.tooltips
     - content.action.edit
+    # The tabs on the home page and in the guides pair "what somebody edits"
+    # with "what it becomes". Linking them means a reader who picks the file
+    # view once keeps it on every page that offers the same pair.
+    - content.tabs.link
   icon:
     repo: fontawesome/brands/github
+
+extra_css:
+  - assets/extra.css
 
 markdown_extensions:
   - admonition
@@ -96,8 +123,28 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
 
+# `scripts/mkdocs_hooks.py` reads CHANGELOG.md into the release-notes page - see
+# its docstring for why that is a hook rather than a snippet include.
+hooks:
+  - scripts/mkdocs_hooks.py
+
+# `mkdocs serve` watches `docs/` and this file. The release-notes page is built
+# from a file outside both.
+watch:
+  - CHANGELOG.md
+
 plugins:
   - search
+  # Screenshots of the console are the only thing on this site a reader cannot
+  # zoom into, and they carry small text - a model picker, a budget field. This
+  # makes them click-to-enlarge rather than asking somebody to open the image in
+  # a new tab and hunt for it.
+  - glightbox:
+      effect: zoom
+      touchNavigation: true
+      draggable: true
+      auto_caption: true
+      caption_position: bottom
   # The API reference is generated from the docstrings rather than written twice.
   # This codebase puts its reasoning in docstrings - why a scope comparison
   # raises, why an audience resolves the way it does - so a hand-written
@@ -117,47 +164,67 @@ plugins:
             filters: ["!^_"]
 
 nav:
-  - Home:
-      - index.md
-      - install.md
-      - first-agent.md
-      - deploy.md
-  - Concepts:
-      - concepts.md
-      - deployment.md
-      - permissions.md
-      - governance.md
-      - triggers.md
-      - models.md
-      - mcp.md
-      - skills.md
-      - secrets.md
-      - channels.md
-      - file-processing.md
-      - sandbox.md
-  - Guides:
-      - howto/add-capability.md
-      - howto/add-mcp-server.md
-      - howto/add-api-endpoint.md
-      - howto/add-background-task.md
-      - howto/customize-agent-prompt.md
-      - howto/add-sync-connector.md
-      - howto/configure-sync-sources.md
-      - howto/use-ratings.md
+  - AgenticOS: index.md
+  - Features: features.md
+  - Learn:
+      - learn/index.md
+      - Get started:
+          - install.md
+          - first-agent.md
+          - concepts.md
+          - console.md
+          - screens.md
+      - Build the agent:
+          - choosing-models.md
+          - models.md
+          - skills.md
+          - context.md
+          - file-processing.md
+          - mcp.md
+          - sandbox.md
+          - triggers.md
+      - Put it in front of people:
+          - environments.md
+          - channels.md
+          - rollout.md
+          - deployment.md
+          - deploy.md
+      - Keep it under control:
+          - permissions.md
+          - governance.md
+          - secrets.md
+      - How-to - recipes:
+          - howto/set-up-knowledge-base.md
+          - howto/customize-agent-prompt.md
+          - howto/configure-sync-sources.md
+          - howto/use-ratings.md
   - Reference:
+      - api.md
       - configuration.md
       - commands.md
-      - reference/capabilities.md
       - reference/spec.md
+      - reference/capabilities.md
       - reference/permissions.md
-  - Contributing:
-      - architecture.md
-      - patterns.md
-      - adding_features.md
-      - testing.md
-      - code-review.md
-      - branching.md
-      - ROADMAP.md
+  - Resources:
+      - resources/index.md
+      - Development - contributing:
+          - architecture.md
+          - frontend.md
+          - patterns.md
+          - adding_features.md
+          - testing.md
+          - code-review.md
+          - branching.md
+      - Extending the platform:
+          - howto/add-capability.md
+          - howto/add-mcp-server.md
+          - howto/add-api-endpoint.md
+          - howto/add-background-task.md
+          - howto/add-sync-connector.md
+  - About:
+      - about/index.md
+      - about/comparison.md
+  - Release Notes: release-notes.md
 
 extra:
   social:

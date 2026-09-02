@@ -82,6 +82,10 @@ def _kb(
 ):
     kb = MagicMock()
     kb.id = uuid.uuid4()
+    # A real name, not a mock: the teardown takes an advisory lock keyed on it,
+    # and hashing a `MagicMock` is a `TypeError` from `blake2b` rather than
+    # anything about the behaviour under test.
+    kb.collection_name = f"kb_{uuid.uuid4().hex[:8]}"
     kb.scope = scope
     kb.owner_user_id = owner_user_id
     kb.organization_id = organization_id
@@ -134,6 +138,9 @@ class TestKBAccessControl:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         db = MagicMock(execute=AsyncMock())
         db.info = {}
         return db
@@ -751,6 +758,9 @@ class TestBindingAnEmbeddingSecret:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         return MagicMock(execute=AsyncMock())
 
     def _secret(self, purpose: str = "openrouter"):
@@ -837,6 +847,9 @@ class TestWhoServesTheEmbeddingModel:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         return MagicMock(execute=AsyncMock())
 
     def _kb_row(self, *, provider: str = "openrouter", secret_id: uuid.UUID | None = None):
@@ -1016,6 +1029,9 @@ class TestCollectionCounts:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         return MagicMock(execute=AsyncMock())
 
     @pytest.mark.anyio

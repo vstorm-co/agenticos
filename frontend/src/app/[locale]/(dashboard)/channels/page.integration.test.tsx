@@ -17,6 +17,8 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { toast } from "sonner";
+
 const permissions = { can: vi.fn(() => true) };
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => permissions }));
 
@@ -39,6 +41,9 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_webhook_secret: true,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
+    connection: null,
+    speech_to_text_provider: null,
+    speech_to_text_model: null,
     agents: [{ id: "a1", name: "Support", slug: "support", has_avatar: false }],
     created_at: "2026-08-09T18:00:00Z",
     ...overrides,
@@ -46,7 +51,24 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
 }
 
 function serve(bots: ChannelBot[]) {
-  vi.mocked(apiClient.get).mockResolvedValue({ items: bots, total: bots.length });
+  // By URL: the dialogs now also fetch the speech-to-text catalog, and a single
+  // resolved value would answer that with a list of bots.
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.startsWith("/providers/speech-to-text-models")
+      ? {
+          items: [
+            {
+              provider: "openai",
+              name: "OpenAI",
+              models: [
+                { id: "whisper-1", name: "Whisper", description: "Widest language coverage." },
+              ],
+            },
+          ],
+          total: 1,
+        }
+      : { items: bots, total: bots.length },
+  );
 }
 
 async function mount() {
@@ -85,11 +107,95 @@ describe("the channels page", () => {
     expect(await screen.findByText(/No agent bound/)).toBeVisible();
   });
 
-  it("warns that a Slack bot cannot verify what arrives", async () => {
-    serve([bot({ platform: "slack", api_base_url: null, has_slack_signing_secret: false })]);
+  it("warns that a Socket Mode bot has no token to open its socket with", async () => {
+    // This asserted "Signing secret" here, on a polling bot, and passed - which
+    // is the bug written down as a test. Socket Mode verifies nothing inbound;
+    // what it cannot start without is the xapp- token.
+    serve([bot({ platform: "slack", api_base_url: null, webhook_mode: false })]);
     await mount();
 
-    expect(await screen.findByText("Signing secret")).toBeVisible();
+    expect(await screen.findByText("No app-level token")).toBeVisible();
+    expect(screen.queryByText("No signing secret")).toBeNull();
+  });
+
+  it("warns that a Slack webhook cannot verify what arrives", async () => {
+    // The other transport, and the other credential: without the signing secret
+    // the events route answers 500 to everything, the URL challenge included.
+    serve([
+      bot({
+        platform: "slack",
+        api_base_url: null,
+        webhook_mode: true,
+        has_slack_signing_secret: false,
+      }),
+    ]);
+    await mount();
+
+    expect(await screen.findByText("No signing secret")).toBeVisible();
+  });
+
+  it("says nothing is missing once a Socket Mode bot has its app token", async () => {
+    serve([
+      bot({
+        platform: "slack",
+        api_base_url: null,
+        webhook_mode: false,
+        has_slack_app_token: true,
+        has_slack_signing_secret: false,
+      }),
+    ]);
+    await mount();
+
+    await screen.findByText("Acme Support");
+    expect(screen.queryByText("No app-level token")).toBeNull();
+    expect(screen.queryByText("No signing secret")).toBeNull();
+  });
+
+  it("says out loud that a live bot's connection is down", async () => {
+    // The state this exists for: the row showed `Polling`, an agent bound and
+    // nothing else, while the reason sat in a container log (#1351).
+    serve([
+      bot({
+        connection: { state: "down", reason: "Add the xapp- token in the bot's settings." },
+      }),
+    ]);
+    await mount();
+
+    expect(await screen.findByText("Not connected")).toBeVisible();
+  });
+
+  it("carries the reason where somebody can read it", async () => {
+    serve([bot({ connection: { state: "down", reason: "Add the xapp- token." } })]);
+    await mount();
+
+    expect(await screen.findByTitle("Add the xapp- token.")).toBeVisible();
+  });
+
+  it("says nothing about a connection that is up", async () => {
+    serve([bot({ connection: { state: "up", reason: null } })]);
+    await mount();
+
+    await screen.findByText("Acme Support");
+    expect(screen.queryByText("Not connected")).toBeNull();
+  });
+
+  it("says nothing about a connection nobody could report on", async () => {
+    // No Redis, or an entry that expired. Unknown is not a fault, and a red
+    // badge on every bot would be this defect pointing the other way.
+    serve([bot({ connection: null })]);
+    await mount();
+
+    await screen.findByText("Acme Support");
+    expect(screen.queryByText("Not connected")).toBeNull();
+  });
+
+  it("does not call a paused bot disconnected", async () => {
+    // It has no connection by design, and the row already says `Paused`.
+    serve([bot({ is_active: false, connection: { state: "down", reason: "stopped" } })]);
+    await mount();
+
+    expect(await screen.findByText("Paused")).toBeVisible();
+    expect(screen.queryByText("Not connected")).toBeNull();
   });
 
   it("warns that a Mattermost webhook has no token to check", async () => {
@@ -200,6 +306,166 @@ describe("the channels page", () => {
 
     await screen.findByText("Acme Support");
     expect(screen.queryByRole("combobox", { name: /Cost reporting/ })).toBeNull();
+  });
+
+  it("adds the app token a Slack bot was registered without", async () => {
+    // The flow this dialog exists for: the xapp- token is generated on another
+    // Slack screen, minutes after the bot was registered here, and the only way
+    // to supply it used to be deleting the bot - which takes its binding too.
+    const jarvis = bot({ id: "b9", platform: "slack", name: "Jarvis", api_base_url: null });
+    serve([jarvis]);
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...jarvis, has_slack_app_token: true });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.type(screen.getByLabelText(/App-level token/), "xapp-1-A0000-abc");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/channels/bots/b9", {
+        slack_app_token: "xapp-1-A0000-abc",
+      }),
+    );
+  });
+
+  it("keeps the dialog open and says so when the save is refused", async () => {
+    // A refused patch must not read as a saved one: the credential is still
+    // missing and the operator has to see that it is.
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.type(screen.getByLabelText(/App-level token/), "xapp-1-A0000-abc");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Save" })).toBeVisible();
+  });
+
+  it("will not save a dialog nobody edited", async () => {
+    // A patch of {} is a write that reseals every stored credential under a new
+    // key version for no reason, so there is nothing to send and nothing to do.
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("does not offer the platform for editing", async () => {
+    // It decides which credentials the row carries and how messages reach it,
+    // so changing it is registering a different bot under one id.
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(screen.queryByRole("button", { name: "Telegram" })).toBeNull();
+  });
+
+  it("never puts a stored credential back in the box", async () => {
+    // Sealed at rest and never read back, so the input starts empty and says
+    // that leaving it empty keeps what is there.
+    serve([
+      bot({
+        platform: "slack",
+        name: "Jarvis",
+        api_base_url: null,
+        has_slack_app_token: true,
+      }),
+    ]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(screen.getByLabelText(/App-level token/)).toHaveValue("");
+    expect(screen.getAllByText(/Leave blank to keep it/).length).toBeGreaterThan(0);
+  });
+
+  it("renames a bot without touching a credential", async () => {
+    const acme = bot();
+    serve([acme]);
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...acme, name: "Acme Ops" });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Acme Support" }));
+    await userEvent.clear(screen.getByLabelText(/Name/));
+    await userEvent.type(screen.getByLabelText(/Name/), "Acme Ops");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/channels/bots/b1", { name: "Acme Ops" }),
+    );
+  });
+
+  it("refuses a token too short to be one the platform issued", async () => {
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.type(screen.getByLabelText(/Replace bot token/), "xoxb-1");
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByText(/not one the platform issued/)).toBeVisible();
+  });
+
+  it("offers a transcription model for an existing bot", async () => {
+    // A voice note is the one attachment an agent cannot be handed as a file, so
+    // somebody has to choose what listens to it.
+    serve([bot({ platform: "telegram", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(await screen.findByLabelText(/Voice transcription/)).toBeVisible();
+  });
+
+  it("sends both halves of the transcription pair together", async () => {
+    // A provider with no model has nothing to call, and the server refuses one
+    // alone - so the picker never produces that state.
+    const jarvis = bot({ platform: "telegram", name: "Jarvis", api_base_url: null });
+    serve([jarvis]);
+    vi.mocked(apiClient.patch).mockResolvedValue(jarvis);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${jarvis.id}`, {
+        speech_to_text_provider: "openai",
+        speech_to_text_model: "whisper-1",
+      }),
+    );
+  });
+
+  it("clears both halves when transcription is turned off", async () => {
+    const listening = bot({
+      platform: "telegram",
+      name: "Jarvis",
+      api_base_url: null,
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "whisper-1",
+    });
+    serve([listening]);
+    vi.mocked(apiClient.patch).mockResolvedValue(listening);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
+    await userEvent.click(await screen.findByRole("option", { name: "Do not transcribe" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${listening.id}`, {
+        speech_to_text_provider: null,
+        speech_to_text_model: null,
+      }),
+    );
   });
 
   it("removes a bot", async () => {

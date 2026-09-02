@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -158,6 +159,54 @@ async def get_org_scoped_by_catalog_key(
     return result.scalars().first()
 
 
+async def list_user_scoped_by_catalog_key(
+    db: AsyncSession, *, user_id: UUID, catalog_key: str
+) -> list[McpConnection]:
+    """This person's own enabled connections to one catalog entry.
+
+    A list rather than one row: nothing stops somebody holding two Notion
+    accounts, and which of them an agent should speak through is a question only
+    they can answer. The caller substitutes when there is exactly one and
+    declines to guess otherwise (#1342).
+    """
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            McpConnection.purpose == "mcp",
+            McpConnection.user_id == user_id,
+            McpConnection.scope == "user",
+            McpConnection.catalog_key == catalog_key,
+            McpConnection.is_enabled.is_(True),
+        )
+        .order_by(McpConnection.created_at.asc())
+    )
+    return list(result.scalars())
+
+
+async def clear_default_for_catalog_key(
+    db: AsyncSession, *, user_id: UUID, catalog_key: str, except_id: UUID
+) -> None:
+    """Un-nominate this person's other accounts on one service.
+
+    Run before the row being nominated is written, so the partial unique index
+    on `(user_id, catalog_key) WHERE is_default` is never asked to hold two.
+    """
+    # `sql_update`, because this module defines its own `update` - the row-level
+    # one every repository here has.
+    await db.execute(
+        sql_update(McpConnection)
+        .where(
+            McpConnection.user_id == user_id,
+            McpConnection.scope == "user",
+            McpConnection.catalog_key == catalog_key,
+            McpConnection.id != except_id,
+            McpConnection.is_default.is_(True),
+        )
+        .values(is_default=False)
+    )
+    await db.flush()
+
+
 async def get_portal_grant(
     db: AsyncSession, *, organization_id: UUID, portal_key: str
 ) -> McpConnection | None:
@@ -296,15 +345,19 @@ async def create(
     oauth_state: str | None = None,
     oauth_payload: str | None = None,
     oauth_pending_payload: str | None = None,
+    label: str | None = None,
+    catalog_key: str | None = None,
 ) -> McpConnection:
     connection = McpConnection(
         user_id=user_id,
+        catalog_key=catalog_key,
         name=name,
         url=url,
         auth_token=auth_token,
         secret_key_version=secret_key_version,
         allowed_tools=allowed_tools,
         is_enabled=is_enabled,
+        label=label,
         auth_type=auth_type,
         oauth_state=oauth_state,
         oauth_payload=oauth_payload,
@@ -333,6 +386,7 @@ async def create_org_scoped(
     oauth_pending_payload: str | None = None,
     purpose: str = "mcp",
     portal_key: str | None = None,
+    label: str | None = None,
 ) -> McpConnection:
     """Store a connection the organization owns.
 
@@ -362,6 +416,7 @@ async def create_org_scoped(
         oauth_pending_payload=oauth_pending_payload,
         purpose=purpose,
         portal_key=portal_key,
+        label=label,
     )
     db.add(connection)
     await db.flush()

@@ -7,25 +7,39 @@ All of them apply identically on every surface, because every surface goes throu
 one runner.
 
 The newest of those surfaces is a **trigger**: an agent running itself on a schedule
-or on an incoming event - a GitHub issue, an inbound email (see
-[Concepts](concepts.md#trigger)). It changes none of what follows - it spends against
-the same two caps, parks on the same approval gate (routed to its creator, the member
-it runs as, and the administrators), and is recorded in the same audit trail. The one
-thing "unattended" adds is what happens to a *refusal*: a fired run the budget stops
-ends `budget_exceeded` and waits for the trigger's next fire rather than being retried,
-and a fired run the creator may no longer make - they left the organization, or lost
-their grant on the agent - disables the trigger and writes an audit entry saying why.
-A fired run that fails on the model itself - a provider outage, a revoked key - is the
-same: recorded `failed` and left for the next fire rather than failing the heartbeat
-into retrying the same wall, with the trigger's `last_run_id` left pointing at it so its
-history stays honest. A refusal a heartbeat retried every minute would be a bill, or an
-alert, that never stops. What is *not* swallowed is a failure that never became a
-record: if the run reached a terminal state but the write recording it did not commit -
-a transcript or conversation-state write that raised after the answer was in hand - the
-fire fails the flow rather than reporting success, so the half-written run rolls back
-instead of being committed as complete with nothing behind it. An event trigger adds one more refusal at its edge: a webhook
-whose signature does not verify against the trigger's own secret is a 403 that never
-reaches the runner at all.
+or on an incoming event — a GitHub issue, an inbound email (see
+[Concepts](concepts.md#trigger)).
+
+It changes none of what follows. It spends against the same two caps, parks on the
+same approval gate — routed to its creator, the member it runs as, and the
+administrators — and is recorded in the same audit trail.
+
+The one thing "unattended" adds is what happens to a **refusal**:
+
+- A fired run the budget stops ends `budget_exceeded` and **waits for the next
+  fire** rather than being retried.
+- A fired run the creator may no longer make — they left the organization, or lost
+  their grant on the agent — **disables the trigger** and writes an audit entry
+  saying why.
+- A fired run that fails on the model itself — a provider outage, a revoked key —
+  is recorded `failed` and left for the next fire, rather than failing the
+  heartbeat into retrying the same wall. The trigger's `last_run_id` is left
+  pointing at it, so its history stays honest.
+
+A refusal a heartbeat retried every minute would be a bill, or an alert, that never
+stops.
+
+!!! warning "What is not swallowed is a failure that never became a record"
+
+    If the run reached a terminal state but the write recording it did not commit —
+    a transcript or conversation-state write that raised after the answer was in
+    hand — the fire **fails the flow** rather than reporting success. The
+    half-written run rolls back instead of being committed as complete with nothing
+    behind it.
+
+An event trigger adds one more refusal at its edge: a webhook whose signature does
+not verify against the trigger's own secret is a 403 that never reaches the runner
+at all.
 
 ## Budgets
 
@@ -97,16 +111,20 @@ card joins these against `GET /spend`, so a cap can be seen approaching before
     refused with $4 of headroom, telling its owner it had reached a cap it was
     at 60% of. The organization's cap double-counted identically.
 
-The guard is a hard stop for a run that *sees* the spend, and a run's own cost
-only lands on its row when it finishes. So the baseline a run reads is the sum of
-runs that have already finished, and concurrent runs are invisible to one
-another: fifty runs starting together against an organization one call short of
-its cap each read the same under-cap baseline and each proceed, overshooting by
-up to their combined cost. This is a property of an aggregate with no single row
-to lock - unlike the per-run and per-loop overshoot above, which the
-before-the-request check does bound - and it is why the cap is a ceiling on
-committed spend rather than a gate that serialises simultaneous runs. A
-deployment that needs a strict cap runs its agents through one queue rather than
+The guard is a hard stop for a run that *sees* the spend, and a run's own cost only
+lands on its row when it finishes.
+
+So the baseline a run reads is the sum of runs that have already finished, and
+**concurrent runs are invisible to one another**. Fifty runs starting together
+against an organization one call short of its cap each read the same under-cap
+baseline, each proceed, and overshoot by up to their combined cost.
+
+That is a property of an aggregate with no single row to lock — unlike the per-run
+and per-loop overshoot above, which the before-the-request check does bound. It is
+why the cap is a ceiling on **committed** spend rather than a gate that serialises
+simultaneous runs.
+
+A deployment that needs a strict cap runs its agents through one queue rather than
 in parallel.
 
 ### A run costs more than its model requests
@@ -175,15 +193,19 @@ request — thousands of tokens on an agent with knowledge, a sandbox and
 delegation, which is a third of the real figure missing at exactly the moment the
 figure matters.
 
-**The count is stored on the turn; the share is not.** How much history there is
-survives a model change; what fraction of a window that is does not, and the chat
-lets somebody switch model between turns. A 500,000-token history is half of a
-1M-context model and 390% of a 128K one — and the second is a request the
-provider refuses outright. A share frozen with the reading would still read
-"50%". So the denominator is resolved where the selection is known, from the
-model profile's own recorded window and the pricing registry behind it; where
-neither can say, no share is drawn at all, because a percentage against an
-assumed window is a guess presented as a measurement.
+**The count is stored on the turn; the share is not.**
+
+How much history there is survives a model change. What fraction of a window that
+is does not — and the chat lets somebody switch model between turns.
+
+A 500,000-token history is half of a 1M-context model and **390%** of a 128K one,
+and the second is a request the provider refuses outright. A share frozen with the
+reading would still read "50%".
+
+So the denominator is resolved where the selection is known, from the model
+profile's own recorded window and the pricing registry behind it. Where neither can
+say, **no share is drawn at all** — a percentage against an assumed window is a
+guess presented as a measurement.
 
 That switch is also what compaction is for. Its trigger is a **fraction resolved
 per request** against the model the request is going to, so a history that sat
@@ -265,16 +287,21 @@ A delegation to a **published** agent gets an `agent_runs` row of its own, carry
 has no agent to attribute one to, so its cost is the *run's* and the tool call in
 the transcript is the record.
 
-Which run's, though, is the question [#228](https://github.com/vstorm-co/agenticos/issues/228)
-answered. A specialist directly under the run's own agent bills to the top-level
-row, which is the whole ledger anyway. A specialist under a **published delegate**
-bills to *that delegate's* row, not the top-level one - so the delegate's month
-includes what its specialist spent, which is the only place it could honestly land.
+Which run's, though, is the question
+[#228](https://github.com/vstorm-co/agenticos/issues/228) answered.
+
+- A specialist directly under the run's own agent bills to the **top-level row**,
+  which is the whole ledger anyway.
+- A specialist under a **published delegate** bills to *that delegate's* row, not
+  the top-level one — so the delegate's month includes what its specialist spent,
+  which is the only place it could honestly land.
+
 Each ledger entry therefore carries two attributions: the delegation that made it,
-for the panel, and the nearest agent-row it bills to, for the month. The two are
-equal for every request a published delegate makes on its own account and diverge
-only under an inline specialist - whose panel keeps its own share while its spend
-reaches its ancestor's row.
+for the panel, and the nearest agent-row it bills to, for the month.
+
+The two are equal for every request a published delegate makes on its own account,
+and diverge only under an inline specialist — whose panel keeps its own share while
+its spend reaches its ancestor's row.
 
 !!! important "The parent's row is the authority; a child's row is its share of it"
 
@@ -428,30 +455,42 @@ work included:
 | `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
 | `GET /runs/<id>/transcript` | That run's turns, in order - what a run detail view renders as steps. Authorized, not owned (below) |
 
-**Reading a run is authorized, not owned.** A colleague holding `runs:view` reads
-a run somebody else started - authority over a run is the organization's, because
-a run is what the organization is billed and held accountable for, not the private
-property of whoever pressed go. So the decision lives in the service rather than in
-a route gate: it resolves the run against the caller's organization first, then
-checks `runs:view`. A run in another tenant reads as *absent* - the same 404 an id
-that never existed answers with, down to its body - so the response cannot be used
-to discover that a run exists. A run that ran with no conversation (an API call
-that passed no `conversation_id`) has no transcript to read, and says so with a
-null `conversation_id` rather than an empty list that would read as "it did
-nothing". None of this widens `GET /conversations/{id}/messages`, which stays
-scoped to the owner: a run's transcript being readable by a colleague must not make
-the private thread it sits in readable too.
+**Reading a run is authorized, not owned.**
+
+A colleague holding `runs:view` reads a run somebody else started. Authority over a
+run is the organization's, because a run is what the organization is billed and
+held accountable for — not the private property of whoever pressed go.
+
+So the decision lives in the service rather than in a route gate: it resolves the
+run against the caller's organization first, then checks `runs:view`.
+
+Three consequences:
+
+- A run in **another tenant reads as absent** — the same 404 an id that never
+  existed answers with, down to its body — so the response cannot be used to
+  discover that a run exists.
+- A run that ran with **no conversation** (an API call that passed no
+  `conversation_id`) has no transcript to read, and says so with a null
+  `conversation_id` rather than an empty list that would read as "it did nothing".
+- None of this widens `GET /conversations/{id}/messages`, which stays **scoped to
+  the owner**. A run's transcript being readable by a colleague must not make the
+  private thread it sits in readable too.
 
 **Each turn the transcript serves carries the ratings people left on it** — the
 reading caller's own thumb, the organization's likes and dislikes, and the most
-recent down rating's comment. A plain message row holds none of these, so they are
-read from `message_ratings` in one batch and attached to the turns; a turn nobody
-rated carries them empty and reads exactly as a plain message does. This is what
-lets the run detail view show the answers that were rated down and the words left
-with them — the conversations behind the dashboard's quality number (#209) — read
-where the run is read, rather than only in the app-admin ratings export. The comment
-shown is a down rating's, never an up rating's, and the most recent when a turn drew
-more than one objection.
+recent down rating's comment.
+
+A plain message row holds none of these, so they are read from `message_ratings` in
+one batch and attached to the turns. A turn nobody rated carries them empty and
+reads exactly as a plain message does.
+
+This is what lets the run detail view show the answers that were rated down and the
+words left with them — the conversations behind the dashboard's quality number
+(#209) — read where the run is read, rather than only in the app-admin ratings
+export.
+
+The comment shown is a **down** rating's, never an up rating's, and the most recent
+when a turn drew more than one objection.
 
 ### What the dashboard's aggregates show
 
@@ -545,15 +584,19 @@ two models. The per-model shape survives where it is the question being asked: t
 usage email still groups that way.
 
 **Who spent it is a fourth breakdown**, beneath By provider, By key and By agent —
-the one that answers with people rather than vendors or agents. It reads the same
-`group_by=user` rows the dashboard's adoption table does — top-level runs only,
-busiest first — so a delegate's cost lands once, inside the run that started it, and
-it covers the window the rest of the tab shows rather than a rolling default of its
-own. Naming the organization's people is the same call the dashboard card makes, so
-it takes the same gate: `runs:view`, held by builder and operator as well as the two
-stewards, and it says so in its own copy. A caller without `runs:view` does not see
-it — the card is absent, and its question is never asked, rather than a request that
-comes back refused.
+the one that answers with people rather than vendors or agents.
+
+It reads the same `group_by=user` rows the dashboard's adoption table does — top-level
+runs only, busiest first — so a delegate's cost lands once, inside the run that
+started it. And it covers the window the rest of the tab shows, rather than a rolling
+default of its own.
+
+Naming the organization's people is the same call the dashboard card makes, so it
+takes the same gate: `runs:view`, held by builder and operator as well as the two
+stewards, and it says so in its own copy.
+
+A caller without `runs:view` does not see it. The card is absent and its question is
+never asked, rather than a request that comes back refused.
 
 ### Narrowing the approvals queue
 
@@ -616,40 +659,51 @@ the dashboard that could reach the runs behind it and three cards carried no lin
 at all — there was nothing honest to point them at.
 
 **Including which tab is open.** `?tab=approvals` and `?tab=spend` open the queue
-and the cost screen; the run history is the default and is never written. That is
-the address a link to a *decision* needs, and the reason the parameter exists: the
-approvals card's "See all" and the alert that says a run is parked both had to
-point at the run history, where nothing can be decided (#934). A tab named by a
-link is resolved against what the reader may open — `approvals` is gated on
-`approvals:decide`, so a link carrying it that reaches somebody without the
-permission opens the run history rather than a strip whose selected tab has no
-content. Switching tabs closes an open run detail and takes `?run=` with it: a
-panel that outlives the tab that opened it sits beside a queue it has nothing to
-do with, and below `lg` it replaces the list, so the strip stayed live while every
-tab's content was hidden.
+and the cost screen; the run history is the default and is never written.
 
-**Duration is computed in SQL, over the whole narrowed set.** That is what gets
-from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
-twenty-five sorts the wrong set, because the slowest run of a month is not in
-whichever rows a newest-first page happened to return. `cost` and `tokens` are
-the same arrangement for money and context weight. A run with no `ended_at`
-sorts **last in both directions under all three**: it has no duration, it is not
-the fastest run either, and its cost and token figures are written only when it
-finishes — sorted as stored, a run still going would read as the cheapest and
-lightest in the organization. How long a *still-running* run has been going is a
-different question and none of these orders answers it.
+That is the address a link to a *decision* needs, and the reason the parameter
+exists: the approvals card's "See all" and the alert that says a run is parked both
+had to point at the run history, where nothing can be decided (#934).
 
-Activity surfaces that duration three ways, and all three lead to the same query.
-The **Took** column header is a sort control — like the Started header beside it,
-and like every sortable header in the product — so a click reorders history by
-`duration` rather than by the twenty-five rows on screen. A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold
-(30s) as one click, and **"all runs"** drops both, back to newest-first — within
-whatever window is in view, since the window is a separate axis the p95 link and
-the date range set. And the
-dashboard's **p95 figure links here**, sorted by duration over the same window: it
-carries `?sort=duration` with the period's `started_from`/`started_to`, so the
-number and the runs behind it are one click apart — the rule the rest of these two
-pages already follow, and the one dimension where they did not (#210).
+A tab named by a link is **resolved against what the reader may open**. `approvals`
+is gated on `approvals:decide`, so a link carrying it that reaches somebody without
+the permission opens the run history rather than a strip whose selected tab has no
+content.
+
+Switching tabs closes an open run detail and takes `?run=` with it. A panel that
+outlives the tab that opened it sits beside a queue it has nothing to do with — and
+below `lg` it replaces the list, so the strip stayed live while every tab's content
+was hidden.
+
+**Duration is computed in SQL, over the whole narrowed set.**
+
+That is what gets from *"p95 is 14.8s"* on the dashboard to **those runs**. Sorting
+one page of twenty-five sorts the wrong set, because the slowest run of a month is
+not in whichever rows a newest-first page happened to return. `cost` and `tokens`
+are the same arrangement for money and context weight.
+
+A run with no `ended_at` sorts **last in both directions under all three**. It has
+no duration, it is not the fastest run either, and its cost and token figures are
+written only when it finishes — sorted as stored, a run still going would read as
+the cheapest and lightest in the organization.
+
+How long a *still-running* run has been going is a different question, and none of
+these orders answers it.
+
+Activity surfaces that duration three ways, and all three lead to the same query:
+
+- The **Took** column header is a sort control — like the Started header beside it,
+  and like every sortable header in the product — so a click reorders history by
+  `duration` rather than by the twenty-five rows on screen.
+- A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold (30s)
+  as one click. **"All runs"** drops both, back to newest-first — within whatever
+  window is in view, since the window is a separate axis the p95 link and the date
+  range set.
+- The dashboard's **p95 figure links here**, sorted by duration over the same
+  window: `?sort=duration` with the period's `started_from` / `started_to`.
+
+So the number and the runs behind it are one click apart — the rule the rest of
+these two pages already follow, and the one dimension where they did not (#210).
 
 **`rated=down` is the highest-signal queue here** — the answers real people said
 were wrong, in their own words. A rating hangs off a message, so this join runs
@@ -660,17 +714,19 @@ one person liked while another disliked matches **both** `up` and `down`, becaus
 both are true of it. Reducing that to one verdict per run would invent a consensus
 the rows do not record.
 
-The same fact rides the row without the filter: `AgentRunRead.down_rated` is
-`true` when anybody rated an answer the run produced below zero, computed for a
-page in one query rather than an `EXISTS` per row, and it is what run history
-draws a 👎 on. Bounded to the caller's organization like every read here — a
-neighbour's run, rated down, is never marked for another tenant. The **comment**
-that thumb was left with is read in the run detail (`?run=<id>`), not on the row:
-it is user-written text about one conversation, and putting it behind the detail
-is the deliberate line between a marker anybody with `runs:view` sees and the
-words that explain it. That is the join `rated=down` was built for — the dashboard
-says quality fell four points, and this is where the conversations that did it are
-read.
+The same fact rides the row without the filter. `AgentRunRead.down_rated` is `true`
+when anybody rated an answer the run produced below zero, computed for a page in one
+query, and it is what run history draws a 👎 on. It is bounded to the caller's
+organization like every read here — a neighbour's run, rated down, is never marked
+for another tenant.
+
+The **comment** that thumb was left with is read in the run detail (`?run=<id>`),
+not on the row. It is user-written text about one conversation, and putting it
+behind the detail is the deliberate line between a marker anybody with `runs:view`
+sees and the words that explain it.
+
+That is the join `rated=down` was built for: the dashboard says quality fell four
+points, and this is where the conversations that did it are read.
 
 The trend the dashboard reads is `GET /api/v1/ratings/summary` (a headline split
 plus a per-day series): `scope=org` under `runs:view`, `scope=own` for a member's
@@ -978,41 +1034,50 @@ the row's own organization.
 
 ### A run whose process died
 
-The other state nothing in-process will ever resolve. A run's row is committed
-`running` before its model is called ([#12][12-issue]), so a worker killed
-mid-run — OOM, a deploy that does not drain — leaves a durable row with nothing
-left to finish it: in Activity for ever, and blocking any schedule whose
-trigger it was the linked run of. An hourly sweep ends anything still `running`
-past `STALE_RUN_REAPED_AFTER_HOURS` (six hours by default; zero switches it
-off), as `failed` — nobody stopped this run, the infrastructure did, and an
-operator filtering run history for problems is exactly who should see it. The
-error on the row is the sweep's own sentence; the process that knew more died.
+The other state nothing in-process will ever resolve.
 
-A run's age here is its **last transition**, not its first start: a resume
-keeps the original `started_at` — the run spans both segments — so a run
-approved days after it parked ages from the moment its replay began, not from
-a start that would have it reaped mid-replay. The ceiling does not have to be
-exact either way, because a live run the sweep flips anyway flips itself back:
-its own terminal write lands later and wins. What a
-reaped run cannot recover is its spend — the ledger died with the process — so
-the row keeps the zeros it was opened with rather than being given a number
-somebody would reconcile against a bill. And nobody is mailed: the failure
-notification rides `finish`, which has the agent and its spec in hand; a sweep
-has neither.
+A run's row is committed `running` before its model is called ([#12][12-issue]), so a
+worker killed mid-run — OOM, a deploy that does not drain — leaves a durable row with
+nothing left to finish it: in Activity for ever, and blocking any schedule whose
+trigger it was the linked run of.
+
+An hourly sweep ends anything still `running` past `STALE_RUN_REAPED_AFTER_HOURS` —
+six hours by default, zero switches it off — as **`failed`**. Nobody stopped this
+run, the infrastructure did, and an operator filtering run history for problems is
+exactly who should see it.
+
+The error on the row is the sweep's own sentence. The process that knew more died.
+
+A run's age here is its **last transition**, not its first start. A resume keeps the
+original `started_at` — the run spans both segments — so a run approved days after
+it parked ages from the moment its replay began, rather than from a start that would
+have it reaped mid-replay.
+
+The ceiling does not have to be exact either way, because a live run the sweep flips
+anyway flips itself back: its own terminal write lands later and wins.
+
+What a reaped run cannot recover is its **spend**. The ledger died with the process,
+so the row keeps the zeros it was opened with rather than being given a number
+somebody would reconcile against a bill.
+
+And nobody is mailed. The failure notification rides `finish`, which has the agent
+and its spec in hand; a sweep has neither.
 
 [12-issue]: https://github.com/vstorm-co/agenticos/issues/12
 
 ### An approval inside a delegation
 
 A delegate's tools are gated by the delegate's own spec, and it reaches the same
-queue the parent's caller is already waiting on - a specialist that needs a person
-needs the person who is standing there. The entry names the **delegate's** tool and
-the arguments it proposed, because the delegate's own gate is what wrote it, **and
-which delegate is calling it**. Without that last part the queue says `send_email`
-without saying whether the agent somebody is talking to or a specialist called
-`researcher` is sending it, which is a queue people approve blind - and in a
-delegation the thing being approved is often more consequential than the agent the
-reviewer thinks they are dealing with.
+queue the parent's caller is already waiting on — a specialist that needs a person
+needs the person who is standing there.
+
+The entry names the **delegate's** tool and the arguments it proposed, because the
+delegate's own gate is what wrote it. And it names **which delegate is calling it**.
+
+Without that last part the queue says `send_email` without saying whether the agent
+somebody is talking to, or a specialist called `researcher`, is sending it. That is a
+queue people approve blind — and in a delegation the thing being approved is often
+more consequential than the agent the reviewer thinks they are dealing with.
 
 Deleting that delegate does not erase the record of what it was authorised to do:
 the row keeps the delegate's name and drops only the link to its now-gone agent.
@@ -1196,18 +1261,20 @@ ended must not fail again because SMTP was down.
 
 ## Audit
 
-Actions that change access or spend money are recorded with an actor, and a
-context with no subject raises rather than letting the absence travel - so an
-entry naming nobody means exactly two things, and the `action` says which: the
-approval expiry sweep, and an operator command at the deployment's shell.
-Binding a credential to a collection is one of those actions: `sync_source`
-entries record creating, cloning, repointing and deleting a source, because the
-row decides who ends up able to read what it ingests
+Actions that change access or spend money are recorded with an actor, and a context
+with no subject **raises** rather than letting the absence travel. So an entry
+naming nobody means exactly two things, and the `action` says which: the approval
+expiry sweep, and an operator command at the deployment's shell.
+
+Binding a credential to a collection is one of those actions. `sync_source` entries
+record creating, cloning, repointing and deleting a source, because the row decides
+who ends up able to read what it ingests
 ([File processing](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested)).
-A privileged bulk read is recorded too: each CSV
-export writes a `runs.export`, `approvals.export` or `spend.export` entry naming
-the window and the row count, because who took the whole table off the screen is a
-question that is cheap to answer now and impossible to reconstruct later.
+
+A privileged **bulk read** is recorded too. Each CSV export writes a `runs.export`,
+`approvals.export` or `spend.export` entry naming the window and the row count —
+who took the whole table off the screen is a question that is cheap to answer now
+and impossible to reconstruct later.
 
 The write shares the acting request's transaction, so it fails closed: an entry
 that cannot be recorded rolls back the action it describes rather than letting a
@@ -1238,6 +1305,21 @@ Worth stating, because a governance page implies otherwise:
 - **No egress control on MCP.** A bound server is reached over the network from
   the worker; restricting where that can go is deployment configuration, not a
   setting here.
+
+## Recap
+
+- **Two caps, and they cannot be collapsed.** A budget bounds money; a step limit
+  bounds a loop that is cheap per call and never finishes.
+- The budget is checked **before** each model request, and a failed run still
+  records what it spent.
+- The cap is a ceiling on **committed** spend. Concurrent runs cannot see each
+  other, so a strict cap means one queue.
+- An **approval is decided once**, and a second decision on a decided approval is
+  refused.
+- Reading a run is **authorized, not owned** — `runs:view` reads a colleague's run,
+  and another tenant's reads as absent.
+- **Silence is meaningful.** An alert that did not arrive means the thing did not
+  happen, which is only true because nothing is best-effort here.
 
 ## Reference
 

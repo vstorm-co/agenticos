@@ -35,7 +35,14 @@ from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
+from app.agents.spec import (
+    AgentSpec,
+    BudgetSpec,
+    CapabilityBindingSpec,
+    McpServerRef,
+    SpecialistSpec,
+    SubagentRef,
+)
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -64,11 +71,16 @@ from app.repositories import (
 )
 from app.schemas.agent import (
     AgentRead,
+    AgentTemplateCatalog,
+    AgentTemplateRead,
     AgentVersionRead,
     DelegationTree,
     DelegationTreeNode,
     PublishedModel,
+    TemplateIndustryRead,
+    TemplateInstallResult,
 )
+from app.services import agent_templates, skill_library
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -88,6 +100,7 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.sandbox_workspace import sandbox_config
+from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
 
@@ -824,6 +837,104 @@ class AgentRegistryService:
             if version_id not in profile_ids
         }
 
+    async def templates(self, ctx: AuthContext) -> AgentTemplateCatalog:
+        """The shipped agent templates, with what this organization already has.
+
+        `installed` is a slug match, because the slug is what an install would
+        collide on - two agents cannot share one, since a slug is how an agent is
+        mentioned in a channel.
+        """
+        taken = await agent_repo.list_slugs(self.db, organization_id=ctx.organization_id)
+        return AgentTemplateCatalog(
+            industries=[
+                TemplateIndustryRead(
+                    id=industry.id,
+                    templates=[
+                        AgentTemplateRead(
+                            key=template.key,
+                            name=template.name,
+                            description=template.description,
+                            capabilities=[binding["id"] for binding in template.capabilities],
+                            skills=list(template.skills),
+                            mcp=list(template.mcp),
+                            attach=list(template.attach),
+                            budget_usd=template.budget_usd,
+                            installed=slugify(template.name) in taken,
+                        )
+                        for template in industry.templates
+                    ],
+                )
+                for industry in agent_templates.catalog()
+            ]
+        )
+
+    async def install_template(self, ctx: AuthContext, key: str) -> TemplateInstallResult:
+        """Create a draft agent from a shipped template, with its skills.
+
+        A **draft**, deliberately. The template cannot name a model - this
+        platform has no organization-wide default, because a model an agent did
+        not choose is one somebody else's change can swap underneath it - and it
+        cannot name a knowledge collection it has never seen. Publishing an agent
+        missing either would produce answers from nowhere, confidently.
+
+        The skills it expects are installed first, from the gallery, and skipped
+        where the organization already has them. Its MCP suggestions are returned
+        rather than bound: a connection needs somebody to authorise it.
+
+        Raises:
+            NotFoundError: If no such template ships with this deployment.
+            AlreadyExistsError: If the slug is taken - which is what installing
+                the same template twice would do, and the second agent would be
+                indistinguishable from the first in a channel.
+        """
+        template = agent_templates.get(key)
+        if template is None:
+            raise NotFoundError(message="No such agent template", details={"key": key})
+
+        skill_service = SkillService(self.db)
+        if template.skills:
+            await skill_service.install_gallery(ctx, list(template.skills))
+
+        wanted = sorted(
+            {
+                entry.name
+                for gallery_key in template.skills
+                if (entry := skill_library.gallery_get(gallery_key)) is not None
+            }
+        )
+        rows = [
+            row
+            for name in wanted
+            if (
+                row := await skill_repo.get_by_name(
+                    self.db, name, organization_id=ctx.organization_id
+                )
+            )
+            is not None
+        ]
+
+        spec = AgentSpec(
+            name=template.name,
+            description=template.description,
+            instructions=template.instructions,
+            capabilities=list(template.capabilities),
+            skill_ids=[row.id for row in rows],
+            budget=(
+                BudgetSpec(monthly_usd=template.budget_usd)
+                if template.budget_usd is not None
+                else None
+            ),
+        )
+        agent = await self.create(ctx, spec)
+        return TemplateInstallResult(
+            agent_id=agent.id,
+            slug=agent.slug,
+            name=agent.name,
+            skills_installed=sorted(row.name for row in rows),
+            attach=list(template.attach),
+            suggested_mcp=list(template.mcp),
+        )
+
     async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:
         """Create an agent in draft.
 
@@ -1065,23 +1176,7 @@ class AgentRegistryService:
         problems.add(await self._skill_problems(ctx, spec.skill_ids))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
-        for connection_id in spec.mcp_server_ids:
-            connection = await mcp_connection_repo.get_org_scoped_by_id(
-                self.db, connection_id=connection_id, organization_id=ctx.organization_id
-            )
-            if connection is None:
-                # Says which of the two ways it can fail applies, because the
-                # likely one - a personal connection picked in the Builder - is
-                # not a missing row and "not found" would send the person
-                # looking for something that is right in front of them.
-                problems.add(
-                    [
-                        f"MCP server {connection_id} is not shared with this organization. "
-                        "A published agent can only use connections the organization owns, "
-                        "never a member's personal one - otherwise what it can reach would "
-                        "depend on who happens to run it."
-                    ]
-                )
+        problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1206,6 +1301,55 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
+        return problems
+
+    async def _mcp_problems(self, ctx: AuthContext, refs: list[McpServerRef]) -> list[str]:
+        """Every way a set of MCP bindings can be unpublishable.
+
+        The first is the one this check has always made: only the organization's
+        own connections, because a published agent's reach cannot depend on
+        whose session runs it. The other two guard the single exception to that
+        - a binding that asks to speak through the runner's own account - and
+        both are questions with no answer at run time, which is why they are
+        asked here where somebody can still change the binding.
+        """
+        problems: list[str] = []
+        flagged: dict[str, UUID] = {}
+        for ref in refs:
+            connection = await mcp_connection_repo.get_org_scoped_by_id(
+                self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
+            )
+            if connection is None:
+                # Says which of the two ways it can fail applies, because the
+                # likely one - a personal connection picked in the Builder - is
+                # not a missing row and "not found" would send the person
+                # looking for something that is right in front of them.
+                problems.append(
+                    f"MCP server {ref.connection_id} is not shared with this organization. "
+                    "A published agent can only use connections the organization owns, "
+                    "never a member's personal one - otherwise what it can reach would "
+                    "depend on who happens to run it."
+                )
+                continue
+            if not ref.use_personal_when_available:
+                continue
+            if connection.catalog_key is None:
+                problems.append(
+                    f"{connection.name!r} cannot use a member's own account: it was connected "
+                    "to a URL rather than to a catalog entry, so nothing says which of their "
+                    "connections is the same service. Reconnect it from the catalog, or turn "
+                    "the option off."
+                )
+                continue
+            twin = flagged.get(connection.catalog_key)
+            if twin is not None:
+                problems.append(
+                    f"Two bindings to the same service ({connection.catalog_key}) both ask for "
+                    f"the member's own account: {twin} and {ref.connection_id}. One run cannot "
+                    "substitute two, so pick which of them speaks as the member."
+                )
+                continue
+            flagged[connection.catalog_key] = ref.connection_id
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:

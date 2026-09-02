@@ -177,6 +177,7 @@ describe("stepsForPage", () => {
 
   it("walks the list and then the whole builder when asked from the Agents list", () => {
     expect(stepsForPage(ROUTES.AGENTS, () => true).map((step) => step.id)).toEqual([
+      "agents-templates",
       "agents-new",
       "agents-filters",
       ...BUILDER_STEPS,
@@ -218,7 +219,7 @@ describe("stepsForPage", () => {
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-new", "agents-filters"]);
+    ).toEqual(["agents-templates", "agents-new", "agents-filters"]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {

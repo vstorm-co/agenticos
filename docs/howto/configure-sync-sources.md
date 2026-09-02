@@ -1,7 +1,4 @@
-
-# How to: Configure Sync Sources
-
-## Overview
+# Configure sync sources
 
 Sync sources pull documents from external services (Google Drive, S3/MinIO) into
 knowledge collections on their own. Each source stores a connector type, a target
@@ -26,7 +23,7 @@ every sync operation.
 | RAG CLI commands | `app/commands/rag.py` | CLI interface for managing sources |
 | RAG API routes | `app/api/routes/v1/rag.py` | REST API for managing sources |
 
-## Quick Start -- CLI
+## Quick start -- CLI
 
 ### List available connector types
 
@@ -80,7 +77,7 @@ uv run agenticos cmd rag-source-remove <source-id>
 The `<source-id>` is a UUID printed when you create the source and shown
 in the `rag-sources` listing.
 
-## Quick Start -- UI
+## Quick start -- UI
 
 1. Navigate to **Knowledge Base** and open the **Sync** tab.
 2. Click **"+ Add Source"**.
@@ -96,7 +93,7 @@ in the `rag-sources` listing.
 The UI calls the same REST API documented below, so anything you can do
 in the UI you can also do with `curl` or any HTTP client.
 
-## Sync Modes
+## Sync modes
 
 | Mode | Behavior |
 |------|----------|
@@ -129,7 +126,7 @@ automatically:
     the `prefect-server` and `prefect-runner` containers `make dev` starts. With
     neither running, only a manual trigger (CLI, API or the UI) syncs anything.
 
-## Google Drive Setup
+## Google Drive setup
 
 ### 1. Create a service account
 
@@ -191,7 +188,7 @@ formats (PDF, XLSX, PPTX) during download. A file whose Drive name contains path
 separators is written as one file inside the sync directory, never at the path
 its name spells.
 
-## S3 / MinIO Setup
+## S3 / MinIO setup
 
 ### 1. Configure the environment
 
@@ -214,7 +211,7 @@ For MinIO, the endpoint is typically `http://minio:9000` (Docker) or
 | `bucket` | string | Yes | -- | S3 bucket name |
 | `prefix` | string | No | `""` | Key prefix to limit sync scope (e.g. `documents/legal/`). Leave empty for the entire bucket. |
 
-## API Reference
+## API reference
 
 All sync source endpoints live under `/api/v1/rag/sync/`. Listing takes
 `collections:view` and everything that changes a source takes `collections:edit`,
@@ -222,7 +219,7 @@ in both cases reaching the collection the source belongs to — there is no admi
 role in it. See
 [who may reach a collection](../file-processing.md#who-may-reach-a-collection).
 
-### Sync Sources CRUD
+### Sync sources CRUD
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -232,14 +229,14 @@ role in it. See
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Delete a sync source |
 | `POST` | `/api/v1/rag/sync/sources/{id}/trigger` | Manually trigger a sync |
 
-### Connectors & Logs
+### Connectors & logs
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/v1/rag/sync/connectors` | List available connector types with config schemas |
 | `GET` | `/api/v1/rag/sync/logs` | List sync history (filterable by `collection_name`) |
 
-### Example: Create a source via API
+### Example: create a source via API
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/rag/sync/sources \
@@ -258,21 +255,21 @@ curl -X POST http://localhost:8000/api/v1/rag/sync/sources \
   }'
 ```
 
-### Example: Trigger a sync via API
+### Example: trigger a sync via API
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/rag/sync/sources/{source_id}/trigger \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Example: Check sync history
+### Example: check sync history
 
 ```bash
 curl http://localhost:8000/api/v1/rag/sync/logs?limit=10 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Example: Discover available connectors
+### Example: discover available connectors
 
 ```bash
 curl http://localhost:8000/api/v1/rag/sync/connectors \
@@ -283,7 +280,7 @@ The response includes each connector's `config_schema`, which the
 frontend uses to render dynamic forms. It is also useful for building
 integrations programmatically.
 
-## Updating a Source
+## Updating a source
 
 You can update any subset of fields on an existing source with `PATCH`:
 
@@ -303,7 +300,7 @@ Updatable fields: `name`, `config`, `sync_mode`, `schedule_minutes`,
 
 Set `is_active` to `false` to pause a source without deleting it.
 
-## Monitoring Sync Operations
+## Monitoring sync operations
 
 Every sync creates a `SyncLog` entry with the following fields:
 
@@ -329,10 +326,10 @@ curl http://localhost:8000/api/v1/rag/sync/logs?collection_name=legal&limit=5 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-## Adding Custom Connectors
+## Adding custom connectors
 
 To add a new connector type (e.g. Notion, Confluence, Dropbox), see
-[How to: Add a New Sync Connector](./add-sync-connector.md).
+[Add a sync connector](./add-sync-connector.md).
 
 The short version:
 

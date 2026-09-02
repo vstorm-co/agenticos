@@ -332,17 +332,28 @@ export function useDelegatedRuns(parentRunId: string) {
  * with the query disabled there is no `[]` from a refusal for the queue to draw
  * as "nothing waiting".
  */
-export function useApprovals(options?: { enabled?: boolean }) {
+export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
   const t = useTranslations("pages.runs");
   const tErrors = useTranslations("errors");
 
   const queryClient = useQueryClient();
 
+  // The queue is server-paged. It used to ask for no page at all and take the
+  // route's default fifty, so with fifty or more waiting, the request an alert
+  // was about was the one row its reader could not reach - the alert addresses
+  // the tab and not the approval, deliberately, because the decide controls are
+  // on the row (#1336).
+  const skip = options?.skip ?? 0;
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.approvals(),
-    queryFn: () => apiClient.get<ApprovalList>("/approvals"),
+    queryKey: qk.runs.approvals(skip),
+    queryFn: () => apiClient.get<ApprovalList>("/approvals", { params: { skip: String(skip) } }),
     refetchInterval: 30_000,
     enabled: options?.enabled ?? true,
+    // The previous page stays on screen while the next loads. Not only to avoid
+    // a flash of empty table: `total` is what the pager counts, and a page
+    // change that dropped it to zero made the tab decide the current page no
+    // longer exists and snap back to the first.
+    placeholderData: keepPreviousData,
   });
 
   const resume = useResumeRun({ ignoreStillParked: true });
@@ -363,7 +374,7 @@ export function useApprovals(options?: { enabled?: boolean }) {
       // so the backend's refusal is the real check and the auto path swallows
       // exactly that refusal (see `useResumeRun`).
       const stillParked = queryClient
-        .getQueryData<ApprovalList>(qk.runs.approvals())
+        .getQueryData<ApprovalList>(qk.runs.approvals(skip))
         ?.items.some((item) => item.run_id === approval.run_id && item.status === "pending");
       if (!stillParked) resume.mutate(approval.run_id);
     },

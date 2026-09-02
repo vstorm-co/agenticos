@@ -1,10 +1,14 @@
-# Adding New Features
+# Adding a feature
 
-## Adding a New API Endpoint
+Four shapes of change, and each one has a worked example somewhere else. This page
+is the map: what a change of that shape has to touch, and where the long version
+lives.
+
+## Adding a new API endpoint
 
 !!! abstract "One walkthrough, in the Guides"
 
-    [How to: Add a New API Endpoint](howto/add-api-endpoint.md) is the worked
+    [Add an API endpoint](howto/add-api-endpoint.md) is the worked
     example — schema, model, repository, service, dependency, route, router,
     migration, tests. There is deliberately no second copy of it here: two
     copies written for the same reader are two copies that disagree.
@@ -17,7 +21,7 @@ session and raising domain exceptions, an `Annotated` **dependency** in
 `api/deps.py`, and a **route** returning `-> Any` with `response_model` doing the
 serialization.
 
-## Adding a Custom CLI Command
+## Adding a custom CLI command
 
 Commands are auto-discovered from `app/commands/`.
 
@@ -68,7 +72,7 @@ part of a **capability**:
 
 What ships today is in the [capability catalog](reference/capabilities.md).
 
-## Adding a Database Migration
+## Adding a database migration
 
 !!! warning "`make db-check` skips itself when no database is listening"
 

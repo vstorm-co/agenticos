@@ -67,7 +67,10 @@ describe("starting an OAuth flow", () => {
       "organization",
     );
 
-    expect(apiClient.post).toHaveBeenCalledWith("/orgs/mcp-connections/oauth/start", {
+    // `/mcp-connections`, not `/orgs/mcp-connections`: the organization's router
+    // is mounted beside the personal one, and `/orgs` is organizations, members
+    // and invitations. This assertion used to pin the 404 (#1340).
+    expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections/oauth/start", {
       name: "Linear",
       url: "https://mcp.linear.app/sse",
     });

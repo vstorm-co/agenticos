@@ -1,10 +1,10 @@
-# Architecture Guide
+# Architecture
 
 This project follows a **Repository + Service** layered architecture.
 Every feature — users, conversations, files, RAG documents, sync sources — uses
 the same pattern: **Models → Schemas → Repositories → Services → Endpoints**.
 
-## Request Flow
+## Request flow
 
 ```mermaid
 flowchart LR
@@ -33,7 +33,7 @@ scope no service test can see, and the next reader of the entity has to know to 
 the same thing. The single exemption is a `Literal` of sort orders, imported as a
 type rather than as data access.
 
-## Directory Structure (`backend/app/`)
+## Directory structure (`backend/app/`)
 
 | Directory / File | Purpose |
 |-----------|---------|
@@ -80,9 +80,9 @@ type rather than as data access.
 | `rag/connectors/` | Sync connectors (Google Drive, S3) |
 | `commands/` | Django-style CLI commands |
 
-## Layer Responsibilities
+## Layer responsibilities
 
-### API Routes (`api/routes/v1/`)
+### API routes (`api/routes/v1/`)
 - HTTP request/response handling
 - Input validation via Pydantic schemas
 - Authentication and authorization checks
@@ -116,7 +116,7 @@ type rather than as data access.
 - SQLAlchemy 2.0 model definitions
 - Relationships, indexes, and column defaults live here
 
-### RAG Connectors (`rag/connectors/`)
+### RAG connectors (`rag/connectors/`)
 - Pluggable sync adapters that implement `BaseSyncConnector`
 - Each connector provides `list_files()` and `download_file()`
 - Registered in `CONNECTOR_REGISTRY` for discovery at runtime
@@ -201,33 +201,43 @@ work in the same place — which has nothing to do with a response.
 
 ### The run path's two commits
 
-One path deliberately commits earlier than "on the way out": an agent run. The
-runner commits once **before the model is called** and once more in the
-terminal `finally` (`AgentRunnerService._run`, and `ChatAgentRunner.run` for
-the streaming chat). A model call takes seconds to minutes, and a transaction
-left open across it holds a pooled connection `idle in transaction` for the
-duration — fifteen concurrent runs used to be the entire pool ([#12][12]).
-Committing first also makes the run row readable from every other session for
-the whole life of the run, and makes a resumed run's exit from the approval
-queue durable before the approved call is replayed, so a crash mid-replay
-cannot hand the same approval out twice ([#3][3]). The terminal commit is the
-other half: the session context only commits on a clean exit, which a failed,
-budget-stopped or cancelled run is not, and a run missing from history is a
-run nobody is accountable for. Both boundaries are proved against a real
-database in `tests/integration/test_run_commit_boundary.py`.
+One path deliberately commits earlier than "on the way out": **an agent run.**
 
-Visibility cuts both ways: anything that used to reason "an executing run's
-row cannot be seen" now reasons about a row that *is* seen. The agent-triggers
-scheduler is the one place that did. Its no-overlap guard blocks on every
-non-terminal run in the trigger's conversation — which now includes a
-concurrent `run_now` or event fire's live run, protection the old
-invisibility could not offer — while a worker that dies mid-run leaves a
-`running` row nothing in-process will ever finish. What bounds that row is
-the hourly stale-run sweep, which ends it `failed` past
-`STALE_RUN_REAPED_AFTER_HOURS`; the scheduled fire's own liveness signal
-stays its renewed lease (`app/repositories/agent_trigger.py::claim_due`).
-[Governance](governance.md#a-run-whose-process-died) has what the sweep
-settles and deliberately leaves alone.
+The runner commits once *before the model is called* and once more in the terminal
+`finally` — `AgentRunnerService._run`, and `ChatAgentRunner.run` for the streaming
+chat.
+
+A model call takes seconds to minutes, and a transaction left open across it holds a
+pooled connection `idle in transaction` for the duration. Fifteen concurrent runs
+used to be the entire pool ([#12][12]).
+
+Committing first buys two more things: the run row is readable from every other
+session for the whole life of the run, and a resumed run's exit from the approval
+queue is durable before the approved call is replayed — so a crash mid-replay cannot
+hand the same approval out twice ([#3][3]).
+
+The terminal commit is the other half. The session context only commits on a clean
+exit, which a failed, budget-stopped or cancelled run is not, and a run missing from
+history is a run nobody is accountable for.
+
+Both boundaries are proved against a real database in
+`tests/integration/test_run_commit_boundary.py`.
+
+Visibility cuts both ways. Anything that used to reason "an executing run's row
+cannot be seen" now reasons about a row that *is* seen, and the agent-triggers
+scheduler is the one place that did.
+
+Its no-overlap guard blocks on every non-terminal run in the trigger's conversation
+— which now includes a concurrent `run_now` or event fire's live run, protection the
+old invisibility could not offer.
+
+Meanwhile a worker that dies mid-run leaves a `running` row nothing in-process will
+ever finish. What bounds that row is the hourly stale-run sweep, which ends it
+`failed` past `STALE_RUN_REAPED_AFTER_HOURS`. The scheduled fire's own liveness
+signal stays its renewed lease (`app/repositories/agent_trigger.py::claim_due`).
+
+[Governance](governance.md#a-run-whose-process-died) has what the sweep settles and
+deliberately leaves alone.
 
 ### Dispatching background work from a request
 
@@ -268,6 +278,20 @@ slower than a proxy's read timeout answered 504 while the run carried on and
 committed — a failure reported for something that was working, and an invitation
 to press the button again and fire the schedule twice ([#658][658]). The route
 answers `202` and the fire starts after the commit.
+
+!!! warning "It is not a queue that survives the process"
+
+    `spawn_after_commit` runs the work only if the process lives long enough to
+    start it. That is fine for work a later request can reproduce, and not fine
+    for work whose *input* the commit just destroyed - an organization purge
+    hands on the paths and collection names that its own commit removed the last
+    record of, so a crash between the two loses them for good.
+
+    Where that applies, the intent is written as a row in the same transaction
+    and the hand-off becomes an optimisation: `teardown_intents` names what is
+    left to release, the flow deletes the row once it has, and a sweep
+    re-dispatches whatever nothing finished. The row's absence is the
+    completion, so an empty table means nothing is outstanding.
 
 Two things follow from where the queue lives:
 
@@ -329,19 +353,24 @@ in-memory backend.
 
 ### Schema
 
-`0007_delegated_runs` adds two columns to `agent_runs`. `parent_run_id` is a
-self-referential foreign key saying which run delegated this one, and it is what
-keeps the organization's monthly total honest — see
-[Governance](governance.md#what-a-delegated-run-is-recorded-as). It is
-`ON DELETE SET NULL` for the same arithmetic: deleting the parent removes the row
-that contained this cost, so a delegation row that becomes top-level is one that
-*should* start counting, while cascading would delete the record of money that was
-spent. `subagent_task_id` is the delegation library's own task id, which is what
-joins the row to the handle the parent's model saw in its transcript — and because
-a foreign key can only null its own column, that handle outlives the delete and is
-withheld by `AgentRunRead` rather than nulled by a trigger on the hottest insert
-table in the schema. The index on `parent_run_id` serves
-`list_runs(parent_run_id=...)`, which is what `GET /runs?parent_run_id=` asks; see
+`0007_delegated_runs` adds two columns to `agent_runs`.
+
+**`parent_run_id`** is a self-referential foreign key saying which run delegated
+this one, and it is what keeps the organization's monthly total honest — see
+[Governance](governance.md#what-a-delegated-run-is-recorded-as).
+
+It is `ON DELETE SET NULL` for the same arithmetic: deleting the parent removes the
+row that contained this cost, so a delegation row that becomes top-level is one that
+*should* start counting. Cascading would delete the record of money that was spent.
+
+**`subagent_task_id`** is the delegation library's own task id, which joins the row
+to the handle the parent's model saw in its transcript. Because a foreign key can
+only null its own column, that handle outlives the delete and is withheld by
+`AgentRunRead` — rather than nulled by a trigger on the hottest insert table in the
+schema.
+
+The index on `parent_run_id` serves `list_runs(parent_run_id=...)`, which is what
+`GET /runs?parent_run_id=` asks. See
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
 
@@ -400,16 +429,20 @@ has been added. The service persists what the wrapper collected and decides
 nothing about its contents.
 
 **An attachment on the transcript is read through the run, not through its
-uploader.** `GET /files/{id}` is scoped to `ChatFile.user_id`, which is the right
-scope for the chat composer and the wrong one for a run review: reading a run is
-the organization's right rather than its starter's, so the attachment cards on a
+uploader.**
+
+`GET /files/{id}` is scoped to `ChatFile.user_id`, which is the right scope for the
+chat composer and the wrong one for a run review. Reading a run is the
+organization's right rather than its starter's, so the attachment cards on a
 colleague's transcript rendered and every preview answered 404.
-`GET /runs/{run_id}/files/{file_id}` authorizes as the transcript does -
-organization, then `runs:view` - and then admits the file only where its
-`message_id` names a turn of the run's own conversation, which is the reach the
-transcript already grants and no wider. Both routes serve the bytes through
-`_chat_file_bytes.py`, so what a browser may *display* does not depend on which
-one authorized the read.
+
+`GET /runs/{run_id}/files/{file_id}` authorizes as the transcript does —
+organization, then `runs:view` — and then admits the file only where its
+`message_id` names a turn of the run's own conversation. That is the reach the
+transcript already grants, and no wider.
+
+Both routes serve the bytes through `_chat_file_bytes.py`, so what a browser may
+*display* does not depend on which one authorized the read.
 
 **The write is guarded *and* nested.** It is reached from a `finally` block, so
 an exception raised while recording a failed run would replace the failure with
@@ -468,17 +501,20 @@ Handing Pydantic's own `exc.errors()` through instead was
 [#882](https://github.com/vstorm-co/agenticos/issues/882) — a second shape,
 carrying `input`, `ctx` and `url`, that nothing on the frontend read.
 
-**An aggregated refusal carries both halves.** `validate_spec` reports every
-problem in a spec at once and most of them are broken references with no input to
-mark, so it answers `details.problems` (a line each, which the Builder lists) and
-`details.fields` for the subset that names one. A capability's configuration is
-the one part of a spec rendered as a generated form, so its refusals name the
-input — `capabilities.knowledge.config.default_top_k`, and
+**An aggregated refusal carries both halves.**
+
+`validate_spec` reports every problem in a spec at once, and most of them are broken
+references with no input to mark. So it answers `details.problems` — a line each,
+which the Builder lists — and `details.fields` for the subset that names one.
+
+A capability's configuration is the one part of a spec rendered as a generated form,
+so its refusals name the input: `capabilities.knowledge.config.default_top_k`, with
 `specialists.researcher.` in front of that for a capability configured inside a
-delegate, because the Builder renders one form per specialist. Keeping only the
-sentence was the other half of #882: saving a draft does not validate a config
-schema at all, so publish validation is the only place a mistyped setting is ever
-refused.
+delegate, because the Builder renders one form per specialist.
+
+Keeping only the sentence was the other half of #882. Saving a draft does not
+validate a config schema at all, so publish validation is the only place a mistyped
+setting is ever refused.
 
 **Two kinds of refusal deliberately name no field**, and the line between them
 and the rest is what stops the one shape from meaning two things again:
@@ -496,7 +532,7 @@ and the rest is what stops the one shape from meaning two things again:
   claimed by `submitFailure`'s `identifiedBy` on the client, so a 409 carries the
   taken value and no field.
 
-## Key Files
+## Key files
 
 - Entry point: `app/main.py`
 - Configuration: `app/core/config.py`
@@ -505,9 +541,9 @@ and the rest is what stops the one shape from meaning two things again:
 - Exception handlers: `app/api/exception_handlers.py`
 - Field-level refusals: `app/core/field_errors.py`
 
-## Authentication & Authorization
+## Authentication & authorization
 
-### Authentication Methods
+### Authentication methods
 
 The project supports two authentication methods, both always available:
 
@@ -628,7 +664,7 @@ return await service.usage(ctx, scope=scope, ...)
 `users.role` column, which went with the squash into `0001_baseline`. They were a third answer to a question
 that already had two.
 
-### IDOR Protection
+### IDOR protection
 
 Two predicates, and they are not interchangeable. **The organization is what
 bounds a read; the user is what narrows it further.**
@@ -734,7 +770,7 @@ The whole route is `CurrentAppAdmin`: every field on it is about somebody else.
 
 For full endpoint-level permissions, see `docs/permissions.md`.
 
-## File Processing in Chat
+## File processing in chat
 
 When a user uploads a file in the chat interface, the following pipeline executes:
 
@@ -748,7 +784,7 @@ Upload (POST /files/upload)
   -> Link (attach to message when sent)
 ```
 
-### Supported File Types
+### Supported file types
 
 | Category | Extensions | Processing |
 |----------|-----------|------------|
@@ -757,7 +793,7 @@ Upload (POST /files/upload)
 | Documents | .docx | Text extracted via python-docx |
 | Text | .txt, .md | UTF-8 decoded directly |
 
-### Parser Selection
+### Parser selection
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
 belongs to no collection, so there is no stored configuration to read a parser
 choice from. Parser selection applies to knowledge collections, where it is a
@@ -769,7 +805,7 @@ Files are saved to `media/{user_id}/` via `FileStorageService`. The `ChatFile`
 model stores the `storage_path`, `filename`, `mime_type`, `size`, `file_type`,
 and `parsed_content` (extracted text). Only the file owner can access their files.
 
-### Size Limits
+### Size limits
 
 There are two, because there are two surfaces. `MAX_UPLOAD_SIZE_MB` (default
 50MB) is the knowledge-base document cap; `CHAT_MAX_UPLOAD_SIZE_MB` (default
@@ -778,9 +814,9 @@ one, because a document is chunked and read back through retrieval while an
 attachment to an agent with no workspace is pasted whole into the prompt — the
 same size fails differently on each. `GET /api/v1/health` publishes both.
 
-## RAG System
+## RAG system
 
-### Architecture Overview
+### Architecture overview
 
 The RAG (Retrieval Augmented Generation) system provides a knowledge base that
 the AI agent can search during conversations. It is composed of:
@@ -791,7 +827,7 @@ Documents -> Parse -> Chunk -> Embed -> Vector Store
 User Query -> Embed -> Search -> Rerank? -> Results -> Agent Prompt
 ```
 
-### Key Principle: RAG is Global
+### Key principle: RAG is global
 
 **Collections are shared across ALL users.** There is no per-user document
 isolation. This means:
@@ -812,7 +848,7 @@ isolation. This means:
 | `BaseVectorStore` | `rag/vectorstore.py` | Abstract interface for vector database operations |
 | `PgVectorStore` | `rag/vectorstore.py` | pgvector (PostgreSQL) implementation |
 
-### Ingestion Pipeline
+### Ingestion pipeline
 
 Documents can be ingested via:
 
@@ -828,7 +864,7 @@ Each ingested document gets:
 - Stored in the vector database
 - Tracked in SQL via `RAGDocument` model with status (`processing`, `done`, `error`)
 
-### Sync Modes
+### Sync modes
 
 | Mode | Behavior |
 |------|----------|
@@ -836,7 +872,7 @@ Each ingested document gets:
 | `new_only` | Add new files, re-ingest files whose content hash changed, skip unchanged |
 | `update_only` | Only re-ingest changed files, skip new files entirely |
 
-### Sync Connectors
+### Sync connectors
 
 Remote document sources use pluggable connectors in
 `app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`
@@ -845,3 +881,15 @@ secret that authenticates it, and declares a `CONFIG_SCHEMA` of
 `ConnectorConfigField`s saying how to find the documents. `download_file()` is
 concrete and decides where a file may land. See `docs/patterns.md` for how to
 add one, and `docs/howto/add-sync-connector.md` for a worked example.
+
+## Recap
+
+- **Routes → services → repositories.** A route never imports a repository.
+- A repository uses `db.flush()` and `db.refresh()`, **never** `db.commit()`. The
+  request's session commits once, before the response is written.
+- The agent run path is the one sanctioned exception: it commits before the model
+  call and again in the terminal `finally`.
+- Background work that reads a row this request wrote is handed over with
+  **`spawn_after_commit`**, never `spawn`.
+- A thin domain is a module; a thick one is a subpackage with a facade, and nothing
+  outside it imports its sub-modules.

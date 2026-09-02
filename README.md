@@ -1,246 +1,507 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg">
-  <img src=".github/assets/hero-light.svg" alt="AgenticOS — the operating system for your company's AI agents" width="900">
-</picture>
+<img src="docs/assets/mark.svg" alt="" width="76" height="76">
 
-**The operating system for your company's AI agents.**
-Self-hosted, open source, and yours.
+<h1>AgenticOS</h1>
 
-[![CI](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue)](https://github.com/vstorm-co/agenticos/releases)
-[![Coverage](https://img.shields.io/badge/platform%20layer-100%25-brightgreen)](docs/testing.md)
-[![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](docs/index.md)
-[![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&color=e3b341)](https://github.com/vstorm-co/agenticos/stargazers)
+<p>
+  <b>One place to build, run and govern your company's AI agents.</b><br>
+  Self-hosted and open source — on your Postgres, in your Docker, under your
+  domain.<br>
+  <sub>The OS in the name is a claim we make good on: <a href="#the-best-agentic-os-you-can-run-yourself">seven functions, seven mechanisms</a>.</sub>
+</p>
 
-[![Python](https://img.shields.io/badge/python-3.12-3776ab?logo=python&logoColor=white)](backend/pyproject.toml)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Pydantic%20v2-009688?logo=fastapi&logoColor=white)](backend/pyproject.toml)
-[![Pydantic AI](https://img.shields.io/badge/runtime-Pydantic%20AI-e520a0)](https://ai.pydantic.dev)
-[![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)](frontend/package.json)
-[![Postgres](https://img.shields.io/badge/Postgres-pgvector-4169e1?logo=postgresql&logoColor=white)](docker-compose.yml)
-[![Conventional Commits](https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white)](docs/branching.md)
+<p>
+  <a href="#-quick-start">Quick start</a> &middot;
+  <a href="#what-it-looks-like">Screens</a> &middot;
+  <a href="https://vstorm-co.github.io/agenticos/presentation/">Presentation</a> &middot;
+  <a href="docs/index.md">Docs</a> &middot;
+  <a href="#the-best-agentic-os-you-can-run-yourself">Why an OS</a> &middot;
+  <a href="#compared-with-the-alternatives">Comparison</a>
+</p>
 
-[Documentation](docs/index.md) ·
-[Install](docs/install.md) ·
-[Your first agent](docs/first-agent.md) ·
-[Concepts](docs/concepts.md) ·
-[Integrations](docs/mcp.md) ·
-[Changelog](CHANGELOG.md) ·
-[Roadmap](docs/ROADMAP.md)
+<p>
+  <a href="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml"><img src="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Release"></a>
+  <a href="docs/testing.md"><img src="https://img.shields.io/badge/platform%20layer-100%25-brightgreen" alt="Coverage"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Licence"></a>
+  <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
+  <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
+</p>
 
 </div>
 
 ---
 
-**An agent here is data, not code.** Instructions, a model, a set of
-capabilities, a budget. You build it in a UI, publish a version, and it runs the
-same way everywhere: web chat, HTTP API, Slack, Telegram. Budgets, approvals and
-audit apply identically to all of them, because every surface goes through one
-runner.
+A company ends up with agents in five places and cannot answer four questions:
+**what do we run, what did it cost, what did it touch, and who said it could.**
+AgenticOS is one place to build them and one set of books for all of them.
 
-```yaml
-# What an agent actually is - exportable, reviewable, committable to your repo.
-name: Support Copilot
-instructions: |
-  Answer from the product wiki and cite the document you used.
-  If the wiki does not cover it, say so rather than guessing.
-model_profile_id: 8f1c...
-capabilities:
-  - id: knowledge
-    config: { default_top_k: 8 }
-  - id: web_research
-    approval: required
-collection_ids: [b2a9...]
-budget:
-  monthly_usd: 50
+**The harness, as a product**: skills, context files — `AGENTS.md` as a page —
+MCP at registry scale, automations on a schedule or a trigger, and a budget that
+stops a run *before* the model call.
+
+Below: a spreadsheet dropped into the chat, one sentence asking for charts. The
+agent writes the code, runs it in a locked box, and answers.
+
+<div align="center">
+
+<video src="https://github.com/user-attachments/assets/9a8e0f44-781c-4f93-990d-b5b7094cc8fc" controls muted loop playsinline width="100%">
+  <img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
+</video>
+
+</div>
+
+<div align="center">
+<sub>
+Not a reader? <a href="https://vstorm-co.github.io/agenticos/presentation/"><b>The whole thing in twenty slides</b></a> — what the problem is, what a spec holds, where it answers, and what it refuses.
+</sub>
+</div>
+
+## ⚡ Quick start
+
+One command. It checks what your machine is missing and tells you how to get it,
+asks four questions, and hands back a console with a working agent in it. Nothing
+leaves your machine.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-## What it looks like
+<details>
+<summary><b>macOS</b></summary>
 
-Somebody who knows what the agent should say edits this, publishes a version, and
-every surface serves that version.
+Docker Desktop or [OrbStack](https://orbstack.dev), then:
 
-<img src=".github/assets/builder.png" alt="The agent builder: instructions, model, capabilities and limits, with a published version pinned" width="100%">
+```bash
+xcode-select --install
+```
 
-Published agents, each with the version that is live and who may reach it.
+</details>
 
-<img src=".github/assets/agents.png" alt="The agent catalog, four published agents with their slugs and visibility" width="100%">
+<details>
+<summary><b>Linux</b></summary>
 
-The same runner answers in the dashboard's chat, and in Slack, and behind an API
-key — with the same budget, the same approval gate and the same audit trail.
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo apt install make git python3 docker-compose-plugin
+```
 
-<img src=".github/assets/chat.png" alt="Web chat: the agent picker, the composer, and the prompt cards a new conversation opens with" width="100%">
+</details>
 
-## Get to a running agent
+<details>
+<summary><b>Windows</b></summary>
 
-Four commands, about five minutes. Needs Docker, GNU Make, [uv](https://astral.sh/uv)
-and [bun](https://bun.sh); on Windows, WSL2. There is no `.env` to write first -
-every compose variable has a default, and the one secret that cannot have one
-(`SANDBOXD_TOKEN`) is generated into `backend/.env` for you.
+Through WSL2. In an administrator PowerShell:
+
+```powershell
+wsl --install
+```
+
+Then Docker Desktop with WSL2 integration on, and run the installer inside the
+Ubuntu shell it gives you.
+
+</details>
+
+### What it asks
+
+| | |
+|---|---|
+| **Which model** | OpenAI, Anthropic, Google, OpenRouter — or *decide later*, which creates everything and lets you paste a key in the console |
+| **Your key** | Typed hidden, stored encrypted in your own database, never printed back |
+| **Your login and organization name** | Defaults are fine for a look around |
+| **Two switches** | Start the web console; mirror the public MCP registry so all 5,802 tool servers are searchable by name |
+
+Add `--check` to only find out what is missing, `--dry-run` to see every command
+it would run without running one, or drive it unattended:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash -s -- \
+  --yes --provider anthropic --api-key sk-ant-... --org "Acme"
+```
+
+### Or type the four commands yourself
+
+The installer is a wrapper around these, and there is no step it takes that you
+cannot take by hand:
 
 ```bash
 git clone https://github.com/vstorm-co/agenticos && cd agenticos
 make dev                                          # postgres (pgvector), redis, api, prefect, sandbox
-make dev-frontend                                 # the Next.js container — a separate compose file
+make dev-frontend                                 # the console — a separate compose file
 make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a key, a model, a published agent
 open http://localhost:3000                        # sign in as admin@example.com / admin123
 ```
 
-Then open **Agents → Getting Started → Test** and ask it something.
+There is no `.env` to write first: every compose variable has a default, and the
+one secret that cannot have one (`SANDBOXD_TOKEN`) is generated into
+`backend/.env` for you. If something does not come up, `make doctor` answers the
+only question that matters — can this deployment actually run an agent — and
+[docs/install.md](docs/install.md) has the rest.
 
-`make platform-bootstrap` is the step that matters, because an empty install is a
-chicken-and-egg problem: an agent needs a model, a model needs a key, a key needs
-an organization. It walks that chain once. Leave `BOOTSTRAP_API_KEY` out and
-everything is still created - the agent is saved as a draft rather than published,
-because an agent with no model cannot answer. Add a key under **Settings → AI
-providers**, then publish.
+## What you get
 
-Every command here is idempotent; re-run any of them whenever you are not sure
-they worked.
+- 🧰 **The harness, as configuration.** Retrieval over your documents, a real browser,
+  Python in a sandbox with files and a shell, charts, images, delegation —
+  switched on per agent, not wired into code.
+- 📄 **Context files.** `AGENTS.md` and `CLAUDE.md` as a page: standing
+  instructions written once, attached to every agent that needs them.
+- 🎓 **Skills.** A procedure written once in plain language, loaded when the
+  agent decides it is relevant. Edit it; live on the next answer, no release.
+- 🔌 **MCP, at registry scale.** **5,802 servers** in the catalogue, searchable
+  by name — 99 of them checked by hand with their OAuth wired. Or any URL.
+- 📚 **Documents read properly.** Pick the PDF reader per collection, or for one
+  file: PyMuPDF built in, LlamaParse where the tables carry the meaning,
+  self-hosted LiteParse OCR for scans. Plus how it is split, and OCR language.
+- ⏰ **Automations.** Schedules and event triggers — the 07:00 triage, the Monday
+  summary. Same limits and same record as anything a person asked for.
+- 📡 **One runner, eight surfaces.** Web chat, a hosted page, a widget, the HTTP
+  API, a raw WebSocket, Slack, Telegram, Mattermost. Published once.
+- 🛡️ **Governed.** Budgets that stop a run before the model request, approval on
+  anything side-effecting, an audit trail, tenant isolation in the schema.
+- 📊 **A dashboard each person arranges.** 35 cards — runs, spend, service
+  health, answer quality, sandbox capacity — each gated on what that reader may
+  see. A finance lead and an engineer keep different ones on one deployment.
+
+**Code defines, configuration composes.** A business team assembles agents in a
+browser and never opens Python; engineers extend what there is to assemble, and
+configuration can only ever reach what code registered. The ceiling is the
+registry, not a config file — and it is Apache-2.0, on your hardware.
+
+## What it looks like
+
+### Inside one agent
+
+An agent is a **spec**: instructions, a model, the capabilities it may reach,
+the knowledge bound to it, a budget, and where it answers. Nothing ships until
+**Publish**, and every publish is a version.
+
+<img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: instructions, model, and the version that is live" width="100%">
+
+<table>
+<tr>
+<td width="50%">
+
+**Toolbox** — What the agent may do, as switches — your documents, a browser, Python, charts, delegation. Each one can require a person's approval first. This is the **AI harness**, assembled in a form.
+
+<img alt="Toolbox" src="docs/assets/screens/dark/builder-toolbox.webp" width="100%">
+
+</td>
+<td width="50%">
+
+**Visual map** — The agent as a graph: what reaches it, what it reaches for. A dashed box is something nobody attached.
+
+<img alt="Visual map" src="docs/assets/screens/dark/builder-visual-map.webp" width="100%">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Limits** — A monthly cap per agent, checked *before* each model call rather than added up after — plus a step limit, for the loop that is cheap and never stops.
+
+<img alt="Limits" src="docs/assets/screens/dark/builder-limits.webp" width="100%">
+
+</td>
+<td width="50%">
+
+**History** — Every version it has had, still readable. Rolling back is a click.
+
+<img alt="History" src="docs/assets/screens/dark/builder-history.webp" width="100%">
+
+</td>
+</tr>
+</table>
+
+<sub>These four are dark only — the light half has not been captured.</sub>
+
+### The first screen
+
+**Dashboard** — 35 cards, laid out by whoever is reading: runs, spend, service
+health, answer quality, sync freshness, sandbox capacity. Each one gated on what
+that person is allowed to see, so a finance lead and an engineer keep different
+dashboards on the same deployment.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp">
+  <img alt="The dashboard: 35 arrangeable cards" src="docs/assets/screens/light/dashboard.webp" width="100%">
+</picture>
+
+### Running forty of them
+
+<table>
+<tr>
+<td width="50%">
+
+**Agents** — Every agent you run, with the version that is live and who may use it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp">
+  <img alt="Agents" src="docs/assets/screens/light/agents.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Templates** — Start from one built for your industry; you get a draft to adjust and publish.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents-templates-dialog.webp">
+  <img alt="Templates" src="docs/assets/screens/light/agents-templates-dialog.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**One answer, opened up** — Every answer recorded: the question, what it looked at, every tool call, the duration, the cost to a fraction of a cent.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-run-detail.webp">
+  <img alt="One answer, opened up" src="docs/assets/screens/light/activity-run-detail.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**How your documents are read** — Three PDF readers — PyMuPDF, LiteParse, LlamaParse — plus chunking and OCR. Per collection, overridable on the next file. A scanned price list and a contract do not want the same one.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
+  <img alt="How your documents are read" src="docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Context** — Standing facts — product names, policy, house tone — in one place instead of forty prompts.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img alt="Context" src="docs/assets/screens/light/context.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**It asks before it acts** — Anything that sends, files or refunds waits for a person, with the intended action written out. Decided exactly once.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-approvals.webp">
+  <img alt="It asks before it acts" src="docs/assets/screens/light/activity-approvals.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**What it costs** — Spend by period and by agent. The cap is checked before the model is asked, so a runaway stops mid-sentence instead of arriving as an invoice.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
+  <img alt="What it costs" src="docs/assets/screens/light/activity-spend.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Keys and credentials** — Every key, encrypted and separated per team. Replaceable, never readable again — including by whoever runs the server.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
+  <img alt="Keys and credentials" src="docs/assets/screens/light/vault.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**The tools you already pay for** — 5,802 MCP servers in the catalogue, searchable by name, 99 of them checked by hand with their OAuth wired. Or any server by URL. No connector to write.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
+  <img alt="The tools you already pay for" src="docs/assets/screens/light/mcp-servers.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Where people meet it** — Slack, Telegram, Mattermost, a website widget, your own software over the API. Published once; same limits everywhere.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/channels.webp">
+  <img alt="Where people meet it" src="docs/assets/screens/light/channels.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+</table>
+
+
+<sub>Screenshots follow your GitHub theme. <a href="docs/screens.md">All 35 screens</a>.</sub>
+
+## The best agentic OS you can run yourself
+
+That is a claim, and the only honest way to make one is to hand over the criteria
+and let you count. An operating system does seven things. Each row below is a
+mechanism you can read in the source, not a promise.
+
+| What an operating system does | What AgenticOS does |
+|---|---|
+| **Runs and isolates processes** | Runs agents, stops one at its budget, isolates tenants in the schema rather than in service code, and keeps every run with what it cost |
+| **Enforces resource limits** - quota, cgroups | Monthly budgets per agent, checked *before* each model request rather than tallied afterwards. A run that fails still records what it spent |
+| **Controls access** - users, permissions, `sudo` | A [permission catalog](docs/permissions.md) in code, roles composed from it, per-resource grants that widen and never narrow. `approval: required` is the `sudo`: a tool that acts on the outside world waits for a person |
+| **Reaches hardware through drivers** | One interface to [27 model providers](docs/models.md) and to [any MCP server by URL](docs/mcp.md). Change a model profile and every agent using it moves, without one of them being republished |
+| **Keeps a filesystem** | [Collections, skills and attached context](docs/file-processing.md) in your own Postgres, with embeddings keyed per organization |
+| **Gives many interfaces one shell** | One runner behind web chat, the HTTP API, Slack, Telegram, a widget, a hosted page and a schedule. Same budget, same approval gate, same audit trail |
+| **Writes an audit log** - syslog, auditd | Who ran what, when, what it cost and who approved it. Written even when the run failed |
+
+Apply the same seven to anything else in the category. That is the test we would
+like to be judged on, and
+[When to use something else](docs/about/comparison.md) is where we run it against
+the alternatives - including the rows where the honest answer here is "not yet".
+
+**Now apply the same seven to anything else in the category** — including the
+ones with a thousand times our stars. None of them explains why it is an
+operating system, because most of them are a workspace with the letters on the
+box. That is the whole claim: not that we have the most users, but that we are
+the only one that states the criteria and then meets them in code you can read.
+
+Where the honest answer here is still "not yet", it is a row in the comparison
+below and a line on the [roadmap](docs/ROADMAP.md).
+[When to use something else](docs/about/comparison.md) is the long version,
+including where this one loses, and
+[what makes something an operating system for agents](docs/about/index.md) is the
+criteria on their own — take them and score anybody, us included.
+
+## What an agent can do
+
+Switched on per agent, in the Builder. Each carries its own settings, its own
+permission scope and — where it acts on the outside world — its own approval gate.
 
 | | |
 |---|---|
-| Frontend | <http://localhost:3000> |
-| API · OpenAPI | <http://localhost:8000> · `/docs` |
-| Prefect | <http://localhost:4200> |
+| **Answer from your documents** | Retrieval over collections in your own Postgres, plus [skills](docs/skills.md) it loads on demand and [context files](docs/context.md) bound across agents |
+| **Go and find out** | Web search, fetch one page properly, or drive a **real browser** through a site that needs clicking |
+| **Do the work** | Run Python, keep a [sandbox](docs/sandbox.md) with files and a shell, draw charts, generate images |
+| **Handle what is too big for one answer** | Delegate to subagents, keep a task list, think longer, compact a long conversation |
+| **Stay inside the lines** | Guardrails that redact or block, per-tool output caps, and the clock |
+| **Anything else** | [Any MCP server by URL](docs/mcp.md) - 5,802 in the catalogue, 99 of them checked with their OAuth flows wired, and no connector to write |
 
-If something does not come up, `uv run agenticos cmd doctor` (from `backend/`)
-checks the database, the vault, whether there is a model an agent could actually
-run on and whether every sandbox connection answers - and says which one is
-missing. [Install](docs/install.md) has the step-by-step version of all of this,
-the prerequisites table, the host-Python workflow and a table of what each
-failure means.
+## Where it answers
 
-## Why
+Publish once. The same runner serves all of these, so an answer does not depend
+on where the question came from.
+
+| | |
+|---|---|
+| **Web chat** | In the console, with attachments and slash commands |
+| **A hosted page** | `/e/{key}` - send somebody a link, no account needed |
+| **An embeddable widget** | On your own site, with variables from the address bar |
+| **The HTTP API** | [One POST and you have an answer](docs/api.md) |
+| **A raw WebSocket** | Stream tokens into a frontend you built yourself |
+| **Slack, Telegram, Mattermost** | Where an `@mention` runs as **the person who sent it**, not as the bot |
+| **Schedules and triggers** | A clock, a webhook, or a mailbox we poll - [routines](docs/triggers.md) |
+
+## Compared with the alternatives
+
+The only one of these you can run to completion on infrastructure you already
+own, with agents a non-engineer edits and an accountant can audit.
+
+| | **AgenticOS** | Cloudflare&nbsp;OS | Glean | A&nbsp;library |
+|---|:---:|:---:|:---:|:---:|
+| Open source | ✅ Apache-2.0 | ✅ Apache-2.0 | — | ✅ |
+| **Runs on ordinary infrastructure** (Postgres, Redis, Docker) | ✅ | — | — | ✅ |
+| Runs air-gapped, no vendor account | ✅ | — | — | ✅ |
+| Local models (Ollama, LiteLLM) | ✅ | ✅ | — | ✅ |
+| Agent built and edited by a non-engineer | ✅ | ~ | ✅ | — |
+| Versioned on publish, exportable into your git | ✅ | ~ | — | — |
+| Budget that stops a run before the model call | ✅ | ~ | ~ | DIY |
+| Human approval on side-effecting tools | ✅ | ✅ | ~ | DIY |
+| Multi-tenant isolation in the schema | ✅ | ~ | ✅ | DIY |
+| Per-organization secret vault | ✅ | ✅ | ✅ | DIY |
+| **Any MCP server by URL, 5,802 in the catalogue** | ✅ | ✅ | ~ | ~ |
+| **Slack, Telegram, widget, hosted page and API from one runner** | ✅ | — | ~ | DIY |
+| ACL-aware connectors to 275+ SaaS systems | — | ~ | ✅ | — |
+| Evaluation harness | — | — | ✅ | ~ |
+| SAML / SCIM | — | ✅ | ✅ | — |
+
+<sub>✅ first-class · ~ partial or via configuration · — not available · DIY you wire it yourself.
+"A library" means LangGraph, Pydantic AI or similar. Reflects each project as of 2026-08;
+corrections welcome via PR. The last three rows are ours to fix and are on the
+<a href="https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md">roadmap</a>.</sub>
+
+## Why it exists
 
 Most agent frameworks give you a library. You write Python, you deploy it, and
 every change to an agent's behaviour is a pull request, a review and a release.
 That is the right shape for a product feature and the wrong shape for the forty
-small agents a company actually wants - because the person who knows what the
+small agents a company actually wants — because the person who knows what the
 agent should say is not the person with commit access.
 
 AgenticOS moves the agent out of the code and puts governance around it instead.
-
-| | |
-|---|---|
-| **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
-| **[Capabilities](docs/reference/capabilities.md)** | Knowledge search, web research, charts, sandboxed Python, reasoning effort - switched on per agent, never edited as code in a browser |
-| **[Integrations](docs/mcp.md)** | Any MCP server by URL, with 58 in the picker - GitHub, Linear, Notion, Slack, Stripe, Postgres, Sentry. No connector to write |
-| **[Models](docs/models.md)** | 27 providers, a key per organization, fallback on outage, or self-hosted Ollama and LiteLLM |
-| **Knowledge** | Collections with RAG over documents, Google Drive and S3 |
-| **[Skills](docs/skills.md)** | Written know-how the agent loads only when it decides it is relevant |
-| **[Governance](docs/governance.md)** | Monthly budgets that stop a run, human approval for anything side-effecting, an audit trail, per-agent alerts |
-| **[Surfaces](docs/channels.md)** | Web chat, HTTP API, Slack, Telegram, Mattermost, embeddable widgets - one runner behind all of them |
-| **[Access](docs/permissions.md)** | Permission catalog in code, roles composed from it, per-resource sharing |
-| **Multi-tenant** | Organization isolation enforced by database constraints, not only by service code |
-
 [Secrets](docs/secrets.md) are sealed per organization: a key copied from one
 tenant's database row cannot be decrypted for another, and no API response ever
 returns one.
 
-## Stack
-
-| Component | Technology |
-|---|---|
-| Backend | FastAPI + Pydantic v2 |
-| Database | PostgreSQL (async via asyncpg) + pgvector |
-| Agent runtime | [Pydantic AI](https://ai.pydantic.dev) |
-| Tool protocol | [MCP](https://modelcontextprotocol.io) over streamable HTTP and SSE |
-| Auth | JWT + refresh tokens, API keys, Google OAuth, magic links |
-| Cache | Redis |
-| Background work | Prefect |
-| Frontend | Next.js 15 + React 19 + Tailwind v4 |
-
-Nothing phones home. Model prices come from a bundled
-[`genai-prices`](https://github.com/pydantic/genai-prices) snapshot, and the only
-outbound calls are the ones your agents make.
-
-## Documentation
-
-The docs are built with MkDocs and live in [`docs/`](docs/).
-
-```bash
-make docs         # serve on http://localhost:8001, live reload
-make docs-build   # build with --strict, which is what CI runs
-```
+## Docs
 
 | | |
 |---|---|
-| [Concepts](docs/concepts.md) | Spec, version, exposure, trigger, run - the five nouns everything is built from |
-| [Permissions](docs/permissions.md) | The three layers, scopes, and how a grant widens access without promoting anybody |
-| [Governance](docs/governance.md) | Budgets, approvals, alerts, audit |
-| [Capabilities](docs/reference/capabilities.md) | Every capability that ships, its tools, config and scope |
-| [MCP](docs/mcp.md) | Connections, the server catalog, OAuth, what is *not* gated |
-| [Models](docs/models.md) | Providers, model profiles, fallbacks, how a run is costed |
-| [Secrets](docs/secrets.md) | The vault, secret kinds, and what never leaves it |
-| [Skills](docs/skills.md) | The format, the bundled library, skills versus knowledge |
-| [Channels](docs/channels.md) | Slack, Telegram, Mattermost, the widget, the raw WebSocket |
-| [The agent spec](docs/reference/spec.md) | Field by field, generated from the source |
-| [Configuration](docs/configuration.md) | Every setting, and the production checklist |
-| [Architecture](docs/architecture.md) | Routes → services → repositories, and why |
+| [Install](docs/install.md) · [Your first agent](docs/first-agent.md) | From nothing to an agent that answers |
+| [Concepts](docs/concepts.md) | Spec, version, exposure, trigger, run — the five nouns |
+| [Permissions](docs/permissions.md) · [Governance](docs/governance.md) | Who may do what; budgets, approvals, audit |
+| [Capabilities](docs/reference/capabilities.md) · [MCP](docs/mcp.md) | What an agent can do, and how to add a tool |
+| [Models](docs/models.md) · [Secrets](docs/secrets.md) | Providers, profiles, cost; the vault |
+| [Knowledge](docs/file-processing.md) · [Skills](docs/skills.md) | Parsers, chunking, OCR; written know-how |
+| [Channels](docs/channels.md) · [API](docs/api.md) | Slack, Telegram, widget, WebSocket, HTTP |
+| [Architecture](docs/architecture.md) · [Testing](docs/testing.md) | How it is built, and how it is verified |
 
-## Development
-
-```bash
-make check          # every CI job except e2e — about five minutes
-make test           # backend + the 100% coverage gate on the platform layer
-make test-fast      # no coverage, for the write-run-write loop
-make test-frontend  # vitest, no coverage — the loop, not the gate
-make test-frontend-cov  # vitest + the gate CI applies
-make lint           # ruff, ty, eslint, prettier, tsc, and the two guard scripts
-make test-e2e       # playwright, against a running stack
-make test-migrations  # apply and roll back the whole chain
-make format         # ruff + prettier
-make help           # everything else
-```
-
-`make check` is `lint test test-frontend-cov build-frontend docs-build audit` —
-every job in [`ci.yml`](.github/workflows/ci.yml) except `e2e`, which needs a
-seeded backend, and the image scan, which runs only on a push to `main`. The
-workflow calls those same targets rather than repeating their commands, and
-`backend/tests/test_ci_parity.py` fails if the two drift.
-
-The **platform layer** - everything AgenticOS adds on top of the generated
-template - is held at 100% coverage and CI fails below it. The exact list is
-`[tool.coverage.run] include` in `backend/pyproject.toml`, mirrored in
-`[[tool.ty.overrides]]` because a module held to 100% coverage is held to the type
-checker too. Template-inherited subsystems are reported by `make coverage-all` but
-do not gate the build; see [Testing](docs/testing.md) for why, and for what belongs
-in each test layer.
-
-> [!IMPORTANT]
-> The database must be `pgvector/pgvector:pg16`, not stock Postgres. The
-> retrieval store issues `CREATE EXTENSION IF NOT EXISTS vector` the first time a
-> collection is written to, and stock Postgres answers
-> `extension "vector" is not available` - a 500 before any row is committed. If
-> document ingestion fails on a fresh environment, check the image first.
+Built with MkDocs: `make docs` serves them on :8001. Stack, in one line: FastAPI
++ Pydantic v2, PostgreSQL with pgvector, Redis, Prefect,
+[Pydantic AI](https://ai.pydantic.dev), Next.js 15. Nothing phones home — the
+only outbound calls are the ones your agents make.
 
 ## Contributing
 
-Read [Architecture](docs/architecture.md) and [Patterns](docs/patterns.md)
-first - the layering is enforced by tests, not by convention. Then
-[Adding a feature](docs/adding_features.md).
+`make check` before a pull request: every CI job except e2e, about five minutes.
+New behaviour ships with a test; a bug ships with a regression test. The
+**platform layer is held at 100% coverage** and CI fails below it.
 
-New behaviour ships with tests; a bug ships with a regression test. Run
-`make check` before opening a pull request - it is every CI job except the two
-named above, and a test keeps that true.
+Three things that trip up a first change: a tool is code and an agent is not
+(there is no `@agent.tool` — a capability registers, and then it is a switch in
+everybody's Builder); `require(...)` gates go on collection routes only; and if
+the tool already exists as an MCP server, write none.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the rest, [`.claude/`](.claude/README.md)
+has the same conventions written for a machine, and good first issues are
+[labelled here](https://github.com/vstorm-co/agenticos/labels/good%20first%20issue).
 
-Three things that trip up a first change here:
+<details>
+<summary><b>The rest of the Vstorm OSS ecosystem</b></summary>
 
-- **An agent is data.** There is no `@agent.tool` and no agent module to decorate;
-  a new tool reaches a model through the capability registry. See
-  [Add a capability](docs/howto/add-capability.md).
-- **`require(...)` gates go on collection routes only.** A permission gate on a
-  per-resource route cannot see that row's grants, so it refuses a Viewer who was
-  explicitly given access. Per-resource routes hand the decision to a service that
-  calls `resolve_access`. See [Permissions](docs/permissions.md).
-- **If the tool you need already exists as an MCP server, write no code.** Point at
-  it and its tools appear in the Builder. See [MCP](docs/mcp.md).
+Everything below runs on [Pydantic AI](https://ai.pydantic.dev).
 
-If you work on this with an AI agent, [`.claude/`](.claude/README.md) holds the
-repository's own rules and task skills - the same conventions, written for a machine.
+| Project | What it is | |
+|---|---|---|
+| **[full-stack-ai-agent-template](https://github.com/vstorm-co/full-stack-ai-agent-template)** | The generator AgenticOS was built from — FastAPI + Next.js 15, RAG, streaming, auth, 20+ integrations | [![Stars](https://img.shields.io/github/stars/vstorm-co/full-stack-ai-agent-template?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/full-stack-ai-agent-template) |
+| **[pydantic-deepagents](https://github.com/vstorm-co/pydantic-deepagents)** | Open-source, self-hosted Claude Code — a terminal assistant and the framework behind it | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-deepagents?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-deepagents) |
+| **[pydantic-ai-shields](https://github.com/vstorm-co/pydantic-ai-shields)** | Guardrails — cost tracking, prompt-injection detection, PII filtering, secret redaction | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-shields?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-shields) |
+| **[subagents-pydantic-ai](https://github.com/vstorm-co/subagents-pydantic-ai)** | Nested subagent delegation, parallel execution, task cancellation | [![Stars](https://img.shields.io/github/stars/vstorm-co/subagents-pydantic-ai?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/subagents-pydantic-ai) |
+| **[pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend)** | File storage and Docker-isolated sandboxes, with a permission system | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-backend?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-backend) |
+| **[pydantic-ai-todo](https://github.com/vstorm-co/pydantic-ai-todo)** | Hierarchical task planning with PostgreSQL storage and an event system | [![Stars](https://img.shields.io/github/stars/vstorm-co/pydantic-ai-todo?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/pydantic-ai-todo) |
+| **[production-stack-skills](https://github.com/vstorm-co/production-stack-skills)** | Skill pack that turns a coding agent into a senior production engineer | [![Stars](https://img.shields.io/github/stars/vstorm-co/production-stack-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/production-stack-skills) |
+| **[content-skills](https://github.com/vstorm-co/content-skills)** | Content studio skill pack for coding agents — brand-aware, with built-in anti-slop | [![Stars](https://img.shields.io/github/stars/vstorm-co/content-skills?style=flat&logo=github&color=e3b341)](https://github.com/vstorm-co/content-skills) |
+
+Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
+
+Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
+
+</details>
 
 ## Licence
 
@@ -250,10 +511,26 @@ Apache-2.0 rather than MIT because AgenticOS is meant to be deployed inside othe
 companies: the explicit patent grant is the part their legal review asks about,
 and MIT is silent on it.
 
-## Stars
-
-[![Star history](https://api.star-history.com/svg?repos=vstorm-co/agenticos&type=Date)](https://star-history.com/#vstorm-co/agenticos&Date)
-
 ---
 
-*Built from the [Full-Stack AI Agent Template](https://github.com/vstorm-co/full-stack-ai-agent-template).*
+<div align="center">
+
+### Need help putting agents into production?
+
+<p>
+We are <a href="https://vstorm.co"><b>Vstorm</b></a> — an applied agentic AI engineering
+consultancy with 30+ production agent implementations.<br>
+AgenticOS is what we build them on, and we deploy it inside client
+infrastructure: your cloud, your data centre, or air-gapped.
+</p>
+
+<a href="https://vstorm.co/contact-us/">
+  <img src="https://img.shields.io/badge/Talk%20to%20us%20%E2%86%92-0066FF?style=for-the-badge&logoColor=white" alt="Talk to us">
+</a>
+
+<br><br>
+
+Built with care by <a href="https://vstorm.co"><b>Vstorm</b></a> ·
+<a href="https://oss.vstorm.co">oss.vstorm.co</a>
+
+</div>

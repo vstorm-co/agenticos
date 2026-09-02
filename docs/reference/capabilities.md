@@ -183,30 +183,37 @@ scope.
   of the two is ever offered, so a run cannot pick between them per call.
 
 The fetch itself is Pydantic AI's `web_fetch_tool` over its SSRF-guarded
-`safe_download`, and that is the reason this is not code of ours. The URL comes
-from the **model** and is dereferenced from inside the container, so validating it
-up front — the way `app.core.sanitize.validate_webhook_url` does for a callback
-somebody handed us — is not sufficient on its own: `httpx` resolves the hostname a
-second time and follows redirects without asking again, so a name that answered
-publicly a moment ago can answer `169.254.169.254` now, and a public URL can
-redirect to one. `safe_download` pins the address it resolved into the request and
-re-validates every hop, the domain filters included. It also bounds the body as it
-streams and refuses the compression encodings that cannot be bounded that way.
+`safe_download`, and that is the reason this is not code of ours.
+
+The URL comes from the **model** and is dereferenced from inside the container, so
+validating it up front — the way `app.core.sanitize.validate_webhook_url` does for a
+callback somebody handed us — is not sufficient on its own. `httpx` resolves the
+hostname a second time and follows redirects without asking again, so a name that
+answered publicly a moment ago can answer `169.254.169.254` now, and a public URL
+can redirect to one.
+
+`safe_download` pins the address it resolved into the request and re-validates every
+hop, the domain filters included. It also bounds the body as it streams, and refuses
+the compression encodings that cannot be bounded that way.
 
 Private, loopback, link-local and cloud-metadata addresses are refused, and the
 refusal reaches the model as a retryable error rather than as an empty page — a
 refusal shaped like a result is one the model answers around without saying it had
 to. The library can be told to permit local addresses; nothing here exposes that.
 
-The domain filters are **not** the security boundary — `safe_download` is. They
-match the hostname exactly, with no wildcards and no implicit subdomains, so they
-answer "which sites may this agent read" and not "can this agent reach our
-network". An entry that could never match is refused at publish: a wildcard, a
-scheme, a path, a port, or an empty **allowlist**, each of which would otherwise
-leave a denylist quietly not denying or an allowlist quietly denying everything.
-An empty *denylist* denies nothing, which is what leaving it unset already means,
-so it is read as unset rather than refused — an imported spec that spells "no
-denied hosts" as `[]` is saying something true.
+!!! warning "The domain filters are not the security boundary — `safe_download` is"
+
+    They match the hostname exactly, with no wildcards and no implicit subdomains,
+    so they answer *which sites may this agent read* and not *can this agent reach
+    our network*.
+
+An entry that could never match is refused at publish: a wildcard, a scheme, a path,
+a port, or an empty **allowlist**. Each would otherwise leave a denylist quietly not
+denying, or an allowlist quietly denying everything.
+
+An empty *denylist* denies nothing, which is what leaving it unset already means, so
+it is read as unset rather than refused — an imported spec that spells "no denied
+hosts" as `[]` is saying something true.
 
 An entry that *can* match is stored in the single spelling DNS would be asked for:
 lower case, no trailing root label, IDNA-encoded. A name has more than one
@@ -216,17 +223,23 @@ spelling, and an exact match against one of them is a filter with a hole in it �
 identically. Every equivalent spelling is handed to the filter at build time; the
 spec stores one.
 
-Approval and `native` do not combine. The [approval](../governance.md) gate wraps
-*tool execution*, which is the only place a call can be held, so a fetch the model
-provider runs on its own side never reaches it. A binding that requires approval
-for `web_fetch` and sets `method` to `native` — or to `auto`, where which of the
-two runs is a property of the model profile and changes without republishing — is
-refused at publish rather than given a gate that silently never fires. Set `method`
-to `local`, or drop the approval requirement; both are legitimate agents, and which
-one is wanted is not a decision to make on the author's behalf. A version published
-before that refusal existed is refused again when it is assembled, because nothing
-re-validates a frozen version — so such an agent stops running until it is edited,
-rather than going on fetching unapproved.
+!!! warning "Approval and `native` do not combine"
+
+    The [approval](../governance.md) gate wraps *tool execution*, which is the only
+    place a call can be held — so a fetch the model provider runs on its own side
+    never reaches it.
+
+A binding that requires approval for `web_fetch` and sets `method` to `native` — or
+to `auto`, where which of the two runs is a property of the model profile and
+changes without republishing — is **refused at publish**, rather than given a gate
+that silently never fires.
+
+Set `method` to `local`, or drop the approval requirement. Both are legitimate
+agents, and which one is wanted is not a decision to make on the author's behalf.
+
+A version published before that refusal existed is refused again when it is
+assembled, because nothing re-validates a frozen version. So such an agent stops
+running until it is edited, rather than going on fetching unapproved.
 
 A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what
@@ -435,15 +448,17 @@ them.*
 Renders numbers the model already has. It does not fetch, compute or aggregate —
 pair it with `code_execution` or `knowledge` for that. No configuration.
 
-The numbers arrive as columns — one `x_values` list for the axis, one `values`
-list per series — because a free-form `data` argument is not something a JSON
-Schema can describe, and a model given an array of objects with no declared
-properties sent back a single empty one. A chart with nothing in it is now
-unexpressible rather than merely refused; an axis with no points, a chart with no
-series, or a series holding fewer numbers than the axis has points all come back
-as a retry naming what is missing. A frame drawn around no data reads as "there
-is no trend" rather than as a mistake, and it is persisted and re-rendered on
-every replay of the conversation.
+The numbers arrive as **columns** — one `x_values` list for the axis, one `values`
+list per series — because a free-form `data` argument is not something a JSON Schema
+can describe, and a model given an array of objects with no declared properties sent
+back a single empty one.
+
+A chart with nothing in it is now unexpressible rather than merely refused. An axis
+with no points, a chart with no series, or a series holding fewer numbers than the
+axis has points all come back as a retry naming what is missing.
+
+A frame drawn around no data reads as "there is no trend" rather than as a mistake —
+and it is persisted, and re-rendered on every replay of the conversation.
 
 ## Image generation
 
@@ -554,18 +569,22 @@ the YAML export and the permission model can all see it.
 | `max_result_chars` | 2000 | 200–20000 |
 | `share_with_delegates` | none | capability ids this agent is itself bound to, except `subagents` |
 
-**The mode is the author's decision, not the model's.** The library's `task` tool
-takes a `mode` argument defaulting to `sync`, so "the model chose to wait" and
-"the model said nothing" are the same call — there is no way to honour both a
-setting and a choice, and the setting was reviewed. So the argument is replaced on
-the way through, and `auto` is how an author deliberately hands the decision over.
-`auto` is resolved *before* the delegation starts, because whether a panel stays
-open after the parent has answered depends on the answer. A pinned delegate or a
-specialist may override the mode for itself: one slow researcher is the case worth
-running in the background. The instructions **mark that delegate**, beside its
-name — a single sentence stating the configured mode was a promise the overriding
-delegate then broke, telling the model to expect an answer and handing it a task
-id.
+**The mode is the author's decision, not the model's.**
+
+The library's `task` tool takes a `mode` argument defaulting to `sync`, so "the
+model chose to wait" and "the model said nothing" are the same call. There is no way
+to honour both a setting and a choice, and the setting was reviewed.
+
+So the argument is replaced on the way through, and `auto` is how an author
+deliberately hands the decision over. `auto` is resolved *before* the delegation
+starts, because whether a panel stays open after the parent has answered depends on
+the answer.
+
+A pinned delegate or a specialist may override the mode for itself — one slow
+researcher is the case worth running in the background. The instructions then
+**mark that delegate**, beside its name: a single sentence stating the configured
+mode was a promise the overriding delegate then broke, telling the model to expect
+an answer and handing it a task id.
 
 **A `sync`-only agent is offered none of the six task-lifecycle tools.** Each of
 `check_task`, `wait_tasks`, `list_active_tasks`, `send_message_to_subagent` and the
@@ -576,16 +595,20 @@ either, or permission to invent specialists. `sync` is the default, so this is t
 common configuration, and six tool descriptions withheld is six the model no longer
 pays for on every turn. `task` stays — a `sync` agent still delegates.
 
-**Fan-out and nesting are ceilings, not errors.** Past `max_fanout` the next
-delegation comes back as a tool result the model can act on — wait, or do the work
-itself — because a pacing limit should not end a run. `max_depth` counts levels of
-delegation **including the configured agent's own**: 1 is this agent delegating and
-its delegates not, 2 allows one nested level. At the bound a delegate is built
-*without* the delegation capability rather than with one that can only refuse - a
-tool that always answers "no delegates available" is a description the model pays
-for on every turn and tries anyway. There is deliberately no 0: turning delegation
-off is disabling the binding, and a second spelling of the same switch is one that
-disagrees with the first.
+**Fan-out and nesting are ceilings, not errors.**
+
+Past `max_fanout` the next delegation comes back as a tool result the model can act
+on — wait, or do the work itself — because a pacing limit should not end a run.
+
+`max_depth` counts levels of delegation **including the configured agent's own**: 1
+is this agent delegating and its delegates not; 2 allows one nested level.
+
+At the bound a delegate is built *without* the delegation capability, rather than
+with one that can only refuse. A tool that always answers "no delegates available"
+is a description the model pays for on every turn and tries anyway.
+
+There is deliberately no 0. Turning delegation off is disabling the binding, and a
+second spelling of the same switch is one that disagrees with the first.
 
 **And every agent in the tree is held to its own `max_depth`, not the root's.** A
 delegate gets the *lower* of what the tree has left and what its own spec allows,
@@ -601,43 +624,59 @@ it stopped rather than delegating again, which is what makes the approval apply 
 the call the reviewer actually saw. [Governance](../governance.md) has the shape of
 the stored state and why re-running would answer differently.
 
-**A background delegation cannot stop to ask a person.** A gated tool inside one
-is refused rather than parked, and the refusal tells the model to delegate that
-work with `mode="sync"` instead. The reason is not policy but lifetime: the
-approval channel closes over the request's database session, and a background
-delegation outlives the tool call that started it, so by the time it wanted to ask,
-there is nothing left to write the question with. A background delegation that
-suspends anyway — a shape the library documents as undeliverable — is recorded
-`failed` with that same message, because the alternative is a task that reports
-"still running" for as long as the process lives: its spend attributed to nothing,
-its fan-out slot never released, and the panel a surface opened never closed.
+**A background delegation cannot stop to ask a person.**
 
-**A sync delegate may ask the parent's person, when `allow_questions` is set.** Off
-by default: a specialist works autonomously and says so if it could not. Set on, a
-delegate whose mode is sync is given the library's `ask_parent` tool, and a question
-it asks is answered by the run's own `ask_user` channel — the person already holding
-the parent's tool call — never by the model. It is the author's decision because the
-question wears a name the author published; a specialist the model *invents* never
-asks, whatever this says, because instructions a model wrote a moment ago are not the
-author's to put to a person. Only sync: a background delegation has handed back a
-task id with nobody left to answer, and `auto` may become one. Reaching a pre-built
-delegate needed an upstream change —
+A gated tool inside one is refused rather than parked, and the refusal tells the
+model to delegate that work with `mode="sync"` instead.
+
+The reason is not policy but **lifetime**. The approval channel closes over the
+request's database session, and a background delegation outlives the tool call that
+started it — so by the time it wanted to ask, there is nothing left to write the
+question with.
+
+A background delegation that suspends anyway — a shape the library documents as
+undeliverable — is recorded `failed` with that same message. The alternative is a
+task that reports "still running" for as long as the process lives: its spend
+attributed to nothing, its fan-out slot never released, and the panel a surface
+opened never closed.
+
+**A sync delegate may ask the parent's person, when `allow_questions` is set.**
+
+Off by default: a specialist works autonomously and says so if it could not.
+
+Set on, a delegate whose mode is sync is given the library's `ask_parent` tool, and
+a question it asks is answered by the run's own `ask_user` channel — the person
+already holding the parent's tool call — never by the model.
+
+It is the author's decision because the question wears a name the author published.
+A specialist the model *invents* never asks, whatever this says: instructions a
+model wrote a moment ago are not the author's to put to a person.
+
+Only sync. A background delegation has handed back a task id with nobody left to
+answer, and `auto` may become one.
+
+Reaching a pre-built delegate needed an upstream change.
 [subagents-pydantic-ai#76](https://github.com/vstorm-co/subagents-pydantic-ai/pull/76)
 honours `can_ask_questions` for a caller-supplied agent, which every delegate here
 is — landing the sync half of
 [#184](https://github.com/vstorm-co/agenticos/issues/184).
 
-**`answer_subagent` is offered to no model.** It answers a question a *background*
-delegate parked on, and no delegate here parks on one: a sync question goes to a
-person through `ask_user` and never this tool, and an async delegate is not given
-`ask_parent` at all. So the tool's only possible answer is "that delegation is not
-waiting for an answer". It stays *declared*, because a tool absent from the
-declaration cannot be gated by the approval policy or renamed by a binding and that
-half of the failure is silent; it is filtered out of the offered set, because the
-other half is a description in every turn's context describing an action that cannot
-happen, and tool descriptions are the strongest prompt in this product. The tool
-becomes reachable only when the background half of
-[#184](https://github.com/vstorm-co/agenticos/issues/184) is answered — where the
+**`answer_subagent` is offered to no model.**
+
+It answers a question a *background* delegate parked on, and no delegate here parks
+on one: a sync question goes to a person through `ask_user` and never this tool, and
+an async delegate is not given `ask_parent` at all. So the tool's only possible
+answer is "that delegation is not waiting for an answer".
+
+It stays **declared**, because a tool absent from the declaration cannot be gated by
+the approval policy or renamed by a binding, and that half of the failure is silent.
+
+It is **filtered out of the offered set**, because the other half is a description
+in every turn's context describing an action that cannot happen — and tool
+descriptions are the strongest prompt in this product.
+
+The tool becomes reachable only when the background half of
+[#184](https://github.com/vstorm-co/agenticos/issues/184) is answered: where the
 parent's own model answers while nothing obliges it to look, the delegate blocking
 on a fan-out slot the turn's end cancels.
 
@@ -677,14 +716,17 @@ that binds `sandbox` *without* being shared the parent's gets the in-memory
 workspace, because only the run opens one.
 
 **`subagents` cannot be shared**, and it is the one id "does the parent hold it"
-could never refuse — an agent that shares anything holds it by definition. Shared,
-the parent's binding lands on a delegate that binds none, and the runtime then
-reads the *parent's* specialists, `allow_dynamic`, `max_fanout`, `max_depth` and
-share list as though the delegate's author had chosen them. Publishing refuses it,
-and the runtime drops it from the share list as well, so a spec stored before that
-rule cannot widen a delegate either. Whether a delegate may delegate at all is its
-own spec's answer, and so is how deep it may go — bounded by what the tree above it
-has left.
+could never refuse — an agent that shares anything holds it by definition.
+
+Shared, the parent's binding lands on a delegate that binds none, and the runtime
+then reads the *parent's* specialists, `allow_dynamic`, `max_fanout`, `max_depth`
+and share list as though the delegate's author had chosen them.
+
+Publishing refuses it, and the runtime drops it from the share list as well, so a
+spec stored before that rule cannot widen a delegate either.
+
+Whether a delegate may delegate at all is its own spec's answer, and so is how deep
+it may go — bounded by what the tree above it has left.
 
 Sharing is also the only route to an [MCP connection](../mcp.md) for an inline
 specialist, which cannot bind one at all: a connection is organization-scoped
@@ -697,17 +739,23 @@ renamed by a binding, and the dangerous half of that is silent — so all ten ar
 declared, and a default configuration offers seven.
 
 What the switch buys is a specialist the model writes itself: instructions and a
-model, and nothing else. It is built through the same `build_agent` an inline
-specialist comes through, on the run's shared budget guard and its approval
-channel, so its requests are priced and counted against the cap somebody set. That
-is the entire reason this took a factory rather than a flag: a specialist the
-library built for itself would sit outside this deployment's model catalog, its
+model, and nothing else.
+
+It is built through the same `build_agent` an inline specialist comes through, on
+the run's shared budget guard and its approval channel, so its requests are priced
+and counted against the cap somebody set.
+
+That is the entire reason this took a **factory** rather than a flag. A specialist
+the library built for itself would sit outside this deployment's model catalog, its
 vault and its budget guard — an unmetered request, possibly to a provider the
 organization holds no key for. The factory is what routes it back through this
-platform instead. (Before `subagents-pydantic-ai` 0.2.18 the library also carried a
-default model string a modelless specialist was compiled from; 0.2.18 removed that
-fallback, so a specialist naming no model is now refused rather than built — this
-platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.)
+platform instead.
+
+!!! note "A specialist naming no model is refused"
+
+    Before `subagents-pydantic-ai` 0.2.18 the library carried a default model string
+    a modelless specialist was compiled from. 0.2.18 removed that fallback, and this
+    platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.
 
 The model may name only a model the organization has a profile for, and the refusal
 names the list. It may not attach capabilities: letting a model grant its own child
@@ -717,15 +765,19 @@ means publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS`
 bounds how many one run may keep.
 
 That a specialist is not persisted is a design, and it has an exit rather than a
-dead end: a person can **promote** one to a draft agent. Its definition rides the
-opening `SubagentStarted` frame — the one place it is legible after the model wrote
-it and before the turn ends — so the chat delegation panel can offer to keep it
-while the run is still on screen, and the Builder offers the same on an inline
-specialist. Promotion creates a draft owned by whoever promoted it, gated on
-`agents:edit`, and stops there: it does not publish, does not pin the new agent as a
-delegate, and does not remove the specialist it came from. See
-[Concepts](../concepts.md#delegate-vs-inline-specialist) for why the persistence rule
-is the reason the exit exists rather than a limitation it works around.
+dead end: a person can **promote** one to a draft agent.
+
+Its definition rides the opening `SubagentStarted` frame — the one place it is
+legible after the model wrote it and before the turn ends — so the chat delegation
+panel can offer to keep it while the run is still on screen, and the Builder offers
+the same on an inline specialist.
+
+Promotion creates a draft owned by whoever promoted it, gated on `agents:edit`, and
+stops there: it does not publish, does not pin the new agent as a delegate, and does
+not remove the specialist it came from.
+
+See [Concepts](../concepts.md#delegate-vs-inline-specialist) for why the persistence
+rule is the reason the exit exists, rather than a limitation it works around.
 
 A kept one lasts the whole run it was invented in, an approval park included: the
 registration lives in a registry the delegation library builds per *built* agent,
@@ -737,15 +789,19 @@ state — a name created in one reply is unknown in the next, and `create_agent`
 description tells the model to create it again if `task` says so.
 
 **The delegation library's own unspecialised delegate is not offered at all**, and
-there is no setting for it. Before subagents-pydantic-ai 0.2.18 it would have run on
-a model this deployment did not configure — compiled from the library's own default
-model string, outside the organization's profiles, its vault and the run's budget
-guard, exactly like the run-time specialist above before it took a factory. A
-catch-all is a legitimate thing to want; write it as an inline specialist, where you
-can read what it does and it is priced like everything else. The library's own is
-fixed as of 0.2.18 ([#174](https://github.com/vstorm-co/agenticos/issues/174)): with
-no default model or factory it now refuses to build the delegate rather than picking
-a model.
+there is no setting for it.
+
+Before subagents-pydantic-ai 0.2.18 it would have run on a model this deployment did
+not configure — compiled from the library's own default model string, outside the
+organization's profiles, its vault and the run's budget guard. Exactly like the
+run-time specialist above, before it took a factory.
+
+A catch-all is a legitimate thing to want. Write it as an inline specialist, where
+you can read what it does and it is priced like everything else.
+
+The library's own is fixed as of 0.2.18
+([#174](https://github.com/vstorm-co/agenticos/issues/174)): with no default model
+or factory, it now refuses to build the delegate rather than picking a model.
 
 What the model is told about all of this is written here rather than by the
 library: the delegates by name and description, the mode this run will actually
@@ -789,16 +845,21 @@ declares `side_effecting=False`. The three subtask tools are declared even when 
 checklist does not offer them, because a tool absent from the declaration can be
 neither gated by the approval policy nor renamed by a binding.
 
-**The plan belongs to the conversation, not to one turn of it.** The checklist is
-state, and every boundary a run has would otherwise lose it. A run that parks on an
-approval mid-plan resumes as a fresh run; and a chat message *is* a run here, so the
-next message started from an empty store — an agent wrote three steps, was asked to
-begin the first, and answered that no plan existed and it had never created one
-(agenticos#1077). So the store is the runner's, not the capability's: it is seeded
-from the conversation's stored plan, or from `paused_state` on a resume, which is the
-newer copy, and written back to the conversation when the run stops. A surface with
-no conversation — a bare API call — keeps a plan for the length of its run, which is
-all it has.
+**The plan belongs to the conversation, not to one turn of it.**
+
+The checklist is state, and every boundary a run has would otherwise lose it. A run
+that parks on an approval mid-plan resumes as a fresh run — and a chat message *is*
+a run here, so the next message started from an empty store.
+
+An agent wrote three steps, was asked to begin the first, and answered that no plan
+existed and it had never created one (agenticos#1077).
+
+So the store is the **runner's**, not the capability's. It is seeded from the
+conversation's stored plan, or from `paused_state` on a resume, which is the newer
+copy, and written back to the conversation when the run stops.
+
+A surface with no conversation — a bare API call — keeps a plan for the length of
+its run, which is all it has.
 
 **A finished checklist is history, and a new turn does not start from it.** The
 row keeps it — nothing is deleted — but a plan whose every step is `completed` or
@@ -880,15 +941,19 @@ the real conversation) stays byte-identical turn over turn while only the small
 reminder falls outside the cache. Injecting into the system prompt instead would
 bust the cached prefix on every fire *and* accumulate stale reminders.
 
-**An LLM reminder is metered and inherits the run's model.** It writes its text
-through an agent it builds itself, which no budget guard wraps, so its spend is
-booked against the run's ledger the way a summary is, and it runs under the run's
-usage limits minus one reserved request so it can never push the run past its own
-step limit. It uses the run's own model — the one whose credential the vault
-resolved — rather than a name from config, the same decision
-[Context management](#context-management) makes about its summariser. On any error,
-or when the reserved budget is already spent, it falls back to the goal-reanchor
-line, so a failed generation never blocks the run.
+**An LLM reminder is metered and inherits the run's model.**
+
+It writes its text through an agent it builds itself, which no budget guard wraps —
+so its spend is booked against the run's ledger the way a summary is, and it runs
+under the run's usage limits minus one reserved request, so it can never push the
+run past its own step limit.
+
+It uses the run's own model — the one whose credential the vault resolved — rather
+than a name from config, the same decision
+[Context management](#context-management) makes about its summariser.
+
+On any error, or when the reserved budget is already spent, it falls back to the
+goal-reanchor line. A failed generation never blocks the run.
 
 ## Date and time
 
@@ -1019,25 +1084,34 @@ from_end, pattern)` — the same page-through pattern `read_file` gives it over 
 workspace. `truncate` is the cheap, lossy clamp with a marker saying what was cut;
 `summarize` replaces the return with an LLM summary and is the expensive one.
 
-**A spill goes to the agent's own backend.** An agent that binds `sandbox` already
-has a filesystem — `state`, a Docker container, Daytona — that the runner opened for
-the run and keyed to the organization; the spill lives there, under a
-`tool_output/` prefix, so it shares that workspace's lifetime and the agent can even
-reach it through its own `read_file` and `grep`. On the default `run` session scope
-that lifetime *is* the run, which is what the "must not outlive the run" requirement
-asks for. A spill is a within-run artefact and never outlives the run on a
-longer-scoped workspace (`conversation`, `user`, `agent`) either: a `state`
-workspace has the reserved prefix stripped at flush, so accumulated spills can no
-longer push it toward its byte cap and refuse the agent's own writes, and a
-*container* workspace has the run's spills deleted off its filesystem when the
-workspace closes — by the exact handles the run recorded, never by sweeping the
-prefix, so two concurrent runs sharing a workspace cannot take each other's spills
-mid-flight ([#803](https://github.com/vstorm-co/agenticos/issues/803)). An agent with
-no backend gets an in-memory one built for the run and discarded with it, so the
-spill is never written to shared disk. A spill the backend refuses — a `state`
-workspace already at its byte cap — falls back to a truncation rather than a silent
-drop; so does a `summarize` whose model call fails (`summarize` → `spill` →
-`truncate`).
+**A spill goes to the agent's own backend.**
+
+An agent that binds `sandbox` already has a filesystem — `state`, a Docker
+container, Daytona — that the runner opened for the run and keyed to the
+organization. The spill lives there, under a `tool_output/` prefix, so it shares
+that workspace's lifetime and the agent can even reach it through its own
+`read_file` and `grep`.
+
+On the default `run` session scope that lifetime *is* the run, which is what the
+"must not outlive the run" requirement asks for.
+
+A spill is a within-run artefact and never outlives the run on a longer-scoped
+workspace (`conversation`, `user`, `agent`) either:
+
+- a `state` workspace has the reserved prefix stripped at flush, so accumulated
+  spills can no longer push it toward its byte cap and refuse the agent's own
+  writes;
+- a *container* workspace has the run's spills deleted off its filesystem when the
+  workspace closes — by the exact handles the run recorded, never by sweeping the
+  prefix, so two concurrent runs sharing a workspace cannot take each other's spills
+  mid-flight ([#803](https://github.com/vstorm-co/agenticos/issues/803)).
+
+An agent with no backend gets an in-memory one built for the run and discarded with
+it, so the spill is never written to shared disk.
+
+A spill the backend refuses — a `state` workspace already at its byte cap — falls
+back to a truncation rather than a silent drop. So does a `summarize` whose model
+call fails: `summarize` → `spill` → `truncate`.
 
 **A summary is billed to the run.** Like `compaction`'s, the summarising call runs
 through an `Agent` the harness builds itself, outside the budget guard, so its
@@ -1220,7 +1294,7 @@ the agent is assembled:
 !!! note "All seven are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
-    Per-organization scope management is [roadmap](../ROADMAP.md) work; the check
+    Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check
     is live and honest in the meantime rather than disabled and forgotten.
 
 !!! warning "`agents:delegate` is not the gate on *who* may be delegated to"
@@ -1251,16 +1325,21 @@ four things, and the fourth is the one usually left out:
    `output_mode`, or that `glob` stops at 100 paths, reasons from a slice as
    though it were everything.
 
-All four reach the model in one shape, and it is pydantic-ai's own: the prose
-inside `<summary>`, the return description inside `<returns>`. A tool written
-here gets that for free — the framework builds it from the docstring's
-`Returns:` section. A tool that comes from a library is registered with an
-explicit description, which takes that path away, so its text goes through
-`ToolText` in `app/agents/capabilities/_tool_text.py`, which renders what the
-framework would have. Two conventions in one tool list is one more thing for the
-model to reconcile, and `tests/test_tool_text_shape.py` is what keeps there
-being one — it pins `ToolText` against a tool pydantic-ai builds itself, and
-checks that every capability's tools carry a return shape.
+All four reach the model in one shape, and it is pydantic-ai's own: the prose inside
+`<summary>`, the return description inside `<returns>`.
+
+A tool written here gets that for free — the framework builds it from the
+docstring's `Returns:` section.
+
+A tool that comes from a library is registered with an explicit description, which
+takes that path away. So its text goes through `ToolText` in
+`app/agents/capabilities/_tool_text.py`, which renders what the framework would
+have.
+
+Two conventions in one tool list is one more thing for the model to reconcile, and
+`tests/test_tool_text_shape.py` is what keeps there being one: it pins `ToolText`
+against a tool pydantic-ai builds itself, and checks that every capability's tools
+carry a return shape.
 
 That covers the tools this deployment did not write, either: `planning` and the
 delegation tools are handed this repository's text, `web_fetch` and

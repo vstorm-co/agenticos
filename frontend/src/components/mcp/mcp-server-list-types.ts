@@ -34,6 +34,14 @@ export interface DraftState {
   row: McpServerRow;
   /** The connection being edited, or null when connecting for the first time. */
   existing: McpConnectionRecord | null;
+  /**
+   * What to seed the name with, where the entry's own key is taken.
+   *
+   * Connecting a *second* account for one server would otherwise open on the
+   * name the first one already holds, and names are unique per organization -
+   * so the form's first submit was a guaranteed conflict.
+   */
+  suggestedName?: string;
 }
 
 /**
@@ -44,6 +52,8 @@ export interface DraftState {
  * and drilling a setter each into the dialog.
  */
 export interface ConnectionFormValues {
+  /** What a person reads. Empty means the connection shows its slug instead. */
+  label: string;
   name: string;
   url: string;
   token: string;
@@ -58,4 +68,14 @@ export interface ToolPickerState {
   connection: McpConnectionRecord;
   tools: McpToolInfo[];
   checked: Set<string>;
+  /**
+   * Whose narrowing this is, which is the whole of what the dialog says about
+   * itself.
+   *
+   * `"connection"` is the servers page: one administrator's decision for
+   * everybody bound to it. `"agent"` is the Builder: this agent only, within
+   * that ceiling. Saying the wrong one is worse than saying nothing, because
+   * both screens look identical (#1341).
+   */
+  appliesTo: "connection" | "agent";
 }

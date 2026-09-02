@@ -11,6 +11,8 @@ expensively rather than visibly:
 """
 
 import json
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -79,7 +81,8 @@ class TestNormalisation:
 
         assert incoming is not None
         assert incoming.chat_type == "group"
-        assert incoming.platform_chat_id == "c1"
+        # Its own post, because the reply will open a thread rooted there (#1339).
+        assert incoming.platform_chat_id == "c1:p1"
 
     def test_a_webhook_from_a_direct_message_channel_is_private(self):
         """Mattermost names a DM channel after both user ids joined by `__`;
@@ -241,3 +244,259 @@ class TestSending:
             "https://mattermost.acme.com/api/v4/posts",
             "https://mattermost.acme.com/api/v4/posts",
         ]
+
+
+class TestAMentionAndTheThreadItOpensAreOneConversation:
+    """The bug #1339 fixed: they used to be two.
+
+    The reply to a channel mention opens a thread rooted at that message. Keyed
+    on the bare channel, the first turn and every turn after it landed in
+    different conversations - so the agent answered a question and then, in the
+    thread it had just created, had no memory of it.
+    """
+
+    def test_a_channel_message_keys_on_the_thread_its_reply_will_open(self):
+        incoming = MattermostAdapter().parse_incoming(
+            {
+                "event": "posted",
+                "data": {
+                    "post": json.dumps(
+                        {"id": "p1", "user_id": "u1", "channel_id": "c1", "message": "hi"}
+                    ),
+                    "channel_type": "O",
+                    "sender_name": "@kacper",
+                },
+            },
+            "bot-1",
+        )
+
+        assert incoming is not None
+        assert incoming.platform_chat_id == "c1:p1"
+
+    def test_the_reply_in_that_thread_keys_on_the_same_conversation(self):
+        """The second turn resolves the session the first turn created."""
+        first = MattermostAdapter().parse_incoming(
+            {
+                "event": "posted",
+                "data": {
+                    "post": json.dumps(
+                        {"id": "p1", "user_id": "u1", "channel_id": "c1", "message": "hi"}
+                    ),
+                    "channel_type": "O",
+                    "sender_name": "@kacper",
+                },
+            },
+            "bot-1",
+        )
+        second = MattermostAdapter().parse_incoming(
+            {
+                "event": "posted",
+                "data": {
+                    "post": json.dumps(
+                        {
+                            "id": "p2",
+                            "root_id": "p1",
+                            "user_id": "u1",
+                            "channel_id": "c1",
+                            "message": "and then?",
+                        }
+                    ),
+                    "channel_type": "O",
+                    "sender_name": "@kacper",
+                },
+            },
+            "bot-1",
+        )
+
+        assert first is not None and second is not None
+        assert first.platform_chat_id == second.platform_chat_id == "c1:p1"
+
+    def test_two_unrelated_mentions_in_one_channel_do_not_share_a_conversation(self):
+        def _at_root(post_id: str):
+            return MattermostAdapter().parse_incoming(
+                {
+                    "event": "posted",
+                    "data": {
+                        "post": json.dumps(
+                            {"id": post_id, "user_id": "u1", "channel_id": "c1", "message": "hi"}
+                        ),
+                        "channel_type": "O",
+                        "sender_name": "@kacper",
+                    },
+                },
+                "bot-1",
+            )
+
+        one, two = _at_root("p1"), _at_root("p9")
+
+        assert one is not None and two is not None
+        assert one.platform_chat_id != two.platform_chat_id
+
+    def test_a_direct_message_opens_a_thread_like_anywhere_else(self):
+        """It used to key on the chat, making a DM one conversation for ever: it
+        never rolls over, so it passes the context window in days and every turn
+        pays for the whole history. A thread per question is a per-topic context
+        instead. The cost is that a new message at the bottom of the DM starts
+        fresh - continuing means replying inside the thread, which the next test
+        is the other half of.
+        """
+        first = MattermostAdapter().parse_incoming(_posted(id="p1"), "bot-1")
+        second = MattermostAdapter().parse_incoming(_posted(id="p2"), "bot-1")
+
+        assert first is not None and second is not None
+        assert first.platform_chat_id == "c1:p1"
+        assert second.platform_chat_id == "c1:p2"
+
+    def test_a_reply_inside_a_direct_messages_thread_rejoins_it(self):
+        opened = MattermostAdapter().parse_incoming(_posted(id="p1"), "bot-1")
+        later = MattermostAdapter().parse_incoming(_posted(id="p8", root_id="p1"), "bot-1")
+
+        assert opened is not None and later is not None
+        assert later.platform_chat_id == opened.platform_chat_id
+
+
+class TestMattermostMentionTokenIsNotThePrompt:
+    """Mattermost writes a mention as literal `@username`, so the handle sits in
+    the text. Slack's adapter had this and answered "just the mention" about a
+    message that plainly said `try again`; nothing stripped it here either.
+    """
+
+    @staticmethod
+    def _adapter(handle: str | None) -> MattermostAdapter:
+        adapter = MattermostAdapter()
+        if handle is not None:
+            adapter._own_names["bot-1"] = handle
+        return adapter
+
+    def test_the_bots_own_handle_is_taken_out(self):
+        adapter = self._adapter("ops")
+        incoming = adapter.parse_incoming(_posted(message="@ops try again"), "bot-1")
+
+        assert incoming is not None
+        assert incoming.text == "try again"
+
+    def test_a_handle_in_the_middle_leaves_no_double_space(self):
+        adapter = self._adapter("ops")
+        incoming = adapter.parse_incoming(_posted(message="can @ops look at this"), "bot-1")
+
+        assert incoming is not None
+        assert incoming.text == "can look at this"
+
+    def test_a_colleagues_handle_is_left_alone(self):
+        """`@ada` is a fact about the request, not an envelope."""
+        adapter = self._adapter("ops")
+        incoming = adapter.parse_incoming(_posted(message="@ops ask @ada about billing"), "bot-1")
+
+        assert incoming is not None
+        assert incoming.text == "ask @ada about billing"
+
+    def test_a_longer_handle_starting_with_the_same_letters_survives(self):
+        """`@ops` must not eat `@ops-oncall`, which is somebody else."""
+        adapter = self._adapter("ops")
+        incoming = adapter.parse_incoming(_posted(message="@ops tell @ops-oncall"), "bot-1")
+
+        assert incoming is not None
+        assert incoming.text == "tell @ops-oncall"
+
+    def test_nothing_is_stripped_when_the_handle_is_unknown(self):
+        """Which is the ordinary case on the outgoing-webhook transport: nothing
+        in that body says which account the bot is."""
+        adapter = self._adapter(None)
+        incoming = adapter.parse_incoming(_posted(message="@ops try again"), "bot-1")
+
+        assert incoming is not None
+        assert incoming.text == "@ops try again"
+
+
+class TestMattermostReadsAThreadsEarlierFiles:
+    """The other half of joining a thread partway through. Slack got this first
+    and Mattermost was left raising unsupported, which `docs/channels.md` said -
+    this closes it rather than leaving the two platforms apart.
+    """
+
+    @staticmethod
+    def _client(payload: object) -> Any:
+        client = MagicMock()
+        client.get = AsyncMock(return_value=MagicMock(json=MagicMock(return_value=payload)))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return client
+
+    @pytest.mark.anyio
+    async def test_a_file_posted_before_the_bot_arrived_comes_back_as_a_handle(self):
+        client = self._client(
+            {
+                "order": ["p1"],
+                "posts": {
+                    "p1": {
+                        "id": "p1",
+                        "user_id": "u1",
+                        "message": "co tu widzisz",
+                        "file_ids": ["f1"],
+                        "metadata": {
+                            "files": [{"id": "f1", "name": "shot.png", "mime_type": "image/png"}]
+                        },
+                    }
+                },
+            }
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().thread_attachments(
+                "tok", "c1", thread_id="p1", api_base_url="https://mm.acme.com", limit=50
+            )
+
+        assert [a.filename for a in found] == ["shot.png"]
+        assert "/posts/p1/thread" in client.get.await_args.args[0]
+
+    @pytest.mark.anyio
+    async def test_the_bots_own_uploads_are_not_read_back(self):
+        client = self._client(
+            {
+                "order": ["p1"],
+                "posts": {
+                    "p1": {
+                        "id": "p1",
+                        "props": {"from_bot": "true"},
+                        "file_ids": ["f1"],
+                        "metadata": {"files": [{"id": "f1", "name": "chart.png"}]},
+                    }
+                },
+            }
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().thread_attachments(
+                "tok", "c1", thread_id="p1", api_base_url="https://mm.acme.com", limit=50
+            )
+
+        assert found == []
+
+    @pytest.mark.anyio
+    async def test_the_most_recent_files_come_last(self):
+        """`order` is newest first on every Mattermost listing, and the caller
+        keeps the last few - so unreversed it would keep the oldest."""
+        client = self._client(
+            {
+                "order": ["p2", "p1"],
+                "posts": {
+                    "p1": {
+                        "id": "p1",
+                        "file_ids": ["f1"],
+                        "metadata": {"files": [{"id": "f1", "name": "first.png"}]},
+                    },
+                    "p2": {
+                        "id": "p2",
+                        "file_ids": ["f2"],
+                        "metadata": {"files": [{"id": "f2", "name": "second.png"}]},
+                    },
+                },
+            }
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().thread_attachments(
+                "tok", "c1", thread_id="p1", api_base_url="https://mm.acme.com", limit=50
+            )
+
+        assert [a.filename for a in found] == ["first.png", "second.png"]

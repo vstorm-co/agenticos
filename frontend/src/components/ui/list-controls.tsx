@@ -28,13 +28,27 @@ export function useListControls<T>({
   items,
   matches,
   pageSize = PAGE_SIZE,
+  query: controlled,
+  onQueryChange,
 }: {
   items: T[];
   /** Whether one item survives the query. Case folding is the caller's. */
   matches: (item: T, query: string) => boolean;
   pageSize?: number;
+  /**
+   * The query, where the caller owns it. Omit and this holds its own.
+   *
+   * Controlled for one reason: a caller whose `items` *depend* on the query -
+   * because part of the list comes from the server and part is in hand - cannot
+   * read the query out of the hook it has to build the items for. The MCP list
+   * is that case: a hundred catalog servers filtered locally, plus whatever the
+   * public registry answers for the same words.
+   */
+  query?: string;
+  onQueryChange?: (next: string) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [own, setOwn] = useState("");
+  const query = controlled ?? own;
   const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
@@ -54,7 +68,8 @@ export function useListControls<T>({
   return {
     query,
     setQuery: (next: string) => {
-      setQuery(next);
+      if (onQueryChange) onQueryChange(next);
+      else setOwn(next);
       setPage(0);
     },
     visible,

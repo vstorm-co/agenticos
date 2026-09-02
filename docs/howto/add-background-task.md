@@ -1,4 +1,4 @@
-# How to: Add a Background Task
+# Add a background task
 
 Background work runs outside the request-response cycle. This project uses
 **Prefect** for anything scheduled or long-running, and `app/core/background.py`

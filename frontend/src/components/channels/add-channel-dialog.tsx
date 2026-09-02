@@ -15,6 +15,10 @@ import {
   FormField,
   Input,
 } from "@/components/ui";
+import {
+  TranscriptionFields,
+  type TranscriptionChoice,
+} from "@/components/channels/transcription-fields";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { ChannelBotCreate, ChannelPlatform } from "@/types/channels";
@@ -79,6 +83,10 @@ export function AddChannelDialog({
   const [webhookSecret, setWebhookSecret] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
   const [appToken, setAppToken] = useState("");
+  const [transcription, setTranscription] = useState<TranscriptionChoice>({
+    provider: null,
+    model: null,
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Mattermost is self-hosted: without its server's address a bot cannot reply,
@@ -95,6 +103,7 @@ export function AddChannelDialog({
     setWebhookSecret("");
     setSigningSecret("");
     setAppToken("");
+    setTranscription({ provider: null, model: null });
     setErrors({});
   }
 
@@ -126,6 +135,14 @@ export function AddChannelDialog({
           ? { slack_signing_secret: signingSecret.trim() }
           : {}),
         ...(platform === "slack" && appToken.trim() ? { slack_app_token: appToken.trim() } : {}),
+        // Both halves or neither - the schema refuses one alone as a setting
+        // that cannot run - and absent entirely for a bot that does not listen.
+        ...(transcription.provider && transcription.model
+          ? {
+              speech_to_text_provider: transcription.provider,
+              speech_to_text_model: transcription.model,
+            }
+          : {}),
       });
       onOpenChange(false);
       reset();
@@ -286,6 +303,12 @@ export function AddChannelDialog({
               </FormField>
             </div>
           )}
+
+          <TranscriptionFields
+            idPrefix="channel"
+            value={transcription}
+            onChange={setTranscription}
+          />
         </div>
 
         <DialogFooter>

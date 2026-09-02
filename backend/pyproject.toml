@@ -119,6 +119,18 @@ dependencies = [
     "cryptography>=50.0.1",
     "aiogram>=3.31.0,<4.0",
     "slack-sdk>=3.44.0",
+    # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
+    # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
+    # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
+    # a plain `slack-sdk` does not pull it. It resolved anyway, because something
+    # else in the tree happened to bring aiohttp; the day that goes, the import
+    # raises inside a `try/except ImportError` that turns it into a bot which
+    # quietly never starts rather than a build that fails.
+    # Not `slack-sdk[optional]`, which is a grab bag: aiodns, boto3, SQLAlchemy,
+    # websockets and websocket-client for one transport's HTTP client. And not
+    # `slack-sdk[socket-mode]`, which does not exist - the only extra is
+    # `optional`, so the advice in that ImportError's message was unfollowable.
+    "aiohttp>=3.13.5",
     # Cron schedules: the next fire after a given instant for a crontab
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
@@ -167,6 +179,7 @@ dev = [
 # needs the runtime installed, and CI's lint job does not need mkdocs.
 docs = [
     "mkdocs>=1.6.0",
+    "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=1.0.6",
 ]
@@ -253,6 +266,7 @@ DEP002 = [
     "psycopg2-binary",  # selected by Alembic's bare `postgresql://` URL
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
+    "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does
 ]
 
 [tool.ruff]
@@ -519,6 +533,7 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     "app/services/agent_session.py",
     # The turn loop itself, shared by the dashboard chat and the embedded
     # widget since #634. One frame vocabulary for both sockets, and the sink a
@@ -571,6 +586,14 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
+    "app/services/speech_to_text.py",
+    "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
@@ -753,6 +776,7 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
     # every frame it accepts. It sat outside both gates while `use-chat.ts`
     # switched on its names, which is the drift #144 describes.
@@ -833,6 +857,14 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
+    "app/services/speech_to_text.py",
+    "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the

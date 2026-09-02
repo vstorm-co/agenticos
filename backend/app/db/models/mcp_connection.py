@@ -82,6 +82,17 @@ class McpConnection(Base, TimestampMixin):
             unique=True,
             postgresql_where=text("purpose = 'portal'"),
         ),
+        # One default per person per catalog entry, and only for a personal row:
+        # an organization's connection is bound by id and has nothing to
+        # nominate. What makes a member holding two Notion accounts able to say
+        # which an agent speaks as (#1342).
+        Index(
+            "uq_mcp_connections_user_default",
+            "user_id",
+            "catalog_key",
+            unique=True,
+            postgresql_where=text("scope = 'user' AND is_default AND catalog_key IS NOT NULL"),
+        ),
         CheckConstraint("scope IN ('user', 'org')", name="ck_mcp_connection_scope"),
         CheckConstraint("purpose IN ('mcp', 'portal')", name="ck_mcp_connection_purpose"),
         # A portal grant names its portal and nothing else does: the column is what
@@ -140,6 +151,24 @@ class McpConnection(Base, TimestampMixin):
     scope: Mapped[str] = mapped_column(String(8), nullable=False, default="user", index=True)
     # Which catalog entry this came from, when it was not added by raw URL.
     catalog_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # What a person reads. `name` is the tool prefix and is constrained to what a
+    # tool name can carry, which makes it a poor label: two Notion accounts are
+    # `notion` and `notion-2`, and neither says which workspace it reaches.
+    # Optional, not unique, and never a replacement - the slug stays on screen
+    # beside it, because a run's tool calls are recorded under the prefix.
+    label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Every tool the server offered the last time anything probed it - the
+    # catalogue `allowed_tools` is chosen from. Recorded so the Builder can list
+    # them without holding `connections:manage`, which gates the probe because it
+    # dials out to a third party. Null until the connection is next checked.
+    last_tools: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB, nullable=True)
+    # Which of this member's accounts on one service an agent speaks as, where a
+    # binding asked to substitute theirs and they hold more than one. False on
+    # every row until somebody chooses: a single account is substituted whether
+    # or not it is marked, so nothing needs a default until there is a choice.
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     # What this row *is*. `mcp` is a remote MCP server an agent gets tools from -
     # every row before triggers existed. `portal` is a third-party grant a trigger
     # portal spends: an OAuth payload, its scopes and, for a polled portal, the
