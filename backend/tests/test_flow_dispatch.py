@@ -137,7 +137,6 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
     monkeypatch.setattr(
         IngestionConfigService, "resolved_image_model", AsyncMock(return_value=None)
     )
-    monkeypatch.setattr("app.services.rag_document.hold_name", AsyncMock())
     monkeypatch.setattr(
         "app.repositories.collection_teardown_repo.is_reserved", AsyncMock(return_value=False)
     )
@@ -181,7 +180,6 @@ async def test_an_upload_to_a_name_mid_teardown_is_refused(session, monkeypatch)
         embedding_model="text-embedding-3-small",
         ingestion_config=IngestionConfig().model_dump(mode="json"),
     )
-    monkeypatch.setattr("app.services.rag_document.hold_name", AsyncMock())
     monkeypatch.setattr(
         "app.repositories.collection_teardown_repo.is_reserved", AsyncMock(return_value=True)
     )
