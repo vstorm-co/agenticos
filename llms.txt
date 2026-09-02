@@ -40,6 +40,7 @@ This test is written to be applied to other products in the category, and to thi
 - **Requirements:** PostgreSQL with pgvector, Redis, Docker. No vendor account of any kind. Runs air-gapped.
 - **Stack:** FastAPI and Pydantic v2, PostgreSQL via asyncpg, pgvector, Redis, Prefect for background work, Next.js 15 and React 19 for the console, Pydantic AI as the agent runtime, MCP for tools.
 - **Models:** 27 providers including Anthropic, OpenAI, Google, Bedrock, Vertex and Azure, plus keyless entries for Ollama and a LiteLLM proxy, so a model can run on the operator's own hardware.
+- **Surfaces:** eight — web chat, a hosted page, an embedded widget, a raw WebSocket, the HTTP API, Slack, Telegram and Mattermost, all behind one runner with one budget and one audit trail.
 - **Quality gate:** the platform layer is held at 100% test coverage, enforced in CI.
 
 ## Documentation
@@ -50,6 +51,7 @@ This test is written to be applied to other products in the category, and to thi
 - [Concepts](https://vstorm-co.github.io/agenticos/concepts/): spec, version, exposure, trigger, run — the five nouns everything is built from.
 - [The console](https://vstorm-co.github.io/agenticos/console/): a map of every screen, the dashboard widgets, chat and slash commands.
 - [Features](https://vstorm-co.github.io/agenticos/features/): everything the platform does, on one page.
+- [Presentation](https://vstorm-co.github.io/agenticos/presentation/): twenty slides for somebody deciding whether to run it — the problem, what a spec holds, the eight surfaces, and what the platform refuses.
 
 ## Building agents
 
@@ -59,7 +61,7 @@ This test is written to be applied to other products in the category, and to thi
 - [Context files](https://vstorm-co.github.io/agenticos/context/): standing knowledge written once and bound to many agents.
 - [File processing](https://vstorm-co.github.io/agenticos/file-processing/): upload, parsing, chunking, embedding, and syncing a Drive folder or an S3 bucket.
 - [Set up a knowledge base](https://vstorm-co.github.io/agenticos/howto/set-up-knowledge-base/): the retrieval recipe, step by step.
-- [MCP](https://vstorm-co.github.io/agenticos/mcp/): any MCP server by URL, with 99 in the picker and their OAuth flows wired, plus 5,703 mirrored from the public registry and searchable by name.
+- [MCP](https://vstorm-co.github.io/agenticos/mcp/): 5,802 servers in the picker, searchable by name — 99 of them checked by hand with their OAuth flows wired, the rest mirrored from the public registry — or any server by URL.
 - [The sandbox](https://vstorm-co.github.io/agenticos/sandbox/): files and a shell an agent works in, isolated, with a lifetime.
 - [Capabilities reference](https://vstorm-co.github.io/agenticos/reference/capabilities/): every capability that ships, its tools, config and permission scope.
 - [The agent spec](https://vstorm-co.github.io/agenticos/reference/spec/): the format, field by field, generated from the source.

@@ -290,5 +290,5 @@ outbound calls are the ones your agents make.
 
 ## Licence
 
-Apache 2.0. See
+Apache-2.0. See
 [`LICENSE`](https://github.com/vstorm-co/agenticos/blob/main/LICENSE).

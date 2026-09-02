@@ -141,7 +141,7 @@ only question that matters — can this deployment actually run an agent — and
 
 ## What you get
 
-- 🧰 **The harness, as a form.** Retrieval over your documents, a real browser,
+- 🧰 **The harness, as configuration.** Retrieval over your documents, a real browser,
   Python in a sandbox with files and a shell, charts, images, delegation —
   switched on per agent, not wired into code.
 - 📄 **Context files.** `AGENTS.md` and `CLAUDE.md` as a page: standing
@@ -155,7 +155,7 @@ only question that matters — can this deployment actually run an agent — and
   self-hosted LiteParse OCR for scans. Plus how it is split, and OCR language.
 - ⏰ **Automations.** Schedules and event triggers — the 07:00 triage, the Monday
   summary. Same limits and same record as anything a person asked for.
-- 📡 **One runner, every surface.** Web chat, a hosted page, a widget, the HTTP
+- 📡 **One runner, eight surfaces.** Web chat, a hosted page, a widget, the HTTP
   API, a raw WebSocket, Slack, Telegram, Mattermost. Published once.
 - 🛡️ **Governed.** Budgets that stop a run before the model request, approval on
   anything side-effecting, an audit trail, tenant isolation in the schema.
@@ -172,8 +172,9 @@ registry, not a config file — and it is Apache-2.0, on your hardware.
 
 ### Inside one agent
 
-An agent is a form, not a codebase: instructions, a model, tools, limits.
-Nothing ships until **Publish**.
+An agent is a **spec**: instructions, a model, the capabilities it may reach,
+the knowledge bound to it, a budget, and where it answers. Nothing ships until
+**Publish**, and every publish is a version.
 
 <img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: instructions, model, and the version that is live" width="100%">
 
