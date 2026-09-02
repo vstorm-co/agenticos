@@ -583,7 +583,25 @@ orphan it. Between that commit and the drop the name has no row but its table st
 holds the old tenant's chunks, so `claim` also refuses a name reserved in
 `collection_teardowns` — a row committed *with* the delete and cleared once the table
 is gone. Without it, a claim in that window would have `CREATE TABLE IF NOT EXISTS`
-adopt the lingering table and read another tenant's data (#1362).
+adopt the lingering table and read another tenant's data (#1362). An **upload** to a
+reserved name is refused on the same grounds: `RAGDocumentService.dispatch_upload`
+checks the reservation before it creates the collection, so an ingest slipped into the
+window cannot recreate the table the drop is about to destroy and lose its own chunks
+to it (#1364).
+
+A reservation whose drop never ran — lost to a crash between the commit and the
+dispatch, or to a drop that fails for good — would block its name forever, since
+nothing else reattempts it. An **hourly sweep** (`teardown-reservation-sweep`) reaps
+those: for any reservation older than an hour it retries the drop and releases the
+name, so a name is not lost for good because one worker run was (#1364).
+
+**A default base is cleared, not deleted.** Dropping a default collection keeps its
+knowledge-base row — the org keeps a usable default — but its vector table is dropped
+all the same, so the documents deleted with it stop being searchable rather than
+lingering in a table nothing lists (#1361). A search reads the absent table as empty
+and the next upload recreates it. The table is spared only when a sibling base still
+holds the same name, since the vector namespace is not tenant-unique and dropping it
+would take their chunks too (#913).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with

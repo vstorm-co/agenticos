@@ -487,12 +487,13 @@ class TestKBAccessControl:
         dispatch.assert_awaited_once_with([], ["docs"])
 
     @pytest.mark.anyio
-    async def test_dropping_a_default_rag_collection_keeps_the_row_and_the_table(
+    async def test_dropping_a_default_rag_collection_keeps_the_row_but_drops_the_table(
         self, mock_db, monkeypatch
     ):
-        """A default base is left intact and its row keeps the name, so the table is
-        kept - nothing is deleted, reserved or dropped. Clearing a default collection's
-        vectors without racing an upload is #1364, not this."""
+        """A default base keeps its row so the org keeps a usable knowledge base, but
+        its vector table is dropped all the same - so a cleared default stops returning
+        the documents deleted with it, rather than leaving them searchable (#1361,
+        #1364). Its own row is filtered out of the reference check by id."""
         from app.repositories import collection_teardown_repo
 
         kb = _kb("org", is_default=True)
@@ -508,10 +509,39 @@ class TestKBAccessControl:
             ),
         ):
             await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+            background.start_deferred(mock_db)
+            await background.drain(timeout=5.0)
 
         deleted.assert_not_awaited()  # the default row is kept
-        reserve.assert_not_awaited()  # its own row keeps the name, so no reservation
-        dispatch.assert_not_called()  # the table is kept
+        reserve.assert_awaited_once()  # reserved until the drop runs
+        dispatch.assert_awaited_once_with([], ["docs"])  # the table is dropped
+
+    @pytest.mark.anyio
+    async def test_clearing_a_default_whose_name_a_sibling_shares_keeps_the_table(
+        self, mock_db, monkeypatch
+    ):
+        """The name is not tenant-unique: a sibling (or another org) still holding it
+        backs a table their chunks live in too, so clearing this default must not drop
+        it from under them (#913)."""
+        from app.repositories import collection_teardown_repo
+
+        kb = _kb("org", is_default=True)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        reserve = AsyncMock()
+        monkeypatch.setattr(collection_teardown_repo, "reserve", reserve)
+        with (
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[kb, _kb("org")]),
+            ),
+        ):
+            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        deleted.assert_not_awaited()  # the default row is kept
+        reserve.assert_not_awaited()  # a sibling holds the name, so it is not reserved
+        dispatch.assert_not_called()  # the shared table is kept
 
     @pytest.mark.anyio
     async def test_dropping_a_rag_collection_a_sibling_still_holds_keeps_the_table(
