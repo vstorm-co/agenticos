@@ -536,9 +536,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   // The Memory tab exists only when the capability is bound; its config reads the
   // binding, defaulting to what the builder returns for a bare memory binding
-  // (shared, native, both shapes on).
+  // (native, both shapes on). Memory is two-tier for every agent, so there is no
+  // partition to read.
   const memoryBinding = spec.capabilities.find((binding) => binding.id === MEMORY_ID);
-  const memoryPartition = memoryBinding?.config.partition === "per_user" ? "per_user" : "shared";
   const memoryBackend = memoryBinding?.config.backend === "mem0" ? "mem0" : "native";
   const memoryFiles = memoryBinding?.config.enable_files !== false;
   const memoryFacts = memoryBinding?.config.enable_facts !== false;
@@ -1172,7 +1172,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <MemoryPanel
               agentId={id}
               canEdit={canEdit}
-              partition={memoryPartition}
               backend={memoryBackend}
               enableFiles={memoryFiles}
               enableFacts={memoryFacts}

@@ -15,7 +15,6 @@ interface MemoryPanelProps {
   agentId: string;
   canEdit: boolean;
   /** How the capability is configured, read from the spec binding. */
-  partition: "shared" | "per_user";
   backend: "native" | "mem0";
   enableFiles: boolean;
   enableFacts: boolean;
@@ -26,16 +25,15 @@ type SubTab = "files" | "facts";
 /**
  * The Memory tab: the stored memories of one agent, managed by an operator.
  *
- * The scope control is shared by both halves — files and facts live in the same
- * partitions, so "show me the shared store" means one thing across the tab. The
- * two config badges say how memory is set up; the Files / Facts switcher appears
- * only when both shapes are enabled, and each pane is mounted keyed by scope so
- * switching partition gives it a fresh page.
+ * Memory is two-tier — a shared store and one private store per end-user — so the
+ * scope control filters both halves at once, and "show me the shared store" means
+ * one thing across the tab. The Files / Facts switcher appears only when both
+ * shapes are enabled, and each pane is mounted keyed by scope so switching the
+ * filter gives it a fresh page.
  */
 export function MemoryPanel({
   agentId,
   canEdit,
-  partition,
   backend,
   enableFiles,
   enableFacts,
@@ -54,9 +52,7 @@ export function MemoryPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2" data-tour="agent-memory">
-          <Badge variant="secondary">
-            {t(partition === "per_user" ? "cfgPerUser" : "cfgShared")}
-          </Badge>
+          <Badge variant="secondary">{t("cfgTwoTier")}</Badge>
           <Badge variant="outline">{t(backend === "mem0" ? "cfgMem0" : "cfgNative")}</Badge>
         </div>
         <div className="flex items-center gap-1.5">

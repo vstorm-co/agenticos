@@ -55,18 +55,9 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function mount(props: Partial<React.ComponentProps<typeof MemoryPanel>> = {}) {
-  render(
-    <MemoryPanel
-      agentId="a1"
-      canEdit
-      partition="shared"
-      backend="native"
-      enableFiles
-      enableFacts
-      {...props}
-    />,
-    { wrapper },
-  );
+  render(<MemoryPanel agentId="a1" canEdit backend="native" enableFiles enableFacts {...props} />, {
+    wrapper,
+  });
 }
 
 describe("MemoryPanel", () => {
@@ -78,15 +69,15 @@ describe("MemoryPanel", () => {
   it("shows how memory is configured, defaulting to the files half", async () => {
     mount();
 
-    expect(screen.getByText("Partition: shared")).toBeInTheDocument();
+    expect(screen.getByText("Shared + per-user")).toBeInTheDocument();
     expect(screen.getByText("Backend: native")).toBeInTheDocument();
     expect(await screen.findByText("user-preferences")).toBeInTheDocument();
   });
 
-  it("reflects a per-user, mem0-backed configuration in its badges", () => {
-    mount({ partition: "per_user", backend: "mem0" });
+  it("reflects the mem0 backend in its badge", () => {
+    mount({ backend: "mem0" });
 
-    expect(screen.getByText("Partition: per-user")).toBeInTheDocument();
+    expect(screen.getByText("Shared + per-user")).toBeInTheDocument();
     expect(screen.getByText("Backend: mem0")).toBeInTheDocument();
   });
 
