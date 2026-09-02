@@ -17,8 +17,10 @@ vi.mock("@/components/chat/markdown-content", () => ({
     <div data-testid="rendered">{content}</div>
   ),
 }));
+vi.mock("@/hooks/use-auth", () => ({ useAuth: vi.fn(() => ({ user: { id: "u-42" } })) }));
 
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -34,13 +36,27 @@ const content = () => screen.getByRole("textbox", { name: /source$/ });
 const openSource = () => userEvent.click(screen.getByRole("button", { name: "Source" }));
 const create = () => screen.getByRole("button", { name: "Create" });
 
-function mount(onOpenChange = vi.fn()) {
-  render(<CreateMemoryFileDialog agentId="a1" open onOpenChange={onOpenChange} />, { wrapper });
+function mount(onOpenChange = vi.fn(), { canEdit = true } = {}) {
+  render(
+    <CreateMemoryFileDialog agentId="a1" open onOpenChange={onOpenChange} canEdit={canEdit} />,
+    { wrapper },
+  );
   return { onOpenChange };
 }
 
+const scope = () => screen.getByLabelText("Scope");
+const chooseScope = async (option: "Shared" | "Personal") => {
+  await userEvent.click(scope());
+  await userEvent.click(await screen.findByRole("option", { name: option }));
+};
+
 describe("CreateMemoryFileDialog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useAuth).mockReturnValue({ user: { id: "u-42" } } as unknown as ReturnType<
+      typeof useAuth
+    >);
+  });
 
   it("posts a trusted shared file under the agent, defaulting the empty fields", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "f1", name: "runbook" });
@@ -62,6 +78,51 @@ describe("CreateMemoryFileDialog", () => {
       end_user_scope_key: null,
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("writes to the operator's own personal store when personal is chosen", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "f1", name: "prefs" });
+    mount();
+
+    await userEvent.type(name(), "prefs");
+    await chooseScope("Personal");
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({
+      end_user_scope_key: "user:u-42",
+    });
+  });
+
+  it("lets an operator target another person's personal store", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "f1", name: "prefs" });
+    mount();
+
+    await userEvent.type(name(), "prefs");
+    await chooseScope("Personal");
+    const key = screen.getByLabelText("Whose personal store");
+    await userEvent.clear(key);
+    await userEvent.type(key, "user:someone-else");
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({
+      end_user_scope_key: "user:someone-else",
+    });
+  });
+
+  it("gives a member no shared choice and writes only their own personal", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "f1", name: "prefs" });
+    mount(vi.fn(), { canEdit: false });
+
+    expect(screen.queryByLabelText("Scope")).not.toBeInTheDocument();
+    await userEvent.type(name(), "prefs");
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({
+      end_user_scope_key: "user:u-42",
+    });
   });
 
   it("takes the format from a closed list rather than from typing", async () => {
@@ -96,6 +157,14 @@ describe("CreateMemoryFileDialog", () => {
 
   it("cannot be submitted without a name", () => {
     mount();
+    expect(create()).toBeDisabled();
+  });
+
+  it("cannot save a personal file with no signed-in person to attribute it to", async () => {
+    vi.mocked(useAuth).mockReturnValue({ user: null } as unknown as ReturnType<typeof useAuth>);
+    mount(vi.fn(), { canEdit: false });
+
+    await userEvent.type(name(), "prefs");
     expect(create()).toBeDisabled();
   });
 

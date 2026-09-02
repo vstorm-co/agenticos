@@ -245,11 +245,13 @@ describe("MemoryFilesPane", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
-  it("gives a viewer no way to add or remove", async () => {
+  it("lets a viewer add their own personal file but not edit or remove existing ones", async () => {
     mount({ canEdit: false });
     await screen.findByText("user-preferences");
 
-    expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
+    // A member may seed their own personal memory through the create dialog...
+    expect(screen.getByRole("button", { name: "New file" })).toBeInTheDocument();
+    // ...but the operator controls over files that already exist stay hidden.
     expect(
       screen.queryByRole("button", { name: "Delete user-preferences" }),
     ).not.toBeInTheDocument();

@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.memory import MemoryOrigin
 from app.schemas.memory import AgentMemoryFileCreate, AgentMemoryFileUpdate
 from app.services.memory.facade import MemoryService, _summary
@@ -190,6 +190,95 @@ class TestCreate:
             await service.create(
                 _ctx(), AgentMemoryFileCreate(agent_id=uuid.uuid4(), name="prefs", content="x")
             )
+
+
+class TestCreateAuthorizesByTier:
+    """The tier decides the permission: shared and another person's personal are
+    operator acts (`AGENTS_EDIT`); one's own personal needs only `AGENTS_VIEW`, so
+    a member keeps their own notes without touching the shared store or anyone
+    else's. The own-key is `user:<caller>`, matching the runtime derivation."""
+
+    def _perm(self, resolve_mock) -> Perm:
+        # resolve_access(db, ctx, agent, perm, resource_type=AGENT) - perm is 4th positional.
+        return resolve_mock.call_args.args[3]
+
+    def _create_patches(self, resolve: AsyncMock):
+        return (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=resolve),
+            patch(f"{MEMORY_PATH}.memory_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch(f"{MEMORY_PATH}.memory_repo.create", new=AsyncMock(return_value=_file())),
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
+        )
+
+    async def test_the_shared_store_needs_edit(self):
+        service = _service()
+        resolve = AsyncMock(return_value=True)
+        get_agent, allow, by_name, create, audit = self._create_patches(resolve)
+        with get_agent, allow, by_name, create, audit:
+            await service.create(_ctx(), AgentMemoryFileCreate(agent_id=uuid.uuid4(), name="p"))
+        assert self._perm(resolve) == Perm.AGENTS_EDIT
+
+    async def test_ones_own_personal_needs_only_view(self):
+        service = _service()
+        me = uuid.uuid4()
+        resolve = AsyncMock(return_value=True)
+        get_agent, allow, by_name, create, audit = self._create_patches(resolve)
+        with get_agent, allow, by_name, create, audit:
+            await service.create(
+                _ctx(user_id=me),
+                AgentMemoryFileCreate(
+                    agent_id=uuid.uuid4(), name="p", end_user_scope_key=f"user:{me}"
+                ),
+            )
+        assert self._perm(resolve) == Perm.AGENTS_VIEW
+
+    async def test_another_persons_personal_needs_edit(self):
+        service = _service()
+        resolve = AsyncMock(return_value=True)
+        get_agent, allow, by_name, create, audit = self._create_patches(resolve)
+        with get_agent, allow, by_name, create, audit:
+            await service.create(
+                _ctx(user_id=uuid.uuid4()),
+                AgentMemoryFileCreate(
+                    agent_id=uuid.uuid4(), name="p", end_user_scope_key="user:someone-else"
+                ),
+            )
+        assert self._perm(resolve) == Perm.AGENTS_EDIT
+
+    async def test_a_member_creates_only_their_own_personal(self):
+        """The refusal that makes the relaxation safe: a caller who has view but
+        not edit may create their own personal file, and nothing else."""
+        service = _service()
+        me = uuid.uuid4()
+
+        async def _view_only(_db, _ctx, _agent, perm, **_kw) -> bool:
+            return perm == Perm.AGENTS_VIEW
+
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(side_effect=_view_only)),
+            patch(f"{MEMORY_PATH}.memory_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch(f"{MEMORY_PATH}.memory_repo.create", new=AsyncMock(return_value=_file())),
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await service.create(
+                _ctx(user_id=me),
+                AgentMemoryFileCreate(
+                    agent_id=uuid.uuid4(), name="mine", end_user_scope_key=f"user:{me}"
+                ),
+            )
+            with pytest.raises(NotFoundError):
+                await service.create(
+                    _ctx(user_id=me), AgentMemoryFileCreate(agent_id=uuid.uuid4(), name="company")
+                )
+            with pytest.raises(NotFoundError):
+                await service.create(
+                    _ctx(user_id=me),
+                    AgentMemoryFileCreate(
+                        agent_id=uuid.uuid4(), name="theirs", end_user_scope_key="user:other"
+                    ),
+                )
 
 
 class TestUpdate:

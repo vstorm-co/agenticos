@@ -171,11 +171,13 @@ describe("MemoryPanel", () => {
     expect(apiClient.delete).not.toHaveBeenCalled();
   });
 
-  it("passes read-only through to a viewer, danger zone included", async () => {
+  it("keeps the danger zone from a viewer but lets them add their own personal", async () => {
     mount({ canEdit: false });
     await screen.findByText("user-preferences");
 
-    expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
+    // A member may seed their own personal memory through the create dialog...
+    expect(screen.getByRole("button", { name: "New file" })).toBeInTheDocument();
+    // ...but the destructive operator control stays hidden.
     expect(screen.queryByRole("button", { name: "Clear all memory" })).not.toBeInTheDocument();
   });
 });

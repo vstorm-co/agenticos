@@ -184,7 +184,12 @@ person vouched for; turning an agent note into an operator one is a deliberate
 are always the agent's own and are never injected into instructions, only reached
 through `recall`. Access to the management API rides on the parent agent —
 whoever may view the agent may read its memory, whoever may edit the agent may
-change it — so there is no `memory:*` scope.
+change it — so there is no `memory:*` scope. Creating a file is the one act split
+by tier: writing the shared store or another person's personal store is an editor
+act, but writing one's *own* personal store (`user:<caller>`, the key the agent
+derives when that person chats) needs only view, so any member can keep their own
+notes without touching the shared store or anyone else's. Files are always
+`origin=operator` (human-authored, agent-protected) however they are created.
 
 ## Web search
 

@@ -119,14 +119,31 @@ class MemoryService:
         return AgentMemoryFileList(items=[_summary(file) for file in items], total=total)
 
     async def create(self, ctx: AuthContext, data: AgentMemoryFileCreate) -> AgentMemoryFile:
-        """Create an operator-authored (trusted) memory file.
+        """Create a human-authored (trusted) memory file.
+
+        Authored through the management surface, so `origin` is always `operator`
+        (the agent cannot edit or delete it) regardless of who created it - the
+        trust tier is human-vs-agent, not a role. The *tier* decides the
+        permission: writing the shared store, or another person's personal store,
+        is an operator act (`AGENTS_EDIT`); writing one's *own* personal store
+        needs only `AGENTS_VIEW`, so any member can keep their own notes without
+        being able to touch the shared store or anyone else's. The own-key is
+        `user:<caller>`, the same key the runtime derives when that person chats
+        (see `derive_end_user_scope_key`), so a note seeded here is the one the
+        agent reads back. The check rides on the parent agent through
+        `resolve_access`, so an explicit edit grant widens it the usual way.
 
         Raises:
             AlreadyExistsError: If the name is taken in that partition - the name
                 is how the agent and a person refer to a file, so two with one
                 name in one partition is an ambiguity nothing can resolve.
         """
-        await self._agent_or_404(ctx, data.agent_id, perm=Perm.AGENTS_EDIT)
+        own_key = f"user:{ctx.user_id}" if ctx.user_id is not None else None
+        creating_own_personal = (
+            data.end_user_scope_key is not None and data.end_user_scope_key == own_key
+        )
+        perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
+        await self._agent_or_404(ctx, data.agent_id, perm=perm)
         if await memory_repo.get_by_name(
             self.db,
             organization_id=ctx.organization_id,
