@@ -50,6 +50,11 @@ an agent write is user-influenceable and a curated company memory must not be. B
 default on, the plain two-tier model; both off leaves a read-only, operator-curated
 memory.
 
+One completeness limit, not a correctness one: the runtime read cap (the index's
+200, recall's `limit`) spans both tiers at once, with no cross-tier dedup, so a
+very large personal store can crowd shared rows out of a single read and the
+reverse. It bounds what one read returns, never what a run may reach.
+
 ## Shapes and backends
 
 Two shapes, each behind its own flag — **files** (`enable_files`) and **facts**

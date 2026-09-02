@@ -18,7 +18,7 @@ launder its origin - promotion to trusted is a separate, deliberate act.
 `end_user_scope_key` is the per-end-user partition. `NULL` is the `shared`
 partition - one store per (organization, agent), read by every end-user the
 agent serves. A non-null key (`user:<id>` or `chan:<id>`) is a private store for
-one end-user under a `per_user` agent. The key is derived server-side from the
+one end-user - the personal tier. The key is derived server-side from the
 request identity and never chosen by the model, so a run can only ever read the
 partition it was admitted to. Because a `NULL` key means "the one shared store"
 rather than "a missing value", the unique constraint is `NULLS NOT DISTINCT`:

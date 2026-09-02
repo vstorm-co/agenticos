@@ -108,7 +108,7 @@ def derive_end_user_scope_key(
 ) -> str | None:
     """The stable per-end-user key for a run, or `None` when there is no signal.
 
-    A `per_user` store must attribute a memory to the *person asking*, and the
+    A personal store must attribute a memory to the *person asking*, and the
     trap is that on a hosted/widget surface `user_id` is the publisher, not the
     visitor (`publisher_context`), so keying on it alone would collapse every
     visitor onto the owner's partition - the cross-user leak this exists to stop.
