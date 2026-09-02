@@ -1,10 +1,29 @@
 """A mem0 service as the facts backend, reached over its REST API.
 
-httpx-direct rather than the `mem0ai` SDK. The SDK pulls `posthog` (phone-home
-telemetry) and a `qdrant-client` this platform does not use - both at odds with
-a self-hosted, privacy-conscious deployment - while `httpx` is already a
-dependency, so this adds nothing and phones home nothing. The client is isolated
-in this one module, so swapping to the SDK later is a single module's change.
+httpx-direct rather than the `mem0ai` SDK, and this is a decision, not an
+oversight - the SDK (2.0.x) was re-evaluated and lost on five counts, recorded
+here so the question is not re-opened. (1) It speaks mem0's *v3* API
+(`/v3/memories/{add,search}/`), so it answers `404` against a self-hosted mem0
+still on the `v1` this module targets. (2) Its client validates the key with a
+blocking, synchronous request *in the constructor* - even `AsyncMemoryClient` -
+which stalls the event loop this store opens its own session precisely to keep
+free (#12), and costs a round trip per call unless the key is cached and held.
+(3) It installs `posthog` and `qdrant-client` even with telemetry disabled -
+weight this platform does not use. (4) That telemetry is opt-*out*
+(`MEM0_TELEMETRY` defaults to `True`), a standing risk one missed env var
+re-arms. (5) A test could only mock the SDK boundary, so it would assert our call
+to the SDK, never the `user_id={org}:{agent}:{key}` namespace on the wire -
+weakening the isolation guarantee below, which is the whole reason this backend
+is careful. For this module's scope - one `add`, one `search` - the SDK buys
+nothing, and `httpx` is already a dependency, so this adds nothing and phones home
+nothing.
+
+The trade is cheap to unwind: the client is isolated in this one module and the
+config, secret and services are identical either way, so adopting the SDK later
+is a single module's change. Revisit it for a reason the five counts do not
+cover - mem0's graph memory or server-side filters, mem0 becoming the *primary*
+memory store rather than an optional facts backend, or a self-hosted deployment
+standardizing on `v3`.
 
 The request and response shapes follow mem0's REST API and are the one part of
 this the code cannot check locally: there is no mem0 instance in tests, so unit
