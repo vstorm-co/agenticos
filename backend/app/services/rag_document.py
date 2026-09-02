@@ -10,15 +10,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.vectorstore import BaseVectorStore
-from app.repositories import rag_document_repo
+from app.repositories import collection_teardown_repo, rag_document_repo
 from app.schemas.rag import (
     RAGIngestResponse,
     RAGParsedContent,
@@ -234,6 +235,20 @@ class RAGDocumentService:
             )
 
         image_model = await ingestion.resolved_image_model(ctx.organization_id, config)
+
+        # Refuse a write to a name mid-teardown, the way `claim` refuses a create of
+        # one: the durable drop frees the name only once its table is gone, and a write
+        # slipped into that window would `_ensure_collection`-recreate the table the
+        # drop then destroys, orphaning this row and losing its vectors. Placed before
+        # any of this upload is persisted, and held under the teardown lock so the check
+        # cannot race the reserve or the drop (#1362, #1364).
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
+        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+            raise AlreadyExistsError(
+                message=f"A collection named '{collection_name}' is being torn down; "
+                "try again shortly",
+                details={"collection": collection_name},
+            )
 
         storage = get_file_storage()
         storage_path = await storage.save(f"rag/{collection_name}", filename, file_data)

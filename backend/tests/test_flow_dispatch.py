@@ -24,7 +24,7 @@ import pytest
 
 from app.core import background
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AlreadyExistsError, BadRequestError
 from app.core.permissions import AuthContext
 from app.repositories import rag_document_repo
 from app.repositories import sync_log as sync_log_repo
@@ -137,6 +137,10 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
     monkeypatch.setattr(
         IngestionConfigService, "resolved_image_model", AsyncMock(return_value=None)
     )
+    monkeypatch.setattr("app.services.rag_document.hold_name", AsyncMock())
+    monkeypatch.setattr(
+        "app.repositories.collection_teardown_repo.is_reserved", AsyncMock(return_value=False)
+    )
     storage = SimpleNamespace(save=AsyncMock(return_value="rag/handbooks/policy.txt"))
     monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
 
@@ -164,6 +168,39 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
 
     await _run_deferred(session)
     assert dispatched == [str(document.id)]
+
+
+async def test_an_upload_to_a_name_mid_teardown_is_refused(session, monkeypatch) -> None:
+    """A write to a reserved collection name is refused the way a claim of one is: the
+    durable drop frees the name only after the table is gone, and a write slipped into
+    that window would recreate the table the drop then destroys, orphaning this row and
+    losing its vectors (#1364). Refused before the file is stored, so nothing to unlink.
+    """
+    collection = SimpleNamespace(
+        collection_name="handbooks",
+        embedding_model="text-embedding-3-small",
+        ingestion_config=IngestionConfig().model_dump(mode="json"),
+    )
+    monkeypatch.setattr("app.services.rag_document.hold_name", AsyncMock())
+    monkeypatch.setattr(
+        "app.repositories.collection_teardown_repo.is_reserved", AsyncMock(return_value=True)
+    )
+    save = AsyncMock()
+    monkeypatch.setattr(
+        "app.services.rag_document.get_file_storage", lambda: SimpleNamespace(save=save)
+    )
+
+    with pytest.raises(AlreadyExistsError):
+        await RAGDocumentService(session).dispatch_upload(
+            ctx=AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner"),
+            collection=collection,
+            file_data=b"a policy nobody reads",
+            filename="policy.txt",
+            replace=False,
+            vector_store=SimpleNamespace(create_collection=AsyncMock()),
+        )
+
+    save.assert_not_awaited()
 
 
 def _failed_document() -> SimpleNamespace:
