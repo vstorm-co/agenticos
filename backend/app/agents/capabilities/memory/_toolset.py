@@ -56,6 +56,12 @@ _MAX_NAME = 64
 _MAX_KIND = 32
 _MAX_DESCRIPTION = 500
 
+# The model supplies `recall`'s `limit`, so it is capped before the query - an
+# unbounded value would otherwise reach `LIMIT` on the fact search directly, the
+# way the RAG retrieval caps its own fan-out. A recall wanting more than this is
+# not a real need.
+_MAX_RECALL_LIMIT = 50
+
 
 def _index_line(entry: memory_store.MemoryFileIndexEntry) -> str:
     """One index row, tagged with its tier so the model can tell the stores apart."""
@@ -412,6 +418,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, personal_key = scope
+        limit = min(max(limit, 1), _MAX_RECALL_LIMIT)
         if self._mem0_key is not None:
             hits = await memory_store.mem0_recall(
                 base_url=self._mem0_base_url,

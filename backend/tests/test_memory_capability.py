@@ -31,6 +31,7 @@ from app.agents.capabilities.memory._toolset import (
     _MAX_DESCRIPTION,
     _MAX_KIND,
     _MAX_NAME,
+    _MAX_RECALL_LIMIT,
     _NO_PERSONAL_WRITE,
     _NO_SCOPE,
     _NO_SHARED_WRITE,
@@ -473,6 +474,18 @@ class TestRecall:
         monkeypatch.setattr(memory_store, "recall", recall)
         await _toolset().recall(_ctx(_deps(scope_key="user:9")), "q")
         assert recall.await_args.kwargs["personal_key"] == "user:9"
+
+    async def test_it_caps_an_oversized_limit(self, monkeypatch):
+        recall = AsyncMock(return_value=[])
+        monkeypatch.setattr(memory_store, "recall", recall)
+        await _toolset().recall(_ctx(_deps()), "q", limit=1000)
+        assert recall.await_args.kwargs["limit"] == _MAX_RECALL_LIMIT
+
+    async def test_it_floors_a_nonpositive_limit(self, monkeypatch):
+        recall = AsyncMock(return_value=[])
+        monkeypatch.setattr(memory_store, "recall", recall)
+        await _toolset().recall(_ctx(_deps()), "q", limit=0)
+        assert recall.await_args.kwargs["limit"] == 1
 
     async def test_nothing_relevant_says_so(self, monkeypatch):
         monkeypatch.setattr(memory_store, "recall", AsyncMock(return_value=[]))

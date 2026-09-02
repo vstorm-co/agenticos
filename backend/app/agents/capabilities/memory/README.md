@@ -78,6 +78,23 @@ because mem0 has no named-file concept.
   reaches is the parent agent's, because a delegate shares the parent's `agent_id`
   by design.
 
+## Two operational footguns
+
+- **A personal file seeded from the console keys on the surface, not the person
+  across surfaces.** Creating a personal file names an end-user partition key -
+  `user:<id>` for a web/API subject. That same person on a *channel* runs under
+  `chan:<id>` (a channel account is a different stable key), so a file seeded under
+  `user:<id>` does not come back in their Telegram/Slack chat. It is never
+  cross-user - just a read-back gap between surfaces; a single cross-surface
+  identity is a v1 non-goal (see `derive_end_user_scope_key`).
+
+- **Do not change `EMBEDDING_MODEL` while an agent has stored facts.** Facts embed
+  on the deployment model into a fixed-width `vector(N)` column, so a model of a
+  different dimension makes `remember` and `recall` fail on a dimension mismatch.
+  Clear the facts first, or keep the model. Unlike the RAG store, memory does not
+  yet record the embedding width per agent to guard this automatically - that guard
+  is a tracked follow-up.
+
 ## Session model
 
 The agent's runtime reads and writes never use the session the run is on: each
