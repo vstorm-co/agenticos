@@ -39,6 +39,22 @@ class MemoryConfig(BaseModel):
         default=True,
         description="Short facts the agent remembers and recalls by meaning (semantic search).",
     )
+    allow_personal: bool = Field(
+        default=True,
+        description=(
+            "Whether the agent keeps a private memory for each identified end-user, "
+            "alongside the shared store. Off makes memory shared-only, for compliance "
+            "or privacy."
+        ),
+    )
+    allow_agent_shared_writes: bool = Field(
+        default=True,
+        description=(
+            "Whether the agent may write to the shared, organisation-wide memory. Off "
+            "keeps the shared store curated by operators — the agent still reads it, "
+            "but saves only to its personal memory."
+        ),
+    )
     backend: Literal["native", "mem0"] = Field(
         default="native",
         description="Where facts are stored: this deployment's pgvector, or a mem0 service.",
@@ -188,6 +204,8 @@ def _build(ctx: CapabilityBuildContext) -> Memory | None:
     return Memory(
         enable_files=config.enable_files,
         enable_facts=config.enable_facts,
+        allow_personal=config.allow_personal,
+        allow_agent_shared_writes=config.allow_agent_shared_writes,
         backend=config.backend,
         mem0_base_url=config.mem0_base_url,
         mem0_api_key=mem0_api_key,

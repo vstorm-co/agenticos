@@ -18,6 +18,8 @@ interface MemoryPanelProps {
   backend: "native" | "mem0";
   enableFiles: boolean;
   enableFacts: boolean;
+  /** Off means the agent is shared-only — no per-end-user store. */
+  allowPersonal: boolean;
 }
 
 type SubTab = "files" | "facts";
@@ -37,6 +39,7 @@ export function MemoryPanel({
   backend,
   enableFiles,
   enableFacts,
+  allowPersonal,
 }: MemoryPanelProps) {
   const t = useTranslations("memory");
 
@@ -52,7 +55,7 @@ export function MemoryPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2" data-tour="agent-memory">
-          <Badge variant="secondary">{t("cfgTwoTier")}</Badge>
+          <Badge variant="secondary">{t(allowPersonal ? "cfgTwoTier" : "cfgSharedOnly")}</Badge>
           <Badge variant="outline">{t(backend === "mem0" ? "cfgMem0" : "cfgNative")}</Badge>
         </div>
         <div className="flex items-center gap-1.5">

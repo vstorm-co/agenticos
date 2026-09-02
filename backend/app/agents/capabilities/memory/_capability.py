@@ -29,19 +29,48 @@ from app.agents.capabilities.memory._toolset import MemoryToolset
 
 __all__ = ["Memory"]
 
-# The standing note that teaches the agent its two-tier memory and how to classify
-# a write. The narrowing default (personal when unsure) is stated here and defaulted
-# in the tools, because a personal-to-shared misclassification exposes one person's
-# note to everyone (#788).
-_MEMORY_PREAMBLE = (
-    "You have a two-tier memory: a shared store (organisation-wide, the same for "
-    "everyone) and, when this conversation has an identified person, that person's "
-    "personal store. Reading always searches both. When you save something, choose "
-    "its scope: 'personal' for anything specific to this person, 'shared' only for "
-    "facts true for the whole organisation, and 'personal' when you are unsure. "
-    "Where there is no identified person, personal memory is unavailable and you can "
-    "only save to shared."
-)
+
+def _preamble(*, allow_personal: bool, allow_agent_shared_writes: bool) -> str:
+    """The standing note teaching the agent its memory model and how to save to it.
+
+    Composed from the two operator levers so it never promises a tier the config has
+    switched off: an agent told to "choose a scope" that then has every choice
+    refused is worse than one told plainly what it can do. The narrowing default
+    (personal when unsure) is stated here and defaulted in the tools, because a
+    personal-to-shared misclassification exposes one person's note to everyone (#788).
+    """
+    if allow_personal:
+        reading = (
+            "Your memory has two tiers: a shared store (organisation-wide, the same "
+            "for everyone) and, when this conversation has an identified person, that "
+            "person's personal store. Reading searches both."
+        )
+    else:
+        reading = (
+            "You have a shared, organisation-wide memory (the same for everyone). "
+            "Reading searches it."
+        )
+    if allow_personal and allow_agent_shared_writes:
+        writing = (
+            "When you save something, choose its scope: 'personal' for anything "
+            "specific to this person, 'shared' only for facts true for the whole "
+            "organisation, and 'personal' when you are unsure. Where there is no "
+            "identified person, only 'shared' can be saved to."
+        )
+    elif allow_personal:
+        writing = (
+            "Save what you learn to your personal memory (scope='personal'); the "
+            "shared store is curated by operators and is read-only to you. Where there "
+            "is no identified person, you cannot save."
+        )
+    elif allow_agent_shared_writes:
+        writing = "Save what you learn to the shared memory (scope='shared')."
+    else:
+        writing = (
+            "This memory is read-only to you - operators curate it - so you cannot "
+            "save to it, only read."
+        )
+    return f"{reading} {writing}"
 
 
 @dataclass
@@ -64,6 +93,12 @@ class Memory(AbstractCapability[AgentDepsT]):
 
     enable_files: bool = True
     enable_facts: bool = False
+    # The two tier levers. `allow_personal` off makes the agent shared-only (no
+    # per-end-user store); `allow_agent_shared_writes` off keeps the shared store
+    # operator-curated - the agent reads it but may not write it. Both default on,
+    # which is the plain two-tier model.
+    allow_personal: bool = True
+    allow_agent_shared_writes: bool = True
     # Where facts live. `native` is this deployment's pgvector; `mem0` sends them
     # to a mem0 service, and then `mem0_api_key`/`mem0_base_url` are set from the
     # binding's secret and config. Files are always native. The key is the
@@ -81,13 +116,17 @@ class Memory(AbstractCapability[AgentDepsT]):
     )
 
     def get_instructions(self) -> str | None:
-        """A standing note on how the two-tier memory works and how to classify a write.
+        """A standing note on how this agent's memory works and how to save to it.
 
         Present whenever memory is - the builder attaches the capability only when a
-        store is on - so the model reads the shared/personal split and the narrowing
-        default before its first tool call, not only in each tool's own description.
+        store is on - and composed from the two tier levers, so the model reads what
+        it can actually do (and the narrowing default) before its first tool call,
+        not only in each tool's own description.
         """
-        return _MEMORY_PREAMBLE
+        return _preamble(
+            allow_personal=self.allow_personal,
+            allow_agent_shared_writes=self.allow_agent_shared_writes,
+        )
 
     def get_toolset(self) -> AbstractToolset[Any]:
         """The memory tools this agent's config asks for, built once per instance."""
@@ -95,6 +134,8 @@ class Memory(AbstractCapability[AgentDepsT]):
             self._toolset = MemoryToolset(
                 enable_files=self.enable_files,
                 enable_facts=self.enable_facts,
+                allow_personal=self.allow_personal,
+                allow_agent_shared_writes=self.allow_agent_shared_writes,
                 backend=self.backend,
                 mem0_base_url=self.mem0_base_url,
                 mem0_api_key=self.mem0_api_key,

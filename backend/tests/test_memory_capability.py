@@ -26,13 +26,14 @@ from app.agents.capabilities.memory import (
     derive_end_user_scope_key,
     memory_requested,
 )
-from app.agents.capabilities.memory._capability import _MEMORY_PREAMBLE
+from app.agents.capabilities.memory._capability import _preamble
 from app.agents.capabilities.memory._toolset import (
     _MAX_DESCRIPTION,
     _MAX_KIND,
     _MAX_NAME,
-    _NO_PERSON_WRITE,
+    _NO_PERSONAL_WRITE,
     _NO_SCOPE,
+    _NO_SHARED_WRITE,
     MemoryToolset,
 )
 from app.agents.deps import AgentDeps
@@ -161,10 +162,74 @@ class TestWriteScope:
         )
 
     def test_personal_without_a_person_is_refused_never_shared(self):
-        assert _toolset()._write_scope(_ctx(_deps(scope_key=None)), "personal") == _NO_PERSON_WRITE
+        assert (
+            _toolset()._write_scope(_ctx(_deps(scope_key=None)), "personal") == _NO_PERSONAL_WRITE
+        )
 
     def test_a_run_without_org_or_agent_refuses(self):
         assert _toolset()._write_scope(_ctx(AgentDeps()), "shared") == _NO_SCOPE
+
+
+class TestTierLevers:
+    """The two operator levers over the tiers, resolved on the toolset."""
+
+    def _levers(self, *, allow_personal=True, allow_agent_shared_writes=True) -> MemoryToolset:
+        return MemoryToolset(
+            enable_files=True,
+            enable_facts=True,
+            allow_personal=allow_personal,
+            allow_agent_shared_writes=allow_agent_shared_writes,
+        )
+
+    def test_allow_personal_off_makes_reads_shared_only(self):
+        # Even with an identified person, a shared-only agent reads shared alone.
+        toolset = self._levers(allow_personal=False)
+        assert toolset._read_scope(_ctx(_deps(scope_key="user:1"))) == (ORG, AGENT, None)
+
+    def test_allow_personal_off_refuses_a_personal_write_even_with_a_person(self):
+        toolset = self._levers(allow_personal=False)
+        result = toolset._write_scope(_ctx(_deps(scope_key="user:1")), "personal")
+        assert result == _NO_PERSONAL_WRITE
+
+    def test_allow_personal_off_still_writes_shared(self):
+        toolset = self._levers(allow_personal=False)
+        assert toolset._write_scope(_ctx(_deps(scope_key="user:1")), "shared") == (ORG, AGENT, None)
+
+    def test_barred_shared_writes_refuse_shared(self):
+        toolset = self._levers(allow_agent_shared_writes=False)
+        assert toolset._write_scope(_ctx(_deps(scope_key="user:1")), "shared") == _NO_SHARED_WRITE
+
+    def test_barred_shared_writes_still_allow_personal(self):
+        toolset = self._levers(allow_agent_shared_writes=False)
+        assert toolset._write_scope(_ctx(_deps(scope_key="user:9")), "personal") == (
+            ORG,
+            AGENT,
+            "user:9",
+        )
+
+    def test_barred_shared_writes_do_not_touch_reads(self):
+        # Reads are unaffected - the agent still reads shared and the person's own.
+        toolset = self._levers(allow_agent_shared_writes=False)
+        assert toolset._read_scope(_ctx(_deps(scope_key="user:1"))) == (ORG, AGENT, "user:1")
+
+
+class TestPreamble:
+    def test_both_on_names_both_tiers_and_the_choice(self):
+        text = _preamble(allow_personal=True, allow_agent_shared_writes=True)
+        assert "two tiers" in text and "'personal'" in text and "'shared'" in text
+
+    def test_personal_off_is_shared_only(self):
+        text = _preamble(allow_personal=False, allow_agent_shared_writes=True)
+        assert "two tiers" not in text
+        assert "scope='shared'" in text
+
+    def test_shared_writes_barred_saves_only_personal(self):
+        text = _preamble(allow_personal=True, allow_agent_shared_writes=False)
+        assert "scope='personal'" in text and "curated by operators" in text
+
+    def test_both_off_is_read_only(self):
+        text = _preamble(allow_personal=False, allow_agent_shared_writes=False)
+        assert "read-only" in text
 
 
 class TestListMemory:
@@ -265,7 +330,7 @@ class TestWriteMemory:
         out = await _toolset().write_memory(
             _ctx(_deps(scope_key=None)), "prefs", "x", scope="personal"
         )
-        assert out == _NO_PERSON_WRITE
+        assert out == _NO_PERSONAL_WRITE
         write.assert_not_awaited()
 
     async def test_a_shared_write_works_with_no_person(self, monkeypatch):
@@ -336,7 +401,7 @@ class TestEditMemory:
     async def test_a_personal_edit_with_no_person_is_refused(self, monkeypatch):
         monkeypatch.setattr(memory_store, "edit_file", AsyncMock())
         out = await _toolset().edit_memory(_ctx(_deps(scope_key=None)), "p", "x", scope="personal")
-        assert out == _NO_PERSON_WRITE
+        assert out == _NO_PERSONAL_WRITE
 
 
 class TestDeleteMemory:
@@ -360,7 +425,7 @@ class TestDeleteMemory:
     async def test_a_personal_delete_with_no_person_is_refused(self, monkeypatch):
         monkeypatch.setattr(memory_store, "delete_file", AsyncMock())
         out = await _toolset().delete_memory(_ctx(_deps(scope_key=None)), "p", scope="personal")
-        assert out == _NO_PERSON_WRITE
+        assert out == _NO_PERSONAL_WRITE
 
 
 class TestRemember:
@@ -384,7 +449,7 @@ class TestRemember:
         remember = AsyncMock()
         monkeypatch.setattr(memory_store, "remember", remember)
         out = await _toolset().remember(_ctx(_deps(scope_key=None)), "x", scope="personal")
-        assert out == _NO_PERSON_WRITE
+        assert out == _NO_PERSONAL_WRITE
         remember.assert_not_awaited()
 
 
@@ -437,9 +502,9 @@ class TestCapability:
         both = Memory(enable_files=True, enable_facts=True).get_toolset()
         assert set(both.tools) == files | facts
 
-    def test_it_carries_a_two_tier_preamble(self):
+    def test_it_carries_a_two_tier_preamble_by_default(self):
         instructions = Memory(enable_files=True).get_instructions()
-        assert instructions == _MEMORY_PREAMBLE
+        assert instructions == _preamble(allow_personal=True, allow_agent_shared_writes=True)
         assert "shared" in instructions and "personal" in instructions
 
 
@@ -449,6 +514,8 @@ class TestConfig:
         assert config.enable_files is True
         assert config.enable_facts is True
         assert config.backend == "native"
+        assert config.allow_personal is True
+        assert config.allow_agent_shared_writes is True
 
     def test_backend_rejects_an_unknown_value(self):
         with pytest.raises(ValueError):
@@ -485,6 +552,16 @@ class TestBuilder:
     def test_it_falls_back_to_default_config(self):
         ctx = CapabilityBuildContext(binding=CapabilityBinding(capability_id="memory"), config=None)
         assert isinstance(_build(ctx), Memory)
+
+    def test_it_passes_the_tier_levers_to_the_capability(self):
+        ctx = CapabilityBuildContext(
+            binding=CapabilityBinding(capability_id="memory"),
+            config=MemoryConfig(allow_personal=False, allow_agent_shared_writes=False),
+        )
+        cap = _build(ctx)
+        assert isinstance(cap, Memory)
+        assert cap.allow_personal is False
+        assert cap.allow_agent_shared_writes is False
 
     def test_it_is_registered_and_builds_through_the_registry(self):
         (capability,) = build([CapabilityBinding(capability_id="memory", config={})])

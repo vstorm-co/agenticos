@@ -41,6 +41,15 @@ rather than silently written to shared, which would leak one person's note to
 everyone. The derivation lives in `derive_end_user_scope_key` and is wired in the
 factory; it reads the request identity and no permission.
 
+Two config switches refine the tiers. **`allow_personal`** off makes an agent
+shared-only — no per-end-user store at all, for compliance or privacy — by forcing
+the personal key to `None`, so the graceful-degradation path (shared reads, refused
+personal writes) does the work. **`allow_agent_shared_writes`** off keeps the shared
+store operator-curated: the agent reads it but a `shared` write is refused, because
+an agent write is user-influenceable and a curated company memory must not be. Both
+default on, the plain two-tier model; both off leaves a read-only, operator-curated
+memory.
+
 ## Shapes and backends
 
 Two shapes, each behind its own flag — **files** (`enable_files`) and **facts**

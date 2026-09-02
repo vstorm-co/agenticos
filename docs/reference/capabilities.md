@@ -159,8 +159,12 @@ server-side from the request identity, never chosen by the model, so a write can
 only ever land in the current person's own store. On a surface with no identified
 person (a hosted page, an anonymous widget) personal memory is unavailable — reads
 fall back to shared alone and a `personal` write is refused rather than silently
-written to shared. There is no partition to configure: both tiers coexist for
-every agent.
+written to shared. There is no partition to configure; both tiers coexist for
+every agent, and two switches refine them. **Allow personal memory** off makes an
+agent shared-only — no per-end-user store at all, for compliance or privacy.
+**Allow agent shared writes** off keeps the shared store operator-curated: the
+agent still reads it, but a `shared` write is refused, so an agent write
+(user-influenceable) can never change the company's memory.
 
 **Backend** decides where facts live. `native` keeps them in this deployment's
 own pgvector store, and the embedding cost is metered as above. `mem0` sends them

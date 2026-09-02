@@ -542,6 +542,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const memoryBackend = memoryBinding?.config.backend === "mem0" ? "mem0" : "native";
   const memoryFiles = memoryBinding?.config.enable_files !== false;
   const memoryFacts = memoryBinding?.config.enable_facts !== false;
+  const memoryAllowPersonal = memoryBinding?.config.allow_personal !== false;
 
   const update = (changes: Partial<AgentSpec>) => setSpec({ ...spec, ...changes });
 
@@ -1175,6 +1176,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               backend={memoryBackend}
               enableFiles={memoryFiles}
               enableFacts={memoryFacts}
+              allowPersonal={memoryAllowPersonal}
             />
           </TabsContent>
         )}

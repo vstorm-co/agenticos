@@ -55,9 +55,18 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function mount(props: Partial<React.ComponentProps<typeof MemoryPanel>> = {}) {
-  render(<MemoryPanel agentId="a1" canEdit backend="native" enableFiles enableFacts {...props} />, {
-    wrapper,
-  });
+  render(
+    <MemoryPanel
+      agentId="a1"
+      canEdit
+      backend="native"
+      enableFiles
+      enableFacts
+      allowPersonal
+      {...props}
+    />,
+    { wrapper },
+  );
 }
 
 describe("MemoryPanel", () => {
@@ -79,6 +88,12 @@ describe("MemoryPanel", () => {
 
     expect(screen.getByText("Shared + per-user")).toBeInTheDocument();
     expect(screen.getByText("Backend: mem0")).toBeInTheDocument();
+  });
+
+  it("shows a shared-only badge when personal memory is off", () => {
+    mount({ allowPersonal: false });
+
+    expect(screen.getByText("Shared only")).toBeInTheDocument();
   });
 
   it("filters both halves by the shared scope control", async () => {

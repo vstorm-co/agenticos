@@ -38,10 +38,14 @@ MemoryScope = Literal["personal", "shared"]
 # Refusals the model reads as results, not retries: a store the run cannot supply
 # is not a mistake the model can correct by trying the same call again.
 _NO_SCOPE = "Memory is not available in this run."
-_NO_PERSON_WRITE = (
-    "This conversation has no identified person, so there is no personal memory to "
-    "save to. If this is an organisation-wide fact, save it again with scope='shared'; "
-    "otherwise it cannot be saved here. This is expected on a public or anonymous surface."
+_NO_PERSONAL_WRITE = (
+    "Personal memory is not available here, so there is nothing personal to save to - "
+    "either this conversation has no identified person, or the agent is configured for "
+    "shared memory only. If this is an organisation-wide fact, save it with scope='shared'."
+)
+_NO_SHARED_WRITE = (
+    "Shared memory is curated by operators here and is not yours to write. Save anything "
+    "you learn to your personal memory instead (scope='personal')."
 )
 
 # The `agent_memory_files` metadata column widths. A runtime write past them is an
@@ -76,11 +80,22 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         *,
         enable_files: bool,
         enable_facts: bool,
+        allow_personal: bool = True,
+        allow_agent_shared_writes: bool = True,
         backend: str = "native",
         mem0_base_url: str | None = None,
         mem0_api_key: str | None = None,
     ) -> None:
         super().__init__()
+        # Two operator levers over the tiers. `allow_personal` off makes the agent
+        # shared-only (no per-end-user store at all, for compliance); it forces the
+        # personal key to None everywhere, so the graceful-degradation path already
+        # written for an anonymous run does the work. `allow_agent_shared_writes`
+        # off keeps the shared store operator-curated - the agent reads it but a
+        # `shared` write is refused, because an agent write to shared is
+        # user-influenceable and a curated company memory must not be.
+        self._allow_personal = allow_personal
+        self._allow_agent_shared_writes = allow_agent_shared_writes
         # Facts route to mem0 exactly when the backend is mem0 and a key is present
         # (publish requires one for `mem0`, so a missing key here is a broken
         # binding, not a normal path). Held as the key itself so the `is not None`
@@ -98,18 +113,27 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             self.add_function(self.remember, name="remember")
             self.add_function(self.recall, name="recall")
 
+    def _personal_key(self, ctx: RunContext[AgentDeps]) -> str | None:
+        """The run's personal partition key, or `None` when there is no personal tier.
+
+        `None` for a run with no identified person and for an agent whose operator
+        turned the personal tier off (`allow_personal`): both collapse to "shared
+        only", which the union read and the write refusal already handle.
+        """
+        return ctx.deps.end_user_scope_key if self._allow_personal else None
+
     def _read_scope(self, ctx: RunContext[AgentDeps]) -> tuple[UUID, UUID, str | None] | str:
         """(organization_id, agent_id, personal_key) for a read, or a refusal.
 
         `personal_key` is the run's end-user key, or `None` when the run has no
-        identified person - in which case the read simply spans the shared store
-        alone. A read is refused only when the run carries no org or agent at all
-        (`_NO_SCOPE`), never for want of a person: shared memory is always readable.
+        identified person or the agent is shared-only - in which case the read spans
+        the shared store alone. A read is refused only when the run carries no org or
+        agent at all (`_NO_SCOPE`), never for want of a person: shared is always read.
         """
         deps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return _NO_SCOPE
-        return deps.organization_id, deps.agent_id, deps.end_user_scope_key
+        return deps.organization_id, deps.agent_id, self._personal_key(ctx)
 
     def _write_scope(
         self, ctx: RunContext[AgentDeps], scope: MemoryScope
@@ -117,19 +141,24 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         """(organization_id, agent_id, scope_key) for a write to `scope`, or a refusal.
 
         The model chooses the *tier*; the key is derived server-side. `shared`
-        resolves to the shared partition (`None`); `personal` resolves to the run's
-        own end-user key, and is refused (`_NO_PERSON_WRITE`) when the run has no
-        identified person - never silently redirected to shared, which would leak
+        resolves to the shared partition (`None`) unless the agent is barred from
+        writing shared (`allow_agent_shared_writes` off), which keeps a curated
+        company memory operator-only. `personal` resolves to the run's own end-user
+        key and is refused when there is no personal tier (no identified person, or
+        `allow_personal` off) - never silently redirected to shared, which would leak
         one person's note to everyone.
         """
         deps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return _NO_SCOPE
         if scope == "shared":
+            if not self._allow_agent_shared_writes:
+                return _NO_SHARED_WRITE
             return deps.organization_id, deps.agent_id, None
-        if deps.end_user_scope_key is None:
-            return _NO_PERSON_WRITE
-        return deps.organization_id, deps.agent_id, deps.end_user_scope_key
+        personal_key = self._personal_key(ctx)
+        if personal_key is None:
+            return _NO_PERSONAL_WRITE
+        return deps.organization_id, deps.agent_id, personal_key
 
     async def list_memory(self, ctx: RunContext[AgentDeps]) -> str:
         """List the memories you have saved, by name and description.

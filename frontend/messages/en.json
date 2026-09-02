@@ -4733,6 +4733,7 @@
     "originAgent": "Agent",
     "partitionShared": "Shared",
     "cfgTwoTier": "Shared + per-user",
+    "cfgSharedOnly": "Shared only",
     "cfgNative": "Backend: native",
     "cfgMem0": "Backend: mem0",
     "newFile": "New file",
