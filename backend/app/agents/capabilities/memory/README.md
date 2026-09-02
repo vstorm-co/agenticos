@@ -4,8 +4,9 @@ Gives an agent a store of its own across conversations, in two shapes: named
 **files** it writes and reads back by name, and short **facts** it remembers and
 recalls by meaning (semantic search over pgvector). Where `context` is a library
 a *person* authors and binds to many agents (read-only to the model), memory is
-the agent's own — agent-written, addressed by the agent plus an end-user
-partition, and inspected, seeded or cleared by operators through `/api/v1/memory`.
+the agent's own — agent-written, addressed by the agent and a memory tier
+(shared, or one end-user's), and inspected, seeded or cleared by operators
+through `/api/v1/memory`.
 
 ## Why it is not `context`, and not a knowledge base
 
@@ -27,15 +28,18 @@ and the runtime `edit`/`delete` tools refuse to touch an `operator` row
 The one path from `agent` to `operator` is a deliberate operator action
 ("promote"), never a side effect of editing.
 
-**`partition` decides who shares a memory.** `shared` is one store per
-(organization, agent) — cross-user by design, for a single trusted audience.
-`per_user` is a private store per end-user, and the per-end-user key is derived
-server-side, never chosen by the model. A `per_user` run with no way to identify
-the person (a hosted/widget visitor, an anonymous surface) **refuses** rather
-than falling back to a shared store — collapsing a private partition onto a
-shared one is the cross-user leak the capability exists to prevent. The
-derivation lives in `derive_end_user_scope_key` and is wired in the factory; it
-reads the request identity and no permission.
+**Two tiers, and the model picks the tier but never the person.** Every memory
+agent has a `shared` store (one per organization+agent, cross-user by design) and,
+when a run has an identified person, that person's private store. Reads union the
+two; writes carry a `scope` — `personal` or `shared` — the model chooses from
+context, defaulting to `personal` when unsure. Only the *tier* is the model's: the
+per-end-user key is derived server-side, never named by the model, so a write can
+only ever reach the current person's own store, never another's. A run with no way
+to identify the person (a hosted/widget visitor, an anonymous surface) simply loses
+the personal tier — it reads shared alone, and a `personal` write is **refused**
+rather than silently written to shared, which would leak one person's note to
+everyone. The derivation lives in `derive_end_user_scope_key` and is wired in the
+factory; it reads the request identity and no permission.
 
 ## Shapes and backends
 
@@ -55,9 +59,10 @@ because mem0 has no named-file concept.
   `promote` still earns its keep: it moves a reviewed `agent` row into the
   trusted tier the console shows, the gate that feature will read.
 - **Root agent only.** A delegate does not derive its own end-user key
-  (`clone_for_subagent` is untouched), so `per_user` memory refuses inside a
-  delegation. Shared memory a delegate reaches is the parent agent's, because a
-  delegate shares the parent's `agent_id` by design.
+  (`clone_for_subagent` is untouched), so the personal tier is unavailable inside a
+  delegation — a delegate reads and writes shared alone. The shared store a delegate
+  reaches is the parent agent's, because a delegate shares the parent's `agent_id`
+  by design.
 
 ## Session model
 

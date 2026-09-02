@@ -148,12 +148,19 @@ operator typed would escape that ledger, so operators never create or search
 facts, only list, read and clear them (the listing search is a plain substring
 match).
 
-**Partition** is `shared` — one store per agent, read by every end-user it
-serves, for a single trusted audience — or `per_user`, a private store per
-end-user. The per-end-user key is derived server-side from the request identity
-and never chosen by the model, so a run reaches only the store it was admitted
-to; a `per_user` run on a surface with no identified person (a hosted page, an
-anonymous widget) refuses rather than falling back to a shared store.
+**Memory is two-tier.** Every memory agent has a `shared` store — one per agent,
+read by every end-user it serves — and, when a run has an identified person, that
+person's private store as well. Reads (`list_memory`, `read_memory`, `recall`)
+union the two, so an agent always sees the organisation's memory and, for a known
+person, theirs on top; the index labels each entry's tier. Writes name a `scope` —
+`personal` or `shared` — that the model chooses from context, defaulting to
+`personal` when unsure, but only the *tier*: the per-end-user key is derived
+server-side from the request identity, never chosen by the model, so a write can
+only ever land in the current person's own store. On a surface with no identified
+person (a hosted page, an anonymous widget) personal memory is unavailable — reads
+fall back to shared alone and a `personal` write is refused rather than silently
+written to shared. There is no partition to configure: both tiers coexist for
+every agent.
 
 **Backend** decides where facts live. `native` keeps them in this deployment's
 own pgvector store, and the embedding cost is metered as above. `mem0` sends them
