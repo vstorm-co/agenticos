@@ -231,9 +231,12 @@ class KnowledgeBaseService:
         onto the name and have this drop destroy its table (#1362, #1364).
         """
         collection = kb.collection_name
+        # Teardown lock before the row delete - the one-way order (teardown lock, then
+        # the knowledge_bases row lock) that every teardown and every write share, so
+        # the lock graph cannot cycle into a deadlock (#1382).
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         # A default keeps its own row, so filter it out by id: the table is dropped
         # only when no base *other* than the one being cleared still references the
         # name, so a shared name a sibling holds is not dropped from under it (#913).
@@ -534,6 +537,13 @@ class KnowledgeBaseService:
         if kb.is_default:
             raise BadRequestError(message="Cannot delete the default knowledge base")
         collection = kb.collection_name
+        # Teardown lock before the base's row lock - the one-way order (teardown lock,
+        # then the knowledge_bases row lock) every teardown and every write share, so
+        # the lock graph cannot cycle into a deadlock (#1382). It also holds the name
+        # against a claim across the last-reference check and the reservation, so a
+        # create cannot slip a new base onto it and have the deferred drop destroy its
+        # table (#1362).
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         # Lock the base before enumerating its documents, so a concurrent upload
         # or sync inserting a row cannot slip in between the enumeration and the
         # base delete and survive detached under `ON DELETE SET NULL` (#1266).
@@ -541,10 +551,6 @@ class KnowledgeBaseService:
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
         collections_to_drop: list[str] = []
-        # Hold the name against a concurrent claim while the last-reference check and
-        # the reservation are made, so a create cannot slip a new base onto the name
-        # between them and have the deferred drop destroy its table (#1362).
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.services.rag.config import get_supported_formats
@@ -237,14 +238,15 @@ class RAGDocumentService:
 
         # Refuse a write to a name mid-teardown, the way `claim` refuses a create of
         # one: the durable drop frees the name only once its table is gone, and a write
-        # slipped into that window would `_ensure_collection`-recreate the table the
-        # drop then destroys, orphaning this row and losing its vectors. The reservation
-        # is committed with the delete, so this catches every upload that arrives after
-        # it. Deliberately unlocked: taking the teardown lock here, before the insert's
-        # foreign-key lock on the knowledge_bases row, would invert
-        # `KnowledgeBaseService.delete`'s order (that row first, then the teardown lock)
-        # and deadlock. Fully serialising the narrow commit-to-reserve window, and the
-        # worker ingestion paths, is #1382 (#1362, #1364).
+        # slipped into that window would `_ensure_collection`-recreate the table the drop
+        # then destroys, orphaning this row and losing its vectors. Held under the
+        # teardown lock, taken before the insert's foreign-key lock on the
+        # knowledge_bases row - every teardown takes the teardown lock before that row
+        # lock too, so the order is one-way and cannot deadlock (#1382). Serialised this
+        # way, an upload that wins the lock and a delete that follows are consistent: the
+        # delete's row sweep removes this document too, rather than leaving it without
+        # vectors.
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
         if await collection_teardown_repo.is_reserved(self.db, collection_name):
             raise AlreadyExistsError(
                 message=f"A collection named '{collection_name}' is being torn down; "
@@ -525,7 +527,15 @@ class RAGDocumentService:
         Prefect server and retried (#1349). Best-effort: the cleanup resolves the
         storage backend only when it runs, so a misconfigured backend fails the
         background run, not the drop.
+
+        Takes the teardown lock first, before the bulk delete, because the drop route
+        calls this and then `KnowledgeBaseService.delete_for_rag_collection` (which
+        reserves the name) on the same session: holding the lock from here means a
+        concurrent upload cannot commit a row this sweep already passed and then lose
+        it to the deferred drop - it blocks until the drop commits and is refused, or
+        wins the lock and is swept whole (#1382).
         """
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
         storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
         if storage_paths:
             from app.core.background import spawn_after_commit

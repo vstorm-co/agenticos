@@ -40,9 +40,11 @@ def _no_leftover_tasks():
 
 def _deferring_db() -> MagicMock:
     """A session stand-in whose `info` is a real dict, so `spawn_after_commit`
-    queues on it the way a live session's does."""
+    queues on it the way a live session's does. `execute` is awaitable so the
+    collection-drop path's `hold_name` advisory lock is a no-op here (#1382)."""
     db = MagicMock()
     db.info = {}
+    db.execute = AsyncMock()
     return db
 
 
