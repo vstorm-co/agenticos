@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **9**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **10**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,81 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.355] - 2026-09-02
+
+### Added
+
+- **One command from nothing to a running agent.** `scripts/quickstart.sh`
+  checks what the machine is missing and says how to get it, asks four
+  questions, and hands back a console with a working agent in it. The plain
+  `make` route is unchanged and documented beside it, for anyone who would
+  rather read the steps than answer prompts.
+- **5,802 MCP servers in the picker, searchable by name.** 99 are curated —
+  connected and checked by hand, with their OAuth flows wired and 71 of them
+  connectable without a URL — and the rest are mirrored from the official public
+  registry, carrying `reviewed: false` because nobody here has looked at them.
+  The mirror lives in the database because a file cannot be paged, and
+  `agenticos cmd mcp-registry-sync` prunes only what it has seen a full listing
+  for.
+- **An agent can speak as whoever is running it**, per binding and off by
+  default: a member's own Notion in the chat they are having alone with it, the
+  organization's everywhere else. Only the credential is substituted — the tool
+  prefix stays the organization's, so the agent presents the same tools to
+  everyone. A member nominates which of their accounts an agent speaks as, and
+  a connection can carry a label a person reads rather than a slug.
+- **A voice message is transcribed into the turn that carried it**, on the
+  organization's own credential, with a catalog of the models that do it. The
+  transcript arrives as part of the message rather than as an attachment nobody
+  opens.
+- **A thread is the unit of conversation**, in a direct message as well as a
+  channel, and Mattermost is level with Slack on both threads and connection
+  state. A bot brought into a thread partway through reads what was said before
+  it arrived, with that thread's earlier files, and a row says when its
+  connection is not up.
+- **Twenty-eight agent templates, four per industry**, browsable from the agents
+  page, and an opt-in gallery of seventy skills across seven industries
+  browsable from the skills page.
+- **The documentation site, rebuilt**: seven tabs organised by what the reader
+  is doing, every module screenshotted in both themes, `docs/screens.md`,
+  `llms.txt` as the single copy of the pitch that models read, and a
+  twenty-slide client presentation at `/presentation/` — published as a page
+  because the PDF it renders is 6.4 MB.
+
+### Changed
+
+- **`AgentSpec.mcp_server_ids` is now `mcp_servers`**, a list of typed
+  references rather than bare ids, because the binding grew a policy and an id
+  had nowhere to carry it. **`SPEC_VERSION` 9 → 10**; a stored v9 spec migrates
+  on load, so nothing published before this stops loading, and an exported YAML
+  keeps working. Publish now refuses two questions that have no answer at run
+  time: a substituting binding whose connection has no `catalog_key`, and two
+  substituting bindings sharing one.
+- The README was rebuilt against what breakout repositories actually do, and
+  the site's headings are sentence case throughout, with a guard that fails a
+  documentation paragraph over 115 words.
+
+### Fixed
+
+- **Slack.** A bot answered messages nobody sent it; every message carrying a
+  file was dropped; the mention token reached the prompt; Socket Mode's payload
+  was parsed in halves; and the first chunk of an answer was not streamed, only
+  the rest.
+- **Channels.** The agent read the history of some other thread than the one it
+  was answering in; a thread was re-read once per new row instead of once per
+  session; a quiet connection reported itself down after fifteen minutes; and
+  the channel CLI acted without the organization it was acting for.
+- **MCP.** The Builder could widen an allowlist it was meant to narrow; a
+  personal account could leak into a room with other readers in it; two
+  concurrent nominations of a default account both succeeded and one 500'd on
+  the unique index; a repointed connection kept the previous host's cached tool
+  list; and organization-scoped OAuth posted to a path that does not exist.
+- **Approvals.** The queue is paged, so an alert can reach a request that is not
+  on the first page, and a resumed run is restored on what it was admitted on
+  rather than on whoever approved it.
+- **Users.** The heir choice is made inside the locks that ordered it, so a
+  self-delete cannot take a user row's lock outside the ascending sequence that
+  closed the deadlock in #1134. ([#1268](https://github.com/vstorm-co/agenticos/issues/1268))
 
 ## [0.0.354] - 2026-09-01
 
