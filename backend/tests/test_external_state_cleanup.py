@@ -294,6 +294,25 @@ class TestTheSweep:
         release.assert_not_awaited()
         assert result == {"swept": 1, "dropped": 0}
 
+    async def test_a_reservation_that_cannot_be_dropped_does_not_abort_the_sweep(self) -> None:
+        """A legacy name current validation rejects raises from `_table` - a
+        `BadRequestError`, not the `SQLAlchemyError` the drop catches - which must not
+        disable the whole sweep: the row is isolated and the rest still run (#1364)."""
+        from app.core.exceptions import BadRequestError
+
+        store, _engine, release, scan = _patch_sweep(
+            [MagicMock(collection_name="bad"), MagicMock(collection_name="docs")]
+        )
+        store.delete_collection = AsyncMock(side_effect=[BadRequestError(message="bad"), None])
+        with ExitStack() as stack:
+            for p in scan:
+                stack.enter_context(p)
+            result = await sweep_teardown_reservations()
+
+        assert store.delete_collection.await_count == 2  # carried on past the bad one
+        assert [call.args[1] for call in release.await_args_list] == ["docs"]
+        assert result == {"swept": 2, "dropped": 1}
+
     async def test_no_stale_reservations_builds_no_store(self) -> None:
         """The common tick returns no rows, so it never builds a vector-store engine."""
         _store, _engine, _release, scan = _patch_sweep([])

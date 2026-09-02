@@ -260,11 +260,19 @@ async def sweep_teardown_reservations() -> dict[str, int]:
         async with _vector_store() as store:
             for row in stale:
                 collection = row.collection_name
-                await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
-                if not await collection_teardown_repo.is_reserved(db, collection):
-                    continue
-                if await _drop_then_release(store, db, collection):
-                    dropped += 1
+                try:
+                    await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
+                    if not await collection_teardown_repo.is_reserved(db, collection):
+                        continue
+                    if await _drop_then_release(store, db, collection):
+                        dropped += 1
+                except Exception:
+                    # One bad tombstone must not disable the sweep. A legacy name
+                    # current validation rejects raises from `_table` (a
+                    # `BadRequestError`, not the `SQLAlchemyError` `_drop_then_release`
+                    # catches), so isolate every reservation and carry on - the row
+                    # stays reserved, blocking a name that is already unusable (#1364).
+                    logger.exception("teardown_reservation_sweep skipped %s", collection)
     if dropped:
         logger.warning("teardown_reservation_sweep dropped %d stuck reservation(s)", dropped)
     return {"swept": len(stale), "dropped": dropped}
