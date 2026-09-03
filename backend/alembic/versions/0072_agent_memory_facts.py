@@ -24,8 +24,8 @@ either wrong fails only on a real database:
   that later changes `EMBEDDING_MODEL` gets a dimension-mismatch at embed time,
   which is the documented cost of one fixed-width table.
 
-Revision ID: 0064_agent_memory_facts
-Revises: 0063_agent_memory_files
+Revision ID: 0072_agent_memory_facts
+Revises: 0071_agent_memory_files
 Create Date: 2026-09-01
 
 """
@@ -37,8 +37,8 @@ import sqlalchemy as sa
 from alembic import op
 from app.core.config import settings
 
-revision: str = "0064_agent_memory_facts"
-down_revision: str | None = "0063_agent_memory_files"
+revision: str = "0072_agent_memory_facts"
+down_revision: str | None = "0071_agent_memory_files"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -142,7 +142,9 @@ named notes the agent writes, edits and reads back by name — a durable, editab
 record. **Facts** (`enable_facts`) are short things it remembers and recalls by
 *meaning*: `remember` embeds a sentence, `recall` returns the nearest ones by
 vector similarity. An agent can have either or both; with both off the capability
-contributes nothing. Facts embed on the deployment's embedding model. The agent's
+contributes nothing.
+
+Facts embed on the deployment's embedding model. The agent's
 own `remember` books the embedding to the run's ledger like any other model call;
 an operator seeding a fact books it to the organisation's ingestion spend, the same
 as a RAG document, because a seed is off any run. An operator's *search* stays a
@@ -194,13 +196,15 @@ Every file records an `origin`: `operator` (written by a person) or `agent`
 (written by a tool mid-run). It is a trust tier. The agent may read an
 operator-authored note but not edit or delete it, so it cannot rewrite content a
 person vouched for; turning an agent note into an operator one is a deliberate
-"promote" action, never a side effect of an edit. A fact carries an `origin` for
-the same reason: the runtime `remember` writes an `agent` fact, an operator seed
-writes an `operator` one, and only the injectable set — a person's own facts and
-operator-authored shared ones — is placed in the standing brief, while an
-agent-authored shared fact stays `recall`-only. Access to the management API rides
-on the parent agent —
-whoever may view the agent may read its memory, whoever may edit the agent may
+"promote" action, never a side effect of an edit.
+
+A fact carries an `origin` for the same reason: the runtime `remember` writes an
+`agent` fact, an operator seed writes an `operator` one, and only the injectable
+set — a person's own facts and operator-authored shared ones — is placed in the
+standing brief, while an agent-authored shared fact stays `recall`-only.
+
+Access to the management API rides on the parent agent — whoever may view the
+agent may read its memory, whoever may edit the agent may
 change it — so there is no `memory:*` scope. Creating a file is the one act split
 by tier: writing the shared store or another person's personal store is an editor
 act, but writing one's *own* personal store (`user:<caller>`, the key the agent
