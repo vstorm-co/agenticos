@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 
-from app.services.channels import get_adapter
+from app.services.channels import connection_state, get_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +111,12 @@ async def close_inbound_stream(*, bot_id: str, platform: str) -> None:
     runs after a transaction committed, so raising would leave a bot deleted and
     a background task failing about it.
     """
+    # Before the adapter lookup, so a bot on a platform nothing serves does not
+    # keep a stale "down" beside it for a quarter of an hour. A paused or deleted
+    # bot has no connection *by design*, and the listing already says `Paused` -
+    # reporting a decision as a fault is the mirror of the defect this state was
+    # added for (#1351).
+    await connection_state.forget(bot_id)
     try:
         adapter = get_adapter(platform)
     except KeyError:

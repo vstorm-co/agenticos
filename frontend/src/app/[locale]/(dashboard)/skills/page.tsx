@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { BookOpen, ChevronDown, ListFilter, Lock, Plus } from "lucide-react";
+import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
+import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
 import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
@@ -102,6 +103,8 @@ export default function SkillsPage() {
   const { skill, save } = useSkill(selected?.id ?? null);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const tGallery = useTranslations("skills.gallery");
 
   const canEdit = can(Perm.skillsEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -128,10 +131,20 @@ export default function SkillsPage() {
       description={t("skillKnowHowWritten")}
       actions={
         canEdit ? (
-          <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t("newSkill")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              data-tour="skills-gallery"
+              onClick={() => setGalleryOpen(true)}
+            >
+              <Library className="h-4 w-4" />
+              {tGallery("browse")}
+            </Button>
+            <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              {t("newSkill")}
+            </Button>
+          </div>
         ) : undefined
       }
     />
@@ -361,6 +374,7 @@ export default function SkillsPage() {
       </Dialog>
 
       <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
 
       {pendingDelete !== null && (
         <ConfirmDialog

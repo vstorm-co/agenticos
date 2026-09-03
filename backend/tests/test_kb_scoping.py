@@ -25,6 +25,18 @@ def _no_leftover_tasks():
     background._running.clear()
 
 
+@pytest.fixture(autouse=True)
+def _teardown_reservations(monkeypatch):
+    """The teardown-reservation repo (#1362) hits the database; mock it at the
+    boundary. A name is free to claim and reserving/releasing is a no-op by default;
+    a test that asserts a reservation re-patches `reserve`."""
+    from app.repositories import collection_teardown_repo
+
+    monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+    monkeypatch.setattr(collection_teardown_repo, "reserve", AsyncMock())
+    monkeypatch.setattr(collection_teardown_repo, "release", AsyncMock())
+
+
 def _ctx(
     *,
     organization_id: uuid.UUID | None = None,
@@ -48,13 +60,17 @@ def unclaimed_collection_name(monkeypatch: pytest.MonkeyPatch) -> None:
     about - see `tests/api/test_collection_name_routes.py` for the claim itself.
     Without this, the lookup reaches the `MagicMock` standing in for a session.
     """
-    from app.repositories import knowledge_base_repo
+    from app.repositories import collection_teardown_repo, knowledge_base_repo
 
     async def held_by_nobody(_db: object, collection_name: str) -> list[KnowledgeBase]:
         del collection_name
         return []
 
+    async def not_reserved(_db: object, _name: str) -> bool:
+        return False
+
     monkeypatch.setattr(knowledge_base_repo, "list_by_collection_name", held_by_nobody)
+    monkeypatch.setattr(collection_teardown_repo, "is_reserved", not_reserved)
 
 
 def _kb(
@@ -66,6 +82,10 @@ def _kb(
 ):
     kb = MagicMock()
     kb.id = uuid.uuid4()
+    # A real name, not a mock: the teardown takes an advisory lock keyed on it,
+    # and hashing a `MagicMock` is a `TypeError` from `blake2b` rather than
+    # anything about the behaviour under test.
+    kb.collection_name = f"kb_{uuid.uuid4().hex[:8]}"
     kb.scope = scope
     kb.owner_user_id = owner_user_id
     kb.organization_id = organization_id
@@ -118,6 +138,9 @@ class TestKBAccessControl:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         db = MagicMock(execute=AsyncMock())
         db.info = {}
         return db
@@ -448,6 +471,77 @@ class TestKBAccessControl:
         dispatch.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_dropping_a_rag_collection_deletes_the_row_and_dispatches_the_drop(
+        self, mock_db, monkeypatch
+    ):
+        """`DELETE /rag/collections/{name}` reaches here: the KB row goes in the
+        request, the table drop is handed to the durable, locked cleanup (#1355)."""
+        kb = _kb("org", is_default=False)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        with (
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+            background.start_deferred(mock_db)
+            await background.drain(timeout=5.0)
+
+        deleted.assert_awaited_once()
+        dispatch.assert_awaited_once_with([], ["docs"])
+
+    @pytest.mark.anyio
+    async def test_dropping_a_default_rag_collection_keeps_the_row_and_the_table(
+        self, mock_db, monkeypatch
+    ):
+        """A default base is left intact and its row keeps the name, so the table is
+        kept - nothing is deleted, reserved or dropped. Clearing a default collection's
+        vectors without racing an upload is #1364, not this."""
+        from app.repositories import collection_teardown_repo
+
+        kb = _kb("org", is_default=True)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        reserve = AsyncMock()
+        monkeypatch.setattr(collection_teardown_repo, "reserve", reserve)
+        with (
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[kb]),
+            ),
+        ):
+            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        deleted.assert_not_awaited()  # the default row is kept
+        reserve.assert_not_awaited()  # its own row keeps the name, so no reservation
+        dispatch.assert_not_called()  # the table is kept
+
+    @pytest.mark.anyio
+    async def test_dropping_a_rag_collection_a_sibling_still_holds_keeps_the_table(
+        self, mock_db, monkeypatch
+    ):
+        """The row goes, but a second base still claims the name, so the table is
+        kept and no drop is dispatched (#913)."""
+        kb = _kb("org", is_default=False)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        with (
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[MagicMock()]),
+            ),
+        ):
+            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        deleted.assert_awaited_once()
+        dispatch.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):
         """Somebody else's personal base is reported absent, not forbidden.
 
@@ -664,6 +758,9 @@ class TestBindingAnEmbeddingSecret:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         return MagicMock(execute=AsyncMock())
 
     def _secret(self, purpose: str = "openrouter"):
@@ -750,6 +847,9 @@ class TestWhoServesTheEmbeddingModel:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         return MagicMock(execute=AsyncMock())
 
     def _kb_row(self, *, provider: str = "openrouter", secret_id: uuid.UUID | None = None):
@@ -929,6 +1029,9 @@ class TestCollectionCounts:
 
     @pytest.fixture
     def mock_db(self):
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
         return MagicMock(execute=AsyncMock())
 
     @pytest.mark.anyio

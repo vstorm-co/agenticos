@@ -165,3 +165,64 @@ export interface ContextFileList {
   items: ContextFileSummary[];
   total: number;
 }
+
+/** One skill on a gallery shelf - the picker's row, never the body. */
+export interface GallerySkill {
+  /** `<industry>/<folder>` - what an install request names. */
+  key: string;
+  name: string;
+  description: string;
+  category: string | null;
+  /** Whether this organization already has a skill by this name. */
+  installed: boolean;
+}
+
+/** One industry shelf and what is on it. */
+export interface GalleryIndustry {
+  id: string;
+  skills: GallerySkill[];
+}
+
+export interface SkillGallery {
+  industries: GalleryIndustry[];
+}
+
+/** What an install did, per key, so a partial result is legible. */
+export interface GalleryInstallResult {
+  installed: string[];
+  skipped: string[];
+  unknown: string[];
+}
+
+/** One shipped agent template as the picker shows it. */
+export interface AgentTemplate {
+  key: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  skills: string[];
+  mcp: string[];
+  /** What a person still has to attach before publishing. */
+  attach: string[];
+  budget_usd: number | null;
+  installed: boolean;
+}
+
+export interface TemplateIndustry {
+  id: string;
+  templates: AgentTemplate[];
+}
+
+export interface AgentTemplateCatalog {
+  industries: TemplateIndustry[];
+}
+
+/** What installing a template created, and what is left to do. */
+export interface TemplateInstallResult {
+  agent_id: string;
+  slug: string;
+  name: string;
+  skills_installed: string[];
+  attach: string[];
+  suggested_mcp: string[];
+}

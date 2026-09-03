@@ -196,6 +196,47 @@ interface ImageProviderList {
  * A catalog, not a listing: no credential is read, and this says nothing about
  * what the organization has a key for. The secret field beside it does that.
  */
+export interface SpeechToTextModel {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface SpeechToTextProvider {
+  provider: string;
+  name: string;
+  models: SpeechToTextModel[];
+}
+
+interface SpeechToTextProviderList {
+  items: SpeechToTextProvider[];
+  total: number;
+}
+
+/**
+ * Which providers can transcribe a voice note, and with which models.
+ *
+ * The server's answer, like the image catalog beside it, and the filtering is the
+ * part that matters: an entry whose credential is not a plain API key, or whose
+ * API shape has no client, never reaches here - a picker entry that fails when
+ * somebody sends a voice note is worse than one that is absent.
+ *
+ * A catalog, not a listing. It says what the deployment can offer, not what this
+ * organization has a key for; the key is resolved from its model profiles when a
+ * recording actually arrives.
+ */
+export function useSpeechToTextProviders() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: qk.providers.speechToTextModels(),
+    queryFn: () => apiClient.get<SpeechToTextProviderList>("/providers/speech-to-text-models"),
+    // Fixed until the platform is redeployed, like the provider catalog.
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  return { providers: data?.items ?? [], isLoading, isError };
+}
+
 export function useImageProviders() {
   const { data, isLoading, isError } = useQuery({
     queryKey: qk.providers.imageModels(),

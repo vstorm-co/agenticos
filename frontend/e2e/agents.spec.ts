@@ -582,7 +582,7 @@ test.describe("Agents", () => {
   });
 
   test("an MCP server can be bound to an agent, and it survives publishing", async ({ page }) => {
-    // The picker existed and was mounted nowhere, because `mcp_server_ids`
+    // The picker existed and was mounted nowhere, because `mcp_servers`
     // could only be filled with something publish refuses. This asserts the
     // whole of what changed: the Builder offers the organization's servers, the
     // choice reaches the stored draft, and the spec publishes with it — which

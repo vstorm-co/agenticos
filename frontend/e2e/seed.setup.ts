@@ -287,7 +287,9 @@ setup("the organization has connected an MCP server", async ({ page }) => {
   // the custom entry rather than through one "add" button.
   await page.getByRole("button", { name: "Add a custom server" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Name").fill(SEEDED_ORG_MCP_NAME);
+  // The tool prefix, not the display name beside it: the fixture is looked up
+  // by `name`, which is what the model reads before a call.
+  await dialog.getByLabel("Tool prefix").fill(SEEDED_ORG_MCP_NAME);
   await dialog.getByLabel("Server URL").fill(SEEDED_ORG_MCP_URL);
   await dialog.getByLabel("Access token").fill(SEEDED_ORG_MCP_SECRET);
   await dialog.getByRole("button", { name: "Connect & check" }).click();

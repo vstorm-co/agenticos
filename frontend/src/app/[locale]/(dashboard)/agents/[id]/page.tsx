@@ -38,6 +38,10 @@ import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
+import type { McpCatalogEntry } from "@/types/mcp";
+import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
+import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
+import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
@@ -113,13 +117,40 @@ import type { FieldProblem } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
-import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
+import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
+import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { narrowedSelection } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+/**
+ * What the tool picker opens with for one binding.
+ *
+ * The tools come from the connection's **last successful probe** rather than a
+ * fresh one: probing dials out to a third party and is gated on
+ * `connections:manage`, which an agent author need not hold (#1341).
+ *
+ * A connection nothing has probed yet has no catalogue, and a binding that
+ * already names tools would then read "0 of 0 on" while its card says three -
+ * so the names it holds stand in. They came from the server once, they are what
+ * the agent is bound to, and they can at least be narrowed further without a
+ * probe. The dialog says where to get the real list.
+ */
+function toolChoice(connection: OrgMcpConnectionRecord, ref: McpServerRef): ToolPickerState {
+  const probed = connection.last_tools;
+  const tools = probed ?? (ref.allowed_tools ?? []).map((name) => ({ name, description: "" }));
+  return {
+    scope: "organization",
+    connection,
+    tools,
+    checked: new Set(ref.allowed_tools ?? tools.map((one) => one.name)),
+    appliesTo: "agent",
+  };
 }
 
 export default function AgentBuilderPage({ params }: PageProps) {
@@ -151,6 +182,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // cannot be published. `useMcpCatalog` only supplies the names and logos -
   // the ids the spec stores belong to the connections.
   const { connections: mcpConnections } = useOrgMcpConnections();
+  const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
+  const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   const { exposures } = useExposures(id);
   const { embeds } = useEmbeds(id);
   const { servers: mcpCatalog } = useMcpCatalog();
@@ -351,17 +384,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("mcpServers"),
         icon: MAP_ICONS.mcp,
         side: "right",
-        items: spec.mcp_server_ids.map((entry) => {
-          const connection = mcpConnections.find((row) => row.id === entry);
+        items: spec.mcp_servers.map((ref) => {
+          const connection = mcpConnections.find((row) => row.id === ref.connection_id);
           // The mark belongs to the *catalog* entry a connection matches, not to
           // the connection - which is how the picker resolves it, and the same
           // three-source fallback `McpServerIcon` applies underneath.
           const known =
             connection === undefined ? null : entryForConnection(connection, mcpCatalog);
           return {
-            key: entry,
-            label: connection?.name ?? t("namedMissing", { name: entry }),
-            mcp: { icon: known?.icon ?? null, name: connection?.name ?? entry },
+            key: ref.connection_id,
+            label: connection?.name ?? t("namedMissing", { name: ref.connection_id }),
+            mcp: { icon: known?.icon ?? null, name: connection?.name ?? ref.connection_id },
           };
         }),
         empty: t("noMcpServersAttached"),
@@ -816,6 +849,53 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </DialogContent>
       </Dialog>
 
+      <McpToolPickerDialog
+        toolPicker={toolPicker}
+        setToolPicker={setToolPicker}
+        submitting={false}
+        // Written into the spec rather than onto the connection: this is the
+        // agent's narrowing, and the connection's own allowlist is everybody's.
+        // Every tool checked means "no narrowing from here", which is null - not
+        // a list that would freeze out a tool the server adds later.
+        onSave={() => {
+          if (toolPicker === null) return;
+          const allowed = narrowedSelection(
+            toolPicker.checked,
+            toolPicker.tools,
+            // Only a real probe can mean "everything": where the catalogue is
+            // the binding's own names, all-checked is true by construction.
+            toolPicker.connection.last_tools !== null,
+          );
+          update({
+            mcp_servers: spec.mcp_servers.map((ref) =>
+              ref.connection_id === toolPicker.connection.id
+                ? { ...ref, allowed_tools: allowed }
+                : ref,
+            ),
+          });
+          setToolPicker(null);
+        }}
+      />
+
+      <ConnectServerDialog
+        entry={connectingServer}
+        onClose={() => setConnectingServer(null)}
+        // Bound as soon as it exists: somebody who connected a server from
+        // inside the Builder was going to tick it next.
+        onConnected={(connectionId) =>
+          update({
+            mcp_servers: [
+              ...spec.mcp_servers,
+              {
+                connection_id: connectionId,
+                use_personal_when_available: false,
+                allowed_tools: null,
+              },
+            ],
+          })
+        }
+      />
+
       <PublishDialog
         open={publishOpen}
         onOpenChange={setPublishOpen}
@@ -1077,10 +1157,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <McpServerPicker
                 connections={mcpConnections}
                 catalog={mcpCatalog}
-                selectedIds={spec.mcp_server_ids}
-                onToggle={(connectionId) =>
-                  update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
-                }
+                value={spec.mcp_servers}
+                onChange={(mcp_servers) => update({ mcp_servers })}
+                onTools={(connection, ref) => setToolPicker(toolChoice(connection, ref))}
+                onConnect={setConnectingServer}
                 disabled={!canEdit}
               />
               <p className="text-muted-foreground mt-4 text-xs">{t("twoLimitsWorthKnowing")}</p>

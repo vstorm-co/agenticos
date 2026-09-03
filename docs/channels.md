@@ -42,24 +42,38 @@ Mattermost runs from the same era as `api`. Neither is backfilled — rewriting
 history would be a guess — so charts over old periods fold those runs into the
 surface they were recorded under.
 
-**What a stranger may do, they may do at a rate.** The surfaces reachable
-without a session carry a limit counted in the deployment's Redis, so it holds
-across workers: the run API per caller, the widget's script and its admission per
-address on a counter each, and a hosted page's config **per page** — that one is
-fetched by the frontend server rather than by the browser, so an address there
-names a container and would put every visitor in the deployment in one bucket.
+**What a stranger may do, they may do at a rate.**
+
+The surfaces reachable without a session carry a limit counted in the deployment's
+Redis, so it holds across workers:
+
+- the run API, **per caller**;
+- the widget's script and its admission, **per address**, on a counter each;
+- a hosted page's config, **per page** — that one is fetched by the frontend server
+  rather than by the browser, so an address there names a container and would put
+  every visitor in the deployment in one bucket.
+
 The script is counted apart from the admission it precedes because a page load
 spends both, and one bucket for both made the number an operator sets mean a third
-of itself. `RATE_LIMIT_RUN_PER_MINUTE`,
-`RATE_LIMIT_EMBED_PER_MINUTE` and `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` set them,
-and [configuration](configuration.md#rate-limiting) has the one caveat worth
-reading before production — behind a proxy, every visitor arrives as the proxy
-unless you say otherwise.
+of itself.
+
+`RATE_LIMIT_RUN_PER_MINUTE`, `RATE_LIMIT_EMBED_PER_MINUTE` and
+`RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` set them, and
+[configuration](configuration.md#rate-limiting) has the one caveat worth reading
+before production — behind a proxy, every visitor arrives as the proxy unless you
+say otherwise.
 
 What rations *spend* on a hosted page is the socket the page opens, and that is
 counted per address like the widget's.
 
 ---
+
+
+!!! tip "Integrating rather than configuring?"
+
+    [The HTTP API](api.md) covers authenticating, the organization header,
+    running an agent over HTTP, the two WebSocket endpoints and the error
+    envelope.
 
 ## The website widget
 
@@ -226,14 +240,18 @@ sequenceDiagram
 ```
 
 That is the whole inbound vocabulary, plus `context` (what the page says about the
-visitor) and `file_ids` (what they attached, on a page that takes files). **It
-deliberately does not include the three fields the dashboard's own frame carries:**
-the agent, the model profile and the environment. A frame that could choose a model
-is a visitor choosing one on the operator's bill, and one that could choose an
-agent is a visitor talking to something nobody published on this key. All three
-come off the embed row. An unknown field is ignored rather than refused — a client
-cached in somebody's browser may be older than this server, and closing the socket
-over it would take the conversation with it.
+visitor) and `file_ids` (what they attached, on a page that takes files).
+
+**It deliberately does not include the three fields the dashboard's own frame
+carries:** the agent, the model profile and the environment.
+
+A frame that could choose a model is a visitor choosing one on the operator's bill,
+and one that could choose an agent is a visitor talking to something nobody
+published on this key. All three come off the embed row.
+
+An unknown field is **ignored rather than refused**. A client cached in somebody's
+browser may be older than this server, and closing the socket over it would take
+the conversation with it.
 
 **Frames you receive**
 
@@ -499,23 +517,30 @@ ticked here and nothing else.
 open, and the server drops both regardless of what the config says.
 
 **A turn looks like a turn in web chat**, down to the chrome around it: the agent's
-name above the answer, the avatar in the gutter — the page's logo where there is one
-and the agent's initial where there is not — the time under each turn on the side it
-is on, and one composer card with the field and its controls inside it. Three things
-web chat draws there are deliberately absent, and all three are the same decision as
-the panels below: what the turn cost, what the month has cost, and which agent and
-model to run — that last one because a frame that could pick a model is a visitor
-picking one on the operator's bill.
+name above the answer, the avatar in the gutter — the page's logo where there is
+one, the agent's initial where there is not — the time under each turn on the side
+it is on, and one composer card with the field and its controls inside it.
+
+Three things web chat draws there are deliberately absent, and all three are the
+same decision as the panels below: what the turn cost, what the month has cost, and
+which agent and model to run.
+
+That last one because a frame that could pick a model is a visitor picking one on
+the operator's bill.
 
 **A turn is rendered by web chat's own components**, not by a second set that looks
-like them: `TurnParts` is what the dashboard renders and what the page renders, so
-the reasoning is the same disclosure, the answer the same Markdown, and a run of
-tool calls the same rail — the icon from `src/lib/tool-catalog.ts`, the wording from
+like them.
+
+`TurnParts` is what the dashboard renders and what the page renders. So the
+reasoning is the same disclosure, the answer the same Markdown, and a run of tool
+calls the same rail — the icon from `src/lib/tool-catalog.ts`, the wording from
 `toolStep`, and the same renderers opening under a step for a knowledge search, a
-web search, a chart, code that ran, a skill that was loaded and a file that was
-written. There is deliberately no second table of tool names and no second turn
-renderer (#144). What the page does *not* draw is everything about being a member —
-see below.
+web search, a chart, code that ran, a skill that was loaded, a file that was
+written.
+
+There is deliberately no second table of tool names and no second turn renderer
+(#144). What the page does *not* draw is everything about being a member — see
+below.
 
 One thing reads differently by necessity: a call that came from an MCP server is
 named *Linear · Create issue* in the dashboard and by a humanized name here,
@@ -577,15 +602,20 @@ operator-supplied image is one more thing to make safe. And the stored path is a
 path is read back and streamed by a public route, so one accepted from a request
 body would be a caller naming any file the process can open.
 
-**Nor does it take your filename, or your word for what the file is.** Because the
-page fetches the logo from its own origin, whatever type that response carries is
-a type the browser trusts on that origin — and `script-src` there allows inline
-script. An upload is accepted on the `Content-Type` its client *declared*, which is
-not evidence about the bytes, so the name on disk is minted from the type instead
-(`logo.png`, `logo.jpg`, `logo.webp`, `logo.gif`) and both the API route and the
+**Nor does it take your filename, or your word for what the file is.**
+
+Because the page fetches the logo from its own origin, whatever type that response
+carries is a type the browser trusts on that origin — and `script-src` there allows
+inline script.
+
+An upload is accepted on the `Content-Type` its client *declared*, which is not
+evidence about the bytes. So the name on disk is minted from the type instead
+(`logo.png`, `logo.jpg`, `logo.webp`, `logo.gif`), and both the API route and the
 frontend proxy refuse to answer with anything that is not one of those four image
-types. A stored `.html` or `.svg` — from here or from an avatar uploaded years ago
-through another route — is served as nothing at all rather than as a script.
+types.
+
+A stored `.html` or `.svg` — from here, or from an avatar uploaded years ago through
+another route — is served as **nothing at all** rather than as a script.
 
 The page is `noindex`. A secret link is not a page to be indexed, and a crawler
 that follows one has published it.
@@ -619,19 +649,200 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 
 ## Slack
 
-1. Create a Slack app, add a bot user, install it to the workspace.
-2. Register the bot: **Channels → Add bot**, platform `slack`, paste
+1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the
+   workspace.
+2. **OAuth & Permissions → Bot Token Scopes → Add an OAuth Scope**, and add the
+   thirteen below. *Install to Workspace* stays greyed out until at least one is
+   added, which is what a blank app is waiting for.
+3. **Install App → Install to Workspace → Allow.** Copy the **Bot User OAuth
+   Token** (`xoxb-…`).
+4. **Event Subscriptions → Enable Events → Subscribe to bot events**, and add the
+   five events below.
+5. Register the bot: **Channels → Add bot**, platform `slack`, paste
    the bot token.
-3. Either point Slack's Events API at
-   `https://your-api.example.com/api/v1/slack/BOT_ID/events`, or run Socket Mode
-   (add the bot's `xapp-` token in its settings) and expose nothing.
-4. Bind the agent: Builder → the agent → **Availability** → the bot.
+6. Pick a transport — Socket Mode needs nothing exposed and is the right choice
+   on a laptop:
+     - **Socket Mode.** *Basic Information → App-Level Tokens → Generate*, scope
+       `connections:write`; paste the `xapp-` token into the bot's settings here.
+       No Request URL, no signing secret.
+     - **Events API.** Paste the signing secret from *Basic Information → App
+       Credentials* into the bot's settings **first**, then set Slack's *Request
+       URL* to `https://your-api.example.com/api/v1/slack/BOT_ID/events` — the
+       bot id is on its row under **Channels**.
+7. **App Home → Messages Tab**: enable it and tick *Allow users to send Slash
+   commands and messages from the messages tab*. Without it Slack hides the
+   bot's message box and a direct message is impossible.
+8. Publish the agent, then bind it: Builder → the agent → **Availability** → the
+   bot.
+9. Invite the bot to a channel — `/invite @your-bot` — and mention it.
 
-Works in channels and in DMs. A thread gets its own conversation, so two people
-asking different things in the same channel do not end up in one thread of
-context. A message from a linked account runs as that person — never as the bot;
-one from an account nobody has linked runs under the binding, and only in a
-channel. A direct message asks for the account first.
+!!! tip "Or paste a manifest and skip steps 2, 4, 6 and 7"
+
+    **App Manifest** in the left nav takes the whole configuration at once —
+    scopes, events, Socket Mode and the message tab — which is less error-prone
+    than eleven passes through a scope picker. Create the app *from a manifest*,
+    or paste this over an existing app's:
+
+    ```yaml
+    display_information:
+      name: Support Copilot
+    features:
+      bot_user:
+        display_name: Support Copilot
+        always_online: true
+      app_home:
+        messages_tab_enabled: true
+        messages_tab_read_only_enabled: false
+    oauth_config:
+      scopes:
+        bot:
+          - chat:write
+          - files:write
+          - files:read
+          - app_mentions:read
+          - users:read
+          - channels:read
+          - groups:read
+          - channels:history
+          - groups:history
+          - im:history
+          - mpim:history
+          - im:read
+          - mpim:read
+    settings:
+      event_subscriptions:
+        bot_events:
+          - app_mention
+          - message.channels
+          - message.groups
+          - message.im
+          - message.mpim
+      socket_mode_enabled: true
+      token_rotation_enabled: false
+    ```
+
+    For the Events API instead, set `socket_mode_enabled: false` and add
+    `request_url` under `event_subscriptions` — and read the next warning first,
+    because Slack validates that URL the moment the manifest is saved.
+
+!!! danger "The signing secret goes in before the Request URL, not after"
+
+    Slack verifies a new Request URL by posting a signed `url_verification`
+    challenge to it, and that challenge takes the same path as every other event.
+    A bot with no signing secret answers **500 to all of them**, so Slack reports
+    "Your request URL didn't respond with the correct challenge value" — which
+    reads like a networking problem and is not one.
+
+!!! warning "Do not opt into token rotation"
+
+    *Advanced token security via token rotation*, at the top of **OAuth &
+    Permissions**, makes the `xoxb-` token expire. This deployment stores a
+    static bot token in the vault and does not refresh one, so the bot works and
+    then stops. Redirect URLs, PKCE, user token scopes, IP ranges and
+    Enterprise-Managed Authorization on that page are all unused too — leave them
+    alone.
+
+### Scopes and events
+
+Thirteen bot token scopes, each earning its place by a call the adapter makes:
+
+| Scope | What needs it |
+|---|---|
+| `chat:write` | `chat.postMessage`, and `chat.update` for the reply rewritten as it is written |
+| `files:write` | `files.upload` — a chart or a file the agent sends back |
+| `files:read` | an attachment somebody posted, fetched from `url_private_download` |
+| `app_mentions:read` | being named in a channel |
+| `channels:history`, `groups:history`, `im:history`, `mpim:history` | the `message` events, and `conversations.history` for the channel transcript |
+| `channels:read`, `groups:read` | `conversations.info`, `.list` and `.members` — the channel lookups an agent may call |
+| `im:read`, `mpim:read` | `conversations.members` on a direct message. Easy to leave out and quiet when you do: the membership check fails closed, so a conversation nobody could be confirmed in **disappears from the conversation list** rather than erroring |
+| `users:read` | `users.info`, which turns member ids into people |
+
+Five bot events: `app_mention`, `message.channels`, `message.groups`,
+`message.im`, `message.mpim`.
+
+`message.channels` and `message.groups` deliver **every** message in every
+channel the bot is in, not only the ones naming it — and that is deliberate, so
+subscribe to both. What decides whether the bot speaks is the rule below, read
+from the event: Slack substitutes `<@U0123>` for a real mention, so the adapter
+knows which messages were addressed to it and stays out of the rest. Keeping the
+whole conversation arriving is what an agent deciding *for itself* whether a
+message deserves an answer will need; a subscription narrowed to `app_mention`
+cannot be widened after the fact without every operator editing their Slack app.
+
+| Where | When it answers |
+|---|---|
+| **A direct message** | Always. There is nobody else in the room, so requiring a mention would be asking somebody to address the only participant |
+| **A group direct message** | Only when named. Several people share it, so it is a room rather than a conversation with one person |
+| **A channel** | Only when named — `@the-bot`, or `@agent-slug` for the agent behind it |
+
+A mention anywhere in the message counts, not only at the start. A handle typed
+without letting Slack resolve it stays plain text and is not a mention — the
+platform delivered none — and `@channel`, `@all`, `@here` and `@everyone` address
+the room rather than an agent.
+
+**A message with a file attached is a message.** Slack marks one with
+`subtype: file_share`, and both the file and the caption sent with it reach the
+agent — an image with *"what do you see?"* under it is one turn, not two. What
+stays refused is the platform describing the channel rather than somebody
+speaking in it: an edit, a deletion, a join, a topic change, and anything the bot
+itself posted.
+
+The bot sees what the app was installed with and nothing beyond it. Adding a
+scope later means reinstalling the app, which mints a new `xoxb-` token — paste
+that one in too, or the bot keeps the access it had.
+
+!!! info "A bot that answers nothing: what is reported, and what is not"
+
+    The connection is. A polling bot whose stream did not open, or keeps
+    failing, carries a **Not connected** badge on its row under **Channels**,
+    with the reason on it - the supervisor knows, and until #1351 it wrote that
+    to the container log and nowhere else.
+
+    The rest is still silent, and this is the order to check it in: no agent
+    bound to the bot (the row says so), a missing scope or event subscription,
+    then a wrong `BOT_ID` in the Request URL. That last one cannot report
+    itself: the events route answers **200 and does nothing** for a bot id it
+    cannot find, on purpose, because a prober should learn only that the
+    endpoint exists - which the URL already said.
+
+Works in channels and in DMs. A message from a linked account runs as that
+person — never as the bot; one from an account nobody has linked runs under the
+binding, and only in a channel. A direct message asks for the account first.
+
+### One conversation per thread
+
+**The unit is the thread, and that now includes a direct message.** Send the bot
+a message and it answers in a thread rooted at yours; that thread is one
+conversation and keeps its context for as long as people reply in it. Reply
+inside a thread that already exists and it joins that one instead.
+
+So two people asking different things in the same channel get two conversations,
+and neither reads the other's context — and one person asking about two
+different things in a DM gets two, for the same reason.
+
+!!! warning "Continuing a conversation means replying in its thread"
+
+    A new message typed at the bottom of a chat is a **new** conversation with
+    no memory of the last one. That is the trade, and it is deliberate: a chat
+    keyed on itself never rolls over, so it walks past the context window in
+    days and every turn pays for the whole history behind it. A thread per
+    question is a context per topic instead of one long transcript somebody has
+    to trim.
+
+    A DM used to key on the chat. Conversations from before are not migrated —
+    they stop being reached, and nothing in them is lost.
+
+!!! info "This was wrong until recently"
+
+    A mention at the top of a channel used to be keyed on the channel, while
+    the thread the reply opened was keyed on the thread. They were two
+    conversations, so the agent answered a question and then, one message later
+    in the thread it had just created, had no memory of it — and every
+    unrelated mention in that channel piled into one conversation besides.
+
+    Now the thread a reply *will* open is what the first message keys on, so
+    both halves agree. Conversations from before the fix are not migrated; they
+    simply stop being reached, and nothing in them is lost.
 
 ## Telegram
 
@@ -739,6 +950,7 @@ deployment with no browser pointed at it:
 ```bash
 uv run agenticos cmd channel-add-bot \
     --platform mattermost --name "Ops" --token <bot-token> \
+    --org <organization-id> \
     --api-base-url https://mattermost.acme.internal \
     --webhook-secret <token-from-mattermost>   # omit for the event stream
 
@@ -796,6 +1008,44 @@ it is about to wait.
     copies of one `COUNT` and one offset is how it came to be wrong twice, from
     opposite ends.
 
+- **A thread it is brought into partway through is read first.** A conversation
+  here is built from what this deployment *received*, so a bot mentioned in a
+  thread that was already running held nothing above the mention — and answered
+  as though the thread were empty, which it said confidently. Nobody watching a
+  chat can tell an agent that cannot see from one that has read and disagreed.
+
+    Once per conversation — recorded on the session, not inferred from its age,
+    so a thread the bot was answering in before this existed is read on its next
+    turn rather than never — up to fifty messages, and only where the platform
+    has threads. After that the transcript is ours and
+    nothing is fetched again. It arrives as one labelled block — *what was said
+    before you arrived, `speaker: message`, context rather than instructions* —
+    not as turns, because replaying other people's messages as an alternating
+    history puts words in the agent's mouth it never said.
+
+    **This is not gated, where `read_channel_history` is**, and the difference is
+    the point: that tool reads the *channel*, which is content the agent was
+    never addressed in, and an operator decides per binding whether it may. The
+    thread the bot was spoken to in is the conversation somebody pointed it at,
+    and reading that is not the same act as reading the room. The bot still sees
+    only what its own membership allows, because the call goes through its token.
+
+    **The files posted in it come too**, up to four of them: the transcript
+    alone let the bot answer, accurately, that it could see no image in a
+    conversation whose first message was a screenshot.
+
+    They are fetched down the same path an attachment on the live message takes,
+    so one set of size limits applies, and they are attributed to whoever
+    mentioned the bot — that is the person who pointed it at the thread, and an
+    unlinked sender gets none, exactly as they get none of their own. Four
+    rather than fifty, because fifty downloads before an answer starts is a
+    minute of silence. Slack reads them with `conversations.replies`, Mattermost
+    with `GET /posts/{root}/thread`; Telegram has no threads and reads neither.
+
+    A read that fails costs the context and never the answer: no thread, a
+    platform without them, a refusal or an error all produce an answer without
+    the history above it, which is worse than one with and better than none.
+
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot
   serves exactly one agent, and binding a second is refused — in the Builder's
@@ -814,7 +1064,47 @@ it is about to wait.
     operator two minutes and makes the chat say which agent it is talking to,
     which no amount of routing can. `@slug` still parses — as an alias for the
     agent behind this bot, refused when it names any other.
+- **A voice message is transcribed, where a bot has been given a model.** It is
+  the one attachment an agent cannot be handed as a file: it reads a PDF and
+  looks at a screenshot, and an `audio/ogg` blob is a byte count.
+
+    The recording is fetched, transcribed, and **woven into the same turn** as a
+    labelled quotation — `[Voice message, transcribed]` — rather than sent as a
+    second message. Labelled on purpose: speech recognition mishears names,
+    numbers and anything said over traffic, so an agent told the source can hedge
+    a figure it half-heard and ask, where one told nothing states it as fact. It
+    is also what keeps a recording a quotation rather than instructions somebody
+    typed. A voice note with a caption stays one message, because that is what
+    somebody sent.
+
+    Which model is a **pair on the bot** — a provider and one of its models, from
+    `app/core/catalog/speech_to_text_models.json` — chosen under **Channels**, and
+    null by default: transcription spends the organization's provider credit on
+    every recording, so it is opted into. The key is the one already configured
+    for that provider in the organization's model profiles; there is nothing new
+    to store. A bot with no model chosen says it cannot listen rather than
+    dropping the recording, because a voice note that produces no reaction is
+    indistinguishable from a broken bot.
+
+    Three providers ship: OpenAI, Groq and Mistral, all serving OpenAI's
+    `POST /audio/transcriptions`. Adding a model is an entry in that file. Every
+    failure — no credential, a recording over the endpoint's limit, a refusal, a
+    timeout — is reported on the reply and the turn goes ahead without it.
+
 - **Access policy per bot** — open, whitelist, or "must be linked to a member".
+- **A credential can be added or replaced after registration.** The pencil on a
+  bot's row opens it: rename it, paste a rotated token, or supply the credential
+  that was not in hand when it was registered — which is the ordinary case on
+  Slack, whose `xapp-` token is generated on a different screen minutes later.
+
+    Every credential here is sealed at rest and **never read back**, so each
+    field starts empty and an empty field means *keep what is stored* rather
+    than *clear it*. Only what somebody typed is sent. What the dialog does not
+    offer is the platform, because it decides which credentials the row carries
+    and how messages reach it, and the transport, because switching to webhook
+    mode is only half a move — the webhook still has to be registered with the
+    platform, and a bot that reports `webhook` without one answers nothing.
+    `channel-webhook-register` does both halves.
 - **Linking, and where it is required** — every run belongs to somebody: the
   budget it spends, what it may read and the audit entry it writes are all
   attributed. Where that *somebody* comes from depends on whether the bot is
@@ -1002,14 +1292,18 @@ is stored is what its reader actually saw.
 | A run resumed after an approval | Its continuation — the answer and the calls it made, and the calls even when there is no answer, which is what a continuation that parks again on a second gated call has. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
 **What is recorded is what the person wrote, not the prompt assembled around it.**
+
 Every surface builds something larger before the model sees it: `AttachmentRouter`
 appends a briefing about each file, and an embedded widget prepends the operator's
-placement note. Recording that put the platform's own briefing in the transcript as
-somebody's words — a file posted in Mattermost read back as `co tu widzisz` followed
-by `--- Attached file: … (/uploads/…, 43 KB, image)`, and the opening turn of every
-widget conversation read as a visitor reciting the page they were on. **The file
-itself is a row on that turn**, which is what the dashboard renders as a card, the
-same as an upload made there.
+placement note.
+
+Recording that put the platform's own briefing in the transcript as somebody's
+words. A file posted in Mattermost read back as `co tu widzisz` followed by
+`--- Attached file: … (/uploads/…, 43 KB, image)`, and the opening turn of every
+widget conversation read as a visitor reciting the page they were on.
+
+**The file itself is a row on that turn**, which is what the dashboard renders as a
+card — the same as an upload made there.
 
 One thing is deliberately not recorded: a channel reply's **delivery notes** — *this
 file was too large to send* — stay out of the transcript, because they are about what
@@ -1024,28 +1318,40 @@ line names the *subject* rather than the function, because `write_file` is not w
 anybody wants to read. Every line opens into what the call actually produced, and the
 raw arguments and output stay one click further in for whoever is debugging one.
 
-Consecutive calls hang from one rail, and **only the last row stays visible**: earlier
-ones fold into "4 earlier steps", which says work happened without pushing the answer off
-the screen. Three kinds of run are never folded — one holding a failure, one holding a
-call parked for approval, and one holding a step whose result *is* the answer, which today
-means a chart. The first two are the line in the turn that is asking for something; the
-third is there because a turn that drew three charts folded two of them away, and three
-charts are three answers rather than one with two footnotes. Which tools count as that
-kind is `opensOnSight` in `lib/tool-catalog.ts`, the same row the step reads to decide
-whether to open itself, so the rail and the step cannot disagree. Nothing marks a step
-that simply worked, so a marker means what it says.
+Consecutive calls hang from one rail, and **only the last row stays visible**.
+Earlier ones fold into "4 earlier steps", which says work happened without pushing
+the answer off the screen.
+
+Three kinds of run are never folded: one holding a failure, one holding a call
+parked for approval, and one holding a step whose result *is* the answer — which
+today means a chart.
+
+The first two are the line in the turn that is asking for something. The third is
+there because a turn that drew three charts folded two of them away, and three
+charts are three answers rather than one with two footnotes.
+
+Which tools count as that kind is `opensOnSight` in `lib/tool-catalog.ts`, the same
+row the step reads to decide whether to open itself, so the rail and the step cannot
+disagree. Nothing marks a step that simply worked, so a marker means what it says.
 
 **What opens itself follows what somebody is watching, except when the result is the
-point.** A call that finishes while the turn is streaming opens on the spot — code that
-ran, a file that was written is the answer, not a footnote to it. A conversation *reopened*
-shows one line per past call and keeps open exactly one: the last call of the most recent
-turn that **used a tool**, which is the result the reader came back for. The most recent
-*turn* is the wrong anchor and was the first way this was written - an agent that writes a
-file and then answers about it in prose ends the transcript with text, and the file it had
-just written was folded away. Opening every finished call on mount turned a reopened chat
-into a wall; opening none of them hid the thing that was asked for. A chart is the
-exception at both ends: it opens wherever it sits and however the turn is being read,
-because a picture nobody can see is not an answer.
+point.**
+
+A call that finishes while the turn is streaming opens on the spot — code that ran,
+or a file that was written, is the answer rather than a footnote to it.
+
+A conversation *reopened* shows one line per past call and keeps open exactly one:
+the last call of the most recent turn that **used a tool**, which is the result the
+reader came back for.
+
+The most recent *turn* is the wrong anchor, and was the first way this was written:
+an agent that writes a file and then answers about it in prose ends the transcript
+with text, and the file it had just written was folded away. Opening every finished
+call on mount turned a reopened chat into a wall; opening none of them hid the thing
+that was asked for.
+
+A chart is the exception at both ends. It opens wherever it sits and however the
+turn is being read, because a picture nobody can see is not an answer.
 
 ### The same turn, watched and reopened
 
@@ -1090,44 +1396,59 @@ the connection's name — so the frontend matches that prefix against the server
 caller can see and shows the server's own logo beside the step. A miss reads as the
 humanised tool name, which is what it read as before.
 
-**A delegation is a panel, not a pause.** When the agent hands work to
+**A delegation is a panel, not a pause.**
+
+When the agent hands work to
 [a delegate or a specialist](concepts.md#delegate-vs-inline-specialist), that
 delegation is a second agent's whole conversation happening inside one turn of the
-first — left alone it is a tool call named `task` that goes quiet for thirty seconds.
+first. Left alone it is a tool call named `task` that goes quiet for thirty seconds.
+
 So it streams into a panel of its own: which specialist is working, its text and its
-reasoning as they are generated, its *own* tool calls (which may reach a collection
-the parent cannot even see), and on close its status, its tokens and its share of the
-turn's cost. Every frame carries the delegation's task id and its depth, because a
-fan-out of three is three panels and interleaving three specialists into one
-paragraph is worse than not streaming at all — and an opening frame carries the task
-id of the delegation it was made *inside*, so a specialist that delegates further
-nests under the right panel rather than under whichever one started most recently.
-A child's text is never folded into the
-parent's answer: that would put words in the parent's mouth its own model never
-generated, and the conversation is persisted with them.
+reasoning as they are generated, its *own* tool calls — which may reach a collection
+the parent cannot even see — and on close its status, its tokens and its share of the
+turn's cost.
+
+Every frame carries the delegation's task id and its depth. A fan-out of three is
+three panels, and interleaving three specialists into one paragraph is worse than
+not streaming at all. An opening frame also carries the task id of the delegation it
+was made *inside*, so a specialist that delegates further nests under the right
+panel rather than under whichever one started most recently.
+
+A child's text is **never** folded into the parent's answer. That would put words in
+the parent's mouth its own model never generated, and the conversation is persisted
+with them.
 
 **An approved call is not the end of the turn, and the rest of it is drawn too.**
+
 Approving continues the run over HTTP, so nothing about the continuation arrives on
-this conversation's socket: its steps come back in the resume's own answer and are
-appended as one more assistant turn — the calls it made, then what it said. Without
-them the second half of a turn was invisible, and a run that parked twice was the
-worst version of it: approve a command, watch nothing happen, and be asked to
-approve a second command with no step on screen accounting for the first. The
-newly parked call is drawn in that turn as *waiting for a person*, which is also
+this conversation's socket. Its steps come back in the resume's own answer and are
+appended as one more assistant turn: the calls it made, then what it said.
+
+Without them the second half of a turn was invisible, and a run that parked twice
+was the worst version of it — approve a command, watch nothing happen, and be asked
+to approve a second command with no step on screen accounting for the first.
+
+The newly parked call is drawn in that turn as *waiting for a person*, which is also
 the step the next decision is written back onto.
 
-**One run is one turn on screen, however many messages it took.** A run that parks
-writes what it had done so far, and each continuation is written as it happens
-rather than folded back into the message before it — rewriting a turn somebody has
-already read is worse than appending to it. So one run can leave three assistant
-rows, and drawing three avatars and three agent names down the page reads as three
-agents answering one question. `MessageList` groups *consecutive* assistant
-messages carrying the same `run_id` into one turn: the avatar and the name once, at
-the top. Consecutive is part of the rule — a person speaking between two segments
-means the turn genuinely restarts — and a message with no run recorded never groups,
-because absent means "not recorded" rather than "the same run". Live, the run id
-arrives on the `tool_approval_required` frame, which is the only frame that names
-it and the only turn that needs it; on a reload it comes off the stored message.
+**One run is one turn on screen, however many messages it took.**
+
+A run that parks writes what it had done so far, and each continuation is written as
+it happens rather than folded back into the message before it — rewriting a turn
+somebody has already read is worse than appending to it.
+
+So one run can leave three assistant rows, and drawing three avatars and three agent
+names down the page reads as three agents answering one question.
+
+`MessageList` groups *consecutive* assistant messages carrying the same `run_id`
+into one turn: the avatar and the name once, at the top. Consecutive is part of the
+rule — a person speaking between two segments means the turn genuinely restarts —
+and a message with no run recorded never groups, because absent means "not recorded"
+rather than "the same run".
+
+Live, the run id arrives on the `tool_approval_required` frame, which is the only
+frame that names it and the only turn that needs it. On a reload it comes off the
+stored message.
 
 **The time and the cost go under the end of the turn**, once, however many messages
 it took. A run reports what it has spent when it *parks*, so the figure is recorded
@@ -1144,15 +1465,20 @@ writing a new step: the alternative is the same command twice in one turn, and t
 alternative to *that* was the one call somebody deliberately reviewed being the one
 call that opened onto nothing.
 
-**A replayed step never animates.** A tool call is stored as running until
-something records its outcome, and not every ending records one: an approval that
-expires runs nothing, so the step it parked on was written open and stayed that
-way. Read back, it pulsed in the present tense under a conversation that had ended
-days earlier, promising a result nothing was going to deliver. So the sweep that
-expires an approval now closes the step too — the one ending that never ran the
-call — and a replayed call still marked in flight renders as **unfinished**: past
-tense, no spinner, no result. Not an error and not a success; the outcome nobody
-wrote down.
+**A replayed step never animates.**
+
+A tool call is stored as running until something records its outcome, and not every
+ending records one: an approval that expires runs nothing, so the step it parked on
+was written open and stayed that way.
+
+Read back, it pulsed in the present tense under a conversation that had ended days
+earlier, promising a result nothing was going to deliver.
+
+So the sweep that expires an approval now closes the step too — the one ending that
+never ran the call — and a replayed call still marked in flight renders as
+**unfinished**: past tense, no spinner, no result.
+
+Not an error and not a success. The outcome nobody wrote down.
 
 **And the panel belongs to its conversation, not to the tab.** Opening another
 thread takes the approval panel and any pending question off screen, the way it
@@ -1165,14 +1491,17 @@ is not a switch is a first turn learning its own conversation id mid-stream, and
 the panel survives that.
 
 A delegate can stop for a person too — a gated tool inside a specialist parks the
-whole turn in the approval queue. The panel then closes into a *waiting for a
-person* state rather than spinning on "working" for as long as the approver takes,
-and the delegation keeps the task id it parked under so its identity survives the
-resume rather than a second panel appearing beside the first. The resume itself
-runs over HTTP (`POST /runs/{id}/resume`), which carries no delegation frames, so
-the waiting panel is moved to the resumed run's own outcome — completed, failed or
-cancelled — from that answer; a resume that parks again on a fresh decision leaves
-it waiting.
+whole turn in the approval queue.
+
+The panel then closes into a *waiting for a person* state rather than spinning on
+"working" for as long as the approver takes, and the delegation keeps the task id it
+parked under, so its identity survives the resume rather than a second panel
+appearing beside the first.
+
+The resume itself runs over HTTP (`POST /runs/{id}/resume`), which carries no
+delegation frames. So the waiting panel is moved to the resumed run's own outcome —
+completed, failed or cancelled — from that answer. A resume that parks again on a
+fresh decision leaves it waiting.
 
 The assistant's answer is **not** in a bubble; only the person's message is. An answer
 is prose with headings, code and tables in it, and a rounded fill around that fights
@@ -1192,39 +1521,51 @@ API — gets no delegation frames at all. The delegation still runs and is still
 simply not narrated, the same arrangement `ask_user` has.
 
 That default is load-bearing rather than convenient, and it is the one thing to know
-before adding a surface that wants the panels. **Attaching a handler to a delegation
-changes the transport, not just the observability**: the library drives each child
-through `iter()` and opens a *streamed* request for it. So a delegate whose model or
-provider cannot stream works perfectly from the API and stops working the moment
-somebody opens the chat window — the same published version, the same agent, failing
-on one surface. Which is why a handler is attached only where a sink exists, rather
-than unconditionally for the benefit of the one surface that draws them.
+before adding a surface that wants the panels.
+
+!!! danger "Attaching a handler to a delegation changes the transport, not just the observability"
+
+    The library drives each child through `iter()` and opens a **streamed** request
+    for it.
+
+    So a delegate whose model or provider cannot stream works perfectly from the API
+    and stops working the moment somebody opens the chat window — the same published
+    version, the same agent, failing on one surface.
+
+Which is why a handler is attached only where a sink exists, rather than
+unconditionally for the benefit of the one surface that draws them.
 `tests/test_subagents_library_contract.py` pins that property of the library, so a
 release that starts falling back to a plain request turns red and says so.
 
 ### Files
 
-Somebody dropping a spreadsheet on a bot used to have it discarded: `IncomingMessage`
+Somebody dropping a spreadsheet on a bot used to have it discarded. `IncomingMessage`
 had no attachment field, so no adapter parsed one and the agent answered about a
-document it never received. Now a message with a file — with or without a caption —
-reaches the agent the same way a web upload does, and is **read back the same way**:
-the file is a row on the turn it arrived with, so the thread in `/chat` shows a card
-rather than the briefing the model was given about it. A caption-less upload is
-still a turn, and its message names what arrived — `Attached image: photo.jpg` —
-rather than sitting blank above the card, because a blank user message reads as
-somebody sending nothing.
+document it never received.
 
-**On every transport, because each adapter has exactly one parser.** Each platform
-has two ways in — a webhook and a stream, or long-polling — and the second one used
-to build its own normalised message: Telegram's polling loop read text and nothing
-else, and the Mattermost outgoing webhook read no `file_ids` at all. Both now put
-their update back into the shape the platform sends and hand it to the same
-`parse_incoming`, so what counts as a message is decided once. It had been decided
-twice, and the copies disagreed about files — which mattered most on the paths a
-self-hosted deployment actually runs. What each transport is *handed* still
-differs, and that is the platform's doing rather than ours: Telegram's polling
-loop subscribes to new messages only, so an edit reaches the webhook receiver and
-never the poller.
+Now a message with a file — with or without a caption — reaches the agent the same
+way a web upload does, and is **read back the same way**: the file is a row on the
+turn it arrived with, so the thread in `/chat` shows a card rather than the briefing
+the model was given about it.
+
+A caption-less upload is still a turn, and its message names what arrived —
+`Attached image: photo.jpg` — rather than sitting blank above the card, because a
+blank user message reads as somebody sending nothing.
+
+**On every transport, because each adapter has exactly one parser.**
+
+Each platform has two ways in — a webhook and a stream, or long-polling — and the
+second one used to build its own normalised message. Telegram's polling loop read
+text and nothing else; the Mattermost outgoing webhook read no `file_ids` at all.
+
+Both now put their update back into the shape the platform sends and hand it to the
+same `parse_incoming`, so what counts as a message is decided **once**. It had been
+decided twice, and the copies disagreed about files — which mattered most on the
+paths a self-hosted deployment actually runs.
+
+What each transport is *handed* still differs, and that is the platform's doing
+rather than ours: Telegram's polling loop subscribes to new messages only, so an
+edit reaches the webhook receiver and never the poller.
 
 **Inbound** is the web upload path reached differently. The bytes come from a
 platform instead of a browser and then go through exactly what a web upload gets:
@@ -1275,15 +1616,20 @@ failed — is **named in the reply**. One bad file among three does not lose the
 question that came with them, and a bot that silently ignores an attachment looks
 exactly like a bot that read it.
 
-**A turn refused before it runs gives its files back.** The bytes are fetched and
-stored before the agent is resolved, so a refusal raised in the run's place — no
-agent exposed on this bot, a sender whose chat account is nobody's — used to leave
-the rows and the files behind with no message that would ever link them:
-`chat_files` carries no organization, so an unlinked row is scoped by `user_id`
-alone and nothing collects it. Both are now deleted before the refusal is sent, and
-the refusal is sent whether or not that succeeded
-([#661](https://github.com/vstorm-co/agenticos/issues/661)). A turn that actually
-ran keeps its files — they fed it, and the run is in the transcript.
+**A turn refused before it runs gives its files back.**
+
+The bytes are fetched and stored before the agent is resolved, so a refusal raised
+in the run's place — no agent exposed on this bot, a sender whose chat account is
+nobody's — used to leave the rows and the files behind with no message that would
+ever link them. `chat_files` carries no organization, so an unlinked row is scoped
+by `user_id` alone and nothing collects it.
+
+Both are now deleted before the refusal is sent, and the refusal is sent whether or
+not that succeeded
+([#661](https://github.com/vstorm-co/agenticos/issues/661)).
+
+A turn that actually ran keeps its files — they fed it, and the run is in the
+transcript.
 
 **Outbound** is what the agent wrote this turn, compared against a snapshot taken
 when the workspace opened. Not a diff of everything: `/uploads` is the user's own
@@ -1319,16 +1665,19 @@ having said so beforehand, so a bot can report what a turn spent: tokens, cost,
 how much of the month is gone, and how full the workspace behind it is.
 
 In web chat the same two numbers sit under the composer, and they come from
-different places because they measure different things. **The cost** is the newest
-measured answer *in the conversation on screen* — read from the transcript, so it is
-there when a thread is reopened rather than after the next message, and filtered by
-conversation id because the store still holds the previous thread's messages for the
-moment between the click and the fetch landing. It reported those under the new
-conversation until it was. **The fill** is the workspace as it stands now: a live turn
-reports it (a container's resident memory can only come from its host), and a reopened
+different places because they measure different things.
+
+**The cost** is the newest measured answer *in the conversation on screen*. It is
+read from the transcript, so it is there when a thread is reopened rather than after
+the next message — and filtered by conversation id, because the store still holds
+the previous thread's messages for the moment between the click and the fetch
+landing. It reported those under the new conversation until it was.
+
+**The fill** is the workspace as it stands now. A live turn reports it — a
+container's resident memory can only come from its host — and a reopened
 conversation reads it from the workspace listing, which carries the ceiling a stored
 workspace fills up against. Without that, "workspace 0% full" appeared only after
-somebody sent a message — the one moment nobody needs it.
+somebody sent a message, the one moment nobody needs it.
 
 Chosen **per binding**, in the Builder under *Where this agent is available* -
 beside the extra instructions and the channel lookups, because whether a reply
@@ -1416,7 +1765,7 @@ Four tools change that, and each is granted **per binding**, under
 | `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ |
 | `list_channel_members` | Who is here | ✅ | admins only | ✅ |
 | `search_channels` | Which other channels exist | ✅ | — | ✅ |
-| `read_channel_history` | What was said recently | ✅ | — | ✅ |
+| `read_channel_history` | What was said recently, **in the thread it is answering in** | ✅ | — | ✅ |
 
 Per binding rather than per agent, because an organization can bind one agent to
 two Mattermost servers and three Slack workspaces — and *"may it read what was
@@ -1436,10 +1785,13 @@ Three things worth knowing before granting them:
 - **The bot's membership is the whole permission boundary.** Every call goes
   through the bot's own token, so the agent sees exactly what the bot sees. There
   is no allow-list of ours to get out of step with the platform's own.
-- **The model never names a channel.** The tools are bound server-side to the
-  channel the message arrived in — in a thread, to the channel that holds it.
-  An argument for it would turn *"who is in this channel"* into *"read any
-  channel this bot is in"*, asked from a conversation somewhere else.
+- **The model never names a channel, or a thread.** The tools are bound
+  server-side to the channel the message arrived in, and `read_channel_history`
+  to the thread as well: a thread and its channel are two transcripts, and the
+  one the agent was spoken to in is the thread. Bound to the channel alone,
+  *"summarise what we decided above"* summarised whatever else the room had been
+  saying. An argument for either would turn *"who is in this channel"* into
+  *"read any channel this bot is in"*, asked from a conversation somewhere else.
 - **`read_channel_history` is the one worth gating.** It is a read, so it does
   not ask by default, but it puts other people's messages into a run transcript
   somebody reads weeks later. A `tool_approval` override on the binding is how
@@ -1478,3 +1830,16 @@ flowchart TD
     same embed, with one set of refusals between them — so "who may talk to this
     agent" has exactly one answer whichever of the three somebody arrives
     through.
+
+## Recap
+
+- **One runner behind every surface.** Web chat, a hosted page, a widget, the API,
+  Slack, Telegram and Mattermost all reach the same code, so governance is not
+  something a caller can route around.
+- A bot answers as **one agent**, and a mention runs as **the sender** — never as
+  the bot.
+- What a **stranger** may do, they may do at a rate: the public surfaces carry
+  per-caller and per-address limits counted in Redis.
+- What is recorded is **what the person wrote**, not the prompt assembled around it.
+- A **delegation is a panel**, not a pause — and attaching a handler to one changes
+  the transport, so it is attached only where a sink exists.

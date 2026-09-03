@@ -27,12 +27,14 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
+from app.services.channels import connection_state
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
     IncomingMessage,
     OutgoingMessage,
     split_thread,
+    thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
@@ -41,6 +43,24 @@ if TYPE_CHECKING:
     from slack_sdk.web.async_client import AsyncWebClient
 
 logger = logging.getLogger(__name__)
+
+_SPOKEN_SUBTYPES = frozenset({"file_share"})
+"""Message subtypes that are still somebody talking to the bot.
+
+Slack stamps a `subtype` on a `message` event for two unrelated reasons: the
+platform describing the channel - an edit, a deletion, a join, a topic change -
+and a person sending something richer than plain text. Refusing every subtype
+treats the second as the first, and `file_share` is the one that costs: a message
+with a file attached carries it, so **every image and document sent to a Slack bot
+was dropped before `_attachments` ever ran** - with the whole attachment path
+written, tested and unreachable, and the caption on the file discarded with it.
+
+An allowlist rather than a deny-list of the platform's own subtypes, because the
+platform adds subtypes and the ones worth answering are the short list.
+`thread_broadcast` is deliberately not here: it is a thread reply *also* posted to
+the channel, so it arrives beside the reply itself and answering both would be
+answering twice.
+"""
 
 _MEMBERSHIP_PAGES = 50
 """How far `is_channel_member` will walk `conversations.members`.
@@ -120,8 +140,6 @@ class SlackAdapter(ChannelAdapter):
         }
         if thread_ts:
             kwargs["thread_ts"] = thread_ts
-        if "thread_ts" not in kwargs and msg.reply_to_message_id:
-            kwargs["thread_ts"] = msg.reply_to_message_id
         if msg.image_png is not None:
             await client.files_upload_v2(
                 channel=channel,
@@ -288,9 +306,25 @@ class SlackAdapter(ChannelAdapter):
         return found
 
     async def channel_history(
-        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None = None,
     ) -> list[ChannelPost]:
-        """`conversations.history`, reversed so the newest is last.
+        """The recent transcript, reversed so the newest is last.
+
+        `conversations.replies` for a thread and `conversations.history` for the
+        channel, because on Slack those are two different transcripts and the one
+        the agent is in is the thread. Asked for the channel while answering
+        inside a thread, "summarise what we decided above" summarised whatever
+        else the room had been saying (#1353).
+
+        `replies` returns the thread oldest-first with the parent at the top,
+        which is already the order a person reads - the reversal below applies to
+        `history`, which comes back newest-first.
 
         Authors stay as Slack ids. Resolving them would be one `users.info` per
         distinct speaker on top of the history call, and a transcript reads well
@@ -298,16 +332,56 @@ class SlackAdapter(ChannelAdapter):
         the tool for turning ids into people, and the model can call it when the
         answer actually depends on who spoke.
         """
-        response = await self._web(bot_token).conversations_history(channel=channel_id, limit=limit)
-        messages = list(reversed(response.get("messages") or []))
+        client = self._web(bot_token)
+        if thread_id:
+            replies = await client.conversations_replies(
+                channel=channel_id, ts=thread_id, limit=limit
+            )
+            messages = list(replies.get("messages") or [])
+        else:
+            response = await client.conversations_history(channel=channel_id, limit=limit)
+            messages = list(reversed(response.get("messages") or []))
         return [
             ChannelPost(
                 author=str(message.get("user") or message.get("bot_id") or "unknown"),
                 text=str(message.get("text") or ""),
                 posted_at=self._posted_at(message.get("ts")),
+                post_id=str(message.get("ts")) if message.get("ts") else None,
+                author_id=(str(message.get("user")) if message.get("user") else None),
             )
             for message in messages
         ]
+
+    async def thread_attachments(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        thread_id: str,
+        api_base_url: str | None,
+        limit: int,
+    ) -> list[IncomingAttachment]:
+        """The files on a thread's earlier messages, oldest first.
+
+        `conversations.replies` again rather than a shape carried out of
+        `channel_history`: that answers the capability's contract, which holds no
+        handles, and reading the thread twice on the one turn that opens a
+        conversation is cheaper than inverting the layering to avoid it.
+
+        `_attachments` is the same reader the live path uses, because a message in
+        a thread's history carries `files` exactly as the event did - so a photo
+        posted before the bot arrived is described the same way as one posted to
+        it.
+        """
+        replies = await self._web(bot_token).conversations_replies(
+            channel=channel_id, ts=thread_id, limit=limit
+        )
+        found: list[IncomingAttachment] = []
+        for message in replies.get("messages") or []:
+            if message.get("bot_id"):
+                continue
+            found.extend(self._attachments(message))
+        return found
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start Slack Socket Mode (equivalent to polling for dev)."""
@@ -346,13 +420,23 @@ class SlackAdapter(ChannelAdapter):
                 await self._run_socket_mode(bot_id, bot_token)
             except asyncio.CancelledError:
                 break
-            except ChannelNotConfigured:
+            except ChannelNotConfigured as exc:
                 # Not a crash and not something a retry fixes: an operator has
                 # to add the token. Retrying would be the spin all over again.
                 logger.warning("Slack Socket Mode not started for bot %s", bot_id)
+                # Its own message, because this one is written here rather than by
+                # a vendor: it names the credential to add. Recorded so the row
+                # says so - a WARNING in a container was the only evidence, and
+                # `/channels` showed the bot as healthy (#1351).
+                await connection_state.record_down(bot_id, str(exc))
                 return
             except Exception:
                 logger.exception("Slack Socket Mode crashed for bot %s, restarting in 5s", bot_id)
+                await connection_state.record_down(
+                    bot_id,
+                    "The Slack connection keeps failing. Check the app-level token "
+                    "and that Socket Mode is enabled in the Slack app.",
+                )
             await asyncio.sleep(5)
 
     async def _run_socket_mode(self, bot_id: str, bot_token: str) -> None:
@@ -362,10 +446,14 @@ class SlackAdapter(ChannelAdapter):
             from slack_sdk.socket_mode.request import SocketModeRequest
             from slack_sdk.socket_mode.response import SocketModeResponse
         except ImportError as exc:
+            # Names the real dependency. It used to name `slack-sdk[socket-mode]`,
+            # an extra slack-sdk has never had - the only one is `optional` - so
+            # the one instruction this refusal existed to give could not be
+            # followed. `aiohttp` is declared in pyproject.toml for this import.
             raise ChannelNotConfigured(
                 message=(
-                    "Slack Socket Mode requires 'slack-sdk[socket-mode]'. "
-                    "Install with: pip install 'slack-sdk[socket-mode]'"
+                    "Slack Socket Mode needs aiohttp, which this environment does "
+                    "not have. Install it, or reinstall the backend's dependencies."
                 ),
                 details={"bot_id": bot_id},
             ) from exc
@@ -388,13 +476,20 @@ class SlackAdapter(ChannelAdapter):
         async def handler(client_: Any, req: SocketModeRequest) -> None:
             await client_.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
             if req.type == "events_api":
-                event = req.payload.get("event", {})
-                await self._handle_event(event, bot_id)
+                # The whole payload, not `payload["event"]`. Slack states which
+                # installation an event was delivered for *beside* the event, so
+                # unwrapping here threw away the only thing that says whether the
+                # bot was named - and every Socket Mode message then looked like a
+                # platform that does not report mentions, which the router answers.
+                await self._handle_event(req.payload, bot_id)
 
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
         await client.connect()
-        while True:
-            await asyncio.sleep(1)
+        await connection_state.record_up(bot_id)
+        # Blocks for the life of the connection, as the bare sleep loop it
+        # replaces did - and re-stamps the entry while it waits, so a bot nobody
+        # has messaged for fifteen minutes does not read `unknown` (#1351).
+        await connection_state.heartbeat(bot_id)
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Slack doesn't have a register webhook API - configuration is done
@@ -442,7 +537,7 @@ class SlackAdapter(ChannelAdapter):
         """Parse a Slack event payload into IncomingMessage.
 
         Handles `message` events (direct messages and channel messages).
-        Ignores bot messages, message_changed, and other subtypes.
+        Ignores bot messages, edits, deletions and joins.
         Thread replies get thread_ts folded into platform_chat_id.
         """
         event: dict[str, Any] = raw_payload.get("event", raw_payload)
@@ -451,7 +546,8 @@ class SlackAdapter(ChannelAdapter):
         if event_type != "message" and event_type != "app_mention":
             return None
 
-        if event.get("bot_id") or event.get("subtype"):
+        subtype = event.get("subtype")
+        if event.get("bot_id") or (subtype and subtype not in _SPOKEN_SUBTYPES):
             return None
 
         attachments = self._attachments(event)
@@ -459,22 +555,37 @@ class SlackAdapter(ChannelAdapter):
         if not text and not attachments:
             return None
 
+        addressed = self._addressed(raw_payload, event)
+        # After `_addressed`, which is what the token is for. The model is the
+        # addressee, so being told its own id is noise: `<@U09MQFTBHTV> try again`
+        # is a question about a Slack id as far as it can tell, and an answer
+        # about one is what it gives. Somebody else's mention stays - "ask
+        # <@UADA>" is a fact about the request, not an envelope.
+        text = self._without_own_mention(text, raw_payload)
+
         user_id: str = event.get("user", "")
         channel: str = event.get("channel", "")
         channel_type: str = event.get("channel_type", "channel")
         thread_ts: str | None = event.get("thread_ts")
         message_ts: str | None = event.get("ts")
 
-        chat_type = "private" if channel_type in ("im", "mpim") else "group"
+        # `im` alone. An `mpim` is a direct message with several people in it,
+        # which makes it a room: the bot is one of its members, so a message
+        # naming nobody names nobody, and the account-linking URL - a bearer
+        # credential - must not be posted where the others can read it.
+        chat_type = "private" if channel_type == "im" else "group"
 
-        # For threads: fold thread_ts into platform_chat_id so each thread
-        # gets its own ChannelSession and Conversation
-        platform_chat_id = f"{channel}:{thread_ts}" if thread_ts else channel
+        platform_chat_id = thread_key(
+            channel,
+            thread_id=thread_ts or "",
+            message_id=message_ts,
+        )
 
         return IncomingMessage(
             platform="slack",
             bot_id=bot_id,
             platform_user_id=user_id,
+            one_to_one=channel_type == "im",
             platform_chat_id=platform_chat_id,
             chat_type=chat_type,
             text=text,
@@ -483,7 +594,83 @@ class SlackAdapter(ChannelAdapter):
             platform_display_name=None,
             message_id=message_ts,
             attachments=attachments,
+            addressed=addressed,
         )
+
+    def _without_own_mention(self, text: str, raw_payload: dict[str, Any]) -> str:
+        """The message with the bot's own mention token taken out.
+
+        Slack substitutes `<@U0123>` for a real mention, and that token is the
+        envelope rather than the message: the agent *is* the addressee, so being
+        handed its own id as content is being asked about a Slack id. It answered
+        about one, saying it could see "just the mention" of a message that also
+        said `try again`.
+
+        Only the bot's own, and only when the payload says which that is. Somebody
+        else's mention is information about the request - "ask <@UADA> about
+        billing" - and stripping it would delete the point of the sentence.
+
+        Whitespace is collapsed after the removal so a leading mention does not
+        leave the prompt starting with a space, and a mid-sentence one does not
+        leave two.
+        """
+        own = self._own_user_id(raw_payload)
+        if not own:
+            return text
+        return " ".join(text.replace(f"<@{own}>", " ").split())
+
+    @staticmethod
+    def _own_user_id(raw_payload: dict[str, Any]) -> str | None:
+        """The bot user this event was delivered for, from the payload itself.
+
+        Slack states the installation an event belongs to, which is what makes
+        this readable in a synchronous parser: Mattermost has to resolve its own
+        account over the API and cache it per session, and there is nothing to
+        resolve here. `authorizations` is the current field and `authed_users`
+        the one older payloads carry.
+        """
+        authorizations = raw_payload.get("authorizations")
+        if isinstance(authorizations, list):
+            for entry in authorizations:
+                if isinstance(entry, dict) and entry.get("user_id"):
+                    return str(entry["user_id"])
+        authed_users = raw_payload.get("authed_users")
+        if isinstance(authed_users, list) and authed_users:
+            return str(authed_users[0])
+        return None
+
+    def _addressed(self, raw_payload: dict[str, Any], event: dict[str, Any]) -> bool | None:
+        """Whether this message named the bot, as far as the payload will say.
+
+        Slack delivers what the app subscribed to, and `message.channels` is
+        every message in every channel the bot is in - so with that subscription
+        an unanswered question is not the same thing as no question, and a bot
+        that answered everything talked over the team it was invited to. Reading
+        it here rather than dropping the subscription keeps the whole
+        conversation arriving, which is what an agent deciding for itself
+        whether to answer will need.
+
+        `app_mention` is delivered only when the bot was named, so it needs
+        nothing read.
+
+        A `message` event is matched on the bot's own id appearing in the text as
+        `<@U0123>`, which is what Slack substitutes for a real mention. On the id
+        rather than on a name, for Mattermost's reason: `@ada` is somebody whose
+        display name the bot cannot resolve, and a bot called `bot` must not
+        answer the word "robot". A handle somebody typed without letting Slack
+        resolve it stays plain text and is not a mention here either - the
+        platform did not deliver one.
+
+        `None` where the payload never said which installation it was for, which
+        the router reads as "the platform did not say" and answers as it did
+        before. Going quiet on a payload we cannot read is the worse failure.
+        """
+        if event.get("type") == "app_mention":
+            return True
+        own = self._own_user_id(raw_payload)
+        if own is None:
+            return None
+        return f"<@{own}>" in (event.get("text") or "")
 
     @staticmethod
     def _attachments(event: dict[str, Any]) -> list[IncomingAttachment]:
@@ -536,9 +723,18 @@ class SlackAdapter(ChannelAdapter):
             )
         return response.content
 
-    async def _handle_event(self, event: dict[str, Any], bot_id: str) -> None:
-        """Handle a Slack event from Socket Mode or webhook."""
-        incoming = self.parse_incoming({"event": event}, bot_id)
+    async def _handle_event(self, payload: dict[str, Any], bot_id: str) -> None:
+        """Route one `events_api` payload, whole.
+
+        The **payload**, not the event inside it. It used to take the event and
+        rewrap it as `{"event": event}`, which reads identically for the text and
+        the channel and silently drops `authorizations` - the field naming the bot
+        user this was delivered for, and so the only way a synchronous parser can
+        tell whether the bot was named. Every Socket Mode message therefore
+        reached the router with `addressed` unset, which it answers, so the bot
+        replied to everything said in a channel it had been invited to.
+        """
+        incoming = self.parse_incoming(payload, bot_id)
         if incoming is None:
             return
 

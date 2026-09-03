@@ -1,8 +1,9 @@
-# Deployment
+# Deploy
 
-What this repository ships for getting the platform onto a host: Docker and
-`docker-compose.yml`, an Nginx config, and GitHub Actions. There are no Kubernetes
-manifests.
+This is what the repository ships for getting the platform onto a host: Docker and
+`docker-compose.yml`, an Nginx config, and GitHub Actions.
+
+There are no Kubernetes manifests.
 
 !!! tip "Read [configuration](configuration.md#production-checklist) first"
 
@@ -129,3 +130,11 @@ for the full list.
 !!! danger "Pin image tags; never deploy `latest` to production"
 
     A rollback is only a rollback if there is a specific tag to go back to.
+
+## Recap
+
+- **Compose on one host** is the shipped path. Configure, build, migrate, verify.
+- The security headers come from the **backend**, so any proxy is covered — but
+  HSTS is the proxy's, because that is where TLS terminates.
+- Whatever the platform, the database must be **pgvector**.
+- **Pin image tags.** A rollback is only a rollback if there is a tag to go back to.

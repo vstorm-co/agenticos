@@ -1,5 +1,6 @@
 """Async PostgreSQL database session."""
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -36,6 +37,23 @@ vector_engine = create_async_engine(
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_timeout=settings.DB_POOL_TIMEOUT,
+)
+
+# The knowledge capability's store, and pool-less on purpose. A pooled asyncpg
+# connection belongs to the event loop that opened it, and the capability is the
+# one vector caller that runs on a loop nobody here chose: an agent runs inside
+# a Prefect worker as well as inside the API, so a second flow run in one worker
+# process reaches this from a *different* loop and a pooled connection made on
+# the first breaks it (`InterfaceError: attached to a different loop`) (#1079).
+# `NullPool` caches nothing, so there is no connection to hand to the wrong
+# loop, no second `DB_POOL_SIZE + DB_MAX_OVERFLOW` pool of the kind #948
+# removed, and no circular wait against a request that already holds a
+# connection (#12) - at the price of one connect per search, which sits beside
+# an embedding request that costs an order of magnitude more.
+agent_vector_engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DB_ECHO,
+    poolclass=NullPool,
 )
 
 async_session_maker = async_sessionmaker(
@@ -105,12 +123,62 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+_pooled_loop: asyncio.AbstractEventLoop | None = None
+
+
+def claim_pooled_engines() -> None:
+    """Record that this loop owns the process's pooled engines.
+
+    Called once by the API lifespan. A pooled asyncpg connection belongs to the
+    loop that opened it, so the two module engines above are usable from exactly
+    one loop - and only the loop that starts the application, disposes them at
+    shutdown and serves every request between the two has a claim on them. A
+    process with no lifespan - a worker, the CLI, the test suite - claims
+    nothing, which is the answer `get_db_context` wants below.
+    """
+    global _pooled_loop
+    _pooled_loop = asyncio.get_running_loop()
+
+
+def release_pooled_engines() -> None:
+    """Give the claim up, at shutdown, so a second lifespan can take it.
+
+    A test or a reload runs another lifespan in the same process, on another
+    loop; leaving the old loop stamped would tell that one it owns pools whose
+    connections were opened on a loop that has gone.
+    """
+    global _pooled_loop
+    _pooled_loop = None
+
+
+def on_the_pooled_loop() -> bool:
+    """Whether the running loop is the one that owns the pooled engines."""
+    try:
+        return _pooled_loop is asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+
+
 @asynccontextmanager
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
-    """Get async database session as context manager.
+    """A session for manual management: a WebSocket, a worker task, a command.
 
-    Use this with 'async with' for manual session management (e.g., WebSockets).
+    Pooled on the loop that owns the pools, and a `NullPool` engine of its own
+    anywhere else. The distinction is not decoration: this is reached from
+    Prefect flows (the report, MCP refresh, invitation and approval tasks, the
+    channel loops) and from an agent's embedding resolver, each on a loop of its
+    own, and a pooled connection made on one loop breaks whoever checks it out
+    on the next - `InterfaceError: attached to a different loop`, intermittent,
+    and invisible to any test with one loop in it (#1079). Off the owning loop
+    it therefore does exactly what `get_worker_db_context` does, at one connect
+    per call, which is the price the worker already pays deliberately for its
+    ingestion flows (#948).
     """
+    if not on_the_pooled_loop():
+        async with get_worker_db_context() as session:
+            yield session
+        return
+
     async with _managed_session(async_session_maker) as session:
         yield session
 
@@ -146,6 +214,8 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def close_db() -> None:
-    """Close database connections - both process pools."""
+    """Close database connections - both process pools and the agents' engine."""
     await engine.dispose()
     await vector_engine.dispose()
+    await agent_vector_engine.dispose()
+    release_pooled_engines()

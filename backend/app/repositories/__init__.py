@@ -17,6 +17,7 @@ from app.repositories import conversation_share as conversation_share_repo
 from app.repositories import message_rating as message_rating_repo
 
 from app.repositories import knowledge_base as knowledge_base_repo
+from app.repositories import collection_teardown as collection_teardown_repo
 
 from app.repositories import channel_bot as channel_bot_repo
 from app.repositories import channel_identity as channel_identity_repo
@@ -54,6 +55,7 @@ from app.repositories import deployment_settings as deployment_settings_repo
 from app.repositories import dashboard_preset as dashboard_preset_repo
 
 from app.repositories import mcp_connection as mcp_connection_repo
+from app.repositories import mcp_registry_server as mcp_registry_server_repo
 from app.repositories import organization_secret as organization_secret_repo
 
 __all__ = [
@@ -67,6 +69,7 @@ __all__ = [
     "conversation_share_repo",
     "message_rating_repo",
     "knowledge_base_repo",
+    "collection_teardown_repo",
     "channel_bot_repo",
     "channel_identity_repo",
     "channel_link_request_repo",
@@ -79,6 +82,7 @@ __all__ = [
     "deployment_settings_repo",
     "dashboard_preset_repo",
     "mcp_connection_repo",
+    "mcp_registry_server_repo",
     "organization_secret_repo",
     "resource_grant_repo",
     "audit_log_repo",

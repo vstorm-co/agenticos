@@ -1,0 +1,551 @@
+/*
+ * The AgenticOS presentation system, published.
+ *
+ * Two files concatenated from the `deck-build` skill, which is where they are
+ * authored and where a change belongs:
+ *   ~/.claude/skills/deck-build/tools/deck/systems/agenticos.css
+ *   ~/.claude/skills/deck-build/tools/deck/systems/agenticos-deck.css
+ *
+ * Regenerate both this file and `index.html` with `make presentation`.
+ * Every value in the first half is lifted verbatim from the console's own
+ * stylesheet, so this page and the product cannot disagree about a colour.
+ */
+
+/*
+ * AgenticOS presentation system.
+ *
+ * Every value here is lifted verbatim from the console's own stylesheet
+ * (`frontend/src/app/globals.css`) and its font loader (`src/app/layout.tsx`).
+ * Nothing is invented: a deck built on this reads as the same product a client
+ * has just been shown, because it is the same palette and the same faces.
+ *
+ * The three families matter more than the colours. Bricolage Grotesque as the
+ * display face is what stops a slide looking machine-made - Inter or Geist set
+ * large is the single strongest tell, and the console never does it either.
+ */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("fonts/bricolage-grotesque-latin.woff2") format("woff2");
+  font-weight: 400 800;
+  font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212;
+}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("fonts/bricolage-grotesque-latin-ext.woff2") format("woff2");
+  font-weight: 400 800;
+  font-display: block;
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/inter-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/inter-latin-ext.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: block;
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("fonts/geist-mono-latin.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("fonts/geist-mono-latin-ext.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: block;
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --brand-h: 259;
+  --brand-c: 0.19;
+  --brand-200: oklch(88% calc(var(--brand-c) * 0.26) var(--brand-h));
+  --brand-300: oklch(79% calc(var(--brand-c) * 0.5) var(--brand-h));
+  --brand-400: oklch(70% calc(var(--brand-c) * 0.8) var(--brand-h));
+  --brand-500: oklch(62% var(--brand-c) var(--brand-h));
+  --brand-600: oklch(55% var(--brand-c) var(--brand-h));
+  --brand-700: oklch(48% calc(var(--brand-c) * 0.98) var(--brand-h));
+  --brand-900: oklch(31% calc(var(--brand-c) * 0.62) var(--brand-h));
+  --brand-950: oklch(23% calc(var(--brand-c) * 0.42) var(--brand-h));
+
+  --display: "Bricolage Grotesque", "Helvetica Neue", sans-serif;
+  --body: "Inter", "Helvetica Neue", sans-serif;
+  --mono: "Geist Mono", ui-monospace, monospace;
+
+  --radius: 10px;
+  --radius-pill: 999px;
+}
+
+/* The console's light theme. */
+.t-light {
+  --bg: oklch(97.5% 0.003 250);
+  --fg: oklch(15% 0 0);
+  --card: oklch(100% 0 0);
+  --muted: oklch(94% 0.004 250);
+  --muted-fg: oklch(45% 0 0);
+  --line: oklch(89% 0.004 250);
+  --brand: var(--brand-600);
+  --brand-soft: oklch(96% calc(var(--brand-c) * 0.16) var(--brand-h));
+}
+
+/*
+ * And its dark theme. Not black - a slate at a trace of blue.
+ *
+ * The stage is the console's `--color-card` (24%) rather than its
+ * `--color-background` (20%), which is kept as `--bg-deep`. Sampled from
+ * `docs/assets/screens/dark/*.webp`, what a client actually sees on a dark
+ * console is rgb(28,30,31); the 20% token renders rgb(20,22,25), which reads as
+ * near-black on a projector and is the one value that made a slide look
+ * generic rather than like the product.
+ */
+.t-dark {
+  --bg: oklch(24% 0.006 250);
+  --bg-deep: oklch(20% 0.006 250);
+  --fg: oklch(95% 0.005 250);
+  --card: oklch(27% 0.006 250);
+  --muted: oklch(30% 0.006 250);
+  --muted-fg: oklch(68% 0.008 250);
+  --line: oklch(34% 0.008 250);
+  --brand: var(--brand-400);
+  --brand-soft: var(--brand-950);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+.slide {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-feature-settings: "cv05" 1, "ss03" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Type scale. Display sizes carry `-0.03em` tracking because Bricolage at 700+
+ * sets loose by default, and an untracked headline is the second-strongest tell
+ * after the wrong face.
+ */
+.d1 { font-family: var(--display); font-weight: 800; letter-spacing: -0.035em; line-height: 0.94; }
+.d2 { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em;  line-height: 1.02; }
+.d3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em;  line-height: 1.12; }
+.lede { font-size: 26px; line-height: 1.45; color: var(--muted-fg); font-weight: 400; }
+
+/* An overline: mono, small, wide, and the one place brand colour is allowed to
+ * carry text rather than decorate it. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.rule { height: 1px; background: var(--line); border: 0; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 16px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--muted-fg);
+  background: var(--card);
+}
+
+/*
+ * Brand marks inside a chip: what the number is made of, before the number.
+ *
+ * Monochrome at 62% and never in the holders' own colours - four brand palettes
+ * in one row turns a restrained slide into a sticker sheet, and the marks are
+ * here as evidence rather than as decoration. The rule separates them from the
+ * figure so the eye reads "these things, that many".
+ */
+.chip .marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 3px;
+  padding-right: 14px;
+  border-right: 1px solid var(--line);
+}
+.chip .marks svg { width: 19px; height: 19px; color: var(--fg); opacity: 0.62; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.num { font-family: var(--display); font-weight: 800; letter-spacing: -0.04em; line-height: 0.9; }
+.mono { font-family: var(--mono); }
+
+/*
+ * The seam: where the two themes meet on one canvas. A hairline, not a
+ * gradient - the whole point is that both halves are real surfaces from the
+ * product rather than a decorative wash.
+ */
+.seam { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
+
+
+/*
+ * 16:9 slide layout for the AgenticOS system.
+ *
+ * Loaded after `agenticos.css`, which owns the tokens, the faces and the
+ * primitives. This file owns only geometry: how big a slide is, how much air it
+ * has, and how the handful of recurring arrangements are built.
+ *
+ * One HTML file holds the whole deck, one `<section class="slide">` per slide,
+ * and Chrome's `--print-to-pdf` turns it into a single PDF with selectable text
+ * at 20in x 11.25in - which is 1920x1080 at 96dpi. Rendering each slide to PNG
+ * and stitching the images would lose the text layer, and a client who cannot
+ * copy a line out of a deck notices.
+ */
+
+@page {
+  size: 20in 11.25in;
+  margin: 0;
+}
+
+html, body { width: 1920px; }
+
+.slide {
+  width: 1920px;
+  height: 1080px;
+  padding: 96px 120px 88px;
+  display: flex;
+  flex-direction: column;
+  page-break-after: always;
+  break-after: page;
+}
+.slide:last-child { page-break-after: auto; break-after: auto; }
+
+/* Print keeps the surfaces. Without this Chrome drops every background and a
+ * dark slide arrives at the client as black text on white. */
+@media print {
+  .slide { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* A statement slide stands on the console's deeper background, a content slide
+ * on its card tone. One dark, two stages. */
+.t-dark.deep { --bg: var(--bg-deep); }
+
+/*
+ * Grain, on the dark statement slides only.
+ *
+ * A 96px tile of white noise at 4.5% over a flat near-black field: enough that
+ * the ground reads as a surface rather than as an absence, and far too little
+ * to be seen as texture. Deliberately NOT on the light slides, where the stage
+ * already carries the console's own tint, and NOT on a screenshot slide, where
+ * any grain would read as compression damage.
+ */
+.t-dark.deep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/png;base64,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");
+  background-repeat: repeat;
+}
+
+.slide-head { display: flex; align-items: baseline; justify-content: space-between; }
+
+/* The footer is the same on every slide, which is what makes a deck read as one
+ * document: the mark, and the slide's own number. */
+.slide-foot {
+  margin-top: auto;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 17px;
+  color: var(--muted-fg);
+}
+.slide-foot .who { display: flex; align-items: center; gap: 13px; }
+.slide-foot .who .mk { width: 22px; height: 22px; }
+.slide-foot .by { display: flex; align-items: center; gap: 17px; }
+.slide-foot .by .vs { width: 82px; height: 15px; opacity: 0.75; }
+
+.body { margin-top: 54px; display: flex; flex-direction: column; }
+
+.h-lg { font-size: 118px; }
+.h-md { font-size: 84px; }
+.h-sm { font-size: 58px; }
+
+.col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 74px; }
+.col-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 54px; }
+
+/* A claim and its consequence, stacked, separated by a hairline. The recurring
+ * unit of this deck: three of them fill a slide without a bullet in sight. */
+/*
+ * A hairline with a short brand tick above it, not a 2px black bar. Three of
+ * those bars side by side were the heaviest thing on any slide, and the product
+ * itself draws hairlines everywhere.
+ */
+.point { position: relative; border-top: 1px solid var(--line); padding-top: 24px; }
+.point::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 46px;
+  height: 3px;
+  background: var(--brand);
+}
+.point .t { font-family: var(--display); font-weight: 700; font-size: 42px; letter-spacing: -0.02em; line-height: 1.1; }
+.point .p { font-size: 28px; line-height: 1.48; color: var(--muted-fg); margin-top: 14px; }
+
+/* Three figures in a row. A grid rather than flex so the columns stay equal
+ * when one label wraps and the others do not. */
+.statrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 60px; }
+/* Anchored the same way a `.point` is - hairline plus a brand tick. Three
+ * figures floating in a field read as a placeholder; the same device used
+ * everywhere else in the deck reads as the deck. */
+.stat { position: relative; border-top: 1px solid var(--line); padding-top: 30px; }
+.stat::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 46px;
+  height: 3px;
+  background: var(--brand);
+}
+.stat .n { font-size: 148px; color: var(--brand); }
+.stat .l { font-family: var(--mono); font-size: 24px; color: var(--muted-fg); margin-top: 12px; letter-spacing: 0.02em; }
+
+/* Two columns of an argument, the left naming what an operating system does and
+ * the right what this one does. Rows, not a table element: a table's cells
+ * cannot be given the vertical rhythm a slide needs. */
+/*
+ * `column-gap` cannot be used here. The rule between rows is drawn by each
+ * cell's own `border-top`, so a gap leaves a 60px break in the middle of every
+ * line and the table reads as broken rather than ruled. The air comes from the
+ * value cell's left padding instead, which keeps the two borders contiguous.
+ */
+.tbl { display: grid; grid-template-columns: 430px 1fr; }
+.tbl > div { padding: 21px 0; border-top: 1px solid var(--line); }
+.tbl .v { padding-left: 60px; }
+.tbl > div:nth-last-child(-n+2) { border-bottom: 1px solid var(--line); }
+/* A key row may carry the icon the console draws beside the same choice. Same
+ * weight correction as `.rows2`: a filled mark is set smaller than a stroke
+ * glyph so a column of both reads level. */
+.tbl .k { display: flex; align-items: center; gap: 14px; font-family: var(--display); font-weight: 700; font-size: 29px; letter-spacing: -0.01em; }
+.tbl .k svg { flex: none; color: var(--fg); opacity: 0.55; }
+.tbl .k .ic { width: 26px; height: 26px; }
+.tbl .k .bm { width: 22px; height: 22px; }
+.tbl .v { font-size: 27px; line-height: 1.42; color: var(--muted-fg); }
+.tbl .v b { color: var(--fg); font-weight: 600; }
+
+/* A refusal reads as code because it is a rule, not a feature. */
+/*
+ * A refusal carries its consequence in the same sentence: the bold lead is what
+ * the platform will not do, the muted tail is what that buys the reader. Stated
+ * alone, "a read across tenants" is legible to an engineer and means nothing to
+ * the person signing.
+ */
+.refusals { display: flex; flex-direction: column; gap: 26px; }
+.refusal { display: flex; align-items: flex-start; gap: 22px; font-size: 27px; line-height: 1.42; color: var(--muted-fg); max-width: 1560px; }
+.refusal b { color: var(--fg); font-weight: 600; }
+.refusal .no {
+  font-family: var(--mono);
+  font-size: 19px;
+  color: var(--brand);
+  flex: none;
+  margin-top: 6px;
+  padding: 5px 13px;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/*
+ * The line that closes a slide - what the body above it means. It belongs to
+ * the system rather than to one deck's `<style>` block: leaving it there is how
+ * a rewrite of the deck silently dropped it and set every one of these
+ * paragraphs at the browser's default 16px.
+ */
+.after { font-size: 30px; line-height: 1.5; color: var(--muted-fg);
+         margin: 46px 0 34px; max-width: 1290px; }
+.after b { color: var(--fg); font-weight: 600; }
+
+.quote { font-family: var(--display); font-weight: 500; font-size: 80px; line-height: 1.18; letter-spacing: -0.02em; max-width: 1420px; }
+
+/*
+ * A slide that is a screenshot.
+ *
+ * Full-bleed rather than a framed thumbnail: the console screenshots are
+ * 2926x1760, so filling a 16:9 slide crops 6.5% off the bottom - which is empty
+ * page in every one of them - and a product shot at slide size argues better
+ * than the same shot inset at a third of it.
+ *
+ * The caption is a solid card, not a translucent one. A blurred pane over a
+ * dense UI is unreadable at projector distance, and it is the tell this whole
+ * system exists to avoid.
+ */
+/*
+ * The screenshot sits on the stage rather than bleeding to the edge: a console
+ * shot with a hard edge reads as a slide that failed to load, where the same
+ * shot inset and rounded reads as a product. The radius is the console's own
+ * card radius doubled - at slide scale 10px is invisible.
+ */
+.shot { padding: 46px; position: relative; }
+/* A `<video>` is sized exactly like an `<img>` here: it plays in the HTML deck
+ * and Chrome prints its `poster` frame into the PDF, so one source serves both
+ * without a second slide holding a still of the same thing. */
+.shot img,
+.shot video {
+  width: 100%;
+  height: 100%;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  box-shadow: 0 26px 72px -22px rgba(0, 0, 0, 0.34);
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+.shot .cap {
+  position: absolute;
+  left: 94px;
+  bottom: 96px;
+  max-width: 880px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 30px 36px 32px;
+  box-shadow: 0 20px 52px -14px rgba(0, 0, 0, 0.3);
+}
+.shot .cap .t { font-family: var(--display); font-weight: 700; font-size: 40px; letter-spacing: -0.02em; line-height: 1.12; margin-top: 14px; }
+.shot .cap .p { font-size: 25px; line-height: 1.46; color: var(--muted-fg); margin-top: 13px; }
+/* A screenshot slide has no footer bar, so the mark travels in the corner pill
+ * with the slide number - otherwise a third of the deck carries no brand. */
+/* A caption must not cover the thing it is describing. Bottom-left is the
+ * default because that is where a reader looks first; these move it where the
+ * subject of the shot is on that side of the frame. */
+.shot .cap.right { left: auto; right: 94px; }
+.shot .cap.top { bottom: auto; top: 96px; }
+.shot .cap.right ~ .n { right: auto; left: 94px; }
+
+.shot .n {
+  position: absolute;
+  right: 94px;
+  bottom: 96px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 17px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 8px 17px;
+}
+.shot .n .vs { width: 68px; height: 13px; opacity: 0.7; }
+
+/* Two ruled columns - for a list of eight that would be cramped in four. */
+.rows2 { display: grid; grid-template-columns: 1fr 1fr; column-gap: 74px; }
+.rows2 > div { padding: 19px 0; border-top: 1px solid var(--line); }
+.rows2 > div:nth-last-child(-n+2) { border-bottom: 1px solid var(--line); }
+/*
+ * An icon per surface. A stroke icon and a filled brand mark do not weigh the
+ * same at one size, so the marks are set four pixels smaller - otherwise Slack
+ * and Telegram sit noticeably heavier in the column than the lucide glyphs
+ * beside them.
+ */
+.rows2 .k { display: flex; align-items: center; gap: 15px; font-family: var(--display); font-weight: 700; font-size: 29px; letter-spacing: -0.015em; }
+.rows2 .k svg { flex: none; color: var(--fg); opacity: 0.55; }
+.rows2 .k .ic { width: 26px; height: 26px; }
+.rows2 .k .bm { width: 22px; height: 22px; }
+.rows2 .p { font-size: 23px; line-height: 1.4; color: var(--muted-fg); margin-top: 7px; }
+
+/*
+ * Slide numbers come from a counter. Seventeen slides hand-numbered is
+ * seventeen chances to renumber sixteen of them after an insert, which is how
+ * a deck ends up with two slide 08s.
+ */
+.sprite { position: absolute; }
+
+body { counter-reset: slide; }
+.slide { counter-increment: slide; }
+/*
+ * Where the reader is. A 20-slide deck with a bare page number tells somebody
+ * which slide they are on and nothing about how much is left, which is the
+ * question people actually have in a meeting.
+ *
+ * Two halves: the number carries the total, and a hairline at the very bottom
+ * edge fills as the deck advances. The bar is on `.slide` rather than in the
+ * footer because a screenshot slide has no footer, and a progress indicator that
+ * disappears for six slides is worse than none. Both the total and the per-slide
+ * widths are written by `finalise.py`, which reads the real slide count - a
+ * hand-maintained "/ 20" is wrong the first time a slide is inserted.
+ */
+.slide::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--brand);
+  opacity: 0.85;
+  z-index: 2;
+}
+
+.n-auto::before { content: counter(slide, decimal-leading-zero) " / " var(--deck-total); }
+
+
+/*
+ * On a screen, not on paper.
+ *
+ * The slide is a fixed 1920x1080 because that is what `@page` prints. A visitor
+ * on a laptop must not have to scroll sideways to read a sentence, so each
+ * slide is zoomed to the viewport - `zoom` rather than `transform` because it
+ * reflows the box rather than merely painting it smaller, which keeps the page
+ * height honest and the scrollbar right.
+ */
+@media screen {
+  /* The zoom goes on the root, not on the slide. On `.slide` it works but the
+   * flex centring above it sizes the container from the unzoomed 1920px child,
+   * so every slide sat offset and overflowed to the right. Zooming the document
+   * leaves nothing to disagree with it. */
+  /* The print half fixes `html, body` at 1920px so `@page` has a box to fill.
+   * On screen that leaves `margin: auto` nothing to distribute, and every slide
+   * sits flush left. Let the root take the window instead; the slide keeps its
+   * own 1920px. */
+  html, body { width: auto; }
+  html { zoom: var(--fit, 1); }
+
+  body {
+    background: oklch(92% 0.004 250);
+    padding: 30px 0 46px;
+  }
+  /* `margin-inline: auto` rather than `align-items: center` on a flex body:
+   * the flex centring left every slide flush to one edge once the root was
+   * zoomed. */
+  .slide {
+    margin: 0 auto 30px;
+    border-radius: 12px;
+    box-shadow: 0 22px 60px -22px rgba(10, 15, 26, 0.4);
+  }
+  .sprite { display: none; }
+}

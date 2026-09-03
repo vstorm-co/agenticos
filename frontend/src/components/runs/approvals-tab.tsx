@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CheckCircle2, XCircle } from "lucide-react";
 
@@ -13,6 +14,7 @@ import {
   ListCard,
   ListCardEmpty,
   ListCardFootRow,
+  Pager,
   type Column,
 } from "@/components/ui";
 import { useApprovalHistory, useApprovals } from "@/hooks";
@@ -56,6 +58,9 @@ const DECISION_VARIANT: Record<string, "default" | "secondary" | "destructive" |
  * than drawing "nothing waiting" - the one sentence this table must not say
  * when it does not know.
  */
+/** One server page of the queue - `GET /approvals`' own default. */
+const APPROVALS_PAGE = 50;
+
 export function ApprovalsTab({
   period,
   onFocusRun,
@@ -66,8 +71,21 @@ export function ApprovalsTab({
   const t = useTranslations("pages.runs");
   const locale = useLocale();
   const range = { from: periodStart(period), to: periodEnd(period) };
-  const { approvals, total, isLoading, error, decide, refetch } = useApprovals();
+  // Which page of the queue. Not keyed on the window the way the history below
+  // is: `/approvals` does not narrow the pending queue by date, so the page's
+  // period selector does not redefine what is being paged.
+  const [page, setPage] = useState(0);
+
+  const { approvals, total, isLoading, error, decide, refetch } = useApprovals({
+    skip: page * APPROVALS_PAGE,
+  });
   const history = useApprovalHistory(range);
+
+  // A decision removes a row, so the last page can empty under the reader. Step
+  // back rather than leaving them on a page that says nothing is waiting while
+  // the badge says otherwise (the render-time adjustment pattern).
+  const pageCount = Math.max(1, Math.ceil(total / APPROVALS_PAGE));
+  if (page >= pageCount) setPage(pageCount - 1);
 
   const rows: ToolApproval[] = [...approvals, ...history.approvals];
 
@@ -240,15 +258,21 @@ export function ApprovalsTab({
             }
             className="rounded-none border-0 bg-transparent"
           />
-          {/* The queue is one page of the endpoint's fifty; the figure above
-              and the tab badge both report the server's total, so without this
-              line a badge reading 120 sits over 50 rows with nothing
-              explaining the gap. */}
-          {total > approvals.length && (
+          {/* The queue is server-paged. It used to be one page of fifty with a
+              line explaining the gap, which left the newest request - the one an
+              alert is about - unreachable until enough older calls were decided
+              (#1336). The pager is the way to it, and the decide controls stay
+              on the row where they belong. */}
+          {total > APPROVALS_PAGE && (
             <ListCardFootRow>
-              <p className="text-muted-foreground text-xs" role="note">
-                {t("showingTheOldestOf", { shown: approvals.length, total })}
-              </p>
+              <Pager
+                page={page}
+                pageCount={pageCount}
+                matched={approvals.length}
+                total={total}
+                onPage={setPage}
+                counted={t("approvalCount", { count: total })}
+              />
             </ListCardFootRow>
           )}
           {/* The record is one page of the same fifty, newest first - the

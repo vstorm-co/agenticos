@@ -25,9 +25,16 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
-from app.repositories import agent_repo, credential_repo, member_repo, organization_repo
+from app.repositories import (
+    agent_repo,
+    credential_repo,
+    mcp_registry_server_repo,
+    member_repo,
+    organization_repo,
+)
 from app.schemas.user import UserCreate
 from app.services.agent_registry import AgentRegistryService, slugify
+from app.services.mcp_registry import seed_entries
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.user import UserService
@@ -116,6 +123,7 @@ async def _bootstrap(
 
         profile_id = await _resolve_model(db, ctx, provider, api_key, model_id)
         await _resolve_demo_agent(db, ctx, profile_id)
+        await _resolve_mcp_mirror(db)
         await db.commit()
 
     click.echo()
@@ -125,6 +133,29 @@ async def _bootstrap(
         warning("  No API key given - add one under Settings → AI providers to run the agent.")
     else:
         click.echo("  Open Agents → Getting Started → Test and ask it something.")
+
+
+async def _resolve_mcp_mirror(db) -> None:
+    """Fill the MCP registry mirror, once, if nothing has.
+
+    Here rather than left to whoever reads the docs: the table
+    `0070_mcp_registry_servers` creates is empty, and an empty table is not
+    visibly wrong - `/mcp` shows the curated hundred and looks complete. So the
+    5,703 mirrored servers were reachable only by somebody who knew to run
+    `agenticos cmd mcp-registry-sync`, which is a thing nobody knows.
+
+    Deployment-wide, so it takes no organization and runs whichever tenant is
+    being bootstrapped. Skipped when the table already holds rows: a re-run of
+    bootstrap must not spend a few seconds rewriting five thousand rows that have
+    not changed, and refreshing the mirror is the sync command's job.
+    """
+    if await mcp_registry_server_repo.count(db):
+        info("MCP registry mirror already loaded")
+        return
+    entries = list(seed_entries())
+    for start in range(0, len(entries), 500):
+        await mcp_registry_server_repo.upsert_many(db, entries[start : start + 500])
+    success(f"Loaded {len(entries)} MCP registry servers")
 
 
 async def _resolve_organization(db, owner_id: uuid.UUID, name: str):

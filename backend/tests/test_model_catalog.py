@@ -7,6 +7,7 @@ they do not*: a dropdown of ids the provider does not serve is worse than an
 empty one, because each is a run that fails with an authentication-shaped error.
 """
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,9 +27,11 @@ MODULE = "app.services.model_catalog"
 def _empty_cache():
     model_catalog._cache.clear()
     model_catalog._listing_client = None
+    model_catalog._listing_loop = None
     yield
     model_catalog._cache.clear()
     model_catalog._listing_client = None
+    model_catalog._listing_loop = None
 
 
 def _responds(payload: object) -> MagicMock:
@@ -351,7 +354,7 @@ def _documented_rows() -> dict[str, dict[str, str]]:
 
 
 def _providers_documented_as_not_api_key() -> set[str]:
-    """The ids under "Credential is not an API key".
+    """The ids under "When the credential is not an API key".
 
     Which of the three tables a provider sits in is itself a claim about its
     credential shape - the heading says so - and it is the only claim those
@@ -360,7 +363,7 @@ def _providers_documented_as_not_api_key() -> set[str]:
     the guard entirely (#1252).
     """
     page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
-    section = page.split("### Credential is not an API key", 1)
+    section = page.split("### When the credential is not an API key", 1)
     if len(section) == 1:
         return set()
     ids: set[str] = set()
@@ -478,8 +481,8 @@ class TestOneAnswerPerQuestion:
         assert len(four_column) + len(three_column) == len(_documented_ids())
 
     def test_which_table_a_provider_is_in_matches_its_credential(self):
-        """The heading is the claim: a provider under "Credential is not an API
-        key" must not take one, and one in the other two must. Moving a row
+        """The heading is the claim: a provider under "When the credential is not
+        an API key" must not take one, and one in the other two must. Moving a row
         between tables without changing `secret_kind` - or the reverse - is the
         drift this catches."""
         misfiled = [
@@ -501,3 +504,54 @@ class TestOneAnswerPerQuestion:
         ]
 
         assert wrong == []
+
+
+class TestTheSharedClientAndTheLoopItBelongsTo:
+    """One process, several event loops, one client (#1263).
+
+    An `AsyncClient` holds connections bound to the loop that opened them, so
+    one built by a request and reused by a flow - or closed at shutdown from a
+    different loop - raises `RuntimeError: Event loop is closed` instead of
+    answering. It surfaced as the lifespan's drain failing after an unrelated
+    test had warmed the client on its own loop; in production it is a listing
+    that stops working for as long as the process lives.
+    """
+
+    def test_a_second_loop_gets_a_client_of_its_own(self):
+        first: list[object] = []
+
+        async def warm() -> None:
+            first.append(model_catalog._client())
+
+        asyncio.run(warm())
+        second: list[object] = []
+
+        async def warm_again() -> None:
+            second.append(model_catalog._client())
+
+        asyncio.run(warm_again())
+
+        assert first[0] is not second[0]
+
+    def test_one_loop_keeps_the_client_it_built(self):
+        """The pool is the point: rebuilding per call is what #1263 removed."""
+
+        async def twice() -> tuple[object, object]:
+            return model_catalog._client(), model_catalog._client()
+
+        one, two = asyncio.run(twice())
+
+        assert one is two
+
+    def test_closing_from_another_loop_drops_it_rather_than_raising(self):
+        """The client's loop is gone, so there is nothing left to release -
+        and raising here would take the application's shutdown with it."""
+
+        async def warm() -> None:
+            model_catalog._client()
+
+        asyncio.run(warm())
+
+        asyncio.run(model_catalog.close_listing_client())
+
+        assert model_catalog._listing_client is None

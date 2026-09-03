@@ -218,6 +218,13 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
+    Call(
+        "POST",
+        "/agents/templates/install",
+        Perm.AGENTS_EDIT,
+        body={"key": "healthcare/procedure-assistant"},
+    ),
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
@@ -275,6 +282,13 @@ CALLS: tuple[Call, ...] = (
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
+    Call("GET", "/skills/gallery", Perm.SKILLS_VIEW),
+    Call(
+        "POST",
+        "/skills/gallery/install",
+        Perm.SKILLS_EDIT,
+        body={"keys": ["healthcare/consent-explainer"]},
+    ),
     Call(
         "POST",
         "/skills",
@@ -299,7 +313,9 @@ CALLS: tuple[Call, ...] = (
     # Which providers can draw an image and which of their models may be asked to.
     # Gated the same way and for the same reason: it is the Builder's picker, and
     # "OpenAI draws through the Responses API" is not a secret.
+    Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),
     Call(
         "POST",

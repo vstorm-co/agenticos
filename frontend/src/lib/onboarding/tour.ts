@@ -122,6 +122,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
 
   {
+    id: "agents-templates",
+    page: ROUTES.AGENTS,
+    target: "agents-templates",
+    permission: Perm.agentsEdit,
+    inTour: true,
+  },
+  {
     id: "agents-new",
     page: ROUTES.AGENTS,
     target: "agents-new",
@@ -238,6 +245,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "skills-new",
     page: ROUTES.SKILLS,
     target: "skills-new",
+    permission: Perm.skillsEdit,
+    inTour: true,
+  },
+  // The gallery is where a first skill actually comes from - an empty
+  // organization has three, and writing one from scratch is the harder path.
+  {
+    id: "skills-gallery",
+    page: ROUTES.SKILLS,
+    target: "skills-gallery",
     permission: Perm.skillsEdit,
     inTour: true,
   },

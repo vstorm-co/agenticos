@@ -138,7 +138,7 @@ def test_a_specialist_without_a_model_runs_on_its_parents() -> None:
     # delegating further - each absent on purpose.
     assert converted.budget is None
     assert converted.observability is None
-    assert converted.mcp_server_ids == []
+    assert converted.mcp_servers == []
     assert converted.subagents == []
 
 

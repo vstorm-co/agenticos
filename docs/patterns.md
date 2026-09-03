@@ -1,6 +1,9 @@
-# Code Patterns
+# Code patterns
 
-## Dependency Injection
+The shapes that repeat in this codebase. If a change you are writing does not look
+like one of them, that is worth a second look before it is worth a new pattern.
+
+## Dependency injection
 
 Everything a route needs arrives as an `Annotated` alias from `app/api/deps.py` -
 never a bare `Depends()` in the signature:
@@ -32,7 +35,7 @@ The aliases worth knowing, all in `app/api/deps.py`:
 | `Redis` | The Redis client |
 | `<Domain>Svc` | One per service, built from `DBSession` |
 
-## Service Layer Pattern
+## Service layer pattern
 
 Every feature uses the same pattern: a service class receives a DB session and
 provides business-level methods. Services are the **only** layer that raises
@@ -76,7 +79,7 @@ consistent. Where a domain owns infrastructure of its own (clients, adapters,
 parsers) the service becomes a subpackage exporting one facade:
 `services/rag/`, `services/channels/`, `services/email/`.
 
-## Repository Layer Pattern
+## Repository layer pattern
 
 Repositories handle data access only. They contain **no** business logic and
 always use `flush()` instead of `commit()`, because the request's session owns
@@ -136,7 +139,7 @@ what matters here is that the argument reaches the `WHERE` clause at all.)
     run path, which commits before the model call and again in its terminal
     `finally`.
 
-## Exception Handling
+## Exception handling
 
 Use domain exceptions in services:
 
@@ -196,7 +199,7 @@ points and for which refusals deliberately name no field at all.
 The same applies to an audit entry, which is `details` with a longer life: record
 *which* fields an administrator changed, not the values they submitted.
 
-## Schema Patterns
+## Schema patterns
 
 Separate schemas for different operations:
 
@@ -276,7 +279,7 @@ run against a database that does not have it yet
 ([#417](https://github.com/vstorm-co/agenticos/issues/417)). Neither survives a
 restart; work that must belongs in a Prefect deployment.
 
-## Connector Pattern (RAG Sync)
+## Connector pattern (RAG sync)
 
 Remote document sources (Google Drive, S3, etc.) use a pluggable connector
 pattern defined in `app/services/rag/connectors/`. Each connector inherits from
@@ -333,7 +336,7 @@ The `RagSyncService` uses `CONNECTOR_REGISTRY` to look up the right connector
 by type, validate its config, list remote files, download them, and hand them
 off to the ingestion pipeline.
 
-## Frontend Patterns
+## Frontend patterns
 
 ### Authentication (HTTP-only cookies)
 
@@ -345,7 +348,7 @@ function Component() {
 }
 ```
 
-### State Management (Zustand)
+### State management (Zustand)
 
 ```typescript
 import { useAuthStore } from '@/stores/auth-store';
@@ -353,7 +356,7 @@ import { useAuthStore } from '@/stores/auth-store';
 const { user, setUser, logout } = useAuthStore();
 ```
 
-### WebSocket Chat
+### WebSocket chat
 
 ```typescript
 import { useChat } from '@/hooks/use-chat';

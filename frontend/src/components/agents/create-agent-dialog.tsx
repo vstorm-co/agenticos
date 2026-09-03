@@ -88,7 +88,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
         collection_ids: [],
         skill_ids: [],
         context_ids: [],
-        mcp_server_ids: [],
+        mcp_servers: [],
         budget: null,
       });
       setName("");

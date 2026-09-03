@@ -1,24 +1,24 @@
-# Using Message Ratings
+# Use message ratings
 
 People can rate an agent's answers, and the ratings are readable two ways: on the
 turn itself, and in aggregate for whoever administers the deployment.
 
-## Rating Messages
+## Rating messages
 
-### Like/Dislike
+### Like/dislike
 
 Each AI assistant message displays two buttons:
 
 - **Like (👍)** — Click to indicate the response was helpful
 - **Dislike (👎)** — Click to indicate the response had issues
 
-### Toggle Behavior
+### Toggle behavior
 
 - Clicking the same button again **removes** your rating
 - Clicking the opposite button **changes** your rating (like → dislike or vice versa)
 - Only assistant messages can be rated (not your own messages)
 
-### Adding Feedback
+### Adding feedback
 
 When you dislike a response, a dialog appears asking **"What went wrong?"**
 
@@ -32,25 +32,25 @@ Common reasons to dislike:
 - Too verbose or too brief
 - Poor formatting or structure
 
-## Rating Counts
+## Rating counts
 
 Each message shows the total number of likes and dislikes from all users.
 Your own rating is highlighted (green for like, red for dislike).
 
-## For Administrators
+## For administrators
 
-### Ratings Dashboard
+### Ratings dashboard
 
 Navigate to **Admin → Response Ratings** (or `/admin/ratings`) to access the analytics dashboard.
 
-#### Summary Statistics
+#### Summary statistics
 
 - **Total ratings** — All ratings across the system
 - **Likes** — Count of positive ratings
 - **Dislikes** — Count of negative ratings
 - **Average** — Overall satisfaction score (-1.0 to 1.0)
 
-#### Ratings Chart
+#### Ratings chart
 
 A bar chart shows ratings over the last 30 days. Green bars represent likes,
 red bars represent dislikes.
@@ -61,7 +61,7 @@ red bars represent dislikes.
     **Answer quality, deployment-wide** card, which follows the period filter at
     the top of the page.
 
-### Filtering Ratings
+### Filtering ratings
 
 Use the filter dropdowns to narrow down results:
 
@@ -70,7 +70,7 @@ Use the filter dropdowns to narrow down results:
 | Rating type | All / Likes Only / Dislikes Only |
 | Comments | All / With comments only |
 
-### Ratings Table
+### Ratings table
 
 The table shows individual ratings with:
 
@@ -81,7 +81,7 @@ The table shows individual ratings with:
 - **User** — Who submitted the rating
 - **Actions** — Link to view the full conversation
 
-### Exporting Data
+### Exporting data
 
 Export ratings for external analysis:
 
@@ -93,12 +93,12 @@ Export ratings for external analysis:
     Narrow to dislikes with comments, then export, and that is what you get -
     the filters are part of the query, not of the view.
 
-### Viewing Conversations
+### Viewing conversations
 
 Click **"View conversation"** on any rating to open the chat interface with that conversation loaded.
 This is useful for understanding the context of a rating.
 
-## Admin Conversations Page
+## Admin conversations page
 
 Navigate to **Admin → All Conversations** (or `/admin/conversations`) to view all user conversations.
 
@@ -109,7 +109,7 @@ This page provides:
 - Filter by date range (preset or custom)
 - Quick links to view conversation details
 
-## Direct Conversation Links
+## Direct conversation links
 
 You can share a direct link to a specific conversation by adding the `id` parameter to the chat URL:
 
@@ -125,7 +125,7 @@ This is useful for:
 
 Click **"View conversation"** from any rating or the admin conversations list to open a direct link.
 
-## API Access
+## API access
 
 For programmatic access to ratings data, use the admin API endpoints:
 

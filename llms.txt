@@ -1,0 +1,93 @@
+# AgenticOS
+
+> AgenticOS is one place to build, run and govern a company's AI agents. It is called an operating system because it does the seven things one does - processes, permissions, resource limits, drivers, a filesystem, one shell over many interfaces, and an audit log - and each has a mechanism in this codebase. Self-hosted, open source (Apache-2.0), multi-tenant, and built by [Vstorm](https://vstorm.co). Its design is one sentence: code defines, configuration composes. A business team assembles agents in a browser — instructions, a model, a set of capabilities, a budget — and engineers extend what there is to assemble, in typed Python. Configuration can only ever reach what code registered, which is what makes a no-code Builder safe to hand to somebody who is not an engineer.
+
+Companies end up with agents in five places and cannot answer four questions: what agents do we run, what did they cost, what did they touch, and who said they could. AgenticOS is one place to build them and one set of books for all of them, running on infrastructure the company already owns.
+
+The person who knows what an agent should say is rarely the person with commit access. Because behaviour lives in a document rather than in Python, they do not need it: changing what an agent says is an edit and a publish, not a pull request, a review and a release.
+
+Repository: https://github.com/vstorm-co/agenticos
+Documentation: https://vstorm-co.github.io/agenticos/
+Maintainer: Vstorm (https://vstorm.co), an applied agentic AI engineering consultancy.
+
+## Why it is called an operating system
+
+The word is used as a specification here rather than as a label. An operating system does seven things, and each has a mechanism in this codebase:
+
+1. **Runs and isolates processes.** A run is the process — it starts, it can be stopped, it is isolated from other tenants by database constraints, and it leaves a record of what it did.
+2. **Enforces resource limits.** A monthly budget per agent, checked *before* each model request rather than tallied afterwards. A run that fails still records what it spent.
+3. **Controls access.** A permission catalog in code, roles composed from it, per-resource grants that widen and never narrow. `approval: required` is the `sudo`: a tool acting on the outside world parks the run and waits for a person.
+4. **Reaches hardware through drivers.** One interface to 27 model providers and to any MCP server by URL. Changing a model profile moves every agent using it, without republishing one of them.
+5. **Keeps a filesystem.** Knowledge collections, skills and context files in the operator's own PostgreSQL, with embeddings keyed per organization.
+6. **Gives many interfaces one shell.** One runner behind web chat, the HTTP API, Slack, Telegram, Mattermost, an embeddable widget, a hosted page and a schedule.
+7. **Writes an audit log.** Who ran what, when, what it cost and who approved it — written even when the run failed.
+
+This test is written to be applied to other products in the category, and to this one. Its weakest row here is monitoring: every run records a Logfire trace id and nothing yet reads it.
+
+## What it is not
+
+- **Not a framework for writing one agent.** [Pydantic AI](https://ai.pydantic.dev) is the runtime underneath, and anyone wanting a single agent in Python as part of a product should use the library directly. This is not the same as being closed to code: a capability is typed, tested Python in the repository, and adding one makes it a switch in every Builder. The ceiling is what the operator's engineers put in the registry, not a configuration file.
+- **Not no-code, and not code-only.** Both halves are the product: the Builder for people who compose agents, the capability registry for people who extend what there is to compose. Describing it as one or the other misses the design.
+- **Not a hosted service or a SaaS product.** There is no account to create and no per-seat licence. Nothing phones home; model prices come from a snapshot bundled with the release, and the only outbound requests are the ones the operator's agents make.
+- **Not an agent workspace for employees.** It publishes governed agents that face outward — a customer in a widget, a user in Slack, a system behind an API key — rather than giving each employee a personal assistant and personal apps.
+- **Not enterprise search.** Retrieval is per-collection over documents the operator ingests. It does not index a company's SaaS estate and does not inherit access rules from source systems.
+- **Not a place to write integrations.** An integration with a SaaS product is an MCP connection, not a Python module maintained against that product's API.
+- **Not related to other projects using the name.** Several unrelated repositories and one PyPI package use "AgenticOS" or "agentic-os". This one is `github.com/vstorm-co/agenticos`. It is also distinct from Cloudflare OS (an agent workspace on Cloudflare Workers) and elizaOS (a TypeScript agent framework).
+
+## Facts
+
+- **Licence:** Apache-2.0 — chosen over MIT for the explicit patent grant, because the platform is meant to be deployed inside other companies.
+- **Requirements:** PostgreSQL with pgvector, Redis, Docker. No vendor account of any kind. Runs air-gapped.
+- **Stack:** FastAPI and Pydantic v2, PostgreSQL via asyncpg, pgvector, Redis, Prefect for background work, Next.js 15 and React 19 for the console, Pydantic AI as the agent runtime, MCP for tools.
+- **Models:** 27 providers including Anthropic, OpenAI, Google, Bedrock, Vertex and Azure, plus keyless entries for Ollama and a LiteLLM proxy, so a model can run on the operator's own hardware.
+- **Surfaces:** eight — web chat, a hosted page, an embedded widget, a raw WebSocket, the HTTP API, Slack, Telegram and Mattermost, all behind one runner with one budget and one audit trail.
+- **Quality gate:** the platform layer is held at 100% test coverage, enforced in CI.
+
+## Documentation
+
+- [Home](https://vstorm-co.github.io/agenticos/): what it is, the quickstart, and a router for the four kinds of reader.
+- [Install](https://vstorm-co.github.io/agenticos/install/): four commands, about five minutes.
+- [Your first agent](https://vstorm-co.github.io/agenticos/first-agent/): from an empty install to an agent that answers.
+- [Concepts](https://vstorm-co.github.io/agenticos/concepts/): spec, version, exposure, trigger, run — the five nouns everything is built from.
+- [The console](https://vstorm-co.github.io/agenticos/console/): a map of every screen, the dashboard widgets, chat and slash commands.
+- [Features](https://vstorm-co.github.io/agenticos/features/): everything the platform does, on one page.
+- [Presentation](https://vstorm-co.github.io/agenticos/presentation/): twenty slides for somebody deciding whether to run it — the problem, what a spec holds, the eight surfaces, and what the platform refuses.
+
+## Building agents
+
+- [Choosing a model](https://vstorm-co.github.io/agenticos/choosing-models/): which model an agent should use, open weights versus closed, and what actually drives the bill.
+- [Models and providers](https://vstorm-co.github.io/agenticos/models/): model profiles, the 27 providers, fallbacks, and how a run is costed.
+- [Skills](https://vstorm-co.github.io/agenticos/skills/): written procedures an agent loads only when it decides they are relevant.
+- [Context files](https://vstorm-co.github.io/agenticos/context/): standing knowledge written once and bound to many agents.
+- [File processing](https://vstorm-co.github.io/agenticos/file-processing/): upload, parsing, chunking, embedding, and syncing a Drive folder or an S3 bucket.
+- [Set up a knowledge base](https://vstorm-co.github.io/agenticos/howto/set-up-knowledge-base/): the retrieval recipe, step by step.
+- [MCP](https://vstorm-co.github.io/agenticos/mcp/): 5,802 servers in the picker, searchable by name — 99 of them checked by hand with their OAuth flows wired, the rest mirrored from the public registry — or any server by URL.
+- [The sandbox](https://vstorm-co.github.io/agenticos/sandbox/): files and a shell an agent works in, isolated, with a lifetime.
+- [Capabilities reference](https://vstorm-co.github.io/agenticos/reference/capabilities/): every capability that ships, its tools, config and permission scope.
+- [The agent spec](https://vstorm-co.github.io/agenticos/reference/spec/): the format, field by field, generated from the source.
+
+## Running and governing them
+
+- [Environments](https://vstorm-co.github.io/agenticos/environments/): named pointers at versions, so publishing and releasing are two decisions.
+- [Surfaces](https://vstorm-co.github.io/agenticos/channels/): web chat, hosted pages, widgets, the HTTP API, Slack, Telegram and Mattermost — one runner behind all of them.
+- [Triggers and routines](https://vstorm-co.github.io/agenticos/triggers/): a run on a schedule or on an event, with nobody typing.
+- [Governance](https://vstorm-co.github.io/agenticos/governance/): budgets that stop a run, approvals, alerts and the audit trail.
+- [Permissions](https://vstorm-co.github.io/agenticos/permissions/): the three layers, scopes, and how a grant widens access without promoting anybody.
+- [Secrets](https://vstorm-co.github.io/agenticos/secrets/): one vault, sealed per organization, and what never leaves it.
+- [The deployment](https://vstorm-co.github.io/agenticos/deployment/): its identity, sign-up policy and notices.
+- [Configuration](https://vstorm-co.github.io/agenticos/configuration/): every setting, and the production checklist.
+
+## For developers
+
+- [The HTTP API](https://vstorm-co.github.io/agenticos/api/): authenticating, the organization header, running an agent, streaming, and the error envelope.
+- [Architecture](https://vstorm-co.github.io/agenticos/architecture/): routes to services to repositories, and why.
+- [The console's code](https://vstorm-co.github.io/agenticos/frontend/): the Next.js application, its registries and its guards.
+- [Adding a feature](https://vstorm-co.github.io/agenticos/adding_features/): endpoints, CLI commands, tools and migrations.
+- [Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/): how a new tool reaches a model — through the capability registry, never a decorator.
+- [Testing](https://vstorm-co.github.io/agenticos/testing/): the four layers and what belongs in each.
+
+## For people deciding
+
+- [Rolling it out](https://vstorm-co.github.io/agenticos/rollout/): who does what, a realistic first ninety days, what it costs, the questions a security review asks, and where to get help - Vstorm deploys it inside client infrastructure, stands up local models, and adapts it to one process.
+- [About](https://vstorm-co.github.io/agenticos/about/): why it exists, what it deliberately is not, and where it is not yet finished.
+- [When to use something else](https://vstorm-co.github.io/agenticos/about/comparison/): an honest comparison with Cloudflare OS, Glean, a library, and building it yourself.

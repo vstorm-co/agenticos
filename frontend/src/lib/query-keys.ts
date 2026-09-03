@@ -29,6 +29,7 @@ export const qk = {
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
     detail: (id: string) => ["agents", id] as const,
+    templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
     versions: (id: string, skip = 0, limit = 50) =>
@@ -105,6 +106,7 @@ export const qk = {
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
     imageModels: () => ["providers", "image-models"] as const,
+    speechToTextModels: () => ["providers", "speech-to-text-models"] as const,
   },
   secrets: {
     all: () => ["secrets"] as const,
@@ -175,7 +177,9 @@ export const qk = {
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.
     delegations: (parentRunId: string) => ["runs", "list", "delegations", parentRunId] as const,
-    approvals: () => ["runs", "approvals"] as const,
+    // Keyed on the page, because the queue is server-paged: one key for every
+    // page would show page one's rows under page three's pager (#1336).
+    approvals: (skip = 0) => ["runs", "approvals", skip] as const,
     // The decided record over a window - a different question from the queue,
     // so a different key: the queue must refresh on a decision, the record on
     // a window change.
@@ -235,6 +239,7 @@ export const qk = {
       limit: number;
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
+    gallery: () => ["skills", "gallery"] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
   },
@@ -433,6 +438,10 @@ export const qk = {
     // Builder and Settings, and invalidating the agent registry must not
     // discard a catalog that only changes on redeploy.
     catalog: () => ["mcp-servers", "catalog"] as const,
+    // Keyed on the query and the page: the list is a request now, so each page
+    // of each query is its own resource rather than a filter over one blob.
+    listPage: (query: string, category: string, page: number) =>
+      ["mcp-servers", "list", query, category, page] as const,
   },
   sessions: {
     // The namespace, for invalidating every page at once: a revocation shifts

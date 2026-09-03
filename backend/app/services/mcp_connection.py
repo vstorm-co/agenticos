@@ -32,6 +32,7 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -50,6 +51,7 @@ from app.agents.mcp import (
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
+from app.agents.spec import McpServerRef
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -58,9 +60,10 @@ from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
+from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo
+from app.repositories import mcp_connection_repo, mcp_registry_server_repo
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
@@ -461,6 +464,21 @@ class McpConnectionService:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
 
     async def create(self, *, user_id: UUID, data: McpConnectionCreate) -> McpConnection:
+        """Store one member's own account on a server.
+
+        Raises:
+            BadRequestError: If `catalog_key` names neither a curated entry nor a
+                mirrored registry row. The key is what a binding matches on to
+                speak as this account, so a wrong one is a connection that
+                silently never substitutes rather than an obvious mistake.
+            AlreadyExistsError: If this member already has a connection by that
+                name.
+        """
+        if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
+            raise BadRequestError(
+                message=f"Unknown catalog server: {data.catalog_key}",
+                details={"catalog_key": data.catalog_key},
+            )
         url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
@@ -480,6 +498,8 @@ class McpConnectionService:
                 secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 is_enabled=data.is_enabled,
+                label=_stored_label(data.label),
+                catalog_key=data.catalog_key,
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -534,10 +554,55 @@ class McpConnectionService:
         # OAuth tokens are bound to the resource they were issued for - never
         # carry them over to a different host. The user re-authorizes instead.
         moved = "url" in update_data and update_data["url"] != db_connection.url
+
+        # A different server offers different tools, and the Builder reads this
+        # cache without probing - so leaving it presented the previous host's
+        # tools as the new one's, and an allowlist saved from that list hides
+        # every tool the replacement actually has. Cleared on a move only: a
+        # failed probe against the same host says nothing about what it offers,
+        # which is why `test` leaves the list alone on error.
+        if moved:
+            update_data.setdefault("last_tools", None)
         if moved and db_connection.auth_type == "oauth":
             update_data["oauth_payload"] = None
             update_data["oauth_pending_payload"] = None
             update_data["oauth_state"] = None
+
+        if "label" in update_data:
+            update_data["label"] = _stored_label(update_data["label"])
+
+        if update_data.get("is_default"):
+            if db_connection.catalog_key is None:
+                # Nothing to nominate it against: the key is what says this
+                # account and the organization's are the same service, so a
+                # default on a connection made from a bare URL would never be
+                # read (#1342).
+                raise refused_field(
+                    "is_default",
+                    "This connection was made from a URL rather than from the catalog, "
+                    "so nothing says which service it is. Reconnect it from the catalog "
+                    "to speak as it.",
+                )
+            # Serialized per member and service before the clear, because the
+            # clear is what makes room for the set. Two nominations racing on
+            # one service each locked only their own row, each found no sibling
+            # still marked, and both wrote `is_default` - so one hit
+            # `uq_mcp_connections_user_default` and answered 500. The lock is
+            # held for the rest of the transaction, which is exactly as long as
+            # the index cares about.
+            await hold_name(
+                self.db, LockScope.MCP_DEFAULT_ACCOUNT, f"{user_id}:{db_connection.catalog_key}"
+            )
+            # Cleared on the siblings first, so the partial unique index is
+            # never asked to hold two at once. One statement rather than a read
+            # and a loop: the index is the constraint, and this is what keeps
+            # the write inside it.
+            await mcp_connection_repo.clear_default_for_catalog_key(
+                self.db,
+                user_id=user_id,
+                catalog_key=db_connection.catalog_key,
+                except_id=db_connection.id,
+            )
 
         if not update_data:
             return db_connection
@@ -577,6 +642,11 @@ class McpConnectionService:
                 "last_status": "error" if error else "ok",
                 "last_error": error,
                 "last_checked_at": datetime.now(UTC),
+                # Only on a probe that answered. A failed one says nothing about
+                # what the server offers, and blanking the list would leave an
+                # agent author with nothing to choose from because the server
+                # was briefly unreachable.
+                **({"last_tools": [asdict(tool) for tool in tools]} if error is None else {}),
             },
         )
         return db_connection, tools, error
@@ -613,8 +683,21 @@ class McpConnectionService:
             ),
         )
 
-    async def oauth_start(self, *, user_id: UUID, name: str, url: str) -> str:
-        """Begin the OAuth authorization-code flow for a server this person owns."""
+    async def oauth_start(
+        self, *, user_id: UUID, name: str, url: str, catalog_key: str | None = None
+    ) -> str:
+        """Begin the OAuth authorization-code flow for a server this person owns.
+
+        `catalog_key` is stored on the row it creates, and that is the whole
+        reason it is a parameter: a personal connection without one can never be
+        substituted for the organization's, so an OAuth account authorised here
+        would be invisible to every binding that asked to speak as its owner.
+        """
+        if catalog_key is not None and not await self._known_catalog_key(catalog_key):
+            raise BadRequestError(
+                message=f"Unknown catalog server: {catalog_key}",
+                details={"catalog_key": catalog_key},
+            )
         return await self._oauth_start(
             name=name,
             url=url,
@@ -625,6 +708,7 @@ class McpConnectionService:
                 user_id=user_id,
                 auth_token=None,
                 allowed_tools=None,
+                catalog_key=catalog_key,
                 **kwargs,
             ),
         )
@@ -1126,19 +1210,34 @@ class McpConnectionService:
             self.db, organization_id=ctx.organization_id
         )
 
+    async def _known_catalog_key(self, catalog_key: str) -> bool:
+        """Whether a key names a server this deployment can identify.
+
+        Two catalogs answer to this, and the second is the reason the check is
+        not `get_entry` alone: the listing serves 99 curated entries beside
+        5,703 mirrored from the public registry, and it hands back the registry
+        row's own id as the key. Validating against the curated set alone
+        refused every unreviewed server with `Unknown catalog server` - so the
+        mirror was searchable and connectable personally, and unusable for the
+        organization connections agents actually bind to.
+        """
+        if get_entry(catalog_key) is not None:
+            return True
+        return await mcp_registry_server_repo.get(self.db, catalog_key) is not None
+
     async def create_for_org(self, ctx: AuthContext, data: OrgMcpConnectionCreate) -> McpConnection:
         """Seal a credential for this organization and store the connection.
 
         Raises:
-            BadRequestError: If `catalog_key` names no catalog entry. A key
-                nothing recognises would show up in the Builder as a server with
-                no name and no logo, which reads as a broken row rather than as
-                the typo it is.
+            BadRequestError: If `catalog_key` names neither a curated catalog
+                entry nor a mirrored registry row. A key nothing recognises
+                would show up in the Builder as a server with no name and no
+                logo, which reads as a broken row rather than as the typo it is.
             AlreadyExistsError: If the name is taken inside this organization.
                 The name becomes the agent's tool prefix, so two servers sharing
                 one is two sets of tools nobody can tell apart.
         """
-        if data.catalog_key is not None and get_entry(data.catalog_key) is None:
+        if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
             raise BadRequestError(
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
@@ -1166,6 +1265,7 @@ class McpConnectionService:
                 allowed_tools=data.allowed_tools,
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
+                label=_stored_label(data.label),
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -1196,6 +1296,9 @@ class McpConnectionService:
 
         if "url" in update_data:
             update_data["url"] = await _checked_url(update_data["url"])
+
+        if "label" in update_data:
+            update_data["label"] = _stored_label(update_data["label"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_org_scoped_by_name(
@@ -1236,6 +1339,13 @@ class McpConnectionService:
             update_data["oauth_pending_payload"] = None
             update_data["oauth_state"] = None
             update_data["granted_scopes"] = None
+
+        # The same reason as on the personal path, and it matters more here:
+        # every agent bound to this connection reads the Builder's cached tool
+        # list, so a repointed URL would offer the old host's tools to all of
+        # them at once.
+        if moved:
+            update_data.setdefault("last_tools", None)
 
         if not update_data:
             return db_connection
@@ -1368,8 +1478,24 @@ class McpConnectionService:
         return db_connection
 
 
+def _stored_label(label: str | None) -> str | None:
+    """A label as the column holds it: trimmed, and empty means none.
+
+    `""` is how a PATCH says "clear this" - `None` is the sentinel for
+    "unchanged" everywhere in an update body, so it cannot also mean "remove".
+    Storing the empty string instead would make a connection whose label was
+    cleared render as a blank line rather than as its slug.
+    """
+    trimmed = (label or "").strip()
+    return trimmed or None
+
+
 async def build_toolsets_for_agent(
-    db: AsyncSession, *, organization_id: UUID, connection_ids: list[UUID]
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    refs: list[McpServerRef],
+    personal_for_user_id: UUID | None = None,
 ) -> list[Any]:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -1379,13 +1505,26 @@ async def build_toolsets_for_agent(
     reasoned about or reviewed. Only organization-scoped rows resolve here, so
     a member's personal token can never end up inside a shared agent.
 
+    `personal_for_user_id` is the one exception, and it is narrow on both sides.
+    The caller passes it only for a conversation that holds exactly one
+    identified person and nobody else - never a channel, never a group direct
+    message, never an API key - and it is honoured only for a binding whose spec
+    asked for it. What it substitutes is the *credential*, not the binding: the
+    tool prefix stays the organization's, so the same agent presents the same
+    tools whoever runs it, and only the account behind them changes.
+
+    A person holding two accounts to one service is left alone rather than
+    guessed at. Their own connections are the only place that choice could be
+    recorded and nothing records it yet (#1342), and picking the older of two
+    Notion workspaces silently is worse than answering from the organization's.
+
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
-    for connection_id in connection_ids:
+    for ref in refs:
         connection = await mcp_connection_repo.get_org_scoped_by_id(
-            db, connection_id=connection_id, organization_id=organization_id
+            db, connection_id=ref.connection_id, organization_id=organization_id
         )
         if connection is None or not connection.is_enabled:
             # Deleted, disabled or moved out of the organization since publish.
@@ -1394,26 +1533,115 @@ async def build_toolsets_for_agent(
             # agent instead of taking the conversation down with it.
             logger.warning(
                 "Agent references MCP connection %s, which this organization (%s) no longer offers",
-                connection_id,
+                ref.connection_id,
                 organization_id,
             )
             continue
-        headers = await _resolve_auth_headers(db, connection)
+        speaking_as = await _personal_substitute(
+            db, connection, ref=ref, user_id=personal_for_user_id
+        )
+        headers = await _resolve_auth_headers(db, speaking_as)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
             # Warning rather than info: this server was bound on purpose, so
             # losing it is an operator's problem, not the routine attrition of
             # an ambient connection somebody enabled once in Settings.
             logger.warning(
-                "Skipping MCP connection %r for this run: no usable credentials", connection.name
+                "Skipping MCP connection %r for this run: no usable credentials",
+                speaking_as.name,
             )
             continue
         specs.append(
             McpServerSpec(
+                # The organization's, always. A tool the model was told about
+                # must not change its name because of who is in the chat.
                 name=connection.name,
-                url=connection.url,
+                url=speaking_as.url,
                 headers=headers,
-                allowed_tools=connection.allowed_tools,
+                # Three allowlists, all of them narrowing. The organization's is
+                # in there because substitution replaces the *credential* and
+                # nothing else: reading it off `speaking_as` handed a private run
+                # whatever the member's own connection allowed, so an
+                # organization restricted to read tools could gain write ones
+                # simply by being run by somebody with a broader personal
+                # account. Where nothing was substituted the first two are the
+                # same object and the fold is a no-op.
+                allowed_tools=_narrowed_tools(
+                    _narrowed_tools(connection.allowed_tools, speaking_as.allowed_tools),
+                    ref.allowed_tools,
+                ),
             )
         )
     return await build_mcp_toolsets(specs)
+
+
+def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:
+    """The tools this binding may call: both allowlists, intersected.
+
+    Null on either side means "no narrowing from here" - the connection's null is
+    every tool the server offers, and the binding's is every tool the connection
+    allows. So the answer is null only when neither narrows.
+
+    Intersected rather than overridden, and that is the whole rule: the
+    connection's list is an administrator's ceiling for everybody bound to it,
+    and an agent published before a tool was excluded must not keep reaching it.
+    A binding naming a tool the connection has since excluded loses that tool
+    rather than the agent losing the server (#1341).
+    """
+    if connection is None:
+        return binding
+    if binding is None:
+        return connection
+    within = set(binding)
+    return [tool for tool in connection if tool in within]
+
+
+async def _personal_substitute(
+    db: AsyncSession,
+    connection: McpConnection,
+    *,
+    ref: McpServerRef,
+    user_id: UUID | None,
+) -> McpConnection:
+    """The runner's own connection to this service, or the organization's.
+
+    Every condition here is a refusal to substitute, and each one is a way the
+    substitution could otherwise leak an account: a binding that did not ask, a
+    conversation with a second reader in it, a connection with no catalog entry
+    to match on, and a person with more than one account and no way to say which.
+    """
+    if not ref.use_personal_when_available or user_id is None:
+        return connection
+    if connection.catalog_key is None:
+        # Refused at publish, so reachable only for a spec stored before the
+        # check existed. The organization's account is the safe answer.
+        return connection
+    owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
+        db, user_id=user_id, catalog_key=connection.catalog_key
+    )
+    speaking_as = _nominated(owned)
+    if speaking_as is None:
+        if owned:
+            logger.info(
+                "Not substituting a personal connection for %r: this member holds %d of them "
+                "and has nominated none",
+                connection.name,
+                len(owned),
+            )
+        return connection
+    logger.info("Speaking to %r as the member's own connection", connection.name)
+    return speaking_as
+
+
+def _nominated(owned: list[McpConnection]) -> McpConnection | None:
+    """Which of a member's accounts on one service to speak as, if any is clear.
+
+    One account needs no nomination - there is nothing to choose between - so it
+    answers whether or not it is marked. Several answer only the one marked
+    default, which a partial unique index keeps to at most one; several with none
+    marked answer nothing, because picking the older workspace silently is worse
+    than answering as the organization (#1342).
+    """
+    if len(owned) == 1:
+        return owned[0]
+    return next((account for account in owned if account.is_default), None)

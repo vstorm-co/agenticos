@@ -112,7 +112,9 @@ test.describe("Onboarding", () => {
 
     await page.getByRole("button", { name: HELP }).click();
     // The Agents walk opens on its own first stop, not the first-run welcome.
-    await expect(page.locator(TITLE)).toHaveText("Build an agent");
+    // Its first stop is the template gallery, which sits before "Build an
+    // agent" because starting from one is the shorter path (#1341 shipped it).
+    await expect(page.locator(TITLE)).toHaveText("Start from a template");
 
     await page.locator(CLOSE).click();
     await expect(page.locator(POPOVER)).toBeHidden();

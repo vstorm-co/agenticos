@@ -10,6 +10,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -1311,3 +1312,199 @@ class TestSkillFiles:
         repo.delete_resource.assert_not_awaited()
         repo.update.assert_not_awaited()
         audit.assert_not_awaited()
+
+
+class TestSkillGallery:
+    """The opt-in gallery - what it offers, and what installing one does.
+
+    The distinction the whole feature turns on: the bundled library is seeded
+    into every organization automatically, and the gallery is not. Seventy
+    industry skills arriving the way the three bundled ones do would be seventy
+    rows in every tenant on the next deploy.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_gallery_marks_what_the_organization_already_has(self):
+        """`installed` is a name match, the same rule installing uses.
+
+        Keyed on name rather than on the folder, so a folder renamed in a later
+        release does not offer a second copy of a skill somebody is editing.
+        """
+        industry = MagicMock()
+        industry.id = "healthcare"
+        industry.skills = [_bundled("patient-enquiry-triage"), _bundled("consent-explainer")]
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_names",
+                new=AsyncMock(return_value={"consent-explainer"}),
+            ),
+            patch(f"{SKILLS_PATH}.skill_library.gallery", return_value=[industry]),
+        ):
+            gallery = await SkillService(_db()).gallery(_ctx())
+
+        assert [i.id for i in gallery.industries] == ["healthcare"]
+        assert [(s.name, s.installed) for s in gallery.industries[0].skills] == [
+            ("patient-enquiry-triage", False),
+            ("consent-explainer", True),
+        ]
+
+    @pytest.mark.anyio
+    async def test_installing_a_shelf_skips_what_is_there_and_reports_the_rest(self):
+        """One present name must not cost the other nine their install.
+
+        A shelf is installed as one request, so an existing skill is skipped and
+        an unrecognised key is reported - never raised. A request that installs
+        nothing still answers with why.
+        """
+        present = _bundled("consent-explainer")
+        fresh = _bundled("patient-enquiry-triage")
+
+        def _get(key: str):
+            return {"healthcare/consent-explainer": present, "healthcare/intake": fresh}.get(key)
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_names",
+                new=AsyncMock(return_value={"consent-explainer"}),
+            ),
+            patch(f"{SKILLS_PATH}.skill_library.gallery_get", side_effect=_get),
+            patch.object(SkillService, "_copy_library_skill", new=AsyncMock()) as copy,
+        ):
+            result = await SkillService(_db()).install_gallery(
+                _ctx(),
+                ["healthcare/consent-explainer", "healthcare/intake", "healthcare/nope"],
+            )
+
+        assert result.installed == ["patient-enquiry-triage"]
+        assert result.skipped == ["consent-explainer"]
+        assert result.unknown == ["healthcare/nope"]
+        assert copy.await_count == 1
+        assert copy.await_args.kwargs["seeded"] is False
+
+    @pytest.mark.anyio
+    async def test_a_shelf_survives_somebody_installing_the_same_skill_at_once(self):
+        """The name check is a read, so two members installing one shelf both
+        pass it. The loser's insert violated `uq_skill_org_name` unhandled,
+        rolling back every skill that request had already copied - where the
+        endpoint promises the shelf continues and the entry is `skipped`."""
+        first = _bundled("shift-handover")
+        clash = _bundled("consent-explainer")
+
+        def _get(key: str):
+            return {"healthcare/handover": first, "healthcare/consent": clash}.get(key)
+
+        async def _copy(_ctx, entry, *, seeded):
+            if entry.name == "consent-explainer":
+                raise IntegrityError("insert", {}, Exception("uq_skill_org_name"))
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
+            patch(f"{SKILLS_PATH}.skill_library.gallery_get", side_effect=_get),
+            patch.object(SkillService, "_copy_library_skill", side_effect=_copy),
+        ):
+            result = await SkillService(_db()).install_gallery(
+                _ctx(), ["healthcare/handover", "healthcare/consent"]
+            )
+
+        assert result.installed == ["shift-handover"]
+        assert result.skipped == ["consent-explainer"]
+        assert result.unknown == []
+
+    @pytest.mark.anyio
+    async def test_a_key_repeated_in_one_request_installs_once(self):
+        """Deduplicated on the way in, so "install all" twice is not two copies.
+
+        The name is tracked as the loop runs rather than read once, because the
+        second occurrence would otherwise reach a unique-name violation halfway
+        through and take the rest of the shelf with it.
+        """
+        entry = _bundled("shift-handover")
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
+            patch(f"{SKILLS_PATH}.skill_library.gallery_get", return_value=entry),
+            patch.object(SkillService, "_copy_library_skill", new=AsyncMock()) as copy,
+        ):
+            result = await SkillService(_db()).install_gallery(
+                _ctx(), ["manufacturing/shift-handover", "manufacturing/shift-handover"]
+            )
+
+        assert result.installed == ["shift-handover"]
+        assert copy.await_count == 1
+
+    @pytest.mark.anyio
+    async def test_a_gallery_install_is_recorded_as_a_persons_choice(self):
+        """`seeded: false`, because somebody clicked it.
+
+        The seeding paths write `seeded: true` as the organization's owner. A
+        reader tells the platform's own write from a member's by that flag, so
+        the gallery must not borrow it.
+        """
+        entry = _bundled("api-support", resources=("examples.md",))
+        service = SkillService(_db())
+        created = _skill("api-support")
+
+        with (
+            patch.object(SkillService, "create", new=AsyncMock(return_value=created)),
+            patch(f"{SKILLS_PATH}.skill_repo.create_resource", new=AsyncMock()),
+            patch(f"{SKILLS_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service._copy_library_skill(_ctx(), entry, seeded=False)
+
+        assert audit.await_args.kwargs["details"]["seeded"] is False
+        assert audit.await_args.kwargs["details"]["key"] == "api-support"
+
+
+class TestTheGalleryOnDisk:
+    """The shipped gallery folders, read by the real parser.
+
+    Not a mock anywhere: this is the guard on seventy files that no other test
+    opens. A manifest with no description, a category the console cannot filter
+    by, or a name colliding with the auto-seeded library are all silent until an
+    install produces the wrong thing in somebody's organization.
+    """
+
+    def test_every_shipped_gallery_skill_parses(self):
+        from app.services import skill_library
+
+        industries = skill_library.gallery()
+        assert industries, "the gallery directory ships with the image and must not be empty"
+        for industry in industries:
+            assert industry.skills, f"{industry.id} would render as an empty shelf"
+            for entry in industry.skills:
+                assert entry.description, f"{entry.key} has no description"
+                assert entry.content, f"{entry.key} has no body"
+                assert entry.key.startswith(f"{industry.id}/"), entry.key
+
+    def test_gallery_names_are_unique_and_do_not_shadow_the_bundled_library(self):
+        """Installing matches on name, so a collision would silently skip.
+
+        A gallery skill sharing a name with one of the auto-seeded three can
+        never be installed - the organization already has that name from the
+        moment it was created - and nothing would say so.
+        """
+        from app.services import skill_library
+
+        names = [s.name for i in skill_library.gallery() for s in i.skills]
+        assert len(names) == len(set(names)), "two gallery skills share a name"
+        bundled = {entry.name for entry in skill_library.library()}
+        assert not (set(names) & bundled), "a gallery skill is shadowed by a bundled one"
+
+    def test_every_gallery_category_is_one_the_console_can_filter_by(self):
+        """A category outside the catalog is a shelf label nothing matches."""
+        import json
+
+        from app.services import skill_library
+
+        catalog = skill_library.GALLERY_ROOT.parent / "skill_categories.json"
+        allowed = set(json.loads(catalog.read_text(encoding="utf-8")))
+        used = {s.category for i in skill_library.gallery() for s in i.skills if s.category}
+        assert used <= allowed, f"unknown categories: {sorted(used - allowed)}"
+
+    def test_a_gallery_key_resolves_and_an_unknown_one_does_not(self):
+        from app.services import skill_library
+
+        first = skill_library.gallery()[0].skills[0]
+        assert skill_library.gallery_get(first.key) is first
+        assert skill_library.gallery_get("no-such-industry/no-such-skill") is None

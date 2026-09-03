@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Pause, Play, Trash2 } from "lucide-react";
+import { Pause, Pencil, Play, Trash2 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
@@ -19,6 +19,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
 interface ChannelBotsTableProps {
   bots: readonly ChannelBot[];
   busy: boolean;
+  onEdit: (bot: ChannelBot) => void;
   onToggleActive: (bot: ChannelBot) => void;
   onDelete: (bot: ChannelBot) => void;
 }
@@ -29,14 +30,32 @@ interface ChannelBotsTableProps {
  * Said in the listing rather than discovered by messaging a silent bot, which
  * is how each of these was found the first time. Mattermost does not sign
  * bodies, so the token in the payload is the whole check and a webhook without
- * one refuses every call; Slack signs, and without the signing secret nothing
- * inbound can be verified.
+ * one refuses every call.
+ *
+ * **Which credential Slack needs is decided by its transport, not by Slack.**
+ * On the Events API the signing secret is what verifies an inbound event, and
+ * a bot without one answers 500 to all of them - including the
+ * `url_verification` challenge, so Slack reports the Request URL as broken. On
+ * Socket Mode nothing inbound is signed and the signing secret is never read;
+ * what the bot cannot do without is the `xapp-` App-Level Token, because the
+ * socket is opened from this side and there is nothing to open it with.
+ *
+ * This asked for the signing secret in both modes and never for the app token,
+ * which is the worst of the three possible answers: a Socket Mode bot with no
+ * transport at all was badged as needing a credential it does not use, and the
+ * one it did need went unmentioned. The only evidence was a `logger.warning`
+ * inside the container.
  */
-function missingCredential(bot: ChannelBot): "webhookToken" | "signingSecret" | null {
+function missingCredential(
+  bot: ChannelBot,
+): "webhookToken" | "noSigningSecret" | "noAppToken" | null {
   if (bot.platform === "mattermost" && bot.webhook_mode && !bot.has_webhook_secret) {
     return "webhookToken";
   }
-  if (bot.platform === "slack" && !bot.has_slack_signing_secret) return "signingSecret";
+  if (bot.platform === "slack") {
+    if (bot.webhook_mode) return bot.has_slack_signing_secret ? null : "noSigningSecret";
+    return bot.has_slack_app_token ? null : "noAppToken";
+  }
   return null;
 }
 
@@ -53,7 +72,13 @@ function paused(bot: ChannelBot): string | false {
  * on it, which is about to shout a cost footer into a busy channel - and cards
  * put those answers in a different place on every row.
  */
-export function ChannelBotsTable({ bots, busy, onToggleActive, onDelete }: ChannelBotsTableProps) {
+export function ChannelBotsTable({
+  bots,
+  busy,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: ChannelBotsTableProps) {
   const t = useTranslations("pages.channels");
 
   const rows = useMemo(() => [...bots], [bots]);
@@ -90,6 +115,14 @@ export function ChannelBotsTable({ bots, busy, onToggleActive, onDelete }: Chann
             <div className={cn("flex flex-col items-start gap-1", paused(bot))}>
               <Badge variant="outline">{bot.webhook_mode ? t("webhook") : t("polling")}</Badge>
               {missing && <Badge variant="secondary">{t(missing)}</Badge>}
+              {/* Only "down", and only on a live bot. A paused one has no
+                  connection by design and already says so on the next line, and
+                  an unknown state is not a fault to report. */}
+              {bot.is_active && bot.connection?.state === "down" && (
+                <Badge variant="destructive" title={bot.connection.reason ?? undefined}>
+                  {t("connectionDown")}
+                </Badge>
+              )}
               {!bot.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
             </div>
           );
@@ -126,9 +159,18 @@ export function ChannelBotsTable({ bots, busy, onToggleActive, onDelete }: Chann
         key: "actions",
         header: t("columnActions"),
         align: "right",
-        className: "w-24 pr-5",
+        className: "w-32 pr-5",
         cell: (bot) => (
           <div className={cn("flex justify-end gap-1", paused(bot))}>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              aria-label={t("editBot", { bot: bot.name })}
+              onClick={() => onEdit(bot)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -153,7 +195,7 @@ export function ChannelBotsTable({ bots, busy, onToggleActive, onDelete }: Chann
         ),
       },
     ],
-    [busy, onToggleActive, onDelete, t],
+    [busy, onEdit, onToggleActive, onDelete, t],
   );
 
   return (

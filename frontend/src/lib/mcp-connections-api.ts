@@ -24,6 +24,25 @@ export interface McpConnectionRecord {
   last_status: string | null;
   last_error: string | null;
   last_checked_at: string | null;
+  /** Which catalog entry it points at, where it was connected from one. */
+  catalog_key: string | null;
+  /**
+   * What a person reads. `name` is the tool prefix and is constrained to what a
+   * tool name can carry, which makes it a poor label for two accounts on one
+   * service. Null is not a gap: the slug is what the connection always showed.
+   */
+  label: string | null;
+  /**
+   * Speak as this account where an agent binding asked for the member's own and
+   * they hold several on this service. At most one of theirs per service, kept
+   * so by a partial unique index (#1342).
+   */
+  is_default: boolean;
+  /**
+   * Every tool the server offered when it was last reached. Null means nothing
+   * has asked yet, which is not the same as "offers none".
+   */
+  last_tools: McpToolInfo[] | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -45,6 +64,8 @@ interface McpConnectionList {
 }
 
 const ROOT = "/me/mcp-connections";
+/** The organization's own router, mounted beside `/me/...` rather than under `/orgs`. */
+const ORG_ROOT = "/mcp-connections";
 
 export async function listMcpConnections(): Promise<McpConnectionRecord[]> {
   const data = await apiClient.get<McpConnectionList>(ROOT);
@@ -57,6 +78,7 @@ export async function createMcpConnection(input: {
   auth_token?: string;
   allowed_tools?: string[] | null;
   is_enabled?: boolean;
+  label?: string;
 }): Promise<McpConnectionRecord> {
   return apiClient.post<McpConnectionRecord>(ROOT, input);
 }
@@ -71,6 +93,10 @@ export async function updateMcpConnection(
     allowed_tools?: string[];
     clear_allowed_tools?: boolean;
     is_enabled?: boolean;
+    /** Speak as this one where an agent asked for the member's own account. */
+    is_default?: boolean;
+    /** `""` clears it, back to showing the slug. */
+    label?: string;
   },
 ): Promise<McpConnectionRecord> {
   return apiClient.patch<McpConnectionRecord>(`${ROOT}/${id}`, patch);
@@ -96,7 +122,12 @@ export async function startMcpOAuth(
   // Two endpoints, one flow. Which one decides who *holds* the connection when
   // the provider sends the browser back - the person who consented, or the
   // organization they consented on behalf of.
-  const root = scope === "organization" ? "/orgs/mcp-connections" : ROOT;
+  //
+  // The organization's router is mounted at `/mcp-connections`, not under
+  // `/orgs` - that prefix belongs to organizations, members and invitations.
+  // It read `/orgs/mcp-connections` until #1340, so every organization-scoped
+  // consent 404ed before it left the browser.
+  const root = scope === "organization" ? ORG_ROOT : ROOT;
   return apiClient.post<{ authorization_url: string }>(`${root}/oauth/start`, input);
 }
 

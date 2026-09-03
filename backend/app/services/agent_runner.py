@@ -452,6 +452,41 @@ class DelegationFrame(BaseModel):
     )
 
 
+class AdmittedAs(BaseModel):
+    """The terms a run was admitted on, as the request stated them.
+
+    Two facts today, and what they have in common is the whole reason this is one
+    model rather than two fields: neither is derivable from the run row, both are
+    decided by the request, and both are read again when a parked run resumes. A
+    third such fact belongs here rather than beside it.
+
+    Every field defaults to the safe answer, because this is read back out of a
+    JSONB column: a run parked before this existed loads as one that asked for
+    nothing unusual, which is what it was.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    approval_mode: ApprovalMode = Field(
+        default=ApprovalMode.FOLLOW_AGENT,
+        description=(
+            "How much the session asked to be told about, whatever the spec says. "
+            "`ASK_ALL` gates tools the spec leaves open, so a resume that took the "
+            "default rebuilt without the wrapper and ran a call a reviewer had "
+            "rejected (#1326)."
+        ),
+    )
+    private_to_user: bool = Field(
+        default=False,
+        description=(
+            "Whether the conversation held exactly one identified person. What "
+            "decides if a binding may speak through their own MCP account, and "
+            "unrecoverable from the row: `agent_runs` records the surface, and a "
+            "direct message and a channel are the same surface (#1343)."
+        ),
+    )
+
+
 class PausedRunState(BaseModel):
     """What a parked run needs to pick up where it stopped.
 
@@ -490,6 +525,13 @@ class PausedRunState(BaseModel):
             "The specialists the run's own agent kept with `create_agent`, so a "
             "park does not lose them. Empty for a run that kept none, and for one "
             "parked before this existed"
+        ),
+    )
+    admitted_as: AdmittedAs = Field(
+        default_factory=AdmittedAs,
+        description=(
+            "What the request that parked this run asked for, so the continuation "
+            "is the same run rather than a default-mode one wearing its id"
         ),
     )
     plan: list[dict[str, Any]] = Field(
@@ -1009,6 +1051,16 @@ class PreparedRun:
     library emits no event for.
     """
 
+    admitted_as: AdmittedAs = field(default_factory=AdmittedAs)
+    """What the request that started this run said about it, for a resume to restore.
+
+    A resumed run is rebuilt from the row, and the row records the surface and
+    the caller and nothing else about the terms it was admitted on. Anything the
+    *request* decided has to travel with the parked state or it is re-derived
+    from a default - which is how the strictest approval mode became the one that
+    failed open on the path where somebody had said no (#1326).
+    """
+
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
@@ -1221,6 +1273,17 @@ class _Delegation:
 
     user_id: str | None
     user_name: str | None
+
+    personal_mcp_user_id: UUID | None
+    """Whose own MCP connections a binding flagged for substitution may use.
+
+    Set only for a conversation that holds exactly one identified person, and
+    `None` everywhere else. Here rather than derived per delegate because it is a
+    fact about the *run*: a delegate answers into the same conversation its
+    parent does, so the second reader that makes substitution unsafe is the same
+    second reader at every level.
+    """
+
     approvals: ApprovalChannel
     budget: _RunBudget
 
@@ -1561,6 +1624,7 @@ class AgentRunnerService:
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
+        private_to_user: bool = False,
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
@@ -1626,6 +1690,7 @@ class AgentRunnerService:
             channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
+            private_to_user=private_to_user,
             extra_toolsets=extra_toolsets,
             exposure=exposure,
             decided={},
@@ -1698,6 +1763,8 @@ class AgentRunnerService:
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None,
+        private_to_user: bool = False,
+        owner_user_id: UUID | None = None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -1801,12 +1868,28 @@ class AgentRunnerService:
         # secret may not.
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec))
 
+        # Whose own MCP connections a flagged binding may speak through, and the
+        # only place the answer is assembled. Both halves are required: a
+        # conversation nobody else can read, *and* a person to attribute it to.
+        # An API key run is neither, and a channel run is only the first when the
+        # caller says the chat is one-to-one.
+        #
+        # `owner_user_id` is who the run belongs to, and it is not always whoever
+        # is calling. A run that parked for approval is resumed by an approver,
+        # so deriving this from `ctx` alone read *their* personal account inside
+        # somebody else's conversation - the resume path passes the recorded
+        # owner and this falls back to the caller only for a run being started.
+        personal_mcp_user_id = (owner_user_id or ctx.user_id) if private_to_user else None
+
         # The MCP servers the spec binds, resolved here rather than by each
         # surface. A surface that forgot would produce an agent missing half its
         # tools with nothing to show for it, and the answer would differ between
         # the playground and Slack for no reason anybody could see.
         spec_toolsets = await build_toolsets_for_agent(
-            self.db, organization_id=ctx.organization_id, connection_ids=spec.mcp_server_ids
+            self.db,
+            organization_id=ctx.organization_id,
+            refs=spec.mcp_servers,
+            personal_for_user_id=personal_mcp_user_id,
         )
 
         run = existing_run
@@ -1950,6 +2033,7 @@ class AgentRunnerService:
             agent=agent,
             run=run,
             user_name=user_name,
+            personal_mcp_user_id=personal_mcp_user_id,
             resources=resources,
             approvals=channel,
             budget=run_budget,
@@ -2021,6 +2105,7 @@ class AgentRunnerService:
             ctx=ctx,
             plan_store=plan_store,
             finished_plan_withheld=finished_plan_withheld,
+            admitted_as=AdmittedAs(approval_mode=approval_mode, private_to_user=private_to_user),
         )
 
     async def _delegation_runtime(
@@ -2031,6 +2116,7 @@ class AgentRunnerService:
         agent: Agent,
         run: AgentRun,
         user_name: str | None,
+        personal_mcp_user_id: UUID | None,
         resources: dict[str, Any],
         approvals: ApprovalChannel,
         budget: _RunBudget,
@@ -2085,6 +2171,7 @@ class AgentRunnerService:
             # caller's id, for the reason `_assemble` says at greater length.
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
+            personal_mcp_user_id=personal_mcp_user_id,
             approvals=approvals,
             budget=budget,
             record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
@@ -2461,7 +2548,8 @@ class AgentRunnerService:
         toolsets = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
-            connection_ids=runnable.mcp_server_ids,
+            refs=runnable.mcp_servers,
+            personal_for_user_id=delegation.personal_mcp_user_id,
         )
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
         return ResolvedSubagent(
@@ -2983,6 +3071,11 @@ class AgentRunnerService:
         """
         return paused_state.model_copy(
             update={
+                # What the request asked for, recorded here for the same reason
+                # the delegation frames are: `finish` is the one place both
+                # surfaces pass through, and a surface that had to remember it
+                # would be the surface that forgot (#1326, #1343).
+                "admitted_as": prepared.admitted_as,
                 "delegated_approvals": {
                     str(parked.approval_id): parked.task_id
                     for parked in prepared.approvals.requested
@@ -3060,6 +3153,7 @@ class AgentRunnerService:
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
+        private_to_user: bool = False,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
@@ -3108,6 +3202,7 @@ class AgentRunnerService:
             conversation_id=conversation_id,
             channel_key=channel_key,
             channel_directory=channel_directory,
+            private_to_user=private_to_user,
             exposure=exposure,
             environment_id=environment_id,
         )
@@ -3268,6 +3363,17 @@ class AgentRunnerService:
             surface=RunSurface(run.surface),
             conversation_id=run.conversation_id,
             user_name=None,
+            # The terms the run was admitted on, restored rather than re-derived.
+            # `agent_runs` records the surface and the caller, so a resume that
+            # inferred these got the strictest approval mode wrong on the one
+            # path where somebody had said no (#1326), and read a direct message
+            # as a channel (#1343).
+            approval_mode=state.admitted_as.approval_mode,
+            private_to_user=state.admitted_as.private_to_user and run.user_id is not None,
+            # Whose run this is, not who is resuming it. An approver is allowed
+            # to release somebody else's parked run; they are not the account it
+            # speaks through.
+            owner_user_id=run.user_id,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

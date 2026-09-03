@@ -300,12 +300,13 @@ Trigger map — what changed → which page:
 | Changed | Update |
 |---|---|
 | `app/agents/spec.py` | `docs/reference/spec.md` (via the docstrings) |
+| `app/services/agent_templates.py`, `app/core/catalog/agent_templates/**` | `docs/first-agent.md`, `docs/concepts.md` |
 | `app/agents/capabilities/**` | `docs/reference/capabilities.md` |
 | `app/agents/mcp*.py`, `app/services/mcp_*.py`, `app/core/catalog/mcp_servers.json` | `docs/mcp.md` |
 | `app/agents/model_resolver.py`, `app/services/model_profile.py`, `app/services/model_catalog.py` | `docs/models.md` |
 | `app/core/vault.py`, `secret_kinds.py`, `app/services/organization_secret.py` | `docs/secrets.md` |
 | `app/core/permissions.py`, `app/services/access.py` | `docs/permissions.md` + `docs/reference/permissions.md` |
-| `app/services/skills.py`, `skill_library.py`, `app/core/catalog/skills/**` | `docs/skills.md` |
+| `app/services/skills.py`, `skill_library.py`, `app/core/catalog/skills/**`, `skill_gallery/**` | `docs/skills.md` |
 | `app/services/spend.py`, `approvals.py`, `notifications.py` | `docs/governance.md` |
 | `app/services/channels/**`, `agent_exposure.py`, `agent_embed.py` | `docs/channels.md` |
 | `app/services/rag/**`, `file_upload.py`, `ingestion_config.py` | `docs/file-processing.md` |
@@ -314,6 +315,7 @@ Trigger map — what changed → which page:
 | `app/core/config.py` | `docs/configuration.md` |
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
+| The one-line pitch, what the product is *not*, or a page a reader should meet first | `llms.txt` at the repository root - copied into the site by `scripts/mkdocs_hooks.py`, so there is one copy and it is the one models read |
 | `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
 | `.pre-commit-config.yaml`, `.github/dependabot.yml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
@@ -383,12 +385,20 @@ say so and move on. Run it yourself any time with
 | The agent spec, field by field | `docs/reference/spec.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
+| Which model to pick, open weights vs closed | `docs/choosing-models.md` |
+| Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
+| Context files — standing knowledge bound to agents | `docs/context.md` |
+| Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
+| The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
+| Every module, screenshotted in both themes | `docs/screens.md` |
 | The sandbox: sessions, runtimes, isolation, lifetimes | `docs/sandbox.md` |
 | Routes → services → repositories | `docs/architecture.md` |
+| The Next.js console, for a contributor | `docs/frontend.md` |
+| Authenticating and calling the HTTP API | `docs/api.md` |
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
 | The automated pull request reviewer | `docs/code-review.md` |
@@ -396,6 +406,42 @@ say so and move on. Run it yourself any time with
 | Recurring patterns | `docs/patterns.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
+| What the platform does, on one page | `docs/features.md` |
+| The Learn track's own landing | `docs/learn/index.md` |
+| Help, contributing, extending the platform | `docs/resources/index.md` |
+| Why it exists, and what it is not | `docs/about/index.md` |
+| The six decisions that shape the codebase | `docs/about/design.md` (repo only) |
+| Delivery state and what is left | `docs/ROADMAP.md` (repo only) |
+| Every notable change | `docs/release-notes.md` (reads `CHANGELOG.md`) |
+
+**Two of those are in `exclude_docs` and are not site pages**: `docs/ROADMAP.md`
+and `docs/about/design.md`. They stay in the repository, where a contributor
+reads them, and a published page that links to one **fails `--strict`** - so
+reference them by their GitHub blob URL, the way `docs/about/index.md` and
+`docs/reference/capabilities.md` do.
+
+### The site has seven tabs, and they are the shape of it
+
+`AgenticOS · Features · Learn · Reference · Resources · About · Release Notes`,
+the arrangement FastAPI uses, organised by what the reader is doing rather than
+by what a page is. **Learn is a sequence** — Get started, Build the agent, Put it
+in front of people, Keep it under control, then the recipes — so a page added
+there belongs at a position, not at the end.
+
+Files stay flat in `docs/`. The paths above are named in this file, in
+`.claude/skills/`, in `scripts/docs_drift.py` and in backend docstrings; a
+prettier URL is not worth invalidating every one of them.
+
+Three conventions the whole site now keeps, and a new page owes all three:
+
+- **Sentence case headings.** Product names and acronyms keep their capitals
+  (Docker Compose, Google Drive, PostgreSQL, MCP). Title Case is what the
+  template shipped and what was swept out.
+- **No paragraph over ~115 words.** A fact appended to a paragraph is a fact
+  nobody finds; give it its own paragraph, a bullet, or an admonition. A fact a
+  reader has to have seen *before* acting belongs in an admonition, not in prose.
+- **A recap at the end**, on any page long enough to need one: at most five
+  bullets, each the thing a reader should leave with.
 
 Two things about the reference pages. They are generated from docstrings by
 mkdocstrings, so the reasoning belongs in the docstring rather than in a second prose

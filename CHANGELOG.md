@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **9**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **10**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,239 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.355] - 2026-09-02
+
+### Added
+
+- **One command from nothing to a running agent.** `scripts/quickstart.sh`
+  checks what the machine is missing and says how to get it, asks four
+  questions, and hands back a console with a working agent in it. The plain
+  `make` route is unchanged and documented beside it, for anyone who would
+  rather read the steps than answer prompts.
+- **5,802 MCP servers in the picker, searchable by name.** 99 are curated —
+  connected and checked by hand, with their OAuth flows wired and 71 of them
+  connectable without a URL — and the rest are mirrored from the official public
+  registry, carrying `reviewed: false` because nobody here has looked at them.
+  The mirror lives in the database because a file cannot be paged, and
+  `agenticos cmd mcp-registry-sync` prunes only what it has seen a full listing
+  for.
+- **An agent can speak as whoever is running it**, per binding and off by
+  default: a member's own Notion in the chat they are having alone with it, the
+  organization's everywhere else. Only the credential is substituted — the tool
+  prefix stays the organization's, so the agent presents the same tools to
+  everyone. A member nominates which of their accounts an agent speaks as, and
+  a connection can carry a label a person reads rather than a slug.
+- **A voice message is transcribed into the turn that carried it**, on the
+  organization's own credential, with a catalog of the models that do it. The
+  transcript arrives as part of the message rather than as an attachment nobody
+  opens.
+- **A thread is the unit of conversation**, in a direct message as well as a
+  channel, and Mattermost is level with Slack on both threads and connection
+  state. A bot brought into a thread partway through reads what was said before
+  it arrived, with that thread's earlier files, and a row says when its
+  connection is not up.
+- **Twenty-eight agent templates, four per industry**, browsable from the agents
+  page, and an opt-in gallery of seventy skills across seven industries
+  browsable from the skills page.
+- **The documentation site, rebuilt**: seven tabs organised by what the reader
+  is doing, every module screenshotted in both themes, `docs/screens.md`,
+  `llms.txt` as the single copy of the pitch that models read, and a
+  twenty-slide client presentation at `/presentation/` — published as a page
+  because the PDF it renders is 6.4 MB.
+
+### Changed
+
+- **`AgentSpec.mcp_server_ids` is now `mcp_servers`**, a list of typed
+  references rather than bare ids, because the binding grew a policy and an id
+  had nowhere to carry it. **`SPEC_VERSION` 9 → 10**; a stored v9 spec migrates
+  on load, so nothing published before this stops loading, and an exported YAML
+  keeps working. Publish now refuses two questions that have no answer at run
+  time: a substituting binding whose connection has no `catalog_key`, and two
+  substituting bindings sharing one.
+- The README was rebuilt against what breakout repositories actually do, and
+  the site's headings are sentence case throughout, with a guard that fails a
+  documentation paragraph over 115 words.
+
+### Fixed
+
+- **Slack.** A bot answered messages nobody sent it; every message carrying a
+  file was dropped; the mention token reached the prompt; Socket Mode's payload
+  was parsed in halves; and the first chunk of an answer was not streamed, only
+  the rest.
+- **Channels.** The agent read the history of some other thread than the one it
+  was answering in; a thread was re-read once per new row instead of once per
+  session; a quiet connection reported itself down after fifteen minutes; and
+  the channel CLI acted without the organization it was acting for.
+- **MCP.** The Builder could widen an allowlist it was meant to narrow; a
+  personal account could leak into a room with other readers in it; two
+  concurrent nominations of a default account both succeeded and one 500'd on
+  the unique index; a repointed connection kept the previous host's cached tool
+  list; and organization-scoped OAuth posted to a path that does not exist.
+- **Approvals.** The queue is paged, so an alert can reach a request that is not
+  on the first page, and a resumed run is restored on what it was admitted on
+  rather than on whoever approved it.
+- **Users.** The heir choice is made inside the locks that ordered it, so a
+  self-delete cannot take a user row's lock outside the ascending sequence that
+  closed the deadlock in #1134. ([#1268](https://github.com/vstorm-co/agenticos/issues/1268))
+
+## [0.0.354] - 2026-09-01
+
+### Fixed
+
+- **An agent's knowledge search could be handed a database connection made on
+  another event loop.** The capability caches its retrieval store for the life of
+  the process, and since #948 took the store's private pool away that store rode
+  `vector_engine`, the process's shared vector pool. A pooled asyncpg connection
+  belongs to the loop that opened it, and an agent is the one vector caller that
+  does not know which loop it is on - it runs on the API's loop in one process and
+  on a Prefect flow's loop in another - so a worker running two flows in one
+  process handed the second loop a connection the first had opened and the search
+  failed with `InterfaceError: attached to a different loop`, intermittently and
+  invisibly to any test with one loop in it. (#1079)
+- **The rule is now stated once, in the layer that owns the engines.** The API's
+  lifespan claims the process pools with `claim_pooled_engines`: it serves every
+  request and disposes them at shutdown, so it is the one loop whose connections
+  they may cache. `get_db_context` is pooled on that loop and behaves like
+  `get_worker_db_context` anywhere else - a `NullPool` engine for the call,
+  disposed at the end - and `close_db` gives the claim up, so a second lifespan in
+  one process (a test, a reload) does not inherit a stamp naming a loop that has
+  gone. That half was found reviewing the first fix and reaches further than the
+  agent: `get_db_context` is also reached from five worker flows - the report, MCP
+  refresh, invitation and approval tasks and the channel loops - and from
+  `embeddings_for_collection`, which every search consults before querying
+  vectors. (#1079)
+- The knowledge capability follows the same rule for its vector store: the process
+  store on the owning loop, and a store on the new pool-less `agent_vector_engine`
+  anywhere else. Keeping the pooled store for the API is what bounds this -
+  `NullPool` opens a connection per checkout and caps nothing, where the pool
+  queues at `DB_POOL_SIZE + DB_MAX_OVERFLOW` - and off that loop the bound is the
+  worker's own flow concurrency. (#1079)
+
+### Changed
+
+- #1128 is closed rather than merged. It keyed the cached store on the running
+  loop, which was right for the store's pre-#948 private pool and buys nothing
+  once the store shares the process pool - two loops keyed separately still check
+  out of one pool. Its trade-off note is what pointed at the layer below. (#1079)
+
+## [0.0.353] - 2026-09-01
+
+### Changed
+
+- `knip` to 6.32.2 from 5.88.1. `bun run lint:deps` - the narrowed run that gates
+  `lint-frontend` on a declared dependency nothing imports - is clean on the major
+  with the existing `knip.jsonc`. The bump arrived with `frontend/package.json`
+  changed and `bun.lock` untouched, which is not a lockfile drift the frontend jobs
+  tolerate: `bun install --frozen-lockfile` refused it, so `test-frontend` and `e2e`
+  failed before either ran a test. The lockfile is refreshed in the same change.
+  (#1358)
+
+## [0.0.352] - 2026-09-01
+
+### Changed
+
+- GitHub Actions: `openai/codex-action` 1.12, `astral-sh/setup-uv` 10.0.1 and
+  `docker/setup-buildx-action` 4.3.0. (#1357)
+
+## [0.0.351] - 2026-09-01
+
+### Changed
+
+- Backend dependencies: `pydantic[email]` 2.13.5, `prefect` 3.8.4,
+  `pydantic-ai-harness` 0.27.0, `llama-cloud` 2.15.0, `liteparse` 2.14.2,
+  `google-auth` 2.57.0, `boto3` 1.43.83, `click` 8.5.0, `tavily-python` 0.8.0,
+  `cryptography` 50.0.1, `aiogram` 3.31.0, `slack-sdk` 3.44.0, and the dev pins
+  `ruff` 0.16.5 and `ty` 0.0.75. (#1367)
+
+## [0.0.350] - 2026-09-01
+
+### Changed
+
+- `pydantic-ai-slim` to 2.35.3, both extras sets - the runtime one
+  (`anthropic`, `cohere`, `duckduckgo`, `google`, `groq`, `huggingface`,
+  `mistral`, `openrouter`, `web-fetch`, `xai`) and `mcp` - from 2.33.0. The agent
+  runtime is the one dependency where a lag is felt in every run, so the group
+  moves on its own. (#1345)
+
+## [0.0.349] - 2026-09-01
+
+### Fixed
+
+- **A name freed by a deferred drop could adopt the table it was about to drop.**
+  The teardown removes a collection's `rag_<name>` table only after the request that
+  deleted its knowledge-base rows commits, so between the commit and the drop the
+  name is free of any row while the populated table lingers - and a concurrent `POST
+  /rag/collections/{name}` had `_ensure_collection`'s `CREATE TABLE IF NOT EXISTS`
+  adopt it and read another tenant's chunks. The #1355 advisory lock serializes
+  claim against drop; it does not stop the claim winning the race. A tombstone
+  committed with the delete does: the new `collection_teardowns` table (the name is
+  the key, deployment-global) with an idempotent `reserve` / `is_reserved` /
+  `release`, reserved in the delete's own transaction by every path that schedules a
+  drop - `KnowledgeBaseService.delete`, `delete_for_rag_collection`,
+  `OrganizationService.purge`, `UserService._purge_personal_collections`. `claim`
+  refuses a reserved name, and `cleanup_external_state` drops the table and then
+  releases the reservation, so the name is never free while the populated table
+  exists and a failed drop keeps it for the retry. The flow drops unconditionally
+  now, and the "is another base still on this name?" check runs inline in each
+  delete path instead of once in the flow. (#1362)
+- **Dropping a default collection clears its table** rather than leaving the deleted
+  chunks searchable; the default row is kept, so the table recreates empty on the
+  next write. The inline reference check excludes the base being torn down, which is
+  what the flow's own check could not do. (#1362)
+
+### Added
+
+- `collection_teardowns` - the drop reservation, one row per name, released by the
+  cleanup that finishes the drop. (#1362)
+
+## [0.0.348] - 2026-09-01
+
+### Fixed
+
+- **The last two collection drops that ran in the request now go through the
+  durable teardown.** `DELETE /rag/collections/{name}` dropped the table directly,
+  with no #913 reference re-check and no lock, so it could drop a table a second
+  knowledge base still referenced and could race a concurrent claim of the name;
+  `UserService._purge_personal_collections` (#1131) re-checked and then dropped with
+  nothing held in between. Both now delete their document and knowledge-base rows
+  in the request and hand the files and the table drop to
+  `dispatch_external_state_cleanup`, which takes the `COLLECTION_TEARDOWN` lock,
+  re-reads the reference check on its own session, and drops only what no base
+  still claims. `drop_collection`'s drop moves into
+  `KnowledgeBaseService.delete_for_rag_collection`, so the route loses its
+  `vector_store` dependency the way `delete_knowledge_base` did. (#1359)
+- The reserved-name refusal that gated `drop_collection` in-request is now the
+  store's, inside the flow: the route answers 204 and removes the records, and a
+  pre-rule collection whose name folds onto a model table keeps that table. The
+  same deferral tradeoff `delete_knowledge_base` already makes. (#1359)
+- The window every deferred drop leaves - a populated table with no row naming it,
+  which a concurrent claim can adopt - is closed by 0.0.349 (#1362), the tip of
+  this arc. (#1359)
+
+## [0.0.347] - 2026-09-01
+
+### Fixed
+
+- **A collection's name could be claimed while its vector table was being
+  dropped.** The teardown re-reads `list_by_collection_name` before dropping a
+  `rag_<name>` table (#913), but the re-check and the drop are two statements and
+  the claim path is two more: under READ COMMITTED a claim reading "this name is
+  free" and a drop reading "no base holds this name" both act, and the drop then
+  removes the table the claim just created and committed a row against. `POST
+  /rag/collections/{name}` creates the table before committing its row, so the
+  window was reachable. Both ends now take a transaction-scoped advisory lock keyed
+  on the collection name - `hold_name`, the string-subject sibling of
+  `hold_subject`, under a new `COLLECTION_TEARDOWN` scope in `app/db/locks.py`.
+  `CollectionAccessService.claim` takes it after the identifier rule and before the
+  taken-check, holding it past `create_collection` until the request commits;
+  `cleanup_external_state` takes it before each collection's re-check and holds it
+  through the drop. Either the claim commits first and the drop's re-check skips,
+  or the drop commits first and the claim recreates the table its row points at.
+  (#1355)
+- Two pre-existing in-request drops still bypass that teardown - `DELETE
+  /rag/collections/{name}` and `_purge_personal_collections` - so the invariant
+  stays reachable through them until #1359. (#1355)
 
 ## [0.0.346] - 2026-09-01
 

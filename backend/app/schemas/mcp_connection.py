@@ -17,6 +17,11 @@ NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,31}$"
 MAX_ALLOWED_TOOLS = 100
 
 
+class McpToolRead(BaseSchema):
+    name: str
+    description: str
+
+
 class McpConnectionCreate(BaseSchema):
     name: str = Field(..., min_length=1, max_length=32, pattern=NAME_PATTERN)
     url: str = Field(..., min_length=1, max_length=2048)
@@ -25,6 +30,25 @@ class McpConnectionCreate(BaseSchema):
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     is_enabled: bool = True
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "What a person reads. `name` is the tool prefix and is constrained "
+            "to what a tool name can carry, which makes it a poor label for two "
+            "accounts on one service. Optional; the slug is shown when it is absent."
+        ),
+    )
+    catalog_key: str | None = Field(
+        default=None,
+        max_length=255,
+        description=(
+            "Which server in the catalog or the registry mirror this is an "
+            "account on. It is what a binding matches against when it asks to "
+            "speak as the member's own account, so a connection created without "
+            "one can never be substituted for the organization's."
+        ),
+    )
 
 
 class McpConnectionUpdate(BaseSchema):
@@ -37,6 +61,23 @@ class McpConnectionUpdate(BaseSchema):
     # in a PATCH body is indistinguishable from "not provided").
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            'What a person reads, beside the slug the model does. `""` clears '
+            "it, which is how a connection goes back to showing its name; `null` "
+            "leaves it unchanged, as everywhere in a PATCH body."
+        ),
+    )
+    is_default: bool | None = Field(
+        default=None,
+        description=(
+            "Speak as this account, where an agent binding asked for the "
+            "member's own and they hold several on this service. Setting it "
+            "clears the flag on the others (#1342)."
+        ),
+    )
 
 
 class McpConnectionRead(TimestampSchema, BaseSchema):
@@ -60,6 +101,21 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     last_status: str | None
     last_error: str | None
     last_checked_at: datetime | None
+    # Which catalog entry this points at, where it was connected from one. On
+    # the personal read as well as the organization's, because it is what says a
+    # member's Notion and the organization's are the same service - the join the
+    # substitution is made on.
+    catalog_key: str | None = None
+    # What a person reads, where somebody set one. Null is not a gap to fill in:
+    # the slug is what the connection was always shown as.
+    label: str | None = None
+    # Every tool the server offered when it was last reached, so a Builder can
+    # list them without holding the permission the probe needs. Null means
+    # nothing has asked yet, which is not the same as "offers none".
+    last_tools: list[McpToolRead] | None = None
+    # Whether an agent speaking as this member uses this account. Only ever true
+    # for one of their connections per service.
+    is_default: bool = False
 
     @classmethod
     def from_model(cls, connection: McpConnection) -> McpConnectionRead:
@@ -81,6 +137,14 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             last_status=connection.last_status,
             last_error=connection.last_error,
             last_checked_at=connection.last_checked_at,
+            catalog_key=connection.catalog_key,
+            label=connection.label,
+            last_tools=(
+                None
+                if connection.last_tools is None
+                else [McpToolRead(**tool) for tool in connection.last_tools]
+            ),
+            is_default=connection.is_default,
             created_at=connection.created_at,
             updated_at=connection.updated_at,
         )
@@ -108,6 +172,15 @@ class OrgMcpConnectionCreate(BaseSchema):
     auth_token: str | None = Field(default=None, max_length=4096)
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     is_enabled: bool = True
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "What a person reads. `name` is the tool prefix and is constrained "
+            "to what a tool name can carry, which makes it a poor label for two "
+            "accounts on one service. Optional; the slug is shown when it is absent."
+        ),
+    )
     # Which catalog entry this came from, when it did not come from a raw URL.
     catalog_key: str | None = Field(default=None, max_length=64)
 
@@ -120,33 +193,29 @@ class OrgMcpConnectionUpdate(BaseSchema):
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
-
-
-class OrgMcpConnectionRead(McpConnectionRead):
-    """An organization connection as the API returns it.
-
-    Adds only `catalog_key`: the Builder and the servers page both want to
-    show a curated server's real name and logo, and matching on the URL - which
-    is what the frontend does for personal connections - guesses where this
-    knows.
-    """
-
-    catalog_key: str | None
-
-    @classmethod
-    def from_model(cls, connection: McpConnection) -> OrgMcpConnectionRead:
-        base = McpConnectionRead.from_model(connection)
-        return cls(**base.model_dump(), catalog_key=connection.catalog_key)
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            'What a person reads, beside the slug the model does. `""` clears '
+            "it, which is how a connection goes back to showing its name; `null` "
+            "leaves it unchanged, as everywhere in a PATCH body."
+        ),
+    )
 
 
 class OrgMcpConnectionList(BaseSchema):
-    items: list[OrgMcpConnectionRead]
+    """An organization's connections.
+
+    Its own list rather than `McpConnectionList` because the two are different
+    collections behind different permissions; the *rows* are the same shape, and
+    were only ever a subclass to add `catalog_key` - which every connection has
+    now that the substitution joins a member's account to the organization's on
+    it (#1342).
+    """
+
+    items: list[McpConnectionRead]
     total: int
-
-
-class McpToolRead(BaseSchema):
-    name: str
-    description: str
 
 
 class McpConnectionTestResult(BaseSchema):
@@ -160,6 +229,15 @@ class McpOAuthStart(BaseSchema):
 
     name: str = Field(..., min_length=1, max_length=32, pattern=NAME_PATTERN)
     url: str = Field(..., min_length=1, max_length=2048)
+    catalog_key: str | None = Field(
+        default=None,
+        max_length=255,
+        description=(
+            "Which catalogued or mirrored server this authorises an account on. "
+            "Carried through the flow because a connection created without it can "
+            "never be substituted for the organization's."
+        ),
+    )
 
 
 class GithubOAuthStart(BaseSchema):

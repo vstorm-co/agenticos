@@ -1,4 +1,4 @@
-# How to: Add a New API Endpoint
+# Add an API endpoint
 
 This example adds a "Notification" endpoint end to end, following the layering
 every domain here uses.

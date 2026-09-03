@@ -1,13 +1,13 @@
-# Commands Reference
+# Commands
 
 This project provides commands via two interfaces: **Make** targets for common
 workflows and a **project CLI** for fine-grained control.
 
-## Make Commands
+## Make commands
 
 Run these from the project root directory.
 
-### Quick Start
+### Quick start
 
 | Command | Description |
 |---------|-------------|
@@ -106,17 +106,22 @@ Invoked directly, `scripts/audit_dependencies.py` does carry it: `0` for `CLEAN`
 audit that did not happen is never reported green, because an unaudited dependency
 set called clean is the same defect facing the other way.
 
-**Every incomplete run is retried, whatever it said.** `AUDIT_ATTEMPTS` (default
-3) with a 5s/10s backoff, and `AUDIT_TIMEOUT` (default 30s) as the per-request
-socket timeout, raised from pip-audit's own 15. Matching a phrase in the output
-decides only whether the verdict reads `NETWORK` or `FAILED` — never whether to
-try again. The two mistakes are not symmetric: re-running a deterministic failure
-costs seconds and the same answer, while not re-running a transient one is the
-false red on a required check that this exists to prevent. So a failure phrased in
-words the list does not hold still gets its retries; it just gets a vaguer name.
-Two vocabularies are in that list, because two programs reach for the network —
-`uv`, fetching `pip-audit` itself on a cold tool cache, and then `pip-audit`,
-fetching the advisories.
+**Every incomplete run is retried, whatever it said.**
+
+`AUDIT_ATTEMPTS` (default 3) with a 5s/10s backoff, and `AUDIT_TIMEOUT` (default 30s)
+as the per-request socket timeout, raised from pip-audit's own 15.
+
+Matching a phrase in the output decides only whether the verdict reads `NETWORK` or
+`FAILED` — never whether to try again. The two mistakes are not symmetric: re-running
+a deterministic failure costs seconds and the same answer, while *not* re-running a
+transient one is the false red on a required check that this exists to prevent.
+
+So a failure phrased in words the list does not hold still gets its retries. It just
+gets a vaguer name.
+
+Two vocabularies are in that list, because two programs reach for the network: `uv`,
+fetching `pip-audit` itself on a cold tool cache, and then `pip-audit`, fetching the
+advisories.
 
 ### Database
 
@@ -149,7 +154,7 @@ The runner is `python -m app.worker.prefect_app`; flows live in `app/worker/task
 Open the UI to watch flow runs, inspect logs, and trigger deployments manually.
 Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`) to use Prefect Cloud instead.
 
-### Docker (Development)
+### Docker (development)
 
 | Command | Description |
 |---------|-------------|
@@ -167,7 +172,7 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-redis` | Start only Redis |
 | `make docker-redis-stop` | Stop Redis |
 
-### Docker (Production with Traefik)
+### Docker (production with Traefik)
 
 | Command | Description |
 |---------|-------------|
@@ -176,7 +181,7 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-prod-logs` | Follow production logs |
 | `make docker-prod-build` | Build production images |
 
-### Vercel (Frontend Deployment)
+### Vercel (frontend deployment)
 
 | Command | Description |
 |---------|-------------|
@@ -193,7 +198,7 @@ cd backend
 uv run agenticos <group> <command> [options]
 ```
 
-### Server Commands
+### Server commands
 
 ```bash
 uv run agenticos server run              # Start dev server
@@ -210,16 +215,20 @@ watching while no port is listening. Under the supervisor a worker killed by a
 signal is replaced within about five seconds, and one that exited on its own
 still waits for the edit that fixes it, which is what `--reload` is for.
 
-It also replaces a worker that is **wedged** — alive, but with an event loop
-that has stopped turning, which has no exit code and so looks healthy to every
-other recovery path. The worker reports its loop through uvicorn's
-`callback_notify` hook once a second, and a worker silent for fifteen seconds
-across two consecutive polls is killed and replaced — about twenty-five seconds
-from deadlock to serving again. Two polls rather than one because `docker pause`
-and a laptop waking from sleep stop the supervisor as well as the worker, and the
-first poll afterwards reads a stale beat that says nothing.
-That is liveness and not readiness on purpose: the beat is a timer callback, not
-a request, so a slow database cannot make a healthy server look wedged.
+It also replaces a worker that is **wedged** — alive, but with an event loop that has
+stopped turning, which has no exit code and so looks healthy to every other recovery
+path.
+
+The worker reports its loop through uvicorn's `callback_notify` hook once a second,
+and a worker silent for fifteen seconds across two consecutive polls is killed and
+replaced. About twenty-five seconds from deadlock to serving again.
+
+Two polls rather than one, because `docker pause` and a laptop waking from sleep stop
+the supervisor as well as the worker, and the first poll afterwards reads a stale beat
+that says nothing.
+
+That is **liveness and not readiness**, on purpose: the beat is a timer callback
+rather than a request, so a slow database cannot make a healthy server look wedged.
 
 | | |
 |---|---|
@@ -240,7 +249,7 @@ uvicorn's `auto` picks the legacy one, which fails the handshake against
 websockets >=14 with an HTTP 500 — and the dashboard chat is a WebSocket.
 
 
-### Database Commands
+### Database commands
 
 ```bash
 uv run agenticos db init                  # Run all migrations
@@ -253,7 +262,7 @@ uv run agenticos db current               # Show current revision
 uv run agenticos db history               # Show migration history
 ```
 
-### User Commands
+### User commands
 
 ```bash
 # Create user (interactive prompts for email/password)
@@ -284,7 +293,7 @@ uv run agenticos cmd create-app-admin user@example.com
 uv run agenticos cmd create-app-admin user@example.com --revoke
 ```
 
-### Custom Commands
+### Custom commands
 
 Custom commands are auto-discovered from `app/commands/`. Run them via:
 
@@ -294,7 +303,7 @@ uv run agenticos cmd <command-name> [options]
 
 `uv run agenticos cmd --help` lists everything the running deployment has.
 
-### Setup and Diagnostics
+### Setup and diagnostics
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
@@ -342,9 +351,57 @@ uv run agenticos cmd seed --count 10 --clear
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
 
-### Channel Bots
+### Getting a deployment up
+
+```bash
+# Prerequisites, a clone, four questions, and a running agent.
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
+# Only report what this machine is missing.
+./scripts/quickstart.sh --check
+# Print every command it would run, run none of them.
+./scripts/quickstart.sh --dry-run
+# Unattended.
+./scripts/quickstart.sh --yes --provider anthropic --api-key sk-ant-... --org Acme
+```
+
+It is a wrapper around `make dev`, `make dev-frontend`, `agenticos cmd bootstrap`
+and `agenticos cmd mcp-registry-sync` — nothing it does is unavailable by hand.
+
+### The MCP registry mirror
+
+```bash
+# Fill or refresh `mcp_registry_servers` from the bundled snapshot.
+uv run agenticos cmd mcp-registry-sync
+
+# Or from the live registry, which is how the mirror moves between deploys.
+uv run agenticos cmd mcp-registry-sync --fetch
+
+# Keep rows the registry no longer lists, rather than pruning them.
+uv run agenticos cmd mcp-registry-sync --no-prune
+```
+
+**`make platform-bootstrap` already loads it**, from the bundled snapshot, so a
+first-time setup needs none of this. It is skipped when the table already holds
+rows: a re-run of bootstrap must not spend seconds rewriting five thousand
+unchanged rows, and refreshing the mirror is this command's job rather than
+bootstrap's.
+
+Run it by hand on a deployment that predates the table, or to pick up a newer
+snapshot. The sync is idempotent: a second run stamps `synced_at` and changes
+nothing else unless the registry did.
+
+Pruning is what removes a delisted server. Without it the mirror only grows and a
+dead endpoint stays offerable for ever, so it is on by default and keyed on
+`synced_at` rather than on a diff of five thousand ids.
+
+### Channel bots
 
 See [Channels](channels.md) for what each platform supports.
+
+Every command here acts for **one organization**, because a channel bot belongs
+to one. `--org <id>` names it, and a deployment with exactly one organization
+needs no flag. A deployment with several refuses rather than picking, and lists
+them with their ids — guessing would act on somebody else's bots.
 
 ```bash
 # Register a bot
@@ -380,11 +437,11 @@ Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`. A mention r
 as the *sender*, never as the bot, and an unlinked identity is refused rather than
 run with no role — see [Channels](channels.md#what-every-channel-shares).
 
-### RAG Commands
+### RAG commands
 
 All RAG commands are custom commands invoked via `cmd`:
 
-#### Document Ingestion
+#### Document ingestion
 
 The default collection is `default`. A name whose vector table the models already
 declare — `documents`, which prefixed is the ingestion tracking table — is refused
@@ -422,7 +479,7 @@ uv run agenticos cmd rag-search "deployment guide" --collection docs
 uv run agenticos cmd rag-search "deployment" --top-k 10
 ```
 
-#### Collection Management
+#### Collection management
 
 ```bash
 # List all collections with stats
@@ -438,7 +495,7 @@ uv run agenticos cmd rag-drop my_collection
 uv run agenticos cmd rag-drop my_collection --yes
 ```
 
-#### Google Drive Sync
+#### Google Drive sync
 
 ```bash
 # Sync from Google Drive root
@@ -448,7 +505,7 @@ uv run agenticos cmd rag-sync-gdrive --collection docs
 uv run agenticos cmd rag-sync-gdrive --collection docs --folder-id abc123
 ```
 
-#### S3/MinIO Sync
+#### S3/MinIO sync
 
 ```bash
 # Sync from S3 bucket root
@@ -462,7 +519,7 @@ uv run agenticos cmd rag-sync-s3 --collection docs --bucket my-bucket
 ```
 
 
-#### Sync Source Management
+#### Sync source management
 
 ```bash
 # List configured sync sources
@@ -498,7 +555,7 @@ process ends when its coroutine returns — so a command that only triggered and
 exited was cancelling the work it had just reported as started. Over the API
 that task belongs to a long-lived worker and nothing has to wait for it.
 
-## Adding Custom Commands
+## Adding custom commands
 
 Commands are auto-discovered from `app/commands/`. Create a new file:
 

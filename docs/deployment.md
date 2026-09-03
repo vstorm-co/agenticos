@@ -1,14 +1,19 @@
 # The deployment itself
 
 Most of this product is about agents. This page is about the thing they run
-inside: **one installation, with a name, a mark, a rule about who may join it, and
-a switch that closes it.** All of it lives in a single database row and is edited
-from `/admin/settings` by whoever holds `is_app_admin` — no redeploy, no
-environment variable, no rebuild.
+inside.
 
-That authority is deliberate and it is not a permission from the catalog. A
-permission is scoped to an organization; this row is not in one. It is the same
-authority that already administers users and tenants across the installation.
+**One installation, with a name, a mark, a rule about who may join it, and a switch
+that closes it.** All of it lives in a single database row and is edited from
+`/admin/settings` by whoever holds `is_app_admin` — no redeploy, no environment
+variable, no rebuild.
+
+!!! info "Why that authority, and not a permission"
+
+    A permission is scoped to an organization. This row is not in one.
+
+    It is the same authority that already administers users and tenants across the
+    installation.
 
 ## Identity
 
@@ -135,18 +140,24 @@ token back out of that `returnTo` so "create an account" points at
 `/register?invitation=<token>`. Before that, the only route onward was a plain link
 to `/register`, and the form then refused somebody holding a valid invitation.
 
-**A link with a `max_uses` bounds accounts, not only joins.** `used_count` counts
-acceptances and acceptance needs a session, so a ceiling read off it alone bounded
-nothing a registration did: one one-use link posted in a channel admitted as many
-accounts as anybody cared to create, on the deployment that had just closed sign-up.
-So a use is **reserved** for the registering address first — `reserved_emails` on the
+**A link with a `max_uses` bounds accounts, not only joins.**
+
+`used_count` counts acceptances, and acceptance needs a session — so a ceiling read
+off it alone bounded nothing a registration did. One one-use link posted in a channel
+admitted as many accounts as anybody cared to create, on the deployment that had just
+closed sign-up.
+
+So a use is **reserved** for the registering address first: `reserved_emails` on the
 row, and `used_count + reserved_emails` is what "used up" means. The reservation is a
 single conditional `UPDATE`, because two registrations racing on the last use would
-both read the same count otherwise. Accepting moves the address out of the list as it
-increments the count, which conserves it: somebody who registered through a one-use
-link can still join. A reservation nobody accepts stays spent — `max_uses` is how
-many people a link admits, and an account created with it was admitted — and it dies
-with the invitation.
+both read the same count otherwise.
+
+Accepting moves the address out of the list as it increments the count, which
+conserves it — somebody who registered through a one-use link can still join.
+
+A reservation nobody accepts stays spent (`max_uses` is how many people a link
+admits, and an account created with it was admitted), and it dies with the
+invitation.
 
 **Signing in with a provider carries the invitation too.** The token is put on
 `/oauth/google/login?invitation=…` and held in the session across the round trip,
@@ -224,16 +235,19 @@ keeps the audit trail readable. Recovery, if it is ever needed, is still
 `create-app-admin` from a shell on the deployment.
 
 That argument is about the *set*, and for a while the code was about one row.
-Two admins deleting each other were each not deleting themselves, locked
+
+Two admins deleting each other were each not deleting themselves. They locked
 different target rows, never contended, and both committed — zero app admins,
-recoverable only by writing to the database (#1208). So an admin deletion takes
-`SELECT ... FOR UPDATE` over the app-admin set, ordered by id, before it decides:
-the second request waits, re-reads the set once the first has committed, and is
-refused for emptying it. Ordered because two requests taking the same rows in
-different orders is a deadlock rather than a queue, and taken on every admin
-deletion rather than only on an admin's — deleting a user is an administrator's
-action, not a hot path, and a total order is worth more than the contention it
-costs.
+recoverable only by writing to the database (#1208).
+
+So an admin deletion takes `SELECT ... FOR UPDATE` over the app-admin set, ordered by
+id, before it decides. The second request waits, re-reads the set once the first has
+committed, and is refused for emptying it.
+
+Ordered, because two requests taking the same rows in different orders is a deadlock
+rather than a queue. And taken on every admin deletion rather than only on an
+admin's: deleting a user is an administrator's action, not a hot path, and a total
+order is worth more than the contention it costs.
 
 ## Notices, and closing the deployment
 
@@ -385,3 +399,12 @@ that list and they have none. `app/core/otel_compat.py` supplies, for that branc
 the same fallback upstream already uses in the branch it did guard. Still unfixed
 upstream as of 0.65b0, and `tests/test_otel_route_details.py` fails when it is fixed,
 which is when the module goes away.
+
+## Recap
+
+- The deployment's identity is **one row**, edited from `/admin/settings`, and a
+  null column means *the built-in* rather than *empty*.
+- `signup_mode` is applied in **one place** and gates both paths that mint an
+  account. An invitation overrides a domain list; nothing overrides `closed`.
+- An app admin **cannot lock themselves out** through the console.
+- Every refusal from this deployment looks the same, whichever layer produced it.

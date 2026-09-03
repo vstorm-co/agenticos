@@ -275,10 +275,15 @@ class ModelProfileService:
             target_id=str(profile_id),
         )
 
-    async def _resolve_credential(
+    async def resolve_credential(
         self, organization_id: UUID, profile: ModelProfile
     ) -> ResolvedCredential:
         """The key this model runs on, from whichever store holds it.
+
+        Public because it has a second caller now: transcription runs on the
+        credential the organization already configured for a provider, and a
+        second implementation of "find the key for this profile" is how the two
+        stores came apart in the first place.
 
         A vault secret first: that is the one people manage, and picking
         "OpenRouter" there is what makes OpenRouter's models runnable. A legacy
@@ -384,7 +389,7 @@ class ModelProfileService:
                 message="This agent has no model selected",
             )
 
-        credential = await self._resolve_credential(organization_id, profile)
+        credential = await self.resolve_credential(organization_id, profile)
 
         fallbacks: list[tuple[ResolvedCredential, str]] = []
         fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
@@ -402,7 +407,7 @@ class ModelProfileService:
                     continue
                 try:
                     fallbacks.append(
-                        (await self._resolve_credential(organization_id, fallback), fallback.model)
+                        (await self.resolve_credential(organization_id, fallback), fallback.model)
                     )
                 except BadRequestError:
                     logger.warning(

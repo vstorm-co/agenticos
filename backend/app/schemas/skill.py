@@ -133,3 +133,45 @@ class SkillUpdate(BaseSchema):
     content: str | None = None
     enabled: bool | None = None
     category: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class GallerySkillRead(BaseSchema):
+    """One gallery skill as the picker shows it - never the body."""
+
+    key: str = Field(description="`<industry>/<folder>`, how an install request names it")
+    name: str
+    description: str
+    category: str | None = None
+    installed: bool = Field(
+        description="Whether this organization already has a skill by this name",
+    )
+
+
+class GalleryIndustryRead(BaseSchema):
+    """One industry shelf, and what is on it."""
+
+    id: str = Field(description="The directory name - the console maps it to a label and an icon")
+    skills: list[GallerySkillRead]
+
+
+class SkillGallery(BaseSchema):
+    industries: list[GalleryIndustryRead]
+
+
+class GalleryInstallRequest(BaseSchema):
+    """Which gallery skills to copy in - one, or a whole shelf."""
+
+    keys: list[str] = Field(min_length=1, max_length=200)
+
+
+class GalleryInstallResult(BaseSchema):
+    """What the install did, per skill, so a partial result is legible.
+
+    A key already present is *skipped* rather than refused: installing a shelf
+    where one skill is already there must not fail the other nine, and the
+    organization's own edited copy is never overwritten.
+    """
+
+    installed: list[str] = Field(description="Names created by this request")
+    skipped: list[str] = Field(description="Names the organization already had")
+    unknown: list[str] = Field(description="Keys this deployment does not ship")

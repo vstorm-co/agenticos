@@ -1,6 +1,6 @@
 {
   "name": "agenticos-frontend",
-  "version": "0.0.346",
+  "version": "0.0.355",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -79,7 +79,7 @@
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "husky": "^9.1.7",
-    "knip": "^5.88.1",
+    "knip": "^6.32.2",
     "lint-staged": "^17.2.0",
     "@playwright/test": "^1.49.1",
     "vitest": "^4.1.10",

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -24,9 +23,11 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
+from app.db.locks import LockScope, hold_name
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
+    collection_teardown_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
@@ -393,12 +394,12 @@ class UserService:
         return str(full_path) if full_path is not None else None
 
     async def delete(self, user_id: UUID) -> User:
-        user = await self._lock_for_delete(user_id)
-        await self._release_owned_rows(user_id)
+        user, locked_heirs = await self._lock_for_delete(user_id)
+        await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
         await user_repo.delete(self.db, user_id)
         return user
 
-    async def _lock_for_delete(self, user_id: UUID) -> User:
+    async def _lock_for_delete(self, user_id: UUID) -> tuple[User, frozenset[UUID]]:
         """Lock this user's row and every heir's, in ascending id order (#1134).
 
         The self lock serves #1115: held before the reconcile's reads, it makes a
@@ -422,6 +423,14 @@ class UserService:
         unrelated foreign-key write takes on an heir - a channel identity relinked
         to them, say - which FOR UPDATE would have, turning that write into a fresh
         cross-table deadlock this fix must not introduce.
+
+        Returns:
+            The locked user, and the heir ids locked with them. The second is
+            what `_release_owned_rows` checks its own authoritative read against:
+            memberships are not locked here, so an ownership change landing
+            between the two reads could name an heir this never locked, and
+            `reassign_creator` would then take that user's FK lock outside the
+            ordered sequence - the cycle again, by another door (#1268).
         """
         heir_ids: set[UUID] = set()
         for org in await organization_repo.list_created_by(self.db, user_id):
@@ -441,9 +450,9 @@ class UserService:
                 await user_repo.get_by_id_for_no_key_update(self.db, uid)
         if user is None:
             raise NotFoundError(message="User not found", details={"user_id": user_id})
-        return user
+        return user, frozenset(heir_ids)
 
-    async def _release_owned_rows(self, user_id: UUID) -> None:
+    async def _release_owned_rows(self, user_id: UUID, *, locked_heirs: frozenset[UUID]) -> None:
         """Hand on or remove what would otherwise block the user's deletion (#9).
 
         Three FK/CHECK pairs make a bare `DELETE users` 500: a private secret's
@@ -489,6 +498,17 @@ class UserService:
                     "transfer ownership or delete the organization first",
                     details={"user_id": user_id, "organization_id": org.id},
                 )
+            if heir not in locked_heirs:
+                # Ownership moved between the lock pass and this one. Handing the
+                # org to somebody whose row is not locked takes their FK lock
+                # outside the ascending sequence, which is the deadlock #1134
+                # closed. Refusing is safe and the caller can simply try again;
+                # taking the lock here is not (#1268).
+                raise BadRequestError(
+                    message="Ownership of one of this account's organizations changed while "
+                    "the deletion was being prepared; try again",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
             heirs[org.id] = heir
 
         # Ownership moves without the creator FK, so a user can be the sole Owner
@@ -512,11 +532,11 @@ class UserService:
 
         await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
 
+        await self._purge_personal_collections(user_id)
+
         vector_store = self._vector_store or process_vector_store(
             settings.rag, EmbeddingService(settings=settings.rag)
         )
-        await self._purge_personal_collections(vector_store, user_id)
-
         org_service = OrganizationService(self.db, vector_store=vector_store)
         for org in created:
             if org.is_personal:
@@ -526,35 +546,43 @@ class UserService:
                     self.db, org=org, new_creator_id=heirs[org.id]
                 )
 
-    async def _purge_personal_collections(
-        self, vector_store: "BaseVectorStore", user_id: UUID
-    ) -> None:
+    async def _purge_personal_collections(self, user_id: UUID) -> None:
         """Remove the user's personal-scoped knowledge bases whole (#1131).
 
         Mirrors `OrganizationService.purge`'s collection teardown for the rows the
-        org purge cannot see. Each base's document rows and stored files go first,
-        then the base row; the physical `rag_<collection>` table is dropped only
-        when no other base still references the name - it is not tenant-unique
-        (#913), so two of them can share one table. The document rows are keyed on
-        `knowledge_base_id`, so a shared collection's other rows are untouched; a
-        shared table is left in place, with only this base's uploads unlinked.
+        org purge cannot see. Each base's document rows and the base row go in the
+        request's transaction; the stored files and the physical `rag_<collection>`
+        tables are handed to the durable cleanup after the commit
+        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
+        keeps them, a worker restart mid-cleanup does not orphan them (#1349), and
+        the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
+        check on its own session, so a name a second base still holds - or is
+        mid-claim on - keeps its table (#913, #1355). A table is queued for drop
+        only when no other base claims the name; it is not tenant-unique, so two
+        bases can share one.
         """
-        storage = get_file_storage()
+        storage_paths: list[str] = []
+        collections_to_drop: list[str] = []
         for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id):
             collection = kb.collection_name
-            storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
-            for storage_path in storage_paths:
-                with contextlib.suppress(Exception):
-                    await storage.delete(storage_path)
-            still_shared = await knowledge_base_repo.list_by_collection_name(self.db, collection)
-            if still_shared:
-                continue
-            # Best-effort, and only against the database: a zero-document
-            # collection has no table yet (`DROP TABLE IF EXISTS` no-ops), and any
-            # other database failure is not a reason to abandon the rest.
-            with contextlib.suppress(SQLAlchemyError):
-                await vector_store.delete_collection(collection)
+            # Hold the name against a concurrent claim while the reference check and
+            # reservation are made, then reserve it until the deferred drop runs, so a
+            # create cannot slip a new base onto the name and lose its table (#1362).
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+            if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+                collections_to_drop.append(collection)
+                await collection_teardown_repo.reserve(self.db, collection)
+        if storage_paths or collections_to_drop:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
+                name="purge-personal-collections",
+            )
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

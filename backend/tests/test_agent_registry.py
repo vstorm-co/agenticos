@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, McpServerRef, SpecialistSpec
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -1286,7 +1286,7 @@ class TestValidateSpec:
 
     @pytest.mark.anyio
     async def test_an_mcp_server_that_is_not_an_organization_connection_is_refused(self):
-        """`mcp_server_ids` used to be a field that did nothing at all.
+        """`mcp_servers` used to be a field that did nothing at all.
 
         Refusing here is what makes it a promise: an agent published with a
         server bound either gets that server at run time or never publishes.
@@ -1309,7 +1309,11 @@ class TestValidateSpec:
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
-                ctx, _spec(mcp_server_ids=[connection_id], model_profile_id=uuid.uuid4())
+                ctx,
+                _spec(
+                    mcp_servers=[McpServerRef(connection_id=connection_id)],
+                    model_profile_id=uuid.uuid4(),
+                ),
             )
 
         problem = refused.value.details["problems"][0]
@@ -1319,6 +1323,96 @@ class TestValidateSpec:
             "connection_id": connection_id,
             "organization_id": ctx.organization_id,
         }
+
+    @pytest.mark.anyio
+    async def test_speaking_as_a_member_needs_a_catalog_entry_to_match_them_on(self):
+        """A connection made from a URL has nothing a personal one can be joined to.
+
+        Refused here rather than at run time, where the only options are to guess
+        or to quietly ignore what the binding asked for - and a binding that says
+        "use my own account" and does not is worse than one that was never offered.
+        """
+        ctx = _ctx()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
+                new=AsyncMock(return_value=MagicMock(name="crm", catalog_key=None)),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx,
+                _spec(
+                    mcp_servers=[
+                        McpServerRef(connection_id=uuid.uuid4(), use_personal_when_available=True)
+                    ],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
+
+        assert "catalog entry" in refused.value.details["problems"][0]
+
+    @pytest.mark.anyio
+    async def test_two_bindings_to_one_service_cannot_both_speak_as_the_member(self):
+        """One run substitutes one account, so two claims on it have no answer."""
+        ctx = _ctx()
+        first, second = uuid.uuid4(), uuid.uuid4()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
+                new=AsyncMock(return_value=MagicMock(catalog_key="notion")),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx,
+                _spec(
+                    mcp_servers=[
+                        McpServerRef(connection_id=first, use_personal_when_available=True),
+                        McpServerRef(connection_id=second, use_personal_when_available=True),
+                    ],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
+
+        problem = refused.value.details["problems"][0]
+        assert str(first) in problem and str(second) in problem
+
+    @pytest.mark.anyio
+    async def test_two_bindings_to_one_service_are_fine_while_neither_asks(self):
+        """The refusal is about the substitution, not about binding twice."""
+        ctx = _ctx()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
+                new=AsyncMock(return_value=MagicMock(catalog_key="notion")),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx,
+                _spec(
+                    mcp_servers=[
+                        McpServerRef(connection_id=uuid.uuid4()),
+                        McpServerRef(connection_id=uuid.uuid4()),
+                    ],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
 
     @pytest.mark.anyio
     async def test_a_spec_whose_references_all_resolve_raises_nothing(self):
@@ -1351,7 +1445,7 @@ class TestValidateSpec:
                     collection_ids=[collection_id],
                     skill_ids=[skill.id],
                     model_profile_id=uuid.uuid4(),
-                    mcp_server_ids=[uuid.uuid4()],
+                    mcp_servers=[McpServerRef(connection_id=uuid.uuid4())],
                 ),
             )
 
@@ -3073,3 +3167,180 @@ class TestACapabilityAgentsMayNotBind:
 
         saved = stored.call_args.kwargs["update_data"]["draft_spec"]
         assert [binding["id"] for binding in saved["capabilities"]] == ["no_such_capability"]
+
+
+class TestAgentTemplates:
+    """Shipped templates, and what installing one deliberately does not do.
+
+    The thing worth guarding is the refusal: a template cannot name a model,
+    because this platform has no organization-wide default on purpose, and it
+    cannot name a collection it has never seen. So an install produces a draft,
+    and anything that published it would answer its first question from nowhere.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_catalog_marks_what_is_already_installed(self):
+        """A slug match, because a slug is what an install would collide on."""
+        industry = MagicMock()
+        industry.id = "healthcare"
+        first, second = MagicMock(), MagicMock()
+        first.key, first.name, first.description = "healthcare/a", "Procedure Assistant", "d"
+        first.capabilities, first.skills, first.mcp, first.attach = ({"id": "clock"},), (), (), ()
+        first.budget_usd = None
+        second.key, second.name, second.description = "healthcare/b", "Front Desk", "d"
+        second.capabilities, second.skills, second.mcp, second.attach = (), (), (), ()
+        second.budget_usd = 40.0
+        industry.templates = [first, second]
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_slugs",
+                new=AsyncMock(return_value={"procedure-assistant"}),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_templates.catalog", return_value=[industry]),
+        ):
+            catalog = await AgentRegistryService(_db()).templates(_ctx())
+
+        assert [(t.name, t.installed) for t in catalog.industries[0].templates] == [
+            ("Procedure Assistant", True),
+            ("Front Desk", False),
+        ]
+
+    @pytest.mark.anyio
+    async def test_installing_a_template_leaves_a_draft_with_no_model(self):
+        """The spec names no profile, so publish would refuse it - which is right.
+
+        Attaching a collection and choosing a model are decisions the platform
+        refuses to make on somebody's behalf, and the result carries both back
+        rather than hiding them.
+        """
+        template = MagicMock()
+        template.key, template.name = "healthcare/procedure-assistant", "Procedure Assistant"
+        template.description, template.instructions = "Answers from your SOPs.", "You answer..."
+        template.capabilities = ({"id": "knowledge"}, {"id": "clock"})
+        template.skills = ("healthcare/clinical-procedure-lookup",)
+        template.mcp, template.attach, template.budget_usd = ("github",), ("collection",), 50.0
+
+        entry = MagicMock()
+        entry.name = "Clinical procedure lookup"
+        row = MagicMock()
+        row.id, row.name = uuid4(), "Clinical procedure lookup"
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "procedure-assistant", template.name
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(f"{REGISTRY_PATH}.skill_library.gallery_get", return_value=entry),
+            patch(f"{REGISTRY_PATH}.SkillService") as skills,
+            patch(f"{REGISTRY_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=row)),
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            skills.return_value.install_gallery = AsyncMock()
+            result = await AgentRegistryService(_db()).install_template(
+                _ctx(), "healthcare/procedure-assistant"
+            )
+
+        spec = create.await_args.args[1]
+        assert spec.model_profile_id is None
+        assert spec.skill_ids == [row.id]
+        assert spec.budget is not None and spec.budget.monthly_usd == 50.0
+        assert [b.id for b in spec.capabilities] == ["knowledge", "clock"]
+        assert result.attach == ["collection"]
+        assert result.suggested_mcp == ["github"]
+        assert result.skills_installed == ["Clinical procedure lookup"]
+        # The skills it expects are installed before the agent that binds them.
+        skills.return_value.install_gallery.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_template_with_no_skills_installs_nothing(self):
+        """No gallery call at all, rather than one with an empty list."""
+        template = MagicMock()
+        template.key, template.name = "software/release-writer", "Release Notes Writer"
+        template.description, template.instructions = "d", "You write..."
+        template.capabilities = ()
+        template.skills, template.mcp, template.attach = (), (), ()
+        template.budget_usd = None
+        created = MagicMock()
+        created.id, created.slug, created.name = uuid4(), "release-notes-writer", template.name
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=template),
+            patch(f"{REGISTRY_PATH}.SkillService") as skills,
+            patch.object(
+                AgentRegistryService, "create", new=AsyncMock(return_value=created)
+            ) as create,
+        ):
+            result = await AgentRegistryService(_db()).install_template(
+                _ctx(), "software/release-writer"
+            )
+
+        skills.return_value.install_gallery.assert_not_called()
+        assert create.await_args.args[1].budget is None
+        assert result.skills_installed == []
+
+    @pytest.mark.anyio
+    async def test_an_unknown_template_is_not_found(self):
+        with (
+            patch(f"{REGISTRY_PATH}.agent_templates.get", return_value=None),
+            pytest.raises(NotFoundError),
+        ):
+            await AgentRegistryService(_db()).install_template(_ctx(), "nope/nope")
+
+
+class TestTheShippedTemplatesOnDisk:
+    """The twenty-eight manifests, read by the real parser.
+
+    Nothing else opens these files. A skill key that does not resolve installs
+    an agent bound to nothing; an MCP key that does not resolve renders a
+    suggestion nobody can act on; a capability id the registry does not know is
+    refused at publish, long after somebody chose the template.
+    """
+
+    def test_every_template_parses_and_carries_instructions(self):
+        from app.services import agent_templates
+
+        industries = agent_templates.catalog()
+        assert industries, "the template directory ships with the image"
+        for industry in industries:
+            assert industry.templates
+            for template in industry.templates:
+                assert template.instructions, f"{template.key} has no instructions"
+                assert template.description, f"{template.key} has no description"
+                assert template.key.startswith(f"{industry.id}/")
+
+    def test_every_skill_and_mcp_key_a_template_names_resolves(self):
+        import json
+
+        from app.services import agent_templates, skill_library
+
+        gallery = {s.key for i in skill_library.gallery() for s in i.skills}
+        servers = json.loads(
+            (skill_library.GALLERY_ROOT.parent / "mcp_servers.json").read_text(encoding="utf-8")
+        )
+        catalog_keys = {entry.get("key") or entry.get("id") for entry in servers}
+
+        for industry in agent_templates.catalog():
+            for template in industry.templates:
+                assert not set(template.skills) - gallery, f"{template.key} names a missing skill"
+                assert not set(template.mcp) - catalog_keys, (
+                    f"{template.key} names a missing server"
+                )
+
+    def test_every_capability_a_template_switches_on_is_registered(self):
+        from app.agents.capabilities import REGISTRY, load_builtins
+        from app.services import agent_templates
+
+        load_builtins()
+        for industry in agent_templates.catalog():
+            for template in industry.templates:
+                for binding in template.capabilities:
+                    assert binding["id"] in REGISTRY, f"{template.key}: {binding['id']}"
+
+    def test_a_template_key_resolves_and_an_unknown_one_does_not(self):
+        from app.services import agent_templates
+
+        first = agent_templates.catalog()[0].templates[0]
+        assert agent_templates.get(first.key) is first
+        assert agent_templates.get("nope/nope") is None

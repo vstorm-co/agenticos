@@ -359,23 +359,50 @@ class TestTheProcessEngineStore:
 
 
 class TestTheKnowledgeCapabilitysStore:
-    def test_the_first_search_builds_a_process_store(self):
+    def test_a_search_off_the_pooled_loop_builds_an_unpooled_store(self):
         """The capability's cached store used to open the second private pool an
-        API process ran; it rides the application's engine now."""
+        API process ran (#948). It rides the pool-less engine when the loop it is
+        on does not own the process's pools - an agent inside a Prefect flow -
+        because a pooled connection belongs to the loop that opened it."""
         import app.agents.capabilities.knowledge._search as search_module
 
         with (
+            patch.object(search_module, "on_the_pooled_loop", return_value=False),
+            patch.object(search_module, "EmbeddingService"),
+            patch.object(search_module, "unpooled_vector_store") as factory,
+            patch.object(search_module, "RetrievalService") as retrieval_cls,
+        ):
+            search_module.reset_retrieval_service()
+            try:
+                search_module.get_retrieval_service()
+            finally:
+                search_module.reset_retrieval_service()
+
+        assert retrieval_cls.call_args.args[0] is factory.return_value
+
+    def test_a_search_on_the_pooled_loop_keeps_the_process_store(self):
+        """The API keeps the bounded pool. `NullPool` opens a connection per
+        checkout and caps nothing, so serving every request from it would let a
+        burst of concurrent runs reach `max_connections` where the pool queues -
+        and on this loop the store is the one the lifespan and every request
+        already share."""
+        import app.agents.capabilities.knowledge._search as search_module
+
+        with (
+            patch.object(search_module, "on_the_pooled_loop", return_value=True),
             patch.object(search_module, "EmbeddingService"),
             patch.object(search_module, "process_vector_store") as factory,
             patch.object(search_module, "RetrievalService") as retrieval_cls,
         ):
-            search_module._retrieval_service = None
+            search_module.reset_retrieval_service()
             try:
+                assert search_module.get_retrieval_service() is retrieval_cls.return_value
                 search_module.get_retrieval_service()
             finally:
-                search_module._retrieval_service = None
+                search_module.reset_retrieval_service()
 
         assert retrieval_cls.call_args.args[0] is factory.return_value
+        assert factory.call_count == 1
 
     def test_the_next_search_after_a_reset_builds_a_fresh_store(self):
         """Shutdown disposes the process engine, so a shutdown followed by more
@@ -383,17 +410,148 @@ class TestTheKnowledgeCapabilitysStore:
         import app.agents.capabilities.knowledge._search as search_module
 
         with (
+            patch.object(search_module, "on_the_pooled_loop", return_value=False),
             patch.object(search_module, "EmbeddingService"),
-            patch.object(search_module, "process_vector_store") as factory,
+            patch.object(search_module, "unpooled_vector_store") as factory,
             patch.object(search_module, "RetrievalService", side_effect=lambda *a, **k: object()),
         ):
-            search_module._retrieval_service = None
+            search_module.reset_retrieval_service()
             try:
                 first = search_module.get_retrieval_service()
                 search_module.reset_retrieval_service()
                 second = search_module.get_retrieval_service()
             finally:
-                search_module._retrieval_service = None
+                search_module.reset_retrieval_service()
 
         assert first is not second
         assert factory.call_count == 2
+
+    def test_the_off_loop_engine_caches_no_connection_to_hand_over(self):
+        """The store a foreign loop is handed must be usable from that loop.
+
+        A pooled asyncpg connection belongs to the loop that opened it, so a
+        store cached for the life of the process and shared by two loops in one
+        worker handed the second a connection made on the first
+        (`InterfaceError: attached to a different loop`) (#1079). `NullPool`
+        keeps no connection to hand over, which is the whole of the fix: assert
+        the engine's pool class, because a pooled engine here passes every
+        single-loop test and fails only in a worker running two flows."""
+        from sqlalchemy.pool import NullPool
+
+        from app.db.session import agent_vector_engine, vector_engine
+        from app.services.embedding_resolution import embeddings_for_collection
+        from app.services.rag import vectorstore
+
+        with patch.object(vectorstore, "PgVectorStore") as store_cls:
+            store = vectorstore.unpooled_vector_store(MagicMock(), MagicMock())
+
+        assert store is store_cls.return_value
+        assert store_cls.call_args.kwargs["engine"] is agent_vector_engine
+        assert store_cls.call_args.kwargs["engine"] is not vector_engine
+        assert store_cls.call_args.kwargs["resolver"] is embeddings_for_collection
+        assert isinstance(agent_vector_engine.pool, NullPool)
+
+    async def test_one_unpooled_store_serves_two_event_loops(self):
+        """Off the pooled loop the store is held across loops, and that is only
+        safe because it caches no connection: the same instance answers a second
+        loop rather than being rebuilt per loop, and rebuilding per loop could
+        not dispose the pool of a loop that had moved on anyway (#1079)."""
+        import asyncio
+
+        import app.agents.capabilities.knowledge._search as search_module
+
+        with (
+            patch.object(search_module, "on_the_pooled_loop", return_value=False),
+            patch.object(search_module, "EmbeddingService"),
+            patch.object(search_module, "unpooled_vector_store"),
+            patch.object(search_module, "RetrievalService", side_effect=lambda *a, **k: object()),
+        ):
+            search_module.reset_retrieval_service()
+            try:
+                on_this_loop = search_module.get_retrieval_service()
+
+                def on_another_loop() -> object:
+                    return asyncio.run(_ask())
+
+                async def _ask() -> object:
+                    return search_module.get_retrieval_service()
+
+                elsewhere = await asyncio.to_thread(on_another_loop)
+            finally:
+                search_module.reset_retrieval_service()
+
+        assert elsewhere is on_this_loop
+
+
+class TestWhichLoopOwnsThePools:
+    """`get_db_context` is reached from five worker flows and from an agent's
+    embedding resolver, each on a loop of its own (#1079)."""
+
+    async def test_an_unclaimed_loop_gets_an_engine_of_its_own(self):
+        """No lifespan has run - a worker process, the CLI, this test - so
+        nothing owns the pools and a session must not borrow them."""
+        from app.db import session as session_module
+
+        with patch.object(session_module, "get_worker_db_context") as per_call:
+            async with session_module.get_db_context() as db:
+                assert db is per_call.return_value.__aenter__.return_value
+
+    async def test_the_claiming_loop_gets_the_pooled_session(self):
+        """The API's own loop serves every request and disposes the pools at
+        shutdown, so it is the one loop that may check out of them."""
+        from app.db import session as session_module
+
+        session_module.claim_pooled_engines()
+        try:
+            assert session_module.on_the_pooled_loop() is True
+            with patch.object(session_module, "_managed_session") as pooled:
+                async with session_module.get_db_context() as db:
+                    assert db is pooled.return_value.__aenter__.return_value
+            assert pooled.call_args.args[0] is session_module.async_session_maker
+        finally:
+            session_module.release_pooled_engines()
+
+    async def test_the_claim_does_not_outlive_the_loop_that_made_it(self):
+        """A test or a reload runs a second lifespan on a second loop; a stale
+        stamp would tell it that it owns pools bound to a loop that has gone."""
+        import asyncio
+
+        from app.db import session as session_module
+
+        def claim_on_another_loop() -> None:
+            asyncio.run(_claim())
+
+        async def _claim() -> None:
+            session_module.claim_pooled_engines()
+
+        await asyncio.to_thread(claim_on_another_loop)
+        try:
+            assert session_module.on_the_pooled_loop() is False
+        finally:
+            session_module.release_pooled_engines()
+
+    def test_no_loop_at_all_owns_nothing(self):
+        """Import-time and sync-context callers ask this too."""
+        from app.db import session as session_module
+
+        assert session_module.on_the_pooled_loop() is False
+
+    async def test_shutdown_gives_the_claim_up(self):
+        """`close_db` disposes the pools; leaving them claimed would let work
+        after the shutdown check out of a disposed engine."""
+        from unittest.mock import AsyncMock
+
+        from app.db import session as session_module
+
+        session_module.claim_pooled_engines()
+        disposable = MagicMock(dispose=AsyncMock())
+        with (
+            patch.object(session_module, "engine", disposable),
+            patch.object(session_module, "vector_engine", disposable),
+            patch.object(session_module, "agent_vector_engine", disposable),
+        ):
+            await session_module.close_db()
+
+        assert disposable.dispose.await_count == 3
+
+        assert session_module.on_the_pooled_loop() is False

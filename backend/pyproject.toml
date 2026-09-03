@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.346"
+version = "0.0.355"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -22,7 +22,7 @@ dependencies = [
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.4",
-    "pydantic[email]>=2.13.4",
+    "pydantic[email]>=2.13.5",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
     "logfire[fastapi,asyncpg,redis,httpx]>=4.41.0",
@@ -49,16 +49,16 @@ dependencies = [
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.3",
+    "prefect>=3.8.4",
     # The floor is `pydantic-ai-harness`'s, not ours - nothing here needs a
     # feature of any particular release, and stating it is what keeps a resolver
     # from picking a slim the harness cannot run on. Dependabot raises it to
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.33.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.35.3",
     "genai-prices>=0.1.4",
-    "pydantic-ai-slim[mcp]>=2.33.0",
+    "pydantic-ai-slim[mcp]>=2.35.3",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -66,7 +66,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.24.0",
+    "pydantic-ai-harness>=0.27.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -79,19 +79,19 @@ dependencies = [
     "pillow>=10.0.0",
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
-    "llama-cloud>=2.14.1",
-    "liteparse>=2.12.0",
+    "llama-cloud>=2.15.0",
+    "liteparse>=2.14.2",
     "google-api-python-client>=2.199.0",
-    "google-auth>=2.56.3",
-    "boto3>=1.43.78",
+    "google-auth>=2.57.0",
+    "boto3>=1.43.83",
     "httpx>=0.28.0",
-    "click>=8.1.0",
+    "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
     # `deptry` step reads `cli/` as well for exactly that reason.
     "tabulate>=0.9.0",
     "tqdm>=4.70.0",
-    "tavily-python>=0.7.27",
+    "tavily-python>=0.8.0",
     "pydantic-monty>=0.0.21",
     "pydantic-ai-skills>=1.4.0",
     # `console` for the toolset, `remote` for the sandboxd client. Deliberately
@@ -116,9 +116,21 @@ dependencies = [
     # surface `tool_retry_notice` cannot reach, because a `ToolReturnPart` is
     # stored whole (#819). The floor is 0.2.20.
     "subagents-pydantic-ai>=0.2.21",
-    "cryptography>=50.0.0",
-    "aiogram>=3.17,<4.0",
-    "slack-sdk>=3.35.0",
+    "cryptography>=50.0.1",
+    "aiogram>=3.31.0,<4.0",
+    "slack-sdk>=3.44.0",
+    # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
+    # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
+    # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
+    # a plain `slack-sdk` does not pull it. It resolved anyway, because something
+    # else in the tree happened to bring aiohttp; the day that goes, the import
+    # raises inside a `try/except ImportError` that turns it into a bot which
+    # quietly never starts rather than a build that fails.
+    # Not `slack-sdk[optional]`, which is a grab bag: aiodns, boto3, SQLAlchemy,
+    # websockets and websocket-client for one transport's HTTP client. And not
+    # `slack-sdk[socket-mode]`, which does not exist - the only extra is
+    # `optional`, so the advice in that ImportError's message was unfollowable.
+    "aiohttp>=3.13.5",
     # Cron schedules: the next fire after a given instant for a crontab
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
@@ -145,8 +157,8 @@ dev = [
     "anyio[trio]>=4.14.2",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.4",
-    "ty>=0.0.74",
+    "ruff>=0.16.5",
+    "ty>=0.0.75",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -167,6 +179,7 @@ dev = [
 # needs the runtime installed, and CI's lint job does not need mkdocs.
 docs = [
     "mkdocs>=1.6.0",
+    "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=1.0.6",
 ]
@@ -253,6 +266,7 @@ DEP002 = [
     "psycopg2-binary",  # selected by Alembic's bare `postgresql://` URL
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
+    "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does
 ]
 
 [tool.ruff]
@@ -524,6 +538,7 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     "app/services/agent_session.py",
     # The turn loop itself, shared by the dashboard chat and the embedded
     # widget since #634. One frame vocabulary for both sockets, and the sink a
@@ -547,6 +562,7 @@ include = [
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/repositories/collection_teardown.py",
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
@@ -575,6 +591,14 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
+    "app/services/speech_to_text.py",
+    "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
@@ -762,6 +786,7 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
     # every frame it accepts. It sat outside both gates while `use-chat.ts`
     # switched on its names, which is the drift #144 describes.
@@ -788,6 +813,7 @@ include = [
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/repositories/collection_teardown.py",
     # One visitor's turn on a public widget: who it runs as, how often they may
     # ask, and what the page is allowed to put in front of the model. An
     # unreachable `except BudgetExceeded` sat here for as long as it was
@@ -841,6 +867,14 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
+    "app/services/speech_to_text.py",
+    "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the

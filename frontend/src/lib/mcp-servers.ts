@@ -65,29 +65,25 @@ function normalizeUrl(url: string): string {
 }
 
 /**
- * The connection to *entry* among *connections*, or null if there is none.
+ * Every connection that points at one catalog entry, in order.
  *
- * Generic over the record so the caller gets back the type it passed in - the
- * organization's servers carry a `catalog_key` a personal one does not, and
- * widening them to the shared shape here would lose it at the one call site
- * that wants it.
+ * An organization may hold several - a Notion read-only, a Notion admin - and
+ * uniqueness is on the name rather than on the entry, so this is a supported
+ * shape rather than a mistake. Matching runs the same three ways as the
+ * singular version, and a connection matched by one is not matched again by the
+ * next.
  */
-function connectionForEntry<T extends McpConnectionRecord>(
+function connectionsForEntry<T extends McpConnectionRecord>(
   entry: McpCatalogEntry,
   connections: T[],
-): T | null {
-  // Recorded provenance beats any guess: the backend stored which entry this
-  // came from, and a URL that has since been edited must not un-match it.
-  const byKey = connections.find(
-    (connection) => "catalog_key" in connection && connection.catalog_key === entry.key,
+): T[] {
+  const target = entry.url === null ? null : normalizeUrl(entry.url);
+  return connections.filter(
+    (connection) =>
+      ("catalog_key" in connection && connection.catalog_key === entry.key) ||
+      (target !== null && normalizeUrl(connection.url) === target) ||
+      connection.name === entry.key,
   );
-  if (byKey) return byKey;
-  if (entry.url) {
-    const target = normalizeUrl(entry.url);
-    const byUrl = connections.find((connection) => normalizeUrl(connection.url) === target);
-    if (byUrl) return byUrl;
-  }
-  return connections.find((connection) => connection.name === entry.key) ?? null;
 }
 
 /** The catalog entry *connection* points at, or null for a server we do not list. */
@@ -144,14 +140,27 @@ export interface McpServerRow {
   tokenHint: string | null;
   /** The catalog entry this row is, or null for a custom server. */
   entry: McpCatalogEntry | null;
-  /** The organization's connection - the only kind an agent can be bound to. */
-  organization: OrgMcpConnectionRecord | null;
-  /** The caller's own connection, used by their assistant and nothing else. */
-  personal: McpConnectionRecord | null;
+  /**
+   * The organization's connections - the only kind an agent can be bound to.
+   *
+   * A list, because an organization may hold several accounts on one server: a
+   * read-only Notion and an admin one are two connections with two names, and
+   * the name is the tool prefix that tells them apart. One row per *server*
+   * with a list inside it, rather than a card per connection - two identical
+   * cards side by side read as a bug rather than as two accounts.
+   */
+  organizations: OrgMcpConnectionRecord[];
+  /** The caller's own, used by their assistant and nothing else. */
+  personals: McpConnectionRecord[];
 }
 
 /** Where custom servers sort, and what the heading over them says. */
 export const CUSTOM_CATEGORY = "custom";
+
+/** Whether this row is one somebody here vouched for. */
+export function isReviewed(row: McpServerRow): boolean {
+  return row.entry?.reviewed !== false;
+}
 
 /**
  * The catalog, with every connection folded onto the row it belongs to.
@@ -160,33 +169,121 @@ export const CUSTOM_CATEGORY = "custom";
  * "what you can connect" rather than "what happens to be in the database" -
  * which is the difference between a catalog and a dump.
  */
-export function mergeServers(
+/**
+ * The row one catalog entry makes, with nothing connected to it.
+ *
+ * Its own function because two callers need it and only one of them is
+ * merging: the Builder's connect dialog wants the row for a single entry, and
+ * taking `mergeServers(...)[0]` gave it a `McpServerRow | undefined` for a
+ * case that cannot happen.
+ */
+export function rowForEntry(entry: McpCatalogEntry): McpServerRow {
+  return {
+    key: entry.key,
+    name: entry.name,
+    description: entry.description,
+    descriptionKey: null,
+    category: entry.category,
+    auth: entry.auth,
+    url: entry.url,
+    docsUrl: entry.docs_url,
+    tokenHint: entry.token_hint,
+    entry,
+    organizations: [],
+    personals: [],
+  };
+}
+
+export function rowsForEntries(
+  entries: McpCatalogEntry[],
+  organization: OrgMcpConnectionRecord[],
+  personal: McpConnectionRecord[],
+): McpServerRow[] {
+  // One row per server, holding every connection to it. An entry with three
+  // organization accounts is one card listing three, not three cards that
+  // differ in nothing a reader can see - the extras used to fall through as
+  // "custom" servers, which is where a second account went to be mislabelled.
+  return entries.map((entry) => ({
+    ...rowForEntry(entry),
+    organizations: connectionsForEntry(entry, organization),
+    personals: connectionsForEntry(entry, personal),
+  }));
+}
+
+/**
+ * Connections that match no catalog entry, as their own rows.
+ *
+ * **`catalog` has to be the whole catalog, not a page of it.** Whether a
+ * connection is "not in the catalog" is a question about every entry, so asking
+ * it of a page answers "yes" for a connection whose entry is on a different
+ * page - and the Notion connection then appeared as an uncatalogued server at the
+ * foot of every page, five times over, until a search for "notion" brought the
+ * entry onto the page and it merged again.
+ */
+/**
+ * The custom rows a search and a category filter leave standing.
+ *
+ * They are appended to the last page rather than fetched with it, so the
+ * server's `query` and `category` never reached them: searching for an
+ * unrelated server still listed every custom connection, and picking a curated
+ * category listed rows whose category is `custom`. Applied here, before the row
+ * count the page control divides by, so the count and the page agree.
+ *
+ * A custom row has a name and a URL and no description, so those two are what a
+ * query can match - the same fields somebody typing a search would expect.
+ */
+/**
+ * What a tool picker's state means as an allowlist: a list, or unrestricted.
+ *
+ * Null means "no narrowing from here", so tools the server adds later flow
+ * through instead of silently staying off. It is only honest to write when the
+ * catalogue on screen was a real probe.
+ *
+ * `probed` is the whole reason this is a function. A connection nothing has
+ * probed has no catalogue, so the picker falls back to displaying the names the
+ * binding already holds - and then "everything is checked" is true by
+ * construction. Saving without touching anything rewrote a reviewed subset to
+ * unrestricted, quietly handing the agent every tool the connection permits,
+ * including write and destructive ones added since.
+ */
+export function narrowedSelection(
+  checked: Set<string>,
+  tools: readonly { name: string }[],
+  probed: boolean,
+): string[] | null {
+  if (probed && checked.size === tools.length) return null;
+  return [...checked];
+}
+
+export function matchingCustomRows(
+  rows: McpServerRow[],
+  query: string,
+  category: string,
+): McpServerRow[] {
+  const needle = query.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (category && category !== CUSTOM_CATEGORY) return false;
+    if (!needle) return true;
+    return (
+      row.name.toLowerCase().includes(needle) || (row.url ?? "").toLowerCase().includes(needle)
+    );
+  });
+}
+
+export function customRows(
   catalog: McpCatalogEntry[],
   organization: OrgMcpConnectionRecord[],
   personal: McpConnectionRecord[],
 ): McpServerRow[] {
   const claimed = new Set<string>();
-
-  const rows: McpServerRow[] = catalog.map((entry) => {
-    const org = connectionForEntry(entry, organization);
-    const own = connectionForEntry(entry, personal);
-    if (org) claimed.add(org.id);
-    if (own) claimed.add(own.id);
-    return {
-      key: entry.key,
-      name: entry.name,
-      description: entry.description,
-      descriptionKey: null,
-      category: entry.category,
-      auth: entry.auth,
-      url: entry.url,
-      docsUrl: entry.docs_url,
-      tokenHint: entry.token_hint,
-      entry,
-      organization: org,
-      personal: own,
-    };
-  });
+  for (const entry of catalog) {
+    for (const connection of [
+      ...connectionsForEntry(entry, organization),
+      ...connectionsForEntry(entry, personal),
+    ]) {
+      claimed.add(connection.id);
+    }
+  }
 
   const custom = (connection: McpConnectionRecord, isOrg: boolean): McpServerRow => ({
     key: connection.id,
@@ -199,13 +296,30 @@ export function mergeServers(
     docsUrl: null,
     tokenHint: null,
     entry: null,
-    organization: isOrg ? (connection as OrgMcpConnectionRecord) : null,
-    personal: isOrg ? null : connection,
+    organizations: isOrg ? [connection as OrgMcpConnectionRecord] : [],
+    personals: isOrg ? [] : [connection],
   });
 
   return [
-    ...rows,
     ...organization.filter((c) => !claimed.has(c.id)).map((c) => custom(c, true)),
     ...personal.filter((c) => !claimed.has(c.id)).map((c) => custom(c, false)),
+  ];
+}
+
+/**
+ * The whole catalog with every connection folded onto the row it belongs to.
+ *
+ * For a caller holding the entire catalog. The paged list cannot use this: it
+ * has one page of entries, and `customRows` needs all of them to decide what is
+ * uncatalogued.
+ */
+export function mergeServers(
+  catalog: McpCatalogEntry[],
+  organization: OrgMcpConnectionRecord[],
+  personal: McpConnectionRecord[],
+): McpServerRow[] {
+  return [
+    ...rowsForEntries(catalog, organization, personal),
+    ...customRows(catalog, organization, personal),
   ];
 }

@@ -1783,9 +1783,7 @@
     "existingConnectionCannotChange": "Istniejące połączenie nie może zmienić właściciela.",
     "failedLoadConnections": "Nie udało się wczytać połączeń",
     "failedLoadOrgServers": "Nie udało się wczytać serwerów MCP organizacji",
-    "finishSign": "Dokończ logowanie",
     "github": "github",
-    "manageNamed": "Zarządzaj ({name})",
     "name": "Nazwa",
     "nameMustBeLowercase": "Nazwa może zawierać małe litery, cyfry i myślniki (maks. 32 znaki).",
     "namePrefixesToolNames": "Małe litery, cyfry i myślniki. Nazwa poprzedza nazwy narzędzi serwera, więc musi być unikalna {scope, select, organization {wśród serwerów organizacji} other {wśród Twoich serwerów}}.",
@@ -1812,7 +1810,6 @@
     "settings": "Ustawienia",
     "stateDisabled": "Wyłączone",
     "storedEncryptedNeverShown": "Zapisane w postaci zaszyfrowanej i nigdy więcej niepokazywane.",
-    "toggleNamed": "Przełącz {name}",
     "toolSelectionSaved": "Wybór narzędzi zapisany.",
     "toolsFrom": "Narzędzia z „{name}”",
     "unreachable": "Nieosiągalny",
@@ -1820,7 +1817,20 @@
     "useServiceCredentialNot": "Użyj poświadczenia serwisowego, nie własnego — z nim działa każdy agent związany z tym serwerem. Zapieczętowane dla tej organizacji i nigdy więcej niepokazywane.",
     "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem — wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}",
     "whoeverSignsGrantsIf": "Zgody udziela ten, kto się loguje. Jeśli jego dostęp u providera zostanie cofnięty, serwer przestanie działać dla wszystkich agentów, dopóki ktoś nie zaloguje się ponownie — dlatego użyj konta, które kontroluje organizacja.",
-    "yoursAloneYourOwn": "Tylko Twoje, w Twoim własnym czacie. Żaden agent nie może go związać."
+    "yoursAloneYourOwn": "Tylko Twoje, w Twoim własnym czacie. Żaden agent nie może go związać.",
+    "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj — serwer pojawi się na liście po autoryzacji.",
+    "connectAnother": "Podłącz kolejne",
+    "accountsOnThisServer": "Każde konto podłączone do tego serwera i gdzie może być użyte.",
+    "theOrganizations": "Organizacji",
+    "yours": "Twoje",
+    "boundByAgents": "Jedyny rodzaj, który można związać z agentem.",
+    "yourChatAndDirectMessages": "Tylko twoje — twój czat i twoje prywatne wiadomości w kanale.",
+    "noneHere": "Jeszcze żadnego.",
+    "authorize": "Autoryzuj",
+    "tools": "Narzędzia",
+    "edit": "Edytuj",
+    "connectionCount": "{count, plural, one {1 połączenie} few {# połączenia} many {# połączeń} other {# połączeń}}",
+    "manageConnectionsOn": "Zarządzaj połączeniami do {name}"
   },
   "skills": {
     "addFile": "Dodaj plik",
@@ -1892,7 +1902,30 @@
     "showWhatChangedIn": "Pokaż, co zmieniło się w {name}",
     "sizeUploadsWhenCreated": "{size} · zostanie przesłany przy tworzeniu skilla",
     "support": "support",
-    "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go"
+    "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go",
+    "gallery": {
+      "browse": "Galeria skills",
+      "title": "Galeria skills",
+      "description": "Gotowe skills według branży. Instalacja kopiuje jeden do twojej organizacji, gdzie możesz go edytować.",
+      "industryHint": "Zainstaluj jeden albo całą półkę. Skill, który już masz, zostaje dokładnie taki, jaki jest.",
+      "back": "Wszystkie branże",
+      "install": "Zainstaluj",
+      "installAll": "{count, plural, =0 {Wszystkie zainstalowane} one {Zainstaluj 1 skill} few {Zainstaluj wszystkie # skille} many {Zainstaluj wszystkie # skilli} other {Zainstaluj wszystkie # skilli}}",
+      "alreadyInstalled": "Zainstalowany",
+      "allInstalled": "Wszystkie zainstalowane",
+      "available": "{count, plural, one {1 skill} few {# skille} many {# skilli} other {# skilli}}",
+      "installed": "{count, plural, one {Zainstalowano 1 skill} few {Zainstalowano # skille} many {Zainstalowano # skilli} other {Zainstalowano # skilli}}",
+      "allPresent": "{count, plural, one {Ten skill już masz} other {Masz już wszystkie # skilli}}",
+      "industry": {
+        "healthcare": "Ochrona zdrowia",
+        "finance": "Finanse i ubezpieczenia",
+        "ecommerce": "E-commerce i print on demand",
+        "software": "Zespoły software'owe",
+        "public-sector": "Sektor publiczny i utilities",
+        "legal": "Prawo i doradztwo",
+        "manufacturing": "Produkcja i logistyka"
+      }
+    }
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -2771,5 +2804,39 @@
     "yourBackendSignsToken": "Twój backend podpisuje token, który weryfikujemy",
     "zoom": "Powiększ",
     "zoomOut": "Pomniejsz"
+  },
+  "steps": {
+    "skills-gallery": {
+      "title": "Zacznij od galerii",
+      "body": "Siedemdziesiąt gotowych skills pogrupowanych branżami. Zainstaluj jeden albo całą półkę, a potem edytuj jak każdy inny."
+    },
+    "agents-templates": {
+      "title": "Zacznij od szablonu",
+      "body": "Dwadzieścia osiem gotowych agentów według branży. Instalacja tworzy draft z już podpiętymi skillami."
+    }
+  },
+  "agentTemplates": {
+    "browse": "Szablony agentów",
+    "title": "Szablony agentów",
+    "description": "Gotowi agenci według branży. Instalacja tworzy draft, którego kończysz i publikujesz.",
+    "industryHint": "Każdy przychodzi jako draft: wybierz model, podłącz czego potrzebuje, potem opublikuj.",
+    "back": "Wszystkie branże",
+    "use": "Użyj tego",
+    "alreadyInstalled": "Zainstalowany",
+    "count": "{count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agentów}}",
+    "budget": "{amount} USD / miesiąc",
+    "bringsSkills": "{count, plural, one {Instaluje z nim 1 skill} few {Instaluje z nim # skille} many {Instaluje z nim # skilli} other {Instaluje z nim # skilli}}",
+    "needsAttaching": "Musisz jeszcze podłączyć: {what}",
+    "suggestsMcp": "Dobrze działa z: {servers}",
+    "installed": "{name} utworzony jako draft — wybierz model, potem opublikuj",
+    "industry": {
+      "healthcare": "Ochrona zdrowia",
+      "finance": "Finanse i ubezpieczenia",
+      "ecommerce": "E-commerce i print on demand",
+      "software": "Zespoły software'owe",
+      "public-sector": "Sektor publiczny i utilities",
+      "legal": "Prawo i doradztwo",
+      "manufacturing": "Produkcja i logistyka"
+    }
   }
 }

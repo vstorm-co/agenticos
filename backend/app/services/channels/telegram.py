@@ -15,6 +15,7 @@ from aiogram.types import Message as AiogramMessage
 
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
 from app.db.session import get_db_context
+from app.services.channels import connection_state
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
@@ -271,6 +272,11 @@ class TelegramAdapter(ChannelAdapter):
                 break
             except Exception:
                 logger.exception("Telegram polling crashed for bot %s, restarting in 5s", bot_id)
+                await connection_state.record_down(
+                    bot_id,
+                    "Telegram polling keeps failing. Check the bot token, and "
+                    "whether a webhook is registered - Telegram will not do both.",
+                )
                 await asyncio.sleep(5)
 
     async def _run_polling_once(self, bot_id: str, bot_token: str) -> None:
@@ -284,6 +290,7 @@ class TelegramAdapter(ChannelAdapter):
             async def on_message(message: AiogramMessage) -> None:
                 await self._handle_update(message, bot_id)
 
+            await connection_state.record_up(bot_id)
             await dp.start_polling(bot, handle_signals=False)
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
@@ -365,6 +372,7 @@ class TelegramAdapter(ChannelAdapter):
             platform="telegram",
             bot_id=bot_id,
             platform_user_id=platform_user_id,
+            one_to_one=chat_type == "private",
             platform_chat_id=platform_chat_id,
             chat_type=chat_type,
             text=text,

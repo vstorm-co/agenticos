@@ -76,8 +76,12 @@ function wrapper({ children }: { children: ReactNode }) {
 /** One page of `shown` rows out of `total` waiting. */
 function serve(shown: number, total: number) {
   vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
-    // The decided record asks /approvals with params; the queue asks bare.
-    if (path === "/approvals" && (options as { params?: unknown } | undefined)?.params) {
+    // The decided record asks with an array of pairs (`status` repeats);
+    // the queue asks with a `skip` since it became server-paged (#1336).
+    if (
+      path === "/approvals" &&
+      Array.isArray((options as { params?: unknown } | undefined)?.params)
+    ) {
       return Promise.resolve({ items: [], total: 0 });
     }
     if (path === "/spend") return Promise.resolve(EMPTY_SPEND);
@@ -134,16 +138,17 @@ describe("the count of calls waiting on a person", () => {
     );
   });
 
-  it("says the queue below it is one page of that total", async () => {
-    // Otherwise a badge reading 120 sits over two cards with nothing explaining
-    // the gap, and the reading available to whoever is working down the queue is
-    // that a hundred and eighteen calls went missing.
+  it("offers the rest of the queue rather than explaining why it is missing", async () => {
+    // A badge reading 120 over two rows used to carry a line saying so, which
+    // left the newest request - the one an alert is about - unreachable until
+    // enough older calls were decided. The pager is the way to it (#1336).
     serve(2, 120);
 
     render(<RunsPage />, { wrapper });
     await openApprovals();
 
-    expect(await screen.findByText(/Showing the oldest 2 of 120 waiting/)).toBeVisible();
+    expect(await screen.findByRole("button", { name: /Next page/ })).toBeVisible();
+    expect(screen.queryByText(/Showing the oldest/)).toBeNull();
   });
 
   it("says nothing about paging when the page is the whole queue", async () => {

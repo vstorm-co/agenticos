@@ -8,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import (
+    collection_teardown_repo,
     knowledge_base_repo,
     organization_secret_repo,
     rag_document_repo,
@@ -201,19 +203,43 @@ class KnowledgeBaseService:
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
-        """Delete the KB row a dropped collection belonged to.
+        """Delete the KB row a dropped collection belonged to, and drop its table.
 
         Keeps the KB table in sync when a collection is dropped via
-        `DELETE /rag/collections/{name}`. A default KB is left intact so the
-        org keeps a usable knowledge base.
+        `DELETE /rag/collections/{name}`. A default KB is left intact so the org
+        keeps a usable knowledge base - and its row then still references the name,
+        so the table is kept too. Clearing a kept default's vectors is #1364, not
+        this: an upload authorises through that row and would race the drop.
 
         Takes the row rather than the name: the caller has already resolved
         which knowledge base it is allowed to act on, and looking the name up
         again would find whichever row the database returned first - possibly
         another organization's, where two of them share a collection name.
+
+        The vector table is dropped by the durable cleanup handed over after the
+        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), not in the
+        request. In-request the /rag route's drop stranded a rolled-back delete on a
+        dropped table, lost it to a worker restart, dropped a table a second base
+        still referenced, and raced a concurrent claim of the name (#1347, #1349,
+        #1355, #913). The name is held against a claim while the reference check and
+        the reservation are made, and reserved until the drop runs, so a create
+        cannot slip a new base onto the name and have this drop destroy its table
+        (#1362).
         """
+        collection = kb.collection_name
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+        if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+            await collection_teardown_repo.reserve(self.db, collection)
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup([], [collection]),
+                name="drop-rag-collection",
+            )
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""
@@ -496,6 +522,14 @@ class KnowledgeBaseService:
         if kb.is_default:
             raise BadRequestError(message="Cannot delete the default knowledge base")
         collection = kb.collection_name
+        # And the *name* before the base, because the drop below is decided by
+        # counting the bases that still claim it. `collection_name` is not
+        # tenant-unique (#913), so two teardowns of two bases sharing one name
+        # each saw the other's not-yet-committed row under READ COMMITTED, both
+        # took the "still referenced" branch, and the table nobody referenced was
+        # left behind (#1273). Held for the transaction, so the second teardown
+        # reads the first one's committed absence.
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         # Lock the base before enumerating its documents, so a concurrent upload
         # or sync inserting a row cannot slip in between the enumeration and the
         # base delete and survive detached under `ON DELETE SET NULL` (#1266).
@@ -503,6 +537,10 @@ class KnowledgeBaseService:
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
         collections_to_drop: list[str] = []
+        # Hold the name against a concurrent claim while the last-reference check and
+        # the reservation are made, so a create cannot slip a new base onto the name
+        # between them and have the deferred drop destroy its table (#1362).
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it
@@ -512,6 +550,9 @@ class KnowledgeBaseService:
             for source in await sync_source_repo.get_all(self.db, collection_name=collection):
                 await sync_source_repo.update(self.db, source.id, is_active=False)
             collections_to_drop = [collection]
+            # Reserve the name against reuse until the deferred drop runs, so a
+            # concurrent claim cannot adopt the still-populated table (#1362).
+            await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or collections_to_drop:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup

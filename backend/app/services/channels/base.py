@@ -90,6 +90,43 @@ def split_thread(platform_chat_id: str) -> tuple[str, str]:
     return channel, thread
 
 
+def thread_key(channel_id: str, *, thread_id: str, message_id: str | None) -> str:
+    """The id a message's conversation is keyed on, threads included.
+
+    **A thread is a conversation, wherever the thread is.** A message already in
+    one keys on it; a message that is not yet in one keys on *itself*, because
+    that is where the reply's thread will be rooted. Keyed on the bare channel
+    the two would be different conversations, so the agent would answer a
+    question and then, one message later in the thread it had just opened, have
+    no memory of it - and every unrelated mention in that channel would pile
+    into one conversation besides (#1339).
+
+    That now holds in a **direct message** too, where the chat used to be the
+    unit. One continuous conversation is the wrong default on a platform with
+    threads: a DM never rolls over, so it walks past the context window in days
+    and every turn pays for the whole history. Threading makes each question its
+    own conversation, which is a per-topic context rather than one that has to
+    be trimmed - and the cost is real and worth stating: a new message typed at
+    the bottom of a DM starts fresh, so continuing means replying **inside the
+    thread**. Conversations from before are not migrated; they stop being
+    reached, and nothing in them is lost.
+
+    A platform that identifies no message keys on the chat, which is what
+    Telegram's ordinary chats would need - better one conversation per chat than
+    one per unidentifiable turn - though Telegram has no threads and does not
+    come through here at all.
+
+    This is the only place that decides, and the adapters read the thread back
+    out of the id with :func:`split_thread`. Two mechanisms - an id here and a
+    `reply_to_message_id` fallback in each adapter - is what let them disagree.
+    """
+    if thread_id:
+        return f"{channel_id}:{thread_id}"
+    if not message_id:
+        return channel_id
+    return f"{channel_id}:{message_id}"
+
+
 @dataclass(frozen=True)
 class IncomingAttachment:
     """A file somebody sent a bot, before it has been fetched.
@@ -138,6 +175,16 @@ class IncomingMessage:
     raw: dict[str, Any] = field(default_factory=dict)
     platform_username: str | None = None
     platform_display_name: str | None = None
+    one_to_one: bool = False
+    """Whether this chat holds exactly this person and the bot, and nobody else.
+
+    Deliberately not `chat_type == "private"`. Slack reports a multi-person
+    direct message as `im`-like and Mattermost has group channels of the same
+    shape, so `chat_type` answers "is this off-channel", which is a different
+    question. This one gates speaking through a member's own MCP account, and a
+    second reader in the room is exactly what must not happen - so each adapter
+    sets it from the one channel kind it knows holds one person.
+    """
     message_id: str | None = None
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.
@@ -147,10 +194,12 @@ class IncomingMessage:
     somebody asks it, while `None` leaves the behaviour a bot had before - answer
     whatever arrives, because what arrives is what that platform chose to deliver.
 
-    Only Mattermost sets it today, and it is the surface the difference was
-    reported on: its socket delivers *every* post in every channel the bot is in,
-    so a default agent answering all of them is a bot that talks over a team
-    (agenticos#634). Slack and Telegram deliver on their own subscription rules.
+    Mattermost and Slack both set it, and both for the same reason: each can be
+    handed every message in every channel the bot is in - Mattermost's socket
+    always is, and a Slack app subscribed to `message.channels` is - so a default
+    agent answering all of them is a bot that talks over a team it was invited
+    to (agenticos#634 on Mattermost, and the same defect on Slack). Telegram
+    delivers on its own subscription rules and leaves this unset.
     """
 
     attachments: list[IncomingAttachment] = field(default_factory=list)
@@ -322,9 +371,23 @@ class ChannelAdapter(ABC):
         raise ChannelDirectoryUnsupported(f"{self.platform} has no channel search for a bot.")
 
     async def channel_history(
-        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None = None,
     ) -> list[ChannelPost]:
-        """The last `limit` messages in one channel, newest last.
+        """The last `limit` messages in one conversation, newest last.
+
+        `thread_id` is the conversation the agent is actually in. On a platform
+        with threads the channel and the thread are different transcripts, and
+        the agent answering inside a thread was being handed the *channel's* -
+        so "summarise what we decided above" summarised whatever else the room
+        had been saying. An adapter that supports threads reads the thread when
+        it is given one; `None` is the channel, which is what a top-level
+        message is in.
 
         Raises:
             ChannelDirectoryUnsupported: If this platform does not let a bot read
@@ -332,6 +395,36 @@ class ChannelAdapter(ABC):
         """
         raise ChannelDirectoryUnsupported(
             f"{self.platform} does not let a bot read a channel's history."
+        )
+
+    async def thread_attachments(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        thread_id: str,
+        api_base_url: str | None,
+        limit: int,
+    ) -> list[IncomingAttachment]:
+        """Files posted in a thread before we were brought into it, as handles.
+
+        Separate from `channel_history` rather than carried on `ChannelPost`,
+        because of the layering: `ChannelPost` is the *capability's* contract and
+        lives in `app/agents/capabilities/channel_tools`, which this module
+        imports from - so a handle, which is transport, cannot hang off it
+        without inverting that. One method here answers with the transport type
+        and nothing has to move.
+
+        Handles, not bytes, like `IncomingAttachment` everywhere else: fetching
+        belongs to `ChannelAttachmentService`, which validates the size and
+        stores the row.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform has no threads, or does
+                not let a bot read messages it was not sent.
+        """
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} does not let a bot read a thread's files."
         )
 
     @abstractmethod

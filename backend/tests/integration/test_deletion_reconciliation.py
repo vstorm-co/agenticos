@@ -13,9 +13,10 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select, text
@@ -30,7 +31,11 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
-from app.repositories import knowledge_base_repo
+from app.repositories import (
+    knowledge_base_repo,
+    member_repo,
+    user_repo,
+)
 from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
@@ -43,12 +48,17 @@ pytestmark = pytest.mark.anyio
 def _route_purge_dispatch_to_impl(monkeypatch: pytest.MonkeyPatch) -> None:
     """Run the org-purge cleanup in-process instead of submitting it to Prefect.
 
-    `OrganizationService.purge` now hands its external cleanup to a durable
-    Prefect deployment run (#1274); with no runner behind the test, `run_deployment`
+    `OrganizationService.purge` hands its external cleanup to a durable Prefect
+    deployment run (#1274); with no runner behind the test, `run_deployment`
     would fail on an unregistered deployment. Routing that submission straight to
     the cleanup it would have run keeps these tests exercising the real drop and
-    unlink through the commit/rollback gate that defers them - the submission fires
-    only after a committed teardown, so a rolled-back one still runs nothing.
+    unlink through the commit/rollback gate that defers them - the submission
+    fires only after a committed teardown, so a rolled-back one still runs
+    nothing.
+
+    The parameter is an intent id, so this reads the row the purge committed and
+    deletes it afterwards - which is what the flow does, and what makes these
+    tests exercise the outbox rather than route around it (#1269).
     """
     from app.worker.tasks import teardown_tasks
 
@@ -259,6 +269,11 @@ class TestDeletingAUser:
         async with factory() as s:
             await UserService(s, vector_store=store).delete(user_id)
             await s.commit()
+            # The personal-collection teardown is now deferred like the org purge's
+            # (#1359): a real request starts it from `_managed_session` after the
+            # commit; a raw session starts it here, then drains the run.
+            start_deferred(s)
+        await drain()
 
         async with factory() as s:
             assert await s.get(KnowledgeBase, kb_id) is None
@@ -523,12 +538,25 @@ class TestDeletingAnOrg:
         assert storage.get_full_path(stored_path) is not None
         await storage.delete(stored_path)
 
-    async def test_a_recreated_collection_survives_the_deferred_drop(
+    async def test_a_reclaim_during_the_deferred_drop_is_refused_until_it_finishes(
         self, engine: AsyncEngine
     ) -> None:
-        """The drop runs after the commit that frees the collection name, so a
-        second org can reclaim it before the cleanup fires; the deferred cleanup
-        re-checks references and leaves the new tenant's table in place (#1137)."""
+        """The drop runs after the commit that frees the name, so between the two the
+        name is reserved (#1362): a second org's claim is refused rather than adopting
+        the victim's still-populated table, and once the cleanup drops it and releases
+        the name a fresh claim succeeds against a table that is gone."""
+        from app.core.exceptions import AlreadyExistsError
+        from app.core.permissions import AuthContext, OrgRoleName
+        from app.services.collection_access import CollectionAccessService
+
+        def _ctx(user_id: uuid.UUID, org_id: uuid.UUID) -> AuthContext:
+            return AuthContext(
+                user_id=user_id,
+                organization_id=org_id,
+                role=OrgRoleName.OWNER.value,
+                is_app_admin=False,
+            )
+
         store = PgVectorStore(
             settings=app_settings.rag,
             embedding_service=MagicMock(),
@@ -552,21 +580,30 @@ class TestDeletingAnOrg:
             org = await s.get(Organization, org_id)
             await OrganizationService(s, vector_store=store).purge(org)
             await s.commit()
-            # A second org claims the freed name before the deferred cleanup runs.
+            # The name is reserved until the drop runs, so a second org's claim of it
+            # in the window is refused - it cannot adopt the lingering populated table.
             async with factory() as claimant:
                 other = _user()
                 claimant.add(other)
                 await claimant.flush()
                 other_org = await _org(claimant, other)
-                claimant.add(_org_collection(other_org.id, collection))
-                await claimant.commit()
+                with pytest.raises(AlreadyExistsError):
+                    await CollectionAccessService(claimant).claim(
+                        _ctx(other.id, other_org.id), collection
+                    )
+                await claimant.rollback()
             start_deferred(s)
         await drain()
 
+        # The cleanup dropped the table and released the name, so it is now claimable
+        # afresh against a table that no longer holds the first org's chunks.
         async with factory() as s:
-            assert (
-                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
-            ).scalar() is not None
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+            user2 = _user()
+            s.add(user2)
+            await s.flush()
+            org2 = await _org(s, user2)
+            await CollectionAccessService(s).claim(_ctx(user2.id, org2.id), collection)
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
@@ -611,6 +648,15 @@ class TestDeletingAnOrg:
             assert surviving.organization_id is None
 
 
+_RENDEZVOUS_SECONDS = 1.0
+"""How long one request waits for the other to take a user lock before carrying on.
+
+Long enough that two live transactions always meet inside it - pre-fix they meet
+in milliseconds - and short enough that the post-fix path, where only one ever
+arrives, pays it once and the suite does not notice.
+"""
+
+
 class TestConcurrentSelfDeletes:
     async def test_mutual_co_owners_deleting_at_once_never_deadlock(
         self, engine: AsyncEngine
@@ -643,13 +689,44 @@ class TestConcurrentSelfDeletes:
             await setup.commit()
             a_id, b_id = a.id, b.id
 
+        # Without this the test passes against the code it exists to fail
+        # against: `gather` alone gives no guarantee both transactions reach the
+        # conflicting sequence, and the pre-fix implementation answers one
+        # success and one refusal too - measured, five runs out of five (#1268).
+        #
+        # A plain `Barrier` cannot express it, because the fix's whole purpose is
+        # that one side *does not arrive*: ordering ascending, the request whose
+        # own id is the higher blocks on the lower id before reaching its own
+        # lock. So this is a rendezvous with a deadline. Each request pauses
+        # after taking a user lock until the other has taken one too, or until
+        # the deadline passes. Pre-fix both arrive in milliseconds, both then
+        # hold their own row and reach for the other's, and Postgres aborts one
+        # with a 40P01. Post-fix only one arrives, waits out the deadline once
+        # and completes; the second is queued in the database, not deadlocked.
+        both_hold_one = asyncio.Event()
+        arrivals = 0
+        real_lock = user_repo.get_by_id_for_update
+
+        async def locking(db: Any, uid: uuid.UUID) -> Any:
+            nonlocal arrivals
+            locked = await real_lock(db, uid)
+            arrivals += 1
+            if arrivals >= 2:
+                both_hold_one.set()
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(both_hold_one.wait(), _RENDEZVOUS_SECONDS)
+            return locked
+
         async def run_delete(user_id: uuid.UUID) -> object:
             async with factory() as session:
                 user = await UserService(session).delete(user_id)
                 await session.commit()
                 return user
 
-        results = await asyncio.gather(run_delete(a_id), run_delete(b_id), return_exceptions=True)
+        with patch.object(user_repo, "get_by_id_for_update", locking):
+            results = await asyncio.gather(
+                run_delete(a_id), run_delete(b_id), return_exceptions=True
+            )
 
         for result in results:
             assert not isinstance(result, (OperationalError, DBAPIError)), result
@@ -663,3 +740,83 @@ class TestConcurrentSelfDeletes:
             assert await check.get(User, deleted[0].id) is None
             survivor = a_id if deleted[0].id == b_id else b_id
             assert await check.get(User, survivor) is not None
+
+    async def test_an_heir_named_after_the_locks_were_taken_is_refused(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Memberships are not locked, so the two heir reads can disagree.
+
+        `_lock_for_delete` discovers heirs without a lock and locks them;
+        `_release_owned_rows` re-reads authoritatively. An owner promoted between
+        the two names an heir whose row was never locked, and `reassign_creator`
+        would take their FK lock outside the ascending sequence - the cycle
+        #1134 closed, by another door. Refusing is safe and the caller retries
+        (#1268).
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as setup:
+            owner, first_heir, latecomer = _user(), _user(), _user()
+            setup.add_all([owner, first_heir, latecomer])
+            await setup.flush()
+            org = await _org(setup, owner)
+            await _member(setup, org.id, first_heir.id, "owner")
+            await setup.commit()
+            owner_id, latecomer_id = owner.id, latecomer.id
+
+        # The second read answers somebody the lock pass never saw. Patched at
+        # the boundary rather than raced, because the interleaving is the
+        # premise here and not the thing under test.
+        real = member_repo.other_owner_id
+        calls = 0
+
+        async def moving_target(db: Any, **kwargs: Any) -> uuid.UUID | None:
+            nonlocal calls
+            calls += 1
+            return await real(db, **kwargs) if calls == 1 else latecomer_id
+
+        async with factory() as session:
+            with patch.object(member_repo, "other_owner_id", moving_target):
+                with pytest.raises(BadRequestError) as refused:
+                    await UserService(session).delete(owner_id)
+
+        assert "changed while" in refused.value.message
+
+        async with factory() as check:
+            assert await check.get(User, owner_id) is not None
+
+    async def test_a_delete_does_not_block_an_ordinary_write_against_its_heir(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The heir lock is `FOR NO KEY UPDATE`, and that is load-bearing.
+
+        `FOR UPDATE` conflicts with the `FOR KEY SHARE` any foreign-key write
+        takes - a channel identity relinked to the heir, say - so ordering the
+        locks with the strongest mode would have traded one deadlock for a
+        conflict class that did not exist before (#1268). This holds an FK lock
+        on the heir open across the delete and asserts neither side errors.
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as setup:
+            owner, heir = _user(), _user()
+            setup.add_all([owner, heir])
+            await setup.flush()
+            org = await _org(setup, owner)
+            await _member(setup, org.id, heir.id, "owner")
+            await setup.commit()
+            owner_id, heir_id = owner.id, heir.id
+
+        async with factory() as holder:
+            # What an FK write against the heir takes, and nothing stronger.
+            await holder.execute(
+                text("SELECT 1 FROM users WHERE id = :id FOR KEY SHARE"), {"id": heir_id}
+            )
+
+            async with factory() as session:
+                deleted = await UserService(session).delete(owner_id)
+                await session.commit()
+
+            await holder.commit()
+
+        assert deleted.id == owner_id
