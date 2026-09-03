@@ -332,6 +332,24 @@ describe("useChat - the streamed answer", () => {
     });
   });
 
+  it("refreshes the Memory tab when the agent finishes writing memory", () => {
+    // The Memory tab is a separate view the chat cannot see; a write in chat must
+    // invalidate that agent's memory queries so the tab refetches rather than
+    // showing a stale list.
+    useAgentSelectionStore.setState({ selectedAgentId: "agent-1" });
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => {
+      void result.current.sendMessage("remember it");
+    });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-m", tool_name: "write_memory", args: {} });
+    receive("tool_result", { tool_call_id: "tc-m", content: "Saved memory 'x'." });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.memory.all("agent-1") });
+    invalidate.mockRestore();
+  });
+
   it("ignores a tool frame with no message open", () => {
     renderHook(() => useChat(), { wrapper });
 
