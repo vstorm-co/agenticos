@@ -30,6 +30,7 @@ from app.db.updates import writable
 from app.repositories import agent_repo, member_repo, memory_repo
 from app.repositories.memory import MemorySort
 from app.schemas.memory import (
+    AgentMemoryFactCreate,
     AgentMemoryFactList,
     AgentMemoryFactRead,
     AgentMemoryFileCreate,
@@ -39,6 +40,7 @@ from app.schemas.memory import (
     MemoryOriginLiteral,
 )
 from app.services.access import AGENT, resolve_access
+from app.services.memory._native import embed_operator_fact
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +285,51 @@ class MemoryService:
             action="memory.file.deleted",
             target_type="memory",
             target_id=str(file_id),
+        )
+
+    async def create_fact(
+        self, ctx: AuthContext, data: AgentMemoryFactCreate
+    ) -> AgentMemoryFactRead:
+        """Seed a fact an operator authored, embedded server-side.
+
+        The tier decides the permission the same way file create does: the shared
+        store or another person's personal store is an operator act (`AGENTS_EDIT`),
+        one's own personal store needs only `AGENTS_VIEW`. Facts carry no `origin` -
+        they are never injected, so the human-vs-agent trust tier files turn on does
+        not apply here; an operator fact is simply another fact `recall` can find.
+        The embedding is unmetered (`embed_operator_fact`): there is no run to book
+        it against, so it is a deployment cost, not a budget charge.
+        """
+        own_key = f"user:{ctx.user_id}" if ctx.user_id is not None else None
+        creating_own_personal = (
+            data.end_user_scope_key is not None and data.end_user_scope_key == own_key
+        )
+        perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
+        await self._agent_or_404(ctx, data.agent_id, perm=perm)
+        embedding = await embed_operator_fact(data.content)
+        fact_id, created_at = await memory_repo.create_fact(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=data.agent_id,
+            end_user_scope_key=data.end_user_scope_key,
+            content=data.content,
+            embedding=embedding,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.fact.created",
+            target_type="memory",
+            target_id=str(fact_id),
+            details={"agent_id": str(data.agent_id)},
+        )
+        return AgentMemoryFactRead(
+            id=fact_id,
+            agent_id=data.agent_id,
+            content=data.content,
+            end_user_scope_key=data.end_user_scope_key,
+            created_at=created_at,
         )
 
     async def _fact_or_404(self, ctx: AuthContext, fact_id: UUID, *, perm: Perm) -> AgentMemoryFact:

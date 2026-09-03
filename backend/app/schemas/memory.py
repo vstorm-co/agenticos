@@ -97,6 +97,28 @@ class AgentMemoryFileUpdate(BaseSchema):
     kind: str | None = Field(default=None, min_length=1, max_length=32)
 
 
+class AgentMemoryFactCreate(BaseSchema):
+    """A fact an operator seeds directly, embedded server-side.
+
+    The one exception to "operators never author facts": seeding standing semantic
+    knowledge - a company fact the agent should recall - is a deliberate management
+    act. The embedding is unmetered, since there is no run to book it against, so it
+    is a deployment cost rather than a budget charge (see `embed_operator_fact`).
+    """
+
+    agent_id: UUID = Field(description="The agent whose memory this fact belongs to")
+    content: str = Field(
+        min_length=1,
+        max_length=2000,
+        description="The fact to remember, as a short self-contained sentence",
+    )
+    end_user_scope_key: str | None = Field(
+        default=None,
+        max_length=128,
+        description="Which end-user partition to write to; omit for the shared store",
+    )
+
+
 class AgentMemoryFactRead(BaseSchema):
     """One remembered fact, as an operator reviews it.
 

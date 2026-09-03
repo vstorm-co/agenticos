@@ -15,7 +15,11 @@ from sqlalchemy.exc import IntegrityError
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.memory import MemoryOrigin
-from app.schemas.memory import AgentMemoryFileCreate, AgentMemoryFileUpdate
+from app.schemas.memory import (
+    AgentMemoryFactCreate,
+    AgentMemoryFileCreate,
+    AgentMemoryFileUpdate,
+)
 from app.services.memory.facade import MemoryService, _summary
 
 pytestmark = pytest.mark.anyio
@@ -533,3 +537,88 @@ class TestClear:
         ):
             await service.clear(_ctx(), uuid.uuid4())
         df.assert_not_awaited()
+
+
+class TestCreateFact:
+    """The operator seeds a fact directly: it is embedded server-side (unmetered),
+    stored, and audited, and the tier decides the permission the same way a file
+    create does."""
+
+    async def test_it_embeds_the_fact_stores_it_and_audits(self):
+        service = _service()
+        fact_id = uuid.uuid4()
+        embed = AsyncMock(return_value=[0.1, 0.2])
+        create = AsyncMock(return_value=(fact_id, None))
+        audit = AsyncMock()
+        get_agent, allow = _reachable_agent()
+        with (
+            get_agent,
+            allow,
+            patch(f"{MEMORY_PATH}.embed_operator_fact", new=embed),
+            patch(f"{MEMORY_PATH}.memory_repo.create_fact", new=create),
+            patch(f"{MEMORY_PATH}.record_audit", new=audit),
+        ):
+            result = await service.create_fact(
+                _ctx(),
+                AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="Acme FY starts in April"),
+            )
+        assert result.id == fact_id
+        assert result.content == "Acme FY starts in April"
+        embed.assert_awaited_once_with("Acme FY starts in April")
+        assert create.await_args.kwargs["embedding"] == [0.1, 0.2]
+        assert audit.await_args.kwargs["action"] == "memory.fact.created"
+
+    def _fact_authz_patches(self, resolve: AsyncMock):
+        return (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=resolve),
+            patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock(return_value=[0.1])),
+            patch(
+                f"{MEMORY_PATH}.memory_repo.create_fact",
+                new=AsyncMock(return_value=(uuid.uuid4(), None)),
+            ),
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
+        )
+
+    async def test_a_shared_fact_needs_edit(self):
+        service = _service()
+        resolve = AsyncMock(return_value=True)
+        get_agent, allow, embed, create, audit = self._fact_authz_patches(resolve)
+        with get_agent, allow, embed, create, audit:
+            await service.create_fact(
+                _ctx(), AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="org-wide")
+            )
+        assert resolve.call_args.args[3] == Perm.AGENTS_EDIT
+
+    async def test_ones_own_personal_fact_needs_only_view(self):
+        service = _service()
+        me = uuid.uuid4()
+        resolve = AsyncMock(return_value=True)
+        get_agent, allow, embed, create, audit = self._fact_authz_patches(resolve)
+        with get_agent, allow, embed, create, audit:
+            await service.create_fact(
+                _ctx(user_id=me),
+                AgentMemoryFactCreate(
+                    agent_id=uuid.uuid4(), content="about me", end_user_scope_key=f"user:{me}"
+                ),
+            )
+        assert resolve.call_args.args[3] == Perm.AGENTS_VIEW
+
+    async def test_a_member_cannot_seed_a_shared_fact(self):
+        # The refusal that makes the relaxation safe: view-only may seed its own
+        # personal fact, but a shared one needs edit and is a 404.
+        service = _service()
+
+        async def _view_only(_db, _ctx, _agent, perm, **_kw) -> bool:
+            return perm == Perm.AGENTS_VIEW
+
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(side_effect=_view_only)),
+            patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock()) as embed,
+            pytest.raises(NotFoundError),
+        ):
+            await service.create_fact(
+                _ctx(), AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="org-wide")
+            )
+        embed.assert_not_awaited()

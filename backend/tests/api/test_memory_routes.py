@@ -166,6 +166,25 @@ class TestCreate:
         assert response.json()["origin"] == "operator"
         assert response.json()["content"] == created.content
 
+    async def test_creating_a_fact_answers_201_with_the_embedded_row(self, client: OpenClient):
+        fact_id = uuid.uuid4()
+        get_agent, allow = _reachable()
+        with (
+            get_agent,
+            allow,
+            patch(f"{FACADE}.embed_operator_fact", new=AsyncMock(return_value=[0.1])),
+            patch(f"{FACADE}.memory_repo.create_fact", new=AsyncMock(return_value=(fact_id, None))),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            async with client() as http:
+                response = await http.post(
+                    _url("/facts"),
+                    json={"agent_id": str(_AGENT_ID), "content": "Acme FY starts in April"},
+                )
+        assert response.status_code == 201
+        assert response.json()["content"] == "Acme FY starts in April"
+        assert response.json()["id"] == str(fact_id)
+
 
 class TestGetPatchPromoteDelete:
     async def test_reading_one_file_returns_its_body(self, client: OpenClient):

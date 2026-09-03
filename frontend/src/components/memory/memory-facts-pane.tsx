@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Info, Sparkles, Trash2 } from "lucide-react";
+import { Info, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import {
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
 import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
+import { CreateMemoryFactDialog } from "@/components/memory/create-memory-fact-dialog";
 import { useMemoryDangerZone, useMemoryFacts, type MemoryScope } from "@/hooks/use-memory";
 import { getErrorMessage } from "@/lib/api-error";
 import type { MemoryFact } from "@/types/memory";
@@ -32,10 +33,11 @@ interface MemoryFactsPaneProps {
 /**
  * The facts half of the Memory tab.
  *
- * Facts are the agent's to write and recall by meaning; an operator only reviews
- * and forgets them, so there is no create or edit here. The filter is a plain
- * substring match, not the runtime semantic recall — a query an operator typed
- * would embed off the run's spend ledger, which the intro says out loud.
+ * Facts are recalled by meaning. The agent writes them at runtime; an operator may
+ * also seed one directly here (embedded server-side), but there is no edit — a fact
+ * is replaced, not amended. The filter is a plain substring match, not the runtime
+ * semantic recall — a query an operator typed would embed off the run's spend
+ * ledger, which the intro says out loud.
  */
 export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProps) {
   const t = useTranslations("memory");
@@ -57,6 +59,7 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
   });
 
   const [pendingDelete, setPendingDelete] = useState<MemoryFact | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -73,6 +76,10 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
         placeholder={t("filterFacts")}
         className="sm:w-56"
       />
+      <Button size="sm" onClick={() => setCreateOpen(true)}>
+        <Plus className="h-4 w-4" />
+        {t("newFact")}
+      </Button>
       {canEdit && total > 0 && (
         <Button variant="outline" size="sm" onClick={() => setClearOpen(true)}>
           {t("clearFacts")}
@@ -185,6 +192,13 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
           }}
         />
       )}
+
+      <CreateMemoryFactDialog
+        agentId={agentId}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        canEdit={canEdit}
+      />
     </>
   );
 }

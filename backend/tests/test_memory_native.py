@@ -233,6 +233,13 @@ class TestEmbedding:
         assert await _native._embed("hello") == [1.0, 2.0]
         embedder.embed_query.assert_called_once_with("hello")
 
+    async def test_embed_operator_fact_runs_the_embedder(self, monkeypatch):
+        embedder = MagicMock()
+        embedder.embed_query = MagicMock(return_value=[3.0])
+        monkeypatch.setattr(f"{NATIVE}._embedder_service", lambda: embedder)
+        assert await _native.embed_operator_fact("a fact") == [3.0]
+        embedder.embed_query.assert_called_once_with("a fact")
+
 
 class TestRemember:
     async def test_it_embeds_then_stores_scoped(self, monkeypatch):

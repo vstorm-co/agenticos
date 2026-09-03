@@ -11,6 +11,7 @@ uniqueness check agree on what "the same partition" means.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -284,19 +285,21 @@ async def create_fact(
     end_user_scope_key: str | None,
     content: str,
     embedding: list[float],
-) -> None:
-    """Write one fact and its vector.
+) -> tuple[UUID, datetime]:
+    """Write one fact and its vector; return the new row's id and `created_at`.
 
     Raw SQL because `embedding` has no SQLAlchemy type in this project (see
     `AgentMemoryFact`); pgvector parses the vector from the text form `str(list)`
     produces, the same as the RAG store's insert. `id` is generated here and
-    `created_at` is left to the column default.
+    `created_at` is the column default, and both come back through `RETURNING` so
+    an operator create can echo the stored row (the agent's `remember` ignores it).
     """
-    await db.execute(
+    result = await db.execute(
         text(
             "INSERT INTO agent_memory_facts "
             "(id, organization_id, agent_id, end_user_scope_key, content, embedding) "
-            "VALUES (:id, :organization_id, :agent_id, :scope, :content, :embedding)"
+            "VALUES (:id, :organization_id, :agent_id, :scope, :content, :embedding) "
+            "RETURNING id, created_at"
         ),
         {
             "id": uuid4(),
@@ -307,6 +310,8 @@ async def create_fact(
             "embedding": str(embedding),
         },
     )
+    row = result.one()
+    return row[0], row[1]
 
 
 async def recall_facts(

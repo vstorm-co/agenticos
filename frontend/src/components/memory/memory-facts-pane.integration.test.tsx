@@ -68,11 +68,19 @@ describe("MemoryFactsPane", () => {
     expect(screen.getAllByText(/^remembered/)).toHaveLength(1);
   });
 
-  it("explains that facts are the agent's to write and only reviewable here", async () => {
+  it("explains that facts are recalled by meaning, unlike files", async () => {
     mount();
     await screen.findByText("Acme's fiscal year starts in April.");
 
-    expect(screen.getByText(/Review and forget them here/)).toBeInTheDocument();
+    expect(screen.getByText(/recalls by meaning . unlike files/)).toBeInTheDocument();
+  });
+
+  it("opens the new-fact dialog from the button", async () => {
+    mount();
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    await userEvent.click(screen.getByRole("button", { name: "New fact" }));
+    expect(await screen.findByLabelText("Fact")).toBeInTheDocument();
   });
 
   it("filters facts by substring on the server", async () => {

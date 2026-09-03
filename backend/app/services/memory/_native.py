@@ -58,6 +58,17 @@ async def _embed(text: str) -> list[float]:
     return await asyncio.to_thread(_embedder_service().embed_query, text)
 
 
+async def embed_operator_fact(content: str) -> list[float]:
+    """Embed an operator-seeded fact off the event loop, unmetered.
+
+    An operator seeding a fact is a management action, not an agent run, so there
+    is no run ledger to book the embedding against (N4) - the deployment bears the
+    cost, the way it does any other operator action. The runtime `remember` embeds
+    through `_embed`, whose `metered_by` context books it to the run instead.
+    """
+    return await asyncio.to_thread(_embedder_service().embed_query, content)
+
+
 MutationResult = Literal["ok", "missing", "protected"]
 """The outcome of an agent's edit or delete.
 

@@ -8,7 +8,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { MemoryFactList, MemoryFile, MemoryFileList } from "@/types/memory";
+import type { MemoryFact, MemoryFactList, MemoryFile, MemoryFileList } from "@/types/memory";
 
 /** How the server may order a file listing. */
 export type MemorySort = "name" | "updated";
@@ -180,6 +180,13 @@ interface MemoryFactsQuery {
   limit?: number;
 }
 
+/** The fields an operator sets when seeding a fact directly. */
+interface NewMemoryFact {
+  content: string;
+  /** The partition to write to; omit (null) for the shared store. */
+  end_user_scope_key: string | null;
+}
+
 /**
  * One agent's remembered facts, a page at a time.
  *
@@ -211,6 +218,16 @@ export function useMemoryFacts({
     placeholderData: (previous) => previous,
   });
 
+  const create = useMutation({
+    mutationFn: (fact: NewMemoryFact) =>
+      apiClient.post<MemoryFact>("/memory/facts", { agent_id: agentId, ...fact }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.memory.factsRoot(agentId) });
+      toast.success(t("factCreated"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => apiClient.delete<void>(`/memory/facts/${id}`),
     onSuccess: async () => {
@@ -226,6 +243,7 @@ export function useMemoryFacts({
     isLoading,
     error,
     refetch,
+    create,
     remove,
   };
 }

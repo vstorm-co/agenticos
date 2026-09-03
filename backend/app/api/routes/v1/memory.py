@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query, status
 from app.api.deps import Auth, MemorySvc
 from app.repositories.memory import MemorySort
 from app.schemas.memory import (
+    AgentMemoryFactCreate,
     AgentMemoryFactList,
     AgentMemoryFactRead,
     AgentMemoryFileCreate,
@@ -111,6 +112,11 @@ async def list_memory_facts(
         skip=skip,
         limit=limit,
     )
+
+
+@router.post("/facts", response_model=AgentMemoryFactRead, status_code=status.HTTP_201_CREATED)
+async def create_memory_fact(data: AgentMemoryFactCreate, service: MemorySvc, ctx: Auth) -> Any:
+    return await service.create_fact(ctx, data)
 
 
 @router.get("/facts/{fact_id}", response_model=AgentMemoryFactRead)

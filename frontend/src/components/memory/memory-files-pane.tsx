@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Plus } from "lucide-react";
+import { FileText, Info, Plus } from "lucide-react";
 
 import {
+  Alert,
+  AlertDescription,
   Button,
   ConfirmDialog,
   Dialog,
@@ -107,6 +109,11 @@ export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProp
 
   return (
     <>
+      <Alert className="mb-4">
+        <Info className="h-4 w-4" />
+        <AlertDescription>{t("filesIntro")}</AlertDescription>
+      </Alert>
+
       <ListCard
         title={t("files")}
         counted={error ? null : t("fileCount", { count: total })}
