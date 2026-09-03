@@ -343,7 +343,16 @@ def _unit_vector(dim: int, index: int) -> list[float]:
     return vec
 
 
-async def _add_fact(db, agent, *, content: str, at: int, dim: int, scope_key: str | None = None):
+async def _add_fact(
+    db,
+    agent,
+    *,
+    content: str,
+    at: int,
+    dim: int,
+    scope_key: str | None = None,
+    origin: str = MemoryOrigin.AGENT.value,
+):
     await memory_repo.create_fact(
         db,
         organization_id=agent.organization_id,
@@ -351,6 +360,7 @@ async def _add_fact(db, agent, *, content: str, at: int, dim: int, scope_key: st
         end_user_scope_key=scope_key,
         content=content,
         embedding=_unit_vector(dim, at),
+        origin=origin,
     )
 
 
@@ -390,14 +400,20 @@ class TestFacts:
         assert "company fact" in names  # and the shared store
         assert "b-secret" not in names  # never another person's
 
-    async def test_brief_unions_shared_and_the_person_and_isolates_others(
+    async def test_brief_injects_personal_and_operator_shared_never_agent_shared(
         self, db, facts_table
     ) -> None:
+        # The trust filter: what may be spliced into instructions. A person's own
+        # facts (any origin, self-scoped) and operator-authored shared ones; never
+        # an agent-authored shared fact (user-influenced content bound for everyone).
         agent = await _agent(db, org=await _org(db, owner=await _user(db)))
-        await _add_fact(db, agent, content="company fact", at=0, dim=facts_table)
-        await _add_fact(db, agent, content="a-secret", at=1, dim=facts_table, scope_key="user:a")
-        await _add_fact(db, agent, content="b-secret", at=2, dim=facts_table, scope_key="user:b")
-        for_a = await memory_repo.list_readable_facts(
+        op = MemoryOrigin.OPERATOR.value
+        ag = MemoryOrigin.AGENT.value
+        await _add_fact(db, agent, content="op-shared", at=0, dim=facts_table, origin=op)
+        await _add_fact(db, agent, content="agent-shared", at=1, dim=facts_table, origin=ag)
+        await _add_fact(db, agent, content="a-own", at=2, dim=facts_table, scope_key="user:a")
+        await _add_fact(db, agent, content="b-own", at=3, dim=facts_table, scope_key="user:b")
+        for_a = await memory_repo.list_brief_facts(
             db,
             organization_id=agent.organization_id,
             agent_id=agent.id,
@@ -405,14 +421,16 @@ class TestFacts:
             limit=30,
         )
         names = {fact.content for fact in for_a}
-        assert "a-secret" in names  # the person's own
-        assert "company fact" in names  # and the shared store
-        assert "b-secret" not in names  # never another person's
+        assert "a-own" in names  # the person's own, whoever wrote it
+        assert "op-shared" in names  # operator-authored shared - a person vouched for it
+        assert "agent-shared" not in names  # agent-authored shared - recall-only
+        assert "b-own" not in names  # never another person's
 
     async def test_brief_is_newest_first_and_capped(self, db, facts_table) -> None:
         agent = await _agent(db, org=await _org(db, owner=await _user(db)))
-        await _add_fact(db, agent, content="older", at=0, dim=facts_table)
-        await _add_fact(db, agent, content="newer", at=1, dim=facts_table)
+        op = MemoryOrigin.OPERATOR.value
+        await _add_fact(db, agent, content="older", at=0, dim=facts_table, origin=op)
+        await _add_fact(db, agent, content="newer", at=1, dim=facts_table, origin=op)
         # created_at defaults to the transaction clock, so both rows would share it;
         # age one deliberately to pin the order the cap then applies to.
         await db.execute(
@@ -421,7 +439,7 @@ class TestFacts:
                 "WHERE content = 'older'"
             )
         )
-        newest = await memory_repo.list_readable_facts(
+        newest = await memory_repo.list_brief_facts(
             db,
             organization_id=agent.organization_id,
             agent_id=agent.id,

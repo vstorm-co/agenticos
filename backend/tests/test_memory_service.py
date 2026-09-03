@@ -52,6 +52,7 @@ def _fact():
     fact.id = uuid.uuid4()
     fact.agent_id = uuid.uuid4()
     fact.content = "likes tea"
+    fact.origin = MemoryOrigin.AGENT.value
     fact.end_user_scope_key = None
     fact.created_at = None
     return fact
@@ -566,6 +567,9 @@ class TestCreateFact:
         assert result.content == "Acme FY starts in April"
         embed.assert_awaited_once_with("Acme FY starts in April")
         assert create.await_args.kwargs["embedding"] == [0.1, 0.2]
+        # An operator seed is the trusted tier, so it may enter the shared brief.
+        assert create.await_args.kwargs["origin"] == MemoryOrigin.OPERATOR.value
+        assert result.origin == "operator"
         assert audit.await_args.kwargs["action"] == "memory.fact.created"
 
     def _fact_authz_patches(self, resolve: AsyncMock):

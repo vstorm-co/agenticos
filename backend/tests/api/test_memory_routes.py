@@ -184,6 +184,7 @@ class TestCreate:
         assert response.status_code == 201
         assert response.json()["content"] == "Acme FY starts in April"
         assert response.json()["id"] == str(fact_id)
+        assert response.json()["origin"] == "operator"
 
 
 class TestGetPatchPromoteDelete:
@@ -246,6 +247,7 @@ def _fact_row(content: str = "likes tea") -> AgentMemoryFact:
         agent_id=_AGENT_ID,
         end_user_scope_key=None,
         content=content,
+        origin=MemoryOrigin.AGENT.value,
     )
 
 

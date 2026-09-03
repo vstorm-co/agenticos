@@ -109,12 +109,15 @@ class AgentMemoryFile(Base, TimestampMixin):
 class AgentMemoryFact(Base, TimestampMixin):
     """One fact an agent chose to remember, for semantic recall in a later run.
 
-    The `facts` half of the capability. Unlike a file it has no name and no
-    `origin`: every fact is agent-authored (an operator never creates one - that
-    would embed a query off the run's spend ledger), so the trust tier a file's
-    `origin` records does not apply, and a fact is never injected into
-    instructions - it is reached only through the runtime `recall` tool,
-    semantically.
+    The `facts` half of the capability. It has no name, but - like a file - it
+    carries an `origin`, because both halves of "a fact is never trusted as a
+    prompt" stopped being true: an operator can seed a fact through the management
+    API, and the standing memory brief injects remembered facts into the agent's
+    instructions. So `origin` is the same trust tier a file's is, and it governs
+    the brief: only content safe to inject reaches it - a person's own facts (self
+    scoped) and operator-authored shared ones - while an agent-authored *shared*
+    fact is reachable only through the runtime `recall` tool, never spliced into a
+    prompt every end-user of the agent would then obey.
 
     The vector is deliberately **not** a column here. There is no pgvector
     SQLAlchemy type in this project, and the width is the deployment's frozen
@@ -145,6 +148,16 @@ class AgentMemoryFact(Base, TimestampMixin):
     )
     end_user_scope_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    origin: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=MemoryOrigin.AGENT.value
+    )
+
+    __table_args__ = (
+        CheckConstraint("origin IN ('operator', 'agent')", name="ck_agent_memory_fact_origin"),
+    )
 
     def __repr__(self) -> str:
-        return f"<AgentMemoryFact(agent={self.agent_id}, scope={self.end_user_scope_key})>"
+        return (
+            f"<AgentMemoryFact(agent={self.agent_id}, "
+            f"scope={self.end_user_scope_key}, origin={self.origin})>"
+        )

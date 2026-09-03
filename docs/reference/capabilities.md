@@ -150,12 +150,16 @@ match).
 
 **The agent reads before it answers.** Its standing instructions tell it to search
 memory before answering anything a past conversation might inform — a preference, or
-a recommendation it could tailor. For a `native` facts agent the facts it may read
-are also injected into those instructions each request, as a short brief of what it
-already remembers (newest first, bounded), so it draws on them without first having
-to call `recall` — a lighter model, left to decide, often does not, and answers as if
-the store were empty. `recall` stays for a deeper or more specific search past the
-brief. A `mem0` facts agent keeps the recall tool but no injected brief.
+a recommendation it could tailor. For a `native` facts agent the facts safe to
+inject are also placed into those instructions each request, as a short brief of what
+it already remembers (newest first, bounded), so it draws on them without first
+having to call `recall` — a lighter model, left to decide, often does not, and answers
+as if the store were empty. The brief carries a person's own facts and
+operator-authored shared ones; an agent-authored *shared* fact never enters it —
+that is user-influenced content, and injecting it would put a prompt every end-user
+obeys under one user's control — so it stays reachable through `recall` alone.
+`recall` itself is unchanged: it returns the whole store as a tool result, which is
+untrusted-safe. A `mem0` facts agent keeps the recall tool but no injected brief.
 
 **Memory is two-tier.** Every memory agent has a `shared` store — one per agent,
 read by every end-user it serves — and, when a run has an identified person, that
@@ -189,9 +193,12 @@ Every file records an `origin`: `operator` (written by a person) or `agent`
 (written by a tool mid-run). It is a trust tier. The agent may read an
 operator-authored note but not edit or delete it, so it cannot rewrite content a
 person vouched for; turning an agent note into an operator one is a deliberate
-"promote" action, never a side effect of an edit. Facts carry no `origin` — they
-are always the agent's own and are never injected into instructions, only reached
-through `recall`. Access to the management API rides on the parent agent —
+"promote" action, never a side effect of an edit. A fact carries an `origin` for
+the same reason: the runtime `remember` writes an `agent` fact, an operator seed
+writes an `operator` one, and only the injectable set — a person's own facts and
+operator-authored shared ones — is placed in the standing brief, while an
+agent-authored shared fact stays `recall`-only. Access to the management API rides
+on the parent agent —
 whoever may view the agent may read its memory, whoever may edit the agent may
 change it — so there is no `memory:*` scope. Creating a file is the one act split
 by tier: writing the shared store or another person's personal store is an editor

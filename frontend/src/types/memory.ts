@@ -50,16 +50,18 @@ export interface MemoryFileList {
 /**
  * One remembered fact, as an operator reviews it.
  *
- * Facts are agent-written and recalled semantically at runtime; an operator
- * never authors or edits one (a query an operator typed would embed off the
- * run's ledger), so there is no create or update shape — only review and delete.
- * The content is included because a fact is short by nature: the listing is the
+ * Facts are recalled semantically at runtime. The agent writes them, but an
+ * operator may also seed one, so — like a file — a fact carries an `origin`: it
+ * is the trust tier that decides whether the fact may enter the injected brief.
+ * There is a create shape but no update: a fact is replaced, not amended. The
+ * content is included because a fact is short by nature: the listing is the
  * content.
  */
 export interface MemoryFact {
   id: string;
   agent_id: string;
   content: string;
+  origin: MemoryOrigin;
   end_user_scope_key: string | null;
   /** A readable name for a per-user partition (the member's email); null when the
    * store is shared or the key does not resolve. */

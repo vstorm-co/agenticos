@@ -17,6 +17,7 @@ const FACT_SHARED = {
   id: "x1",
   agent_id: "a1",
   content: "Acme's fiscal year starts in April.",
+  origin: "operator",
   end_user_scope_key: null,
   created_at: "2026-08-30T10:00:00Z",
 };
@@ -26,6 +27,7 @@ const FACT_USER = {
   id: "x2",
   agent_id: "a1",
   content: "Prefers weekly summaries on Fridays.",
+  origin: "agent",
   end_user_scope_key: "user:0f3a91b2",
   created_at: null,
 };
@@ -61,8 +63,10 @@ describe("MemoryFactsPane", () => {
 
     expect(await screen.findByText("Acme's fiscal year starts in April.")).toBeInTheDocument();
     expect(screen.getByText("Prefers weekly summaries on Fridays.")).toBeInTheDocument();
-    // Both are agent-written; one is shared, one is a private per-user partition.
-    expect(screen.getAllByText("Agent")).toHaveLength(2);
+    // One operator-seeded shared fact, one agent-written personal one — the badge
+    // reads each row's own origin now, not a hardcoded "Agent".
+    expect(screen.getByText("Operator")).toBeInTheDocument();
+    expect(screen.getByText("Agent")).toBeInTheDocument();
     expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
     // Only the fact that carries a timestamp shows when it was remembered.
     expect(screen.getAllByText(/^remembered/)).toHaveLength(1);

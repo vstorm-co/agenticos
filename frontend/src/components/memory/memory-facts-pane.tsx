@@ -121,7 +121,7 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
                   <div className="min-w-0 space-y-1.5">
                     <p className="text-foreground text-sm">{fact.content}</p>
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                      <OriginBadge origin="agent" />
+                      <OriginBadge origin={fact.origin} />
                       <PartitionBadge
                         scopeKey={fact.end_user_scope_key}
                         partitionLabel={fact.partition_label}

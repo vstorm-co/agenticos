@@ -294,11 +294,11 @@ class MemoryService:
 
         The tier decides the permission the same way file create does: the shared
         store or another person's personal store is an operator act (`AGENTS_EDIT`),
-        one's own personal store needs only `AGENTS_VIEW`. Facts carry no `origin` -
-        they are never injected, so the human-vs-agent trust tier files turn on does
-        not apply here; an operator fact is simply another fact `recall` can find.
-        The embedding is unmetered (`embed_operator_fact`): there is no run to book
-        it against, so it is a deployment cost, not a budget charge.
+        one's own personal store needs only `AGENTS_VIEW`. The fact is written with
+        `origin=operator` - the trusted tier - so, unlike an agent-authored one, it
+        may enter the standing brief injected into the agent's instructions (a person
+        vouched for it). The embedding is unmetered (`embed_operator_fact`): there is
+        no run to book it against, so it is a deployment cost, not a budget charge.
         """
         own_key = f"user:{ctx.user_id}" if ctx.user_id is not None else None
         creating_own_personal = (
@@ -314,6 +314,7 @@ class MemoryService:
             end_user_scope_key=data.end_user_scope_key,
             content=data.content,
             embedding=embedding,
+            origin=MemoryOrigin.OPERATOR.value,
         )
         await record_audit(
             self.db,
@@ -328,6 +329,7 @@ class MemoryService:
             id=fact_id,
             agent_id=data.agent_id,
             content=data.content,
+            origin=cast(MemoryOriginLiteral, MemoryOrigin.OPERATOR.value),
             end_user_scope_key=data.end_user_scope_key,
             created_at=created_at,
         )
@@ -373,6 +375,7 @@ class MemoryService:
                     id=fact.id,
                     agent_id=fact.agent_id,
                     content=fact.content,
+                    origin=cast(MemoryOriginLiteral, fact.origin),
                     end_user_scope_key=fact.end_user_scope_key,
                     partition_label=labels.get(fact.end_user_scope_key or ""),
                     created_at=fact.created_at,

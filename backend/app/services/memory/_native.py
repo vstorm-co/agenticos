@@ -255,6 +255,7 @@ async def remember(
             end_user_scope_key=scope_key,
             content=content,
             embedding=embedding,
+            origin=MemoryOrigin.AGENT.value,
         )
 
 
@@ -277,15 +278,17 @@ async def recall(
 async def memory_brief(
     *, organization_id: UUID, agent_id: UUID, personal_key: str | None, limit: int
 ) -> list[str]:
-    """The most recent facts a run may read, for the standing memory brief.
+    """The most recent facts safe to inject into the standing brief (see the repo).
 
     Non-semantic - no query, no embedding - because the brief is injected into the
     agent's instructions every request so it recalls without a tool call, and a
     query embedded there would spend off the run's ledger for nothing. Opens its own
     session, like `recall`, so a run never reads memory on the session it runs on.
+    The trust filter (agent-authored shared facts stay recall-only) lives in
+    `list_brief_facts`; this only turns rows into lines.
     """
     async with get_db_context() as db:
-        facts = await memory_repo.list_readable_facts(
+        facts = await memory_repo.list_brief_facts(
             db,
             organization_id=organization_id,
             agent_id=agent_id,

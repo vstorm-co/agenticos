@@ -122,15 +122,17 @@ class AgentMemoryFactCreate(BaseSchema):
 class AgentMemoryFactRead(BaseSchema):
     """One remembered fact, as an operator reviews it.
 
-    There is no create or update shape: operators never author facts (a query an
-    operator typed would embed off the run's ledger), so the only writes here are
-    the agent's own runtime `remember`. Content is included because a fact is
-    short by nature - the listing is the content.
+    There is no update shape - a fact is replaced, not amended - but there is a
+    create: an operator may seed one (`AgentMemoryFactCreate`). `origin` is the
+    trust tier that decides whether a fact may enter the injected brief, the same
+    as a file's. Content is included because a fact is short by nature - the
+    listing is the content.
     """
 
     id: UUID
     agent_id: UUID
     content: str
+    origin: MemoryOriginLiteral
     end_user_scope_key: str | None = None
     partition_label: str | None = Field(
         default=None,

@@ -251,6 +251,8 @@ class TestRemember:
         assert create.await_args.kwargs["embedding"] == [0.1, 0.2]
         assert create.await_args.kwargs["end_user_scope_key"] == "user:1"
         assert create.await_args.kwargs["content"] == "likes tea"
+        # An agent's own write is the untrusted tier - it stays out of the shared brief.
+        assert create.await_args.kwargs["origin"] == MemoryOrigin.AGENT.value
 
 
 class TestRecall:
@@ -269,7 +271,7 @@ class TestRecall:
 class TestMemoryBrief:
     async def test_it_returns_the_readable_facts_as_strings(self):
         rows = [_row(content="likes nuts"), _row(content="based in Warsaw")]
-        with patch(f"{REPO}.list_readable_facts", new=AsyncMock(return_value=rows)) as lst:
+        with patch(f"{REPO}.list_brief_facts", new=AsyncMock(return_value=rows)) as lst:
             out = await _native.memory_brief(
                 organization_id=ORG, agent_id=AGENT, personal_key="user:1", limit=30
             )

@@ -15,12 +15,12 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ColumnElement, func, or_, select, text
+from sqlalchemy import ColumnElement, and_, func, or_, select, text
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.db.models.memory import AgentMemoryFact, AgentMemoryFile
+from app.db.models.memory import AgentMemoryFact, AgentMemoryFile, MemoryOrigin
 from app.repositories._search import contains_ci
 
 MemorySort = Literal["name", "updated"]
@@ -285,20 +285,24 @@ async def create_fact(
     end_user_scope_key: str | None,
     content: str,
     embedding: list[float],
+    origin: str,
 ) -> tuple[UUID, datetime]:
     """Write one fact and its vector; return the new row's id and `created_at`.
 
     Raw SQL because `embedding` has no SQLAlchemy type in this project (see
     `AgentMemoryFact`); pgvector parses the vector from the text form `str(list)`
-    produces, the same as the RAG store's insert. `id` is generated here and
-    `created_at` is the column default, and both come back through `RETURNING` so
-    an operator create can echo the stored row (the agent's `remember` ignores it).
+    produces, the same as the RAG store's insert. `origin` is the caller's trust
+    tier - `agent` from the runtime `remember`, `operator` from a management seed -
+    and decides whether the fact may enter the shared brief. `id` is generated here
+    and `created_at` is the column default, and both come back through `RETURNING`
+    so an operator create can echo the stored row (the agent's `remember` ignores
+    it).
     """
     result = await db.execute(
         text(
             "INSERT INTO agent_memory_facts "
-            "(id, organization_id, agent_id, end_user_scope_key, content, embedding) "
-            "VALUES (:id, :organization_id, :agent_id, :scope, :content, :embedding) "
+            "(id, organization_id, agent_id, end_user_scope_key, content, embedding, origin) "
+            "VALUES (:id, :organization_id, :agent_id, :scope, :content, :embedding, :origin) "
             "RETURNING id, created_at"
         ),
         {
@@ -308,6 +312,7 @@ async def create_fact(
             "scope": end_user_scope_key,
             "content": content,
             "embedding": str(embedding),
+            "origin": origin,
         },
     )
     row = result.one()
@@ -364,7 +369,7 @@ async def recall_facts(
     return [FactHit(content=row[0], score=float(row[1])) for row in result.fetchall()]
 
 
-async def list_readable_facts(
+async def list_brief_facts(
     db: AsyncSession,
     *,
     organization_id: UUID,
@@ -372,23 +377,31 @@ async def list_readable_facts(
     personal_key: str | None,
     limit: int,
 ) -> list[AgentMemoryFact]:
-    """The facts a run may read - shared, unioned with this person's - newest first.
+    """The facts safe to inject into the agent's standing brief - newest first.
 
-    The non-semantic companion to `recall_facts`, for the standing memory brief the
-    capability keeps in the agent's context. The union is the read tier a run is
-    admitted to (shared, plus the current person's when it has one); the key is
-    server-derived, so it can never reach another person's. Newest first and
-    bounded, because the brief is a digest held in context, not the whole store.
+    Narrower than what `recall` reads. `recall_facts` returns the whole union as a
+    tool result, which is untrusted-safe; the brief is spliced into the agent's
+    instructions, so it carries only content that is safe there: a person's own
+    facts (self-scoped - whoever authored them, they can influence only that
+    person's runs) and operator-authored shared ones (a person vouched for them).
+    An agent-authored *shared* fact is user-influenced content that would otherwise
+    reach every end-user's prompt, so it is excluded and stays recall-only - the
+    fact analogue of a file's `origin` trust tier (#788). The key is server-derived,
+    so the personal arm can never reach another person's store.
     """
-    readable = AgentMemoryFact.end_user_scope_key.is_(None)
+    operator_shared = and_(
+        AgentMemoryFact.end_user_scope_key.is_(None),
+        AgentMemoryFact.origin == MemoryOrigin.OPERATOR.value,
+    )
+    injectable = operator_shared
     if personal_key is not None:
-        readable = or_(readable, AgentMemoryFact.end_user_scope_key == personal_key)
+        injectable = or_(operator_shared, AgentMemoryFact.end_user_scope_key == personal_key)
     result = await db.execute(
         select(AgentMemoryFact)
         .where(
             AgentMemoryFact.organization_id == organization_id,
             AgentMemoryFact.agent_id == agent_id,
-            readable,
+            injectable,
         )
         .order_by(AgentMemoryFact.created_at.desc())
         .limit(limit)
