@@ -301,6 +301,25 @@ class TestMemoryBrief:
         assert text == _preamble(allow_personal=True, allow_agent_shared_writes=True)
         brief.assert_not_awaited()
 
+    async def test_the_brief_is_bounded_by_size_not_only_by_count(self, monkeypatch):
+        # A fact's content is unbounded Text (operator seeds run to 2000 chars), so
+        # a row cap alone would not stop the injected preamble from blowing the
+        # window. The newest facts are kept until the byte budget is spent.
+        big = "x" * 1500
+        monkeypatch.setattr(memory_store, "memory_brief", AsyncMock(return_value=[big] * 5))
+        text = await Memory(enable_facts=True, backend="native").get_instructions()(
+            _ctx(_deps(scope_key="user:1"))
+        )
+        assert 1 <= text.count(big) < 5
+
+    async def test_a_single_oversized_fact_is_still_shown(self, monkeypatch):
+        huge = "y" * 6000
+        monkeypatch.setattr(memory_store, "memory_brief", AsyncMock(return_value=[huge]))
+        text = await Memory(enable_facts=True, backend="native").get_instructions()(
+            _ctx(_deps(scope_key="user:1"))
+        )
+        assert huge in text
+
 
 class TestListMemory:
     async def test_it_lists_both_tiers_with_labels(self, monkeypatch):

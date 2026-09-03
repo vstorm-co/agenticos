@@ -33,10 +33,14 @@ from app.services import memory as memory_store
 
 __all__ = ["Memory"]
 
-# How many remembered facts the standing brief lists. A digest, not the store: a
-# run that needs a fact past this cap reaches for it with `recall`, and a limit
-# keeps the injected context bounded whatever a person has accumulated.
+# The standing brief is a digest, not the store: a run that needs a fact past it
+# reaches for `recall`. It is bounded twice - at most `_BRIEF_LIMIT` facts, and at
+# most `_BRIEF_MAX_CHARS` of them - because a row count alone does not bound the
+# injected context: a fact's content is `Text` and an operator seed runs to 2000
+# characters, so enough large facts could push this per-request preamble past the
+# model's window and fail every later request before `recall` could help (#788).
 _BRIEF_LIMIT = 30
+_BRIEF_MAX_CHARS = 4000
 
 
 def _preamble(*, allow_personal: bool, allow_agent_shared_writes: bool) -> str:
@@ -187,10 +191,20 @@ class Memory(AbstractCapability[AgentDepsT]):
         )
         if not facts:
             return None
-        lines = "\n".join(f"- {content}" for content in facts)
+        # Bound the injected text by size, not only by row count: keep the newest
+        # facts until the budget is spent, always at least one (#788, codex P1).
+        lines: list[str] = []
+        remaining = _BRIEF_MAX_CHARS
+        for content in facts:
+            line = f"- {content}"
+            if lines and len(line) > remaining:
+                break
+            lines.append(line)
+            remaining -= len(line) + 1
+        body = "\n".join(lines)
         return (
             "Here is what you already remember - your own past notes, not ground "
-            f"truth, and `recall` can search for more:\n{lines}"
+            f"truth, and `recall` can search for more:\n{body}"
         )
 
     def get_toolset(self) -> AbstractToolset[Any]:
