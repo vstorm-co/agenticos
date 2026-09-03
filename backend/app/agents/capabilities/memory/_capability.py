@@ -18,27 +18,47 @@ how to classify a write, the same guidance the tool descriptions carry.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.memory._toolset import MemoryToolset
+from app.agents.deps import AgentDeps
+from app.services import memory as memory_store
 
 __all__ = ["Memory"]
 
+# How many remembered facts the standing brief lists. A digest, not the store: a
+# run that needs a fact past this cap reaches for it with `recall`, and a limit
+# keeps the injected context bounded whatever a person has accumulated.
+_BRIEF_LIMIT = 30
+
 
 def _preamble(*, allow_personal: bool, allow_agent_shared_writes: bool) -> str:
-    """The standing note teaching the agent its memory model and how to save to it.
+    """The standing note teaching the agent to read its memory, its tiers, and how to save.
 
     Composed from the two operator levers so it never promises a tier the config has
     switched off: an agent told to "choose a scope" that then has every choice
     refused is worse than one told plainly what it can do. The narrowing default
     (personal when unsure) is stated here and defaulted in the tools, because a
     personal-to-shared misclassification exposes one person's note to everyone (#788).
+
+    The reading habit leads, because the whole store is inert if the agent never
+    looks: memory only pays off when a later run recalls what an earlier one saved,
+    and a model with the tool but no standing instruction to use it will answer "I
+    have nothing saved" while the fact sits one search away.
     """
+    habit = (
+        "Search your memory before answering a question it might inform - anything "
+        "about the person you are talking to, a fact you may have saved in an earlier "
+        "conversation, or a recommendation you could tailor to them - rather than "
+        "answering generically or assuming you have nothing."
+    )
     if allow_personal:
         reading = (
             "Your memory has two tiers: a shared store (organisation-wide, the same "
@@ -70,7 +90,7 @@ def _preamble(*, allow_personal: bool, allow_agent_shared_writes: bool) -> str:
             "This memory is read-only to you - operators curate it - so you cannot "
             "save to it, only read."
         )
-    return f"{reading} {writing}"
+    return f"{habit} {reading} {writing}"
 
 
 @dataclass
@@ -115,17 +135,62 @@ class Memory(AbstractCapability[AgentDepsT]):
         default=None, init=False, repr=False, compare=False
     )
 
-    def get_instructions(self) -> str | None:
-        """A standing note on how this agent's memory works and how to save to it.
+    def get_instructions(self) -> str | Callable[[RunContext[Any]], Awaitable[str]]:
+        """A standing note on how this agent's memory works, and what it already holds.
 
-        Present whenever memory is - the builder attaches the capability only when a
-        store is on - and composed from the two tier levers, so the model reads what
-        it can actually do (and the narrowing default) before its first tool call,
-        not only in each tool's own description.
+        The preamble (how the tiers work, how to classify a write, to read before
+        answering) is run-invariant, so a files-only or mem0-facts agent gets it as a
+        plain string. A native-facts agent gets a per-request callable instead, so the
+        note carries a brief of what is already remembered - the facts a run would
+        otherwise have to call `recall` to see. A model with them in front of it
+        answers from them; one that must decide to look usually does not, which is the
+        whole reason the store felt inert on a lighter model (#788).
+
+        The callable is typed over `RunContext[Any]` for the same reason `get_toolset`
+        widens to `AbstractToolset[Any]`: the run context is concrete in `AgentDeps`
+        (the brief reads its fields), which does not unify with the capability's own
+        `AgentDepsT`. `_memory_brief` narrows it straight back.
         """
+        if self.enable_facts and self.backend == "native":
+            return self._instructions_with_brief
         return _preamble(
             allow_personal=self.allow_personal,
             allow_agent_shared_writes=self.allow_agent_shared_writes,
+        )
+
+    async def _instructions_with_brief(self, ctx: RunContext[Any]) -> str:
+        preamble = _preamble(
+            allow_personal=self.allow_personal,
+            allow_agent_shared_writes=self.allow_agent_shared_writes,
+        )
+        brief = await self._memory_brief(ctx)
+        return f"{preamble}\n\n{brief}" if brief else preamble
+
+    async def _memory_brief(self, ctx: RunContext[Any]) -> str | None:
+        """The facts already remembered, listed for the agent's context, or None.
+
+        Injected every request rather than left to a `recall` the model may not make -
+        the standing digest that makes memory feel present. The tier is the run's own
+        read tier (shared, plus this person's when `allow_personal` and the run has a
+        person), so the brief can never surface another person's note. `None` when
+        there is nothing to show, so no empty heading is added.
+        """
+        deps: AgentDeps = ctx.deps
+        if deps.organization_id is None or deps.agent_id is None:
+            return None
+        personal_key = deps.end_user_scope_key if self.allow_personal else None
+        facts = await memory_store.memory_brief(
+            organization_id=deps.organization_id,
+            agent_id=deps.agent_id,
+            personal_key=personal_key,
+            limit=_BRIEF_LIMIT,
+        )
+        if not facts:
+            return None
+        lines = "\n".join(f"- {content}" for content in facts)
+        return (
+            "Here is what you already remember - your own past notes, not ground "
+            f"truth, and `recall` can search for more:\n{lines}"
         )
 
     def get_toolset(self) -> AbstractToolset[Any]:

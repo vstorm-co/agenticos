@@ -390,6 +390,46 @@ class TestFacts:
         assert "company fact" in names  # and the shared store
         assert "b-secret" not in names  # never another person's
 
+    async def test_brief_unions_shared_and_the_person_and_isolates_others(
+        self, db, facts_table
+    ) -> None:
+        agent = await _agent(db, org=await _org(db, owner=await _user(db)))
+        await _add_fact(db, agent, content="company fact", at=0, dim=facts_table)
+        await _add_fact(db, agent, content="a-secret", at=1, dim=facts_table, scope_key="user:a")
+        await _add_fact(db, agent, content="b-secret", at=2, dim=facts_table, scope_key="user:b")
+        for_a = await memory_repo.list_readable_facts(
+            db,
+            organization_id=agent.organization_id,
+            agent_id=agent.id,
+            personal_key="user:a",
+            limit=30,
+        )
+        names = {fact.content for fact in for_a}
+        assert "a-secret" in names  # the person's own
+        assert "company fact" in names  # and the shared store
+        assert "b-secret" not in names  # never another person's
+
+    async def test_brief_is_newest_first_and_capped(self, db, facts_table) -> None:
+        agent = await _agent(db, org=await _org(db, owner=await _user(db)))
+        await _add_fact(db, agent, content="older", at=0, dim=facts_table)
+        await _add_fact(db, agent, content="newer", at=1, dim=facts_table)
+        # created_at defaults to the transaction clock, so both rows would share it;
+        # age one deliberately to pin the order the cap then applies to.
+        await db.execute(
+            text(
+                "UPDATE agent_memory_facts SET created_at = now() - interval '1 hour' "
+                "WHERE content = 'older'"
+            )
+        )
+        newest = await memory_repo.list_readable_facts(
+            db,
+            organization_id=agent.organization_id,
+            agent_id=agent.id,
+            personal_key=None,
+            limit=1,
+        )
+        assert [fact.content for fact in newest] == ["newer"]
+
     async def test_recall_isolates_organizations(self, db, facts_table) -> None:
         person = await _user(db)
         agent = await _agent(db, org=await _org(db, owner=person))

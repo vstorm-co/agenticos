@@ -364,6 +364,38 @@ async def recall_facts(
     return [FactHit(content=row[0], score=float(row[1])) for row in result.fetchall()]
 
 
+async def list_readable_facts(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    personal_key: str | None,
+    limit: int,
+) -> list[AgentMemoryFact]:
+    """The facts a run may read - shared, unioned with this person's - newest first.
+
+    The non-semantic companion to `recall_facts`, for the standing memory brief the
+    capability keeps in the agent's context. The union is the read tier a run is
+    admitted to (shared, plus the current person's when it has one); the key is
+    server-derived, so it can never reach another person's. Newest first and
+    bounded, because the brief is a digest held in context, not the whole store.
+    """
+    readable = AgentMemoryFact.end_user_scope_key.is_(None)
+    if personal_key is not None:
+        readable = or_(readable, AgentMemoryFact.end_user_scope_key == personal_key)
+    result = await db.execute(
+        select(AgentMemoryFact)
+        .where(
+            AgentMemoryFact.organization_id == organization_id,
+            AgentMemoryFact.agent_id == agent_id,
+            readable,
+        )
+        .order_by(AgentMemoryFact.created_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def get_fact(
     db: AsyncSession, fact_id: UUID, *, organization_id: UUID
 ) -> AgentMemoryFact | None:

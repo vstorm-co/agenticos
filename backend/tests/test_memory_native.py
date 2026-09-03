@@ -264,3 +264,15 @@ class TestRecall:
         assert out == hits
         assert recall.await_args.kwargs["query_embedding"] == [0.3]
         assert recall.await_args.kwargs["limit"] == 3
+
+
+class TestMemoryBrief:
+    async def test_it_returns_the_readable_facts_as_strings(self):
+        rows = [_row(content="likes nuts"), _row(content="based in Warsaw")]
+        with patch(f"{REPO}.list_readable_facts", new=AsyncMock(return_value=rows)) as lst:
+            out = await _native.memory_brief(
+                organization_id=ORG, agent_id=AGENT, personal_key="user:1", limit=30
+            )
+        assert out == ["likes nuts", "based in Warsaw"]
+        assert lst.await_args.kwargs["personal_key"] == "user:1"
+        assert lst.await_args.kwargs["limit"] == 30

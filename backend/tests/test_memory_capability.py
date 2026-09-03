@@ -232,6 +232,75 @@ class TestPreamble:
         text = _preamble(allow_personal=False, allow_agent_shared_writes=False)
         assert "read-only" in text
 
+    def test_every_configuration_leads_with_the_read_before_answering_habit(self):
+        # The store is inert if the agent never looks: a model holding the recall
+        # tool but no standing instruction to use it answers "I have nothing saved"
+        # with the fact one search away, which is exactly what shipped without this.
+        for allow_personal in (True, False):
+            for allow_shared in (True, False):
+                text = _preamble(
+                    allow_personal=allow_personal, allow_agent_shared_writes=allow_shared
+                )
+                assert text.startswith("Search your memory before answering")
+
+
+class TestMemoryBrief:
+    """A native-facts agent's instructions carry what it already remembers, so it
+    recalls without having to call the tool - the store felt inert without this on a
+    lighter model that never chose to `recall` (#788)."""
+
+    def test_a_native_facts_agent_gets_a_dynamic_instruction(self):
+        assert callable(Memory(enable_facts=True, backend="native").get_instructions())
+
+    def test_a_files_only_agent_keeps_the_plain_preamble(self):
+        assert isinstance(Memory(enable_files=True, enable_facts=False).get_instructions(), str)
+
+    def test_a_mem0_agent_keeps_the_plain_preamble(self):
+        # mem0 holds facts elsewhere; the recall tool still applies, but there is no
+        # native list to brief from.
+        assert isinstance(Memory(enable_facts=True, backend="mem0").get_instructions(), str)
+
+    async def test_the_brief_appends_what_is_remembered(self, monkeypatch):
+        monkeypatch.setattr(
+            memory_store, "memory_brief", AsyncMock(return_value=["likes nuts", "based in Warsaw"])
+        )
+        instructions = Memory(enable_facts=True, backend="native").get_instructions()
+        text = await instructions(_ctx(_deps(scope_key="user:1")))
+        assert text.startswith("Search your memory before answering")
+        assert "- likes nuts" in text and "- based in Warsaw" in text
+
+    async def test_the_brief_reads_the_runs_own_personal_tier(self, monkeypatch):
+        brief = AsyncMock(return_value=["x"])
+        monkeypatch.setattr(memory_store, "memory_brief", brief)
+        await Memory(enable_facts=True, backend="native").get_instructions()(
+            _ctx(_deps(scope_key="user:9"))
+        )
+        assert brief.await_args.kwargs["personal_key"] == "user:9"
+
+    async def test_personal_off_briefs_only_the_shared_tier(self, monkeypatch):
+        brief = AsyncMock(return_value=["x"])
+        monkeypatch.setattr(memory_store, "memory_brief", brief)
+        cap = Memory(enable_facts=True, backend="native", allow_personal=False)
+        await cap.get_instructions()(_ctx(_deps(scope_key="user:9")))
+        assert brief.await_args.kwargs["personal_key"] is None
+
+    async def test_no_facts_leaves_the_preamble_alone(self, monkeypatch):
+        monkeypatch.setattr(memory_store, "memory_brief", AsyncMock(return_value=[]))
+        text = await Memory(enable_facts=True, backend="native").get_instructions()(
+            _ctx(_deps(scope_key="user:1"))
+        )
+        assert text == _preamble(allow_personal=True, allow_agent_shared_writes=True)
+
+    async def test_a_run_with_no_identity_is_not_briefed(self, monkeypatch):
+        # No org/agent on the deps: nothing to query, and the store is never touched.
+        brief = AsyncMock(return_value=["x"])
+        monkeypatch.setattr(memory_store, "memory_brief", brief)
+        text = await Memory(enable_facts=True, backend="native").get_instructions()(
+            _ctx(AgentDeps())
+        )
+        assert text == _preamble(allow_personal=True, allow_agent_shared_writes=True)
+        brief.assert_not_awaited()
+
 
 class TestListMemory:
     async def test_it_lists_both_tiers_with_labels(self, monkeypatch):

@@ -148,6 +148,15 @@ operator typed would escape that ledger, so operators never create or search
 facts, only list, read and clear them (the listing search is a plain substring
 match).
 
+**The agent reads before it answers.** Its standing instructions tell it to search
+memory before answering anything a past conversation might inform — a preference, or
+a recommendation it could tailor. For a `native` facts agent the facts it may read
+are also injected into those instructions each request, as a short brief of what it
+already remembers (newest first, bounded), so it draws on them without first having
+to call `recall` — a lighter model, left to decide, often does not, and answers as if
+the store were empty. `recall` stays for a deeper or more specific search past the
+brief. A `mem0` facts agent keeps the recall tool but no injected brief.
+
 **Memory is two-tier.** Every memory agent has a `shared` store — one per agent,
 read by every end-user it serves — and, when a run has an identified person, that
 person's private store as well. Reads (`list_memory`, `read_memory`, `recall`)

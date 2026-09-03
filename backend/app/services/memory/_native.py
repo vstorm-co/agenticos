@@ -272,3 +272,24 @@ async def recall(
             query_embedding=embedding,
             limit=limit,
         )
+
+
+async def memory_brief(
+    *, organization_id: UUID, agent_id: UUID, personal_key: str | None, limit: int
+) -> list[str]:
+    """The most recent facts a run may read, for the standing memory brief.
+
+    Non-semantic - no query, no embedding - because the brief is injected into the
+    agent's instructions every request so it recalls without a tool call, and a
+    query embedded there would spend off the run's ledger for nothing. Opens its own
+    session, like `recall`, so a run never reads memory on the session it runs on.
+    """
+    async with get_db_context() as db:
+        facts = await memory_repo.list_readable_facts(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            personal_key=personal_key,
+            limit=limit,
+        )
+    return [fact.content for fact in facts]
