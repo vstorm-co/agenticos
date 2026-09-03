@@ -7,11 +7,13 @@ injectable content is only the shared operator rows.
 """
 
 import uuid
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.agents.capabilities.budget import SpendEntry, SpendLedger
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.memory import MemoryOrigin
@@ -20,7 +22,11 @@ from app.schemas.memory import (
     AgentMemoryFileCreate,
     AgentMemoryFileUpdate,
 )
-from app.services.memory.facade import MemoryService, _summary
+from app.services.memory.facade import (
+    MemoryService,
+    _record_operator_embedding_spend,
+    _summary,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -626,3 +632,74 @@ class TestCreateFact:
                 _ctx(), AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="org-wide")
             )
         embed.assert_not_awaited()
+
+    async def test_it_meters_the_embedding_to_the_org(self):
+        # The seed's embedding books to the org, not the deployment: create_fact
+        # wraps the embed in an org ledger and hands it to the spend recorder.
+        service = _service()
+        org = uuid.uuid4()
+        record = AsyncMock()
+        get_agent, allow = _reachable_agent()
+        with (
+            get_agent,
+            allow,
+            patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock(return_value=[0.1])),
+            patch(
+                f"{MEMORY_PATH}.memory_repo.create_fact",
+                new=AsyncMock(return_value=(uuid.uuid4(), None)),
+            ),
+            patch(f"{MEMORY_PATH}._record_operator_embedding_spend", new=record),
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await service.create_fact(
+                _ctx(org_id=org),
+                AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="x"),
+            )
+        assert record.await_count == 1
+        assert isinstance(record.await_args.args[1], SpendLedger)
+        assert record.await_args.kwargs["organization_id"] == org
+
+
+class TestOperatorEmbeddingSpend:
+    """The seed's embedding is booked to org ingestion spend, like a RAG document's -
+    one row per model, none when the embedding reported no usage."""
+
+    async def test_it_books_the_embedding_per_model_to_ingestion_spend(self):
+        ledger = SpendLedger(organization_id=uuid.uuid4())
+        ledger.entries.append(
+            SpendEntry(
+                model_name="emb",
+                input_tokens=5,
+                output_tokens=0,
+                cost_usd=Decimal("0.001"),
+                priced=True,
+            )
+        )
+        ledger.entries.append(
+            SpendEntry(
+                model_name="emb",
+                input_tokens=3,
+                output_tokens=0,
+                cost_usd=Decimal("0.002"),
+                priced=True,
+            )
+        )
+        org = uuid.uuid4()
+        record = AsyncMock()
+        with patch(f"{MEMORY_PATH}.ingestion_spend_repo.record", new=record):
+            await _record_operator_embedding_spend(MagicMock(), ledger, organization_id=org)
+        kwargs = record.await_args.kwargs
+        assert record.await_count == 1
+        assert kwargs["organization_id"] == org
+        assert kwargs["rag_document_id"] is None
+        assert kwargs["input_tokens"] == 8
+        assert kwargs["cost_usd"] == Decimal("0.003")
+        assert kwargs["cost_is_partial"] is False
+
+    async def test_it_writes_nothing_when_no_usage_was_recorded(self):
+        record = AsyncMock()
+        with patch(f"{MEMORY_PATH}.ingestion_spend_repo.record", new=record):
+            await _record_operator_embedding_spend(
+                MagicMock(), SpendLedger(organization_id=uuid.uuid4()), organization_id=uuid.uuid4()
+            )
+        record.assert_not_awaited()

@@ -142,11 +142,12 @@ named notes the agent writes, edits and reads back by name — a durable, editab
 record. **Facts** (`enable_facts`) are short things it remembers and recalls by
 *meaning*: `remember` embeds a sentence, `recall` returns the nearest ones by
 vector similarity. An agent can have either or both; with both off the capability
-contributes nothing. Facts embed on the deployment's embedding model, and the
-embedding cost is metered to the run like any other model call — a fact query an
-operator typed would escape that ledger, so operators never create or search
-facts, only list, read and clear them (the listing search is a plain substring
-match).
+contributes nothing. Facts embed on the deployment's embedding model. The agent's
+own `remember` books the embedding to the run's ledger like any other model call;
+an operator seeding a fact books it to the organisation's ingestion spend, the same
+as a RAG document, because a seed is off any run. An operator's *search* stays a
+plain substring match, never a semantic one — a KNN query it typed would embed off a
+run's ledger for nothing — so semantic `recall` remains the agent's runtime tool.
 
 **The agent reads before it answers.** Its standing instructions tell it to search
 memory before answering anything a past conversation might inform — a preference, or

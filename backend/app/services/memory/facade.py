@@ -15,19 +15,21 @@ session; this service runs on the request's session like every other.
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import cast
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFact, AgentMemoryFile, MemoryOrigin
 from app.db.updates import writable
-from app.repositories import agent_repo, member_repo, memory_repo
+from app.repositories import agent_repo, ingestion_spend_repo, member_repo, memory_repo
 from app.repositories.memory import MemorySort
 from app.schemas.memory import (
     AgentMemoryFactCreate,
@@ -60,6 +62,34 @@ def _summary(
         partition_label=partition_label,
         size_bytes=len(file.content.encode("utf-8")),
     )
+
+
+async def _record_operator_embedding_spend(
+    db: AsyncSession, ledger: SpendLedger, *, organization_id: UUID
+) -> None:
+    """Book an operator seed's embedding to the org's ingestion spend, if any.
+
+    The same shape RAG ingestion books its embeddings in (`_record_embedding_spend`
+    in `rag_tasks`): one row per model, into the ledger the monthly budget reads,
+    so an operator seeding a fact is charged exactly as one seeding a RAG document -
+    with no `rag_document_id`, because a fact is not one. Written on the request's
+    session, so it commits with the fact it paid for. Empty when the embedding
+    reported no usage, and then nothing is written.
+    """
+    if not ledger.entries:
+        return
+    for model_name in dict.fromkeys(entry.model_name for entry in ledger.entries):
+        entries = [entry for entry in ledger.entries if entry.model_name == model_name]
+        await ingestion_spend_repo.record(
+            db,
+            organization_id=organization_id,
+            rag_document_id=None,
+            model=model_name,
+            input_tokens=sum(entry.input_tokens for entry in entries),
+            output_tokens=sum(entry.output_tokens for entry in entries),
+            cost_usd=sum((entry.cost_usd for entry in entries), Decimal(0)),
+            cost_is_partial=any(not entry.priced for entry in entries),
+        )
 
 
 class MemoryService:
@@ -297,8 +327,11 @@ class MemoryService:
         one's own personal store needs only `AGENTS_VIEW`. The fact is written with
         `origin=operator` - the trusted tier - so, unlike an agent-authored one, it
         may enter the standing brief injected into the agent's instructions (a person
-        vouched for it). The embedding is unmetered (`embed_operator_fact`): there is
-        no run to book it against, so it is a deployment cost, not a budget charge.
+        vouched for it). The embedding is metered to the organization's ingestion
+        spend: a seed is off any run, so it books to the org budget rather than a
+        run's ledger - the same way RAG charges an operator-uploaded document, and
+        the inconsistency that a fact seed escaped that ledger while a RAG one did
+        not.
         """
         own_key = f"user:{ctx.user_id}" if ctx.user_id is not None else None
         creating_own_personal = (
@@ -306,7 +339,10 @@ class MemoryService:
         )
         perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
         await self._agent_or_404(ctx, data.agent_id, perm=perm)
-        embedding = await embed_operator_fact(data.content)
+        ledger = SpendLedger(organization_id=ctx.organization_id)
+        with metered_by(ledger):
+            embedding = await embed_operator_fact(data.content)
+        await _record_operator_embedding_spend(self.db, ledger, organization_id=ctx.organization_id)
         fact_id, created_at = await memory_repo.create_fact(
             self.db,
             organization_id=ctx.organization_id,

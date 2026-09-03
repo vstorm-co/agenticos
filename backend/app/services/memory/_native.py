@@ -59,12 +59,14 @@ async def _embed(text: str) -> list[float]:
 
 
 async def embed_operator_fact(content: str) -> list[float]:
-    """Embed an operator-seeded fact off the event loop, unmetered.
+    """Embed an operator-seeded fact off the event loop.
 
-    An operator seeding a fact is a management action, not an agent run, so there
-    is no run ledger to book the embedding against (N4) - the deployment bears the
-    cost, the way it does any other operator action. The runtime `remember` embeds
-    through `_embed`, whose `metered_by` context books it to the run instead.
+    `embed_query` records its usage to whatever `metered_by` ledger is in context,
+    and contextvars propagate into `asyncio.to_thread`, so the caller decides where
+    the cost lands. The management facade wraps this in an org ledger it books to
+    ingestion spend - the same as a RAG document, since a seed is off any run. The
+    runtime `remember` embeds through `_embed`, whose own `metered_by` books it to
+    the run instead.
     """
     return await asyncio.to_thread(_embedder_service().embed_query, content)
 
