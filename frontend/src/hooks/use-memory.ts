@@ -133,7 +133,7 @@ export function useMemoryFile(agentId: string, fileId: string | null) {
   const t = useTranslations("memory");
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.memory.file(agentId, fileId ?? ""),
     queryFn: () => apiClient.get<MemoryFile>(`/memory/files/${fileId}`),
     enabled: fileId !== null,
@@ -169,7 +169,7 @@ export function useMemoryFile(agentId: string, fileId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { file: data, isLoading, save, promote };
+  return { file: data, isLoading, error, refetch, save, promote };
 }
 
 interface MemoryFactsQuery {

@@ -20,7 +20,7 @@ import {
   SearchInput,
   useDebounced,
 } from "@/components/ui";
-import { LoadingState } from "@/components/states";
+import { ErrorState, LoadingState } from "@/components/states";
 import { Chip } from "@/components/memory/memory-chip";
 import { CreateMemoryFileDialog } from "@/components/memory/create-memory-file-dialog";
 import { MemoryFileEditor } from "@/components/memory/memory-file-editor";
@@ -74,7 +74,13 @@ export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProp
   const [selected, setSelected] = useState<MemoryFileSummary | null>(null);
   const [pendingDelete, setPendingDelete] = useState<MemoryFileSummary | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const { file, save, promote } = useMemoryFile(agentId, selected?.id ?? null);
+  const {
+    file,
+    error: fileError,
+    refetch: refetchFile,
+    save,
+    promote,
+  } = useMemoryFile(agentId, selected?.id ?? null);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltering = search.trim() !== "";
@@ -177,7 +183,14 @@ export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProp
               <DialogDescription>{t("editHint")}</DialogDescription>
             </DialogHeader>
             {file === undefined ? (
-              <LoadingState variant="skeleton-panel" rows={2} />
+              fileError ? (
+                <ErrorState
+                  description={getErrorMessage(fileError, tErrors)}
+                  cta={{ label: tc("retry"), onClick: () => void refetchFile() }}
+                />
+              ) : (
+                <LoadingState variant="skeleton-panel" rows={2} />
+              )
             ) : (
               <MemoryFileEditor
                 key={file.id}

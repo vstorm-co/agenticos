@@ -546,6 +546,69 @@ class TestClear:
         df.assert_not_awaited()
 
 
+class TestOwnPersonalWrites:
+    """A viewer may amend and forget their *own* personal memory, but nothing else -
+    the delete/update side of the create relaxation (codex P1)."""
+
+    @staticmethod
+    def _view_only():
+        async def _f(_db, _ctx, _agent, perm, **_kw) -> bool:
+            return perm == Perm.AGENTS_VIEW
+
+        return AsyncMock(side_effect=_f)
+
+    async def test_a_viewer_forgets_their_own_personal_fact(self):
+        service = _service()
+        me = uuid.uuid4()
+        fact = _fact()
+        fact.end_user_scope_key = f"user:{me}"
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+            patch(f"{MEMORY_PATH}.memory_repo.delete_fact", new=AsyncMock()) as delete,
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await service.delete_fact(_ctx(user_id=me), fact.id)
+        delete.assert_awaited_once()
+
+    async def test_a_viewer_cannot_forget_a_shared_fact(self):
+        service = _service()
+        fact = _fact()  # shared (scope None)
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.delete_fact(_ctx(user_id=uuid.uuid4()), fact.id)
+
+    async def test_a_viewer_forgets_their_own_personal_file(self):
+        service = _service()
+        me = uuid.uuid4()
+        file = _file(scope_key=f"user:{me}")
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
+            patch(f"{MEMORY_PATH}.memory_repo.delete", new=AsyncMock()) as delete,
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await service.delete(_ctx(user_id=me), file.id)
+        delete.assert_awaited_once()
+
+    async def test_a_viewer_cannot_forget_a_shared_file(self):
+        service = _service()
+        file = _file(scope_key=None)  # shared
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.delete(_ctx(user_id=uuid.uuid4()), file.id)
+
+
 class TestCreateFact:
     """The operator seeds a fact directly: it is embedded server-side (unmetered),
     stored, and audited, and the tier decides the permission the same way a file

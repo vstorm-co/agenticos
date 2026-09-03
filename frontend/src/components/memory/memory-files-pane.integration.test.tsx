@@ -93,6 +93,20 @@ describe("MemoryFilesPane", () => {
     expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
   });
 
+  it("shows an error with retry when the file detail fails to load", async () => {
+    // A failed detail GET must not leave the dialog on a permanent skeleton.
+    vi.mocked(apiClient.get).mockImplementation((url: string) =>
+      url.startsWith("/memory/files/f")
+        ? Promise.reject(new ApiError(502, "upstream", null))
+        : Promise.resolve({ items: [OPERATOR], total: 1 }),
+    );
+    mount();
+    await userEvent.click(await screen.findByText("user-preferences"));
+
+    expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
   it("confines the listing to the partition the panel gave it", async () => {
     mount({ scope: "shared" });
 

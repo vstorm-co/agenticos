@@ -124,6 +124,26 @@ class MemoryService:
     async def get(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
         return await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
 
+    def _own_personal(self, ctx: AuthContext, scope_key: str | None) -> bool:
+        """Whether a partition is the caller's own personal store.
+
+        A person may keep, amend and forget their *own* personal memory with only
+        view on the agent - the relaxation `create` already makes, extended to
+        update and delete so a viewer is not left with personal data they can
+        create but never remove (codex P1). Any other partition - the shared store
+        or another person's - stays an editor act, so a viewer can never touch what
+        is not theirs.
+        """
+        own = f"user:{ctx.user_id}" if ctx.user_id is not None else None
+        return scope_key is not None and scope_key == own
+
+    async def _require_write(
+        self, ctx: AuthContext, *, agent_id: UUID, scope_key: str | None
+    ) -> None:
+        """View suffices to write one's own personal partition; else editor."""
+        perm = Perm.AGENTS_VIEW if self._own_personal(ctx, scope_key) else Perm.AGENTS_EDIT
+        await self._agent_or_404(ctx, agent_id, perm=perm)
+
     async def _partition_labels(
         self, ctx: AuthContext, scope_keys: set[str | None]
     ) -> dict[str, str]:
@@ -265,7 +285,8 @@ class MemoryService:
         (:meth:`promote`), so a Save can never quietly turn untrusted content
         into something the prompt will splice in.
         """
-        file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_EDIT)
+        file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
+        await self._require_write(ctx, agent_id=file.agent_id, scope_key=file.end_user_scope_key)
         update_data = writable(data, over=AgentMemoryFile)
         updated = await memory_repo.update(self.db, file=file, update_data=update_data)
         await record_audit(
@@ -306,7 +327,8 @@ class MemoryService:
         return updated
 
     async def delete(self, ctx: AuthContext, file_id: UUID) -> None:
-        file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_EDIT)
+        file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
+        await self._require_write(ctx, agent_id=file.agent_id, scope_key=file.end_user_scope_key)
         await memory_repo.delete(self.db, file)
         await record_audit(
             self.db,
@@ -427,7 +449,8 @@ class MemoryService:
     async def delete_fact(self, ctx: AuthContext, fact_id: UUID) -> None:
         """Forget a fact. There is no operator create or edit - facts are the
         agent's own runtime writes - but clearing one is a management action."""
-        fact = await self._fact_or_404(ctx, fact_id, perm=Perm.AGENTS_EDIT)
+        fact = await self._fact_or_404(ctx, fact_id, perm=Perm.AGENTS_VIEW)
+        await self._require_write(ctx, agent_id=fact.agent_id, scope_key=fact.end_user_scope_key)
         await memory_repo.delete_fact(self.db, fact)
         await record_audit(
             self.db,
