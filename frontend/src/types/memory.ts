@@ -21,6 +21,9 @@ export interface MemoryFileSummary {
   kind: string;
   origin: MemoryOrigin;
   end_user_scope_key: string | null;
+  /** A readable name for a per-user partition (the member's email); null when the
+   * store is shared or the key does not resolve. */
+  partition_label: string | null;
   size_bytes: number;
 }
 
@@ -58,6 +61,9 @@ export interface MemoryFact {
   agent_id: string;
   content: string;
   end_user_scope_key: string | null;
+  /** A readable name for a per-user partition (the member's email); null when the
+   * store is shared or the key does not resolve. */
+  partition_label: string | null;
   created_at: string | null;
 }
 

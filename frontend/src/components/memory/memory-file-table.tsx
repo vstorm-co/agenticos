@@ -71,7 +71,12 @@ export function MemoryFileTable({
         key: "partition",
         header: t("colPartition"),
         hideBelow: "sm",
-        cell: (file) => <PartitionBadge scopeKey={file.end_user_scope_key} />,
+        cell: (file) => (
+          <PartitionBadge
+            scopeKey={file.end_user_scope_key}
+            partitionLabel={file.partition_label}
+          />
+        ),
       },
       {
         key: "actions",

@@ -25,4 +25,16 @@ describe("PartitionBadge", () => {
     render(<PartitionBadge scopeKey="user:0f3a91b2" />);
     expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
   });
+
+  it("shows the resolved name and keeps the raw key on hover", () => {
+    render(<PartitionBadge scopeKey="user:0f3a91b2" partitionLabel="dana@acme.example" />);
+    const badge = screen.getByText("dana@acme.example");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute("title", "user:0f3a91b2");
+  });
+
+  it("falls back to the raw key when the label did not resolve", () => {
+    render(<PartitionBadge scopeKey="user:0f3a91b2" partitionLabel={null} />);
+    expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
+  });
 });

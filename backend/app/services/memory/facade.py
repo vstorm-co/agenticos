@@ -27,7 +27,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFact, AgentMemoryFile, MemoryOrigin
 from app.db.updates import writable
-from app.repositories import agent_repo, memory_repo
+from app.repositories import agent_repo, member_repo, memory_repo
 from app.repositories.memory import MemorySort
 from app.schemas.memory import (
     AgentMemoryFactList,
@@ -43,7 +43,9 @@ from app.services.access import AGENT, resolve_access
 logger = logging.getLogger(__name__)
 
 
-def _summary(file: AgentMemoryFile) -> AgentMemoryFileSummary:
+def _summary(
+    file: AgentMemoryFile, *, partition_label: str | None = None
+) -> AgentMemoryFileSummary:
     """A memory file as the index shows it - the body is a byte count only."""
     return AgentMemoryFileSummary(
         id=file.id,
@@ -53,6 +55,7 @@ def _summary(file: AgentMemoryFile) -> AgentMemoryFileSummary:
         kind=file.kind,
         origin=cast(MemoryOriginLiteral, file.origin),
         end_user_scope_key=file.end_user_scope_key,
+        partition_label=partition_label,
         size_bytes=len(file.content.encode("utf-8")),
     )
 
@@ -89,6 +92,31 @@ class MemoryService:
     async def get(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
         return await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
 
+    async def _partition_labels(
+        self, ctx: AuthContext, scope_keys: set[str | None]
+    ) -> dict[str, str]:
+        """Map each `user:<id>` partition key in a page to a readable label.
+
+        The member's email, resolved org-scoped through `get_emails_for_users` -
+        which restricts to members precisely so a partition key cannot surface the
+        identity of someone outside the tenant. The shared store, a channel account
+        (`chan:`) and a departed or non-member user have no label, so the console
+        falls back to the raw key. One query for a page, not one per row.
+        """
+        user_ids: list[UUID] = []
+        for key in scope_keys:
+            if key and key.startswith("user:"):
+                try:
+                    user_ids.append(UUID(key.removeprefix("user:")))
+                except ValueError:
+                    continue
+        if not user_ids:
+            return {}
+        emails = await member_repo.get_emails_for_users(
+            self.db, organization_id=ctx.organization_id, user_ids=user_ids
+        )
+        return {f"user:{user_id}": email for user_id, email in emails.items() if email}
+
     async def list_files(
         self,
         ctx: AuthContext,
@@ -116,7 +144,14 @@ class MemoryService:
             skip=skip,
             limit=limit,
         )
-        return AgentMemoryFileList(items=[_summary(file) for file in items], total=total)
+        labels = await self._partition_labels(ctx, {file.end_user_scope_key for file in items})
+        return AgentMemoryFileList(
+            items=[
+                _summary(file, partition_label=labels.get(file.end_user_scope_key or ""))
+                for file in items
+            ],
+            total=total,
+        )
 
     async def create(self, ctx: AuthContext, data: AgentMemoryFileCreate) -> AgentMemoryFile:
         """Create a human-authored (trusted) memory file.
@@ -284,8 +319,20 @@ class MemoryService:
             skip=skip,
             limit=limit,
         )
+        labels = await self._partition_labels(ctx, {fact.end_user_scope_key for fact in items})
         return AgentMemoryFactList(
-            items=[AgentMemoryFactRead.model_validate(fact) for fact in items], total=total
+            items=[
+                AgentMemoryFactRead(
+                    id=fact.id,
+                    agent_id=fact.agent_id,
+                    content=fact.content,
+                    end_user_scope_key=fact.end_user_scope_key,
+                    partition_label=labels.get(fact.end_user_scope_key or ""),
+                    created_at=fact.created_at,
+                )
+                for fact in items
+            ],
+            total=total,
         )
 
     async def get_fact(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFact:

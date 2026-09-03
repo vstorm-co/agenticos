@@ -24,13 +24,28 @@ export function OriginBadge({ origin }: { origin: MemoryOrigin }) {
 
 /**
  * Which partition a row lives in — the shared store, or one end-user's private
- * one. The raw `user:`/`chan:` key is shown for a private partition because it
- * is the only stable handle an operator has: naming the person behind it needs
- * an identity the key does not carry.
+ * one. A private partition shows the resolved name the server attaches
+ * (`partitionLabel`, the member's email) when it has one, with the raw
+ * `user:`/`chan:` key on hover; a key that did not resolve — a channel account, a
+ * departed or non-member user — falls back to the raw key, the only stable handle
+ * left.
  */
-export function PartitionBadge({ scopeKey }: { scopeKey: string | null }) {
+export function PartitionBadge({
+  scopeKey,
+  partitionLabel,
+}: {
+  scopeKey: string | null;
+  partitionLabel?: string | null;
+}) {
   const t = useTranslations("memory");
   if (scopeKey === null) return <Badge variant="outline">{t("partitionShared")}</Badge>;
+  if (partitionLabel) {
+    return (
+      <Badge variant="secondary" title={scopeKey}>
+        {partitionLabel}
+      </Badge>
+    );
+  }
   return (
     <Badge variant="secondary" className="font-mono">
       {scopeKey}

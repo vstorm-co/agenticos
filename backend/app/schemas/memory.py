@@ -49,6 +49,11 @@ class AgentMemoryFileSummary(BaseSchema):
     kind: str
     origin: MemoryOriginLiteral
     end_user_scope_key: str | None = None
+    partition_label: str | None = Field(
+        default=None,
+        description="A readable name for a per-user partition (the member's email), "
+        "resolved org-scoped; None for the shared store or a key that does not resolve",
+    )
     size_bytes: int = Field(description="The body's size, so the index can hint at its weight")
 
 
@@ -105,6 +110,11 @@ class AgentMemoryFactRead(BaseSchema):
     agent_id: UUID
     content: str
     end_user_scope_key: str | None = None
+    partition_label: str | None = Field(
+        default=None,
+        description="A readable name for a per-user partition (the member's email), "
+        "resolved org-scoped; None for the shared store or a key that does not resolve",
+    )
     created_at: datetime | None = None
 
 

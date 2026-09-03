@@ -135,6 +135,76 @@ class TestListing:
         assert result.total == 2
         assert [item.name for item in result.items] == ["a", "b"]
 
+    async def test_list_files_resolves_per_user_partitions_to_member_emails(self):
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        known, emailless = uuid.uuid4(), uuid.uuid4()
+        files = [
+            _file("company", scope_key=None),
+            _file("prefs", scope_key=f"user:{known}"),
+            _file("ghost", scope_key=f"user:{emailless}"),
+        ]
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.list_for_agent",
+                new=AsyncMock(return_value=(files, 3)),
+            ),
+            patch(
+                f"{MEMORY_PATH}.member_repo.get_emails_for_users",
+                new=AsyncMock(return_value={known: "dana@acme.example", emailless: None}),
+            ) as emails,
+        ):
+            result = await service.list_files(_ctx(), agent_id=uuid.uuid4())
+        # The shared store and a member with no email carry no label; a resolvable
+        # member shows their email.
+        labels = {item.name: item.partition_label for item in result.items}
+        assert labels == {"company": None, "prefs": "dana@acme.example", "ghost": None}
+        # Only the per-user ids are looked up, and the lookup is org-scoped.
+        assert set(emails.await_args.kwargs["user_ids"]) == {known, emailless}
+
+    async def test_list_files_leaves_an_unresolvable_partition_key_unlabelled(self):
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        # A channel account and a malformed user key both parse to no member id, so
+        # the lookup is skipped and the console falls back to the raw key.
+        files = [_file("c", scope_key="chan:abc"), _file("b", scope_key="user:not-a-uuid")]
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.list_for_agent",
+                new=AsyncMock(return_value=(files, 2)),
+            ),
+            patch(f"{MEMORY_PATH}.member_repo.get_emails_for_users", new=AsyncMock()) as emails,
+        ):
+            result = await service.list_files(_ctx(), agent_id=uuid.uuid4())
+        assert all(item.partition_label is None for item in result.items)
+        emails.assert_not_awaited()
+
+    async def test_list_facts_resolves_the_partition_label(self):
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        uid = uuid.uuid4()
+        fact = _fact()
+        fact.end_user_scope_key = f"user:{uid}"
+        fact.created_at = None
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.list_facts",
+                new=AsyncMock(return_value=([fact], 1)),
+            ),
+            patch(
+                f"{MEMORY_PATH}.member_repo.get_emails_for_users",
+                new=AsyncMock(return_value={uid: "dana@acme.example"}),
+            ),
+        ):
+            result = await service.list_facts(_ctx(), agent_id=uuid.uuid4())
+        assert result.items[0].partition_label == "dana@acme.example"
+
 
 class TestCreate:
     async def test_a_duplicate_name_in_the_partition_is_refused(self):

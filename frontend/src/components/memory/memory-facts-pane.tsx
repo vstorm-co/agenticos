@@ -115,7 +115,10 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
                     <p className="text-foreground text-sm">{fact.content}</p>
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
                       <OriginBadge origin="agent" />
-                      <PartitionBadge scopeKey={fact.end_user_scope_key} />
+                      <PartitionBadge
+                        scopeKey={fact.end_user_scope_key}
+                        partitionLabel={fact.partition_label}
+                      />
                       {fact.created_at !== null && (
                         <span>
                           {t("remembered", {
