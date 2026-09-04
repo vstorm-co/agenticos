@@ -504,6 +504,46 @@ class MemoryService:
     async def get_fact(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFact:
         return await self._fact_or_404(ctx, fact_id, perm=Perm.AGENTS_VIEW)
 
+    async def promote_fact(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFactRead:
+        """Mark an agent-authored fact operator-authored (trusted).
+
+        The fact analogue of :meth:`promote`, and the one deliberate path from
+        `agent` to `operator` for a fact: a person vouches that an agent-learned
+        fact is safe to treat as the operator's own. That is what lets it enter the
+        standing brief - `list_brief_facts` injects operator-authored *shared* facts
+        and never an agent-authored one, so without a promote an operator's only way
+        to trust one was to delete and reseed it. A listing never launders origin;
+        promotion is the separate act, exactly as for a file. Native-only: a
+        mem0-backed agent has no origin tier to promote within, so it is refused
+        like the other fact-management paths. Requires edit on the parent agent -
+        promoting reaches the shared brief every end-user reads, never just one
+        person's own.
+        """
+        fact = await memory_repo.get_fact(self.db, fact_id, organization_id=ctx.organization_id)
+        if fact is None:
+            raise NotFoundError(message="Memory fact not found", details={"fact_id": str(fact_id)})
+        agent = await self._agent_or_404(ctx, fact.agent_id, perm=Perm.AGENTS_EDIT)
+        self._refuse_if_mem0(agent)
+        updated = await memory_repo.set_fact_origin(
+            self.db, fact=fact, origin=MemoryOrigin.OPERATOR.value
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.fact.promoted",
+            target_type="memory",
+            target_id=str(fact.id),
+        )
+        return AgentMemoryFactRead(
+            id=updated.id,
+            agent_id=updated.agent_id,
+            content=updated.content,
+            origin=cast(MemoryOriginLiteral, updated.origin),
+            end_user_scope_key=updated.end_user_scope_key,
+            created_at=updated.created_at,
+        )
+
     async def delete_fact(self, ctx: AuthContext, fact_id: UUID) -> None:
         """Forget a fact. There is no operator create or edit - facts are the
         agent's own runtime writes - but clearing one is a management action."""

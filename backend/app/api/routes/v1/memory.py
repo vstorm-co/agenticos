@@ -124,6 +124,13 @@ async def get_memory_fact(fact_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
     return await service.get_fact(ctx, fact_id)
 
 
+@router.post("/facts/{fact_id}/promote", response_model=AgentMemoryFactRead)
+async def promote_memory_fact(fact_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
+    """Mark an agent-authored fact operator-trusted, so it may enter the standing
+    brief. Deliberate, like a file's promote; native-only."""
+    return await service.promote_fact(ctx, fact_id)
+
+
 @router.delete("/facts/{fact_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_memory_fact(fact_id: UUID, service: MemorySvc, ctx: Auth) -> None:
     """Forget a fact. Operators do not create or edit facts - only the agent does,

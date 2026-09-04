@@ -201,7 +201,10 @@ person vouched for; turning an agent note into an operator one is a deliberate
 A fact carries an `origin` for the same reason: the runtime `remember` writes an
 `agent` fact, an operator seed writes an `operator` one, and only the injectable
 set — a person's own facts and operator-authored shared ones — is placed in the
-standing brief, while an agent-authored shared fact stays `recall`-only.
+standing brief, while an agent-authored shared fact stays `recall`-only. As with a
+file, an agent fact an operator vouches for is **promoted** to `operator` in place —
+a deliberate act, never a side effect of a listing — after which it joins the
+injectable set rather than being deleted and reseeded.
 
 Access to the management API rides on the parent agent — whoever may view the
 agent may read its memory, whoever may edit the agent may
