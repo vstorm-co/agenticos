@@ -12,6 +12,7 @@ import type {
 } from "@/components/mcp/mcp-server-list-types";
 import { getErrorMessage } from "@/lib/api-error";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
+import { rememberMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { rowForEntry } from "@/lib/mcp-servers";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
@@ -37,6 +38,14 @@ interface ConnectDialogProps {
   onClose: () => void;
   /** The new connection's id, so the caller can bind it straight away. */
   onConnected?: (connectionId: string) => void;
+  /**
+   * Where an OAuth consent should bring the browser back to, as a path on this
+   * app. Given, the consent runs in *this* tab and returns here - right for a
+   * chat, which has nothing unsaved to lose and a conversation to come back to.
+   * Absent, it opens in a new tab and lands on the servers page, which is what
+   * the Builder wants for a draft it must not lose.
+   */
+  returnTo?: string;
 }
 
 /**
@@ -78,9 +87,16 @@ function OrgConnectForm(props: ConnectDialogProps & { entry: McpCatalogEntry }) 
  * person has none. Carries the catalog key, because a personal connection
  * without one can never be matched to the binding that asked for it.
  */
-export function ConnectOwnServerDialog({ entry, onClose, onConnected }: ConnectDialogProps) {
+export function ConnectOwnServerDialog({
+  entry,
+  onClose,
+  onConnected,
+  returnTo,
+}: ConnectDialogProps) {
   if (entry === null) return null;
-  return <OwnConnectForm entry={entry} onClose={onClose} onConnected={onConnected} />;
+  return (
+    <OwnConnectForm entry={entry} onClose={onClose} onConnected={onConnected} returnTo={returnTo} />
+  );
 }
 
 function OwnConnectForm(props: ConnectDialogProps & { entry: McpCatalogEntry }) {
@@ -94,12 +110,14 @@ function ConnectForm({
   create,
   onClose,
   onConnected,
+  returnTo,
 }: {
   entry: McpCatalogEntry;
   scope: Scope;
   create: CreateConnection;
   onClose: () => void;
   onConnected?: (connectionId: string) => void;
+  returnTo?: string;
 }) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
@@ -123,12 +141,14 @@ function ConnectForm({
     }
 
     if (values.auth === "oauth") {
-      // Opened without `noopener`, then severed by hand. A browser that
-      // implements the feature returns `null` even though it created the tab -
-      // so the success path read that as "popup blocked", navigated the Builder
-      // itself to the consent screen, discarded the unsaved draft this dialog
-      // exists to preserve, and left a blank tab behind.
-      const tab = window.open("", "_blank");
+      // With somewhere to return to, the consent runs in this tab and the
+      // callback brings the browser back. Otherwise a new tab, opened without
+      // `noopener` and then severed by hand: a browser that implements the
+      // feature returns `null` even though it created the tab, so the success
+      // path read that as "popup blocked", navigated the Builder itself to the
+      // consent screen, discarded the unsaved draft this dialog exists to
+      // preserve, and left a blank tab behind.
+      const tab = returnTo === undefined ? window.open("", "_blank") : null;
       if (tab) tab.opener = null;
       setSubmitting(true);
       try {
@@ -136,15 +156,17 @@ function ConnectForm({
           { name, url, catalog_key: entry.key },
           scope,
         );
+        if (returnTo !== undefined) rememberMcpOAuthReturn(returnTo);
         if (tab) {
           tab.location.href = authorization_url;
         } else {
-          // Blocked anyway. Better a navigation the person did not expect than
-          // a consent screen that never opens and no explanation.
+          // Either this is the return-here flow, or the tab was blocked anyway -
+          // and a navigation the person did not expect beats a consent screen
+          // that never opens and no explanation.
           window.location.assign(authorization_url);
         }
         onClose();
-        toast.info(t("finishConsentThenReturn"));
+        if (returnTo === undefined) toast.info(t("finishConsentThenReturn"));
       } catch (caught) {
         tab?.close();
         toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));

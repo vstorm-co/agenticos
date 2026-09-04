@@ -94,3 +94,45 @@ export function mcpOAuthMessage(outcome: McpOAuthOutcome, t: Translate): string 
       return t("oauthRefusedWithReason", { reason: outcome.detail });
   }
 }
+
+/**
+ * Where the browser should land after the provider's consent, when not the
+ * servers page.
+ *
+ * A cookie rather than a query parameter through the provider: the OAuth `state`
+ * is the backend's and carries nothing of ours, and the redirect URI is fixed at
+ * the provider, so the only channel from "start" to "callback" that stays on this
+ * origin is the browser itself. Ten minutes is longer than any consent screen
+ * and shorter than a forgotten tab.
+ */
+export const MCP_OAUTH_RETURN_COOKIE = "mcp_oauth_return";
+
+/** Remember to come back to `path` once the consent lands. */
+export function rememberMcpOAuthReturn(path: string): void {
+  document.cookie = `${MCP_OAUTH_RETURN_COOKIE}=${encodeURIComponent(path)}; path=/; max-age=600; SameSite=Lax`;
+}
+
+/**
+ * The remembered return path, if it is one of this app's own.
+ *
+ * A same-origin path and nothing else: `/chat?id=…` yes, `//evil.example` and
+ * `https://…` no - the cookie is the browser's to set, and a redirect target is
+ * exactly what an open-redirect check exists for. Null means the servers page.
+ */
+export function safeMcpOAuthReturn(raw: string | undefined): string | null {
+  if (raw === undefined) return null;
+  const path = decodeURIComponent(raw);
+  if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return null;
+  return path;
+}
+
+/**
+ * This page's own path and query, for `returnTo` - or nothing on the server,
+ * where there is no page yet. A client component still renders once there, and
+ * the value is read on a click, never in the markup, so the two renders agreeing
+ * is not required.
+ */
+export function hereForMcpOAuthReturn(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return `${window.location.pathname}${window.location.search}`;
+}

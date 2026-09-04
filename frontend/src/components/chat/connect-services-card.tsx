@@ -9,6 +9,7 @@ import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useMcpCatalog } from "@/hooks/use-mcp-servers";
+import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { ownAccountStatus } from "@/lib/mcp-servers";
 import type { PersonalServiceGap } from "@/types";
 import type { McpCatalogEntry } from "@/types/mcp";
@@ -101,7 +102,13 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
           );
         })}
       </ul>
-      <ConnectOwnServerDialog entry={connecting} onClose={() => setConnecting(null)} />
+      <ConnectOwnServerDialog
+        entry={connecting}
+        onClose={() => setConnecting(null)}
+        // Back to this conversation once the consent lands, rather than to the
+        // servers page: nothing here is unsaved, and the question is here.
+        returnTo={hereForMcpOAuthReturn()}
+      />
     </div>
   );
 }

@@ -41,7 +41,15 @@ Two things are versioned separately from this file and worth knowing about:
   several with no default, needs authorizing - so a new member sees what to
   connect before their first question. Personal connections made from the
   console now carry their catalog key, without which no binding could have
-  matched them.
+  matched them; `0071_mcp_connection_catalog_key` backfills the key on every
+  connection made from a catalog entry before the console sent it. A consent
+  started from the chat returns to the conversation, not to the servers page.
+- **The Builder clears stale references and probes a server's tools in place.**
+  A draft naming a deleted collection, context file, skill or connection is
+  refused at publish, and used to say so only there; a notice above the tabs
+  now names them and removes them in one click. The tool picker for a binding
+  probes a connection nobody has checked yet, for a caller who may, instead of
+  opening empty.
 
 ## [0.0.355] - 2026-09-02
 

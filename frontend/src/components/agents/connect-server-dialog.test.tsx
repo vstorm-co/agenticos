@@ -257,3 +257,24 @@ describe("ConnectOwnServerDialog", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+describe("ConnectOwnServerDialog with somewhere to return to", () => {
+  it("runs the consent in this tab and remembers the way back", async () => {
+    // A chat has nothing unsaved to lose and a conversation to come back to, so
+    // the new-tab dance the Builder needs would only leave the person on the
+    // servers page with a toast and no way back but the history.
+    vi.clearAllMocks();
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    const opened = vi.spyOn(window, "open");
+    render(<ConnectOwnServerDialog entry={OAUTH_ENTRY} onClose={vi.fn()} returnTo="/chat?id=1" />, {
+      wrapper,
+    });
+
+    await submit();
+
+    await waitFor(() => expect(startMcpOAuth).toHaveBeenCalled());
+    expect(opened).not.toHaveBeenCalled();
+    expect(document.cookie).toContain(`mcp_oauth_return=${encodeURIComponent("/chat?id=1")}`);
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+});
