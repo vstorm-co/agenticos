@@ -228,6 +228,20 @@ export function useMemoryFacts({
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  // Promoting an agent-authored fact makes it operator-trusted, which is what lets
+  // it enter the standing brief — the fact counterpart of a file's promote. There
+  // is no open detail to reconcile as there is for a file, so a plain list
+  // invalidation is enough: the row re-renders operator, and its promote control
+  // disappears with the origin it was gated on.
+  const promote = useMutation({
+    mutationFn: (id: string) => apiClient.post<MemoryFact>(`/memory/facts/${id}/promote`, {}),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.memory.factsRoot(agentId) });
+      toast.success(t("promoted"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => apiClient.delete<void>(`/memory/facts/${id}`),
     onSuccess: async () => {
@@ -244,6 +258,7 @@ export function useMemoryFacts({
     error,
     refetch,
     create,
+    promote,
     remove,
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Info, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Info, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import {
@@ -50,7 +50,7 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
   const search = useDebounced(query);
 
   const { clearFacts } = useMemoryDangerZone(agentId);
-  const { facts, total, isLoading, error, refetch, remove } = useMemoryFacts({
+  const { facts, total, isLoading, error, refetch, promote, remove } = useMemoryFacts({
     agentId,
     scope,
     search,
@@ -136,15 +136,29 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
                     </div>
                   </div>
                   {canEdit && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
-                      aria-label={t("forgetFact")}
-                      onClick={() => setPendingDelete(fact)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {fact.origin === "agent" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-foreground h-8 w-8"
+                          aria-label={t("promote")}
+                          disabled={promote.isPending}
+                          onClick={() => promote.mutate(fact.id)}
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive h-8 w-8"
+                        aria-label={t("forgetFact")}
+                        onClick={() => setPendingDelete(fact)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </li>
               ))}

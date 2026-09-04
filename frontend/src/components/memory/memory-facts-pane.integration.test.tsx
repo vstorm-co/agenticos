@@ -149,11 +149,29 @@ describe("MemoryFactsPane", () => {
     expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
   });
 
-  it("gives a viewer nothing to delete with", async () => {
+  it("offers promote only on an agent-authored fact, and promotes it", async () => {
+    // The operator-seeded fact (x1) is already trusted, so only the agent-written
+    // one (x2) carries a promote control; clicking it marks that fact trusted.
+    vi.mocked(apiClient.post).mockResolvedValue({ ...FACT_USER, origin: "operator" });
+    mount();
+    await screen.findByText("Prefers weekly summaries on Fridays.");
+
+    const promoteButtons = screen.getAllByRole("button", { name: "Promote to trusted" });
+    expect(promoteButtons).toHaveLength(1);
+
+    await userEvent.click(promoteButtons[0]!);
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/memory/facts/x2/promote", {}),
+    );
+  });
+
+  it("gives a viewer no control to change a fact", async () => {
     mount({ canEdit: false });
     await screen.findByText("Acme's fiscal year starts in April.");
 
     expect(screen.queryByRole("button", { name: "Forget fact" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Promote to trusted" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear all facts" })).not.toBeInTheDocument();
   });
 

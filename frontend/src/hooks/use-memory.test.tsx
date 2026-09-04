@@ -266,6 +266,24 @@ describe("useMemoryFacts", () => {
     await expect(result.current.remove.mutateAsync("x1")).rejects.toThrow();
     expect(toastError).toHaveBeenCalled();
   });
+
+  it("promotes an agent fact to trusted and reports it", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "x1", origin: "operator" });
+    const { result } = renderHook(() => useMemoryFacts({ agentId: "a1" }), { wrapper });
+
+    await result.current.promote.mutateAsync("x1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/memory/facts/x1/promote", {});
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("toasts when promoting a fact fails", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useMemoryFacts({ agentId: "a1" }), { wrapper });
+
+    await expect(result.current.promote.mutateAsync("x1")).rejects.toThrow();
+    expect(toastError).toHaveBeenCalled();
+  });
 });
 
 describe("useMemoryDangerZone", () => {
