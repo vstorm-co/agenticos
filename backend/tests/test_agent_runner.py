@@ -1724,8 +1724,14 @@ class TestParking:
             # capability: the store the runner always opens held nothing to snapshot.
             "plan": [],
             # What the request asked for, so the continuation is the same run
-            # rather than a default-mode one wearing its id (#1326, #1343).
-            "admitted_as": {"approval_mode": "follow_agent", "private_to_user": False},
+            # rather than a default-mode one wearing its id (#1326, #1343), and the
+            # memory partition keys on the run's own identity, not the approver's
+            # (#788).
+            "admitted_as": {
+                "approval_mode": "follow_agent",
+                "private_to_user": False,
+                "subject_is_publisher_fallback": False,
+            },
         }
 
     @pytest.mark.anyio
@@ -2117,6 +2123,51 @@ class TestResume:
 
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
         assert toolsets.await_args.kwargs["personal_for_user_id"] == self.resumed_run.user_id
+
+    @pytest.mark.anyio
+    async def test_the_memory_partition_is_the_runs_own_not_the_approvers(self):
+        """The factory derives the per-user memory key from `user_id`,
+        `channel_identity_id` and the publisher-fallback flag. Resuming read all
+        three off the approver, so an admin releasing a member's parked chat
+        injected their own personal memory and wrote the member's facts under
+        their account (#788) - the same bug the personal-MCP owner test guards,
+        on the store next to it. The run's own identity now feeds the build."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "private_to_user": True,
+                    "subject_is_publisher_fallback": False,
+                },
+            }
+        )
+
+        assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
+        assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
+        assert build.call_args.kwargs["channel_identity_id"] == self.resumed_run.channel_identity_id
+        assert build.call_args.kwargs["subject_is_publisher_fallback"] is False
+
+    @pytest.mark.anyio
+    async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):
+        """The publisher-fallback flag is the one memory-identity input not on the
+        row, so it rides the parked state. A run that stood a publisher in for an
+        anonymous visitor had no personal partition; restoring the flag keeps it
+        that way on resume rather than keying on the approver."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "private_to_user": False,
+                    "subject_is_publisher_fallback": True,
+                },
+            }
+        )
+
+        assert build.call_args.kwargs["subject_is_publisher_fallback"] is True
 
     @pytest.mark.anyio
     async def test_a_parked_channel_run_answers_as_the_organization(self):

@@ -485,6 +485,17 @@ class AdmittedAs(BaseModel):
             "direct message and a channel are the same surface (#1343)."
         ),
     )
+    subject_is_publisher_fallback: bool = Field(
+        default=False,
+        description=(
+            "Whether the run's `user_id` is only a publisher standing in for an "
+            "unidentified visitor, so per-user memory keys on nobody rather than "
+            "on the publisher. Unrecoverable from the row and decided by the "
+            "request: a resume that re-derived it from the approver keyed the "
+            "memory partition on their identity and wrote one person's facts "
+            "under another (#788)."
+        ),
+    )
 
 
 class PausedRunState(BaseModel):
@@ -1765,6 +1776,7 @@ class AgentRunnerService:
         user_name: str | None,
         private_to_user: bool = False,
         owner_user_id: UUID | None = None,
+        restored_publisher_fallback: bool | None = None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -2044,25 +2056,38 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
+        # The per-user memory identity is the run's own, not the resuming
+        # caller's. On a fresh run they are the same person, so this is `ctx`
+        # unchanged; on a resume an approver is releasing somebody else's run, so
+        # the owner comes off the row (`owner_user_id`, the run's channel) and the
+        # publisher-fallback flag off the parked state (#788).
+        memory_user_id = owner_user_id or ctx.user_id
+        memory_channel_identity_id = (
+            existing_run.channel_identity_id
+            if existing_run is not None
+            else ctx.channel_identity_id
+        )
+        publisher_fallback = (
+            ctx.subject_is_publisher_fallback
+            if restored_publisher_fallback is None
+            else restored_publisher_fallback
+        )
         built = build_agent(
             spec,
             model_spec,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
-            # Not `str(ctx.user_id)`: a context with no subject would stringify
-            # to the literal "None" and hand it to every tool as the caller's
-            # id. `AgentDeps.user_id` is already optional precisely so a surface
-            # without a person can say so, and "None" is the one answer that
-            # looks like an answer.
-            user_id=None if ctx.user_id is None else str(ctx.user_id),
+            # The run's own identity, resolved just above, not the resuming
+            # caller's. Nothing downstream reads `AgentDeps.user_id`: its only use
+            # is the per-user memory key the factory derives from these three, and
+            # keying that on an approver wrote one person's facts under another
+            # (#788). The guard keeps a subject-less context stringifying to None,
+            # never the literal "None".
+            user_id=None if memory_user_id is None else str(memory_user_id),
             user_name=user_name,
-            # Who actually asked, for per-user memory: the channel account when
-            # one spoke, and whether `user_id` is only the publisher standing in
-            # for an unidentified visitor. The factory derives an end-user key
-            # from these solely when a per-user memory capability is bound.
-            channel_identity_id=ctx.channel_identity_id,
-            subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
+            channel_identity_id=memory_channel_identity_id,
+            subject_is_publisher_fallback=publisher_fallback,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -2105,7 +2130,11 @@ class AgentRunnerService:
             ctx=ctx,
             plan_store=plan_store,
             finished_plan_withheld=finished_plan_withheld,
-            admitted_as=AdmittedAs(approval_mode=approval_mode, private_to_user=private_to_user),
+            admitted_as=AdmittedAs(
+                approval_mode=approval_mode,
+                private_to_user=private_to_user,
+                subject_is_publisher_fallback=publisher_fallback,
+            ),
         )
 
     async def _delegation_runtime(
@@ -3372,8 +3401,11 @@ class AgentRunnerService:
             private_to_user=state.admitted_as.private_to_user and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
-            # speaks through.
+            # speaks through - for personal MCP (`owner_user_id`) or for the
+            # per-user memory partition (`restored_publisher_fallback`, with the
+            # run's own `user_id`/`channel_identity_id` read off the row).
             owner_user_id=run.user_id,
+            restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to
