@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.agents.capabilities.budget import SpendEntry, SpendLedger
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.memory import MemoryOrigin
@@ -725,6 +725,7 @@ class TestCreateFact:
         with (
             get_agent,
             allow,
+            patch(f"{MEMORY_PATH}.assert_organization_within_budget", new=AsyncMock()),
             patch(f"{MEMORY_PATH}.embed_operator_fact", new=embed),
             patch(f"{MEMORY_PATH}.memory_repo.create_fact", new=create),
             patch(f"{MEMORY_PATH}.record_audit", new=audit),
@@ -746,6 +747,7 @@ class TestCreateFact:
         return (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
             patch(f"{MEMORY_PATH}.resolve_access", new=resolve),
+            patch(f"{MEMORY_PATH}.assert_organization_within_budget", new=AsyncMock()),
             patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock(return_value=[0.1])),
             patch(
                 f"{MEMORY_PATH}.memory_repo.create_fact",
@@ -754,11 +756,35 @@ class TestCreateFact:
             patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
         )
 
+    async def test_it_refuses_when_the_org_is_over_budget(self):
+        # The cap is checked before the embed spends, the pre-check RAG makes.
+        service = _service()
+        get_agent, allow = _reachable_agent()
+        embed = AsyncMock()
+        with (
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.assert_organization_within_budget",
+                new=AsyncMock(
+                    side_effect=BudgetExceeded(
+                        limit_usd=Decimal(1), spent_usd=Decimal(2), scope=BudgetScope.ORGANIZATION
+                    )
+                ),
+            ),
+            patch(f"{MEMORY_PATH}.embed_operator_fact", new=embed),
+            pytest.raises(BudgetExceeded),
+        ):
+            await service.create_fact(
+                _ctx(), AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="x")
+            )
+        embed.assert_not_awaited()
+
     async def test_a_shared_fact_needs_edit(self):
         service = _service()
         resolve = AsyncMock(return_value=True)
-        get_agent, allow, embed, create, audit = self._fact_authz_patches(resolve)
-        with get_agent, allow, embed, create, audit:
+        get_agent, allow, budget, embed, create, audit = self._fact_authz_patches(resolve)
+        with get_agent, allow, budget, embed, create, audit:
             await service.create_fact(
                 _ctx(), AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="org-wide")
             )
@@ -768,8 +794,8 @@ class TestCreateFact:
         service = _service()
         me = uuid.uuid4()
         resolve = AsyncMock(return_value=True)
-        get_agent, allow, embed, create, audit = self._fact_authz_patches(resolve)
-        with get_agent, allow, embed, create, audit:
+        get_agent, allow, budget, embed, create, audit = self._fact_authz_patches(resolve)
+        with get_agent, allow, budget, embed, create, audit:
             await service.create_fact(
                 _ctx(user_id=me),
                 AgentMemoryFactCreate(
@@ -807,6 +833,7 @@ class TestCreateFact:
         with (
             get_agent,
             allow,
+            patch(f"{MEMORY_PATH}.assert_organization_within_budget", new=AsyncMock()),
             patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock(return_value=[0.1])),
             patch(
                 f"{MEMORY_PATH}.memory_repo.create_fact",

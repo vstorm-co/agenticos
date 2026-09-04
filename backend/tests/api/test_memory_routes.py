@@ -172,6 +172,7 @@ class TestCreate:
         with (
             get_agent,
             allow,
+            patch(f"{FACADE}.assert_organization_within_budget", new=AsyncMock()),
             patch(f"{FACADE}.embed_operator_fact", new=AsyncMock(return_value=[0.1])),
             patch(f"{FACADE}.memory_repo.create_fact", new=AsyncMock(return_value=(fact_id, None))),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),

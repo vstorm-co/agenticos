@@ -43,6 +43,7 @@ from app.schemas.memory import (
 )
 from app.services.access import AGENT, resolve_access
 from app.services.memory._native import embed_operator_fact
+from app.services.spend import assert_organization_within_budget
 
 logger = logging.getLogger(__name__)
 
@@ -397,7 +398,8 @@ class MemoryService:
         spend: a seed is off any run, so it books to the org budget rather than a
         run's ledger - the same way RAG charges an operator-uploaded document, and
         the inconsistency that a fact seed escaped that ledger while a RAG one did
-        not.
+        not. The organization's monthly cap is checked before the embed, so a seed
+        cannot spend past an exhausted budget.
         """
         own_key = f"user:{ctx.user_id}" if ctx.user_id is not None else None
         creating_own_personal = (
@@ -406,6 +408,9 @@ class MemoryService:
         perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
         agent = await self._agent_or_404(ctx, data.agent_id, perm=perm)
         self._refuse_if_mem0(agent)
+        # Check the cap before spending on the embed, the pre-check RAG ingestion
+        # makes, so a seed cannot embed past an exhausted monthly budget (codex P2).
+        await assert_organization_within_budget(self.db, ctx.organization_id)
         ledger = SpendLedger(organization_id=ctx.organization_id)
         with metered_by(ledger):
             embedding = await embed_operator_fact(data.content)
