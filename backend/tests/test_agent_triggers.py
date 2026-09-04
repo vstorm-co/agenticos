@@ -1048,6 +1048,9 @@ class TestFiring:
 
         run_ctx = runner.execute.call_args.args[0]
         assert run_ctx.user_id == _CALLER
+        # The creator is the authority, not a memory end-user: an unattended fire
+        # must not read the creator's private memory nor save facts there (codex P1).
+        assert run_ctx.subject_is_publisher_fallback is True
         assert runner.execute.call_args.kwargs["surface"] is RunSurface.SCHEDULE
         assert runner.execute.call_args.kwargs["conversation_id"] == conversation.id
         assert trigger.last_run_id == run.id
