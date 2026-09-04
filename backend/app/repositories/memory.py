@@ -337,6 +337,13 @@ async def recall_facts(
     the KNN to the shared store, unioned with the current person's when the run has
     one (`personal_key`), so a run only ever recalls from stores it was admitted
     to; the key is server-derived, so the union can never reach another person's.
+
+    `hnsw.iterative_scan` is on (pgvector >= 0.8) because the scope predicates are
+    applied *after* the approximate scan: without it, on a populated multi-agent
+    table the fixed candidate set the index returns can be mostly other agents'
+    or partitions' rows, so a scoped recall would return fewer than `limit` - or
+    nothing - even when the agent has matching facts. `strict_order` keeps exact
+    distance order while it scans further to fill the limit (codex P2).
     """
     dim = settings.rag.embeddings_config.dim
     wide = dim > _HNSW_MAX_VECTOR_DIM
@@ -355,6 +362,7 @@ async def recall_facts(
     }
     if personal_key is not None:
         params["scope"] = personal_key
+    await db.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
     result = await db.execute(
         text(
             f"SELECT content, 1 - ({distance} <=> {query_expr}) AS score "
