@@ -462,6 +462,17 @@ All three are decided **per collection**, not per deployment, by
 | **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
 | **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. A collection on the provider the deployment's own key belongs to may instead embed on `OPENROUTER_API_KEY`. |
 
+Which knowledge base a collection name resolves to is itself a tenant question.
+`collection_name` is indexed but **not unique** — two organizations can name a
+collection the same thing and share one vector table — so resolution is scoped
+to the organization the embedding is *for*: the ingesting flow's, the searching
+agent's. Picking whichever row the database ordered first would resolve another
+tenant's model and unseal *their* vault key for this request, billing them and
+running this organization's text through their credential
+([#913](https://github.com/vstorm-co/agenticos/issues/913)). A shared name
+therefore resolves each organization's own configuration, falling back to an
+app-scoped collection but never to a third tenant's.
+
 The provider used to be hardcoded: every request went to `openrouter.ai`,
 so an organization holding an OpenAI key could not use it, a
 key moved to another account meant recreating the collection and re-ingesting

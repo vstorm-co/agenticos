@@ -4,6 +4,7 @@ import hashlib
 import logging
 import time
 from abc import ABC, abstractmethod
+from uuid import UUID
 
 from rank_bm25 import BM25Okapi
 
@@ -29,6 +30,7 @@ class BaseRetrievalService(ABC):
         limit: int = 5,
         min_score: float = 0.0,
         filter: str = "",
+        organization_id: UUID | None = None,
     ) -> list[SearchResult]:
         pass
 
@@ -76,14 +78,17 @@ class RetrievalService(BaseRetrievalService):
         ]
 
     async def _bm25_search(
-        self, query: str, collection_name: str, limit: int
+        self, query: str, collection_name: str, limit: int, organization_id: UUID | None = None
     ) -> list[SearchResult]:
         docs = await self.store.get_documents(collection_name)
         if not docs:
             return []
 
         all_results = await self.store.search(
-            collection_name=collection_name, query=query, limit=min(limit * 10, 100)
+            collection_name=collection_name,
+            query=query,
+            limit=min(limit * 10, 100),
+            organization_id=organization_id,
         )
         if not all_results:
             return []
@@ -112,6 +117,7 @@ class RetrievalService(BaseRetrievalService):
         limit: int = 5,
         min_score: float = 0.0,
         filter: str = "",
+        organization_id: UUID | None = None,
     ) -> list[SearchResult]:
         # Overfetch so min-score filtering and dedup still leave `limit` results.
         fetch_multiplier = 2
@@ -131,6 +137,7 @@ class RetrievalService(BaseRetrievalService):
             query=query,
             filter_expr=filter,
             limit=limit * fetch_multiplier,
+            organization_id=organization_id,
         )
 
         search_time = time.time() - start_time
@@ -141,7 +148,9 @@ class RetrievalService(BaseRetrievalService):
         )
 
         if self._hybrid_enabled:
-            bm25_results = await self._bm25_search(query, collection_name, limit * fetch_multiplier)
+            bm25_results = await self._bm25_search(
+                query, collection_name, limit * fetch_multiplier, organization_id
+            )
             if bm25_results:
                 pipeline_results = self._rrf_fuse(pipeline_results, bm25_results)
                 logger.info("[RETRIEVAL] Hybrid search: fused %d results", len(pipeline_results))
@@ -203,6 +212,7 @@ class RetrievalService(BaseRetrievalService):
         collection_names: list[str],
         limit: int = 5,
         min_score: float = 0.0,
+        organization_id: UUID | None = None,
     ) -> list[SearchResult]:
         """Search several collections and merge what they return.
 
@@ -223,6 +233,7 @@ class RetrievalService(BaseRetrievalService):
                     collection_name=name,
                     limit=limit,
                     min_score=min_score,
+                    organization_id=organization_id,
                 )
             )
 
