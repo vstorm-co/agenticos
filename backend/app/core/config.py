@@ -360,6 +360,14 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
+    # Hosts a self-hosted mem0 memory backend may point at. A `mem0_base_url` comes
+    # from an agent spec, so without an allowlist a builder who can bind (but not
+    # read) a shared mem0 key could aim it at their own server and capture the key
+    # from the Authorization header. Empty (the default) means self-hosted mem0 is
+    # refused and only the managed cloud is reachable; add the trusted hostname(s)
+    # of a self-hosted deployment to enable it. See docs/secrets.md.
+    MEM0_ALLOWED_HOSTS: list[str] = []
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:

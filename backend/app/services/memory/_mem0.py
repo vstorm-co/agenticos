@@ -40,12 +40,17 @@ bills it, out of band (documented in docs/secrets.md).
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
 import logging
+import socket
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
 
+from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
 from app.repositories.memory import FactHit
 
@@ -64,6 +69,46 @@ def _endpoint(base_url: str | None, path: str) -> str:
     return f"{(base_url or _CLOUD_BASE_URL).rstrip('/')}{path}"
 
 
+async def _require_safe_base_url(base_url: str | None) -> None:
+    """Refuse to send the vault key to an unsafe self-hosted mem0 URL.
+
+    `mem0_base_url` comes from the agent spec, so a builder who may bind (but not
+    read) a shared key could otherwise point it at their own server and capture the
+    key from the `Authorization` header, or at a private/link-local host to turn the
+    call into an SSRF probe. The managed cloud (`base_url is None`) is trusted; a
+    self-hosted URL must be https, its host must be on `MEM0_ALLOWED_HOSTS`, and
+    every address it resolves to must be public (codex P1). The allowlist, not the
+    resolve, is the primary control - a rebinding host could move after the check -
+    so an empty allowlist refuses self-hosted mem0 outright.
+    """
+    if base_url is None:
+        return
+    parsed = urlsplit(base_url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ExternalServiceError(
+            message="A self-hosted mem0 URL must be https with a host",
+            details={"operation": "mem0"},
+        )
+    if parsed.hostname not in settings.MEM0_ALLOWED_HOSTS:
+        raise ExternalServiceError(
+            message="This mem0 host is not on the deployment's allowlist",
+            details={"operation": "mem0"},
+        )
+    try:
+        infos = await asyncio.to_thread(
+            socket.getaddrinfo, parsed.hostname, parsed.port or 443, 0, socket.SOCK_STREAM
+        )
+    except socket.gaierror as exc:
+        raise ExternalServiceError(
+            message="The mem0 URL host does not resolve", details={"operation": "mem0"}
+        ) from exc
+    if any(not ipaddress.ip_address(info[4][0]).is_global for info in infos):
+        raise ExternalServiceError(
+            message="A self-hosted mem0 URL must be a public host",
+            details={"operation": "mem0"},
+        )
+
+
 async def mem0_remember(
     *,
     base_url: str | None,
@@ -74,6 +119,7 @@ async def mem0_remember(
     content: str,
 ) -> None:
     """Store one fact in the mem0 service, scoped to this (org, agent, partition)."""
+    await _require_safe_base_url(base_url)
     payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": content}],
         "user_id": _namespace(organization_id, agent_id, scope_key),
@@ -108,6 +154,7 @@ async def _mem0_search_namespace(
     limit: int,
 ) -> list[FactHit]:
     """The facts most relevant to a query in one mem0 namespace."""
+    await _require_safe_base_url(base_url)
     payload: dict[str, Any] = {
         "query": query,
         "user_id": _namespace(organization_id, agent_id, scope_key),

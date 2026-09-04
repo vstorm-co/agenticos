@@ -71,6 +71,15 @@ def transport(monkeypatch):
     return holder
 
 
+@pytest.fixture
+def allow_self_hosted(monkeypatch):
+    """Allowlist `mem0.internal` and make it resolve to a public address."""
+    monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
+    monkeypatch.setattr(
+        _mem0.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443))]
+    )
+
+
 def test_the_namespace_isolates_org_agent_and_partition():
     shared = _mem0._namespace(ORG, AGENT, None)
     per_user = _mem0._namespace(ORG, AGENT, "user:1")
@@ -95,7 +104,7 @@ class TestRemember:
         assert body["messages"][0]["content"] == "likes tea"
         assert headers["Authorization"] == "Token k-123"
 
-    async def test_a_self_hosted_base_url_is_used(self, transport):
+    async def test_a_self_hosted_base_url_is_used(self, transport, allow_self_hosted):
         await _mem0.mem0_remember(
             base_url="https://mem0.internal/",
             api_key="k",
@@ -105,6 +114,52 @@ class TestRemember:
             content="x",
         )
         assert transport.client.calls[0][0] == "https://mem0.internal/v1/memories/"
+
+
+class TestBaseUrlValidation:
+    """The vault key never leaves for an unvetted URL (codex P1): a self-hosted host
+    must be https, allowlisted, and resolve to a public address."""
+
+    async def _remember(self, base_url: str):
+        await _mem0.mem0_remember(
+            base_url=base_url,
+            api_key="k",
+            organization_id=ORG,
+            agent_id=AGENT,
+            scope_key=None,
+            content="x",
+        )
+
+    async def test_a_non_allowlisted_host_is_refused(self, monkeypatch):
+        monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", [])
+        with pytest.raises(ExternalServiceError):
+            await self._remember("https://evil.example.com/")
+
+    async def test_a_non_https_url_is_refused(self, monkeypatch):
+        monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
+        with pytest.raises(ExternalServiceError):
+            await self._remember("http://mem0.internal/")
+
+    async def test_a_host_resolving_to_a_private_address_is_refused(self, monkeypatch):
+        monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
+        monkeypatch.setattr(
+            _mem0.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("10.0.0.5", 443))]
+        )
+        with pytest.raises(ExternalServiceError):
+            await self._remember("https://mem0.internal/")
+
+    async def test_recall_validates_the_url_too(self, monkeypatch):
+        monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", [])
+        with pytest.raises(ExternalServiceError):
+            await _mem0.mem0_recall(
+                base_url="https://evil.example.com/",
+                api_key="k",
+                organization_id=ORG,
+                agent_id=AGENT,
+                personal_key=None,
+                query="q",
+                limit=5,
+            )
 
     async def test_a_network_error_becomes_a_controlled_refusal(self, transport):
         transport.response = _Response(error=httpx.HTTPError("boom"))
