@@ -1,5 +1,12 @@
 import { NextRequest } from "next/server";
-import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import {
+  BackendApiError,
+  backendFetch,
+  bffJson,
+  bffRefusal,
+  forwardedFor,
+  forwardRateLimit,
+} from "@/lib/server-api";
 import type { RegisterResponse } from "@/types";
 
 /**
@@ -23,12 +30,14 @@ export async function POST(request: NextRequest) {
 
     const data = await backendFetch<RegisterResponse>("/api/v1/auth/register", {
       method: "POST",
+      headers: { ...forwardedFor(request) },
       body: JSON.stringify(body),
     });
 
     return bffJson(data, { status: 201 });
   } catch (error) {
     if (error instanceof BackendApiError) {
+      if (error.status === 429) return forwardRateLimit(error);
       return bffJson(error.data ?? { code: "REGISTRATION_FAILED" }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);

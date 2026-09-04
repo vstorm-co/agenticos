@@ -1,6 +1,13 @@
 import { type NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import {
+  BackendApiError,
+  backendFetch,
+  bffJson,
+  bffRefusal,
+  forwardedFor,
+  forwardRateLimit,
+} from "@/lib/server-api";
 
 interface TokenResponse {
   access_token: string;
@@ -17,6 +24,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const data = await backendFetch<TokenResponse>("/api/v1/auth/magic-link/verify", {
       method: "POST",
+      headers: { ...forwardedFor(request) },
       body: JSON.stringify(body),
     });
 
@@ -48,6 +56,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
+      if (error.status === 429) return forwardRateLimit(error);
       return bffJson({ detail: error.message }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);

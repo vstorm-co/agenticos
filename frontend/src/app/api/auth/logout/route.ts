@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch, bffJson } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, forwardedFor } from "@/lib/server-api";
 
 export async function POST(request: NextRequest) {
   const refreshToken = request.cookies.get("refresh_token")?.value;
@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     try {
       await backendFetch("/api/v1/auth/logout", {
         method: "POST",
+        headers: { ...forwardedFor(request) },
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
     } catch (error) {

@@ -26,14 +26,19 @@ vi.mock("@/lib/server-api", async () => {
   return { ...actual, backendFetch: vi.fn() };
 });
 
-/** A request carrying whatever cookies the browser would have. */
-function request(cookies: Record<string, string> = {}, body?: unknown): NextRequest {
+/** A request carrying whatever cookies the browser would have, and optionally the
+ * `x-forwarded-for` a proxy in front of the frontend would add. */
+function request(
+  cookies: Record<string, string> = {},
+  body?: unknown,
+  extraHeaders: Record<string, string> = {},
+): NextRequest {
   const header = Object.entries(cookies)
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
   return new NextRequest("http://localhost:3000/api/auth", {
     method: "POST",
-    headers: header ? { cookie: header } : {},
+    headers: { ...(header ? { cookie: header } : {}), ...extraHeaders },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
@@ -152,6 +157,7 @@ describe("signing out", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/logout", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ refresh_token: "rt" }),
     });
     expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
@@ -198,6 +204,7 @@ describe("refreshing the token", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/refresh", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ refresh_token: "rt" }),
     });
     await expect(response.json()).resolves.toMatchObject({ access_token: "fresh" });
@@ -357,6 +364,7 @@ describe("signing in without a password", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/magic-link/request", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ email: "kacper@example.com" }),
     });
     await expect(response.json()).resolves.toEqual({ message: "Check your email" });
@@ -368,6 +376,14 @@ describe("signing in without a password", () => {
     const response = await magicLinkRequest(request({}, { email: "a@example.com" }));
 
     expect(response.status).toBe(429);
+  });
+
+  it("passes a refusal that is not a rate limit through with its status", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(400, "Bad Request", null));
+
+    const response = await magicLinkRequest(request({}, { email: "a@example.com" }));
+
+    expect(response.status).toBe(400);
   });
 
   it("answers 500 when the mail request could not be made", async () => {
@@ -578,6 +594,7 @@ describe("registering, and resetting a password", () => {
     await passwordResetRequest(request({}, { email: "a@example.com" }));
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/password-reset/request", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ email: "a@example.com" }),
     });
 
@@ -587,6 +604,7 @@ describe("registering, and resetting a password", () => {
     );
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/password-reset/confirm", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ token: "one-time", new_password: "secret" }),
     });
     await expect(confirmed.json()).resolves.toEqual({ message: "Password updated" });
@@ -600,5 +618,88 @@ describe("registering, and resetting a password", () => {
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
     expect((await passwordResetRequest(request({}, { email: "a@example.com" }))).status).toBe(500);
     expect((await passwordResetConfirm(request({}, { token: "x" }))).status).toBe(500);
+  });
+});
+
+/**
+ * The rate limit only works if the caller's address survives the BFF and a 429
+ * reaches the browser as one (#1047). The backend keys the per-IP bucket on
+ * `X-Forwarded-For`, which is the frontend container's unless this hop forwards
+ * the client's; and a 429 flattened to "login failed" or a cleared session tells
+ * the caller the wrong thing and drops the `Retry-After`.
+ */
+describe("rate limiting through the BFF", () => {
+  function rateLimited() {
+    return new BackendApiError(
+      429,
+      "Too Many Requests",
+      {
+        error: {
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Too many attempts. Try again in a minute.",
+          details: { retry_after_seconds: 60 },
+        },
+      },
+      new Headers({ "Retry-After": "60" }),
+    );
+  }
+
+  it("forwards the caller's address so the limit keys on the client, not the container", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
+
+    await login(
+      request({}, { email: "a@example.com", password: "s" }, { "x-forwarded-for": "203.0.113.7" }),
+    );
+
+    expect(backendFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/auth/login",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "x-forwarded-for": "203.0.113.7" }),
+      }),
+    );
+  });
+
+  it("reaches the browser as a rate-limit result with its Retry-After, not a login failure", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+    const response = await login(request({}, { email: "a@example.com", password: "x" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "RATE_LIMIT_EXCEEDED" },
+    });
+  });
+
+  it("does not end the session when the refresh bucket is exhausted", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+    const response = await refresh(request({ refresh_token: "rt" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    // A wait, not an expired session: the cookies are left untouched rather than
+    // cleared, so the caller stays signed in and can retry.
+    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it.each([
+    ["register", register],
+    ["magic-link/verify", magicLinkVerify],
+    ["password-reset/request", passwordResetRequest],
+    ["password-reset/confirm", passwordResetConfirm],
+  ])("carries the rate limit and its Retry-After through %s too", async (_name, route) => {
+    vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+    const response = await route(
+      request({}, { email: "a@example.com", token: "t", new_password: "p", password: "p" }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
   });
 });
