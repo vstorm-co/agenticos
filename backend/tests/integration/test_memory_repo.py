@@ -260,6 +260,36 @@ class TestListForAgent:
         assert {row.name for row in scoped} == {"alice", "bob"}
         assert total == 2
 
+    async def test_a_repeated_name_orders_by_id_so_paging_is_stable(self, db) -> None:
+        """One name across three partitions. Ordering by name alone leaves the tie
+        for OFFSET/LIMIT to resolve however it likes, dropping or repeating a row
+        between pages; the id tie-breaker gives it a total order (codex)."""
+        person = await _user(db)
+        agent = await _agent(db, org=await _org(db, owner=person))
+        a = await _create(db, agent=agent, scope_key=None, name="prefs")
+        b = await _create(db, agent=agent, scope_key="user:1", name="prefs")
+        c = await _create(db, agent=agent, scope_key="user:2", name="prefs")
+
+        rows, total = await memory_repo.list_for_agent(
+            db, organization_id=agent.organization_id, agent_id=agent.id, all_partitions=True
+        )
+        assert total == 3
+        # All three share the name, so id decides the order.
+        assert [row.id for row in rows] == sorted([a.id, b.id, c.id])
+
+        seen = []
+        for skip in range(3):
+            page, _ = await memory_repo.list_for_agent(
+                db,
+                organization_id=agent.organization_id,
+                agent_id=agent.id,
+                all_partitions=True,
+                skip=skip,
+                limit=1,
+            )
+            seen.append(page[0].id)
+        assert sorted(seen) == sorted([a.id, b.id, c.id]), "each row once, none dropped or repeated"
+
 
 class TestMutationAndCascade:
     async def test_update_and_delete(self, db) -> None:
@@ -494,6 +524,35 @@ class TestFacts:
         )
         assert {fact.content for fact in scoped} == {"private fact"}
         assert total == 1
+
+    async def test_facts_sharing_a_created_at_page_by_id(self, db, facts_table) -> None:
+        """Facts written in one transaction share `created_at`, so the newest-first
+        sort ties. The id tie-breaker gives the cap and OFFSET/LIMIT a total order,
+        so paging visits each fact once instead of dropping or repeating one."""
+        agent = await _agent(db, org=await _org(db, owner=await _user(db)))
+        for i in range(3):
+            await _add_fact(db, agent, content=f"f{i}", at=i, dim=facts_table)
+
+        rows, total = await memory_repo.list_facts(
+            db, organization_id=agent.organization_id, agent_id=agent.id, all_partitions=True
+        )
+        assert total == 3
+        ids = [fact.id for fact in rows]
+        # One created_at across all three, so id (asc) breaks the desc tie.
+        assert ids == sorted(ids)
+
+        seen = []
+        for skip in range(3):
+            page, _ = await memory_repo.list_facts(
+                db,
+                organization_id=agent.organization_id,
+                agent_id=agent.id,
+                all_partitions=True,
+                skip=skip,
+                limit=1,
+            )
+            seen.append(page[0].id)
+        assert sorted(seen) == sorted(ids), "each fact once, none dropped or repeated"
 
     async def test_delete_all_facts_clears_every_partition_and_counts(
         self, db, facts_table

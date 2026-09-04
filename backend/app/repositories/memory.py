@@ -110,6 +110,9 @@ async def list_readable(
         .order_by(
             func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
             AgentMemoryFile.name.asc(),
+            # A stable final key, so a tie at the cap boundary is not resolved
+            # arbitrarily (which row makes the limit would otherwise vary).
+            AgentMemoryFile.id.asc(),
         )
         .limit(limit)
     )
@@ -185,13 +188,17 @@ async def list_for_agent(
                 contains_ci(AgentMemoryFile.description, search),
             )
         )
+    # `id` is the stable final key. Names repeat across partitions and a shared
+    # `updated_at`/`created_at` is common, so without a unique tie-breaker
+    # OFFSET/LIMIT paging drops or repeats rows between pages (codex).
     order_by = (
         (
             func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
             AgentMemoryFile.name.asc(),
+            AgentMemoryFile.id.asc(),
         )
         if sort == "updated"
-        else (AgentMemoryFile.name.asc(),)
+        else (AgentMemoryFile.name.asc(), AgentMemoryFile.id.asc())
     )
     items = await db.execute(
         select(AgentMemoryFile).where(*where).order_by(*order_by).offset(skip).limit(limit)
@@ -411,7 +418,10 @@ async def list_brief_facts(
             AgentMemoryFact.agent_id == agent_id,
             injectable,
         )
-        .order_by(AgentMemoryFact.created_at.desc())
+        # `id` breaks a shared `created_at` tie (facts written in one transaction
+        # share it), so the newest-first cap picks a stable set for the brief
+        # rather than a different one each request (codex).
+        .order_by(AgentMemoryFact.created_at.desc(), AgentMemoryFact.id.asc())
         .limit(limit)
     )
     return list(result.scalars().all())
@@ -463,7 +473,9 @@ async def list_facts(
     items = await db.execute(
         select(AgentMemoryFact)
         .where(*where)
-        .order_by(AgentMemoryFact.created_at.desc())
+        # `id` is the stable tie-breaker a shared `created_at` needs, or paging
+        # drops or repeats facts across pages (codex).
+        .order_by(AgentMemoryFact.created_at.desc(), AgentMemoryFact.id.asc())
         .offset(skip)
         .limit(limit)
     )
