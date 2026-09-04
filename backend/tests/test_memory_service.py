@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.budget import SpendEntry, SpendLedger
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.memory import MemoryOrigin
 from app.schemas.memory import (
@@ -546,6 +546,61 @@ class TestClear:
         df.assert_not_awaited()
 
 
+class TestCrossUserRead:
+    """A viewer sees the shared store and their own personal partition; listing every
+    partition or another person's is an editor act (codex P2)."""
+
+    @staticmethod
+    def _view_only():
+        async def _f(_db, _ctx, _agent, perm, **_kw) -> bool:
+            return perm == Perm.AGENTS_VIEW
+
+        return AsyncMock(side_effect=_f)
+
+    async def test_a_viewer_may_list_the_shared_store(self):
+        service = _service()
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.list_for_agent", new=AsyncMock(return_value=([], 0))),
+        ):
+            result = await service.list_files(_ctx(), agent_id=uuid.uuid4(), scope_key=None)
+        assert result.total == 0
+
+    async def test_a_viewer_may_list_their_own_personal(self):
+        service = _service()
+        me = uuid.uuid4()
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.list_facts", new=AsyncMock(return_value=([], 0))),
+        ):
+            result = await service.list_facts(
+                _ctx(user_id=me), agent_id=uuid.uuid4(), scope_key=f"user:{me}"
+            )
+        assert result.total == 0
+
+    async def test_a_viewer_cannot_list_every_partition(self):
+        service = _service()
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            pytest.raises(NotFoundError),
+        ):
+            await service.list_files(_ctx(), agent_id=uuid.uuid4(), all_partitions=True)
+
+    async def test_a_viewer_cannot_list_another_persons_facts(self):
+        service = _service()
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            pytest.raises(NotFoundError),
+        ):
+            await service.list_facts(
+                _ctx(user_id=uuid.uuid4()), agent_id=uuid.uuid4(), scope_key="user:someone-else"
+            )
+
+
 class TestOwnPersonalWrites:
     """A viewer may amend and forget their *own* personal memory, but nothing else -
     the delete/update side of the create relaxation (codex P1)."""
@@ -607,6 +662,52 @@ class TestOwnPersonalWrites:
             pytest.raises(NotFoundError),
         ):
             await service.delete(_ctx(user_id=uuid.uuid4()), file.id)
+
+
+def _mem0_agent():
+    return MagicMock(
+        id=uuid.uuid4(),
+        draft_spec={
+            "capabilities": [{"id": "memory", "enabled": True, "config": {"backend": "mem0"}}]
+        },
+    )
+
+
+class TestMem0FactManagement:
+    """Native fact management refuses a mem0-backed agent rather than misleading: a
+    seed would report a success the agent can never recall (codex P1)."""
+
+    def _reachable_mem0(self):
+        return (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_mem0_agent())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+        )
+
+    async def test_seeding_a_fact_is_refused(self):
+        service = _service()
+        get_agent, allow = self._reachable_mem0()
+        with (
+            get_agent,
+            allow,
+            patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock()) as embed,
+            pytest.raises(BadRequestError),
+        ):
+            await service.create_fact(
+                _ctx(), AgentMemoryFactCreate(agent_id=uuid.uuid4(), content="x")
+            )
+        embed.assert_not_awaited()
+
+    async def test_listing_facts_is_refused(self):
+        service = _service()
+        get_agent, allow = self._reachable_mem0()
+        with get_agent, allow, pytest.raises(BadRequestError):
+            await service.list_facts(_ctx(), agent_id=uuid.uuid4())
+
+    async def test_clearing_facts_is_refused(self):
+        service = _service()
+        get_agent, allow = self._reachable_mem0()
+        with get_agent, allow, pytest.raises(BadRequestError):
+            await service.clear_facts(_ctx(), agent_id=uuid.uuid4())
 
 
 class TestCreateFact:

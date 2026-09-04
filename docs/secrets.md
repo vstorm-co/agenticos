@@ -157,7 +157,7 @@ own key for:
 | Exa | `web_research` |
 | Logfire | Per-agent [observability](reference/spec.md#observability) — traces to a project of its own |
 | LlamaParse | PDF parsing, billed to the organization's own key |
-| mem0 | [`memory`](reference/capabilities.md#memory) — when an agent's facts are stored in a mem0 service (cloud or self-hosted) rather than the deployment's pgvector. The key is required only for that backend; mem0 bills its own embedding out of band, and sending facts to mem0's cloud is a data-residency choice the Builder names. |
+| mem0 | [`memory`](reference/capabilities.md#memory) — when an agent's facts are stored in a mem0 service (cloud or self-hosted) rather than the deployment's pgvector. The key is required only for that backend; mem0 bills its own embedding out of band, and sending facts to mem0's cloud is a data-residency choice the Builder names. A self-hosted `mem0_base_url` must be https and on the `MEM0_ALLOWED_HOSTS` allowlist, so the vault key is never sent to an agent-controlled origin. Operator fact management (seed, list, clear) is native-only: for a mem0 agent it is refused rather than writing a native store the agent never reads. |
 
 ## What never happens
 

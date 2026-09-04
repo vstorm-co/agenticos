@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFact, AgentMemoryFile, MemoryOrigin
@@ -144,6 +144,43 @@ class MemoryService:
         perm = Perm.AGENTS_VIEW if self._own_personal(ctx, scope_key) else Perm.AGENTS_EDIT
         await self._agent_or_404(ctx, agent_id, perm=perm)
 
+    def _cross_user_read(
+        self, ctx: AuthContext, *, scope_key: str | None, all_partitions: bool, scoped_only: bool
+    ) -> bool:
+        """Whether a listing reaches beyond the shared store and the caller's own.
+
+        Reading every partition, every per-user store, or a specific other person's
+        is cross-user inspection - an editor act. A viewer sees the shared store and
+        their own personal partition, nothing else, so a member with view on a shared
+        agent cannot page through everyone's private memory (codex P2).
+        """
+        if all_partitions or scoped_only:
+            return True
+        return scope_key is not None and not self._own_personal(ctx, scope_key)
+
+    def _refuse_if_mem0(self, agent: Agent) -> None:
+        """Operator fact management is native-only; refuse it for a mem0-backed agent.
+
+        These operations read and write the deployment's own pgvector store, but a
+        mem0-backed agent keeps its facts in mem0. Left unchecked, an operator seed
+        would report a success the agent can never recall, and the listing would show
+        an empty native store while the agent's real facts sit in mem0 (codex P1).
+        Routing the console to mem0 is a separate feature; until then this refuses
+        rather than misleads. Read from the draft spec the operator is managing.
+        """
+        spec = agent.draft_spec if isinstance(agent.draft_spec, dict) else {}
+        for binding in spec.get("capabilities", []):
+            if (
+                isinstance(binding, dict)
+                and binding.get("id") == "memory"
+                and binding.get("enabled", True)
+                and (binding.get("config") or {}).get("backend") == "mem0"
+            ):
+                raise BadRequestError(
+                    message="Operator fact management is unavailable for the mem0 backend",
+                    details={"agent_id": str(agent.id)},
+                )
+
     async def _partition_labels(
         self, ctx: AuthContext, scope_keys: set[str | None]
     ) -> dict[str, str]:
@@ -183,7 +220,14 @@ class MemoryService:
         limit: int = 50,
     ) -> AgentMemoryFileList:
         """A page of one agent's memory files, and the total the pager needs."""
-        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_VIEW)
+        perm = (
+            Perm.AGENTS_EDIT
+            if self._cross_user_read(
+                ctx, scope_key=scope_key, all_partitions=all_partitions, scoped_only=scoped_only
+            )
+            else Perm.AGENTS_VIEW
+        )
+        await self._agent_or_404(ctx, agent_id, perm=perm)
         items, total = await memory_repo.list_for_agent(
             self.db,
             organization_id=ctx.organization_id,
@@ -360,7 +404,8 @@ class MemoryService:
             data.end_user_scope_key is not None and data.end_user_scope_key == own_key
         )
         perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
-        await self._agent_or_404(ctx, data.agent_id, perm=perm)
+        agent = await self._agent_or_404(ctx, data.agent_id, perm=perm)
+        self._refuse_if_mem0(agent)
         ledger = SpendLedger(organization_id=ctx.organization_id)
         with metered_by(ledger):
             embedding = await embed_operator_fact(data.content)
@@ -414,7 +459,15 @@ class MemoryService:
         """A page of an agent's facts. Search is a substring match, not semantic -
         an operator's KNN query would embed off the run's spend ledger (N4), so
         semantic recall stays the agent's runtime tool."""
-        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_VIEW)
+        perm = (
+            Perm.AGENTS_EDIT
+            if self._cross_user_read(
+                ctx, scope_key=scope_key, all_partitions=all_partitions, scoped_only=scoped_only
+            )
+            else Perm.AGENTS_VIEW
+        )
+        agent = await self._agent_or_404(ctx, agent_id, perm=perm)
+        self._refuse_if_mem0(agent)
         items, total = await memory_repo.list_facts(
             self.db,
             organization_id=ctx.organization_id,
@@ -491,7 +544,8 @@ class MemoryService:
         The facts pane's own clear, for resetting what the agent has learned
         without discarding the reference files an operator authored.
         """
-        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        agent = await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        self._refuse_if_mem0(agent)
         facts = await memory_repo.delete_all_facts(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
