@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from typing import Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.agents.capabilities._registry import (
     CapabilityBinding,
@@ -70,6 +71,28 @@ class MemoryConfig(BaseModel):
         max_length=500,
         description="Base URL of a self-hosted mem0; omit for mem0's managed cloud.",
     )
+
+    @field_validator("mem0_base_url")
+    @classmethod
+    def _mem0_base_url_is_a_valid_https_url(cls, value: str | None) -> str | None:
+        """Settle the URL's shape at publish, not mid-run.
+
+        An unparseable or non-https value - `https://[` is the one that bit -
+        otherwise passed publication and reached `urlsplit` on the run path,
+        outside its HTTP error handling, ending the run with a `ValueError`
+        (codex). The host allowlist stays a runtime check: it is a deployment
+        setting a spec may outlive or be imported past, so it cannot be decided
+        here.
+        """
+        if value is None:
+            return None
+        try:
+            parsed = urlsplit(value)
+        except ValueError as exc:
+            raise ValueError("mem0_base_url is not a valid URL") from exc
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("mem0_base_url must be an https URL with a host")
+        return value
 
     @model_validator(mode="after")
     def _mem0_requires_facts(self) -> MemoryConfig:

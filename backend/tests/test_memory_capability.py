@@ -648,6 +648,29 @@ class TestConfig:
         """The two tiers coexist now, so there is no partition to choose."""
         assert "partition" not in MemoryConfig.model_fields
 
+    def test_a_valid_self_hosted_mem0_url_is_accepted(self):
+        assert (
+            MemoryConfig(mem0_base_url="https://mem0.example.com").mem0_base_url
+            == "https://mem0.example.com"
+        )
+
+    def test_no_mem0_base_url_is_the_managed_cloud(self):
+        assert MemoryConfig(mem0_base_url=None).mem0_base_url is None
+
+    def test_a_malformed_mem0_base_url_is_refused_at_publish(self):
+        # `https://[` reaches urlsplit on the run path and ends the run with a
+        # ValueError unless its shape is settled here (codex).
+        with pytest.raises(ValueError, match="valid URL"):
+            MemoryConfig(mem0_base_url="https://[")
+
+    def test_a_non_https_mem0_base_url_is_refused(self):
+        with pytest.raises(ValueError, match="https URL with a host"):
+            MemoryConfig(mem0_base_url="http://mem0.example.com")
+
+    def test_a_mem0_base_url_without_a_host_is_refused(self):
+        with pytest.raises(ValueError, match="https URL with a host"):
+            MemoryConfig(mem0_base_url="https://")
+
 
 class TestBuilder:
     def test_both_stores_off_contributes_nothing(self):
