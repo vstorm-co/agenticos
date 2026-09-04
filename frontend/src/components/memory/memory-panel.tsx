@@ -8,7 +8,8 @@ import { Database } from "lucide-react";
 import { Chip } from "@/components/memory/memory-chip";
 import { MemoryFactsPane } from "@/components/memory/memory-facts-pane";
 import { MemoryFilesPane } from "@/components/memory/memory-files-pane";
-import { useMemoryDangerZone, type MemoryScope } from "@/hooks/use-memory";
+import { useMemoryDangerZone } from "@/hooks/use-memory";
+import { useAuthStore } from "@/stores";
 import { useTranslations } from "next-intl";
 
 interface MemoryPanelProps {
@@ -43,7 +44,15 @@ export function MemoryPanel({
 }: MemoryPanelProps) {
   const t = useTranslations("memory");
 
-  const [scope, setScope] = useState<MemoryScope>("all");
+  // A viewer cannot list every partition or the per-user store - that is an
+  // editor act the backend refuses - so defaulting them to "all" 404s the whole
+  // tab. They start on the shared store and reach their own notes through a
+  // "mine" chip that filters to their own `user:<id>` key; an operator keeps the
+  // cross-partition filters (codex). The scope is the partition string itself,
+  // so "mine" needs no separate resolution.
+  const ownUserId = useAuthStore((state) => state.user?.id);
+  const ownKey = ownUserId ? `user:${ownUserId}` : null;
+  const [scope, setScope] = useState<string>(canEdit ? "all" : "shared");
   const [sub, setSub] = useState<SubTab>(enableFiles ? "files" : "facts");
 
   const showSwitcher = enableFiles && enableFacts;
@@ -60,15 +69,30 @@ export function MemoryPanel({
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground text-xs">{t("scope")}</span>
-          <Chip active={scope === "all"} onClick={() => setScope("all")}>
-            {t("scopeAll")}
-          </Chip>
-          <Chip active={scope === "shared"} onClick={() => setScope("shared")}>
-            {t("scopeShared")}
-          </Chip>
-          <Chip active={scope === "per_user"} onClick={() => setScope("per_user")}>
-            {t("scopePerUser")}
-          </Chip>
+          {canEdit ? (
+            <>
+              <Chip active={scope === "all"} onClick={() => setScope("all")}>
+                {t("scopeAll")}
+              </Chip>
+              <Chip active={scope === "shared"} onClick={() => setScope("shared")}>
+                {t("scopeShared")}
+              </Chip>
+              <Chip active={scope === "per_user"} onClick={() => setScope("per_user")}>
+                {t("scopePerUser")}
+              </Chip>
+            </>
+          ) : (
+            <>
+              <Chip active={scope === "shared"} onClick={() => setScope("shared")}>
+                {t("scopeShared")}
+              </Chip>
+              {ownKey !== null && (
+                <Chip active={scope === ownKey} onClick={() => setScope(ownKey)}>
+                  {t("scopeMine")}
+                </Chip>
+              )}
+            </>
+          )}
         </div>
       </div>
 

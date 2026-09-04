@@ -13,16 +13,6 @@ import type { MemoryFact, MemoryFactList, MemoryFile, MemoryFileList } from "@/t
 /** How the server may order a file listing. */
 export type MemorySort = "name" | "updated";
 
-/**
- * Which partition to list.
- *
- * `all` spans every partition, `shared` the one store every end-user reads, and
- * `per_user` every private per-end-user store at once. A `per_user` listing
- * shows the raw `user:`/`chan:` key rather than a person's name — naming the
- * end-user behind a key needs an identity the key does not carry, a later step.
- */
-export type MemoryScope = "all" | "shared" | "per_user";
-
 /** The fields an operator sets when authoring a trusted memory file. */
 interface NewMemoryFile {
   name: string;
@@ -44,7 +34,9 @@ export interface MemoryEdit {
 
 interface MemoryFilesQuery {
   agentId: string;
-  scope?: MemoryScope;
+  /** The partition to list: `all`/`shared`/`per_user`, or a specific `user:<id>`
+   * key (the panel resolves its "mine" filter to the caller's own). */
+  scope?: string;
   search?: string;
   sort?: MemorySort;
   skip?: number;
@@ -174,7 +166,9 @@ export function useMemoryFile(agentId: string, fileId: string | null) {
 
 interface MemoryFactsQuery {
   agentId: string;
-  scope?: MemoryScope;
+  /** The partition to list: `all`/`shared`/`per_user`, or a specific `user:<id>`
+   * key (the panel resolves its "mine" filter to the caller's own). */
+  scope?: string;
   search?: string;
   skip?: number;
   limit?: number;

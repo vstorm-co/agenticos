@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryFactsPane } from "./memory-facts-pane";
+import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 
@@ -191,5 +192,35 @@ describe("MemoryFactsPane", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("Acme's fiscal year starts in April.")).toBeInTheDocument();
+  });
+
+  it("steps back after forgetting the last fact of a later page", async () => {
+    // The facts pane strands the same way (codex): forgetting the one fact on a
+    // later page empties it and hides the pager, so the pane must fall back to
+    // the previous page.
+    let total = PAGE_SIZE + 1;
+    const factAt = (i: number) => ({ ...FACT_SHARED, id: `x-${i}`, content: `fact-${i}` });
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      const skip = Number(new URLSearchParams(url.split("?")[1] ?? "").get("skip") ?? 0);
+      const count = Math.max(0, Math.min(total - skip, PAGE_SIZE));
+      return Promise.resolve({
+        items: Array.from({ length: count }, (_, i) => factAt(skip + i)),
+        total,
+      });
+    });
+    vi.mocked(apiClient.delete).mockImplementation(() => {
+      total -= 1;
+      return Promise.resolve(undefined);
+    });
+    mount();
+    await screen.findByText("fact-0");
+
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    await screen.findByText(`fact-${PAGE_SIZE}`);
+
+    await userEvent.click(screen.getByRole("button", { name: "Forget fact" }));
+    await userEvent.click(screen.getByRole("button", { name: "Forget" }));
+
+    expect(await screen.findByText("fact-0")).toBeInTheDocument();
   });
 });

@@ -19,15 +19,16 @@ import {
 import { ErrorState, LoadingState } from "@/components/states";
 import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
 import { CreateMemoryFactDialog } from "@/components/memory/create-memory-fact-dialog";
-import { useMemoryDangerZone, useMemoryFacts, type MemoryScope } from "@/hooks/use-memory";
+import { useMemoryDangerZone, useMemoryFacts } from "@/hooks/use-memory";
 import { getErrorMessage } from "@/lib/api-error";
 import type { MemoryFact } from "@/types/memory";
 
 interface MemoryFactsPaneProps {
   agentId: string;
   canEdit: boolean;
-  /** The partition the whole Memory tab is filtered to; owned by the panel. */
-  scope: MemoryScope;
+  /** The partition the whole Memory tab is filtered to; owned by the panel.
+   * `all`/`shared`/`per_user`, or a specific `user:<id>` key. */
+  scope: string;
 }
 
 /**
@@ -64,6 +65,12 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltering = search.trim() !== "";
+
+  // Forgetting the last fact on a later page empties it and hides the pager,
+  // stranding the operator on a blank page; step back to the last page with rows,
+  // adjusting during render (React's guarded pattern) rather than in an effect
+  // (codex).
+  if (page > 0 && page >= pageCount) setPage(pageCount - 1);
 
   const controls = (
     <div className="flex flex-wrap items-center gap-2">

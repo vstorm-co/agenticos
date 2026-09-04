@@ -4872,6 +4872,7 @@
     "nothingEnabled": "Memory is off",
     "nothingEnabledHint": "Neither files nor facts are enabled. Turn one on in the Toolbox to use memory.",
     "scopePerUser": "Per-user",
+    "scopeMine": "Mine",
     "clearMemory": "Clear all memory",
     "clearMemoryConfirm": "Clear all memory?",
     "clearMemoryHint": "Permanently delete every file and fact for this agent, in every partition. A store nobody can clear is a liability.",

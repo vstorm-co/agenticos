@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryPanel } from "./memory-panel";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -73,6 +74,9 @@ describe("MemoryPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiReturning();
+    // No identified person by default, so the "mine" filter is absent unless a
+    // test sets one; reset so a user set by one test does not leak into the next.
+    useAuthStore.setState({ user: null });
   });
 
   it("shows how memory is configured, defaulting to the files half", async () => {
@@ -179,5 +183,36 @@ describe("MemoryPanel", () => {
     expect(screen.getByRole("button", { name: "New file" })).toBeInTheDocument();
     // ...but the destructive operator control stays hidden.
     expect(screen.queryByRole("button", { name: "Clear all memory" })).not.toBeInTheDocument();
+  });
+
+  it("starts a viewer on the shared store, not the all filter that would 404", async () => {
+    useAuthStore.setState({
+      user: { id: "u-7", email: "viewer@example.com", is_active: true, created_at: "2026-01-01" },
+    });
+    mount({ canEdit: false });
+    await screen.findByText("user-preferences");
+
+    await waitFor(() => expect(lastFilesCall()).toContain("partition=shared"));
+    // A viewer cannot list every partition or the per-user store, so those
+    // filters are not even offered.
+    expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Per-user" })).not.toBeInTheDocument();
+  });
+
+  it("lets a viewer filter to their own personal memory", async () => {
+    useAuthStore.setState({
+      user: { id: "u-7", email: "viewer@example.com", is_active: true, created_at: "2026-01-01" },
+    });
+    mount({ canEdit: false });
+    await screen.findByText("user-preferences");
+
+    await userEvent.click(screen.getByRole("button", { name: "Mine" }));
+    await waitFor(() =>
+      expect(decodeURIComponent(lastFilesCall())).toContain("partition=user:u-7"),
+    );
+
+    // ...and back to the shared store.
+    await userEvent.click(screen.getByRole("button", { name: "Shared" }));
+    await waitFor(() => expect(lastFilesCall()).toContain("partition=shared"));
   });
 });

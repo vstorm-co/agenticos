@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryFilesPane } from "./memory-files-pane";
+import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 
@@ -277,5 +278,36 @@ describe("MemoryFilesPane", () => {
     expect(
       screen.queryByRole("button", { name: "Delete user-preferences" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("steps back to the filled page after deleting the last row of a later one", async () => {
+    // One more than a page: page 1 fills, page 2 holds a single row. Deleting it
+    // drops the total to one page, and the operator must land back on it, not the
+    // now-empty page 2 whose pager the empty state hides (codex).
+    let total = PAGE_SIZE + 1;
+    const fileAt = (i: number) => ({ ...OPERATOR, id: `f-${i}`, name: `file-${i}` });
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url.startsWith("/memory/files/f")) return Promise.resolve(BODY_OPERATOR);
+      const skip = Number(new URLSearchParams(url.split("?")[1] ?? "").get("skip") ?? 0);
+      const count = Math.max(0, Math.min(total - skip, PAGE_SIZE));
+      return Promise.resolve({
+        items: Array.from({ length: count }, (_, i) => fileAt(skip + i)),
+        total,
+      });
+    });
+    vi.mocked(apiClient.delete).mockImplementation(() => {
+      total -= 1;
+      return Promise.resolve(undefined);
+    });
+    mount();
+    await screen.findByText("file-0");
+
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    await screen.findByText(`file-${PAGE_SIZE}`);
+
+    await userEvent.click(screen.getByRole("button", { name: `Delete file-${PAGE_SIZE}` }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("file-0")).toBeInTheDocument();
   });
 });

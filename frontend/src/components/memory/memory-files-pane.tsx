@@ -29,7 +29,6 @@ import {
   useMemoryFile,
   useMemoryFiles,
   type MemoryEdit,
-  type MemoryScope,
   type MemorySort,
 } from "@/hooks/use-memory";
 import { getErrorMessage } from "@/lib/api-error";
@@ -41,8 +40,9 @@ import { useTranslations } from "next-intl";
 interface MemoryFilesPaneProps {
   agentId: string;
   canEdit: boolean;
-  /** The partition the whole Memory tab is filtered to; owned by the panel. */
-  scope: MemoryScope;
+  /** The partition the whole Memory tab is filtered to; owned by the panel.
+   * `all`/`shared`/`per_user`, or a specific `user:<id>` key. */
+  scope: string;
 }
 
 /**
@@ -84,6 +84,12 @@ export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProp
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltering = search.trim() !== "";
+
+  // Deleting the last row of a later page empties it, and the pager is hidden
+  // when the page has no rows - which would strand the operator on a blank page
+  // with no way back. Step to the last page that still has rows, adjusting during
+  // render (React's guarded pattern) rather than in an effect (codex).
+  if (page > 0 && page >= pageCount) setPage(pageCount - 1);
 
   function setSortReset(next: MemorySort) {
     setSort(next);
