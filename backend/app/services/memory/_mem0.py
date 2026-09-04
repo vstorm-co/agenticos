@@ -34,16 +34,16 @@ Isolation: mem0's `user_id` is the whole scope namespace `{org}:{agent}:{key}`
 (`shared` when there is no end-user), so one mem0 account cannot mix two
 organizations', two agents', or two end-users' memories. The API key travels in
 the `Authorization` header, never the URL, so an httpx error line cannot carry
-it. The deployment's own metering does not see mem0's embedding cost - mem0
+it. A self-hosted `base_url` is refused unless it is https and on
+`MEM0_ALLOWED_HOSTS`, and every request goes through `PinnedAsyncClient`, so the
+key never reaches an unlisted origin or a host that resolves somewhere private.
+The deployment's own metering does not see mem0's embedding cost - mem0
 bills it, out of band (documented in docs/secrets.md).
 """
 
 from __future__ import annotations
 
-import asyncio
-import ipaddress
 import logging
-import socket
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -52,6 +52,8 @@ import httpx
 
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
+from app.core.pinned_http import PinnedAsyncClient
+from app.core.sanitize import SSRFBlockedError
 from app.repositories.memory import FactHit
 
 logger = logging.getLogger(__name__)
@@ -69,17 +71,16 @@ def _endpoint(base_url: str | None, path: str) -> str:
     return f"{(base_url or _CLOUD_BASE_URL).rstrip('/')}{path}"
 
 
-async def _require_safe_base_url(base_url: str | None) -> None:
-    """Refuse to send the vault key to an unsafe self-hosted mem0 URL.
+def _require_allowlisted_base_url(base_url: str | None) -> None:
+    """Refuse to send the vault key to an unvetted self-hosted mem0 URL.
 
     `mem0_base_url` comes from the agent spec, so a builder who may bind (but not
     read) a shared key could otherwise point it at their own server and capture the
-    key from the `Authorization` header, or at a private/link-local host to turn the
-    call into an SSRF probe. The managed cloud (`base_url is None`) is trusted; a
-    self-hosted URL must be https, its host must be on `MEM0_ALLOWED_HOSTS`, and
-    every address it resolves to must be public (codex P1). The allowlist, not the
-    resolve, is the primary control - a rebinding host could move after the check -
-    so an empty allowlist refuses self-hosted mem0 outright.
+    key from the `Authorization` header. The managed cloud (`base_url is None`) is
+    trusted; a self-hosted URL must be https and its host on `MEM0_ALLOWED_HOSTS`,
+    so an empty allowlist refuses self-hosted mem0 outright (codex P1). SSRF (a
+    private/link-local/rebinding host) is handled separately, on the wire, by
+    `PinnedAsyncClient`.
     """
     if base_url is None:
         return
@@ -94,19 +95,6 @@ async def _require_safe_base_url(base_url: str | None) -> None:
             message="This mem0 host is not on the deployment's allowlist",
             details={"operation": "mem0"},
         )
-    try:
-        infos = await asyncio.to_thread(
-            socket.getaddrinfo, parsed.hostname, parsed.port or 443, 0, socket.SOCK_STREAM
-        )
-    except socket.gaierror as exc:
-        raise ExternalServiceError(
-            message="The mem0 URL host does not resolve", details={"operation": "mem0"}
-        ) from exc
-    if any(not ipaddress.ip_address(info[4][0]).is_global for info in infos):
-        raise ExternalServiceError(
-            message="A self-hosted mem0 URL must be a public host",
-            details={"operation": "mem0"},
-        )
 
 
 async def mem0_remember(
@@ -119,23 +107,24 @@ async def mem0_remember(
     content: str,
 ) -> None:
     """Store one fact in the mem0 service, scoped to this (org, agent, partition)."""
-    await _require_safe_base_url(base_url)
+    _require_allowlisted_base_url(base_url)
     payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": content}],
         "user_id": _namespace(organization_id, agent_id, scope_key),
     }
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with PinnedAsyncClient(timeout=httpx.Timeout(_TIMEOUT)) as client:
             response = await client.post(
                 _endpoint(base_url, "/v1/memories/"),
                 json=payload,
                 headers={"Authorization": f"Token {api_key}"},
             )
             response.raise_for_status()
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, SSRFBlockedError) as exc:
         # The upstream text goes to the log, never the response: a client error
         # carries the request and could echo the payload, and the refusal only
-        # needs to name what failed (agenticos#342).
+        # needs to name what failed (agenticos#342). `SSRFBlockedError` is the
+        # pinned client refusing a host that resolves somewhere private.
         logger.exception("mem0_remember_failed")
         raise ExternalServiceError(
             message="Could not save to the mem0 memory service",
@@ -154,14 +143,14 @@ async def _mem0_search_namespace(
     limit: int,
 ) -> list[FactHit]:
     """The facts most relevant to a query in one mem0 namespace."""
-    await _require_safe_base_url(base_url)
+    _require_allowlisted_base_url(base_url)
     payload: dict[str, Any] = {
         "query": query,
         "user_id": _namespace(organization_id, agent_id, scope_key),
         "limit": limit,
     }
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with PinnedAsyncClient(timeout=httpx.Timeout(_TIMEOUT)) as client:
             response = await client.post(
                 _endpoint(base_url, "/v1/memories/search/"),
                 json=payload,

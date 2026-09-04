@@ -67,17 +67,14 @@ def transport(monkeypatch):
         holder.client = _Client(holder.response)
         return holder.client
 
-    monkeypatch.setattr(_mem0.httpx, "AsyncClient", _factory)
+    monkeypatch.setattr(_mem0, "PinnedAsyncClient", _factory)
     return holder
 
 
 @pytest.fixture
 def allow_self_hosted(monkeypatch):
-    """Allowlist `mem0.internal` and make it resolve to a public address."""
+    """Allowlist `mem0.internal`; SSRF/pinning is the pinned client's own concern."""
     monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
-    monkeypatch.setattr(
-        _mem0.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443))]
-    )
 
 
 def test_the_namespace_isolates_org_agent_and_partition():
@@ -139,14 +136,6 @@ class TestBaseUrlValidation:
         monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
         with pytest.raises(ExternalServiceError):
             await self._remember("http://mem0.internal/")
-
-    async def test_a_host_resolving_to_a_private_address_is_refused(self, monkeypatch):
-        monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
-        monkeypatch.setattr(
-            _mem0.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("10.0.0.5", 443))]
-        )
-        with pytest.raises(ExternalServiceError):
-            await self._remember("https://mem0.internal/")
 
     async def test_recall_validates_the_url_too(self, monkeypatch):
         monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", [])
@@ -248,7 +237,7 @@ class TestRecall:
                 queried.append(json["user_id"])
                 return _Response(data=responses[json["user_id"]])
 
-        monkeypatch.setattr(_mem0.httpx, "AsyncClient", lambda **_kwargs: _MultiClient())
+        monkeypatch.setattr(_mem0, "PinnedAsyncClient", lambda **_kwargs: _MultiClient())
         hits = await _mem0.mem0_recall(
             base_url=None,
             api_key="k",
