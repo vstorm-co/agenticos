@@ -895,3 +895,99 @@ class TestTheThreadAConversationIsKeyedOn:
 
         assert channel_key(key) == "c1"
         assert split_thread(key) == ("c1", "m1")
+
+
+class TestWhoseAccountsAPersonalBindingSpeaksThrough:
+    """`acts_for_sender` is what lets a personal MCP binding reach the sender's own
+    connections, and it is this message's author or nobody. A room does not make
+    the first speaker's account everybody's, and an unlinked sender has none to
+    lend - the turn then runs under the binding's publisher, whose own accounts
+    must not be reached for either.
+    """
+
+    @staticmethod
+    def _patched():
+        return (
+            patch("app.services.channels.mentions.member_repo"),
+            patch("app.services.channels.mentions.agent_repo"),
+            patch("app.services.channels.mentions.agent_exposure_repo"),
+            patch("app.services.channels.mentions.AgentRunnerService"),
+        )
+
+    async def _mentioned(self, *, user_id: uuid.UUID | None) -> dict:
+        members_patch, agents_patch, exposures_patch, runner_patch = self._patched()
+        with (
+            members_patch as members,
+            patch("app.services.access.member_repo", new=members),
+            agents_patch as agents,
+            exposures_patch as exposures,
+            runner_patch as runner_cls,
+        ):
+            membership = MagicMock(role=OrgRoleName.MEMBER)
+            members.get = AsyncMock(return_value=membership)
+            members.get_active = AsyncMock(return_value=membership)
+            agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            exposures.get_for_bot = AsyncMock(
+                return_value=MagicMock(
+                    is_active=True, created_by_user_id=uuid.uuid4(), organization_id=uuid.uuid4()
+                )
+            )
+            execute = AsyncMock(return_value=("hi", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer(
+                "@support what is on page XYZ",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=_BOT_ID,
+                user_id=user_id,
+                admit_unlinked=True,
+            )
+
+        return execute.call_args.kwargs
+
+    async def _defaulted(self, *, user_id: uuid.UUID | None) -> dict:
+        members_patch, _agents_patch, exposures_patch, runner_patch = self._patched()
+        organization_id = uuid.uuid4()
+        exposure = MagicMock(created_by_user_id=uuid.uuid4(), organization_id=organization_id)
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+        with (
+            members_patch as members,
+            patch("app.services.access.member_repo", new=members),
+            exposures_patch as exposures,
+            runner_patch as runner_cls,
+        ):
+            membership = MagicMock(role=OrgRoleName.MEMBER)
+            members.get = AsyncMock(return_value=membership)
+            members.get_active = AsyncMock(return_value=membership)
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hi", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is on page XYZ",
+                platform="slack",
+                organization_id=organization_id,
+                bot_id=_BOT_ID,
+                user_id=user_id,
+                admit_unlinked=True,
+            )
+
+        return execute.call_args.kwargs
+
+    async def test_a_linked_sender_who_names_the_agent_in_a_room_speaks_as_themselves(self):
+        """A mention is by definition in a room, and that used to be the reason
+        the sender's own account was never reached. The account is now the
+        message's author's, and the room reads the answer as it read the question."""
+        assert (await self._mentioned(user_id=uuid.uuid4()))["acts_for_sender"] is True
+
+    async def test_a_linked_sender_on_the_default_path_speaks_as_themselves(self):
+        assert (await self._defaulted(user_id=uuid.uuid4()))["acts_for_sender"] is True
+
+    async def test_an_unlinked_sender_admitted_to_a_room_speaks_as_nobody(self):
+        """The turn runs under the binding's publisher, and their own Notion is
+        not the room's to use."""
+        assert (await self._defaulted(user_id=None))["acts_for_sender"] is False
+
+    async def test_an_unlinked_mention_admitted_to_a_room_speaks_as_nobody(self):
+        assert (await self._mentioned(user_id=None))["acts_for_sender"] is False

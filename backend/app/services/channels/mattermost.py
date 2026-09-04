@@ -837,7 +837,6 @@ class MattermostAdapter(ChannelAdapter):
             platform=self.platform,
             bot_id=bot_id,
             platform_user_id=post.get("user_id", ""),
-            one_to_one=channel_type == "D",
             platform_chat_id=thread_key(
                 channel_id,
                 thread_id=root_id,
@@ -984,7 +983,6 @@ class MattermostAdapter(ChannelAdapter):
             platform=self.platform,
             bot_id=bot_id,
             platform_user_id=str(payload.get("user_id") or ""),
-            one_to_one=chat_type == "private",
             platform_chat_id=thread_key(
                 channel_id,
                 thread_id="",

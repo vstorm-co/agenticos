@@ -358,6 +358,10 @@ class ChannelAgentRouter:
             # Without it a named agent answered an existing thread as though it
             # were empty, because only the default path prepended the backfill.
             message_history=message_history,
+            # The same rule as the default path: a mention from a linked account
+            # speaks through that person's own MCP accounts, and the room reads
+            # the answer exactly as it reads the question.
+            acts_for_sender=user_id is not None,
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot
@@ -390,7 +394,6 @@ class ChannelAgentRouter:
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         channel_directory: ChannelDirectory | None = None,
-        one_to_one: bool = False,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         message_history: list[Any] | None = None,
@@ -405,11 +408,6 @@ class ChannelAgentRouter:
 
         Args:
             text: The whole incoming message; there is no handle to strip.
-            one_to_one: Whether this chat holds only the sender and the bot.
-                What decides whether a binding flagged
-                `use_personal_when_available` speaks through the sender's own
-                account. `answer` never passes it: a mention is by definition in
-                a room somebody else can read.
             message_history: The channel thread so far, in Pydantic AI's format.
                 A direct-message bot is a conversation, not a sequence of
                 one-shot prompts, and the mention path's statelessness is about
@@ -455,10 +453,10 @@ class ChannelAgentRouter:
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             channel_directory=channel_directory,
-            # A direct message with one person in it is the only channel shape
-            # where a binding may speak through that person's own MCP account.
-            # `user_id` because an unlinked sender has no account to speak as.
-            private_to_user=one_to_one and user_id is not None,
+            # A linked sender speaks through their own MCP accounts, in a room as
+            # much as in a direct message: the account is this message's author,
+            # never the thread's. An unlinked sender has no account to speak as.
+            acts_for_sender=user_id is not None,
             message_history=message_history,
             exposure=exposure,
         )

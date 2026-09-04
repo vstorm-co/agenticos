@@ -31,7 +31,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.approval import approval_required_tools
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, McpServerRef, SpecialistSpec
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    SpecialistSpec,
+)
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import (
@@ -96,7 +102,11 @@ from app.services.ingestion_config import (
     deployment_defaults,
 )
 from app.services.knowledge_base import KnowledgeBaseService
-from app.services.mcp_connection import McpConnectionService, build_toolsets_for_agent
+from app.services.mcp_connection import (
+    McpConnectionService,
+    UnavailablePersonalService,
+    build_toolsets_for_agent,
+)
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.rag.documents import LiteParseParser
@@ -2336,7 +2346,7 @@ class TestBindingAnMcpServerToAnAgent:
             AgentSpec(
                 name="Support",
                 model_profile_id=model.id,
-                mcp_servers=[McpServerRef(connection_id=cid) for cid in connection_ids],
+                mcp_servers=[OrgMcpServerRef(connection_id=cid) for cid in connection_ids],
             ),
         )
 
@@ -2349,8 +2359,8 @@ class TestBindingAnMcpServerToAnAgent:
 
         assert version.spec["mcp_servers"] == [
             {
+                "account": "organization",
                 "connection_id": str(connection.id),
-                "use_personal_when_available": False,
                 # Null rather than a list: the binding narrows nothing, so it
                 # gets whatever the connection allows.
                 "allowed_tools": None,
@@ -2405,23 +2415,25 @@ class TestBindingAnMcpServerToAnAgent:
         await build_toolsets_for_agent(
             db,
             organization_id=tenant.organization.id,
-            refs=[McpServerRef(connection_id=bound.id), McpServerRef(connection_id=personal.id)],
+            refs=[
+                OrgMcpServerRef(connection_id=bound.id),
+                OrgMcpServerRef(connection_id=personal.id),
+            ],
         )
 
         assert seen == [["linear"]]
 
-    async def test_a_flagged_binding_speaks_through_the_runners_own_connection(
+    async def test_a_personal_binding_reaches_the_senders_own_connection(
         self, db, monkeypatch
     ) -> None:
-        """The join from the organization's row to the member's is a real query.
+        """The join from the binding's catalog key to the member's row is a real query.
 
         A mock can be told the two are the same service. Whether the lookup
         actually scopes to *this* member and *this* catalog entry - rather than
         handing one person's token to another's run - is a question only
         Postgres answers.
         """
-        tenant = await _tenant(db, name="Substituting")
-        bound = await _mcp_connection(db, tenant, name="notion", scope="org", catalog_key="notion")
+        tenant = await _tenant(db, name="Speaking")
         await _mcp_connection(
             db,
             tenant,
@@ -2438,22 +2450,22 @@ class TestBindingAnMcpServerToAnAgent:
 
         monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
 
-        await build_toolsets_for_agent(
+        resolved = await build_toolsets_for_agent(
             db,
             organization_id=tenant.organization.id,
-            refs=[McpServerRef(connection_id=bound.id, use_personal_when_available=True)],
-            personal_for_user_id=tenant.user.id,
+            refs=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            sender_user_id=tenant.user.id,
         )
 
-        # Their URL, the organization's name: the credential is substituted and
-        # the tool prefix is not.
+        # Their URL under the catalog's name: the prefix is the service, not
+        # whatever they called their connection.
         assert seen == [[("notion", "https://mine.example.com/mcp")]]
+        assert resolved.unavailable == []
 
-    async def test_somebody_elses_connection_is_never_substituted(self, db, monkeypatch) -> None:
-        """The lookup is scoped to the person the run is attributed to."""
+    async def test_somebody_elses_connection_is_never_reached(self, db, monkeypatch) -> None:
+        """The lookup is scoped to the person the message came from."""
         tenant = await _tenant(db, name="Not Mine")
         stranger = await _tenant(db, name="Stranger")
-        bound = await _mcp_connection(db, tenant, name="notion", scope="org", catalog_key="notion")
         await _mcp_connection(
             db,
             stranger,
@@ -2470,21 +2482,21 @@ class TestBindingAnMcpServerToAnAgent:
 
         monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
 
-        await build_toolsets_for_agent(
+        resolved = await build_toolsets_for_agent(
             db,
             organization_id=tenant.organization.id,
-            refs=[McpServerRef(connection_id=bound.id, use_personal_when_available=True)],
-            personal_for_user_id=tenant.user.id,
+            refs=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            sender_user_id=tenant.user.id,
         )
 
-        assert seen == [["https://mcp.example.com/mcp"]]
+        assert seen == [[]]
+        assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
 
     async def test_a_disabled_connection_of_their_own_is_not_reached_for(
         self, db, monkeypatch
     ) -> None:
         """Switching one off is how somebody stops an agent using it."""
         tenant = await _tenant(db, name="Switched Off")
-        bound = await _mcp_connection(db, tenant, name="notion", scope="org", catalog_key="notion")
         await _mcp_connection(
             db,
             tenant,
@@ -2502,14 +2514,15 @@ class TestBindingAnMcpServerToAnAgent:
 
         monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
 
-        await build_toolsets_for_agent(
+        resolved = await build_toolsets_for_agent(
             db,
             organization_id=tenant.organization.id,
-            refs=[McpServerRef(connection_id=bound.id, use_personal_when_available=True)],
-            personal_for_user_id=tenant.user.id,
+            refs=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            sender_user_id=tenant.user.id,
         )
 
-        assert seen == [["https://mcp.example.com/mcp"]]
+        assert seen == [[]]
+        assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
 
 
 class TestLockingAnMcpConnectionBeforeSpendingItsRefreshToken:

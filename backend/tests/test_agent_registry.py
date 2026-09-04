@@ -23,7 +23,13 @@ from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, McpServerRef, SpecialistSpec
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    SpecialistSpec,
+)
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -1311,7 +1317,7 @@ class TestValidateSpec:
             await AgentRegistryService(_db()).validate_spec(
                 ctx,
                 _spec(
-                    mcp_servers=[McpServerRef(connection_id=connection_id)],
+                    mcp_servers=[OrgMcpServerRef(connection_id=connection_id)],
                     model_profile_id=uuid.uuid4(),
                 ),
             )
@@ -1325,13 +1331,11 @@ class TestValidateSpec:
         }
 
     @pytest.mark.anyio
-    async def test_speaking_as_a_member_needs_a_catalog_entry_to_match_them_on(self):
-        """A connection made from a URL has nothing a personal one can be joined to.
-
-        Refused here rather than at run time, where the only options are to guess
-        or to quietly ignore what the binding asked for - and a binding that says
-        "use my own account" and does not is worse than one that was never offered.
-        """
+    async def test_a_personal_binding_names_a_catalog_service(self):
+        """A person's own connections are matched by catalog key, so a key the
+        catalog does not hold could never resolve - refused where the binding
+        can still be changed rather than at run time, where the only options
+        are to guess or to quietly drop the server."""
         ctx = _ctx()
 
         with (
@@ -1339,38 +1343,30 @@ class TestValidateSpec:
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=MagicMock(name="crm", catalog_key=None)),
-            ),
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
                 ctx,
                 _spec(
                     mcp_servers=[
-                        McpServerRef(connection_id=uuid.uuid4(), use_personal_when_available=True)
+                        PersonalMcpServerRef(account="personal", catalog_key="no-such-server")
                     ],
                     model_profile_id=uuid.uuid4(),
                 ),
             )
 
-        assert "catalog entry" in refused.value.details["problems"][0]
+        assert "no-such-server" in refused.value.details["problems"][0]
 
     @pytest.mark.anyio
-    async def test_two_bindings_to_one_service_cannot_both_speak_as_the_member(self):
-        """One run substitutes one account, so two claims on it have no answer."""
+    async def test_a_service_is_bound_to_each_persons_own_account_once(self):
+        """Two personal bindings to one service would present the same tools
+        under the same prefix twice."""
         ctx = _ctx()
-        first, second = uuid.uuid4(), uuid.uuid4()
 
         with (
             patch(
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
-            ),
-            patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=MagicMock(catalog_key="notion")),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1378,20 +1374,27 @@ class TestValidateSpec:
                 ctx,
                 _spec(
                     mcp_servers=[
-                        McpServerRef(connection_id=first, use_personal_when_available=True),
-                        McpServerRef(connection_id=second, use_personal_when_available=True),
+                        PersonalMcpServerRef(account="personal", catalog_key="notion"),
+                        PersonalMcpServerRef(account="personal", catalog_key="notion"),
                     ],
                     model_profile_id=uuid.uuid4(),
                 ),
             )
 
         problem = refused.value.details["problems"][0]
-        assert str(first) in problem and str(second) in problem
+        assert "notion" in problem and "twice" in problem
 
     @pytest.mark.anyio
-    async def test_two_bindings_to_one_service_are_fine_while_neither_asks(self):
-        """The refusal is about the substitution, not about binding twice."""
+    async def test_a_personal_binding_cannot_share_its_prefix_with_an_organization_connection(
+        self,
+    ):
+        """A personal binding's tools are prefixed with the catalog key, and an
+        organization connection's with its name. Where the two coincide the
+        model would be handed two servers under one prefix, which Pydantic AI
+        refuses as duplicate tool names - aborting every turn of the agent."""
         ctx = _ctx()
+        connection = MagicMock()
+        connection.name = "notion"
 
         with (
             patch(
@@ -1400,15 +1403,48 @@ class TestValidateSpec:
             ),
             patch(
                 f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=MagicMock(catalog_key="notion")),
+                new=AsyncMock(return_value=connection),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx,
+                _spec(
+                    mcp_servers=[
+                        OrgMcpServerRef(connection_id=uuid.uuid4()),
+                        PersonalMcpServerRef(account="personal", catalog_key="notion"),
+                    ],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
+
+        problem = refused.value.details["problems"][0]
+        assert "'notion'" in problem and "prefix" in problem
+
+    @pytest.mark.anyio
+    async def test_an_organization_binding_and_a_personal_one_publish_side_by_side(self):
+        """The ordinary shape: the organization's handbook for everybody, and
+        each person's own Linear."""
+        ctx = _ctx()
+        connection = MagicMock()
+        connection.name = "notion-handbook"
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
+                new=AsyncMock(return_value=connection),
             ),
         ):
             await AgentRegistryService(_db()).validate_spec(
                 ctx,
                 _spec(
                     mcp_servers=[
-                        McpServerRef(connection_id=uuid.uuid4()),
-                        McpServerRef(connection_id=uuid.uuid4()),
+                        OrgMcpServerRef(connection_id=uuid.uuid4()),
+                        PersonalMcpServerRef(account="personal", catalog_key="linear"),
                     ],
                     model_profile_id=uuid.uuid4(),
                 ),
@@ -1445,7 +1481,7 @@ class TestValidateSpec:
                     collection_ids=[collection_id],
                     skill_ids=[skill.id],
                     model_profile_id=uuid.uuid4(),
-                    mcp_servers=[McpServerRef(connection_id=uuid.uuid4())],
+                    mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())],
                 ),
             )
 

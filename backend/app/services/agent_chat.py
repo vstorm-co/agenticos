@@ -47,7 +47,7 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
-from app.repositories import conversation_repo, conversation_share_repo, member_repo
+from app.repositories import conversation_repo, member_repo
 from app.services.agent_runner import (
     AgentRunnerService,
     ParkedApproval,
@@ -286,24 +286,6 @@ class ChatAgentRunner:
         self.runner = AgentRunnerService(db)
         self.usage = UsageReportService(db)
 
-    async def _only_reader(self, conversation_id: UUID | None, organization_id: UUID) -> bool:
-        """Whether this turn has exactly one reader: the person running it.
-
-        The condition a personal MCP substitution waits for. A conversation with
-        no id yet has been shared with nobody, so it qualifies; one with any
-        share does not, and a public-link share counts - it carries no
-        `shared_with` and is a reader all the same.
-
-        A conversation shared *later* still holds this turn's output, which no
-        check here can undo. What it can do is stop adding to the pile.
-        """
-        if conversation_id is None:
-            return True
-        shares = await conversation_share_repo.get_shares_for_conversation(
-            self.db, conversation_id, organization_id=organization_id
-        )
-        return not shares
-
     async def run(
         self,
         *,
@@ -384,14 +366,12 @@ class ChatAgentRunner:
             surface=RunSurface.WEB,
             conversation_id=conversation_id,
             user_name=user.full_name,
-            # Asked, not assumed. A dashboard conversation is one person's own
-            # until it is shared, and a shared one - to a member at view or edit
-            # level, or through a public link - is read by somebody who is not
-            # the runner. Treating the whole web surface as private let a binding
-            # flagged `use_personal_when_available` query the runner's own
-            # third-party account and persist the answer where other people read
-            # it.
-            private_to_user=await self._only_reader(conversation_id, organization_id),
+            # The dashboard always has a signed-in person at the keyboard, so a
+            # personal MCP binding speaks as them - in a shared conversation too,
+            # where the answer is read by others exactly as it would be in a
+            # channel. The binding is explicit in the spec, so that is the
+            # author's decision and the reader's, not a surprise.
+            acts_for_sender=True,
             model_profile_id=model_profile_id,
             # The version this environment pins runs instead of the default -
             # how a dev environment is exercised from the chat before promotion.

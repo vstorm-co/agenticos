@@ -331,7 +331,6 @@ class TestReadingWhoASlackMessageNamed:
         incoming = self._parsed(channel_type="mpim")
 
         assert incoming.chat_type == "group"
-        assert incoming.one_to_one is False
         assert ChannelMessageRouter._is_overheard(incoming) is True
 
     def test_an_agent_slug_still_reaches_the_bot_in_a_channel(self) -> None:

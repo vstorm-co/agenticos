@@ -2103,11 +2103,6 @@ class _Turn:
             patch("app.services.agent_session.persist_user_turn", new=AsyncMock()) as persist,
             patch("app.services.agent_session.get_db_context") as db_context,
             patch("app.services.agent_chat.member_repo") as members,
-            # Whether anybody else can read this conversation, which decides
-            # whether a binding may speak as the runner's own account. A real
-            # call here awaits a MagicMock, and the TypeError is raised inside a
-            # task - so the turn hangs rather than failing.
-            patch("app.services.agent_chat.conversation_share_repo") as shares,
             patch("app.services.agent_chat.AgentRunnerService") as runner_cls,
             # The thread this turn continues, which since #771 is read from the
             # transcript rather than from the socket, and since #49 through the
@@ -2123,7 +2118,6 @@ class _Turn:
             )
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             members.get = AsyncMock(return_value=MagicMock())
-            shares.get_shares_for_conversation = AsyncMock(return_value=[])
             runner_cls.return_value.prepare = AsyncMock(return_value=self.prepared)
             runner_cls.return_value.finish = self._finish
             conversations.return_value.model_history = AsyncMock(return_value=[])

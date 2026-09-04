@@ -40,6 +40,7 @@ from app.agents.spec import (
     BudgetSpec,
     CapabilityBindingSpec,
     McpServerRef,
+    PersonalMcpServerRef,
     SpecialistSpec,
     SubagentRef,
 )
@@ -80,7 +81,7 @@ from app.schemas.agent import (
     TemplateIndustryRead,
     TemplateInstallResult,
 )
-from app.services import agent_templates, skill_library
+from app.services import agent_templates, mcp_catalog, skill_library
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -1303,19 +1304,40 @@ class AgentRegistryService:
                 problems.append(f"Skill not found: {skill_id}")
         return problems
 
-    async def _mcp_problems(self, ctx: AuthContext, refs: list[McpServerRef]) -> list[str]:
+    async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
         """Every way a set of MCP bindings can be unpublishable.
 
-        The first is the one this check has always made: only the organization's
-        own connections, because a published agent's reach cannot depend on
-        whose session runs it. The other two guard the single exception to that
-        - a binding that asks to speak through the runner's own account - and
-        both are questions with no answer at run time, which is why they are
-        asked here where somebody can still change the binding.
+        An organization binding must name one of the organization's own
+        connections - never a member's, because a published agent's reach
+        cannot depend on whose session runs it. A personal binding must name a
+        catalog service, once, under a prefix no organization binding of the
+        same agent already uses: two servers under one prefix make Pydantic AI
+        raise on the duplicate tool names and abort every turn. All of it asked
+        here, where somebody can still change the binding, rather than at run
+        time where the only options are to guess or to quietly drop a server.
         """
         problems: list[str] = []
-        flagged: dict[str, UUID] = {}
+        prefixes: dict[str, str] = {}
+        personal: set[str] = set()
         for ref in refs:
+            if isinstance(ref, PersonalMcpServerRef):
+                if mcp_catalog.get_entry(ref.catalog_key) is None:
+                    problems.append(
+                        f"No MCP catalog entry is called {ref.catalog_key!r}. A binding to each "
+                        "person's own account names a catalog service, so their connections can "
+                        "be matched to it."
+                    )
+                    continue
+                if ref.catalog_key in personal:
+                    problems.append(
+                        f"{ref.catalog_key!r} is bound to each person's own account twice. One "
+                        "binding per service - both would present the same tools under the same "
+                        "name."
+                    )
+                    continue
+                personal.add(ref.catalog_key)
+                prefixes.setdefault(ref.catalog_key, f"each person's own {ref.catalog_key}")
+                continue
             connection = await mcp_connection_repo.get_org_scoped_by_id(
                 self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
             )
@@ -1326,30 +1348,19 @@ class AgentRegistryService:
                 # looking for something that is right in front of them.
                 problems.append(
                     f"MCP server {ref.connection_id} is not shared with this organization. "
-                    "A published agent can only use connections the organization owns, "
-                    "never a member's personal one - otherwise what it can reach would "
-                    "depend on who happens to run it."
+                    "An organization binding can only use connections the organization owns, "
+                    "never a member's personal one - bind the service to each person's own "
+                    "account instead if that is what you want."
                 )
                 continue
-            if not ref.use_personal_when_available:
-                continue
-            if connection.catalog_key is None:
+            prefixes.setdefault(connection.name, f"the connection {connection.name!r}")
+        for key in sorted(personal):
+            taken = prefixes[key]
+            if taken != f"each person's own {key}":
                 problems.append(
-                    f"{connection.name!r} cannot use a member's own account: it was connected "
-                    "to a URL rather than to a catalog entry, so nothing says which of their "
-                    "connections is the same service. Reconnect it from the catalog, or turn "
-                    "the option off."
+                    f"Two bindings would present their tools under the prefix {key!r}: {taken} "
+                    f"and each person's own {key}. Rename the connection, or bind one of them."
                 )
-                continue
-            twin = flagged.get(connection.catalog_key)
-            if twin is not None:
-                problems.append(
-                    f"Two bindings to the same service ({connection.catalog_key}) both ask for "
-                    f"the member's own account: {twin} and {ref.connection_id}. One run cannot "
-                    "substitute two, so pick which of them speaks as the member."
-                )
-                continue
-            flagged[connection.catalog_key] = ref.connection_id
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:

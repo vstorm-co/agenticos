@@ -585,7 +585,6 @@ class SlackAdapter(ChannelAdapter):
             platform="slack",
             bot_id=bot_id,
             platform_user_id=user_id,
-            one_to_one=channel_type == "im",
             platform_chat_id=platform_chat_id,
             chat_type=chat_type,
             text=text,
