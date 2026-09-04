@@ -33,6 +33,7 @@ function Harness({
 }) {
   const [state, setState] = useState<ToolPickerState | null>({
     scope: "organization",
+    name: CONNECTION.name,
     connection: CONNECTION,
     tools,
     checked: new Set(checked ?? tools.map((tool) => tool.name)),

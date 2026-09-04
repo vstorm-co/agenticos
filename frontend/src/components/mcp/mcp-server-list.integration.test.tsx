@@ -766,3 +766,37 @@ describe("naming a connection something a person can read", () => {
     expect(screen.queryByText(/not from the catalog/i)).toBeNull();
   });
 });
+
+describe("arriving with ?connect=<catalog key>", () => {
+  /**
+   * The link an agent hands somebody whose own account a personal binding
+   * needs: the backend writes it, so what the parameter is called is a contract
+   * between the two. It opens the *personal* connect flow for that server and
+   * is stripped as it is read, so a reload does not reopen a dialog somebody
+   * closed.
+   */
+  it("opens the personal connect dialog for the named server", async () => {
+    window.history.replaceState({}, "", "/mcp-servers?connect=github");
+
+    await mount();
+
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByRole("radio", { name: "You" })).toBeChecked();
+    expect(window.location.search).toBe("");
+  });
+
+  it("says so when the catalog holds no such server", async () => {
+    const { toast } = await import("sonner");
+    window.history.replaceState({}, "", "/mcp-servers?connect=no-such-server");
+
+    await mount();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "No server in the catalog is called no-such-server.",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(window.location.search).toBe("");
+  });
+});

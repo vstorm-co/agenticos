@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, ExternalLink, Plug, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,6 +50,15 @@ import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
+/**
+ * `?connect=<catalog key>` opens the personal connect flow for that server.
+ *
+ * The link an agent hands somebody when a binding to each person's own account
+ * finds they have none: the backend writes it (`_personal_gap_briefing`), so the
+ * parameter's name is a contract between the two rather than this file's own.
+ */
+const CONNECT_PARAM = "connect";
+
 /** Whether a row is filtered by whether anybody has connected it. */
 type StateFilter = "all" | "connected" | "not-connected";
 
@@ -62,6 +71,24 @@ type StateFilter = "all" | "connected" | "not-connected";
  */
 function categoryLabel(category: string): string {
   return category.replace(/-/g, " ");
+}
+
+/**
+ * A name nothing in this scope holds yet, for a second account on one server.
+ *
+ * The entry's own key first, because that is the ordinary case and reads
+ * best; then `-2`, `-3` and so on. A name is unique per organization and
+ * becomes the tool prefix, so seeding one already taken made the form's first
+ * submit a guaranteed conflict.
+ */
+function freeName(row: McpServerRow, taken: Set<string>): string | undefined {
+  const base = row.entry?.key;
+  if (base === undefined) return undefined;
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
 }
 
 /** The row's sentence, from whichever side wrote it. */
@@ -87,10 +114,11 @@ interface McpServerListProps {
  * difference decides what the connection can be used for:
  *
  * - **Organization** - the organization's credential. The only kind an agent
- *   spec may bind, because a published agent must not reach different tools
- *   depending on whose session ran it. Gated on `connections:manage`.
- * - **You** - your own credential, used by your assistant in chat and by
- *   nothing else. Never offered to an agent.
+ *   spec may name by id, because a published agent must not reach different
+ *   tools depending on whose session built it. Gated on `connections:manage`.
+ * - **You** - your own credential. What an agent bound to *each person's own
+ *   account* speaks through when you are the one talking to it, and what a
+ *   `?connect=<key>` arrival from such an agent creates.
  *
  * OAuth is offered on the personal column only. A consent grant is one human's,
  * and holding it as the organization's would give everybody that member's
@@ -197,31 +225,21 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const openDraft = (scope: Scope, row: McpServerRow, existing: McpConnectionRecord | null) => {
     // The dialog seeds its own fields from this - name, url and auth type off
     // the row and any connection being edited.
-    setDraft({ scope, row, existing, suggestedName: existing ? undefined : freeName(row, scope) });
+    setDraft({
+      scope,
+      row,
+      existing,
+      suggestedName: existing ? undefined : freeName(row, takenNames(scope)),
+    });
   };
 
-  /**
-   * A name nothing in this scope holds yet, for a second account on one server.
-   *
-   * The entry's own key first, because that is the ordinary case and reads
-   * best; then `-2`, `-3` and so on. A name is unique per organization and
-   * becomes the tool prefix, so seeding one already taken made the form's first
-   * submit a guaranteed conflict.
-   */
-  const freeName = (row: McpServerRow, scope: Scope): string | undefined => {
-    const base = row.entry?.key;
-    if (base === undefined) return undefined;
-    const taken = new Set(
+  /** The names this scope already holds, which a new connection cannot take. */
+  const takenNames = (scope: Scope): Set<string> =>
+    new Set(
       (scope === "organization" ? organization.connections : personal.connections).map(
         (connection) => connection.name,
       ),
     );
-    if (!taken.has(base)) return base;
-    for (let n = 2; ; n += 1) {
-      const candidate = `${base}-${n}`;
-      if (!taken.has(candidate)) return candidate;
-    }
-  };
 
   /** Probe a server, returning its tools or null after saying why not. */
   const probe = async (scope: Scope, connection: McpConnectionRecord) => {
@@ -247,6 +265,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     if (!tools) return;
     setToolPicker({
       scope,
+      name: connection.name,
       connection,
       tools,
       checked: new Set(
@@ -272,8 +291,69 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // On success the browser navigates away - leave the row busy.
   };
 
+  // The key `?connect=` arrived with, read once. Lazily, so the server render -
+  // which has no window - and the client's first render agree on a closed
+  // dialog; the row it names is derived below rather than set from an effect.
+  const [connectKey, setConnectKey] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URL(window.location.href).searchParams.get(CONNECT_PARAM),
+  );
+  const catalogLoaded = catalog.servers.length > 0;
+  const requestedRow = useMemo(
+    () =>
+      connectKey === null || !catalogLoaded
+        ? null
+        : (rowsForEntries(catalog.servers, organization.connections, personal.connections).find(
+            (row) => row.entry?.key === connectKey,
+          ) ?? null),
+    [connectKey, catalogLoaded, catalog.servers, organization.connections, personal.connections],
+  );
+  // A token or credential-free server opens the personal connect dialog as
+  // soon as the catalog has named the row - derived, so nothing has to be set.
+  // Closing it is what clears the request.
+  const requestedDraft: DraftState | null =
+    draft === null && requestedRow !== null && requestedRow.auth !== "oauth"
+      ? {
+          scope: "personal",
+          row: requestedRow,
+          existing: null,
+          suggestedName: freeName(requestedRow, takenNames("personal")),
+        }
+      : null;
+  const activeDraft = draft ?? requestedDraft;
+  const closeDraft = () => {
+    setDraft(null);
+    setConnectKey(null);
+  };
+
+  // The two halves that are not a render: the parameter is stripped as it is
+  // read, like the OAuth outcome, so a reload does not reopen a dialog somebody
+  // closed - and OAuth is a navigation, which no render can express. Guarded on
+  // the parameter still being in the URL, so a refetch of the connections does
+  // not send the browser to the consent screen a second time.
+  useEffect(() => {
+    if (connectKey === null || !catalogLoaded) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(CONNECT_PARAM)) return;
+    url.searchParams.delete(CONNECT_PARAM);
+    window.history.replaceState({}, "", url.toString());
+    if (requestedRow === null) {
+      toast.error(t("noSuchServerToConnect", { key: connectKey }));
+      return;
+    }
+    if (requestedRow.auth !== "oauth") return;
+    const taken = new Set(personal.connections.map((connection) => connection.name));
+    const name = freeName(requestedRow, taken) ?? connectKey;
+    startMcpOAuth({ name, url: requestedRow.url ?? "" }, "personal")
+      .then(({ authorization_url }) => window.location.assign(authorization_url))
+      .catch((caught: unknown) =>
+        toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign"))),
+      );
+  }, [connectKey, catalogLoaded, requestedRow, personal.connections, t, tErrors]);
+
   const handleSubmit = async (values: ConnectionFormValues) => {
-    if (!draft) return;
+    if (!activeDraft) return;
     const name = values.name.trim().toLowerCase();
     const label = values.label.trim();
     const url = values.url.trim();
@@ -288,7 +368,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       toast.error(t("urlMustStartWithHttp"));
       return;
     }
-    const { row, existing } = draft;
+    const { row, existing } = activeDraft;
     const scope = values.scope;
 
     // OAuth is not a row this dialog writes: the grant is obtained at the
@@ -296,7 +376,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // Sending the form would make an unauthorized bearer connection that then
     // has to be repaired.
     if (values.auth === "oauth" && existing === null) {
-      setDraft(null);
+      closeDraft();
       await handleOAuth({ ...row, url }, name, scope);
       return;
     }
@@ -318,7 +398,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             ? t("connectedForOrg", { name })
             : t("connectedForYou", { name }),
         );
-        setDraft(null);
+        closeDraft();
         void handleTools(scope, created);
       } else {
         // Only what changed. Re-sending the same URL discards the last check
@@ -333,7 +413,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ...(token ? { auth_token: token } : values.clearToken ? { auth_token: "" } : {}),
         });
         toast.success(t("serverUpdated", { name }));
-        setDraft(null);
+        closeDraft();
       }
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveServer")));
@@ -648,8 +728,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       />
 
       <McpConnectionDialog
-        draft={draft}
-        onClose={() => setDraft(null)}
+        draft={activeDraft}
+        onClose={closeDraft}
         submitting={submitting}
         canManageOrganization={canManageOrganization}
         onSubmit={handleSubmit}
