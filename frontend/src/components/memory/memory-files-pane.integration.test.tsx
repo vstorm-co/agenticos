@@ -93,18 +93,26 @@ describe("MemoryFilesPane", () => {
     expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
   });
 
-  it("shows an error with retry when the file detail fails to load", async () => {
-    // A failed detail GET must not leave the dialog on a permanent skeleton.
-    vi.mocked(apiClient.get).mockImplementation((url: string) =>
-      url.startsWith("/memory/files/f")
-        ? Promise.reject(new ApiError(502, "upstream", null))
-        : Promise.resolve({ items: [OPERATOR], total: 1 }),
-    );
+  it("shows an error with retry when the file detail fails to load, and recovers", async () => {
+    // A failed detail GET must not leave the dialog on a permanent skeleton; Retry
+    // refetches and, on success, shows the editor.
+    let detailCalls = 0;
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url.startsWith("/memory/files/f")) {
+        detailCalls += 1;
+        return detailCalls === 1
+          ? Promise.reject(new ApiError(502, "upstream", null))
+          : Promise.resolve(BODY_OPERATOR);
+      }
+      return Promise.resolve({ items: [OPERATOR], total: 1 });
+    });
     mount();
     await userEvent.click(await screen.findByText("user-preferences"));
 
     expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByTestId("rendered")).toHaveTextContent("Prefer bullets.");
   });
 
   it("confines the listing to the partition the panel gave it", async () => {

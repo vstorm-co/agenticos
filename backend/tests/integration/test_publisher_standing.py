@@ -126,12 +126,18 @@ async def test_a_publisher_context_is_always_flagged_a_fallback() -> None:
 
 def test_only_publisher_context_sets_the_fallback_flag() -> None:
     """The N1 guarantee that per-user memory never leaks into the owner's store
-    rests on `subject_is_publisher_fallback` being set `True` in exactly one place.
-    A second stand-in constructor that forgot it would run a visitor's turn as the
-    owner without the flag, and per-user memory would attribute the visitor's notes
-    to the owner. This pins the one assignment site by grep - the same discipline
-    that keeps `AuthContext.anonymous` the sole subject-less constructor - so a new
-    one has to be argued for in a diff rather than added quietly.
+    rests on `subject_is_publisher_fallback` being set `True` only where the id in
+    hand is an authority rather than a person at the keyboard. A stand-in
+    constructor that forgot it would run a visitor's turn as the owner without the
+    flag, and per-user memory would attribute the visitor's notes to the owner.
+    This pins the assignment sites by grep - the same discipline that keeps
+    `AuthContext.anonymous` the sole subject-less constructor - so a new one has to
+    be argued for in a diff rather than added quietly.
+
+    Two sites are legitimate: `services/access.py` mints the publisher-standing
+    context for a hosted/widget run, and `services/agent_trigger.py` mints the
+    fired-run context whose `user_id` is the trigger *creator* (the authority an
+    unattended run executes under), which must not become a memory end-user (#788).
     """
     app_root = Path(__file__).resolve().parents[2] / "app"
     setters = sorted(
@@ -139,4 +145,4 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
         for path in app_root.rglob("*.py")
         if "subject_is_publisher_fallback=True" in path.read_text(encoding="utf-8")
     )
-    assert setters == ["services/access.py"], setters
+    assert setters == ["services/access.py", "services/agent_trigger.py"], setters

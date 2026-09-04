@@ -709,6 +709,24 @@ class TestMem0FactManagement:
         with get_agent, allow, pytest.raises(BadRequestError):
             await service.clear_facts(_ctx(), agent_id=uuid.uuid4())
 
+    async def test_a_native_backed_agent_is_not_refused(self):
+        # The binding is present but native, so the guard's loop runs and finds
+        # nothing to refuse - the management path proceeds as normal.
+        service = _service()
+        agent = MagicMock(
+            id=uuid.uuid4(),
+            draft_spec={
+                "capabilities": [{"id": "memory", "enabled": True, "config": {"backend": "native"}}]
+            },
+        )
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{MEMORY_PATH}.memory_repo.list_facts", new=AsyncMock(return_value=([], 0))),
+        ):
+            result = await service.list_facts(_ctx(), agent_id=uuid.uuid4())
+        assert result.total == 0
+
 
 class TestCreateFact:
     """The operator seeds a fact directly: it is embedded server-side (unmetered),
