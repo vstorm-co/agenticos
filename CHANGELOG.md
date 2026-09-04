@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **10**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,23 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+### Changed
+
+- **An MCP binding says whose account it speaks through, and that is its
+  kind.** `SPEC_VERSION` 11: `mcp_servers` entries carry `account`, either
+  `organization` with a `connection_id` — everybody's, on every surface, as
+  before — or `personal` with a `catalog_key` and no connection at all: whoever
+  talks to the agent connects their own Notion and the agent speaks as them, in
+  the dashboard, in a direct message and in a channel alike. The account is
+  always the author of the message, never the thread's. Where nobody is talking
+  — an API key, the widget, a schedule, an unlinked chat sender — the server is
+  absent from that run and the agent is told why and where the person connects
+  one, rather than answering as though it never had the tool. The Builder asks
+  whose account on the card; `/mcp-servers?connect=<key>` opens the personal
+  connect flow the agent links to. `use_personal_when_available`, which
+  substituted a credential in private conversations only, is withdrawn: a stored
+  binding that had it loads as the organization's and says so in the log.
 
 ## [0.0.355] - 2026-09-02
 

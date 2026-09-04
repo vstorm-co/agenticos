@@ -56,8 +56,9 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 
 Two kinds, and the difference is the point.
 
-**Personal** (Settings → Your connections) is scoped to one member and reached only
-by their own assistant.
+**Personal** (MCP servers → You) is scoped to one member and reached by their own
+assistant, and by an agent bound to each person's own account when they are the
+one talking to it.
 
 Its credential is sealed to the *member*, not to an organization — a personal
 connection has none, and its owner may belong to several, so binding it to
@@ -65,10 +66,13 @@ whichever was active when they added it would make the token unreadable the mome
 they switched.
 
 **Organization** is scoped to the organization, gated on `connections:manage`, and
-is the only kind a published agent's spec may name.
+is the only kind a published agent's spec may name *by id*.
 
-A published agent that answered differently depending on whose session ran it could
-not be reviewed or reasoned about, which is the whole reason for the restriction.
+A published agent that reached different tools depending on whose session built
+it could not be reviewed or reasoned about, which is the whole reason for the
+restriction. A personal connection still reaches an agent, one way: a binding to
+[each person's own account](#whose-account-a-binding-speaks-through) names the
+service, and whoever is talking to the agent supplies their own connection to it.
 
 ```
 GET  /api/v1/me/mcp-connections     personal
@@ -127,36 +131,60 @@ says so and points at the servers page, which is where a connection is checked.
 A binding that already names tools shows those, so what it is bound to stays
 visible and can still be narrowed.
 
-### Speaking as whoever is running the agent
+### Whose account a binding speaks through
 
-A binding carries one option: `use_personal_when_available`. With it on, a run
-reaches that service through the *runner's own* connection instead of the
-organization's — but only where the conversation holds exactly one identified
-person and nobody else. That means the dashboard chat, and a one-to-one direct
-message on Slack, Telegram or Mattermost. A channel, a group direct message, the
-embedded widget, an API key and a scheduled run all keep the organization's
-account.
+A binding is one of two kinds, and the Builder asks which on the card.
 
-It is off by default, and that default is the point: the organization's account
-is the answer an agent is reviewed against, and this is the one place a run may
-differ from it.
+**The organization's account** (`account: organization`) names one of the
+organization's connections and answers for everybody, on every surface. It is
+the default and the answer an agent is reviewed against.
 
-Only the credential is substituted. The tool prefix stays the organization's, so
-the agent presents the same tools to everyone and only the account behind them
-changes.
+**Each person's own account** (`account: personal`) names the catalog service
+instead — `catalog_key: notion` — and no connection at all. Whoever talks to
+the agent connects their own Notion, in MCP servers → You, and the agent speaks
+to Notion as them: in the dashboard, in a direct message and in a channel
+alike. The audit trail at Notion then says who did what, which a shared service
+account never can.
 
-!!! warning "Two things publish refuses, and one it declines to guess"
+The account is the author of *this message*, never the thread's. Ania asks in
+`#ops` and gets an answer from her Notion; Bartek asks the same question in the
+same thread and gets his, or is told to connect one. A thread is not a boundary
+anybody's credentials should cross — were the first person to connect to answer
+for everybody after them, linking a Notion in a channel would hand it to the
+channel.
 
-    A flagged binding whose connection has no `catalog_key` is refused: the key
-    is what says a member's Notion and the organization's are the same service,
-    and a connection made from a bare URL has nothing to match on. Two flagged
-    bindings sharing one `catalog_key` are refused too — one run cannot
-    substitute two accounts.
+!!! info "Where nobody is talking, the tools are absent — and the agent says so"
 
-    A member holding *several* of their own connections to one service picks
-    one, in Settings → Your connections: the account they nominate is the one an
-    agent speaks as. Until they pick, the organization's account answers -
-    picking the older workspace silently would be worse.
+    An API key, the embedded widget, a schedule, a trigger and a channel sender
+    who has not linked their chat account have no account to speak through. The
+    run proceeds without that server, every other binding intact, and one line
+    is added to its instructions saying which service is missing and why — so
+    when somebody asks for Notion the agent answers with the link that connects
+    it (`/mcp-servers?connect=notion`), or with "send `/link` to this bot
+    first" where the chat account is the missing piece.
+
+    A person holding *several* of their own connections to one service picks
+    one, in MCP servers → You: the account they mark as default is the one an
+    agent speaks as. Until they pick, the agent tells them to — guessing the
+    older workspace silently would be worse.
+
+The tool prefix of a personal binding is the catalog key, whatever each person
+called their connection, so the agent presents `notion_search` to everyone.
+`allowed_tools` on the binding is the administrator's ceiling; the person's own
+connection may narrow further, and the two intersect.
+
+!!! warning "Three things publish refuses"
+
+    A personal binding to a key the catalog does not hold — nothing could ever
+    match a member's connection to it. Two personal bindings to one service —
+    the same tools twice under one name. And a personal binding whose key is
+    also the name of an organization connection bound to the same agent, which
+    would put two servers under one prefix; Pydantic AI refuses the duplicate
+    tool names and the turn aborts.
+
+One agent binds each service once, one way. An agent that needs the
+organization's handbook Notion *and* each person's own is two agents, or the
+same server connected twice under two names.
 
 ## Authentication
 
