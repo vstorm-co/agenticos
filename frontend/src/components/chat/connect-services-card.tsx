@@ -21,13 +21,15 @@ import type { McpCatalogEntry } from "@/types/mcp";
  * model answers, so the card is on screen while the agent is still saying it
  * cannot reach their Notion. Not part of the transcript: it is true of this
  * person at this moment, and a conversation reopened after they connected would
- * be wrong to repeat it. The parent keys the card on the services it names, so a
- * dismissal lasts until the list changes.
+ * be wrong to repeat it. Dismissed, it stays away until the next question is
+ * sent, which is when the parent clears the list and unmounts it.
  *
  * A service connected while the card is up - in the tab OAuth opened, or through
- * the dialog here - reads as connected the moment the connections refetch, which
- * a window regaining focus does: the row turns into "ask again" rather than
- * waiting for a turn that would only say the same thing.
+ * the dialog here - reads as connected the moment the connections list refetches.
+ * The dialog writes the list's cache itself; the tab's consent is read when this
+ * tab regains focus, which `useMcpConnections` refetches on for exactly this
+ * reason. The row turns into "ask again" rather than waiting for a turn that
+ * would only say the same thing.
  */
 export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
   const t = useTranslations("chat.personalServices");
@@ -41,7 +43,6 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
     <div
       role="status"
       className="border-border bg-card/95 rounded-2xl border p-3 shadow-sm backdrop-blur"
-      data-tour="chat-connect-services"
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-muted-foreground text-xs leading-relaxed">{t("intro")}</p>

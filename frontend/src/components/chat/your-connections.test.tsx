@@ -32,8 +32,21 @@ vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: [NOTION], isLoading: false }),
 }));
 vi.mock("@/components/agents/connect-server-dialog", () => ({
-  ConnectOwnServerDialog: ({ entry }: { entry: McpCatalogEntry | null }) =>
-    entry ? <div role="dialog">connecting {entry.name}</div> : null,
+  ConnectOwnServerDialog: ({
+    entry,
+    onClose,
+  }: {
+    entry: McpCatalogEntry | null;
+    onClose: () => void;
+  }) =>
+    entry ? (
+      <div role="dialog">
+        connecting {entry.name}
+        <button type="button" onClick={onClose}>
+          close
+        </button>
+      </div>
+    ) : null,
 }));
 
 const NOTION: McpCatalogEntry = {
@@ -126,6 +139,32 @@ describe("YourConnections", () => {
     render(<YourConnections />);
 
     expect(screen.getByText("Needs authorizing again")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open MCP servers" })).toBeInTheDocument();
+  });
+});
+
+describe("YourConnections' dialog", () => {
+  it("closes when the person backs out of connecting", async () => {
+    state.selectedAgentId = "a1";
+    state.bindings = [{ account: "personal", catalog_key: "notion", allowed_tools: null }];
+    state.connections = [];
+    render(<YourConnections />);
+    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("YourConnections and a key the catalog no longer holds", () => {
+  it("names the service by its key and sends the person to the servers page", () => {
+    state.selectedAgentId = "a1";
+    state.bindings = [{ account: "personal", catalog_key: "gone", allowed_tools: null }];
+    state.connections = [];
+    render(<YourConnections />);
+
+    expect(screen.getByText("gone")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open MCP servers" })).toBeInTheDocument();
   });
 });

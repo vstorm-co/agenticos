@@ -2672,7 +2672,9 @@ class TestOrganizationConnections:
         monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
         monkeypatch.setattr(mcp_oauth, "register_client", AsyncMock(return_value=("cid", None)))
 
-        url = await service.oauth_start_for_org(ctx, name="linear", url="https://srv/mcp")
+        url = await service.oauth_start_for_org(
+            ctx, name="linear", url="https://srv/mcp", catalog_key="linear"
+        )
 
         assert url.startswith("https://srv/authorize?")
         assert repo.get_org_scoped_by_name.await_args.kwargs == {
@@ -2683,6 +2685,8 @@ class TestOrganizationConnections:
         assert stored["organization_id"] == ctx.organization_id
         assert stored["created_by_user_id"] == ctx.subject_id
         assert (stored["auth_type"], stored["sealed_token"]) == ("oauth", None)
+        # Provenance the row keeps: the Builder groups it under its entry by this.
+        assert stored["catalog_key"] == "linear"
         payload = McpOAuthPayload.model_validate_json(
             unseal(
                 stored["oauth_pending_payload"],

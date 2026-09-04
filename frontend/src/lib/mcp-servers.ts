@@ -332,18 +332,19 @@ export function mergeServers(
  * The same rule the run applies (`_nominated` on the backend): one enabled
  * connection needs no choosing, several answer only the one marked default, and
  * several with none marked are `undecided` rather than guessed between. A chosen
- * connection that no longer authorizes is `unauthorized` - the account exists,
- * the grant behind it does not.
+ * OAuth connection whose grant is gone is `unauthorized` - the account exists,
+ * the credential behind it does not. A failed health check is not that: the
+ * run still sends the token it holds, so the row reads connected.
  */
 export function ownAccountStatus(
   catalogKey: string,
   connections: McpConnectionRecord[],
-): PersonalServiceGapKind | "connected" {
+): Exclude<PersonalServiceGapKind, "nobody_to_speak_as"> | "connected" {
   const mine = connections.filter(
     (connection) => connection.catalog_key === catalogKey && connection.is_enabled,
   );
   if (mine.length === 0) return "not_connected";
   const chosen = mine.length === 1 ? mine[0] : mine.find((one) => one.is_default);
   if (chosen === undefined) return "undecided";
-  return connectionState(chosen) === "connected" ? "connected" : "unauthorized";
+  return connectionState(chosen) === "needs-authorization" ? "unauthorized" : "connected";
 }

@@ -21,8 +21,21 @@ vi.mock("@/hooks/use-mcp-servers", () => ({
 // The dialog is tested on its own; here it only has to be opened for the right
 // entry, so it renders a marker naming the one it was given.
 vi.mock("@/components/agents/connect-server-dialog", () => ({
-  ConnectOwnServerDialog: ({ entry }: { entry: McpCatalogEntry | null }) =>
-    entry ? <div role="dialog">connecting {entry.name}</div> : null,
+  ConnectOwnServerDialog: ({
+    entry,
+    onClose,
+  }: {
+    entry: McpCatalogEntry | null;
+    onClose: () => void;
+  }) =>
+    entry ? (
+      <div role="dialog">
+        connecting {entry.name}
+        <button type="button" onClick={onClose}>
+          close
+        </button>
+      </div>
+    ) : null,
 }));
 
 const NOTION: McpCatalogEntry = {
@@ -112,8 +125,9 @@ describe("ConnectServicesCard", () => {
   });
 
   it("turns a row into 'ask again' once the connection exists", () => {
-    // The frame said "not connected" a moment ago; the connections list, refetched
-    // when the tab regains focus, is what says whether that still holds.
+    // The frame said "not connected" a moment ago; the connections list is what
+    // says whether that still holds - written by the dialog, or refetched on focus
+    // after the consent in the other tab.
     state.connections = [own()];
     render(<ConnectServicesCard gaps={[gap()]} />);
 
@@ -127,5 +141,18 @@ describe("ConnectServicesCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
 
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("ConnectServicesCard's dialog", () => {
+  it("closes when the person backs out of connecting", async () => {
+    state.connections = [];
+    state.servers = [NOTION];
+    render(<ConnectServicesCard gaps={[gap()]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "close" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

@@ -495,10 +495,7 @@ function ChatUI({
         <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
           {personalGaps.length > 0 && (
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-              <ConnectServicesCard
-                key={personalGaps.map((gap) => gap.catalog_key).join(",")}
-                gaps={personalGaps}
-              />
+              <ConnectServicesCard gaps={personalGaps} />
             </div>
           )}
           {pendingApproval && onResumeDecisions && (

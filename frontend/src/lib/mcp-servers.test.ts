@@ -372,3 +372,29 @@ describe("ownAccountStatus", () => {
     expect(ownAccountStatus("notion", [own({ oauth_authorized: false })])).toBe("unauthorized");
   });
 });
+
+describe("ownAccountStatus and a failed health check", () => {
+  it("still reads connected, because the run still sends the token it holds", () => {
+    const failing: McpConnectionRecord = {
+      id: "m1",
+      name: "github",
+      url: "https://api.githubcopilot.com/mcp/",
+      has_auth_token: true,
+      allowed_tools: null,
+      is_enabled: true,
+      auth_type: "bearer",
+      oauth_authorized: false,
+      last_status: "error",
+      last_error: "timed out",
+      last_checked_at: null,
+      catalog_key: "github",
+      is_default: false,
+      label: null,
+      last_tools: null,
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: null,
+    };
+
+    expect(ownAccountStatus("github", [failing])).toBe("connected");
+  });
+});

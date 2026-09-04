@@ -802,3 +802,24 @@ describe("arriving with ?connect=<catalog key>", () => {
     expect(window.location.search).toBe("");
   });
 });
+
+describe("arriving with ?connect= for a server behind OAuth", () => {
+  it("starts the personal consent with the catalog key, so the connection can be matched", async () => {
+    // The key is what a binding to each person's own account finds the
+    // connection by. The callback creates the row from the staged flow, so the
+    // key has to travel with the start request or the row never carries one.
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
+    window.history.replaceState({}, "", "/mcp-servers?connect=linear");
+
+    await mount();
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections/oauth/start", {
+        name: "linear",
+        url: "https://mcp.linear.app/sse",
+        catalog_key: "linear",
+      }),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});

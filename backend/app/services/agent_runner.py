@@ -1254,6 +1254,12 @@ class PersonalServiceGap(BaseModel):
 
 
 def personal_service_gap(unavailable: UnavailablePersonalService) -> PersonalServiceGap:
+    """One gap as the model is briefed with it and the surface draws it.
+
+    Named after the catalog entry where there is one, and pointed at the connect
+    link only for a service the person has not connected at all: the other gaps
+    are about an account they already hold, and `?connect=` would make another.
+    """
     entry = mcp_catalog_entry(unavailable.catalog_key)
     servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
     return PersonalServiceGap(
@@ -1288,37 +1294,36 @@ def _with_personal_service_gaps(
 
 
 def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
-    name = gap.name
-    bound = f"{name} is bound to the account of whoever is talking to you"
+    bound = f"{gap.name} is bound to the account of whoever is talking to you"
     if gap.gap == "nobody_to_speak_as":
         if surface in _CHANNEL_SURFACES:
             return (
                 f"{bound}, and this message came from a chat account nobody has linked to a "
-                f"person here, so the {name} tools are not available for it. If asked for "
-                f"anything in {name}, say so and tell them to send /link to this bot first, "
+                f"person here, so the {gap.name} tools are not available for it. If asked for "
+                f"anything in {gap.name}, say so and tell them to send /link to this bot first, "
                 "then ask again."
             )
         return (
-            f"{bound}, and nobody is signed in on this surface, so the {name} tools are not "
-            f"available here. If asked for anything in {name}, say so plainly rather than "
+            f"{bound}, and nobody is signed in on this surface, so the {gap.name} tools are not "
+            f"available here. If asked for anything in {gap.name}, say so plainly rather than "
             "attempting a workaround."
         )
     if gap.gap == "undecided":
         return (
-            f"{bound}, and this person holds several {name} connections with none marked as "
+            f"{bound}, and this person holds several {gap.name} connections with none marked as "
             f"the one agents use, so its tools are not available for this message. If asked "
-            f"for anything in {name}, say so and point them at {gap.url} to mark one of their "
-            f"{name} connections as default, under You."
+            f"for anything in {gap.name}, say so and point them at {gap.url} to mark one of their "
+            f"{gap.name} connections as default, under You."
         )
     if gap.gap == "unauthorized":
         return (
-            f"{bound}, and this person's own {name} connection no longer authorizes, so its "
-            f"tools are not available for this message. If asked for anything in {name}, say "
-            f"so and point them at {gap.url} to authorize their {name} connection again, under You."
+            f"{bound}, and this person's own {gap.name} connection no longer authorizes, so its "
+            f"tools are not available for this message. If asked for anything in {gap.name}, say "
+            f"so and point them at {gap.url} to authorize their {gap.name} connection again, under You."
         )
     return (
-        f"{bound}, and this person has not connected their own {name} yet, so its tools are "
-        f"not available for this message. If asked for anything in {name}, say so and give "
+        f"{bound}, and this person has not connected their own {gap.name} yet, so its tools are "
+        f"not available for this message. If asked for anything in {gap.name}, say so and give "
         f"them this link to connect it: {gap.url} - once connected, they ask again."
     )
 

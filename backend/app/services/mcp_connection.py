@@ -651,7 +651,9 @@ class McpConnectionService:
         )
         return db_connection, tools, error
 
-    async def oauth_start_for_org(self, ctx: AuthContext, *, name: str, url: str) -> str:
+    async def oauth_start_for_org(
+        self, ctx: AuthContext, *, name: str, url: str, catalog_key: str | None = None
+    ) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
 
         The grant is still one person's - somebody clicks consent, and the
@@ -677,7 +679,7 @@ class McpConnectionService:
                 organization_id=ctx.organization_id,
                 created_by_user_id=ctx.subject_id,
                 allowed_tools=None,
-                catalog_key=None,
+                catalog_key=catalog_key,
                 sealed_token=None,
                 **kwargs,
             ),

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import {
   createMcpConnection,
   deleteMcpConnection,
@@ -70,6 +71,10 @@ export function useMcpConnections(): UseMcpConnectionsResult {
   } = useQuery({
     queryKey: qk.mcpConnections.list(),
     queryFn: listMcpConnections,
+    // Fresh on focus, like a dashboard card: the consent that creates one of
+    // these happens in another tab, and the chat card waiting on it reads this
+    // list when the person comes back.
+    ...DASHBOARD_FRESHNESS,
   });
 
   const error = queryError
