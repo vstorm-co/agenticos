@@ -600,6 +600,54 @@ class TestCrossUserRead:
                 _ctx(user_id=uuid.uuid4()), agent_id=uuid.uuid4(), scope_key="user:someone-else"
             )
 
+    async def test_a_viewer_reads_their_own_personal_file_by_id(self):
+        service = _service()
+        me = uuid.uuid4()
+        file = _file(scope_key=f"user:{me}")
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
+        ):
+            assert await service.get(_ctx(user_id=me), file.id) is file
+
+    async def test_a_viewer_cannot_read_another_persons_file_by_id(self):
+        # The leak this closes: a known id let a viewer GET a personal row it may
+        # not list. Reading another partition needs edit, like listing it (codex).
+        service = _service()
+        file = _file(scope_key="user:someone-else")
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.get(_ctx(user_id=uuid.uuid4()), file.id)
+
+    async def test_a_viewer_reads_their_own_personal_fact_by_id(self):
+        service = _service()
+        me = uuid.uuid4()
+        fact = _fact()
+        fact.end_user_scope_key = f"user:{me}"
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+        ):
+            assert await service.get_fact(_ctx(user_id=me), fact.id) is fact
+
+    async def test_a_viewer_cannot_read_another_persons_fact_by_id(self):
+        service = _service()
+        fact = _fact()
+        fact.end_user_scope_key = "user:someone-else"
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.get_fact(_ctx(user_id=uuid.uuid4()), fact.id)
+
 
 class TestOwnPersonalWrites:
     """A viewer may amend and forget their *own* personal memory, but nothing else -
@@ -708,6 +756,23 @@ class TestMem0FactManagement:
         get_agent, allow = self._reachable_mem0()
         with get_agent, allow, pytest.raises(BadRequestError):
             await service.clear_facts(_ctx(), agent_id=uuid.uuid4())
+
+    async def test_clearing_all_memory_is_refused_and_deletes_nothing(self):
+        # The combined danger-zone clear refuses before any partial delete:
+        # dropping the native files while the mem0 facts stay recallable is a wipe
+        # that reports success and leaves the agent remembering (codex).
+        service = _service()
+        get_agent, allow = self._reachable_mem0()
+        with (
+            get_agent,
+            allow,
+            patch(f"{MEMORY_PATH}.memory_repo.delete_all_files", new=AsyncMock()) as files,
+            patch(f"{MEMORY_PATH}.memory_repo.delete_all_facts", new=AsyncMock()) as facts,
+            pytest.raises(BadRequestError),
+        ):
+            await service.clear(_ctx(), agent_id=uuid.uuid4())
+        files.assert_not_awaited()
+        facts.assert_not_awaited()
 
     async def test_a_native_backed_agent_is_not_refused(self):
         # The binding is present but native, so the guard's loop runs and finds

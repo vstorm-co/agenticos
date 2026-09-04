@@ -123,7 +123,13 @@ class MemoryService:
         return file
 
     async def get(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
-        return await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
+        file = await memory_repo.get(self.db, file_id, organization_id=ctx.organization_id)
+        if file is None:
+            raise NotFoundError(message="Memory file not found", details={"file_id": str(file_id)})
+        await self._agent_or_404(
+            ctx, file.agent_id, perm=self._read_perm(ctx, file.end_user_scope_key)
+        )
+        return file
 
     def _own_personal(self, ctx: AuthContext, scope_key: str | None) -> bool:
         """Whether a partition is the caller's own personal store.
@@ -158,6 +164,19 @@ class MemoryService:
         if all_partitions or scoped_only:
             return True
         return scope_key is not None and not self._own_personal(ctx, scope_key)
+
+    def _read_perm(self, ctx: AuthContext, scope_key: str | None) -> Perm:
+        """The permission a read of one row by id demands.
+
+        The shared store and the caller's own personal partition are view; another
+        person's personal partition is cross-user inspection, an editor act - the
+        same rule `_cross_user_read` applies to a listing. Without it a viewer who
+        learned an id could `GET` a stranger's personal file or fact it may not list
+        (codex).
+        """
+        if scope_key is None or self._own_personal(ctx, scope_key):
+            return Perm.AGENTS_VIEW
+        return Perm.AGENTS_EDIT
 
     def _refuse_if_mem0(self, agent: Agent) -> None:
         """Operator fact management is native-only; refuse it for a mem0-backed agent.
@@ -502,7 +521,13 @@ class MemoryService:
         )
 
     async def get_fact(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFact:
-        return await self._fact_or_404(ctx, fact_id, perm=Perm.AGENTS_VIEW)
+        fact = await memory_repo.get_fact(self.db, fact_id, organization_id=ctx.organization_id)
+        if fact is None:
+            raise NotFoundError(message="Memory fact not found", details={"fact_id": str(fact_id)})
+        await self._agent_or_404(
+            ctx, fact.agent_id, perm=self._read_perm(ctx, fact.end_user_scope_key)
+        )
+        return fact
 
     async def delete_fact(self, ctx: AuthContext, fact_id: UUID) -> None:
         """Forget a fact. There is no operator create or edit - facts are the
@@ -525,8 +550,15 @@ class MemoryService:
         The danger-zone counterpart to per-row delete: a memory store nobody can
         clear is a liability (#788). One agent-scoped action, checked against
         `AGENTS_EDIT` like every other write, and audited with what it removed.
+
+        Refused for a mem0 agent before anything is deleted: its facts live in
+        mem0, so a native clear would drop the files, report "cleared", and leave
+        every fact still recallable - a partial wipe wearing a success. The
+        single-target clear refuses the same way; routing the delete to mem0 is a
+        separate feature (codex).
         """
-        await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        agent = await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        self._refuse_if_mem0(agent)
         files = await memory_repo.delete_all_files(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
