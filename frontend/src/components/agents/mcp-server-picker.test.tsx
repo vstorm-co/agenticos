@@ -208,6 +208,15 @@ describe("McpServerPicker", () => {
     expect(screen.queryByText(/does not offer/)).toBeNull();
   });
 
+  it("shows a personal binding to a key the catalog no longer describes", () => {
+    // No card can match it, so unlisted it would vanish from the Builder while
+    // publish kept refusing the unknown key.
+    render(picker({ value: [personal("gone-server")] }));
+
+    expect(screen.getByText(/1 server this organization does not offer/)).toBeInTheDocument();
+    expect(screen.getByText("gone-server")).toBeInTheDocument();
+  });
+
   it("shows the whole catalog, not only what already has credentials", () => {
     // "What can I attach right now" was answerable; "what could this agent
     // reach at all" needed another page, and a catalog nobody sees is a catalog

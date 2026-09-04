@@ -115,8 +115,19 @@ export function McpServerPicker({
   const tMcp = useTranslations("mcp");
   const [connectedOnly, setConnectedOnly] = useState(false);
   const known = new Set(connections.map((connection) => connection.id));
+  const catalogKeys = new Set(catalog.map((entry) => entry.key));
+  // Of either kind: an organization binding to a connection this organization no
+  // longer holds, and a personal one to a key the catalog no longer describes.
+  // A card can match neither, so unlisted they would vanish from the Builder
+  // while publish kept refusing them.
   const orphaned = value.flatMap((ref) =>
-    ref.account === "organization" && !known.has(ref.connection_id) ? [ref.connection_id] : [],
+    ref.account === "organization"
+      ? known.has(ref.connection_id)
+        ? []
+        : [ref.connection_id]
+      : catalogKeys.has(ref.catalog_key)
+        ? []
+        : [ref.catalog_key],
   );
 
   /** Replace whatever this row's binding was with `next`, or drop it. */

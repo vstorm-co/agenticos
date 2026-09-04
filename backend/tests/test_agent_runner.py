@@ -2080,6 +2080,26 @@ class TestResume:
         assert build.call_args.kwargs["gate_every_tool"] is False
 
     @pytest.mark.anyio
+    async def test_a_run_parked_under_the_flags_old_name_still_speaks_as_its_owner(self):
+        """`private_to_user` became `acts_for_sender` with the personal binding kind.
+        A run parked for approval before that deploy carries the old key, and
+        `extra="forbid"` would refuse to resume it - an approval somebody is
+        waiting on, failing for a key nobody can edit."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"approval_mode": "follow_agent", "private_to_user": True},
+                }
+            )
+
+        assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
+
+    @pytest.mark.anyio
     async def test_a_parked_run_still_speaks_as_the_person_who_started_it(self):
         """Half a conversation through their own account and half without it is
         worse than either, and the row alone cannot say whether a person was at

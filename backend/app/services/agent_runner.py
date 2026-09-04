@@ -63,7 +63,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun as AgentIteration
@@ -471,6 +471,24 @@ class AdmittedAs(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_the_flag_under_its_old_name(cls, data: Any) -> Any:
+        """Let a run parked as `private_to_user` resume as `acts_for_sender`.
+
+        The field was renamed when whose account a binding speaks through became
+        the binding's kind rather than a private-conversation substitution, and
+        `extra="forbid"` would otherwise refuse every approval parked before that
+        deploy - a run somebody is waiting on, failing to resume for a key
+        nobody can edit. The old flag meant "one identified person, nobody
+        else", which implies the new one; the new key wins where both appear.
+        """
+        if not isinstance(data, dict) or "private_to_user" not in data:
+            return data
+        migrated = {key: value for key, value in data.items() if key != "private_to_user"}
+        migrated.setdefault("acts_for_sender", data["private_to_user"])
+        return migrated
 
     approval_mode: ApprovalMode = Field(
         default=ApprovalMode.FOLLOW_AGENT,
