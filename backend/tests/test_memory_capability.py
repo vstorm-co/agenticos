@@ -312,13 +312,30 @@ class TestMemoryBrief:
         )
         assert 1 <= text.count(big) < 5
 
-    async def test_a_single_oversized_fact_is_still_shown(self, monkeypatch):
+    async def test_a_single_oversized_fact_is_dropped_not_injected(self, monkeypatch):
+        # A fact past the whole budget is not spliced in unbounded: the old "always
+        # show at least one" let a runtime `remember` of one enormous fact blow the
+        # context window (codex). With nothing left that fits, the brief falls back
+        # to the plain preamble rather than an empty-bodied one.
         huge = "y" * 6000
         monkeypatch.setattr(memory_store, "memory_brief", AsyncMock(return_value=[huge]))
         text = await Memory(enable_facts=True, backend="native").get_instructions()(
             _ctx(_deps(scope_key="user:1"))
         )
-        assert huge in text
+        assert huge not in text
+        assert text == _preamble(allow_personal=True, allow_agent_shared_writes=True)
+
+    async def test_the_newest_fact_survives_when_an_older_one_is_too_big(self, monkeypatch):
+        # Bounding every line does not mean losing the brief to one big fact lower
+        # down: newest-first, the small newest fact is kept and the oversized older
+        # one ends the accumulation.
+        monkeypatch.setattr(
+            memory_store, "memory_brief", AsyncMock(return_value=["fresh", "z" * 6000])
+        )
+        text = await Memory(enable_facts=True, backend="native").get_instructions()(
+            _ctx(_deps(scope_key="user:1"))
+        )
+        assert "- fresh" in text and "z" * 6000 not in text
 
 
 class TestListMemory:

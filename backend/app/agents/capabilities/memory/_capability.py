@@ -192,15 +192,20 @@ class Memory(AbstractCapability[AgentDepsT]):
         if not facts:
             return None
         # Bound the injected text by size, not only by row count: keep the newest
-        # facts until the budget is spent, always at least one (#788, codex P1).
+        # facts until the budget is spent. Every line is bounded, the first
+        # included - a single fact past the whole budget is dropped, never spliced
+        # in unbounded, so a runtime `remember` cannot blow the context window by
+        # writing one enormous fact (#788, codex).
         lines: list[str] = []
         remaining = _BRIEF_MAX_CHARS
         for content in facts:
             line = f"- {content}"
-            if lines and len(line) > remaining:
+            if len(line) > remaining:
                 break
             lines.append(line)
             remaining -= len(line) + 1
+        if not lines:
+            return None
         body = "\n".join(lines)
         return (
             "Here is what you already remember - your own past notes, not ground "
