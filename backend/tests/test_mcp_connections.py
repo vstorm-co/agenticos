@@ -20,9 +20,9 @@ from app.agents.mcp import (
     McpToolInfo,
     _make_toolset,
     _mcp_transport,
-    _tool_prefix,
     build_mcp_toolsets,
     probe_mcp_server,
+    tool_prefix,
 )
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.agents.spec import OrgMcpServerRef, PersonalMcpServerRef
@@ -123,13 +123,13 @@ def _open_from(conn: McpConnection, ciphertext: str) -> str:
 
 class TestToolPrefix:
     def test_hyphens_become_underscores(self):
-        assert _tool_prefix("github-work") == "github_work"
+        assert tool_prefix("github-work") == "github_work"
 
     def test_uppercase_and_specials_are_sanitized(self):
-        assert _tool_prefix("My Server!") == "my_server"
+        assert tool_prefix("My Server!") == "my_server"
 
     def test_empty_falls_back(self):
-        assert _tool_prefix("!!!") == "mcp"
+        assert tool_prefix("!!!") == "mcp"
 
 
 class TestTransportSelection:

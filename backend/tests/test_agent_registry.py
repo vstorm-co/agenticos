@@ -1467,7 +1467,7 @@ class TestValidateSpec:
             ),
             patch(
                 f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=MagicMock()),
+                new=AsyncMock(return_value=_named_connection("linear")),
             ),
             patch(
                 f"{REGISTRY_PATH}.skill_repo.get_many",
@@ -3380,3 +3380,98 @@ class TestTheShippedTemplatesOnDisk:
         first = agent_templates.catalog()[0].templates[0]
         assert agent_templates.get(first.key) is first
         assert agent_templates.get("nope/nope") is None
+
+
+class TestOneToolPrefixPerBinding:
+    """Two bindings under one prefix make Pydantic AI raise on the duplicate
+    tool names, which aborts every turn - and `_dedupe_by_prefix` would otherwise
+    drop one of them at run time with a warning nobody reads. Refused at publish,
+    on the prefix the toolset builder derives rather than on the raw name, because
+    that is where `notion-` and `notion` become the same thing.
+    """
+
+    @staticmethod
+    def _connection(name: str) -> MagicMock:
+        connection = MagicMock()
+        connection.name = name
+        return connection
+
+    async def _problems(self, refs, *, connections: dict) -> list[str]:
+        ctx = _ctx()
+
+        async def lookup(_db, *, connection_id, organization_id):
+            return connections.get(connection_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id", new=lookup),
+        ):
+            try:
+                await AgentRegistryService(_db()).validate_spec(
+                    ctx, _spec(mcp_servers=refs, model_profile_id=uuid.uuid4())
+                )
+            except BadRequestError as refused:
+                return refused.details["problems"]
+        return []
+
+    @pytest.mark.anyio
+    async def test_a_trailing_hyphen_does_not_hide_a_collision(self):
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [
+                OrgMcpServerRef(connection_id=connection_id),
+                PersonalMcpServerRef(account="personal", catalog_key="notion"),
+            ],
+            connections={connection_id: self._connection("notion-")},
+        )
+
+        assert len(problems) == 1 and "'notion'" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_the_same_connection_bound_twice_is_refused(self):
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=connection_id)] * 2,
+            connections={connection_id: self._connection("linear")},
+        )
+
+        assert len(problems) == 1 and "'linear'" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_two_organization_connections_reducing_to_one_prefix_are_refused(self):
+        first, second = uuid.uuid4(), uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=first), OrgMcpServerRef(connection_id=second)],
+            connections={first: self._connection("gh"), second: self._connection("gh-")},
+        )
+
+        assert len(problems) == 1 and "'gh'" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_distinct_prefixes_publish(self):
+        connection_id = uuid.uuid4()
+
+        assert (
+            await self._problems(
+                [
+                    OrgMcpServerRef(connection_id=connection_id),
+                    PersonalMcpServerRef(account="personal", catalog_key="notion"),
+                ],
+                connections={connection_id: self._connection("notion-handbook")},
+            )
+            == []
+        )
+
+
+def _named_connection(name: str) -> MagicMock:
+    """A connection row with a real name: `MagicMock(name=...)` names the mock,
+    not the row, and the prefix check reads the row's."""
+    connection = MagicMock()
+    connection.name = name
+    return connection

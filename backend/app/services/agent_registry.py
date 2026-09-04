@@ -35,6 +35,7 @@ from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
+from app.agents.mcp import tool_prefix
 from app.agents.spec import (
     AgentSpec,
     BudgetSpec,
@@ -1317,8 +1318,10 @@ class AgentRegistryService:
         time where the only options are to guess or to quietly drop a server.
         """
         problems: list[str] = []
-        prefixes: dict[str, str] = {}
-        personal: set[str] = set()
+        # What each binding would call its tools, as the toolset builder derives
+        # it - `notion-` and `notion` are one prefix - so a collision is caught
+        # here rather than by `_dedupe_by_prefix` dropping a server at run time.
+        claimed: dict[str, list[str]] = {}
         for ref in refs:
             if isinstance(ref, PersonalMcpServerRef):
                 if mcp_catalog.get_entry(ref.catalog_key) is None:
@@ -1328,15 +1331,9 @@ class AgentRegistryService:
                         "be matched to it."
                     )
                     continue
-                if ref.catalog_key in personal:
-                    problems.append(
-                        f"{ref.catalog_key!r} is bound to each person's own account twice. One "
-                        "binding per service - both would present the same tools under the same "
-                        "name."
-                    )
-                    continue
-                personal.add(ref.catalog_key)
-                prefixes.setdefault(ref.catalog_key, f"each person's own {ref.catalog_key}")
+                claimed.setdefault(tool_prefix(ref.catalog_key), []).append(
+                    f"each person's own {ref.catalog_key}"
+                )
                 continue
             connection = await mcp_connection_repo.get_org_scoped_by_id(
                 self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
@@ -1353,13 +1350,15 @@ class AgentRegistryService:
                     "account instead if that is what you want."
                 )
                 continue
-            prefixes.setdefault(connection.name, f"the connection {connection.name!r}")
-        for key in sorted(personal):
-            taken = prefixes[key]
-            if taken != f"each person's own {key}":
+            claimed.setdefault(tool_prefix(connection.name), []).append(
+                f"the connection {connection.name!r}"
+            )
+        for prefix, holders in claimed.items():
+            if len(holders) > 1:
                 problems.append(
-                    f"Two bindings would present their tools under the prefix {key!r}: {taken} "
-                    f"and each person's own {key}. Rename the connection, or bind one of them."
+                    f"Two bindings would present their tools under the prefix {prefix!r}: "
+                    f"{' and '.join(holders)}. The model would see every tool twice, which "
+                    "aborts the turn - bind one of them, or rename the connection."
                 )
         return problems
 

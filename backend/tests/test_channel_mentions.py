@@ -914,7 +914,7 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
             patch("app.services.channels.mentions.AgentRunnerService"),
         )
 
-    async def _mentioned(self, *, user_id: uuid.UUID | None) -> dict:
+    async def _mentioned(self, *, user_id: uuid.UUID | None, member: bool = True) -> dict:
         members_patch, agents_patch, exposures_patch, runner_patch = self._patched()
         with (
             members_patch as members,
@@ -923,7 +923,7 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
             exposures_patch as exposures,
             runner_patch as runner_cls,
         ):
-            membership = MagicMock(role=OrgRoleName.MEMBER)
+            membership = MagicMock(role=OrgRoleName.MEMBER) if member else None
             members.get = AsyncMock(return_value=membership)
             members.get_active = AsyncMock(return_value=membership)
             agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
@@ -946,7 +946,7 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
 
         return execute.call_args.kwargs
 
-    async def _defaulted(self, *, user_id: uuid.UUID | None) -> dict:
+    async def _defaulted(self, *, user_id: uuid.UUID | None, member: bool = True) -> dict:
         members_patch, _agents_patch, exposures_patch, runner_patch = self._patched()
         organization_id = uuid.uuid4()
         exposure = MagicMock(created_by_user_id=uuid.uuid4(), organization_id=organization_id)
@@ -957,7 +957,7 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
             exposures_patch as exposures,
             runner_patch as runner_cls,
         ):
-            membership = MagicMock(role=OrgRoleName.MEMBER)
+            membership = MagicMock(role=OrgRoleName.MEMBER) if member else None
             members.get = AsyncMock(return_value=membership)
             members.get_active = AsyncMock(return_value=membership)
             exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
@@ -991,3 +991,17 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
 
     async def test_an_unlinked_mention_admitted_to_a_room_speaks_as_nobody(self):
         assert (await self._mentioned(user_id=None))["acts_for_sender"] is False
+
+    async def test_a_linked_former_member_in_a_room_speaks_as_nobody(self):
+        """Their chat account still names a person, but that person is no longer
+        a member, so the turn runs under the binding's publisher - and reading
+        `user_id` alone would have reached for the *publisher's* own Notion on a
+        stranger's behalf. The flag follows who the context is for."""
+        assert (await self._defaulted(user_id=uuid.uuid4(), member=False))["acts_for_sender"] is (
+            False
+        )
+
+    async def test_a_linked_former_member_who_names_the_agent_speaks_as_nobody(self):
+        assert (await self._mentioned(user_id=uuid.uuid4(), member=False))["acts_for_sender"] is (
+            False
+        )

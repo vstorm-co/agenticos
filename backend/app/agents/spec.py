@@ -931,12 +931,12 @@ class AgentSpec(BaseModel):
     def _migrate_version_9_mcp_server_ids(cls, data: Any) -> Any:
         """Let a spec written against `mcp_server_ids` load as `mcp_servers`.
 
-        Version 10 turned a list of ids into a list of references so the binding
-        could carry `use_personal_when_available`. Without this, `extra="forbid"`
-        would refuse every stored spec that names an MCP server - a 500 on every
-        run of something nobody touched - and the ids are the same ids, so there
-        is nothing to decide: each becomes a reference with the flag off, which
-        is the behaviour those specs already have.
+        Version 10 turned a list of ids into a list of references so a binding
+        could carry policy of its own. Without this, `extra="forbid"` would
+        refuse every stored spec that names an MCP server - a 500 on every run
+        of something nobody touched - and the ids are the same ids, so there is
+        nothing to decide: each becomes an organization binding, which is the
+        behaviour those specs already have.
 
         An explicit `mcp_servers` wins, so re-reading a migrated spec changes
         nothing.

@@ -3436,6 +3436,7 @@ class TestTellingTheAgentWhatItCannotReach:
     is wrong advice to somebody whose chat account is simply not linked.
     """
 
+    _SERVERS = "http://localhost:3000/mcp-servers"
     _CONNECT = "http://localhost:3000/mcp-servers?connect=notion"
 
     @staticmethod
@@ -3462,16 +3463,22 @@ class TestTellingTheAgentWhatItCannotReach:
         assert self._CONNECT in text
 
     def test_several_accounts_with_no_default_are_sent_to_pick_one(self):
+        """To the page, not to the connect link: `?connect=` always makes a new
+        connection, and a third Notion is not how somebody picks between two."""
         text = self._briefed("undecided")
 
         assert "none marked as the one agents use" in text
-        assert self._CONNECT in text
+        assert self._SERVERS in text
+        assert self._CONNECT not in text
 
     def test_an_expired_grant_is_sent_to_authorize_again(self):
+        """Same page, same reason: re-authorizing is done on the connection they
+        have, and the connect link would mint a second one beside it."""
         text = self._briefed("unauthorized")
 
         assert "no longer authorizes" in text
-        assert self._CONNECT in text
+        assert self._SERVERS in text
+        assert self._CONNECT not in text
 
     @pytest.mark.parametrize(
         "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST]

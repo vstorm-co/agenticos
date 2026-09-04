@@ -1239,7 +1239,11 @@ def _with_personal_service_gaps(
 def _personal_gap_briefing(gap: UnavailablePersonalService, surface: RunSurface) -> str:
     entry = mcp_catalog_entry(gap.catalog_key)
     name = gap.catalog_key if entry is None else entry.name
-    connect = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers?connect={gap.catalog_key}"
+    # The page for what they already have, and the page plus the connect
+    # parameter for what they lack: `?connect=` always makes a *new* connection,
+    # so pointing an expired or undecided account at it would mint a second one.
+    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
+    connect = f"{servers}?connect={gap.catalog_key}"
     bound = f"{name} is bound to the account of whoever is talking to you"
     if gap.gap == "nobody_to_speak_as":
         if surface in _CHANNEL_SURFACES:
@@ -1258,13 +1262,14 @@ def _personal_gap_briefing(gap: UnavailablePersonalService, surface: RunSurface)
         return (
             f"{bound}, and this person holds several {name} connections with none marked as "
             f"the one agents use, so its tools are not available for this message. If asked "
-            f"for anything in {name}, say so and point them at {connect} to mark one as default."
+            f"for anything in {name}, say so and point them at {servers} to mark one of their "
+            f"{name} connections as default, under You."
         )
     if gap.gap == "unauthorized":
         return (
             f"{bound}, and this person's own {name} connection no longer authorizes, so its "
             f"tools are not available for this message. If asked for anything in {name}, say "
-            f"so and give them this link to authorize it again: {connect}"
+            f"so and point them at {servers} to authorize their {name} connection again, under You."
         )
     return (
         f"{bound}, and this person has not connected their own {name} yet, so its tools are "
@@ -1328,6 +1333,11 @@ class _Delegation:
 
     ctx: AuthContext
     run: AgentRun
+    surface: RunSurface
+    """Where the run came from, for the briefing a delegate gets on a personal
+    service nobody can speak through - the remedy differs between a chat channel
+    and an API key."""
+
     agent_id: UUID
     """The agent that started the run. An inline specialist is built under it,
     having no id of its own."""
@@ -2093,6 +2103,7 @@ class AgentRunnerService:
             spec=spec,
             agent=agent,
             run=run,
+            surface=surface,
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
             resources=resources,
@@ -2170,6 +2181,7 @@ class AgentRunnerService:
         spec: AgentSpec,
         agent: Agent,
         run: AgentRun,
+        surface: RunSurface,
         user_name: str | None,
         personal_mcp_user_id: UUID | None,
         resources: dict[str, Any],
@@ -2220,6 +2232,7 @@ class AgentRunnerService:
         delegation = _Delegation(
             ctx=ctx,
             run=run,
+            surface=surface,
             agent_id=agent.id,
             # Not `str(ctx.user_id)`: a context with no subject would stringify to
             # the literal "None" and hand it to every delegate's tools as the
@@ -2600,17 +2613,17 @@ class AgentRunnerService:
         model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
-        # A delegate's unavailable personal services are not reported: the
-        # parent's instructions already say what the person has not connected,
-        # and the delegate cannot tell them anything the parent does not relay.
-        toolsets = (
-            await build_toolsets_for_agent(
-                self.db,
-                organization_id=ctx.organization_id,
-                refs=runnable.mcp_servers,
-                sender_user_id=delegation.personal_mcp_user_id,
-            )
-        ).toolsets
+        resolved = await build_toolsets_for_agent(
+            self.db,
+            organization_id=ctx.organization_id,
+            refs=runnable.mcp_servers,
+            sender_user_id=delegation.personal_mcp_user_id,
+        )
+        toolsets = resolved.toolsets
+        # Briefed like the parent: a delegate may bind a service the parent does
+        # not, and one that lost it silently would report failure where the
+        # parent could have relayed "connect your Notion" instead.
+        runnable = _with_personal_service_gaps(runnable, resolved.unavailable, delegation.surface)
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
         return ResolvedSubagent(
             name=delegate.slug,
