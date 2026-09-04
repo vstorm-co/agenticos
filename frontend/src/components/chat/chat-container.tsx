@@ -16,6 +16,7 @@ import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
+import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
@@ -26,6 +27,7 @@ import type {
   AskUserQuestion,
   AskUserAnswer,
   Compaction,
+  PersonalServiceGap,
   ConversationCost,
   Decision,
   Delegation,
@@ -125,6 +127,7 @@ export function ChatContainer() {
     isProcessing,
     compacting,
     compactionImpossible,
+    personalGaps,
     lastUsage,
     delegations,
     sendMessage,
@@ -284,6 +287,7 @@ export function ChatContainer() {
       isProcessing={isProcessing}
       compacting={compacting}
       compactionImpossible={compactionImpossible}
+      personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in
       // the transcript otherwise - which is what makes the strip appear on a
       // conversation somebody has just reopened instead of after their next message.
@@ -339,6 +343,8 @@ interface ChatUIProps {
   compacting: Compaction | null;
   /** A window with no room for a summary, drawn in its place. Null when there is. */
   compactionImpossible: Compaction | null;
+  /** The agent's personal MCP services this person cannot reach, drawn as a card with the button that connects one. */
+  personalGaps: PersonalServiceGap[];
   /** What the last turn cost, drawn under the input. Null until one has run. */
   lastUsage: TurnUsage | null;
   /** What the whole thread has cost, from the server. Null until a transcript loads. */
@@ -395,6 +401,7 @@ function ChatUI({
   isProcessing,
   compacting,
   compactionImpossible,
+  personalGaps,
   lastUsage,
   conversationCost,
   contextWindow,
@@ -486,6 +493,14 @@ function ChatUI({
         {/* z-20: a message avatar carries z-10 of its own, and without a higher
             index here it rides over the glass instead of blurring under it. */}
         <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+          {personalGaps.length > 0 && (
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+              <ConnectServicesCard
+                key={personalGaps.map((gap) => gap.catalog_key).join(",")}
+                gaps={personalGaps}
+              />
+            </div>
+          )}
           {pendingApproval && onResumeDecisions && (
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ToolApprovalDialog

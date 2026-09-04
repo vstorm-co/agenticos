@@ -168,6 +168,11 @@ channel.
     agent speaks as. Until they pick, the agent tells them to — guessing the
     older workspace silently would be worse.
 
+    In the dashboard chat the same fact arrives as a card, before the model
+    answers, with a connect button; and the chat's controls list the agent's
+    personal services with their status, so a new member sees what to connect
+    before asking. See [the console page](console.md#chat).
+
 The tool prefix of a personal binding is the catalog key, whatever each person
 called their connection, so the agent presents `notion_search` to everyone.
 `allowed_tools` on the binding is the administrator's ceiling; the person's own

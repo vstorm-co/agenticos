@@ -38,6 +38,7 @@ from app.services.agent_runner import (
     ApprovalChannel,
     ParkedApproval,
     PausedRunState,
+    PersonalServiceGap,
     PreparedRun,
     RecordedDelegation,
     RunSegment,
@@ -3523,3 +3524,90 @@ class TestTellingTheAgentWhatItCannotReach:
         )
 
         assert spec.instructions.count("is bound to the account") == 2
+
+
+class TestWhatAPreparedRunSaysThePersonCannotReach:
+    """The same gaps the model is briefed with, carried to the surface so a chat
+    can draw the button that connects the account beside the agent's sentence."""
+
+    @pytest.mark.anyio
+    async def test_the_gaps_are_named_with_the_link_that_fixes_each(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(
+                    return_value=ResolvedMcpToolsets(
+                        [],
+                        [
+                            UnavailablePersonalService("notion", "not_connected"),
+                            UnavailablePersonalService("linear", "undecided"),
+                        ],
+                    )
+                ),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, acts_for_sender=True)
+
+        assert prepared.personal_service_gaps == [
+            PersonalServiceGap(
+                catalog_key="notion",
+                name="Notion",
+                gap="not_connected",
+                url="http://localhost:3000/mcp-servers?connect=notion",
+            ),
+            PersonalServiceGap(
+                catalog_key="linear",
+                name="Linear",
+                gap="undecided",
+                url="http://localhost:3000/mcp-servers",
+            ),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_run_whose_bindings_all_resolved_reports_nothing(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), uuid.uuid4())),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id)
+
+        assert prepared.personal_service_gaps == []

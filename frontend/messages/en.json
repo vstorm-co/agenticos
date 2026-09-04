@@ -788,6 +788,26 @@
     "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
     "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
     "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
+    "personalServices": {
+      "intro": "This agent works in these services through your own accounts. Connect them, then ask again.",
+      "dismiss": "Dismiss",
+      "connect": "Connect",
+      "openServers": "Open MCP servers",
+      "nowConnected": "Connected. Ask again.",
+      "yourAccounts": "This agent uses your own accounts for these services.",
+      "gap": {
+        "not_connected": "You have not connected this yet.",
+        "undecided": "You hold several connections to it and none is marked as default.",
+        "unauthorized": "Your connection to it needs authorizing again.",
+        "nobody_to_speak_as": "Nobody is signed in here, so it is not available."
+      },
+      "status": {
+        "connected": "Connected",
+        "not_connected": "Not connected",
+        "undecided": "Several accounts, none marked default",
+        "unauthorized": "Needs authorizing again"
+      }
+    },
     "controls": {
       "approvalMode": "Approval mode",
       "backAgentAposS": "Back to the agent's own model",
@@ -2734,6 +2754,10 @@
       "chat-approval-mode": {
         "title": "Decide how much you are asked",
         "body": "Follow the agent's own settings, ask about every tool it can use, or - if you may decide approvals - let this conversation run without stopping. Every waived call is still recorded against your account."
+      },
+      "chat-your-connections": {
+        "title": "Your own accounts, where the agent uses them",
+        "body": "An agent bound to each person's own account speaks to Notion or Jira as you. This lists which of its services need an account of yours, and connects one without leaving the chat."
       },
       "chat-composer": {
         "title": "Ask anything",

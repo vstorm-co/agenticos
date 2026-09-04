@@ -268,9 +268,10 @@ describe("McpServerList", () => {
     expect(apiClient.post).not.toHaveBeenCalledWith("/me/mcp-connections", expect.anything());
   });
 
-  it("sends a personal connection to the personal endpoint, without a catalog key", async () => {
-    // The two endpoints take different bodies. `catalog_key` is a column the
-    // personal one does not have, and sending it would 422 the whole request.
+  it("sends a personal connection to the personal endpoint, with its catalog key", async () => {
+    // The key is what a binding to each person's own account matches the
+    // connection on. Created without it, the connection could never be reached
+    // by the agent that asked for it.
     await mount();
     vi.mocked(apiClient.post).mockResolvedValue(connection());
 
@@ -283,6 +284,7 @@ describe("McpServerList", () => {
       expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections", {
         name: "github",
         url: "https://api.githubcopilot.com/mcp/",
+        catalog_key: "github",
       }),
     );
   });

@@ -1490,7 +1490,7 @@ def _stored_label(label: str | None) -> str | None:
     return trimmed or None
 
 
-PersonalServiceGap = Literal["nobody_to_speak_as", "not_connected", "undecided", "unauthorized"]
+PersonalServiceGapKind = Literal["nobody_to_speak_as", "not_connected", "undecided", "unauthorized"]
 
 
 @dataclass(frozen=True)
@@ -1504,7 +1504,7 @@ class UnavailablePersonalService:
     """
 
     catalog_key: str
-    gap: PersonalServiceGap
+    gap: PersonalServiceGapKind
 
 
 @dataclass(frozen=True)
@@ -1601,7 +1601,7 @@ async def build_toolsets_for_agent(
 
 async def _personal_spec(
     db: AsyncSession, ref: PersonalMcpServerRef, *, sender_user_id: UUID | None
-) -> tuple[McpServerSpec | None, PersonalServiceGap | None]:
+) -> tuple[McpServerSpec | None, PersonalServiceGapKind | None]:
     """The sender's own connection to this service as a server spec, or why not.
 
     The tool prefix is the catalog key rather than the connection's name: the

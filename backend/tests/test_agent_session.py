@@ -101,7 +101,7 @@ from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
-from app.services.agent_runner import ParkedApproval, PreparedRun
+from app.services.agent_runner import ParkedApproval, PersonalServiceGap, PreparedRun
 from app.services.agent_session import AgentSession
 from app.services.chat_timeline import TurnTimeline
 from app.services.message_history import build_message_history
@@ -2270,3 +2270,37 @@ class TestStoppingATurnMidDelegation:
         assert turn.delegation.journal.tasks.list_active_tasks() == []
         assert [outcome.status for outcome in turn.outcomes] == ["cancelled"]
         assert [status for status, *_ in turn.finished] == [RunStatus.CANCELLED]
+
+
+class TestTellingTheClientWhatThePersonCannotReach:
+    """The card with the button that connects an account is drawn from this frame."""
+
+    async def test_the_frame_carries_every_gap_under_its_own_name(self):
+        session = _session()
+
+        await session._personal_gaps_event(
+            [
+                PersonalServiceGap(
+                    catalog_key="notion",
+                    name="Notion",
+                    gap="not_connected",
+                    url="http://localhost:3000/mcp-servers?connect=notion",
+                )
+            ]
+        )
+
+        assert _sent_events(session) == [
+            (
+                "personal_services_unavailable",
+                {
+                    "services": [
+                        {
+                            "catalog_key": "notion",
+                            "name": "Notion",
+                            "gap": "not_connected",
+                            "url": "http://localhost:3000/mcp-servers?connect=notion",
+                        }
+                    ]
+                },
+            )
+        ]

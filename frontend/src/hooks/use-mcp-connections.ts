@@ -28,6 +28,7 @@ interface UseMcpConnectionsResult {
     url: string;
     auth_token?: string;
     allowed_tools?: string[] | null;
+    catalog_key?: string;
   }) => Promise<McpConnectionRecord>;
   update: (
     id: string,

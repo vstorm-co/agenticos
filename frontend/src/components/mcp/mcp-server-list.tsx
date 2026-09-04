@@ -280,7 +280,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const handleOAuth = async (row: McpServerRow, name: string, scope: Scope = "personal") => {
     setBusyId(row.key);
     try {
-      const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
+      const { authorization_url } = await startMcpOAuth(
+        { name, url: row.url ?? "", catalog_key: row.entry?.key },
+        scope,
+      );
       // `assign`, not a write to `href`: the React compiler reads a property
       // write on `window` as mutating a value from outside the component.
       window.location.assign(authorization_url);
@@ -345,7 +348,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     if (requestedRow.auth !== "oauth") return;
     const taken = new Set(personal.connections.map((connection) => connection.name));
     const name = freeName(requestedRow, taken) ?? connectKey;
-    startMcpOAuth({ name, url: requestedRow.url ?? "" }, "personal")
+    startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
       .then(({ authorization_url }) => window.location.assign(authorization_url))
       .catch((caught: unknown) =>
         toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign"))),
@@ -389,9 +392,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           url,
           ...(label ? { label } : {}),
           ...(token ? { auth_token: token } : {}),
-          // Only the organization API records provenance; a personal connection
-          // has no column for it and would 422 on an unexpected field.
-          ...(scope === "organization" && row.entry ? { catalog_key: row.entry.key } : {}),
+          // Provenance for both owners: it groups the row under its catalog entry,
+          // and a personal connection without it can never be matched to a
+          // binding to each person's own account.
+          ...(row.entry ? { catalog_key: row.entry.key } : {}),
         });
         toast.success(
           scope === "organization"

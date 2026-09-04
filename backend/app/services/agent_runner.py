@@ -176,7 +176,11 @@ from app.services.channels.prompt_variables import resolve as resolve_prompt_var
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
-from app.services.mcp_connection import UnavailablePersonalService, build_toolsets_for_agent
+from app.services.mcp_connection import (
+    PersonalServiceGapKind,
+    UnavailablePersonalService,
+    build_toolsets_for_agent,
+)
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
@@ -967,6 +971,17 @@ class PreparedRun:
     the run.
     """
 
+    personal_service_gaps: list[PersonalServiceGap] = field(default_factory=list)
+    """The agent's personal MCP services this person cannot reach on this turn.
+
+    What the model was told in its instructions, in a form a surface can draw: a
+    chat renders a card with the button that connects the account, so the
+    person acts on the same sentence the agent is about to say. Empty for every
+    run whose bindings all resolved, and always empty for an organization
+    binding - those are skipped with a log line, not reported, because nobody at
+    the keyboard can fix them.
+    """
+
     workspace_at_start: set[str] | None = None
     """Every path the workspace held before the turn ran.
 
@@ -1217,6 +1232,42 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
 _CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
 
 
+class PersonalServiceGap(BaseModel):
+    """One personal MCP service a turn cannot reach, as a surface draws it.
+
+    The same fact the model is briefed with, carried to the person: which
+    service, why, and the one link that fixes it. `url` is the servers page
+    with `?connect=<key>` for a service they have not connected, and the bare
+    page for one they have - several accounts with no default, or a grant that
+    no longer authorizes - because `?connect=` always makes a *new* connection
+    and an expired Notion followed there becomes a second Notion.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    catalog_key: str
+    name: str = Field(
+        description="As the catalog names it; the key where the catalog no longer holds it"
+    )
+    gap: PersonalServiceGapKind
+    url: str
+
+
+def personal_service_gap(unavailable: UnavailablePersonalService) -> PersonalServiceGap:
+    entry = mcp_catalog_entry(unavailable.catalog_key)
+    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
+    return PersonalServiceGap(
+        catalog_key=unavailable.catalog_key,
+        name=unavailable.catalog_key if entry is None else entry.name,
+        gap=unavailable.gap,
+        url=(
+            f"{servers}?connect={unavailable.catalog_key}"
+            if unavailable.gap == "not_connected"
+            else servers
+        ),
+    )
+
+
 def _with_personal_service_gaps(
     spec: AgentSpec, gaps: Sequence[UnavailablePersonalService], surface: RunSurface
 ) -> AgentSpec:
@@ -1232,18 +1283,12 @@ def _with_personal_service_gaps(
     """
     if not gaps:
         return spec
-    added = "\n\n".join(_personal_gap_briefing(gap, surface) for gap in gaps)
+    added = "\n\n".join(_personal_gap_briefing(personal_service_gap(gap), surface) for gap in gaps)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
-def _personal_gap_briefing(gap: UnavailablePersonalService, surface: RunSurface) -> str:
-    entry = mcp_catalog_entry(gap.catalog_key)
-    name = gap.catalog_key if entry is None else entry.name
-    # The page for what they already have, and the page plus the connect
-    # parameter for what they lack: `?connect=` always makes a *new* connection,
-    # so pointing an expired or undecided account at it would mint a second one.
-    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
-    connect = f"{servers}?connect={gap.catalog_key}"
+def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
+    name = gap.name
     bound = f"{name} is bound to the account of whoever is talking to you"
     if gap.gap == "nobody_to_speak_as":
         if surface in _CHANNEL_SURFACES:
@@ -1262,19 +1307,19 @@ def _personal_gap_briefing(gap: UnavailablePersonalService, surface: RunSurface)
         return (
             f"{bound}, and this person holds several {name} connections with none marked as "
             f"the one agents use, so its tools are not available for this message. If asked "
-            f"for anything in {name}, say so and point them at {servers} to mark one of their "
+            f"for anything in {name}, say so and point them at {gap.url} to mark one of their "
             f"{name} connections as default, under You."
         )
     if gap.gap == "unauthorized":
         return (
             f"{bound}, and this person's own {name} connection no longer authorizes, so its "
             f"tools are not available for this message. If asked for anything in {name}, say "
-            f"so and point them at {servers} to authorize their {name} connection again, under You."
+            f"so and point them at {gap.url} to authorize their {name} connection again, under You."
         )
     return (
         f"{bound}, and this person has not connected their own {name} yet, so its tools are "
         f"not available for this message. If asked for anything in {name}, say so and give "
-        f"them this link to connect it: {connect} - once connected, they ask again."
+        f"them this link to connect it: {gap.url} - once connected, they ask again."
     )
 
 
@@ -2166,6 +2211,7 @@ class AgentRunnerService:
             workspace=workspace,
             materialised_skills=materialised,
             workspace_at_start=started_with,
+            personal_service_gaps=[personal_service_gap(gap) for gap in resolved.unavailable],
             delegations=delegations,
             stash=stash,
             ctx=ctx,

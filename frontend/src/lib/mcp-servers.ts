@@ -26,6 +26,7 @@
 
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import type { PersonalServiceGapKind } from "@/types/chat";
 import type { McpAuthKind, McpCatalogEntry, McpConnectionState } from "@/types/mcp";
 
 /**
@@ -322,4 +323,27 @@ export function mergeServers(
     ...rowsForEntries(catalog, organization, personal),
     ...customRows(catalog, organization, personal),
   ];
+}
+
+/**
+ * Whether this person can speak to a catalog service through an account of
+ * their own, as a binding to each person's own account would find it.
+ *
+ * The same rule the run applies (`_nominated` on the backend): one enabled
+ * connection needs no choosing, several answer only the one marked default, and
+ * several with none marked are `undecided` rather than guessed between. A chosen
+ * connection that no longer authorizes is `unauthorized` - the account exists,
+ * the grant behind it does not.
+ */
+export function ownAccountStatus(
+  catalogKey: string,
+  connections: McpConnectionRecord[],
+): PersonalServiceGapKind | "connected" {
+  const mine = connections.filter(
+    (connection) => connection.catalog_key === catalogKey && connection.is_enabled,
+  );
+  if (mine.length === 0) return "not_connected";
+  const chosen = mine.length === 1 ? mine[0] : mine.find((one) => one.is_default);
+  if (chosen === undefined) return "undecided";
+  return connectionState(chosen) === "connected" ? "connected" : "unauthorized";
 }

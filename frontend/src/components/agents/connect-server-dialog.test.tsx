@@ -4,12 +4,16 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConnectServerDialog } from "./connect-server-dialog";
+import { ConnectOwnServerDialog, ConnectServerDialog } from "./connect-server-dialog";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const create = vi.fn();
 vi.mock("@/hooks/use-org-mcp-connections", () => ({
   useOrgMcpConnections: () => ({ create }),
+}));
+const createOwn = vi.fn();
+vi.mock("@/hooks/use-mcp-connections", () => ({
+  useMcpConnections: () => ({ create: createOwn }),
 }));
 vi.mock("@/lib/mcp-connections-api", () => ({ startMcpOAuth: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -196,5 +200,60 @@ describe("ConnectServerDialog", () => {
       expect(toast.error).toHaveBeenCalled();
       openSpy.mockRestore();
     });
+  });
+});
+
+describe("ConnectOwnServerDialog", () => {
+  /**
+   * The same form on the personal scope - what a chat opens when an agent bound
+   * to each person's own account finds this person has none. The catalog key is
+   * the whole point: a personal connection without one can never be matched to
+   * the binding that asked for it.
+   */
+  beforeEach(() => {
+    vi.clearAllMocks();
+    createOwn.mockResolvedValue({ id: "m9", name: "github" });
+  });
+
+  it("creates the person's own connection, carrying the catalog key", async () => {
+    const onConnected = vi.fn();
+    render(
+      <ConnectOwnServerDialog entry={TOKEN_ENTRY} onClose={vi.fn()} onConnected={onConnected} />,
+      {
+        wrapper,
+      },
+    );
+
+    await submit();
+
+    await waitFor(() =>
+      expect(createOwn).toHaveBeenCalledWith(expect.objectContaining({ catalog_key: "github" })),
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(onConnected).toHaveBeenCalledWith("m9");
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/for you/i));
+  });
+
+  it("starts OAuth on the personal scope, with the catalog key", async () => {
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    const opened = { location: { href: "" }, opener: {}, close: vi.fn() };
+    vi.spyOn(window, "open").mockReturnValue(opened as unknown as Window);
+    render(<ConnectOwnServerDialog entry={OAUTH_ENTRY} onClose={vi.fn()} />, { wrapper });
+
+    await submit();
+
+    await waitFor(() =>
+      expect(startMcpOAuth).toHaveBeenCalledWith(
+        { name: "notion", url: "https://mcp.notion.com/mcp", catalog_key: "notion" },
+        "personal",
+      ),
+    );
+    expect(opened.location.href).toBe("https://consent.example");
+  });
+
+  it("renders nothing until an entry is chosen", () => {
+    render(<ConnectOwnServerDialog entry={null} onClose={vi.fn()} />, { wrapper });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

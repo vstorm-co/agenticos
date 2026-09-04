@@ -182,6 +182,7 @@ export type WSEventType =
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
+  | "personal_services_unavailable"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
   // message, so `user_prompt`, `user_prompt_processed` and `part_start` have nothing
@@ -573,4 +574,25 @@ export interface Delegation {
   inputTokens: number | null;
   outputTokens: number | null;
   error: string | null;
+}
+
+/** Why a personal MCP service could not be reached on this turn. */
+export type PersonalServiceGapKind =
+  "nobody_to_speak_as" | "not_connected" | "undecided" | "unauthorized";
+
+/**
+ * One of the agent's personal MCP services this person cannot reach yet.
+ *
+ * Sent once per turn, before the model answers, as `personal_services_unavailable`.
+ * `url` is the servers page with `?connect=<key>` for a service they have not
+ * connected, and the bare page for one they have - several accounts with no
+ * default, or a grant that no longer authorizes. Not persisted: it is true of this
+ * person at this moment, not of the transcript.
+ */
+export interface PersonalServiceGap {
+  catalog_key: string;
+  /** As the catalog names it; the key where the catalog no longer holds it. */
+  name: string;
+  gap: PersonalServiceGapKind;
+  url: string;
 }

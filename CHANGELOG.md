@@ -33,6 +33,15 @@ Two things are versioned separately from this file and worth knowing about:
   connect flow the agent links to. `use_personal_when_available`, which
   substituted a credential in private conversations only, is withdrawn: a stored
   binding that had it loads as the organization's and says so in the log.
+- **The chat connects the account, not just the agent's sentence about it.** A
+  turn that finds a personal service this person cannot reach sends
+  `personal_services_unavailable` before the model answers, and the chat draws a
+  card with a connect button beside the refusal. The chat's controls list the
+  agent's personal services with each one's status - connected, not connected,
+  several with no default, needs authorizing - so a new member sees what to
+  connect before their first question. Personal connections made from the
+  console now carry their catalog key, without which no binding could have
+  matched them.
 
 ## [0.0.355] - 2026-09-02
 

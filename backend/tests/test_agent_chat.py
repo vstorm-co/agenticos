@@ -47,7 +47,7 @@ from app.services.agent_chat import (
     requested_environment_id,
     requested_model_profile_id,
 )
-from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
 
 pytestmark = pytest.mark.anyio
 
@@ -246,6 +246,7 @@ async def _run(
     user_input: Any = "what is the refund window",
     attachments: Any = None,
     subagent_events: Any = None,
+    on_personal_gaps: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -260,6 +261,7 @@ async def _run(
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
         subagent_events=subagent_events,
+        on_personal_gaps=on_personal_gaps,
     )
 
 
@@ -1015,3 +1017,33 @@ class TestACommitThatCannotLand:
             except ValueError:
                 with pytest.raises(RuntimeError, match="could not commit"):
                     await _run(db)
+
+
+class TestTellingTheChatWhatThePersonCannotReach:
+    """A personal binding nobody can speak through is one sentence in the model's
+    instructions and one card in the chat, and the card has to be up while the
+    sentence is being said - so the sink is called before the run, not after."""
+
+    async def test_the_gaps_reach_the_sink_before_the_run(self):
+        prepared = _prepared()
+        gap = PersonalServiceGap(
+            catalog_key="notion",
+            name="Notion",
+            gap="not_connected",
+            url="http://localhost:3000/mcp-servers?connect=notion",
+        )
+        prepared.personal_service_gaps = [gap]
+        sink = AsyncMock()
+
+        with _runner(prepared):
+            await _run(_db(), on_personal_gaps=sink)
+
+        sink.assert_awaited_once_with([gap])
+
+    async def test_a_turn_with_nothing_missing_says_nothing(self):
+        sink = AsyncMock()
+
+        with _runner(_prepared()):
+            await _run(_db(), on_personal_gaps=sink)
+
+        sink.assert_not_awaited()
