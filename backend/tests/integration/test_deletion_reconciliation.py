@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
 from app.core.exceptions import BadRequestError
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
@@ -37,8 +38,10 @@ from app.repositories import (
     user_repo,
 )
 from app.services.file_storage import get_file_storage
+from app.services.knowledge_base import KnowledgeBaseService
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
+from app.services.rag_document import RAGDocumentService
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -421,6 +424,142 @@ class TestDeletingAnOrg:
             assert remaining.scalars().all() == []
             assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
             assert await s.get(Organization, org_id) is None
+
+    async def test_purge_takes_the_teardown_lock_before_the_org_row_lock(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A concurrent claim holds a collection's teardown lock; purge must block on
+        that lock BEFORE it takes the organizations row `FOR UPDATE`, so the two
+        acquire {teardown, org} in one order and cannot deadlock (#1387).
+
+        Claim takes the teardown lock and then the org FK; the old purge took the org
+        row first and the teardown lock second - the inversion. Here, while a holder
+        owns the teardown lock and purge waits on it, a `FOR UPDATE NOWAIT` probe of
+        the org row must still succeed, because purge has not reached it. On the old
+        order the same probe found the row already locked.
+        """
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as holder, factory() as purger, factory() as probe:
+            await hold_name(holder, LockScope.COLLECTION_TEARDOWN, collection)
+
+            org = await purger.get(Organization, org_id)
+            purge_task = asyncio.ensure_future(
+                OrganizationService(purger, vector_store=store).purge(org)
+            )
+            try:
+                await asyncio.sleep(0.25)
+                assert not purge_task.done()  # blocked acquiring the teardown lock
+
+                probed = await probe.execute(
+                    select(Organization)
+                    .where(Organization.id == org_id)
+                    .with_for_update(nowait=True)
+                )
+                assert probed.scalar_one().id == org_id
+                await probe.rollback()
+
+                await holder.rollback()  # release the teardown lock
+                await asyncio.wait_for(purge_task, timeout=5.0)
+                assert purge_task.exception() is None
+            finally:
+                purge_task.cancel()
+
+            await purger.commit()
+            start_deferred(purger)
+        await drain()
+
+        async with factory() as s:
+            assert await s.get(Organization, org_id) is None
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+
+    async def test_the_collection_drop_takes_the_teardown_lock_before_deleting_documents(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`DELETE /rag/collections/{name}` deletes a collection's document rows only
+        after taking its teardown lock, so it and a concurrent org purge - which now
+        takes that lock before touching the same rows - acquire {teardown, rag_documents}
+        in one order and cannot deadlock (#1387).
+
+        The old route deleted the rows first, holding their locks while it then waited
+        on the teardown lock; here, while a holder owns the teardown lock and the drop
+        waits on it, a `FOR UPDATE NOWAIT` probe of the document row must still succeed,
+        because the drop has not reached its delete.
+        """
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        stored = await get_file_storage().save("drop-order", "d.txt", b"x")
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            kb = _org_collection(org.id, collection)
+            s.add(kb)
+            await s.flush()
+            doc = _kb_document(collection, kb.id, org.id, stored)
+            s.add(doc)
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            kb_id, doc_id = kb.id, doc.id
+
+        async with factory() as holder, factory() as dropper, factory() as probe:
+            await hold_name(holder, LockScope.COLLECTION_TEARDOWN, collection)
+
+            kb = await dropper.get(KnowledgeBase, kb_id)
+
+            async def _drop() -> None:
+                await KnowledgeBaseService(dropper).delete_for_rag_collection(kb)
+                await RAGDocumentService(dropper).delete_by_collection(collection)
+
+            drop_task = asyncio.ensure_future(_drop())
+            try:
+                await asyncio.sleep(0.25)
+                assert not drop_task.done()  # blocked acquiring the teardown lock
+
+                probed = await probe.execute(
+                    select(RAGDocument).where(RAGDocument.id == doc_id).with_for_update(nowait=True)
+                )
+                assert probed.scalar_one().id == doc_id
+                await probe.rollback()
+
+                await holder.rollback()  # release the teardown lock
+                await asyncio.wait_for(drop_task, timeout=5.0)
+                assert drop_task.exception() is None
+            finally:
+                drop_task.cancel()
+
+            await dropper.commit()
+            start_deferred(dropper)
+        await drain()
+
+        async with factory() as s:
+            assert await s.get(RAGDocument, doc_id) is None
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
 
     async def test_a_failed_teardown_commit_leaves_the_vector_table(
         self, engine: AsyncEngine

@@ -339,12 +339,19 @@ class OrganizationService:
         `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
         merely carry this org's id are left to the `SET NULL`.
 
-        FOR UPDATE first: listing the collections and then deleting the org is
-        check-then-act, so an org-scoped collection inserted concurrently (it
-        takes FOR KEY SHARE on this row) would slip in between the list and the
-        DELETE, be nulled by the `SET NULL`, and violate the same CHECK. The lock
-        makes that insert wait, so the list sees every collection there is - a
-        fresh read under READ COMMITTED (#1115).
+        Two locks, in one order. Each doomed collection's `COLLECTION_TEARDOWN`
+        lock is taken first, from a snapshot read without the row lock, and only
+        then the org row `FOR UPDATE`: a claim takes the teardown lock and then the
+        org FK, so a purge that took the org row first would cross it into an ABBA
+        deadlock (#1387). The `FOR UPDATE` still comes before the authoritative
+        list-and-delete, so an org-scoped collection inserted concurrently (it
+        takes FOR KEY SHARE on this row) cannot slip between the list and the
+        DELETE, be nulled by the `SET NULL`, and violate the same CHECK - a fresh
+        read under READ COMMITTED (#1115). A collection created in the gap before
+        the snapshot's locks are taken is deleted here all the same but is not
+        vector-reserved, and its row-lock order is unserialised against a concurrent
+        drop - a narrow residual that needs a serialisation point to close, tracked
+        in #1389.
 
         Each collection's document rows go before its identifiers do:
         `rag_documents` authorization keys on `collection_name`, so a row left
@@ -371,6 +378,16 @@ class OrganizationService:
         the cleanup, which only a record committed with the delete (an outbox) would
         close.
         """
+        # Teardown locks before the org row lock, from a snapshot read without it,
+        # so claim (teardown then org FK) and purge cannot invert into a deadlock
+        # (#1387). Sorted, so two purges sharing a name (#913) take it in one order.
+        held: set[str] = set()
+        if self._vector_store is not None:
+            snapshot = await knowledge_base_repo.list_org_scoped(self.db, org.id)
+            for collection in sorted({kb.collection_name for kb in snapshot}):
+                await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+                held.add(collection)
+
         await organization_repo.get_by_id_for_update(self.db, org.id)
         collections: list[str] = []
         storage_paths: list[str] = []
@@ -380,21 +397,24 @@ class OrganizationService:
             await knowledge_base_repo.delete(self.db, kb.id)
         await organization_repo.delete(self.db, org)
 
-        # A store is wired only on the teardown path, and it is the signal to clean
-        # up the vector tables. A collection another organization still references is
-        # left alone - the name is not tenant-unique (#913) - and the rest are reserved
-        # against reuse until the deferred drop runs, so a concurrent claim cannot adopt
-        # a still-populated table (#1362). Files are unlinked whether or not one was wired.
+        # A store is wired only on the teardown path, and it is the signal to clean up
+        # the vector tables. A collection another organization still references is left
+        # alone - the name is not tenant-unique (#913). The rest are dropped by the
+        # deferred cleanup, which re-reads the reference check under the teardown lock
+        # (#1355). A name whose lock we hold is also reserved, so a concurrent claim
+        # cannot adopt its still-populated table before the drop runs (#1362); a name
+        # created after the snapshot is not held, so it is dropped but not reserved -
+        # taking its lock now, after the org lock, would reinvert the order (#1387), so
+        # its commit-to-drop window stays open, tracked in #1389.
+        # Files are unlinked whether or not a store was wired.
         to_drop: list[str] = []
         if self._vector_store is not None:
             for collection in dict.fromkeys(collections):
-                # Hold the name against a concurrent claim while the reference check
-                # and reservation are made (#1362).
-                await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
                 if await knowledge_base_repo.list_by_collection_name(self.db, collection):
                     continue
                 to_drop.append(collection)
-                await collection_teardown_repo.reserve(self.db, collection)
+                if collection in held:
+                    await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or to_drop:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
