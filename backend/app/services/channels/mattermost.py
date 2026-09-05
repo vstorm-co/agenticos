@@ -54,6 +54,7 @@ from app.services.channels.base import (
     IncomingMessage,
     OutgoingMessage,
     split_thread,
+    supervise_stream,
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
@@ -601,44 +602,16 @@ class MattermostAdapter(ChannelAdapter):
         logger.info("Stopped Mattermost event stream for bot %s", bot_id)
 
     async def _supervise(self, bot_id: str, bot_token: str) -> None:
-        """Reconnect on failure. A dropped socket is a bot that stopped
-        answering with nothing in the logs to say so."""
-        delay = 5.0
-        while True:
-            try:
-                await self._run_stream(bot_id, bot_token)
-                delay = 5.0
-            except asyncio.CancelledError:
-                raise
-            except ChannelNotConfigured:
-                # An operator has to set the server URL; looping cannot. And
-                # `_run_stream` returns without awaiting on that branch, so a
-                # retry here spun the event loop at 100% CPU and starved every
-                # other task on the process.
-                logger.warning("Mattermost stream not started for bot %s", bot_id)
-                await connection_state.record_down(
-                    bot_id,
-                    "The Mattermost event stream cannot start. Check the bot's "
-                    "server URL, or switch it to webhook mode.",
-                )
-                return
-            except Exception:
-                logger.exception(
-                    "Mattermost stream failed for bot %s, retrying in %.0fs", bot_id, delay
-                )
-                await connection_state.record_down(
-                    bot_id,
-                    "The Mattermost event stream keeps dropping. Check that the "
-                    "server is reachable and the bot token is still valid.",
-                )
-            # Outside the `except`: a session that ends by returning has to
-            # yield before the next attempt, or this loop never suspends.
-            await asyncio.sleep(delay)
-            # Doubled after the wait, not before it: the line logged above names
-            # `delay`, and backing off first made it sleep twice what it said.
-            # Backs off to a minute so a server that is down for an hour is not
-            # hammered 720 times by every bot on it.
-            delay = min(delay * 2, 60.0)
+        """Event-stream sessions, reopened under the shared reconnect loop."""
+        await supervise_stream(
+            bot_id,
+            platform="Mattermost event stream",
+            session=lambda: self._run_stream(bot_id, bot_token),
+            failing=(
+                "The Mattermost event stream keeps dropping. Check that the "
+                "server is reachable and the bot token is still valid."
+            ),
+        )
 
     async def _own_user_id(self, bot_id: str, bot_token: str) -> str | None:
         """Which Mattermost account this bot *is*, so a mention of it is legible.
@@ -707,7 +680,10 @@ class MattermostAdapter(ChannelAdapter):
         base_url = self._base_urls.get(bot_id)
         if not base_url:
             raise ChannelNotConfigured(
-                message="Mattermost bot has no server URL; cannot open a stream",
+                message=(
+                    "Mattermost bot has no server URL; cannot open a stream. Set the "
+                    "bot's server URL, or switch it to webhook mode."
+                ),
                 details={"bot_id": bot_id},
             )
 

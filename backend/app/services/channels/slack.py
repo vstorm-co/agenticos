@@ -34,6 +34,7 @@ from app.services.channels.base import (
     IncomingMessage,
     OutgoingMessage,
     split_thread,
+    supervise_stream,
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
@@ -406,38 +407,16 @@ class SlackAdapter(ChannelAdapter):
         logger.info("Stopped Slack Socket Mode for bot %s", bot_id)
 
     async def _socket_supervisor(self, bot_id: str, bot_token: str) -> None:
-        """Supervised loop: restart Socket Mode on crash.
-
-        The sleep is outside the `except` on purpose. `_run_socket_mode` has
-        branches that return without ever awaiting, and awaiting a coroutine
-        that never suspends does not yield to the event loop - so this looped at
-        100% CPU and no other task on the process was scheduled again. The API
-        stayed up and answered nothing, health check included, on one WARNING
-        line.
-        """
-        while True:
-            try:
-                await self._run_socket_mode(bot_id, bot_token)
-            except asyncio.CancelledError:
-                break
-            except ChannelNotConfigured as exc:
-                # Not a crash and not something a retry fixes: an operator has
-                # to add the token. Retrying would be the spin all over again.
-                logger.warning("Slack Socket Mode not started for bot %s", bot_id)
-                # Its own message, because this one is written here rather than by
-                # a vendor: it names the credential to add. Recorded so the row
-                # says so - a WARNING in a container was the only evidence, and
-                # `/channels` showed the bot as healthy (#1351).
-                await connection_state.record_down(bot_id, str(exc))
-                return
-            except Exception:
-                logger.exception("Slack Socket Mode crashed for bot %s, restarting in 5s", bot_id)
-                await connection_state.record_down(
-                    bot_id,
-                    "The Slack connection keeps failing. Check the app-level token "
-                    "and that Socket Mode is enabled in the Slack app.",
-                )
-            await asyncio.sleep(5)
+        """Socket Mode sessions, reopened under the shared reconnect loop."""
+        await supervise_stream(
+            bot_id,
+            platform="Slack Socket Mode",
+            session=lambda: self._run_socket_mode(bot_id, bot_token),
+            failing=(
+                "The Slack connection keeps failing. Check the app-level token "
+                "and that Socket Mode is enabled in the Slack app."
+            ),
+        )
 
     async def _run_socket_mode(self, bot_id: str, bot_token: str) -> None:
         """Run one Socket Mode session."""
