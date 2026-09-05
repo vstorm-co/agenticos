@@ -7,15 +7,36 @@ optional one on create — the agent's own writes carry `origin="agent"` and a
 partition derived server-side from the request.
 """
 
+import re
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AfterValidator, Field
+from pydantic_core import PydanticCustomError
 
 from app.schemas.base import BaseSchema
 
 MemoryOriginLiteral = Literal["operator", "agent"]
+
+# The shapes `derive_end_user_scope_key` produces, and so the only keys a run reads.
+_PARTITION_KEY = re.compile(r"(?:user|chan):[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
+
+
+def _derivable_partition_key(value: str | None) -> str | None:
+    """Refuse a partition key the runtime never derives.
+
+    Both create dialogs let an editor type the key by hand, and a mistyped one
+    would seed a file or fact into a partition no run ever reads - a silent no-op
+    answered with a 201 and an audit row. Only `user:<uuid>` and `chan:<uuid>`
+    are ever derived, so anything else is a typo and is refused as one.
+    """
+    if value is not None and _PARTITION_KEY.fullmatch(value) is None:
+        raise PydanticCustomError("partition_key", "A partition key is user:<uuid> or chan:<uuid>")
+    return value
+
+
+PartitionKey = Annotated[str | None, AfterValidator(_derivable_partition_key)]
 
 
 class AgentMemoryFileRead(BaseSchema):
@@ -83,10 +104,11 @@ class AgentMemoryFileCreate(BaseSchema):
         max_length=32,
         description="A free-text category shown in the index, e.g. `note`, `profile`",
     )
-    end_user_scope_key: str | None = Field(
+    end_user_scope_key: PartitionKey = Field(
         default=None,
         max_length=128,
-        description="Which end-user partition to write to; omit for the shared store",
+        description="Which end-user partition to write to - `user:<uuid>` or `chan:<uuid>`; "
+        "omit for the shared store",
     )
 
 
@@ -112,10 +134,11 @@ class AgentMemoryFactCreate(BaseSchema):
         max_length=2000,
         description="The fact to remember, as a short self-contained sentence",
     )
-    end_user_scope_key: str | None = Field(
+    end_user_scope_key: PartitionKey = Field(
         default=None,
         max_length=128,
-        description="Which end-user partition to write to; omit for the shared store",
+        description="Which end-user partition to write to - `user:<uuid>` or `chan:<uuid>`; "
+        "omit for the shared store",
     )
 
 

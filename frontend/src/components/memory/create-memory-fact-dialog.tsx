@@ -66,6 +66,7 @@ export function CreateMemoryFactDialog({
   const [tier, setTier] = useState<Tier>(canEdit ? "shared" : "personal");
   const [personalKey, setPersonalKey] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [scopeError, setScopeError] = useState<string | null>(null);
 
   const scopeKey = tier === "shared" ? null : canEdit ? personalKey.trim() || ownKey : ownKey;
   const scopeReady = tier === "shared" || scopeKey !== null;
@@ -75,6 +76,7 @@ export function CreateMemoryFactDialog({
     setTier(canEdit ? "shared" : "personal");
     setPersonalKey("");
     setError(null);
+    setScopeError(null);
   }
 
   async function handleCreate() {
@@ -83,8 +85,9 @@ export function CreateMemoryFactDialog({
       reset();
       onOpenChange(false);
     } catch (err) {
-      const failure = submitFailure(err, { fields: ["content"] }, tErrors);
+      const failure = submitFailure(err, { fields: ["content", "end_user_scope_key"] }, tErrors);
       setError(failure.fields.content ?? null);
+      setScopeError(failure.fields.end_user_scope_key ?? null);
       if (failure.toast) toast.error(failure.toast);
     }
   }
@@ -119,12 +122,23 @@ export function CreateMemoryFactDialog({
                 <Input
                   id="new-fact-scope"
                   value={personalKey}
-                  onChange={(event) => setPersonalKey(event.target.value)}
+                  onChange={(event) => {
+                    setPersonalKey(event.target.value);
+                    if (scopeError) setScopeError(null);
+                  }}
                   placeholder={ownKey ?? "user:<id>"}
                   maxLength={MAX_SCOPE_KEY}
                   className="font-mono"
+                  aria-invalid={scopeError ? true : undefined}
                 />
-                <p className="text-muted-foreground text-xs">{t("personalKeyNote")}</p>
+                <p
+                  className={cn(
+                    "text-xs",
+                    scopeError ? "text-destructive" : "text-muted-foreground",
+                  )}
+                >
+                  {scopeError ?? t("personalKeyNote")}
+                </p>
               </div>
             ) : null}
           </div>

@@ -347,7 +347,7 @@ class TestCreateAuthorizesByTier:
             await service.create(
                 _ctx(user_id=uuid.uuid4()),
                 AgentMemoryFileCreate(
-                    agent_id=uuid.uuid4(), name="p", end_user_scope_key="user:someone-else"
+                    agent_id=uuid.uuid4(), name="p", end_user_scope_key=f"user:{uuid.uuid4()}"
                 ),
             )
         assert self._perm(resolve) == Perm.AGENTS_EDIT
@@ -382,7 +382,9 @@ class TestCreateAuthorizesByTier:
                 await service.create(
                     _ctx(user_id=me),
                     AgentMemoryFileCreate(
-                        agent_id=uuid.uuid4(), name="theirs", end_user_scope_key="user:other"
+                        agent_id=uuid.uuid4(),
+                        name="theirs",
+                        end_user_scope_key=f"user:{uuid.uuid4()}",
                     ),
                 )
 

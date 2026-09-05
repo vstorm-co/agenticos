@@ -336,3 +336,22 @@ class TestClear:
         async with client() as http:
             response = await http.delete(_url())
         assert response.status_code == 422
+
+
+class TestPartitionKeyShape:
+    """A typed key the runtime never derives is refused, not seeded into a store
+    no run reads."""
+
+    @pytest.mark.parametrize("suffix", ["/files", "/facts"])
+    async def test_a_key_the_runtime_never_derives_is_refused(
+        self, client: OpenClient, suffix: str
+    ):
+        body = {"agent_id": str(_AGENT_ID), "end_user_scope_key": "user:someone-else"}
+        body["name" if suffix == "/files" else "content"] = "typo"
+        async with client() as http:
+            response = await http.post(_url(suffix), json=body)
+        assert response.status_code == 422
+        assert {
+            "field": "end_user_scope_key",
+            "message": "A partition key is user:<uuid> or chan:<uuid>",
+        } in response.json()["error"]["details"]["fields"]

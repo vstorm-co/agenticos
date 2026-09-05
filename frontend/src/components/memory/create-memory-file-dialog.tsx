@@ -35,7 +35,7 @@ const MAX_DESCRIPTION = 500;
 const MAX_SCOPE_KEY = 128;
 const DEFAULT_KIND = "note";
 
-type Field = "name" | "description" | "format" | "kind" | "content";
+type Field = "name" | "description" | "format" | "kind" | "content" | "end_user_scope_key";
 type Tier = "shared" | "personal";
 
 interface CreateMemoryFileDialogProps {
@@ -89,6 +89,7 @@ export function CreateMemoryFileDialog({
     format: setFormat,
     kind: setKind,
     content: setContent,
+    end_user_scope_key: setPersonalKey,
   };
 
   function edit(field: Field, value: string) {
@@ -122,7 +123,10 @@ export function CreateMemoryFileDialog({
     } catch (error) {
       const failure = submitFailure(
         error,
-        { fields: ["name", "description", "format", "kind", "content"], identifiedBy: "name" },
+        {
+          fields: ["name", "description", "format", "kind", "content", "end_user_scope_key"],
+          identifiedBy: "name",
+        },
         tErrors,
       );
       setErrors(failure.fields);
@@ -160,12 +164,13 @@ export function CreateMemoryFileDialog({
                 <Input
                   id="new-memory-scope"
                   value={personalKey}
-                  onChange={(event) => setPersonalKey(event.target.value)}
+                  onChange={(event) => edit("end_user_scope_key", event.target.value)}
                   placeholder={ownKey ?? "user:<id>"}
                   maxLength={MAX_SCOPE_KEY}
                   className="font-mono"
+                  aria-invalid={errors.end_user_scope_key ? true : undefined}
                 />
-                <FieldNote>{t("personalKeyNote")}</FieldNote>
+                <FieldNote error={errors.end_user_scope_key}>{t("personalKeyNote")}</FieldNote>
               </div>
             ) : null}
           </div>

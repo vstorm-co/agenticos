@@ -158,4 +158,30 @@ describe("CreateMemoryFactDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(apiClient.post).not.toHaveBeenCalled();
   });
+
+  it("marks a partition key the server refused, cleared on edit", async () => {
+    const refusal = "A partition key is user:<uuid> or chan:<uuid>";
+    const problems = {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "invalid",
+        details: { fields: [{ field: "end_user_scope_key", message: refusal }] },
+      },
+    };
+    vi.mocked(apiClient.post).mockRejectedValue(new ApiError(422, "invalid", problems));
+    const { onOpenChange } = mount();
+
+    await userEvent.type(fact(), "note");
+    await chooseScope("Personal");
+    const key = screen.getByLabelText("Whose personal store");
+    await userEvent.clear(key);
+    await userEvent.type(key, "user:someone");
+    await userEvent.click(create());
+
+    await waitFor(() => expect(screen.getByText(refusal)).toBeInTheDocument());
+    expect(key).toHaveAttribute("aria-invalid", "true");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    await userEvent.type(key, "x");
+    expect(screen.queryByText(refusal)).not.toBeInTheDocument();
+  });
 });
