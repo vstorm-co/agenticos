@@ -113,19 +113,21 @@ class MemoryService:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         return agent
 
-    async def _file_or_404(self, ctx: AuthContext, file_id: UUID, *, perm: Perm) -> AgentMemoryFile:
-        """One memory file, if the caller may exercise `perm` on its agent; else 404."""
+    async def _file_row_or_404(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
         file = await memory_repo.get(self.db, file_id, organization_id=ctx.organization_id)
         if file is None:
             raise NotFoundError(message="Memory file not found", details={"file_id": str(file_id)})
+        return file
+
+    async def _file_or_404(self, ctx: AuthContext, file_id: UUID, *, perm: Perm) -> AgentMemoryFile:
+        """One memory file, if the caller may exercise `perm` on its agent; else 404."""
+        file = await self._file_row_or_404(ctx, file_id)
         # The agent decides access; a denial hides the file the same as a miss.
         await self._agent_or_404(ctx, file.agent_id, perm=perm)
         return file
 
     async def get(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
-        file = await memory_repo.get(self.db, file_id, organization_id=ctx.organization_id)
-        if file is None:
-            raise NotFoundError(message="Memory file not found", details={"file_id": str(file_id)})
+        file = await self._file_row_or_404(ctx, file_id)
         await self._agent_or_404(
             ctx, file.agent_id, perm=self._read_perm(ctx, file.end_user_scope_key)
         )
@@ -461,10 +463,14 @@ class MemoryService:
             created_at=created_at,
         )
 
-    async def _fact_or_404(self, ctx: AuthContext, fact_id: UUID, *, perm: Perm) -> AgentMemoryFact:
+    async def _fact_row_or_404(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFact:
         fact = await memory_repo.get_fact(self.db, fact_id, organization_id=ctx.organization_id)
         if fact is None:
             raise NotFoundError(message="Memory fact not found", details={"fact_id": str(fact_id)})
+        return fact
+
+    async def _fact_or_404(self, ctx: AuthContext, fact_id: UUID, *, perm: Perm) -> AgentMemoryFact:
+        fact = await self._fact_row_or_404(ctx, fact_id)
         await self._agent_or_404(ctx, fact.agent_id, perm=perm)
         return fact
 
@@ -521,9 +527,7 @@ class MemoryService:
         )
 
     async def get_fact(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFact:
-        fact = await memory_repo.get_fact(self.db, fact_id, organization_id=ctx.organization_id)
-        if fact is None:
-            raise NotFoundError(message="Memory fact not found", details={"fact_id": str(fact_id)})
+        fact = await self._fact_row_or_404(ctx, fact_id)
         await self._agent_or_404(
             ctx, fact.agent_id, perm=self._read_perm(ctx, fact.end_user_scope_key)
         )
