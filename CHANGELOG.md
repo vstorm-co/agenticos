@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.361] - 2026-09-05
+
+### Fixed
+
+- **A new chart type would have been drawn as a line chart, silently.** The
+  `charts` capability's `ChartType` and the channel renderer's dispatch are two
+  lists in two packages that have to agree, and nothing checked them against each
+  other: the renderer named three types and sent everything else to the line
+  drawer. There is one renderer per member now, and a test that fails when the
+  two lists drift.
+
 ## [0.0.360] - 2026-09-05
 
 ### Fixed
