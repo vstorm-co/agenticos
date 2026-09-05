@@ -101,6 +101,19 @@ class RateLimitError(AppException):
     status_code = 429
 
 
+class ConcurrentChangeError(AppException):
+    """Something this operation had to hold was held by another transaction (409).
+
+    Nothing was written: the attempt stopped at the point it could no longer be
+    made safe, and what made it unsafe is transient by construction. The caller
+    retries.
+    """
+
+    message = "Another change to this resource is in flight. Try again."
+    code = "CONCURRENT_CHANGE"
+    status_code = 409
+
+
 class BadRequestError(AppException):
     """Bad request (400)."""
 

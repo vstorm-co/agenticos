@@ -563,14 +563,20 @@ class UserService:
         """
         storage_paths: list[str] = []
         collections_to_drop: list[str] = []
-        for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id):
+        # Sorted by name so this loop and `OrganizationService.purge` - the two paths
+        # that take several teardown locks in one transaction - acquire any shared name
+        # (#913) in one order, and cannot invert into a teardown-vs-teardown deadlock
+        # (#1387).
+        personal = await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
+        for kb in sorted(personal, key=lambda k: k.collection_name):
             collection = kb.collection_name
+            # Hold the name before deleting the row: it serializes the reference check
+            # and reservation against a concurrent claim (#1362), and taking the
+            # teardown lock before any row lock keeps one order across every path, so a
+            # concurrent purge cannot invert into a deadlock (#1387).
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
-            # Hold the name against a concurrent claim while the reference check and
-            # reservation are made, then reserve it until the deferred drop runs, so a
-            # create cannot slip a new base onto the name and lose its table (#1362).
-            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
             if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
                 collections_to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)

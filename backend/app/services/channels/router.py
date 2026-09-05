@@ -257,7 +257,10 @@ class ChannelMessageRouter:
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
         if identity.user_id is None and not admit_unlinked:
-            await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
+            # Through `_refuse_if_named`, not `_send_reply`: a room message that
+            # names a colleague passes the overheard gate on its handle, and the
+            # invitation must not interrupt two people talking to each other.
+            await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
         session = await self._resolve_session(incoming, bot, identity, db)
@@ -787,7 +790,7 @@ class ChannelMessageRouter:
                         "denied_message", "This bot is only available in specific groups."
                     )
                 )
-        # "open" and "jwt_linked" pass through here; jwt_linked is enforced at identity resolution
+        # "open" and "jwt_linked" pass through here; jwt_linked is `_admits_unlinked`'s to enforce.
 
     def _admits_unlinked(self, incoming: IncomingMessage, bot: Any) -> bool:
         """Whether somebody with no linked account may be answered here.
@@ -807,10 +810,18 @@ class ChannelMessageRouter:
         it mean anything: it sat in the default policy, the schema, the CLI and
         the dashboard while the gate it was meant to control refused everybody
         regardless.
+
+        The `jwt_linked` mode refuses both on its own. An operator who picks a
+        mode named for a linked account has asked for one, and the mode used to
+        decide nothing unless `require_link` was also set - a gate that read as
+        applied and was inert, behaviourally the same as `open`.
         """
         if incoming.chat_type == "private":
             return False
-        return not bool(self._parse_policy(bot).get("require_link", False))
+        policy = self._parse_policy(bot)
+        if policy.get("mode") == "jwt_linked":
+            return False
+        return not bool(policy.get("require_link", False))
 
     @staticmethod
     def _is_overheard(incoming: IncomingMessage) -> bool:
@@ -954,11 +965,13 @@ class ChannelMessageRouter:
         return None
 
     async def _resolve_identity(self, incoming: IncomingMessage, bot: Any, db: Any) -> Any:
-        """Get or create ChannelIdentity for this platform user."""
-        policy: dict[str, Any] = self._parse_policy(bot)
-        mode: str = policy.get("mode", "open")
+        """Get or create ChannelIdentity for this platform user.
 
-        identity = await channel_identity_repo.get_or_create(
+        Whether an unlinked one may be answered is `_admits_unlinked`'s decision,
+        made after this returns, so the refusal can carry the link where it is safe
+        to send. A second refusal here answered a plain sentence and no link.
+        """
+        return await channel_identity_repo.get_or_create(
             db,
             platform=incoming.platform,
             platform_user_id=incoming.platform_user_id,
@@ -966,13 +979,6 @@ class ChannelMessageRouter:
             platform_display_name=incoming.platform_display_name,
             user_id=None,
         )
-
-        if mode == "jwt_linked" and policy.get("require_link", False) and not identity.user_id:
-            raise AuthorizationError(
-                message="Please /link your account first before using this bot."
-            )
-
-        return identity
 
     async def _resolve_session(
         self, incoming: IncomingMessage, bot: Any, identity: Any, db: Any
