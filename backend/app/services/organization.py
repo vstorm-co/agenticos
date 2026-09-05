@@ -10,10 +10,11 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
-from app.db.locks import LockScope, hold_name, hold_subject
+from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
     collection_teardown_repo,
@@ -347,11 +348,16 @@ class OrganizationService:
         list-and-delete, so an org-scoped collection inserted concurrently (it
         takes FOR KEY SHARE on this row) cannot slip between the list and the
         DELETE, be nulled by the `SET NULL`, and violate the same CHECK - a fresh
-        read under READ COMMITTED (#1115). A collection created in the gap before
-        the snapshot's locks are taken is deleted here all the same but is not
-        vector-reserved, and its row-lock order is unserialised against a concurrent
-        drop - a narrow residual that needs a serialisation point to close, tracked
-        in #1389.
+        read under READ COMMITTED (#1115). A collection created in the gap between
+        the snapshot and that `FOR UPDATE` is found by the authoritative list and
+        has no lock held for it, so it is taken here with `try_hold_name`: waiting
+        would be the deadlock the order exists to avoid, and a name this purge
+        drops without reserving is a name another organization can claim in the
+        commit-to-drop window - adopting a table still holding the deleted
+        organization's vectors, which the deferred cleanup then *preserves* on
+        seeing the new reference. Where the lock cannot be taken, a claim for that
+        very name is in flight and nothing this transaction does can make the drop
+        safe, so it refuses and is retried rather than leaking (#1389).
 
         Each collection's document rows go before its identifiers do:
         `rag_documents` authorization keys on `collection_name`, so a row left
@@ -401,20 +407,32 @@ class OrganizationService:
         # the vector tables. A collection another organization still references is left
         # alone - the name is not tenant-unique (#913). The rest are dropped by the
         # deferred cleanup, which re-reads the reference check under the teardown lock
-        # (#1355). A name whose lock we hold is also reserved, so a concurrent claim
-        # cannot adopt its still-populated table before the drop runs (#1362); a name
-        # created after the snapshot is not held, so it is dropped but not reserved -
-        # taking its lock now, after the org lock, would reinvert the order (#1387), so
-        # its commit-to-drop window stays open, tracked in #1389.
+        # (#1355), and every one of them is reserved, so a claim in the
+        # commit-to-drop window is refused rather than adopting the still-populated
+        # table (#1362). Both readings below therefore happen under the name's lock:
+        # the ones the snapshot saw are already held, and one created since is taken
+        # without waiting - see the note above on why waiting here cannot be done and
+        # why a name that cannot be locked is a refusal rather than an unreserved drop.
         # Files are unlinked whether or not a store was wired.
         to_drop: list[str] = []
         if self._vector_store is not None:
             for collection in dict.fromkeys(collections):
+                if collection not in held and not await try_hold_name(
+                    self.db, LockScope.COLLECTION_TEARDOWN, collection
+                ):
+                    raise ConcurrentChangeError(
+                        message=(
+                            "This organization gained a knowledge collection while it "
+                            "was being deleted, and something else is working on that "
+                            "collection right now. Nothing was deleted; try again."
+                        ),
+                        details={"collection_name": collection},
+                    )
+                held.add(collection)
                 if await knowledge_base_repo.list_by_collection_name(self.db, collection):
                     continue
                 to_drop.append(collection)
-                if collection in held:
-                    await collection_teardown_repo.reserve(self.db, collection)
+                await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or to_drop:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
