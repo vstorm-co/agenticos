@@ -322,8 +322,8 @@ class TestMemoryBrief:
         assert text == _preamble(allow_personal=True, allow_agent_shared_writes=True)
 
     async def test_the_newest_fact_survives_when_an_older_one_is_too_big(self, monkeypatch):
-        # Newest-first, the small newest fact is kept and the oversized older one ends
-        # the accumulation.
+        # Newest-first, the small newest fact is kept and the oversized older one is
+        # skipped.
         monkeypatch.setattr(
             memory_store, "memory_brief", AsyncMock(return_value=["fresh", "z" * 6000])
         )
@@ -331,6 +331,26 @@ class TestMemoryBrief:
             _ctx(_deps(scope_key="user:1"))
         )
         assert "- fresh" in text and "z" * 6000 not in text
+
+    async def test_an_oversized_fact_does_not_take_the_smaller_ones_with_it(self, monkeypatch):
+        """One huge note must not empty the brief.
+
+        The budget skips the line it cannot afford and carries on; ending the loop
+        instead would let a single oversized `remember` - whose content is unbounded
+        Text - silently drop every other fact out of the preamble, on every request
+        after it was written.
+        """
+        monkeypatch.setattr(
+            memory_store,
+            "memory_brief",
+            AsyncMock(return_value=["z" * 6000, "likes tea", "works in Kraków"]),
+        )
+        text = await Memory(enable_facts=True, backend="native").get_instructions()(
+            _ctx(_deps(scope_key="user:1"))
+        )
+        assert "- likes tea" in text
+        assert "- works in Kraków" in text
+        assert "z" * 6000 not in text
 
 
 class TestListMemory:

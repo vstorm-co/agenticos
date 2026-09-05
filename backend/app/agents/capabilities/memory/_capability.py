@@ -179,14 +179,15 @@ class Memory(AbstractCapability[AgentDepsT]):
         )
         if not facts:
             return None
-        # Every line is bounded, the first included: a fact past the whole budget is
-        # dropped rather than spliced in unbounded (#788).
+        # Every line is bounded, the first included: a fact past the remaining budget is
+        # skipped rather than spliced in unbounded - and skipped rather than ending the
+        # brief, or one oversized note would take every older fact out with it (#788).
         lines: list[str] = []
         remaining = _BRIEF_MAX_CHARS
         for content in facts:
             line = f"- {content}"
             if len(line) > remaining:
-                break
+                continue
             lines.append(line)
             remaining -= len(line) + 1
         if not lines:
