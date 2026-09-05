@@ -14,6 +14,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message as AiogramMessage
 
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
+from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.base import (
@@ -322,7 +323,7 @@ class TelegramAdapter(ChannelAdapter):
         but accepted for interface compatibility with ChannelAdapter.
         """
         received = headers.get("x-telegram-bot-api-secret-token", "")
-        return hmac.compare_digest(received.encode(), secret.encode())
+        return hmac.compare_digest(encode_untrusted(received), secret.encode())
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise one Telegram update, whichever transport delivered it.

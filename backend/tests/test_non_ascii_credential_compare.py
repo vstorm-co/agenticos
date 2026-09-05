@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
+from app.services.channels.telegram import TelegramAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -72,6 +73,22 @@ def test_a_lone_surrogate_slack_body_is_refused_rather_than_crashing() -> None:
     assert (
         SlackAdapter().verify_webhook_signature(headers, "signing-secret", _LONE_SURROGATE) is False
     )
+
+
+def test_a_lone_surrogate_telegram_secret_is_refused_rather_than_crashing() -> None:
+    """The one header-only check of the three, and the outlier that still used a
+    bare `.encode()`. Starlette decodes headers as latin-1, so a surrogate cannot
+    arrive this way today; the encode is the same defence the other two apply,
+    so the next decoder change is not a 500 on an unauthenticated route."""
+    headers = {"x-telegram-bot-api-secret-token": _LONE_SURROGATE}
+
+    assert TelegramAdapter().verify_webhook_signature(headers, "secret") is False
+
+
+def test_the_right_telegram_secret_still_matches() -> None:
+    headers = {"x-telegram-bot-api-secret-token": "secret"}
+
+    assert TelegramAdapter().verify_webhook_signature(headers, "secret") is True
 
 
 async def test_a_non_ascii_api_key_is_refused_rather_than_crashing(
