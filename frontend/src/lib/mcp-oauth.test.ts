@@ -102,20 +102,32 @@ describe("a refusal written by somebody else", () => {
 });
 
 describe("where the consent comes back to", () => {
+  const ORIGIN = "https://console.example";
+
   it("accepts one of this app's own paths, query included", () => {
-    expect(safeMcpOAuthReturn(encodeURIComponent("/chat?id=abc"))).toBe("/chat?id=abc");
+    expect(safeMcpOAuthReturn(encodeURIComponent("/chat?id=abc"), ORIGIN)).toBe("/chat?id=abc");
   });
 
   it("falls back to the servers page when nothing was remembered", () => {
-    expect(safeMcpOAuthReturn(undefined)).toBeNull();
+    expect(safeMcpOAuthReturn(undefined, ORIGIN)).toBeNull();
   });
 
-  it.each(["//evil.example/x", "https://evil.example", "/\\evil.example", "chat"])(
-    "refuses %s, because a cookie is the browser's to set",
-    (raw) => {
-      expect(safeMcpOAuthReturn(encodeURIComponent(raw))).toBeNull();
-    },
-  );
+  it.each([
+    "//evil.example/x",
+    "https://evil.example",
+    "/\\evil.example",
+    "chat",
+    "/\t/evil.example",
+  ])("refuses %j, because a cookie is the browser's to set", (raw) => {
+    expect(safeMcpOAuthReturn(encodeURIComponent(raw), ORIGIN)).toBeNull();
+  });
+
+  it("refuses a cookie that is not valid percent-encoding, rather than throwing", () => {
+    // `decodeURIComponent` throws on this, and the route it runs in is the one
+    // the provider redirects to - a 500 there is the last thing somebody
+    // returning from a consent screen should meet.
+    expect(safeMcpOAuthReturn("%E0", ORIGIN)).toBeNull();
+  });
 
   it("writes a short-lived, path-wide cookie", () => {
     rememberMcpOAuthReturn("/chat?id=abc");

@@ -1,4 +1,5 @@
 import type { Translate } from "@/lib/agent-step-captions";
+import { isSafeReturnPath } from "@/lib/safe-return-path";
 
 /**
  * The query an MCP OAuth consent hands back to the page, from both ends.
@@ -115,15 +116,24 @@ export function rememberMcpOAuthReturn(path: string): void {
 /**
  * The remembered return path, if it is one of this app's own.
  *
- * A same-origin path and nothing else: `/chat?id=…` yes, `//evil.example` and
- * `https://…` no - the cookie is the browser's to set, and a redirect target is
- * exactly what an open-redirect check exists for. Null means the servers page.
+ * Through `isSafeReturnPath`, the same guard the sign-in landing uses: the
+ * cookie is the browser's to set, and a redirect target is exactly what an
+ * open-redirect check exists for. Null means the servers page.
+ *
+ * A cookie that is not valid percent-encoding is a refusal too, not a crash:
+ * `decodeURIComponent("%E0")` throws, and this runs inside the route the
+ * provider redirects to - so an unthrown `URIError` would answer somebody
+ * returning from a consent screen with a 500.
  */
-export function safeMcpOAuthReturn(raw: string | undefined): string | null {
+export function safeMcpOAuthReturn(raw: string | undefined, origin: string): string | null {
   if (raw === undefined) return null;
-  const path = decodeURIComponent(raw);
-  if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/\\")) return null;
-  return path;
+  let path: string;
+  try {
+    path = decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+  return isSafeReturnPath(path, origin) ? path : null;
 }
 
 /**

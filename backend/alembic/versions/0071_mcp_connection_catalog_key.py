@@ -122,10 +122,18 @@ def upgrade() -> None:
         sa.column("catalog_key", sa.String),
         sa.column("url", sa.String),
     )
+    # Compared without trailing slashes on either side. The connect dialog seeds
+    # the catalog's URL into a field somebody may then edit, and nothing
+    # normalises it on the way in - so a Notion saved as `.../mcp/` is the same
+    # account as one saved as `.../mcp`, and matching byte for byte would leave
+    # it NULL and unreachable by the binding this backfill exists to serve.
     for key, url in CATALOG_URLS:
         op.execute(
             connections.update()
-            .where(connections.c.catalog_key.is_(None), connections.c.url == url)
+            .where(
+                connections.c.catalog_key.is_(None),
+                sa.func.rtrim(connections.c.url, "/") == url.rstrip("/"),
+            )
             .values(catalog_key=key)
         )
 

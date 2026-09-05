@@ -23,7 +23,10 @@ import { backendFetch } from "@/lib/server-api";
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
-  const back = safeMcpOAuthReturn(request.cookies.get(MCP_OAUTH_RETURN_COOKIE)?.value);
+  const back = safeMcpOAuthReturn(
+    request.cookies.get(MCP_OAUTH_RETURN_COOKIE)?.value,
+    request.nextUrl.origin,
+  );
   const servers = (query: string) => {
     const target = back ?? "/mcp-servers";
     const response = NextResponse.redirect(
