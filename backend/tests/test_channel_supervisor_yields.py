@@ -176,10 +176,14 @@ class TestMattermost:
         recorded.assert_awaited_once()
 
     async def test_the_missing_server_url_raises_rather_than_returning(self) -> None:
+        """And the refusal is what the connection row will show, so it names the
+        way out: the server URL, or webhook mode, which needs no stream."""
         adapter = MattermostAdapter()
 
-        with pytest.raises(ChannelNotConfigured):
+        with pytest.raises(ChannelNotConfigured) as refused:
             await adapter._run_stream("bot-without-a-url", "token")
+
+        assert "webhook mode" in refused.value.message
 
 
 class TestTelegram:

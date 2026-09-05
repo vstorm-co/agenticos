@@ -680,7 +680,10 @@ class MattermostAdapter(ChannelAdapter):
         base_url = self._base_urls.get(bot_id)
         if not base_url:
             raise ChannelNotConfigured(
-                message="Mattermost bot has no server URL; cannot open a stream",
+                message=(
+                    "Mattermost bot has no server URL; cannot open a stream. Set the "
+                    "bot's server URL, or switch it to webhook mode."
+                ),
                 details={"bot_id": bot_id},
             )
 
