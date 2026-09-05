@@ -281,6 +281,23 @@ class TestFacts:
         assert response.status_code == 200
         assert response.json()["content"] == fact.content
 
+    async def test_promoting_a_fact_answers_200_with_the_trusted_row(self, client: OpenClient):
+        fact = _fact_row()
+        promoted = _fact_row()
+        promoted.origin = MemoryOrigin.OPERATOR.value
+        get_agent, allow = _reachable()
+        with (
+            patch(f"{FACADE}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+            get_agent,
+            allow,
+            patch(f"{FACADE}.memory_repo.set_fact_origin", new=AsyncMock(return_value=promoted)),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            async with client() as http:
+                response = await http.post(_url(f"/facts/{fact.id}/promote"))
+        assert response.status_code == 200
+        assert response.json()["origin"] == "operator"
+
     async def test_deleting_a_fact_answers_204(self, client: OpenClient):
         fact = _fact_row()
         get_agent, allow = _reachable()

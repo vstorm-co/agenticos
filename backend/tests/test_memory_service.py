@@ -790,9 +790,9 @@ class TestMem0FactManagement:
 
 
 class TestCreateFact:
-    """The operator seeds a fact directly: it is embedded server-side (unmetered),
-    stored, and audited, and the tier decides the permission the same way a file
-    create does."""
+    """The operator seeds a fact directly: it is embedded server-side (metered to the
+    org's ingestion spend, checked against the cap first), stored, and audited, and
+    the tier decides the permission the same way a file create does."""
 
     async def test_it_embeds_the_fact_stores_it_and_audits(self):
         service = _service()
@@ -973,3 +973,70 @@ class TestOperatorEmbeddingSpend:
                 MagicMock(), SpendLedger(organization_id=uuid.uuid4()), organization_id=uuid.uuid4()
             )
         record.assert_not_awaited()
+
+
+class TestPromoteFact:
+    """The fact analogue of promote: an agent-authored fact becomes operator-trusted
+    so it may enter the standing brief, a deliberate act rather than a side effect of
+    a listing - and, like the other fact-management paths, refused for a mem0 agent."""
+
+    async def test_promotion_sets_origin_operator_and_is_audited(self):
+        service = _service()
+        fact = _fact()
+        promoted = _fact()
+        promoted.origin = MemoryOrigin.OPERATOR.value
+        get_agent, allow = _reachable_agent()
+        with (
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+            get_agent,
+            allow,
+            patch(
+                f"{MEMORY_PATH}.memory_repo.set_fact_origin",
+                new=AsyncMock(return_value=promoted),
+            ) as promote,
+            patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            result = await service.promote_fact(_ctx(), fact.id)
+        assert promote.call_args.kwargs["origin"] == MemoryOrigin.OPERATOR.value
+        assert result.origin == "operator"
+        assert audit.call_args.kwargs["action"] == "memory.fact.promoted"
+
+    async def test_a_missing_fact_is_not_found(self):
+        service = _service()
+        with (
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=None)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.promote_fact(_ctx(), uuid.uuid4())
+
+    async def test_promoting_needs_edit_on_the_agent(self):
+        # Promotion reaches the shared brief every end-user reads, so view-only is a
+        # 404 here even though a viewer may forget their own personal fact.
+        service = _service()
+        fact = _fact()
+
+        async def _view_only(_db, _ctx, _agent, perm, **_kw) -> bool:
+            return perm == Perm.AGENTS_VIEW
+
+        with (
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(side_effect=_view_only)),
+            patch(f"{MEMORY_PATH}.memory_repo.set_fact_origin", new=AsyncMock()) as promote,
+            pytest.raises(NotFoundError),
+        ):
+            await service.promote_fact(_ctx(), fact.id)
+        promote.assert_not_awaited()
+
+    async def test_promotion_is_refused_for_a_mem0_agent(self):
+        service = _service()
+        fact = _fact()
+        with (
+            patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_mem0_agent())),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{MEMORY_PATH}.memory_repo.set_fact_origin", new=AsyncMock()) as promote,
+            pytest.raises(BadRequestError),
+        ):
+            await service.promote_fact(_ctx(), fact.id)
+        promote.assert_not_awaited()

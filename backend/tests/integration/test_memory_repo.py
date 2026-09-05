@@ -350,7 +350,7 @@ def test_fact_repr_names_the_agent() -> None:
 
 @pytest.fixture
 async def facts_table(db) -> int:
-    """The `embedding` column and extension migration 0064 adds in raw SQL.
+    """The `embedding` column and extension migration 0072 adds in raw SQL.
 
     The integration schema is built with `create_all` from the models, and
     `AgentMemoryFact` deliberately omits the vector column, so a fact test adds
@@ -597,6 +597,40 @@ class TestFacts:
         assert (
             await memory_repo.get_fact(db, fact.id, organization_id=agent.organization_id) is None
         )
+
+    async def test_set_fact_origin_promotes_a_fact_into_the_brief(self, db, facts_table) -> None:
+        # The whole point of promote: an agent-authored shared fact is recall-only
+        # until an operator vouches for it, after which it joins the standing brief.
+        agent = await _agent(db, org=await _org(db, owner=await _user(db)))
+        await _add_fact(db, agent, content="learned", at=0, dim=facts_table)
+        listed, _ = await memory_repo.list_facts(
+            db, organization_id=agent.organization_id, agent_id=agent.id, all_partitions=True
+        )
+        fact = listed[0]
+        assert fact.origin == MemoryOrigin.AGENT.value
+
+        before = await memory_repo.list_brief_facts(
+            db,
+            organization_id=agent.organization_id,
+            agent_id=agent.id,
+            personal_key=None,
+            limit=30,
+        )
+        assert before == []
+
+        promoted = await memory_repo.set_fact_origin(
+            db, fact=fact, origin=MemoryOrigin.OPERATOR.value
+        )
+        assert promoted.origin == MemoryOrigin.OPERATOR.value
+
+        after = await memory_repo.list_brief_facts(
+            db,
+            organization_id=agent.organization_id,
+            agent_id=agent.id,
+            personal_key=None,
+            limit=30,
+        )
+        assert {f.content for f in after} == {"learned"}
 
     async def test_deleting_the_agent_takes_its_facts(self, db, facts_table) -> None:
         agent = await _agent(db, org=await _org(db, owner=await _user(db)))

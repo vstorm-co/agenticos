@@ -477,6 +477,23 @@ async def list_facts(
     return list(items.scalars().all()), total or 0
 
 
+async def set_fact_origin(
+    db: AsyncSession, *, fact: AgentMemoryFact, origin: str
+) -> AgentMemoryFact:
+    """Change a fact's trust tier - the promote write - and return the refreshed row.
+
+    A fact's only mutation: its content is never amended, only replaced, so unlike a
+    file's `update` this takes just the one field. `embedding` is not a mapped column
+    (see `AgentMemoryFact`), so a plain attribute set, flush and refresh leaves the
+    stored vector untouched.
+    """
+    fact.origin = origin
+    db.add(fact)
+    await db.flush()
+    await db.refresh(fact)
+    return fact
+
+
 async def delete_fact(db: AsyncSession, fact: AgentMemoryFact) -> None:
     await db.delete(fact)
     await db.flush()
