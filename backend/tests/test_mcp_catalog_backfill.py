@@ -46,9 +46,13 @@ def test_the_snapshot_holds_each_service_once() -> None:
 
 def test_the_match_ignores_a_trailing_slash() -> None:
     """The connect dialog seeds the catalog URL into an editable field, so
-    `.../mcp/` and `.../mcp` are the same account saved twice over."""
-    module = _migration()
-    stripped = {url.rstrip("/") for _key, url in module.CATALOG_URLS}
+    `.../mcp/` and `.../mcp` are the same account saved twice over.
 
-    assert "https://mcp.vercel.com" in stripped, "the catalog holds one with a trailing slash"
-    assert not any(url.endswith("/") for url in stripped)
+    Asserted as a property rather than against a named server: which entry
+    carries the trailing slash is the catalog's business and changes without
+    this file hearing about it.
+    """
+    urls = [url for _key, url in _migration().CATALOG_URLS]
+
+    assert any(url.endswith("/") for url in urls), "otherwise the stripping proves nothing"
+    assert not any(url.rstrip("/").endswith("/") for url in urls)
