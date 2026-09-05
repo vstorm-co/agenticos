@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.368] - 2026-09-05
+
+### Fixed
+
+- **A handful of logins locked the whole deployment out.** Auth requests reach
+  the API server-side through the frontend's own `/api/auth/*` routes, so the
+  address the per-IP bucket counted was the frontend container's and everyone
+  shared one allowance. Those routes now forward the caller's
+  `X-Forwarded-For`, which the backend reads where
+  `RATE_LIMIT_TRUST_FORWARDED_FOR` is on. Production now publishes both
+  containers on `127.0.0.1` by default, because the frontend's port is the
+  API's port for this setting - anything that can reach past the reverse proxy
+  chooses the address its attempts are counted against. `BIND_HOST=0.0.0.0`
+  reopens them for a proxy that runs elsewhere.
+- **A rate limit read as an expired session and signed people out.** The BFF
+  flattened the backend's 429 to "login failed" or "session expired", clearing
+  both cookies and dropping the `Retry-After`. Worst on `GET /api/auth/me`,
+  which makes the refresh nobody asked for on every page load once the
+  15-minute access cookie is out: its 429 cleared the session outright, which
+  is the deployment-wide sign-out the change exists to prevent. The envelope
+  and its interval now reach the browser, and the cookies are left alone.
+- **Signing out under a rate limit no longer strands a live token.** Every
+  other backend failure means the refresh token is already worthless, so
+  clearing the jar loses nothing; a 429 means the backend never looked at it,
+  and dropping the browser's only copy left a token valid until expiry that
+  nobody could revoke and no way to retry.
+
 ## [0.0.367] - 2026-09-05
 
 ### Fixed
