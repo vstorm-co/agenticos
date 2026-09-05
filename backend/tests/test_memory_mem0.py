@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from app.core.exceptions import ExternalServiceError
+from app.core.sanitize import UrlRefusedError
 from app.services.memory import _mem0
 
 pytestmark = pytest.mark.anyio
@@ -164,6 +165,25 @@ class TestBaseUrlValidation:
         # The upstream text and the key never reach the refusal.
         assert "boom" not in str(exc.value.details)
         assert "k" not in str(exc.value.details)
+
+    async def test_a_url_refused_on_the_wire_is_a_refusal_not_a_crashed_run(self, transport):
+        """Not every refusal `resolve_pinned_url` raises is an SSRF one.
+
+        The publish validator checks the scheme and the host but never the port, and
+        the allowlist compares hostnames, so an allowlisted host with an unrequestable
+        port reaches the wire and is refused there with a plain `UrlRefusedError`.
+        Catching `SSRFBlockedError` alone let that escape the tool call and end the run.
+        """
+        transport.response = _Response(error=UrlRefusedError("The URL has an invalid port"))
+        with pytest.raises(ExternalServiceError):
+            await _mem0.mem0_remember(
+                base_url=None,
+                api_key="k",
+                organization_id=ORG,
+                agent_id=AGENT,
+                scope_key=None,
+                content="x",
+            )
 
 
 class TestRecall:

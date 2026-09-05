@@ -43,6 +43,7 @@ bills it, out of band (documented in docs/secrets.md).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 from urllib.parse import urlsplit
@@ -53,7 +54,7 @@ import httpx
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import SSRFBlockedError
+from app.core.sanitize import UrlRefusedError
 from app.repositories.memory import FactHit
 
 logger = logging.getLogger(__name__)
@@ -120,7 +121,10 @@ async def mem0_remember(
                 headers={"Authorization": f"Token {api_key}"},
             )
             response.raise_for_status()
-    except (httpx.HTTPError, SSRFBlockedError) as exc:
+    except (httpx.HTTPError, UrlRefusedError) as exc:
+        # `UrlRefusedError` is every refusal `resolve_pinned_url` raises, SSRF and
+        # malformed alike: a URL the publish validator passed can still be refused on
+        # the wire (an unrequestable port), and that is a refusal, not a crashed run.
         # The upstream text goes to the log, never the response: a client error can
         # echo the request payload, and the refusal only needs to name what failed (#342).
         logger.exception("mem0_remember_failed")
@@ -196,12 +200,15 @@ async def mem0_recall(
     namespace and, when the run has an identified person, that person's too, then
     merges by score and caps at `limit`. `personal_key=None` searches shared alone;
     the key is server-derived, so the personal namespace is only ever this person's.
+
+    The two searches are independent, so they go out together: run one after the
+    other, a slow mem0 costs this tool call two whole `_TIMEOUT` windows instead of
+    one.
     """
     scope_keys: list[str | None] = [None] if personal_key is None else [None, personal_key]
-    hits: list[FactHit] = []
-    for scope_key in scope_keys:
-        hits.extend(
-            await _mem0_search_namespace(
+    pages = await asyncio.gather(
+        *(
+            _mem0_search_namespace(
                 base_url=base_url,
                 api_key=api_key,
                 organization_id=organization_id,
@@ -210,6 +217,9 @@ async def mem0_recall(
                 query=query,
                 limit=limit,
             )
+            for scope_key in scope_keys
         )
+    )
+    hits = [hit for page in pages for hit in page]
     hits.sort(key=lambda hit: hit.score, reverse=True)
     return hits[:limit]
