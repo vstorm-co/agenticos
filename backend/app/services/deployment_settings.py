@@ -128,8 +128,18 @@ class DeploymentSettingsService:
             announcement_level=_notice_level(row.announcement_level) if row else "info",
             max_organizations_per_user=row.max_organizations_per_user if row else None,
             max_agents_per_organization=row.max_agents_per_organization if row else None,
+            notify_impersonated_users=row.notify_impersonated_users if row else False,
             updated_at=row.updated_at if row else None,
         )
+
+    async def notifies_impersonated_users(self) -> bool:
+        """Whether an impersonation emails its target, as whatever starts one reads it.
+
+        No row is the unconfigured deployment, and the unconfigured answer is no:
+        an upgrade must not start mailing people about a thing nobody turned on.
+        """
+        row = await deployment_settings_repo.get(self.db)
+        return bool(row and row.notify_impersonated_users)
 
     async def limits(self) -> DeploymentLimits:
         """The two ceilings, as whatever creates the thing they bound reads them.

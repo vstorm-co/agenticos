@@ -1,0 +1,9 @@
+Subject: An administrator accessed your [[app_name]] account
+
+Hi [[name]],
+
+An administrator of this [[app_name]] deployment ([[admin_email]]) has started acting as your account. This access ends when they end it or within one hour, whichever comes first, and everything done during it is recorded in the deployment's audit trail as theirs.
+
+If you weren't expecting this, contact your administrator.
+
+- The [[app_name]] Team

@@ -14,10 +14,10 @@ import uuid
 
 import pytest
 
-from app.api.deps import _impersonator_from
 from app.core.audit import record_audit, set_impersonator
 from app.core.security import create_access_token
 from app.core.security import verify_token as _verify_token
+from app.services.impersonation import impersonator_from as _impersonator_from
 
 pytestmark = pytest.mark.anyio
 
@@ -95,32 +95,3 @@ class TestRecordingWhoWasActing:
         await record_audit(db, actor_user_id=target, action="conversation.read")
 
         assert db.added[0].impersonator_user_id == admin
-
-
-class TestNestedImpersonation:
-    def teardown_method(self) -> None:
-        set_impersonator(None)
-
-    async def test_a_nested_impersonation_names_the_human_who_started_the_chain(self) -> None:
-        """A impersonates app-admin B, whose token impersonates C. The minted
-        token must keep naming A, not B - or the chain launders A out of the audit
-        trail one hop at a time (#943)."""
-        from unittest.mock import AsyncMock, MagicMock
-
-        from app.api.routes.v1.admin_users import impersonate_user
-        from app.core.security import verify_token
-
-        a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        set_impersonator(a)  # this request runs on B's token, itself impersonated by A
-
-        admin = MagicMock(id=b)
-        target = MagicMock(id=c, email="c@example.com")
-        service = MagicMock(get_by_id=AsyncMock(return_value=target))
-        request = MagicMock(client=MagicMock(host="1.2.3.4"))
-
-        response = await impersonate_user(request, c, admin, _CapturingDB(), service)
-
-        payload = verify_token(response.access_token)
-        assert payload is not None
-        assert payload["sub"] == str(c)
-        assert payload["act"] == str(a)

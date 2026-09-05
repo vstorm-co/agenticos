@@ -120,13 +120,48 @@ class AdminUserList(BaseSchema):
 
 
 class ImpersonateResponse(BaseSchema):
-    """Response schema for admin user impersonation."""
+    """An impersonation just opened: the token that is it, and the row it names.
+
+    The token reaches the console's BFF, which puts it in the same HttpOnly cookie
+    every other access token lives in - it is never handed to the browser's own
+    code (#1044). `session_id` is the row the token names in its `sid` claim and
+    the one ending it closes; `expires_at` is when it closes on its own.
+    """
 
     access_token: str
     token_type: str
     impersonated_user_id: str
     impersonated_by: str
     expires_in: int
+    expires_at: datetime
+    session_id: UUID
+
+
+class ImpersonatorRead(BaseSchema):
+    """The administrator behind an impersonated session, as the banner names them."""
+
+    id: UUID
+    email: str
+    full_name: str | None = None
+
+
+class ImpersonationRead(BaseSchema):
+    """The impersonation a request runs under: who is acting, and until when."""
+
+    session_id: UUID
+    impersonator: ImpersonatorRead
+    expires_at: datetime
+
+
+class MeRead(UserRead):
+    """`GET /auth/me`: the account this request acts as, and whether somebody else is.
+
+    `impersonation` is set only while an administrator is acting as this account,
+    and it is what the console draws its persistent banner from - the account's
+    own fields say nothing about it, because they *are* the account (#1044).
+    """
+
+    impersonation: ImpersonationRead | None = None
 
 
 class AdminUserMembership(BaseSchema):

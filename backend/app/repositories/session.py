@@ -26,6 +26,25 @@ async def get_by_refresh_token_hash(db: AsyncSession, token_hash: str) -> Sessio
     return result.scalar_one_or_none()
 
 
+def _own(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
+    """Narrow a user's sessions to the ones that are theirs.
+
+    An impersonation is a row under the user's id that an administrator holds,
+    not a device the person signed in from - so it is not in their devices list,
+    not in the count the admin drawer shows as "open sessions", and not the
+    "last seen" that would otherwise report somebody present who was not there.
+    Whether the person is told about it at all is the deployment's policy
+    (`notify_impersonated_users`), and a row in their devices list would decide
+    that policy for them (#1044).
+
+    Revocation is deliberately *not* narrowed: `deactivate_all_user_sessions`
+    ends every row under the id, impersonations included, so a password reset
+    and "sign out everywhere" end an administrator's access along with the
+    person's own sessions.
+    """
+    return query.where(Session.impersonator_user_id.is_(None))
+
+
 def _open(query: Select[tuple[Any]], *, now: datetime) -> Select[tuple[Any]]:
     """Narrow a session query to the ones actually still usable.
 
@@ -62,7 +81,7 @@ async def get_user_sessions(
     they last here": somebody who has signed out has no open session and has
     very much been here.
     """
-    query = select(Session).where(Session.user_id == user_id)
+    query = _own(select(Session).where(Session.user_id == user_id))
     if open_only:
         query = _open(query, now=now or datetime.now(UTC))
     # `last_used_at` alone is not a total order - a user who signs in twice in
@@ -84,7 +103,7 @@ async def count_user_sessions(
     now: datetime | None = None,
 ) -> int:
     """How many sessions the user has, for the page count."""
-    query = select(func.count(Session.id)).where(Session.user_id == user_id)
+    query = _own(select(func.count(Session.id)).where(Session.user_id == user_id))
     if open_only:
         query = _open(query, now=now or datetime.now(UTC))
     return (await db.execute(query)).scalar_one()
@@ -100,8 +119,15 @@ async def create(
     device_type: str | None = None,
     ip_address: str | None = None,
     user_agent: str | None = None,
+    impersonator_user_id: UUID | None = None,
+    session_id: UUID | None = None,
 ) -> Session:
-    """Create a new session."""
+    """Create a new session.
+
+    `session_id` lets the caller decide the id, for the one row whose credential
+    has to name it before it exists - an impersonation's access token carries the
+    row's id as a claim. Every other caller leaves it to the column default.
+    """
     session = Session(
         user_id=user_id,
         refresh_token_hash=refresh_token_hash,
@@ -110,7 +136,10 @@ async def create(
         device_type=device_type,
         ip_address=ip_address,
         user_agent=user_agent,
+        impersonator_user_id=impersonator_user_id,
     )
+    if session_id is not None:
+        session.id = session_id
     db.add(session)
     await db.flush()
     await db.refresh(session)

@@ -1,12 +1,10 @@
-from datetime import timedelta
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status
 
-from app.api.deps import CurrentAppAdmin, DBSession, UserSvc
-from app.core.audit import current_impersonator, record_audit
-from app.core.security import create_access_token
+from app.api.deps import CurrentAppAdmin, DBSession, ImpersonationSvc, UserSvc
+from app.core.audit import record_audit
 from app.schemas.user import (
     AdminUserDetail,
     AdminUserList,
@@ -116,37 +114,20 @@ async def impersonate_user(
     request: Request,
     user_id: UUID,
     admin: CurrentAppAdmin,
-    db: DBSession,
-    service: UserSvc,
+    impersonation: ImpersonationSvc,
 ) -> Any:
-    """Issue a short-lived (1h) access token to act as the target user.
+    """Start acting as the target user, for an hour or until it is ended.
 
-    The token carries the administrator as an `act` claim, so every action taken
-    with it is attributable to who was really acting and not only to the account
-    they were acting as (#943). If this request is itself impersonated - one app
-    admin acting as another, who impersonates a third - the claim keeps naming
-    the human who started the chain rather than the account one hop up it.
+    The answer is a session, not a bare credential: the token names a row in
+    `sessions` and is refused the moment that row is ended, so an impersonation
+    stops when the administrator ends it, when the target signs out everywhere or
+    resets their password, or when the hour is up - whichever is first (#1044).
+    It carries the administrator as an `act` claim, so every action taken with it
+    is attributable to who was really acting (#943).
     """
-    target = await service.get_by_id(user_id)
-    actor = current_impersonator() or admin.id
-    token = create_access_token(
-        subject=str(target.id),
-        expires_delta=timedelta(hours=1),
-        act=str(actor),
-    )
-    await record_audit(
-        db,
-        actor_user_id=admin.id,
-        action="admin.user.impersonate",
-        target_type="user",
-        target_id=str(target.id),
-        details={"target_email": target.email, "expires_in": 3600},
+    return await impersonation.start(
+        admin=admin,
+        target_id=user_id,
         ip_address=request.client.host if request.client else None,
-    )
-    return ImpersonateResponse(
-        access_token=token,
-        token_type="bearer",
-        impersonated_user_id=str(target.id),
-        impersonated_by=str(admin.id),
-        expires_in=3600,
+        user_agent=request.headers.get("User-Agent"),
     )

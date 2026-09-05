@@ -64,7 +64,10 @@ class User(Base, TimestampMixin):
     )
 
     sessions: Mapped[list["Session"]] = relationship(
-        "Session", back_populates="user", cascade="all, delete-orphan"
+        "Session",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="Session.user_id",
     )
 
     def __repr__(self) -> str:
