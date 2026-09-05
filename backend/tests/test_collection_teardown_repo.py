@@ -8,6 +8,7 @@ end to end in `tests/integration/test_collection_teardown_lock.py`.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -57,3 +58,15 @@ async def test_release_is_a_no_op_when_the_name_carried_no_reservation() -> None
 
     db.delete.assert_not_awaited()
     db.flush.assert_not_awaited()
+
+
+async def test_list_stale_returns_the_rows_the_query_selects() -> None:
+    rows = [MagicMock(), MagicMock()]
+    scalars = MagicMock(all=MagicMock(return_value=rows))
+    result = MagicMock(scalars=MagicMock(return_value=scalars))
+    db = MagicMock(execute=AsyncMock(return_value=result))
+
+    got = await repo.list_stale(db, older_than=datetime.now(UTC))
+
+    assert got == rows
+    db.execute.assert_awaited_once()
