@@ -257,7 +257,10 @@ class ChannelMessageRouter:
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
         if identity.user_id is None and not admit_unlinked:
-            await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
+            # Through `_refuse_if_named`, not `_send_reply`: a room message that
+            # names a colleague passes the overheard gate on its handle, and the
+            # invitation must not interrupt two people talking to each other.
+            await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
         session = await self._resolve_session(incoming, bot, identity, db)
