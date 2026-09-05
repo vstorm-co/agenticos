@@ -79,6 +79,7 @@ export default function DeploymentSettingsPage() {
     maintenance_message: settings.maintenance_message,
     max_organizations_per_user: settings.max_organizations_per_user,
     max_agents_per_organization: settings.max_agents_per_organization,
+    notify_impersonated_users: settings.notify_impersonated_users,
     ...edits,
   };
 
@@ -279,6 +280,23 @@ export default function DeploymentSettingsPage() {
               {...ceiling("max_agents_per_organization")}
             />
           </FormField>
+        </div>
+      </ListCard>
+
+      <ListCard title={t("adminAccessTitle")} counted={t("adminAccessHint")}>
+        <div className="border-border flex items-start justify-between gap-4 rounded-xl border p-4">
+          <div className="min-w-0">
+            <p className="text-foreground text-sm font-medium">{t("impersonationNoticeToggle")}</p>
+            <p className="text-muted-foreground mt-0.5 text-xs">
+              {t("impersonationNoticeToggleHint")}
+            </p>
+          </div>
+          <Switch
+            checked={draft.notify_impersonated_users ?? false}
+            onCheckedChange={(checked) => set("notify_impersonated_users", checked)}
+            disabled={save.isPending}
+            aria-label={t("impersonationNoticeToggle")}
+          />
         </div>
       </ListCard>
 

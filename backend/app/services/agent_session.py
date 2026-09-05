@@ -33,6 +33,7 @@ from app.services.agent_chat import (
     requested_environment_id,
     requested_model_profile_id,
 )
+from app.services.agent_runner import PersonalServiceGap
 from app.services.attachments import load_attached_files
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
@@ -298,6 +299,7 @@ class AgentSession:
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
                     on_compaction=self._compaction_event,
+                    on_personal_gaps=self._personal_gaps_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -546,6 +548,19 @@ class AgentSession:
         """
         frame = event.model_dump(mode="json")
         await send_event(self.websocket, event.kind, frame)
+
+    async def _personal_gaps_event(self, gaps: list[PersonalServiceGap]) -> None:
+        """Say which of the agent's personal services this person cannot reach yet.
+
+        Sent once per turn, before the model answers, so the chat can draw a card
+        with the button that connects the account while the agent is still
+        saying it cannot. The model is told the same thing in its instructions;
+        this is the half a person can click. Not persisted: it is true of this
+        person at this moment, and a transcript reopened after they connected
+        would be wrong to repeat it.
+        """
+        frame = {"services": [gap.model_dump(mode="json") for gap in gaps]}
+        await send_event(self.websocket, "personal_services_unavailable", frame)
 
     async def _remember_context(self, turn: ChatTurn) -> None:
         """Record what this turn learned about the thread's own context.

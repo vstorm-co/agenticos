@@ -101,7 +101,7 @@ from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
-from app.services.agent_runner import ParkedApproval, PreparedRun
+from app.services.agent_runner import ParkedApproval, PersonalServiceGap, PreparedRun
 from app.services.agent_session import AgentSession
 from app.services.chat_timeline import TurnTimeline
 from app.services.message_history import build_message_history
@@ -2103,11 +2103,6 @@ class _Turn:
             patch("app.services.agent_session.persist_user_turn", new=AsyncMock()) as persist,
             patch("app.services.agent_session.get_db_context") as db_context,
             patch("app.services.agent_chat.member_repo") as members,
-            # Whether anybody else can read this conversation, which decides
-            # whether a binding may speak as the runner's own account. A real
-            # call here awaits a MagicMock, and the TypeError is raised inside a
-            # task - so the turn hangs rather than failing.
-            patch("app.services.agent_chat.conversation_share_repo") as shares,
             patch("app.services.agent_chat.AgentRunnerService") as runner_cls,
             # The thread this turn continues, which since #771 is read from the
             # transcript rather than from the socket, and since #49 through the
@@ -2123,7 +2118,6 @@ class _Turn:
             )
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             members.get = AsyncMock(return_value=MagicMock())
-            shares.get_shares_for_conversation = AsyncMock(return_value=[])
             runner_cls.return_value.prepare = AsyncMock(return_value=self.prepared)
             runner_cls.return_value.finish = self._finish
             conversations.return_value.model_history = AsyncMock(return_value=[])
@@ -2276,3 +2270,37 @@ class TestStoppingATurnMidDelegation:
         assert turn.delegation.journal.tasks.list_active_tasks() == []
         assert [outcome.status for outcome in turn.outcomes] == ["cancelled"]
         assert [status for status, *_ in turn.finished] == [RunStatus.CANCELLED]
+
+
+class TestTellingTheClientWhatThePersonCannotReach:
+    """The card with the button that connects an account is drawn from this frame."""
+
+    async def test_the_frame_carries_every_gap_under_its_own_name(self):
+        session = _session()
+
+        await session._personal_gaps_event(
+            [
+                PersonalServiceGap(
+                    catalog_key="notion",
+                    name="Notion",
+                    gap="not_connected",
+                    url="http://localhost:3000/mcp-servers?connect=notion",
+                )
+            ]
+        )
+
+        assert _sent_events(session) == [
+            (
+                "personal_services_unavailable",
+                {
+                    "services": [
+                        {
+                            "catalog_key": "notion",
+                            "name": "Notion",
+                            "gap": "not_connected",
+                            "url": "http://localhost:3000/mcp-servers?connect=notion",
+                        }
+                    ]
+                },
+            )
+        ]

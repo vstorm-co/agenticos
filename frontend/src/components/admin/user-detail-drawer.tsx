@@ -50,7 +50,7 @@ interface UserDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
   onUpdate: (userId: string, patch: Partial<AdminUser>) => void;
   onDelete: (userId: string) => void;
-  onImpersonate: (userId: string) => Promise<string | null | undefined>;
+  onImpersonate: (userId: string) => Promise<boolean>;
 }
 
 interface ConversationStub {
@@ -137,16 +137,9 @@ export function UserDetailDrawer({
   // by the API, because "why can I not delete myself" has an answer worth showing.
   const isSelf = subject.id === currentUserId;
 
+  // Closes because the page under the sheet is about to be somebody else's.
   const handleImpersonate = async () => {
-    const token = await onImpersonate(subject.id);
-    if (token) {
-      try {
-        await navigator.clipboard.writeText(token);
-        toast.success(t("impersonationTokenCopiedValid"));
-      } catch {
-        toast.success(t("impersonationTokenCreated1h"));
-      }
-    }
+    if (await onImpersonate(subject.id)) onOpenChange(false);
   };
 
   const copy = async (value: string, message: string) => {

@@ -10,10 +10,11 @@ from typing import Any
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramUnauthorizedError
 from aiogram.types import Message as AiogramMessage
 
 from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
+from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.base import (
@@ -21,7 +22,9 @@ from app.services.channels.base import (
     IncomingAttachment,
     IncomingMessage,
     OutgoingMessage,
+    supervise_stream,
 )
+from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
 
 logger = logging.getLogger(__name__)
@@ -264,23 +267,30 @@ class TelegramAdapter(ChannelAdapter):
         logger.info("Stopped Telegram polling for bot %s", bot_id)
 
     async def _polling_supervisor(self, bot_id: str, bot_token: str) -> None:
-        """Supervised loop: restart polling on crash, stop on CancelledError."""
-        while True:
-            try:
-                await self._run_polling_once(bot_id, bot_token)
-            except asyncio.CancelledError:
-                break
-            except Exception:
-                logger.exception("Telegram polling crashed for bot %s, restarting in 5s", bot_id)
-                await connection_state.record_down(
-                    bot_id,
-                    "Telegram polling keeps failing. Check the bot token, and "
-                    "whether a webhook is registered - Telegram will not do both.",
-                )
-                await asyncio.sleep(5)
+        """Polling sessions, reopened under the shared reconnect loop."""
+        await supervise_stream(
+            bot_id,
+            platform="Telegram polling",
+            session=lambda: self._run_polling_once(bot_id, bot_token),
+            failing=(
+                "Telegram polling keeps failing. Check the bot token, and "
+                "whether a webhook is registered - Telegram will not do both."
+            ),
+        )
 
     async def _run_polling_once(self, bot_id: str, bot_token: str) -> None:
-        """Run one polling session using aiogram Dispatcher."""
+        """Run one polling session using aiogram Dispatcher.
+
+        A token Telegram rejects is raised as `ChannelNotConfigured` rather than
+        left as the vendor's 401: nothing a retry does will make the token valid,
+        and the supervisor retried it for ever, a traceback every five seconds,
+        where the other two platforms record `down` once and stop.
+
+        The connection entry is re-stamped on its own clock for as long as the
+        poll runs, as the other two streams do (#1351): `record_up` fires once
+        and the entry expires on a TTL, so a bot nobody messaged for fifteen
+        minutes read `unknown` on the channels listing while polling fine.
+        """
         async with self._bot(
             bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
         ) as bot:
@@ -291,7 +301,21 @@ class TelegramAdapter(ChannelAdapter):
                 await self._handle_update(message, bot_id)
 
             await connection_state.record_up(bot_id)
-            await dp.start_polling(bot, handle_signals=False)
+            beat = asyncio.create_task(connection_state.heartbeat(bot_id))
+            try:
+                await dp.start_polling(bot, handle_signals=False)
+            except TelegramUnauthorizedError as exc:
+                raise ChannelNotConfigured(
+                    message=(
+                        "Telegram rejected the bot token - polling not started. "
+                        "Check the token in the bot's settings."
+                    ),
+                    details={"bot_id": bot_id},
+                ) from exc
+            finally:
+                beat.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await beat
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Register a webhook URL with Telegram."""
@@ -322,7 +346,7 @@ class TelegramAdapter(ChannelAdapter):
         but accepted for interface compatibility with ChannelAdapter.
         """
         received = headers.get("x-telegram-bot-api-secret-token", "")
-        return hmac.compare_digest(received.encode(), secret.encode())
+        return hmac.compare_digest(encode_untrusted(received), secret.encode())
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise one Telegram update, whichever transport delivered it.
@@ -372,7 +396,6 @@ class TelegramAdapter(ChannelAdapter):
             platform="telegram",
             bot_id=bot_id,
             platform_user_id=platform_user_id,
-            one_to_one=chat_type == "private",
             platform_chat_id=platform_chat_id,
             chat_type=chat_type,
             text=text,

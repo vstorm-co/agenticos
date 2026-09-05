@@ -809,6 +809,12 @@ Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
 binding, and only in a channel. A direct message asks for the account first.
 
+A linked account whose member has left the organization, or whose account has
+been deactivated, is treated as unlinked: refused in a direct message, run under
+the binding in a channel. Offboarding clears neither the membership row nor the
+chat account's link, so the role is read only off a membership that can still
+sign in.
+
 ### One conversation per thread
 
 **The unit is the thread, and that now includes a direct message.** Send the bot
@@ -966,11 +972,12 @@ check.
 
 ## A bot that cannot start stops, rather than retrying
 
-Slack Socket Mode and the Mattermost event stream both run under a supervisor
-that reconnects a dropped session. A missing configuration value is not a
-dropped session, and the supervisor treats it differently: it logs once and
-stops. Nothing it does would change the row — an operator has to add the Slack
-`xapp-` token or the Mattermost server URL.
+Telegram polling, Slack Socket Mode and the Mattermost event stream all run
+under one supervisor that reconnects a dropped session. A missing or rejected
+configuration value is not a dropped session, and the supervisor treats it
+differently: it records the bot as down with the reason, logs once and stops.
+Nothing it does would change the row — an operator has to add the Slack `xapp-`
+token or the Mattermost server URL, or replace a bot token Telegram rejects.
 
 This matters more than it sounds. Retrying a start that fails immediately never
 suspends, so the supervisor spins without yielding and every other task on the
@@ -982,9 +989,10 @@ If a bot is silent, check the log for `not started` before assuming a network
 problem.
 
 A dropped session is different: that one is retried, waiting five seconds and
-doubling to a minute, so a Mattermost server down for an hour is not hammered
-720 times by every bot on it. The line logged before each wait names the delay
-it is about to wait.
+doubling to a minute, so a server down for an hour is not hammered 720 times by
+every bot on it. A session that ended cleanly starts the ladder over. The line
+logged before each wait names the delay it is about to wait, and the same loop
+serves all three platforms, so the policy cannot drift between them.
 
 ---
 
@@ -1091,7 +1099,9 @@ it is about to wait.
     failure — no credential, a recording over the endpoint's limit, a refusal, a
     timeout — is reported on the reply and the turn goes ahead without it.
 
-- **Access policy per bot** — open, whitelist, or "must be linked to a member".
+- **Access policy per bot** — open, whitelist, group-only, or `jwt_linked`: "must
+  be linked to a member", in a channel as much as in a direct message, with no
+  second setting to flip.
 - **A credential can be added or replaced after registration.** The pencil on a
   bot's row opens it: rename it, paste a rotated token, or supply the credential
   that was not in hand when it was registered — which is the ordinary case on
@@ -1124,12 +1134,23 @@ it is about to wait.
     chat account, the access policy, and the organization's monthly cap.
 
     Set **`require_link`** on the bot's access policy to refuse in channels too,
-    which is the old behaviour.
+    which is the old behaviour. The **`jwt_linked`** mode refuses on its own: a
+    mode named for a linked account asks for one, and it used to decide nothing
+    unless `require_link` was also set.
 
     Linking still matters in a channel, and it is worth doing: a linked sender
     runs as *themselves* rather than under the binding, and linking later makes
     their earlier channel turns attributable to them — the run points at the chat
-    account, and the chat account gains a person.
+    account, and the chat account gains a person. Only while that person is a
+    member who can sign in: a linked sender who has left, or whose account was
+    deactivated, is admitted the way a stranger is — under the binding in a
+    channel, refused in a direct message.
+
+    It is also what lets an agent reach *their* tools. A binding to
+    [each person's own account](mcp.md#whose-account-a-binding-speaks-through)
+    speaks to Notion or Jira as whoever wrote the message, in a channel as much
+    as in a direct message — and an unlinked sender has no account to speak
+    through, so the agent tells them to `/link` first.
 
     **A channel thread is one conversation with several people in it**, and it
     appears in the conversation list of everybody whose linked chat account has

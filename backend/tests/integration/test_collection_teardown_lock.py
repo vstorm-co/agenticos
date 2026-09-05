@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.core.exceptions import AlreadyExistsError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.locks import LockScope, hold_name
+from app.db.models.collection_teardown import CollectionTeardown
 from app.repositories import collection_teardown_repo
 from app.services.collection_access import CollectionAccessService
 
@@ -44,6 +46,31 @@ async def test_a_reserved_name_cannot_be_reclaimed_until_it_is_released(db: Asyn
 
     await collection_teardown_repo.release(db, name)
     await CollectionAccessService(db).claim(ctx, name)  # released, so no longer refused
+
+
+async def test_list_stale_returns_only_reservations_older_than_the_cutoff(
+    db: AsyncSession,
+) -> None:
+    """The sweep reaps a reservation only once it is older than the cutoff, so a
+    teardown still legitimately in flight is left alone. A mocked session cannot show
+    the timestamp predicate filtering; this drives it against real rows (#1364).
+    """
+    fresh = f"fresh{uuid.uuid4().hex[:12]}"
+    stale = f"stale{uuid.uuid4().hex[:12]}"
+    await collection_teardown_repo.reserve(db, fresh)
+    db.add(
+        CollectionTeardown(collection_name=stale, created_at=datetime.now(UTC) - timedelta(hours=2))
+    )
+    await db.flush()
+
+    cutoff = datetime.now(UTC) - timedelta(hours=1)
+    names = {
+        row.collection_name
+        for row in await collection_teardown_repo.list_stale(db, older_than=cutoff)
+    }
+
+    assert stale in names
+    assert fresh not in names
 
 
 async def test_two_holders_of_one_name_serialize(engine: AsyncEngine) -> None:

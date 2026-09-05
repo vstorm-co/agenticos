@@ -203,34 +203,49 @@ class KnowledgeBaseService:
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
-        """Delete the KB row a dropped collection belonged to, and drop its table.
+        """Clear a dropped collection: sync its KB row, and drop its vector table.
 
         Keeps the KB table in sync when a collection is dropped via
-        `DELETE /rag/collections/{name}`. A default KB is left intact so the org
-        keeps a usable knowledge base - and its row then still references the name,
-        so the table is kept too. Clearing a kept default's vectors is #1364, not
-        this: an upload authorises through that row and would race the drop.
+        `DELETE /rag/collections/{name}`. A default KB keeps its **row** so the org
+        keeps a usable knowledge base, but its vector **table** is dropped all the
+        same - so a cleared default stops returning the documents deleted with it, the
+        stale-searchable-chunks bug a kept table left behind (#1361, #1364). A search
+        reads an absent table as empty and the next upload recreates it
+        (`_ensure_collection`); a non-default KB's row goes too.
 
         Takes the row rather than the name: the caller has already resolved
         which knowledge base it is allowed to act on, and looking the name up
         again would find whichever row the database returned first - possibly
         another organization's, where two of them share a collection name.
 
-        The vector table is dropped by the durable cleanup handed over after the
-        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), not in the
-        request. In-request the /rag route's drop stranded a rolled-back delete on a
-        dropped table, lost it to a worker restart, dropped a table a second base
-        still referenced, and raced a concurrent claim of the name (#1347, #1349,
-        #1355, #913). The name is held against a claim while the reference check and
-        the reservation are made, and reserved until the drop runs, so a create
-        cannot slip a new base onto the name and have this drop destroy its table
-        (#1362).
+        The table is dropped only when no base *other than this one* still references
+        the name. The vector namespace is not tenant-unique, so a name a sibling - or
+        another org - still holds backs a table their chunks live in too, and dropping
+        it would destroy theirs (#913). The drop is handed to the durable cleanup after
+        the commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), not run
+        in the request: an in-request drop stranded a rolled-back delete on a dropped
+        table, lost it to a worker restart, and raced a concurrent claim (#1347, #1349,
+        #1355). The name is held against a claim while the reference check and the
+        reservation are made, and reserved in `collection_teardowns` until the drop
+        runs, so neither a create (`claim`) nor an upload (`dispatch_upload`) can slip
+        onto the name and have this drop destroy its table (#1362, #1364).
         """
         collection = kb.collection_name
+        # The teardown lock comes before the KB row delete, one order across every
+        # path that takes both, so a concurrent purge cannot invert into a deadlock
+        # (#1387).
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
-        if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+        # A default keeps its own row, so filter it out by id: the table is dropped
+        # only when no base *other* than the one being cleared still references the
+        # name, so a shared name a sibling holds is not dropped from under it (#913).
+        others = [
+            ref
+            for ref in await knowledge_base_repo.list_by_collection_name(self.db, collection)
+            if ref.id != kb.id
+        ]
+        if not others:
             await collection_teardown_repo.reserve(self.db, collection)
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
@@ -528,7 +543,9 @@ class KnowledgeBaseService:
         # each saw the other's not-yet-committed row under READ COMMITTED, both
         # took the "still referenced" branch, and the table nobody referenced was
         # left behind (#1273). Held for the transaction, so the second teardown
-        # reads the first one's committed absence.
+        # reads the first one's committed absence. Taken before the row lock so
+        # every path holds teardown then rows, one order, and a concurrent purge
+        # cannot invert it into a deadlock (#1387).
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         # Lock the base before enumerating its documents, so a concurrent upload
         # or sync inserting a row cannot slip in between the enumeration and the
@@ -537,10 +554,6 @@ class KnowledgeBaseService:
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
         collections_to_drop: list[str] = []
-        # Hold the name against a concurrent claim while the last-reference check and
-        # the reservation are made, so a create cannot slip a new base onto the name
-        # between them and have the deferred drop destroy its table (#1362).
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it

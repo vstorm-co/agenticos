@@ -77,7 +77,7 @@ export function McpToolPickerDialog({
     >
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
-          <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
+          <DialogTitle>{t("toolsFrom", { name: toolPicker?.name ?? "" })}</DialogTitle>
         </DialogHeader>
         <p className="text-foreground/55 shrink-0 text-xs">
           {toolPicker?.appliesTo === "agent"

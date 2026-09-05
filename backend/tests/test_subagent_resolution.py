@@ -38,7 +38,13 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.spec import AgentSpec, McpServerRef, SpecialistSpec, SubagentRef
+from app.agents.spec import (
+    AgentSpec,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    SpecialistSpec,
+    SubagentRef,
+)
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
@@ -55,6 +61,7 @@ from app.services.agent_runner import (
     RecordedDelegation,
     month_start,
 )
+from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 
 pytestmark = pytest.mark.anyio
 
@@ -658,20 +665,23 @@ class TestAPublishedDelegate:
         connection_id = uuid.uuid4()
         pinned = _version(
             delegate_id,
-            AgentSpec(name="Linear Bot", mcp_servers=[McpServerRef(connection_id=connection_id)]),
+            AgentSpec(
+                name="Linear Bot", mcp_servers=[OrgMcpServerRef(connection_id=connection_id)]
+            ),
         )
         spec = _delegating(
             subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
         )
 
         with patch(
-            f"{RUNNER}.build_toolsets_for_agent", new=AsyncMock(return_value=["linear-toolset"])
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
         ) as toolsets:
             prepared = await _prepare(spec, versions={pinned.id: pinned})
             built = prepared.built("linear-bot")
 
         assert toolsets.await_args_list[-1].kwargs["refs"] == [
-            McpServerRef(connection_id=connection_id)
+            OrgMcpServerRef(connection_id=connection_id)
         ]
         assert built["extra_toolsets"] == ["linear-toolset"]
 
@@ -1688,3 +1698,39 @@ class TestTheRuntimeIsOptional:
         entry = ResolvedSubagent(name="summariser", description="brief", build=MagicMock())
 
         assert (entry.agent_id, entry.agent_version_id) == (None, None)
+
+
+class TestADelegateIsBriefedOnWhatItCannotReach:
+    """A delegate may bind a personal service the parent does not. Silently
+    losing it would have the delegate report failure where the parent could have
+    relayed "connect your Notion" - so the delegate's spec gets the same
+    paragraph the parent's would, and the parent reads it in the answer."""
+
+    async def test_the_delegates_instructions_name_the_missing_service(self):
+        delegate_id = uuid.uuid4()
+        pinned = _version(
+            delegate_id,
+            AgentSpec(
+                name="Notion Bot",
+                instructions="Search Notion.",
+                mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            ),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        with patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(
+                return_value=ResolvedMcpToolsets(
+                    [], [UnavailablePersonalService("notion", "not_connected")]
+                )
+            ),
+        ):
+            prepared = await _prepare(spec, versions={pinned.id: pinned})
+            built = prepared.built("notion-bot")
+
+        assert built["spec"].instructions.startswith("Search Notion.\n\n")
+        assert "has not connected their own Notion" in built["spec"].instructions
+        assert built["extra_toolsets"] == []

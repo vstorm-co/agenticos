@@ -41,7 +41,10 @@ from app.worker.tasks.report_tasks import (
     weekly_usage_report_flow,
 )
 from app.worker.tasks.run_tasks import stale_run_sweep_flow
-from app.worker.tasks.teardown_tasks import external_state_cleanup_flow
+from app.worker.tasks.teardown_tasks import (
+    external_state_cleanup_flow,
+    teardown_reservation_sweep_flow,
+)
 from app.worker.tasks.trigger_tasks import (
     check_agent_triggers_flow,
     poll_portal_grants_flow,
@@ -137,6 +140,16 @@ async def main() -> None:
     deployments.append(
         await stale_run_sweep_flow.ato_deployment(
             name="stale-run-sweep",
+            schedules=[IntervalSchedule(interval=3600)],
+        )
+    )
+    # Hourly, against a threshold measured in hours: a teardown reservation whose
+    # durable drop was lost to the commit-to-dispatch gap - or failed for good -
+    # blocks its collection name with nothing left to reattempt it. This reaps them,
+    # dropping the table and freeing the name (#1364).
+    deployments.append(
+        await teardown_reservation_sweep_flow.ato_deployment(
+            name="teardown-reservation-sweep",
             schedules=[IntervalSchedule(interval=3600)],
         )
     )

@@ -27,15 +27,24 @@ let authChecked = false;
 let tokenRefreshTimer: ReturnType<typeof setInterval> | null = null;
 const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
+// Which identity the reads in flight were started under. A deliberate re-read
+// moves it, and a read that began before the move is discarded when it lands:
+// the session was swapped underneath it - an impersonation started or ended -
+// and it would otherwise install the previous account and its token over the
+// one the cookies now hold, leaving the socket and the page as different people.
+let identityEpoch = 0;
+
 function ensureTokenRefresh(adopt: (u: User) => void): void {
   if (tokenRefreshTimer) return;
   tokenRefreshTimer = setInterval(() => {
     if (!useAuthStore.getState().isAuthenticated) return;
+    const epoch = identityEpoch;
     void (async () => {
       try {
         const { access_token, ...userData } = await apiClient.get<User & { access_token?: string }>(
           "/auth/me",
         );
+        if (epoch !== identityEpoch) return;
         // The answer says who the cookie belongs to now, and cookies are shared
         // across tabs: signing in as somebody else in another tab used to leave
         // this one rendering the first account while installing the second
@@ -126,6 +135,7 @@ export function useReauthenticate(): () => Promise<void> {
   const queryClient = useQueryClient();
   const setUser = useAuthStore((state) => state.setUser);
   return useCallback(async () => {
+    identityEpoch += 1;
     authChecked = false;
     authCheckPromise = null;
     await runAuthCheck((u) => adoptUser(queryClient, setUser, u));
@@ -135,19 +145,25 @@ export function useReauthenticate(): () => Promise<void> {
 function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authChecked) return Promise.resolve();
   if (authCheckPromise) return authCheckPromise;
+  const epoch = identityEpoch;
   authCheckPromise = (async () => {
+    let answer: (User & { access_token?: string }) | null;
     try {
-      const data = await apiClient.get<User & { access_token?: string }>("/auth/me");
-      const { access_token, ...userData } = data;
+      answer = await apiClient.get<User & { access_token?: string }>("/auth/me");
+    } catch {
+      answer = null;
+    }
+    if (epoch !== identityEpoch) return;
+    if (answer) {
+      const { access_token, ...userData } = answer;
       setUser(userData as User);
       useAuthStore.getState().setAccessToken(access_token ?? null);
-    } catch {
+    } else {
       setUser(null);
       useAuthStore.getState().setAccessToken(null);
-    } finally {
-      authChecked = true;
-      authCheckPromise = null;
     }
+    authChecked = true;
+    authCheckPromise = null;
   })();
   return authCheckPromise;
 }

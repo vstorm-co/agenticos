@@ -23,6 +23,7 @@ export const BFF_ERROR_KEYS = {
   FAILED_TO_GET_USER: "failedToGetUser",
   FILE_NOT_FOUND: "fileNotFound",
   FORBIDDEN: "forbidden",
+  IMPERSONATION_ENDED: "impersonationEnded",
   INTERNAL_SERVER_ERROR: "internalServerError",
   LOGIN_FAILED: "loginFailed",
   MISSING_AUTHORIZATION_CODE: "missingAuthorizationCode",

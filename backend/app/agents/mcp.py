@@ -159,7 +159,7 @@ def probe_error_message(exc: BaseException) -> str:
     return str(exc) or exc.__class__.__name__
 
 
-def _tool_prefix(name: str) -> str:
+def tool_prefix(name: str) -> str:
     """Connection name → tool prefix, e.g. "github-work" → "github_work"."""
     return re.sub(r"[^a-z0-9_]", "_", name.lower()).strip("_") or "mcp"
 
@@ -183,7 +183,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
-    return server.prefixed(_tool_prefix(spec.name))
+    return server.prefixed(tool_prefix(spec.name))
 
 
 def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:
@@ -197,7 +197,7 @@ def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:
     unique: list[McpServerSpec] = []
     taken: set[str] = set()
     for spec in specs:
-        prefix = _tool_prefix(spec.name)
+        prefix = tool_prefix(spec.name)
         if prefix in taken:
             logger.warning(
                 "Skipping MCP server %r: tool prefix %r is already used by another server",

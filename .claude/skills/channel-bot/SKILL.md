@@ -62,7 +62,9 @@ uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
 
 There is no `cmd channel` group — the commands are flat, hyphenated names.
 
-Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`.
+Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`. `jwt_linked` refuses
+an unlinked chat account everywhere on its own; `require_link` is the switch that
+makes the *other* modes refuse in a channel too (#639).
 
 ## Webhook vs polling
 
@@ -75,18 +77,31 @@ Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`.
 
 1. Implement `services/channels/<platform>.py` against `base.py`: parse inbound into
    the normalized message, send outbound.
+   Anything per bot the connection needs before it opens - a server address, an
+   app token - is registered in `prepare_connection`, the base hook the supervisor
+   calls on every adapter; do not add a differently named method for it.
 2. Wire it into `router.py` so inbound reaches the agent and replies stream back.
    **Do not fork the agent pipeline** — one runner behind every surface is the whole
    design.
-3. Add a signature-verified webhook route and/or a polling entrypoint.
+3. Add a signature-verified webhook route and/or a polling entrypoint. A polling
+   entrypoint runs its session under `supervise_stream` from `base.py` — the one
+   reconnect loop — and raises `ChannelNotConfigured` for anything a retry cannot
+   fix (a missing token or URL, a token the platform rejects); do not hand-roll a
+   `while True` with its own sleep.
 4. Reuse the existing conversation/session model.
 5. Respect the per-group/per-thread concurrency controls already in the adapters.
 
 ## Where charts come from
 
-Rendering a chart for a channel is the `charts` capability's job
-(`app/agents/capabilities/charts/`), not a channel module. There is no
-`chart_render.py` in `services/channels/` any more.
+Two halves, and the split is the point. The `charts` capability
+(`app/agents/capabilities/charts/`) owns the **spec**: `create_chart` returns a
+`ChartSpec`, which the web chat renders with Recharts and a replay draws again.
+A chat platform can render neither, so `services/channels/chart_png.py` owns the
+**channel raster**: `mentions.drawn_chart` takes the turn's last chart call and
+`render_chart_png` rasterises it to a PNG the adapter attaches. `RENDERERS` there
+is one entry per `ChartType`, held equal to the capability's list by
+`tests/test_channel_charts.py` — a new type is added in both places or fails
+there. There is no `chart_render.py`; the file is `chart_png.py`.
 
 ## Coverage
 

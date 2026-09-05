@@ -5,6 +5,7 @@ import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { PageTransition } from "@/components/layout/page-transition";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
@@ -28,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}
           <MobileHeader />
+          <ImpersonationBanner />
           {/* The column and the content scroll independently, which is the point
             of a persistent sidebar: navigation stays put while a long run list
             moves under it. */}
