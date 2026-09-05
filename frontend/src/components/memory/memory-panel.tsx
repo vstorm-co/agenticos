@@ -53,6 +53,10 @@ export function MemoryPanel({
 
   const showSwitcher = enableFiles && enableFacts;
   const active: SubTab = showSwitcher ? sub : enableFiles ? "files" : "facts";
+  // A mem0 agent's facts live in mem0, so every native fact route refuses it. Say so
+  // once here rather than mounting a pane whose every request comes back an error,
+  // and keep the danger zone out: the combined clear refuses too, so it could only fail.
+  const factsAreRemote = backend === "mem0";
   const { clearMemory } = useMemoryDangerZone(agentId);
   const [clearOpen, setClearOpen] = useState(false);
 
@@ -111,11 +115,13 @@ export function MemoryPanel({
         />
       ) : active === "files" ? (
         <MemoryFilesPane key={scope} agentId={agentId} canEdit={canEdit} scope={scope} />
+      ) : factsAreRemote ? (
+        <EmptyState icon={Database} title={t("factsInMem0")} description={t("factsInMem0Hint")} />
       ) : (
         <MemoryFactsPane key={scope} agentId={agentId} canEdit={canEdit} scope={scope} />
       )}
 
-      {canEdit && (enableFiles || enableFacts) && (
+      {canEdit && !factsAreRemote && (enableFiles || enableFacts) && (
         <Card className="border-destructive/40">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
             <div className="min-w-0 space-y-1">

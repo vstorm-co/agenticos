@@ -4913,6 +4913,8 @@
     "noFactsHint": "The agent writes facts as it runs — short things worth recalling later.",
     "noFactMatches": "No facts match",
     "noFactMatchesHint": "The filter is a substring match on the fact text.",
+    "factsInMem0": "Facts live in mem0",
+    "factsInMem0Hint": "This agent stores its facts in a mem0 service, so they are inspected, seeded and cleared there rather than here. Files are still kept by this deployment and shown under Files.",
     "nothingEnabled": "Memory is off",
     "nothingEnabledHint": "Neither files nor facts are enabled. Turn one on in the Toolbox to use memory.",
     "scopePerUser": "Per-user",

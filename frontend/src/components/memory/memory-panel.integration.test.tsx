@@ -94,6 +94,32 @@ describe("MemoryPanel", () => {
     expect(screen.getByText("Backend: mem0")).toBeInTheDocument();
   });
 
+  it("says where a mem0 agent's facts are instead of listing an empty native store", async () => {
+    // Every native fact route refuses a mem0-backed agent, so mounting the pane would
+    // ask three times and render an error with a live "New fact" button above it.
+    mount({ backend: "mem0" });
+    await screen.findByText("user-preferences");
+
+    await userEvent.click(screen.getByRole("button", { name: "Facts" }));
+
+    expect(await screen.findByText("Facts live in mem0")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New fact" })).not.toBeInTheDocument();
+    const factCalls = vi
+      .mocked(apiClient.get)
+      .mock.calls.map(([url]) => url as string)
+      .filter((url) => url.startsWith("/memory/facts"));
+    expect(factCalls).toHaveLength(0);
+  });
+
+  it("hides the danger zone for a mem0 agent, whose clear can only fail", async () => {
+    // The combined clear refuses before deleting anything, rather than dropping the
+    // native files and leaving every mem0 fact recallable.
+    mount({ backend: "mem0" });
+    await screen.findByText("user-preferences");
+
+    expect(screen.queryByRole("button", { name: "Clear all memory" })).not.toBeInTheDocument();
+  });
+
   it("shows a shared-only badge when personal memory is off", () => {
     mount({ allowPersonal: false });
 
