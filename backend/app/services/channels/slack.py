@@ -16,6 +16,7 @@ import logging
 import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -70,6 +71,20 @@ At Slack's 1000 ids per page this covers a fifty-thousand-member channel,
 which is a bound on a runaway cursor rather than on any real room.
 """
 
+_FILE_HOSTS = ("slack.com", "slack-files.com")
+"""Where Slack serves a file's `url_private`; the bot token is sent nowhere else."""
+
+
+def _slack_file_host(url: str) -> str | None:
+    """The host of a Slack file URL, or `None` if it is not one of Slack's over TLS."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host:
+        return None
+    if any(host == root or host.endswith(f".{root}") for root in _FILE_HOSTS):
+        return host
+    return None
+
 
 class SlackAdapter(ChannelAdapter):
     """Concrete Slack adapter using slack-sdk."""
@@ -91,6 +106,12 @@ class SlackAdapter(ChannelAdapter):
     def remember_app_token(self, bot_id: str, app_token: str) -> None:
         """Register the app-level token Socket Mode will connect with."""
         self._app_tokens[bot_id] = app_token
+
+    def prepare_connection(
+        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+    ) -> None:
+        if app_token:
+            self.remember_app_token(bot_id, app_token)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -689,7 +710,19 @@ class SlackAdapter(ChannelAdapter):
         token would store that page as the user's spreadsheet. Hence the explicit
         content-type check - the failure mode here is silent corruption, not an
         error.
+
+        The URL comes out of the event payload, and this is the one place a
+        payload-supplied address is fetched with the bot token in the header - so
+        the host is checked against Slack's own before anything is sent. The
+        payload is signed, which makes this a second lock rather than the first;
+        a token posted to a host somebody else named is still a token gone.
         """
+        host = _slack_file_host(attachment.handle)
+        if host is None:
+            raise ValueError(
+                f"Slack named a file host this bot will not send its token to for "
+                f"{attachment.filename}."
+            )
         response = await self._http.get(
             attachment.handle, headers={"Authorization": f"Bearer {bot_token}"}
         )

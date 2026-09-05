@@ -77,6 +77,9 @@ makes the *other* modes refuse in a channel too (#639).
 
 1. Implement `services/channels/<platform>.py` against `base.py`: parse inbound into
    the normalized message, send outbound.
+   Anything per bot the connection needs before it opens - a server address, an
+   app token - is registered in `prepare_connection`, the base hook the supervisor
+   calls on every adapter; do not add a differently named method for it.
 2. Wire it into `router.py` so inbound reaches the agent and replies stream back.
    **Do not fork the agent pipeline** — one runner behind every surface is the whole
    design.

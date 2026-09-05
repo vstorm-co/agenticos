@@ -136,6 +136,12 @@ class MattermostAdapter(ChannelAdapter):
         """Record which Mattermost server a bot belongs to."""
         self._base_urls[bot_id] = api_base_url.rstrip("/")
 
+    def prepare_connection(
+        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+    ) -> None:
+        if api_base_url:
+            self.remember_server(bot_id, api_base_url)
+
     def _client(self) -> contextlib.AbstractAsyncContextManager[httpx.AsyncClient]:
         """The adapter's shared HTTP client, borrowed for one request cycle.
 

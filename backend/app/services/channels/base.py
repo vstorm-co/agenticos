@@ -240,9 +240,40 @@ class OutgoingMessage:
 
 
 class ChannelAdapter(ABC):
-    """Abstract base class for all messaging platform adapters."""
+    """One messaging platform, behind the interface the router speaks.
+
+    An adapter is a singleton serving every bot on its platform, so anything
+    per bot - a self-hosted server's address, a Slack app's own token - is
+    registered against the bot id through :meth:`prepare_connection` before a
+    stream opens, never read off a row at send time.
+
+    **HTTP clients, decided once here rather than three times.** REST traffic
+    the adapter makes itself goes through one `httpx.AsyncClient` per adapter,
+    built in `__init__` and closed in :meth:`aclose`: a streamed turn is dozens
+    of calls to one host, and a client per call throws the pool away before it
+    is reused, paying a TLS handshake each time (#952). A vendor SDK object is
+    the exception and is built per call inside a context manager that closes
+    it: aiogram's `Bot` opens a session it leaks unless closed, and slack-sdk's
+    `AsyncWebClient` is a thin wrapper that holds nothing worth keeping. So
+    Mattermost is one client; Slack is one client for its own downloads and an
+    SDK object per send; Telegram is an SDK object per call, closed on the way
+    out. What none of them does is build an `httpx.AsyncClient` per message.
+    """
 
     platform: str  # class-level constant e.g. "telegram"
+
+    def prepare_connection(  # noqa: B027
+        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+    ) -> None:
+        """Register what this bot's connection needs before the stream opens.
+
+        The adapter is one object serving every bot, so a per-bot fact - a
+        self-hosted server's address, a Slack app's `xapp-` token - is keyed on
+        the bot id here, and a stream opened before this ran would have nowhere
+        to connect. A platform that needs neither leaves it alone; the supervisor
+        calls it on every adapter the same way, which is what replaced reaching
+        for two differently named methods by `getattr`.
+        """
 
     @abstractmethod
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
