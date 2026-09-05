@@ -20,8 +20,8 @@ What replaced both is this module, and the shape is deliberately
 Production runs `uvicorn --workers 4`, so a per-process counter lets through
 four times what it says it does - and a limit that is wrong by the worker count
 is worse than no limit, because it reads as one that holds. The channel
-router's own `_rate_buckets` is per-process and is not a model to follow here,
-which that module already says.
+router's per-account allowance counts through here too, for the same reason:
+its own per-process dict was off by the worker count and never forgot a caller.
 
 *A fixed window, not a rolling one.* `INCR` plus an `EXPIRE … NX`, two
 commands, and a caller who arrives at the end of one window and again at the

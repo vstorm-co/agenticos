@@ -1127,7 +1127,10 @@ it is about to wait.
     real and worth saying: anyone who can speak in the channel can spend the
     organization's budget and reach what the binding's creator can reach, which
     is the same trade a public widget makes. The ceilings are the rate limit per
-    chat account, the access policy, and the organization's monthly cap.
+    chat account, the access policy, and the organization's monthly cap. The
+    rate limit (`rate_limit_rpm` on the bot's access policy, ten a minute by
+    default) is counted in the deployment's shared Redis, so it holds across
+    API workers rather than once per worker.
 
     Set **`require_link`** on the bot's access policy to refuse in channels too,
     which is the old behaviour.
