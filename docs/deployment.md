@@ -261,11 +261,12 @@ with the one button that ends it.
 
 An impersonation is a **session**, not a bare credential. The token names a row
 in `sessions` with `impersonator_user_id` set, and the API refuses it the moment
-that row is ended or has expired — so it stops when you press **End
-impersonation**, when the person signs out everywhere or resets their password,
-when the hour is up, or when the administrator's own account is deleted,
-whichever is first. It cannot be refreshed: the window is the access token's own,
-and the hour is the ceiling rather than a renewable lease.
+that row is ended or has expired, or the administrator behind it is no longer an
+active app admin — so it stops when you press **End impersonation**, when the
+person signs out everywhere or resets their password by email, when the hour is
+up, or when the administrator is suspended, demoted or deleted, whichever is
+first. It cannot be refreshed: the window is the access token's own, and the hour
+is the ceiling rather than a renewable lease.
 
 !!! note "The person's own devices list does not show it"
 
@@ -438,8 +439,8 @@ which is when the module goes away.
 - `signup_mode` is applied in **one place** and gates both paths that mint an
   account. An invitation overrides a domain list; nothing overrides `closed`.
 - An app admin **cannot lock themselves out** through the console.
-- **Impersonation is a session**: started from the console with no token exposed,
-  named in a banner, ended by the administrator, by the person signing out
-  everywhere, or by the hour. Whether the person is told is
+- **Impersonation is a session**: started from the console with no token on the
+  clipboard, named in a banner, ended by the administrator, by the person signing
+  out everywhere, or by the hour. Whether the person is told is
   `notify_impersonated_users`, off by default.
 - Every refusal from this deployment looks the same, whichever layer produced it.

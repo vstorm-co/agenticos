@@ -322,10 +322,14 @@ class TestTheWebSocketDoor:
         websocket = MagicMock()
         websocket.headers = {"sec-websocket-protocol": f"access_token.{self.token}, chat"}
         websocket.state = MagicMock()
+        accounts = {self.admin.id: self.admin, self.target.id: self.target}
         with (
             patch("app.api.deps.get_db_context", new=context),
             patch("app.repositories.session.get_by_id", new=AsyncMock(return_value=row)),
-            patch("app.repositories.user.get_by_id", new=AsyncMock(return_value=self.target)),
+            patch(
+                "app.repositories.user.get_by_id",
+                new=AsyncMock(side_effect=lambda db, user_id: accounts.get(user_id)),
+            ),
         ):
             return await get_current_user_ws(websocket, access_token=None)
 

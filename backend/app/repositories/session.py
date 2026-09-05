@@ -38,8 +38,8 @@ def _own(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
     that policy for them (#1044).
 
     Revocation is deliberately *not* narrowed: `deactivate_all_user_sessions`
-    ends every row under the id, impersonations included, so a password reset
-    and "sign out everywhere" end an administrator's access along with the
+    ends every row under the id, impersonations included, so a password reset by
+    email and "sign out everywhere" end an administrator's access along with the
     person's own sessions.
     """
     return query.where(Session.impersonator_user_id.is_(None))

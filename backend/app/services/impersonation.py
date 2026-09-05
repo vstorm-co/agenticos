@@ -11,21 +11,23 @@ An impersonation is now a **row in `sessions`** under the target's id, with
 `impersonator_user_id` naming the administrator, and its access token names
 that row in a `sid` claim. Three consequences, each of them the point:
 
-- **It ends when the row does.** The auth dependency calls :meth:`verify` on
-  every request carrying `act`, and refuses the token the moment the row is
-  gone, deactivated or past `expires_at`. So `DELETE /sessions`, a password
-  reset, the administrator's own *End impersonation* and a deleted
-  administrator (the column cascades) all end it at once, through the machinery
-  every other session already had. A token minted before this module - `act`
-  with no `sid` - is refused outright, because it is exactly the credential
-  this replaces.
+- **It ends when the row does, or when the administrator stops being one.**
+  The auth dependency calls :meth:`verify` on every request carrying `act`, and
+  refuses the token the moment the row is gone, deactivated or past
+  `expires_at`, or the administrator behind it has been suspended or demoted.
+  So `DELETE /sessions`, a password reset by email, the administrator's own
+  *End impersonation*, a deleted administrator (the column cascades) and a
+  suspended one all end it at once, through the machinery every other session
+  already had. A token minted before this module - `act` with no `sid` - is
+  refused outright, because it is exactly the credential this replaces.
 - **Nothing extends it.** There is no refresh token: the window is the access
   token's own lifetime, and `SessionService.validate_refresh_token` declines an
   impersonation row, so the access token cannot be posted back as a refresh
   token to mint a plain week-long session as the target.
 - **The credential never reaches a clipboard.** The token is returned to the
   BFF, which puts it in the same HttpOnly cookie every other access token lives
-  in; the browser's JavaScript never sees it.
+  in, and it reaches the page only the way every access token does - echoed by
+  the session read for the chat socket - never as something to copy.
 
 Whether the person is *told* is the deployment's policy - `notify_impersonated_users`
 on the settings row, off by default - and the email goes out after the commit,
@@ -52,7 +54,7 @@ from app.core.background import spawn_after_commit
 from app.core.exceptions import AuthenticationError, BadRequestError
 from app.core.security import create_access_token
 from app.db.models.user import User
-from app.repositories import session_repo
+from app.repositories import session_repo, user_repo
 from app.schemas.user import ImpersonateResponse, ImpersonationRead, ImpersonatorRead
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
@@ -187,12 +189,15 @@ class ImpersonationService:
 
         settings_service = DeploymentSettingsService(self.db)
         if await settings_service.notifies_impersonated_users():
+            # The human on the row and in the token, not the account one hop up a
+            # nested chain: the notice has to name who the audit trail names.
+            acting = admin if actor == admin.id else await UserService(self.db).get_by_id(actor)
             spawn_after_commit(
                 self.db,
                 _notify_target(
                     to=target.email,
                     name=target.full_name or target.email,
-                    admin_email=admin.email,
+                    admin_email=acting.email,
                     app_name=await settings_service.effective_app_name(),
                 ),
                 name=f"impersonation_notice:{target.id}",
@@ -202,7 +207,7 @@ class ImpersonationService:
             access_token=token,
             token_type="bearer",
             impersonated_user_id=str(target.id),
-            impersonated_by=str(admin.id),
+            impersonated_by=str(actor),
             expires_in=int(WINDOW.total_seconds()),
             expires_at=row.expires_at,
             session_id=row.id,
@@ -221,10 +226,17 @@ class ImpersonationService:
         row is what stops a `sid` being carried onto a token it was not issued
         with, however the signature was obtained.
 
+        The administrator is checked too, not only the row: `is_active` is
+        enforced on their own token by the subject check in the auth dependency,
+        which an impersonation token never reaches, so without this a suspended
+        or demoted administrator would keep acting as somebody else for the rest
+        of the hour.
+
         Raises:
             AuthenticationError: For an `act` token with no `sid` (minted before
                 impersonations were sessions, and exactly the unendable credential
-                this replaces) and for one whose row has been ended.
+                this replaces), for one whose row has been ended, and for one whose
+                administrator is no longer an active app admin.
         """
         impersonator = impersonator_from(payload)
         if impersonator is None:
@@ -245,6 +257,10 @@ class ImpersonationService:
             or str(row.user_id) != subject
             or not secrets.compare_digest(row.refresh_token_hash, hash_token(token))
         ):
+            raise AuthenticationError(message="Impersonation has ended")
+
+        admin = await user_repo.get_by_id(self.db, impersonator)
+        if admin is None or not admin.is_active or not admin.is_app_admin:
             raise AuthenticationError(message="Impersonation has ended")
 
         active = ActiveImpersonation(
@@ -277,8 +293,9 @@ class ImpersonationService:
         The credential that *is* the impersonation is what ends it, which is why
         this takes no id: the administrator's browser holds nothing else at that
         moment, and a row id in the body would be a second thing to authorise.
-        Recorded with the administrator as the actor - the same shape as the
-        start - rather than as the target with an impersonator behind them.
+        Recorded with the administrator as the actor rather than as the target
+        with an impersonator behind them; in a nested chain that is the human who
+        started it, which is who the row and the token name.
 
         Raises:
             BadRequestError: When this request is nobody acting as anybody.

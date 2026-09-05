@@ -123,9 +123,11 @@ class ImpersonateResponse(BaseSchema):
     """An impersonation just opened: the token that is it, and the row it names.
 
     The token reaches the console's BFF, which puts it in the same HttpOnly cookie
-    every other access token lives in - it is never handed to the browser's own
-    code (#1044). `session_id` is the row the token names in its `sid` claim and
-    the one ending it closes; `expires_at` is when it closes on its own.
+    every other access token lives in - never into something a page could copy to
+    a clipboard (#1044). `session_id` is the row the token names in its `sid`
+    claim and the one ending it closes; `expires_at` is when it closes on its own.
+    `impersonated_by` is who the row and the `act` claim name: in a nested chain,
+    the human who started it rather than the account one hop up.
     """
 
     access_token: str

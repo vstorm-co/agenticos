@@ -225,6 +225,7 @@ class TestStarting:
         payload = verify_token(response.access_token)
         assert payload is not None
         assert payload["act"] == str(a)
+        assert response.impersonated_by == str(a)
         assert repos["create"].await_args.kwargs["impersonator_user_id"] == a
         (entry,) = _audit_entries(db)
         assert (entry.actor_user_id, entry.impersonator_user_id) == (b.id, a)
@@ -293,6 +294,39 @@ class TestTellingTheTarget:
             context={"name": "Cust Omer", "admin_email": admin.email, "app_name": "Acme Agents"},
         )
 
+    async def test_a_nested_impersonation_names_the_human_not_the_account_between(
+        self, admin: MagicMock, target: MagicMock
+    ) -> None:
+        """A acts as app-admin B and, as B, impersonates C. The notice C gets names
+        A - who the row, the token and the audit trail name - not B."""
+        a = _user(email="a@example.com")
+        set_impersonator(a.id)
+        accounts = {target.id: target, a.id: a}
+        create = AsyncMock(side_effect=lambda db, **kwargs: _created_row(**kwargs))
+        with (
+            patch(
+                "app.repositories.user.get_by_id",
+                new=AsyncMock(side_effect=lambda db, user_id: accounts[user_id]),
+            ),
+            patch("app.repositories.session.create", new=create),
+            patch(
+                "app.repositories.deployment_settings.get",
+                new=AsyncMock(
+                    return_value=MagicMock(notify_impersonated_users=True, app_name=None)
+                ),
+            ),
+            patch.object(module, "spawn_after_commit") as spawn,
+        ):
+            await ImpersonationService(_db()).start(
+                admin=admin, target_id=target.id, ip_address=None, user_agent=None
+            )
+
+        send = AsyncMock()
+        with patch.object(module, "get_email_service", return_value=MagicMock(send=send)):
+            await spawn.call_args.args[1]
+
+        assert send.await_args.kwargs["context"]["admin_email"] == "a@example.com"
+
     async def test_a_notice_that_cannot_be_sent_raises_nothing(self, start: Any) -> None:
         """The impersonation has already started and been recorded; a mail server
         that is down is a log line, not a second failure."""
@@ -327,8 +361,26 @@ class TestVerifying:
             setattr(row, name, value)
         return row
 
-    async def _verify(self, row: MagicMock | None, *, payload: dict[str, Any] | None = None) -> Any:
-        with patch("app.repositories.session.get_by_id", new=AsyncMock(return_value=row)):
+    def _admin(self, *, is_active: bool = True, is_app_admin: bool = True) -> MagicMock:
+        admin = _user(email="admin@example.com", is_active=is_active)
+        admin.id = self.admin_id
+        admin.is_app_admin = is_app_admin
+        return admin
+
+    async def _verify(
+        self,
+        row: MagicMock | None,
+        *,
+        payload: dict[str, Any] | None = None,
+        admin: MagicMock | None = None,
+    ) -> Any:
+        with (
+            patch("app.repositories.session.get_by_id", new=AsyncMock(return_value=row)),
+            patch(
+                "app.repositories.user.get_by_id",
+                new=AsyncMock(return_value=self._admin() if admin is None else admin),
+            ),
+        ):
             return await ImpersonationService(_db()).verify(
                 payload=payload if payload is not None else self.payload,
                 token=self.token,
@@ -402,6 +454,17 @@ class TestVerifying:
     async def test_a_row_for_another_account_is_refused(self) -> None:
         with pytest.raises(AuthenticationError, match="ended"):
             await self._verify(self._live_row(user_id=uuid.uuid4()))
+
+    async def test_a_suspended_administrator_stops_acting_as_anybody(self) -> None:
+        """`is_active` is enforced on the administrator's own token by the subject
+        check, which an impersonation token never reaches; without this a
+        suspended administrator keeps acting as somebody else for the hour."""
+        with pytest.raises(AuthenticationError, match="ended"):
+            await self._verify(self._live_row(), admin=self._admin(is_active=False))
+
+    async def test_a_demoted_administrator_stops_acting_as_anybody(self) -> None:
+        with pytest.raises(AuthenticationError, match="ended"):
+            await self._verify(self._live_row(), admin=self._admin(is_app_admin=False))
 
     async def test_a_token_carried_onto_another_session_is_refused(self) -> None:
         """The row holds the hash of the token it was minted for, so a `sid` pasted

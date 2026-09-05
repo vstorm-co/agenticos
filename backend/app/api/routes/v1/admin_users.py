@@ -121,7 +121,8 @@ async def impersonate_user(
     The answer is a session, not a bare credential: the token names a row in
     `sessions` and is refused the moment that row is ended, so an impersonation
     stops when the administrator ends it, when the target signs out everywhere or
-    resets their password, or when the hour is up - whichever is first (#1044).
+    resets their password by email, when the administrator is suspended, or when
+    the hour is up - whichever is first (#1044).
     It carries the administrator as an `act` claim, so every action taken with it
     is attributable to who was really acting (#943).
     """
