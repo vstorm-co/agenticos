@@ -22,8 +22,8 @@ not do (two `NULL` scopes would read as distinct and let one name exist twice).
 This is the first `NULLS NOT DISTINCT` constraint in the schema; it needs
 PostgreSQL 15+, which the deployment already requires (pgvector/pgvector:pg16).
 
-Revision ID: 0071_agent_memory_files
-Revises: 0070_mcp_registry_servers
+Revision ID: 0072_agent_memory_files
+Revises: 0071_mcp_connection_catalog_key
 Create Date: 2026-09-01
 
 """
@@ -34,8 +34,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0071_agent_memory_files"
-down_revision: str | None = "0070_mcp_registry_servers"
+revision: str = "0072_agent_memory_files"
+down_revision: str | None = "0071_mcp_connection_catalog_key"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

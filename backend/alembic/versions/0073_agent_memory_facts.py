@@ -24,8 +24,8 @@ either wrong fails only on a real database:
   that later changes `EMBEDDING_MODEL` gets a dimension-mismatch at embed time,
   which is the documented cost of one fixed-width table.
 
-Revision ID: 0072_agent_memory_facts
-Revises: 0071_agent_memory_files
+Revision ID: 0073_agent_memory_facts
+Revises: 0072_agent_memory_files
 Create Date: 2026-09-01
 
 """
@@ -37,14 +37,13 @@ import sqlalchemy as sa
 from alembic import op
 from app.core.config import settings
 
-revision: str = "0072_agent_memory_facts"
-down_revision: str | None = "0071_agent_memory_files"
+revision: str = "0073_agent_memory_facts"
+down_revision: str | None = "0072_agent_memory_files"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# pgvector's HNSW index supports a `vector` column up to this width; past it the
-# column must be indexed as `halfvec`. Mirrors `_HNSW_MAX_VECTOR_DIM` in the RAG
-# vector store, which makes the same choice for the same reason.
+# pgvector's HNSW index takes a `vector` column up to this width; past it the column
+# must be indexed as `halfvec`. Mirrors `_HNSW_MAX_VECTOR_DIM` in the RAG vector store.
 _HNSW_MAX_VECTOR_DIM = 2000
 
 
@@ -106,9 +105,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Dropping the table takes the embedding column and the HNSW index with it.
-    # The `vector` extension is deliberately left in place: the RAG store shares
-    # it, so dropping it here would break search on any deployment using both.
+    # The `vector` extension stays: the RAG store shares it, so dropping it here would
+    # break search on any deployment using both.
     op.drop_index(op.f("agent_memory_facts_agent_id_idx"), table_name="agent_memory_facts")
     op.drop_index(op.f("agent_memory_facts_organization_id_idx"), table_name="agent_memory_facts")
     op.drop_table("agent_memory_facts")
