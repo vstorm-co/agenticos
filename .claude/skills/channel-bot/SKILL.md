@@ -78,7 +78,11 @@ Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`.
 2. Wire it into `router.py` so inbound reaches the agent and replies stream back.
    **Do not fork the agent pipeline** — one runner behind every surface is the whole
    design.
-3. Add a signature-verified webhook route and/or a polling entrypoint.
+3. Add a signature-verified webhook route and/or a polling entrypoint. A polling
+   entrypoint runs its session under `supervise_stream` from `base.py` — the one
+   reconnect loop — and raises `ChannelNotConfigured` for anything a retry cannot
+   fix (a missing token or URL, a token the platform rejects); do not hand-roll a
+   `while True` with its own sleep.
 4. Reuse the existing conversation/session model.
 5. Respect the per-group/per-thread concurrency controls already in the adapters.
 
