@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.364] - 2026-09-05
+
+### Fixed
+
+- **A quiet Telegram bot read `unknown` on the channels listing while polling
+  fine.** `record_up` fires once when the poll opens and the connection entry
+  expires on a fifteen-minute TTL, with nothing re-stamping it - the defect
+  #1351 fixed for Slack Socket Mode and the Mattermost event stream, whose own
+  body named Telegram polling as the same shape. It gets the same heartbeat.
+
 ## [0.0.363] - 2026-09-05
 
 ### Fixed
