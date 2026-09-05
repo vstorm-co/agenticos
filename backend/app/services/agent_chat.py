@@ -47,11 +47,12 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
-from app.repositories import conversation_repo, conversation_share_repo, member_repo
+from app.repositories import conversation_repo, member_repo
 from app.services.agent_runner import (
     AgentRunnerService,
     ParkedApproval,
     PausedRunState,
+    PersonalServiceGap,
     PreparedRun,
     _classify_output,
     _outcome,
@@ -65,6 +66,11 @@ logger = logging.getLogger(__name__)
 # iterator. Typed against the agent the factory builds, so a surface that
 # forwards events cannot quietly be given a different kind of run.
 type ChatStream = Callable[[AgentRun[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
+
+# Told once per turn, before the model answers, which of the agent's personal MCP
+# services this person cannot reach - so a surface can draw the button that
+# connects one beside the sentence the agent is about to say.
+type PersonalGapSink = Callable[[list[PersonalServiceGap]], Awaitable[None]]
 
 # Said to someone chatting in an organization they no longer belong to. Their
 # socket was authenticated against that organization at connect time, so this is
@@ -286,24 +292,6 @@ class ChatAgentRunner:
         self.runner = AgentRunnerService(db)
         self.usage = UsageReportService(db)
 
-    async def _only_reader(self, conversation_id: UUID | None, organization_id: UUID) -> bool:
-        """Whether this turn has exactly one reader: the person running it.
-
-        The condition a personal MCP substitution waits for. A conversation with
-        no id yet has been shared with nobody, so it qualifies; one with any
-        share does not, and a public-link share counts - it carries no
-        `shared_with` and is a reader all the same.
-
-        A conversation shared *later* still holds this turn's output, which no
-        check here can undo. What it can do is stop adding to the pile.
-        """
-        if conversation_id is None:
-            return True
-        shares = await conversation_share_repo.get_shares_for_conversation(
-            self.db, conversation_id, organization_id=organization_id
-        )
-        return not shares
-
     async def run(
         self,
         *,
@@ -320,6 +308,7 @@ class ChatAgentRunner:
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
+        on_personal_gaps: PersonalGapSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
@@ -384,14 +373,12 @@ class ChatAgentRunner:
             surface=RunSurface.WEB,
             conversation_id=conversation_id,
             user_name=user.full_name,
-            # Asked, not assumed. A dashboard conversation is one person's own
-            # until it is shared, and a shared one - to a member at view or edit
-            # level, or through a public link - is read by somebody who is not
-            # the runner. Treating the whole web surface as private let a binding
-            # flagged `use_personal_when_available` query the runner's own
-            # third-party account and persist the answer where other people read
-            # it.
-            private_to_user=await self._only_reader(conversation_id, organization_id),
+            # The dashboard always has a signed-in person at the keyboard, so a
+            # personal MCP binding speaks as them - in a shared conversation too,
+            # where the answer is read by others exactly as it would be in a
+            # channel. The binding is explicit in the spec, so that is the
+            # author's decision and the reader's, not a surprise.
+            acts_for_sender=True,
             model_profile_id=model_profile_id,
             # The version this environment pins runs instead of the default -
             # how a dev environment is exercised from the chat before promotion.
@@ -411,6 +398,11 @@ class ChatAgentRunner:
         # between two of this turn's own, where nothing streams. Without this the
         # chat stops dead for the length of it with nothing said.
         prepared.deps.on_compaction = on_compaction
+        # Before the model answers, not after: the model is about to say it cannot
+        # reach the person's Notion, and the card with the button that connects it
+        # belongs beside that sentence, not under it once the turn is over.
+        if on_personal_gaps is not None and prepared.personal_service_gaps:
+            await on_personal_gaps(prepared.personal_service_gaps)
 
         # Before the run, not after: this run may fail, park or be cancelled, and
         # a transcript that holds the answer but not the question is the one shape

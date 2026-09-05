@@ -79,6 +79,8 @@ export async function createMcpConnection(input: {
   allowed_tools?: string[] | null;
   is_enabled?: boolean;
   label?: string;
+  /** Which catalog server this is an account on - what a binding to each person's own account matches it by. */
+  catalog_key?: string;
 }): Promise<McpConnectionRecord> {
   return apiClient.post<McpConnectionRecord>(ROOT, input);
 }
@@ -116,7 +118,7 @@ export async function testMcpConnection(id: string): Promise<McpConnectionTestRe
  * `/oauth/callback` route, which finishes the exchange.
  */
 export async function startMcpOAuth(
-  input: { name: string; url: string },
+  input: { name: string; url: string; catalog_key?: string },
   scope: "personal" | "organization" = "personal",
 ): Promise<{ authorization_url: string }> {
   // Two endpoints, one flow. Which one decides who *holds* the connection when

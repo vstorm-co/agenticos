@@ -85,7 +85,9 @@ async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ct
     a UUID and would answer this path with a 422 instead.
     """
     try:
-        authorization_url = await service.oauth_start_for_org(ctx, name=data.name, url=data.url)
+        authorization_url = await service.oauth_start_for_org(
+            ctx, name=data.name, url=data.url, catalog_key=data.catalog_key
+        )
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return McpOAuthStartResult(authorization_url=authorization_url)

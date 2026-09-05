@@ -42,7 +42,8 @@ import type { McpCatalogEntry } from "@/types/mcp";
 import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
-import { McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
@@ -111,7 +112,8 @@ import {
   withSkills,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import type { FieldProblem } from "@/lib/api-error";
+import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -119,6 +121,7 @@ import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/age
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { narrowedSelection } from "@/lib/mcp-servers";
 
@@ -139,11 +142,20 @@ interface PageProps {
  * the agent is bound to, and they can at least be narrowed further without a
  * probe. The dialog says where to get the real list.
  */
-function toolChoice(connection: OrgMcpConnectionRecord, ref: McpServerRef): ToolPickerState {
+function toolChoice(
+  ref: McpServerRef,
+  connection: OrgMcpConnectionRecord,
+  name: string,
+): ToolPickerState {
   const probed = connection.last_tools;
-  const tools = probed ?? (ref.allowed_tools ?? []).map((name) => ({ name, description: "" }));
+  const tools =
+    probed ?? (ref.allowed_tools ?? []).map((tool) => ({ name: tool, description: "" }));
   return {
     scope: "organization",
+    // The server's name, not the connection's: a binding to each person's own
+    // account borrows an organization connection's probe for the catalogue of
+    // tools and is not a narrowing of that connection.
+    name,
     connection,
     tools,
     checked: new Set(ref.allowed_tools ?? tools.map((one) => one.name)),
@@ -155,6 +167,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
   const tAgents = useTranslations("agents");
+  const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
@@ -179,9 +192,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // is refused at publish, so offering one would be offering a choice that
   // cannot be published. `useMcpCatalog` only supplies the names and logos -
   // the ids the spec stores belong to the connections.
-  const { connections: mcpConnections } = useOrgMcpConnections();
+  const { connections: mcpConnections, test: probeMcpConnection } = useOrgMcpConnections();
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
+  // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
+  // picker state rather than inside it because the dialog is shared with the
+  // servers page, where a binding is not a thing.
+  const [toolBinding, setToolBinding] = useState<string | null>(null);
   const { exposures } = useExposures(id);
   const { embeds } = useEmbeds(id);
   const { servers: mcpCatalog } = useMcpCatalog();
@@ -383,6 +400,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
         icon: MAP_ICONS.mcp,
         side: "right",
         items: spec.mcp_servers.map((ref) => {
+          if (ref.account === "personal") {
+            // Named after the service, because there is no connection to name:
+            // whose answers is decided when somebody talks to the agent.
+            const entry = mcpCatalog.find((one) => one.key === ref.catalog_key);
+            const name = entry?.name ?? ref.catalog_key;
+            return {
+              key: bindingKey(ref),
+              label: t("eachPersonsOwnNamed", { name }),
+              mcp: { icon: entry?.icon ?? null, name },
+            };
+          }
           const connection = mcpConnections.find((row) => row.id === ref.connection_id);
           // The mark belongs to the *catalog* entry a connection matches, not to
           // the connection - which is how the picker resolves it, and the same
@@ -390,7 +418,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           const known =
             connection === undefined ? null : entryForConnection(connection, mcpCatalog);
           return {
-            key: ref.connection_id,
+            key: bindingKey(ref),
             label: connection?.name ?? t("namedMissing", { name: ref.connection_id }),
             mcp: { icon: known?.icon ?? null, name: connection?.name ?? ref.connection_id },
           };
@@ -856,12 +884,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           );
           update({
             mcp_servers: spec.mcp_servers.map((ref) =>
-              ref.connection_id === toolPicker.connection.id
-                ? { ...ref, allowed_tools: allowed }
-                : ref,
+              bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
             ),
           });
           setToolPicker(null);
+          setToolBinding(null);
         }}
       />
 
@@ -874,11 +901,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           update({
             mcp_servers: [
               ...spec.mcp_servers,
-              {
-                connection_id: connectionId,
-                use_personal_when_available: false,
-                allowed_tools: null,
-              },
+              { account: "organization", connection_id: connectionId, allowed_tools: null },
             ],
           })
         }
@@ -952,6 +975,22 @@ export default function AgentBuilderPage({ params }: PageProps) {
       {/* Tabs, because the alternative was a single column of eleven cards and
           a page of scroll between the instructions and the version history.
           Grouped by the question being answered, not by implementation. */}
+      {/* Above the tabs, whatever tab is open: a reference to something deleted
+          is refused at publish, and the panel that would have listed it belongs
+          to a capability the agent may not even have switched on. */}
+      <StaleReferences
+        spec={spec}
+        collections={collections}
+        contextFiles={contextFiles}
+        contextTotal={contextCount}
+        skills={skills}
+        skillTotal={skillCount}
+        connections={mcpConnections}
+        catalog={mcpCatalog}
+        onRemove={update}
+        disabled={!canEdit}
+      />
+
       <Tabs defaultValue="build">
         <TabsList>
           <TabsTrigger value="build" data-tour="agent-tab-build">
@@ -1142,7 +1181,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 catalog={mcpCatalog}
                 value={spec.mcp_servers}
                 onChange={(mcp_servers) => update({ mcp_servers })}
-                onTools={(connection, ref) => setToolPicker(toolChoice(connection, ref))}
+                onTools={async (ref, connection, name) => {
+                  setToolBinding(bindingKey(ref));
+                  // A connection nobody has checked has no tool list; check it
+                  // here for whoever may, rather than sending them to the servers
+                  // page to press the button and find their way back.
+                  try {
+                    const { connection: probed, error } = await toolsForBinding(
+                      connection,
+                      can(Perm.connectionsManage) ? probeMcpConnection : null,
+                    );
+                    if (error !== null) toast.error(error);
+                    setToolPicker(toolChoice(ref, probed, name));
+                  } catch (caught) {
+                    toast.error(getErrorMessage(caught, tErrors));
+                    setToolPicker(toolChoice(ref, connection, name));
+                  }
+                }}
                 onConnect={setConnectingServer}
                 disabled={!canEdit}
               />

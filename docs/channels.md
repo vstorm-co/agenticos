@@ -1131,6 +1131,12 @@ it is about to wait.
     their earlier channel turns attributable to them — the run points at the chat
     account, and the chat account gains a person.
 
+    It is also what lets an agent reach *their* tools. A binding to
+    [each person's own account](mcp.md#whose-account-a-binding-speaks-through)
+    speaks to Notion or Jira as whoever wrote the message, in a channel as much
+    as in a direct message — and an unlinked sender has no account to speak
+    through, so the agent tells them to `/link` first.
+
     **A channel thread is one conversation with several people in it**, and it
     appears in the conversation list of everybody whose linked chat account has
     written in it — not only whoever spoke first, and not nobody, which is what a

@@ -65,6 +65,12 @@ export interface ConnectionFormValues {
 /** A probed connection and which of its tools are currently checked. */
 export interface ToolPickerState {
   scope: Scope;
+  /**
+   * Whose tool list this is - the servers page names the connection, the
+   * Builder the server. A binding to each person's own account has no
+   * connection of its own to name, so the title is not read off one.
+   */
+  name: string;
   connection: McpConnectionRecord;
   tools: McpToolInfo[];
   checked: Set<string>;

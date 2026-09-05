@@ -20,7 +20,7 @@ written. A change that only parses new documents is a 500 on every run of someth
 nobody touched.
 
 `model_config = ConfigDict(extra="forbid")` means an unknown key is a hard error, so
-this is not theoretical. `SPEC_VERSION` is currently **7**.
+this is not theoretical. `SPEC_VERSION` is currently **11**.
 
 ## What each change costs
 
