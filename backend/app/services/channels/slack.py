@@ -16,6 +16,7 @@ import logging
 import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -34,6 +35,7 @@ from app.services.channels.base import (
     IncomingMessage,
     OutgoingMessage,
     split_thread,
+    supervise_stream,
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
@@ -69,6 +71,20 @@ At Slack's 1000 ids per page this covers a fifty-thousand-member channel,
 which is a bound on a runaway cursor rather than on any real room.
 """
 
+_FILE_HOSTS = ("slack.com", "slack-files.com")
+"""Where Slack serves a file's `url_private`; the bot token is sent nowhere else."""
+
+
+def _slack_file_host(url: str) -> str | None:
+    """The host of a Slack file URL, or `None` if it is not one of Slack's over TLS."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host:
+        return None
+    if any(host == root or host.endswith(f".{root}") for root in _FILE_HOSTS):
+        return host
+    return None
+
 
 class SlackAdapter(ChannelAdapter):
     """Concrete Slack adapter using slack-sdk."""
@@ -90,6 +106,12 @@ class SlackAdapter(ChannelAdapter):
     def remember_app_token(self, bot_id: str, app_token: str) -> None:
         """Register the app-level token Socket Mode will connect with."""
         self._app_tokens[bot_id] = app_token
+
+    def prepare_connection(
+        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+    ) -> None:
+        if app_token:
+            self.remember_app_token(bot_id, app_token)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -406,38 +428,16 @@ class SlackAdapter(ChannelAdapter):
         logger.info("Stopped Slack Socket Mode for bot %s", bot_id)
 
     async def _socket_supervisor(self, bot_id: str, bot_token: str) -> None:
-        """Supervised loop: restart Socket Mode on crash.
-
-        The sleep is outside the `except` on purpose. `_run_socket_mode` has
-        branches that return without ever awaiting, and awaiting a coroutine
-        that never suspends does not yield to the event loop - so this looped at
-        100% CPU and no other task on the process was scheduled again. The API
-        stayed up and answered nothing, health check included, on one WARNING
-        line.
-        """
-        while True:
-            try:
-                await self._run_socket_mode(bot_id, bot_token)
-            except asyncio.CancelledError:
-                break
-            except ChannelNotConfigured as exc:
-                # Not a crash and not something a retry fixes: an operator has
-                # to add the token. Retrying would be the spin all over again.
-                logger.warning("Slack Socket Mode not started for bot %s", bot_id)
-                # Its own message, because this one is written here rather than by
-                # a vendor: it names the credential to add. Recorded so the row
-                # says so - a WARNING in a container was the only evidence, and
-                # `/channels` showed the bot as healthy (#1351).
-                await connection_state.record_down(bot_id, str(exc))
-                return
-            except Exception:
-                logger.exception("Slack Socket Mode crashed for bot %s, restarting in 5s", bot_id)
-                await connection_state.record_down(
-                    bot_id,
-                    "The Slack connection keeps failing. Check the app-level token "
-                    "and that Socket Mode is enabled in the Slack app.",
-                )
-            await asyncio.sleep(5)
+        """Socket Mode sessions, reopened under the shared reconnect loop."""
+        await supervise_stream(
+            bot_id,
+            platform="Slack Socket Mode",
+            session=lambda: self._run_socket_mode(bot_id, bot_token),
+            failing=(
+                "The Slack connection keeps failing. Check the app-level token "
+                "and that Socket Mode is enabled in the Slack app."
+            ),
+        )
 
     async def _run_socket_mode(self, bot_id: str, bot_token: str) -> None:
         """Run one Socket Mode session."""
@@ -710,7 +710,19 @@ class SlackAdapter(ChannelAdapter):
         token would store that page as the user's spreadsheet. Hence the explicit
         content-type check - the failure mode here is silent corruption, not an
         error.
+
+        The URL comes out of the event payload, and this is the one place a
+        payload-supplied address is fetched with the bot token in the header - so
+        the host is checked against Slack's own before anything is sent. The
+        payload is signed, which makes this a second lock rather than the first;
+        a token posted to a host somebody else named is still a token gone.
         """
+        host = _slack_file_host(attachment.handle)
+        if host is None:
+            raise ValueError(
+                f"Slack named a file host this bot will not send its token to for "
+                f"{attachment.filename}."
+            )
         response = await self._http.get(
             attachment.handle, headers={"Authorization": f"Bearer {bot_token}"}
         )

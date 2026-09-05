@@ -140,7 +140,7 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     "--mode",
     default="open",
     type=click.Choice(["open", "whitelist", "jwt_linked", "group_only"]),
-    help="Access policy mode",
+    help="Access policy mode. jwt_linked answers only chat accounts linked to a member.",
 )
 @click.option(
     "--api-base-url",

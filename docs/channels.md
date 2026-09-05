@@ -972,11 +972,12 @@ check.
 
 ## A bot that cannot start stops, rather than retrying
 
-Slack Socket Mode and the Mattermost event stream both run under a supervisor
-that reconnects a dropped session. A missing configuration value is not a
-dropped session, and the supervisor treats it differently: it logs once and
-stops. Nothing it does would change the row — an operator has to add the Slack
-`xapp-` token or the Mattermost server URL.
+Telegram polling, Slack Socket Mode and the Mattermost event stream all run
+under one supervisor that reconnects a dropped session. A missing or rejected
+configuration value is not a dropped session, and the supervisor treats it
+differently: it records the bot as down with the reason, logs once and stops.
+Nothing it does would change the row — an operator has to add the Slack `xapp-`
+token or the Mattermost server URL, or replace a bot token Telegram rejects.
 
 This matters more than it sounds. Retrying a start that fails immediately never
 suspends, so the supervisor spins without yielding and every other task on the
@@ -988,9 +989,10 @@ If a bot is silent, check the log for `not started` before assuming a network
 problem.
 
 A dropped session is different: that one is retried, waiting five seconds and
-doubling to a minute, so a Mattermost server down for an hour is not hammered
-720 times by every bot on it. The line logged before each wait names the delay
-it is about to wait.
+doubling to a minute, so a server down for an hour is not hammered 720 times by
+every bot on it. A session that ended cleanly starts the ladder over. The line
+logged before each wait names the delay it is about to wait, and the same loop
+serves all three platforms, so the policy cannot drift between them.
 
 ---
 
@@ -1097,7 +1099,9 @@ it is about to wait.
     failure — no credential, a recording over the endpoint's limit, a refusal, a
     timeout — is reported on the reply and the turn goes ahead without it.
 
-- **Access policy per bot** — open, whitelist, or "must be linked to a member".
+- **Access policy per bot** — open, whitelist, group-only, or `jwt_linked`: "must
+  be linked to a member", in a channel as much as in a direct message, with no
+  second setting to flip.
 - **A credential can be added or replaced after registration.** The pencil on a
   bot's row opens it: rename it, paste a rotated token, or supply the credential
   that was not in hand when it was registered — which is the ordinary case on
@@ -1133,7 +1137,9 @@ it is about to wait.
     API workers rather than once per worker.
 
     Set **`require_link`** on the bot's access policy to refuse in channels too,
-    which is the old behaviour.
+    which is the old behaviour. The **`jwt_linked`** mode refuses on its own: a
+    mode named for a linked account asks for one, and it used to decide nothing
+    unless `require_link` was also set.
 
     Linking still matters in a channel, and it is worth doing: a linked sender
     runs as *themselves* rather than under the binding, and linking later makes
