@@ -46,9 +46,11 @@ from app.agents.capabilities.compaction import (
     ContextGauge,
     build_gauge,
 )
+from app.agents.capabilities.memory import memory_requested
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
+from app.agents.memory_scope import MemoryAudience
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import instrument_agent
 from app.agents.spec import AgentSpec
@@ -124,6 +126,7 @@ def build_agent(
     run_id: UUID | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
+    memory_audience: MemoryAudience | None = None,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
@@ -231,12 +234,19 @@ def build_agent(
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
 
+    # Derived (or restored) by the caller, because only the runner knows whether
+    # this is a fresh request or a resume - and a resume must not re-derive it from
+    # whoever is resuming (#788). Dropped for an agent with no memory bound, so a
+    # spec without the capability carries no audience at all.
+    bound_audience = memory_audience if memory_requested(bindings) else None
+
     deps = AgentDeps(
         organization_id=organization_id,
         agent_id=agent_id,
         run_id=run_id,
         user_id=user_id,
         user_name=user_name,
+        memory_audience=bound_audience,
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),

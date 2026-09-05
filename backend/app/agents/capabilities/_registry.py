@@ -646,6 +646,7 @@ def load_builtins() -> None:
         guardrails,
         image_generation,
         knowledge,
+        memory,
         planning,
         sandbox,
         skills,

@@ -221,6 +221,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // "?"-only and optional: the Memory tab renders only when memory is bound, which the
+  // curated walk's example agent may lack. Anchored on the bounded badge row, not the table.
+  {
+    id: "agent-memory",
+    page: AGENT_BUILDER,
+    target: "agent-memory",
+    activate: "agent-tab-memory",
+    permission: Perm.agentsView,
+    optional: true,
+  },
   {
     id: "agent-history",
     page: AGENT_BUILDER,

@@ -44,6 +44,14 @@
     "icon": "llamaparse"
   },
   {
+    "id": "mem0",
+    "label": "mem0",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://mem0.ai",
+    "description": "Store an agent's remembered facts in a mem0 service (cloud or self-hosted)."
+  },
+  {
     "id": "sandboxd",
     "label": "Sandbox service",
     "category": "other",

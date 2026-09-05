@@ -54,6 +54,7 @@ import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
+import { MemoryPanel } from "@/components/memory/memory-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
@@ -103,6 +104,7 @@ import {
   useSkills,
 } from "@/hooks";
 import {
+  MEMORY_ID,
   readSubagentsConfig,
   SANDBOX_ID,
   SUBAGENTS_ID,
@@ -593,6 +595,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const isPublished = agent.status === "published";
 
+  // The Memory tab exists only when the capability is bound; a bare binding reads as
+  // what the builder returns for one (native, both shapes on).
+  const memoryBinding = spec.capabilities.find((binding) => binding.id === MEMORY_ID);
+  const memoryBackend = memoryBinding?.config.backend === "mem0" ? "mem0" : "native";
+  const memoryFiles = memoryBinding?.config.enable_files !== false;
+  const memoryFacts = memoryBinding?.config.enable_facts !== false;
+  const memoryAllowPersonal = memoryBinding?.config.allow_personal !== false;
+
   const update = (changes: Partial<AgentSpec>) => setSpec({ ...spec, ...changes });
 
   const toggleCapability = (capabilityId: string) => {
@@ -1008,6 +1018,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="availability" data-tour="agent-tab-availability">
             {t("availability")}
           </TabsTrigger>
+          {memoryBinding && (
+            <TabsTrigger value="memory" data-tour="agent-tab-memory">
+              {t("memory")}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="history" data-tour="agent-tab-history">
             {t("history")}
           </TabsTrigger>
@@ -1285,6 +1300,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <EmbedsPanel agentId={id} canManage={canPublish} />
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>
+
+        {memoryBinding && (
+          <TabsContent value="memory" className="mt-6 space-y-6">
+            <MemoryPanel
+              agentId={id}
+              canEdit={canEdit}
+              backend={memoryBackend}
+              enableFiles={memoryFiles}
+              enableFacts={memoryFacts}
+              allowPersonal={memoryAllowPersonal}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="history" className="mt-6 space-y-6">
           <Card data-tour="agent-history">

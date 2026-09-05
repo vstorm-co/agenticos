@@ -115,6 +115,11 @@ PLATFORM_MODULES = (
     "app/services/dashboard_preset.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    "app/repositories/memory.py",
+    "app/services/memory/_mem0.py",
+    "app/services/memory/_native.py",
+    "app/services/memory/facade.py",
+    "app/api/routes/v1/memory.py",
 )
 
 

@@ -360,6 +360,10 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
+    # Without an allowlist a builder who can bind a shared mem0 key could point
+    # `mem0_base_url` at their own server and capture it (docs/secrets.md).
+    MEM0_ALLOWED_HOSTS: list[str] = []
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:

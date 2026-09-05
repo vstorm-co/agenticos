@@ -3,11 +3,13 @@
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
+import { qk } from "@/lib/query-keys";
 import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
@@ -64,6 +66,10 @@ interface UseChatOptions {
    */
   onTurnSaved?: () => void;
 }
+
+/** Runtime memory tools whose success changes what the Memory tab shows, so a
+ * completed call invalidates that agent's memory queries and the tab refetches. */
+const MEMORY_WRITE_TOOLS = new Set(["write_memory", "edit_memory", "delete_memory", "remember"]);
 
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
@@ -145,6 +151,10 @@ export function useChat(options: UseChatOptions = {}) {
   // steps stop reading `awaiting_approval`, which is exactly the state the
   // effect reads as "a reloaded parked run".
   const approvalOfferedForRef = useRef<Set<string>>(new Set());
+  // tool_call_ids of memory writes seen this turn, so their result can refresh the
+  // Memory tab; the WS handler is a ref-reader for the same reason the others are.
+  const memoryWritesRef = useRef<Set<string>>(new Set());
+  const queryClient = useQueryClient();
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
   // The delegations of the turn on screen, keyed by their own `task_id` and held
   // *outside* the assistant message on purpose.
@@ -340,6 +350,7 @@ export function useChat(options: UseChatOptions = {}) {
               status: "running",
             };
             addToolCallPart(currentMessageIdRef.current, toolCall);
+            if (MEMORY_WRITE_TOOLS.has(tool_name)) memoryWritesRef.current.add(tool_call_id);
           }
           break;
         }
@@ -354,6 +365,13 @@ export function useChat(options: UseChatOptions = {}) {
               result: content,
               status: "completed",
             });
+            // A memory write committed on its own session, so the row is readable
+            // now; refresh the operator's Memory tab, which the chat cannot see.
+            if (memoryWritesRef.current.delete(tool_call_id) && turnAgentIdRef.current) {
+              void queryClient.invalidateQueries({
+                queryKey: qk.memory.all(turnAgentIdRef.current),
+              });
+            }
           }
           break;
         }
@@ -567,6 +585,7 @@ export function useChat(options: UseChatOptions = {}) {
       onTurnSaved,
       activeConversationId,
       refreshConversationCost,
+      queryClient,
       t,
     ],
   );

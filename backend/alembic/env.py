@@ -64,10 +64,28 @@ def include_name(name: str | None, type_: str, parent_names: dict[str, str | Non
     The test is narrow on purpose - `rag_documents` is a model table, and excluding it
     would silence real drift in the one table this project ingests through.
     `app/db/vector_tables.py` explains why both halves of that test are needed.
+
+    Two objects on `agent_memory_facts` are excluded too: the `embedding` column
+    and its HNSW index `agent_memory_facts_embedding_idx`. There is no pgvector
+    SQLAlchemy type in this project and the width is the deployment's frozen
+    embedding dimension, so both are created in the migration as raw SQL and the
+    model deliberately omits them (see `AgentMemoryFact`). Excluding *both*
+    matters: the column alone is not enough, because autogenerate reflects the
+    DB-only index too and would emit a `remove_index`, failing `alembic check` on
+    every database - the same false positive `is_runtime_vector_table` prevents
+    for the RAG tables, two objects narrower. Only those two, on that one table;
+    everything else stays in the comparison.
     """
     if type_ == "table" and name is not None:
         return not is_runtime_vector_table(name, metadata=target_metadata)
-    return True
+    return not (
+        (
+            type_ == "column"
+            and name == "embedding"
+            and parent_names.get("table_name") == "agent_memory_facts"
+        )
+        or (type_ == "index" and name == "agent_memory_facts_embedding_idx")
+    )
 
 
 def run_migrations_online() -> None:

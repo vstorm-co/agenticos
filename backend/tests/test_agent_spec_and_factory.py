@@ -26,6 +26,7 @@ from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.factory import DEFAULT_MAX_STEPS, BuiltAgent, build_agent
+from app.agents.memory_scope import MemoryAudience
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
     AgentSpec,
@@ -129,6 +130,31 @@ class TestFactory:
         )
         assert built.model_label == "GPT-4.1 (prod)"
         assert [type(c).__name__ for c in built.capabilities] == ["Clock", "Knowledge"]
+
+    def _memory_agent(self, *, bind_memory: bool = True, **identity):
+        capabilities = [{"id": "memory", "config": {}}] if bind_memory else [{"id": "clock"}]
+        return build_agent(
+            AgentSpec(name="Support", instructions="Remember.", capabilities=capabilities),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            **identity,
+        )
+
+    def test_a_memory_agent_carries_the_audience_it_was_given(self):
+        """The factory no longer derives the audience - the runner does, because
+        only it knows whether this is a fresh request or a resume (#788). What the
+        factory owns is putting it on the deps the tools read."""
+        audience = MemoryAudience(person_key="person:u-1", room_key="room:slack:C1")
+        built = self._memory_agent(memory_audience=audience)
+        assert built.deps.memory_audience == audience
+
+    def test_an_agent_without_memory_carries_no_audience(self):
+        """The binding is the gate: a spec that never asked for memory carries no
+        audience, whatever identity the request arrived with."""
+        built = self._memory_agent(
+            bind_memory=False, memory_audience=MemoryAudience(person_key="person:u-1")
+        )
+        assert built.deps.memory_audience is None
 
     @pytest.mark.anyio
     async def test_an_agent_that_binds_nothing_still_reports_its_context(self):

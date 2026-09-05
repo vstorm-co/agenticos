@@ -1,0 +1,219 @@
+"""Giving an agent a memory of its own - a store it writes and reads across runs.
+
+Unlike `context` (a human-authored library injected or linked, read-only to the
+model), memory is the agent's *own* store: it writes named files and short facts
+through tools mid-run and reads them back in a later conversation. The capability
+holds only the run-invariant part of that - which of the two stores are on - and
+builds the toolset that does the work; the store itself is reached through
+`app.services.memory`, which opens its own session so a mid-run read or write
+never rides the session the run is on (see that module).
+
+Memory has three stores - the organization's, a group chat's, and one person's -
+and which of them a run reaches is decided by its *audience*, derived server-side
+in the factory and carried on `AgentDeps` (`app.agents.memory_scope`). Reads span
+every store the audience admits; a write defaults to the audience's own, which is
+the one choice that can leak nothing. A standing preamble (`get_instructions`)
+tells the agent what it has and how to save, the same guidance the tool
+descriptions carry.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+from pydantic_ai import RunContext
+from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.tools import AgentDepsT
+from pydantic_ai.toolsets import AbstractToolset
+
+from app.agents.capabilities.memory._toolset import MemoryToolset
+from app.agents.deps import AgentDeps
+from app.agents.memory_scope import MemoryAudience
+from app.services import memory as memory_store
+
+__all__ = ["Memory"]
+
+# Bounded by count and by size: a fact's content is unbounded Text, so a row cap
+# alone could push this per-request preamble past the model's window (#788).
+_BRIEF_LIMIT = 30
+_BRIEF_MAX_CHARS = 4000
+
+
+def _preamble(*, allow_personal: bool, allow_agent_shared_writes: bool) -> str:
+    """The standing note teaching the agent to read its memory, its stores, and how to save.
+
+    Composed from the two operator levers so it never promises a store the config
+    has switched off: an agent told to "choose a scope" that then has every choice
+    refused is worse than one told plainly what it can do. It deliberately does
+    *not* teach the agent to reason about who is listening - the default scope is
+    the audience's own and is resolved server-side, so the safe choice is the one
+    the model makes by saying nothing (#788).
+
+    The reading habit leads, because the whole store is inert if the agent never
+    looks: memory only pays off when a later run recalls what an earlier one saved,
+    and a model with the tool but no standing instruction to use it will answer "I
+    have nothing saved" while the fact sits one search away.
+    """
+    habit = (
+        "Search your memory before answering a question it might inform - anything "
+        "about the person you are talking to, a fact you may have saved in an earlier "
+        "conversation, or a recommendation you could tailor to them - rather than "
+        "answering generically or assuming you have nothing."
+    )
+    reading = (
+        "Your memory comes in up to three stores, and reading searches all of the ones "
+        "this conversation can reach: the organisation's, shared by everyone; this "
+        "group chat's, when you are in one; and the private memory of the person you "
+        "are speaking with, when you are alone with them."
+    )
+    if allow_agent_shared_writes:
+        writing = (
+            "When you save something, omit `scope` unless you have a reason: it goes to "
+            "this conversation's own memory, which is where nearly everything belongs. "
+            "Use scope='shared' only for a fact true for the whole organisation, and "
+            "remember that anything saved there is read by everyone the agent serves."
+        )
+    else:
+        writing = (
+            "When you save something, omit `scope`: it goes to this conversation's own "
+            "memory. The organisation-wide store is curated by operators and is "
+            "read-only to you."
+        )
+    if not allow_personal:
+        writing += (
+            " This agent keeps no private per-person memory, so nothing you save is "
+            "specific to one person."
+        )
+    return f"{habit} {reading} {writing}"
+
+
+@dataclass
+class Memory(AbstractCapability[AgentDepsT]):
+    """Lets an agent keep and recall its own memory - files and/or facts.
+
+    Attached only when at least one store is enabled; the builder returns `None`
+    when both are off, so an agent with memory switched off carries no memory
+    tools. Files and facts are independent: an agent can have named files, semantic
+    facts, or both. Which memory either half reaches is decided per run by the
+    audience on `AgentDeps`, not fixed on the capability - the same agent is alone
+    with one person in a direct message and in front of a whole channel an hour
+    later.
+
+    ```python
+    from pydantic_ai import Agent
+    from app.agents.capabilities.memory import Memory
+
+    agent = Agent('anthropic:claude-sonnet-4-6', capabilities=[Memory(enable_files=True)])
+    ```
+    """
+
+    enable_files: bool = True
+    enable_facts: bool = False
+    allow_personal: bool = True
+    allow_agent_shared_writes: bool = True
+    # `mem0_api_key` is the resolved plaintext, for the mem0 HTTP call and nothing
+    # else: never logged, never shown to the model, never in a spec.
+    backend: str = "native"
+    mem0_base_url: str | None = None
+    mem0_api_key: str | None = field(default=None, repr=False)
+
+    # Widened to `AbstractToolset[Any]` like `knowledge`: the toolset is concrete in
+    # `AgentDeps`, which does not unify with the capability's own `AgentDepsT`.
+    _toolset: AbstractToolset[Any] | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
+
+    def get_instructions(self) -> str | Callable[[RunContext[Any]], Awaitable[str]]:
+        """A standing note on how this agent's memory works, and what it already holds.
+
+        The preamble (what the stores are, how to save, to read before
+        answering) is run-invariant, so a files-only or mem0-facts agent gets it as a
+        plain string. A native-facts agent gets a per-request callable instead, so the
+        note carries a brief of what is already remembered - the facts a run would
+        otherwise have to call `recall` to see. A model with them in front of it
+        answers from them; one that must decide to look usually does not, which is the
+        whole reason the store felt inert on a lighter model (#788).
+
+        The callable is typed over `RunContext[Any]` for the same reason `get_toolset`
+        widens to `AbstractToolset[Any]`: the run context is concrete in `AgentDeps`
+        (the brief reads its fields), which does not unify with the capability's own
+        `AgentDepsT`. `_memory_brief` narrows it straight back.
+        """
+        if self.enable_facts and self.backend == "native":
+            return self._instructions_with_brief
+        return _preamble(
+            allow_personal=self.allow_personal,
+            allow_agent_shared_writes=self.allow_agent_shared_writes,
+        )
+
+    async def _instructions_with_brief(self, ctx: RunContext[Any]) -> str:
+        preamble = _preamble(
+            allow_personal=self.allow_personal,
+            allow_agent_shared_writes=self.allow_agent_shared_writes,
+        )
+        brief = await self._memory_brief(ctx)
+        return f"{preamble}\n\n{brief}" if brief else preamble
+
+    async def _memory_brief(self, ctx: RunContext[Any]) -> str | None:
+        """The facts already remembered, listed for the agent's context, or None.
+
+        Injected every request rather than left to a `recall` the model may not make -
+        the standing digest that makes memory feel present. It spans the run's own
+        read set, so it can never surface another person's or another room's note,
+        and within that it is narrower than `recall`: the brief becomes the agent's
+        *instructions*, so it carries only what the reader alone could have
+        influenced plus what an operator vouched for (see `list_brief_facts`).
+        `None` when there is nothing to show, so no empty heading is added.
+        """
+        deps: AgentDeps = ctx.deps
+        if deps.organization_id is None or deps.agent_id is None:
+            return None
+        audience = deps.memory_audience or MemoryAudience()
+        read_keys = audience.read_keys(allow_personal=self.allow_personal)
+        # The reader's own store, and only when they are the only listener: in a
+        # room, `read_keys` still carries the room but nobody there is the sole
+        # audience, so the brief falls back to operator-authored content alone.
+        self_key = audience.person_key if self.allow_personal and audience.private else None
+        facts = await memory_store.memory_brief(
+            organization_id=deps.organization_id,
+            agent_id=deps.agent_id,
+            read_keys=read_keys,
+            self_key=self_key,
+            limit=_BRIEF_LIMIT,
+        )
+        if not facts:
+            return None
+        # Every line is bounded, the first included: a fact past the remaining budget is
+        # skipped rather than spliced in unbounded - and skipped rather than ending the
+        # brief, or one oversized note would take every older fact out with it (#788).
+        lines: list[str] = []
+        remaining = _BRIEF_MAX_CHARS
+        for content in facts:
+            line = f"- {content}"
+            if len(line) > remaining:
+                continue
+            lines.append(line)
+            remaining -= len(line) + 1
+        if not lines:
+            return None
+        body = "\n".join(lines)
+        return (
+            "Here is what you already remember - your own past notes, not ground "
+            f"truth, and `recall` can search for more:\n{body}"
+        )
+
+    def get_toolset(self) -> AbstractToolset[Any]:
+        """The memory tools this agent's config asks for, built once per instance."""
+        if self._toolset is None:
+            self._toolset = MemoryToolset(
+                enable_files=self.enable_files,
+                enable_facts=self.enable_facts,
+                allow_personal=self.allow_personal,
+                allow_agent_shared_writes=self.allow_agent_shared_writes,
+                backend=self.backend,
+                mem0_base_url=self.mem0_base_url,
+                mem0_api_key=self.mem0_api_key,
+            )
+        return self._toolset

@@ -19,6 +19,7 @@ from uuid import UUID
 
 from app.agents.approval import ApprovalDecision, ApprovalRequest
 from app.agents.compaction_events import CompactionEvent
+from app.agents.memory_scope import MemoryAudience
 from app.agents.subagent_events import SubagentEventSink
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
@@ -55,6 +56,11 @@ class AgentDeps:
     user_name: str | None = None
     agent_id: UUID | None = None
     run_id: UUID | None = None
+
+    # Who will hear this run, derived server-side when memory is bound - which is
+    # what decides the memory stores it may reach. `None` means the surface gave no
+    # signal at all: the run reads the organization store and writes nowhere else.
+    memory_audience: MemoryAudience | None = None
 
     # Collection names this agent may search, resolved from its bindings.
     kb_collection_names: list[str] = field(default_factory=list)

@@ -249,6 +249,24 @@ export const qk = {
       ["context", "list", query] as const,
     detail: (id: string) => ["context", id] as const,
   },
+  // Every memory query nests under the agent, the detail included, so the agent root
+  // reaches it all; a list invalidation misses the detail, so mutations write over it.
+  memory: {
+    // The whole of one agent's memory — the root a clear-all invalidates, since
+    // it removes both files and facts at once.
+    all: (agentId: string) => ["memory", agentId] as const,
+    filesRoot: (agentId: string) => ["memory", agentId, "files"] as const,
+    files: (
+      agentId: string,
+      query: { owner: string; search: string; sort: string; skip: number; limit: number },
+    ) => ["memory", agentId, "files", query] as const,
+    file: (agentId: string, fileId: string) => ["memory", agentId, "file", fileId] as const,
+    factsRoot: (agentId: string) => ["memory", agentId, "facts"] as const,
+    facts: (
+      agentId: string,
+      query: { owner: string; search: string; skip: number; limit: number },
+    ) => ["memory", agentId, "facts", query] as const,
+  },
   invitations: {
     all: () => ["invitations"] as const,
     list: (orgId: string) => ["invitations", orgId] as const,

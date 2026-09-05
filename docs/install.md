@@ -191,6 +191,14 @@ a collection is written to. Stock Postgres answers
 
 Every compose file in this repository pins `pgvector/pgvector:pg16`.
 
+**pgvector 0.8 or newer.** The `pgvector/pgvector` images are well past it, so this
+only bites on a database somebody else manages — RDS, Azure and several managed
+Postgres services still offer 0.7.x. An agent's memory `recall` asks for
+`hnsw.iterative_scan`, which arrived in 0.8 and is what lets the scan carry on
+until a scoped query has filled its limit; on 0.7 the setting does not exist, so
+recall fails rather than returning fewer facts. `SELECT extversion FROM pg_extension
+WHERE extname = 'vector';` says which version a deployment actually has.
+
 ## Day to day
 
 ```bash
