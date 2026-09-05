@@ -272,6 +272,13 @@ Both deployed environments want a reverse proxy in front of them.
 `nginx/nginx.conf` is the template, and it resolves `backend:8000` and
 `frontend:3000` as network aliases.
 
+The proxy reaches them by those aliases, so production publishes both ports on
+`127.0.0.1` and nothing off the host can reach either directly. That is a
+security boundary rather than tidiness: with
+[`RATE_LIMIT_TRUST_FORWARDED_FOR`](configuration.md#rate_limit_auth_per_minute-and-why-the-auth-surface-has-its-own)
+on, whatever can reach past the proxy chooses the address its requests are
+counted against. Set `BIND_HOST=0.0.0.0` for a proxy that runs somewhere else.
+
 What supervises the API differs in all three, and each recovers a worker that
 died: the local stack runs its own reload supervisor, the dev stack is a single
 process whose exit Docker restarts, and production runs four workers under

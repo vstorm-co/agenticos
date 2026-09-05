@@ -807,6 +807,17 @@ stays safe but shared.
     If the container's port is published as well, a caller can set the header
     themselves and the limit stops meaning anything.
 
+    **The frontend's port counts as the API's here.** Its `/api/auth/*` routes
+    forward whatever `X-Forwarded-For` they were handed, so a caller who can
+    reach port 3000 past the proxy chooses the address their login attempts are
+    counted against just as surely as one who can reach port 8000 — and every
+    accepted attempt against an address nobody holds still costs a bcrypt. Both
+    `docker-compose-prod.yml` and `docker-compose-prod.frontend.yml` therefore
+    publish on `127.0.0.1` by default, where the host's reverse proxy reaches
+    them and nothing else does. `BIND_HOST=0.0.0.0` opens them again, for a
+    proxy that genuinely runs elsewhere — with that proxy's own network as the
+    thing keeping the promise.
+
     With two proxies in front, collapse the header to one hop at your edge — only
     the last hop is trustworthy.
 

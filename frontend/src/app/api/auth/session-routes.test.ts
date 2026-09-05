@@ -802,4 +802,98 @@ describe("rate limiting through the BFF", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("60");
   });
+
+  /**
+   * `POST /api/auth/refresh` is the refresh somebody asked for; this is the one
+   * every page load makes on its own once the 15-minute access cookie is out.
+   * It had neither half - no forwarded address, so it shared the container's
+   * bucket, and a catch that read any failure as "logged out" - which is the
+   * deployment-wide sign-out #1047 is about, reproduced by the route meant to
+   * prevent it.
+   */
+  describe("the refresh nobody asked for, behind GET /api/auth/me", () => {
+    it("forwards the caller's address on both hops", async () => {
+      vi.mocked(backendFetch)
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
+        .mockResolvedValueOnce({ access_token: "at2" })
+        .mockResolvedValueOnce({ id: "u-1" });
+
+      await me(
+        request({ access_token: "stale", refresh_token: "rt" }, undefined, {
+          "x-forwarded-for": "203.0.113.7",
+        }),
+      );
+
+      for (const call of [1, 2, 3]) {
+        expect(backendFetch).toHaveBeenNthCalledWith(
+          call,
+          expect.any(String),
+          expect.objectContaining({
+            headers: expect.objectContaining({ "x-forwarded-for": "203.0.113.7" }),
+          }),
+        );
+      }
+    });
+
+    it("does not sign the caller out when that refresh is rate-limited", async () => {
+      vi.mocked(backendFetch)
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
+        .mockRejectedValueOnce(rateLimited());
+
+      const response = await me(request({ access_token: "stale", refresh_token: "rt" }));
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("60");
+      expect(cookie(response, "access_token")).toBeUndefined();
+      expect(cookie(response, "refresh_token")).toBeUndefined();
+    });
+
+    it("still clears the cookies when the refresh token is genuinely refused", async () => {
+      vi.mocked(backendFetch)
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null));
+
+      const response = await me(request({ access_token: "stale", refresh_token: "rt" }));
+
+      expect(response.status).toBe(401);
+      expect(cookie(response, "access_token")?.value).toBe("");
+      expect(cookie(response, "refresh_token")?.value).toBe("");
+    });
+
+    it("forwards a rate limit on the /auth/me hop rather than reporting it as a broken read", async () => {
+      vi.mocked(backendFetch).mockRejectedValueOnce(rateLimited());
+
+      const response = await me(request({ access_token: "at" }));
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("60");
+    });
+  });
+
+  /**
+   * Signing out swallows every backend failure, because they all mean the same
+   * thing: the refresh token is already worthless. A 429 is the one that does
+   * not - the backend never looked at the token, so clearing the browser's only
+   * copy strands a live token nobody can revoke and leaves no way to retry.
+   */
+  describe("signing out under a rate limit", () => {
+    it("keeps the cookies and forwards the wait", async () => {
+      vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+      const response = await logout(request({ refresh_token: "rt" }));
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("60");
+      expect(cookie(response, "refresh_token")).toBeUndefined();
+    });
+
+    it("still clears them when the token was merely already expired", async () => {
+      vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
+
+      const response = await logout(request({ refresh_token: "rt" }));
+
+      expect(response.status).toBe(200);
+      expect(cookie(response, "refresh_token")?.value).toBe("");
+    });
+  });
 });
