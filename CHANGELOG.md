@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.365] - 2026-09-05
+
+### Fixed
+
+- **Slack's attachment download sent the bot token to whatever host the event
+  named.** The payload is signed, so this is the second lock rather than the
+  first - but a token posted to a host somebody else chose is a token gone. The
+  host is checked against `slack.com` and `slack-files.com` over TLS before
+  anything is sent, and anything else is refused with the client untouched.
+- **Telegram's webhook secret is compared through `encode_untrusted`**, as Slack
+  and Mattermost already did. Safe today, because Starlette decodes headers as
+  latin-1; the same defence in depth regardless.
+
+### Changed
+
+- **`router.py` names its domain objects.** `db`, `bot`, `identity` and `session`
+  were `Any` forty-three times. The first thing the type checker found was a
+  `/start` branch reading a `welcome_message` field no model, schema, page or
+  test has ever had; `list_platforms()` went the same way, defined and exported
+  and called by nothing. The HTTP-client decision is written once on
+  `ChannelAdapter`, and a `prepare_connection` hook replaces `getattr`
+  duck-typing in the supervisor.
+
 ## [0.0.364] - 2026-09-05
 
 ### Fixed
