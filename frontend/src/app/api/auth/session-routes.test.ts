@@ -16,6 +16,7 @@ import { POST as oauthCallback } from "./oauth-callback/route";
 import { POST as passwordResetConfirm } from "./password-reset/confirm/route";
 import { POST as passwordResetRequest } from "./password-reset/request/route";
 import { POST as register } from "./register/route";
+import { DELETE as endImpersonation } from "./impersonation/route";
 import { POST as logout } from "./logout/route";
 import { GET as me } from "./me/route";
 import { POST as refresh } from "./refresh/route";
@@ -250,6 +251,33 @@ describe("refreshing the token", () => {
     expect(response.status).toBe(500);
     expect(cookie(response, "access_token")).toBeUndefined();
   });
+
+  it("refuses to mint the administrator's token under an impersonation cookie", async () => {
+    // The refresh cookie is the administrator's own; the access cookie says the
+    // browser was acting as somebody else. Refreshing here would answer a request
+    // the page made as the target with the administrator's token, and the client
+    // would replay it as them (#1044). The impersonation is over instead: its
+    // cookie goes, the refresh cookie stays, and the client is told which it was.
+    const impersonation = `h.${Buffer.from(JSON.stringify({ sub: "u-1", act: "a-1" })).toString("base64url")}.s`;
+
+    const response = await refresh(request({ access_token: impersonation, refresh_token: "rt" }));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ code: "IMPERSONATION_ENDED" });
+    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(backendFetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes an ordinary expired access token as before", async () => {
+    const ordinary = `h.${Buffer.from(JSON.stringify({ sub: "u-1" })).toString("base64url")}.s`;
+    vi.mocked(backendFetch).mockResolvedValue({ access_token: "fresh" });
+
+    const response = await refresh(request({ access_token: ordinary, refresh_token: "rt" }));
+
+    expect(response.status).toBe(200);
+    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+  });
 });
 
 describe("reading the session", () => {
@@ -344,6 +372,78 @@ describe("reading the session", () => {
     expect(response.status).toBe(401);
     expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
     expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=0");
+  });
+});
+
+describe("ending an impersonation", () => {
+  function end(cookies: Record<string, string> = {}) {
+    const header = Object.entries(cookies)
+      .map(([name, value]) => `${name}=${value}`)
+      .join("; ");
+    return endImpersonation(
+      new NextRequest("http://localhost:3000/api/auth/impersonation", {
+        method: "DELETE",
+        headers: header ? { cookie: header } : {},
+      }),
+    );
+  }
+
+  it("tells the backend with the impersonation's own token, then drops the cookie", async () => {
+    // The order matters: the backend closes the session row and audits the end;
+    // the cookie is what the impersonation lives in on this side. The refresh
+    // cookie is the administrator's own and is not touched (#1044).
+    vi.mocked(backendFetch).mockResolvedValue(null);
+
+    const response = await end({ access_token: "imp", refresh_token: "admin-rt" });
+
+    expect(response.status).toBe(200);
+    expect(backendFetch).toHaveBeenCalledWith(
+      "/api/v1/auth/impersonation",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: { Authorization: "Bearer imp" },
+      }),
+    );
+    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it.each([400, 401])(
+    "drops the cookie when the backend says it is over already (%i)",
+    async (status) => {
+      // 401: the row was ended from elsewhere, or expired. 400: the cookie was
+      // nobody acting as anybody. Either way keeping it would keep nothing.
+      vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(status, "Refused", null));
+
+      const response = await end({ access_token: "stale" });
+
+      expect(response.status).toBe(200);
+      expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    },
+  );
+
+  it("passes any other refusal through, cookie kept", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(503, "Unavailable", null));
+
+    const response = await end({ access_token: "imp" });
+
+    expect(response.status).toBe(503);
+    expect(cookie(response, "access_token")).toBeUndefined();
+  });
+
+  it("answers 500 when the backend could not be reached at all", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const response = await end({ access_token: "imp" });
+
+    expect(response.status).toBe(500);
+  });
+
+  it("has nothing to tell the backend for a browser holding no access cookie", async () => {
+    const response = await end({ refresh_token: "admin-rt" });
+
+    expect(response.status).toBe(200);
+    expect(backendFetch).not.toHaveBeenCalled();
   });
 });
 

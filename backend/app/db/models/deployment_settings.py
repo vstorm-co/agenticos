@@ -123,6 +123,18 @@ class DeploymentSettings(Base, TimestampMixin):
     )
     maintenance_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    notify_impersonated_users: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether a person is emailed when an administrator acts as them (#1044).
+
+    A policy, not a default: on a self-hosted deployment the operator decides
+    whether the people using it are told. Off until somebody turns it on, so an
+    upgrade sends nobody mail they were not sending before; on, every
+    impersonation emails its target once, when it starts. The audit trail records
+    the impersonation either way.
+    """
+
     def __repr__(self) -> str:
         return (
             f"<DeploymentSettings(app_name={self.app_name!r}, "

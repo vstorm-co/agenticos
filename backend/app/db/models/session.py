@@ -29,6 +29,13 @@ class Session(Base):
             sa_text("last_used_at DESC"),
             "id",
         ),
+        # Partial: the column is null on every ordinary sign-in, and a full index
+        # would carry the whole table for the cascade from a deleted administrator.
+        Index(
+            "sessions_impersonator_user_id_idx",
+            "impersonator_user_id",
+            postgresql_where=sa_text("impersonator_user_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -38,7 +45,26 @@ class Session(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    impersonator_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    """The administrator acting as `user_id`, or null for the person's own sign-in.
+
+    Set, this row *is* an impersonation (#1044): the access token minted for it
+    names the row in a `sid` claim and is refused the moment the row is ended or
+    expired, which is what makes an impersonation revocable through the same
+    machinery as any other session - `DELETE /sessions`, a password reset, the
+    administrator's own "End impersonation". Cascades with the administrator,
+    because a deleted administrator's impersonation should end with them.
+    """
     refresh_token_hash: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    """SHA-256 of the credential this row stands behind.
+
+    The refresh token for a sign-in. For an impersonation, which has no refresh
+    token - its window is the access token's own lifetime - it is the access
+    token's, so the auth dependency can bind the token it was handed to the row
+    the `sid` claim names rather than trusting the claim alone.
+    """
     device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
@@ -52,7 +78,7 @@ class Session(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    user = relationship("User", back_populates="sessions")
+    user = relationship("User", back_populates="sessions", foreign_keys=[user_id])
 
     def __repr__(self) -> str:
         return f"<Session(id={self.id}, user_id={self.user_id}, device={self.device_name})>"

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { isImpersonation } from "@/lib/jwt-claims";
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 import type { RefreshTokenResponse } from "@/types";
 
@@ -8,6 +9,25 @@ export async function POST(request: NextRequest) {
 
     if (!refreshToken) {
       return bffRefusal("NO_REFRESH_TOKEN", 401);
+    }
+
+    // An impersonation has no refresh token of its own; the one in the jar is
+    // the administrator's. Minting from it here would answer a request the page
+    // made as somebody else with the administrator's identity, and `apiClient`
+    // would then replay that request as them (#1044). So a refused impersonation
+    // is over, whichever way it ended: the cookie goes, the client is told, and
+    // the administrator comes back deliberately through `/api/auth/me`.
+    const accessToken = request.cookies.get("access_token")?.value;
+    if (accessToken && isImpersonation(accessToken)) {
+      const response = bffRefusal("IMPERSONATION_ENDED", 401);
+      response.cookies.set("access_token", "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 0,
+        path: "/",
+      });
+      return response;
     }
 
     const data = await backendFetch<RefreshTokenResponse>("/api/v1/auth/refresh", {

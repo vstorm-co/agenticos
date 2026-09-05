@@ -1293,6 +1293,16 @@ anybody else, and nothing is backfilled: whether a past action was impersonated
 cannot be known after the fact, and inventing an answer would be a false
 accusation rather than a missing one.
 
+The impersonation itself is recorded at both ends. `admin.user.impersonate` names
+the account, the session row the impersonation is, and when it expires;
+`admin.user.impersonation_ended` names the same session when the administrator
+ends it, with the administrator as the actor. An expiry writes nothing, because
+nobody acted — and neither does the person signing out everywhere, which ends an
+impersonation through `DELETE /sessions` the way it ends any other session.
+Whether the person is *told* is the deployment's `notify_impersonated_users`
+setting ([The deployment](deployment.md#acting-as-another-account)); off, which
+is the default, this trail is the only record.
+
 ## What none of this covers
 
 Worth stating, because a governance page implies otherwise:

@@ -9,6 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.deps import (
     CurrentUser,
     DeploymentSettingsSvc,
+    ImpersonationSvc,
     SessionSvc,
     UserSvc,
     enforce_auth_limit,
@@ -28,7 +29,7 @@ from app.schemas.password_reset import (
     PasswordResetResponse,
 )
 from app.schemas.token import MagicLinkToken, RefreshTokenRequest, Token
-from app.schemas.user import UserCreate, UserRead
+from app.schemas.user import MeRead, UserCreate, UserRead
 from app.services.email.service import get_email_service
 
 logger = logging.getLogger(__name__)
@@ -115,10 +116,26 @@ async def logout(
     await session_service.logout_by_refresh_token(body.refresh_token)
 
 
-@router.get("/me", response_model=UserRead)
-async def get_current_user_info(current_user: CurrentUser) -> Any:
-    """Get current authenticated user information."""
-    return current_user
+@router.get("/me", response_model=MeRead)
+async def get_current_user_info(current_user: CurrentUser, impersonation: ImpersonationSvc) -> Any:
+    """The account this request acts as - and, when an administrator is acting as
+    it, who and until when, which is what the console's banner is drawn from."""
+    me = MeRead.model_validate(current_user)
+    return me.model_copy(update={"impersonation": await impersonation.describe()})
+
+
+@router.delete("/impersonation", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def end_impersonation(
+    request: Request, _: CurrentUser, impersonation: ImpersonationSvc
+) -> None:
+    """End the impersonation this request runs under.
+
+    Authenticated with the impersonation's own token rather than the
+    administrator's, because that is the only credential the administrator's
+    browser holds while acting as somebody else. Refused for a request that is
+    nobody acting as anybody (#1044).
+    """
+    await impersonation.end(ip_address=request.client.host if request.client else None)
 
 
 @router.post("/password-reset/request", response_model=PasswordResetResponse)

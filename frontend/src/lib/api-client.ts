@@ -26,6 +26,25 @@ const REFRESH_ENDPOINT = "/auth/refresh";
 let refreshPromise: Promise<boolean> | null = null;
 
 /**
+ * Whether a refused refresh was refused because the cookie was an impersonation.
+ *
+ * The one refusal that is not "sign in again": the browser was acting as
+ * somebody else and that has ended, so the request that hit the 401 must not be
+ * replayed with whatever token a refresh would mint - it would run as the
+ * administrator (#1044). Reported to the store, where `useImpersonation` takes
+ * the exit.
+ */
+async function refusedAsEndedImpersonation(res: Response): Promise<boolean> {
+  if (res.status !== 401) return false;
+  try {
+    const data = (await res.json()) as { code?: string };
+    return data?.code === "IMPERSONATION_ENDED";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Attempt a single token refresh, de-duplicating concurrent callers.
  * Resolves true on success (cookies + in-memory access token updated), false
  * if the refresh itself failed (caller should surface the original 401).
@@ -37,7 +56,12 @@ function refreshAccessToken(): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
     })
       .then(async (res) => {
-        if (!res.ok) return false;
+        if (!res.ok) {
+          if (await refusedAsEndedImpersonation(res)) {
+            useAuthStore.getState().setImpersonationRevoked(true);
+          }
+          return false;
+        }
         try {
           const data = (await res.json()) as { access_token?: string };
           if (data?.access_token) {
