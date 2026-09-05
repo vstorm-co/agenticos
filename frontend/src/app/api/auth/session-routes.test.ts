@@ -251,6 +251,33 @@ describe("refreshing the token", () => {
     expect(response.status).toBe(500);
     expect(cookie(response, "access_token")).toBeUndefined();
   });
+
+  it("refuses to mint the administrator's token under an impersonation cookie", async () => {
+    // The refresh cookie is the administrator's own; the access cookie says the
+    // browser was acting as somebody else. Refreshing here would answer a request
+    // the page made as the target with the administrator's token, and the client
+    // would replay it as them (#1044). The impersonation is over instead: its
+    // cookie goes, the refresh cookie stays, and the client is told which it was.
+    const impersonation = `h.${Buffer.from(JSON.stringify({ sub: "u-1", act: "a-1" })).toString("base64url")}.s`;
+
+    const response = await refresh(request({ access_token: impersonation, refresh_token: "rt" }));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ code: "IMPERSONATION_ENDED" });
+    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(backendFetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes an ordinary expired access token as before", async () => {
+    const ordinary = `h.${Buffer.from(JSON.stringify({ sub: "u-1" })).toString("base64url")}.s`;
+    vi.mocked(backendFetch).mockResolvedValue({ access_token: "fresh" });
+
+    const response = await refresh(request({ access_token: ordinary, refresh_token: "rt" }));
+
+    expect(response.status).toBe(200);
+    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+  });
 });
 
 describe("reading the session", () => {

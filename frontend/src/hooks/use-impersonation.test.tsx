@@ -30,7 +30,7 @@ const ACTING_AS: User = {
 };
 
 function signedInAs(user: User | null) {
-  useAuthStore.setState({ user, isAuthenticated: user !== null });
+  useAuthStore.setState({ user, isAuthenticated: user !== null, impersonationRevoked: false });
 }
 
 beforeEach(() => {
@@ -89,18 +89,75 @@ describe("useImpersonation", () => {
     expect(result.current.ending).toBe(false);
   });
 
-  it("still re-reads who we are when the end was refused", async () => {
-    // Refused means over already - ended from another tab, or expired. The row
-    // is closed either way, and the identity read is what puts the
-    // administrator back.
+  it("leaves the administrator where they are, and says so, when the end failed", async () => {
+    // The BFF answers success for an impersonation that is over already, so a
+    // refusal here means it is still on: walking to the admin page would land the
+    // account still being acted as on a 403, under a banner still saying so.
     signedInAs(ACTING_AS);
-    vi.mocked(apiClient.delete).mockRejectedValue(new Error("401"));
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("503"));
     const { result } = renderHook(() => useImpersonation());
 
     await act(() => result.current.end());
 
+    expect(toast.error).toHaveBeenCalledWith("Could not end the impersonation. Try again.");
+    expect(reauthenticate).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(result.current.ending).toBe(false);
+  });
+
+  it("runs one end however many things ask for it at once", async () => {
+    // The button, the expiry timer and a refused refresh can all ask within the
+    // same tick; the backend is told once and the identity is re-read once.
+    signedInAs(ACTING_AS);
+    let release: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.delete).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useImpersonation());
+
+    let first: Promise<void> = Promise.resolve();
+    let second: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.end();
+      second = result.current.end();
+    });
+    await act(async () => {
+      release({ ok: true });
+      await Promise.all([first, second]);
+    });
+
+    expect(apiClient.delete).toHaveBeenCalledTimes(1);
     expect(reauthenticate).toHaveBeenCalledTimes(1);
-    expect(push).toHaveBeenCalledWith("/admin/users");
+  });
+
+  it("takes the exit when a refused refresh reported the impersonation over", async () => {
+    // Revoked from elsewhere, or lapsed: the API client must not replay the
+    // refused request as the administrator, so it reports on the store instead
+    // and this is what acts on the report.
+    signedInAs(ACTING_AS);
+    renderHook(() => useImpersonation());
+
+    await act(async () => {
+      useAuthStore.getState().setImpersonationRevoked(true);
+    });
+
+    expect(useAuthStore.getState().impersonationRevoked).toBe(false);
+    expect(apiClient.delete).toHaveBeenCalledWith("/auth/impersonation");
+    expect(reauthenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a stale report when nothing is being impersonated", async () => {
+    signedInAs({ ...ACTING_AS, impersonation: null });
+    renderHook(() => useImpersonation());
+
+    await act(async () => {
+      useAuthStore.getState().setImpersonationRevoked(true);
+    });
+
+    expect(useAuthStore.getState().impersonationRevoked).toBe(false);
+    expect(apiClient.delete).not.toHaveBeenCalled();
   });
 
   it("marks the end as in flight while the backend is being told", async () => {

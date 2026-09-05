@@ -93,11 +93,11 @@ export function useAdminUsers() {
    * Start acting as a user, from here.
    *
    * The BFF swaps this browser's access cookie for the impersonation's, so the
-   * answer carries no token and nothing here touches one - it used to be copied
-   * to the clipboard (#1044). What follows is a change of identity: the session
-   * is re-read and adopted, which empties the cache and the tenant state that
-   * were the administrator's, and the dashboard is opened as the account now
-   * being acted as. Answers whether it happened; a refusal is a toast and `false`.
+   * answer carries no token and nothing here touches one (#1044). What follows
+   * is a change of identity: the session is re-read and adopted, which empties
+   * the cache and the tenant state that were the administrator's, and the
+   * dashboard is opened as the account now being acted as. Answers whether it
+   * happened; a refusal is a toast and `false`.
    */
   const impersonateUser = useCallback(
     async (userId: string): Promise<boolean> => {

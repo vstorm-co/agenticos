@@ -263,9 +263,9 @@ describe("acting on one user", () => {
   });
 
   it("starts an impersonation by swapping the access cookie, and hands back no token", async () => {
-    // The most privileged action in the product. The token used to be returned in
-    // the body and copied to the clipboard; now it goes where every other access
-    // token lives, an HttpOnly cookie the page cannot read (#1044).
+    // The most privileged action in the product: the token goes where every other
+    // access token lives, an HttpOnly cookie, and never into a response body a
+    // page could copy somewhere (#1044).
     vi.mocked(backendFetch).mockResolvedValue({
       access_token: "imp",
       token_type: "bearer",
@@ -290,7 +290,9 @@ describe("acting on one user", () => {
       .find((entry) => entry.startsWith("access_token="));
     expect(cookie).toContain("access_token=imp");
     expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("Max-Age=3600");
+    // Five minutes past the token, so an expired impersonation is still in the
+    // jar when the refresh route decides what the browser was doing.
+    expect(cookie).toContain("Max-Age=3900");
   });
 
   it("leaves the administrator's refresh cookie alone", async () => {
