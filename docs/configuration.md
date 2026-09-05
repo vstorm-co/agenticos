@@ -789,10 +789,34 @@ The **rightmost** hop is read rather than the leftmost for the same reason:
 `X-Forwarded-For` is a list the client starts and each proxy appends to, so the head
 is what the client typed and only the tail is what a proxy you control wrote.
 
+**The auth surface needs this too, and the frontend now makes it possible.** Auth
+requests reach the API server-side through the frontend's own `/api/auth/*` routes,
+so without help the address on them is the frontend container's and
+`RATE_LIMIT_AUTH_PER_MINUTE`'s per-IP half puts the whole deployment in one bucket —
+about eleven logins then lock everyone out for a minute, and an exhausted refresh
+bucket signs sessions out. Unlike a hosted page's config fetch, those routes
+**forward the caller's `X-Forwarded-For`**
+([#1047](https://github.com/vstorm-co/agenticos/issues/1047)), so with this setting on
+the limit keys on the real client. Turn it on for the auth limit under the same rule
+as everything else — one proxy you control in front, appending the client as the
+rightmost hop — which is the deployment decision this setting is; left off, the limit
+stays safe but shared.
+
 !!! danger "Turn it on only when a single proxy you control is the only thing that can reach the API"
 
     If the container's port is published as well, a caller can set the header
     themselves and the limit stops meaning anything.
+
+    **The frontend's port counts as the API's here.** Its `/api/auth/*` routes
+    forward whatever `X-Forwarded-For` they were handed, so a caller who can
+    reach port 3000 past the proxy chooses the address their login attempts are
+    counted against just as surely as one who can reach port 8000 — and every
+    accepted attempt against an address nobody holds still costs a bcrypt. Both
+    `docker-compose-prod.yml` and `docker-compose-prod.frontend.yml` therefore
+    publish on `127.0.0.1` by default, where the host's reverse proxy reaches
+    them and nothing else does. `BIND_HOST=0.0.0.0` opens them again, for a
+    proxy that genuinely runs elsewhere — with that proxy's own network as the
+    thing keeping the promise.
 
     With two proxies in front, collapse the header to one hop at your edge — only
     the last hop is trustworthy.
