@@ -53,7 +53,15 @@ the run behaves exactly as it would in Slack or behind the API — same budget,
 same approval gate, same audit trail, because
 [every surface goes through one runner](channels.md).
 
-Two things in the composer worth knowing.
+Three things in the composer worth knowing.
+
+**Your own accounts.** An agent bound to
+[each person's own account](mcp.md#whose-account-a-binding-speaks-through) on a
+service speaks to it as you. The chat's controls list which of the agent's
+services need an account of yours and whether each is ready, with a connect
+button that opens the provider's consent in a new tab. Ask before connecting and
+the agent says it cannot reach the service - and a card under the answer offers
+the same button, so the fix is one click from the refusal.
 
 **Attachments** are parsed and handed to that conversation only; they are not
 added to a [knowledge collection](file-processing.md). See

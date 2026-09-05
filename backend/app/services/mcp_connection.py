@@ -32,9 +32,9 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from mcp.shared.auth import OAuthToken
@@ -51,7 +51,7 @@ from app.agents.mcp import (
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
-from app.agents.spec import McpServerRef
+from app.agents.spec import McpServerRef, PersonalMcpServerRef
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -651,7 +651,9 @@ class McpConnectionService:
         )
         return db_connection, tools, error
 
-    async def oauth_start_for_org(self, ctx: AuthContext, *, name: str, url: str) -> str:
+    async def oauth_start_for_org(
+        self, ctx: AuthContext, *, name: str, url: str, catalog_key: str | None = None
+    ) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
 
         The grant is still one person's - somebody clicks consent, and the
@@ -677,7 +679,7 @@ class McpConnectionService:
                 organization_id=ctx.organization_id,
                 created_by_user_id=ctx.subject_id,
                 allowed_tools=None,
-                catalog_key=None,
+                catalog_key=catalog_key,
                 sealed_token=None,
                 **kwargs,
             ),
@@ -1490,39 +1492,79 @@ def _stored_label(label: str | None) -> str | None:
     return trimmed or None
 
 
+PersonalServiceGapKind = Literal["nobody_to_speak_as", "not_connected", "undecided", "unauthorized"]
+
+
+@dataclass(frozen=True)
+class UnavailablePersonalService:
+    """A personal binding this turn could not honour, and why.
+
+    Each gap is a different sentence to the person talking, which is why the
+    reason is a value rather than a log line: nobody at the keyboard, no
+    connection of their own to this service, several with none marked default
+    (#1342), or one whose credential no longer opens the server.
+    """
+
+    catalog_key: str
+    gap: PersonalServiceGapKind
+
+
+@dataclass(frozen=True)
+class ResolvedMcpToolsets:
+    """What a spec's MCP bindings amount to for one turn.
+
+    The toolsets that could be built, and the personal bindings that could not.
+    Two lists rather than one because the second is not a failure: a personal
+    binding with nobody to speak as is the designed outcome on an API key or a
+    schedule, and the run proceeds - told, in its instructions, what is missing
+    and where the person connects it.
+    """
+
+    toolsets: list[Any]
+    unavailable: list[UnavailablePersonalService]
+
+
 async def build_toolsets_for_agent(
     db: AsyncSession,
     *,
     organization_id: UUID,
-    refs: list[McpServerRef],
-    personal_for_user_id: UUID | None = None,
-) -> list[Any]:
+    refs: Sequence[McpServerRef],
+    sender_user_id: UUID | None = None,
+) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
     Deliberately never the servers the person running the turn has enabled:
     what an agent can reach is part of the agent, and one that answers
     differently depending on whose Slack account triggered it cannot be
-    reasoned about or reviewed. Only organization-scoped rows resolve here, so
-    a member's personal token can never end up inside a shared agent.
+    reasoned about or reviewed. An organization binding resolves only an
+    organization-scoped row, so a member's personal token never ends up behind
+    a shared agent by accident.
 
-    `personal_for_user_id` is the one exception, and it is narrow on both sides.
-    The caller passes it only for a conversation that holds exactly one
-    identified person and nobody else - never a channel, never a group direct
-    message, never an API key - and it is honoured only for a binding whose spec
-    asked for it. What it substitutes is the *credential*, not the binding: the
-    tool prefix stays the organization's, so the same agent presents the same
-    tools whoever runs it, and only the account behind them changes.
+    A **personal** binding is the one place a member's own connection is
+    reached, and it is reached on purpose: the spec says every person speaks to
+    this service as themselves. `sender_user_id` is who is talking - the author
+    of this message, never the thread's first speaker - and `None` where nobody
+    is: an API key, the widget, a schedule, a channel sender with no linked
+    account. The binding is then reported unavailable rather than quietly
+    skipped, so the run can say so and say where the person connects one.
 
     A person holding two accounts to one service is left alone rather than
-    guessed at. Their own connections are the only place that choice could be
-    recorded and nothing records it yet (#1342), and picking the older of two
-    Notion workspaces silently is worse than answering from the organization's.
+    guessed at: they nominate one in their own connections, and until they do
+    the binding is unavailable to them (#1342).
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
+    unavailable: list[UnavailablePersonalService] = []
     for ref in refs:
+        if isinstance(ref, PersonalMcpServerRef):
+            spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
+            if spec is not None:
+                specs.append(spec)
+            if gap is not None:
+                unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
+            continue
         connection = await mcp_connection_repo.get_org_scoped_by_id(
             db, connection_id=ref.connection_id, organization_id=organization_id
         )
@@ -1537,10 +1579,7 @@ async def build_toolsets_for_agent(
                 organization_id,
             )
             continue
-        speaking_as = await _personal_substitute(
-            db, connection, ref=ref, user_id=personal_for_user_id
-        )
-        headers = await _resolve_auth_headers(db, speaking_as)
+        headers = await _resolve_auth_headers(db, connection)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
             # Warning rather than info: this server was bound on purpose, so
@@ -1548,31 +1587,56 @@ async def build_toolsets_for_agent(
             # an ambient connection somebody enabled once in Settings.
             logger.warning(
                 "Skipping MCP connection %r for this run: no usable credentials",
-                speaking_as.name,
+                connection.name,
             )
             continue
         specs.append(
             McpServerSpec(
-                # The organization's, always. A tool the model was told about
-                # must not change its name because of who is in the chat.
                 name=connection.name,
-                url=speaking_as.url,
+                url=connection.url,
                 headers=headers,
-                # Three allowlists, all of them narrowing. The organization's is
-                # in there because substitution replaces the *credential* and
-                # nothing else: reading it off `speaking_as` handed a private run
-                # whatever the member's own connection allowed, so an
-                # organization restricted to read tools could gain write ones
-                # simply by being run by somebody with a broader personal
-                # account. Where nothing was substituted the first two are the
-                # same object and the fold is a no-op.
-                allowed_tools=_narrowed_tools(
-                    _narrowed_tools(connection.allowed_tools, speaking_as.allowed_tools),
-                    ref.allowed_tools,
-                ),
+                allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
             )
         )
-    return await build_mcp_toolsets(specs)
+    return ResolvedMcpToolsets(toolsets=await build_mcp_toolsets(specs), unavailable=unavailable)
+
+
+async def _personal_spec(
+    db: AsyncSession, ref: PersonalMcpServerRef, *, sender_user_id: UUID | None
+) -> tuple[McpServerSpec | None, PersonalServiceGapKind | None]:
+    """The sender's own connection to this service as a server spec, or why not.
+
+    The tool prefix is the catalog key rather than the connection's name: the
+    agent presents `notion_search` to everyone, whatever each person called
+    their own Notion. The allowlist is the binding's ceiling intersected with
+    the person's own - the same fold an organization binding makes, with the
+    administrator's side coming from the spec because there is no connection
+    row of the organization's to read it from.
+    """
+    if sender_user_id is None:
+        return None, "nobody_to_speak_as"
+    owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
+        db, user_id=sender_user_id, catalog_key=ref.catalog_key
+    )
+    connection = _nominated(owned)
+    if connection is None:
+        return None, "undecided" if owned else "not_connected"
+    headers = await _resolve_auth_headers(db, connection)
+    if headers is None:
+        logger.info(
+            "Skipping the sender's own %r connection for this run: no usable credentials",
+            ref.catalog_key,
+        )
+        return None, "unauthorized"
+    return (
+        McpServerSpec(
+            name=ref.catalog_key,
+            url=connection.url,
+            headers=headers,
+            allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
+        ),
+        None,
+    )
 
 
 def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:
@@ -1596,43 +1660,6 @@ def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> 
     return [tool for tool in connection if tool in within]
 
 
-async def _personal_substitute(
-    db: AsyncSession,
-    connection: McpConnection,
-    *,
-    ref: McpServerRef,
-    user_id: UUID | None,
-) -> McpConnection:
-    """The runner's own connection to this service, or the organization's.
-
-    Every condition here is a refusal to substitute, and each one is a way the
-    substitution could otherwise leak an account: a binding that did not ask, a
-    conversation with a second reader in it, a connection with no catalog entry
-    to match on, and a person with more than one account and no way to say which.
-    """
-    if not ref.use_personal_when_available or user_id is None:
-        return connection
-    if connection.catalog_key is None:
-        # Refused at publish, so reachable only for a spec stored before the
-        # check existed. The organization's account is the safe answer.
-        return connection
-    owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
-        db, user_id=user_id, catalog_key=connection.catalog_key
-    )
-    speaking_as = _nominated(owned)
-    if speaking_as is None:
-        if owned:
-            logger.info(
-                "Not substituting a personal connection for %r: this member holds %d of them "
-                "and has nominated none",
-                connection.name,
-                len(owned),
-            )
-        return connection
-    logger.info("Speaking to %r as the member's own connection", connection.name)
-    return speaking_as
-
-
 def _nominated(owned: list[McpConnection]) -> McpConnection | None:
     """Which of a member's accounts on one service to speak as, if any is clear.
 
@@ -1640,7 +1667,7 @@ def _nominated(owned: list[McpConnection]) -> McpConnection | None:
     answers whether or not it is marked. Several answer only the one marked
     default, which a partial unique index keeps to at most one; several with none
     marked answer nothing, because picking the older workspace silently is worse
-    than answering as the organization (#1342).
+    than telling the person to pick (#1342).
     """
     if len(owned) == 1:
         return owned[0]

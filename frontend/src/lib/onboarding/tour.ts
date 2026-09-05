@@ -120,6 +120,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "chat-approval-mode",
     optional: true,
   },
+  // Same popover, and rendered only for an agent bound to each person's own
+  // account - an agent whose bindings are all the organization's has no section
+  // for the caption to pin to.
+  {
+    id: "chat-your-connections",
+    page: ROUTES.CHAT,
+    target: "chat-your-connections",
+    optional: true,
+  },
 
   {
     id: "agents-templates",

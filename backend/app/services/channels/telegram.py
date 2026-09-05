@@ -372,7 +372,6 @@ class TelegramAdapter(ChannelAdapter):
             platform="telegram",
             bot_id=bot_id,
             platform_user_id=platform_user_id,
-            one_to_one=chat_type == "private",
             platform_chat_id=platform_chat_id,
             chat_type=chat_type,
             text=text,

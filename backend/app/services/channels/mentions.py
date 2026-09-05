@@ -358,6 +358,12 @@ class ChannelAgentRouter:
             # Without it a named agent answered an existing thread as though it
             # were empty, because only the default path prepended the backfill.
             message_history=message_history,
+            # The same rule as the default path: a mention from a member speaks
+            # through that person's own MCP accounts, and the room reads the
+            # answer exactly as it reads the question. `sender`, not `user_id`,
+            # for the same reason - a former member's turn runs under the
+            # publisher, whose accounts must not be reached for.
+            acts_for_sender=sender is not None,
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot
@@ -390,7 +396,6 @@ class ChannelAgentRouter:
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         channel_directory: ChannelDirectory | None = None,
-        one_to_one: bool = False,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         message_history: list[Any] | None = None,
@@ -405,11 +410,6 @@ class ChannelAgentRouter:
 
         Args:
             text: The whole incoming message; there is no handle to strip.
-            one_to_one: Whether this chat holds only the sender and the bot.
-                What decides whether a binding flagged
-                `use_personal_when_available` speaks through the sender's own
-                account. `answer` never passes it: a mention is by definition in
-                a room somebody else can read.
             message_history: The channel thread so far, in Pydantic AI's format.
                 A direct-message bot is a conversation, not a sequence of
                 one-shot prompts, and the mention path's statelessness is about
@@ -432,13 +432,16 @@ class ChannelAgentRouter:
         # a message naming no handle was answered with a list of slugs instead
         # of an answer, for agents they could not see.
         exposure, agent = exposed[0]
-        ctx = await self._membership_context(
+        sender = await self._membership_context(
             organization_id,
             user_id,
             slug=agent.slug,
             channel_identity_id=channel_identity_id,
             admit_unlinked=admit_unlinked,
-        ) or await self._binding_context(exposure, channel_identity_id=channel_identity_id)
+        )
+        ctx = sender or await self._binding_context(
+            exposure, channel_identity_id=channel_identity_id
+        )
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
         called: list[RecordedToolCall] = []
@@ -455,10 +458,13 @@ class ChannelAgentRouter:
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             channel_directory=channel_directory,
-            # A direct message with one person in it is the only channel shape
-            # where a binding may speak through that person's own MCP account.
-            # `user_id` because an unlinked sender has no account to speak as.
-            private_to_user=one_to_one and user_id is not None,
+            # A sender who is a member speaks through their own MCP accounts, in
+            # a room as much as in a direct message: the account is this
+            # message's author, never the thread's. `sender`, not `user_id`: a
+            # linked account whose person has left the organization runs under
+            # the binding's publisher, and the publisher's accounts are not the
+            # room's to use.
+            acts_for_sender=sender is not None,
             message_history=message_history,
             exposure=exposure,
         )
@@ -554,10 +560,14 @@ class ChannelAgentRouter:
         A linked account that is no longer a member takes the same path as an
         unlinked one rather than a third: there is no membership to read a role
         from, and in a room a former member is no more entitled than the stranger
-        beside them.
+        beside them. A deactivated account is one of those, which is why this is
+        the joined read: the membership row outlives a deactivation, and the link
+        in `channel_identities` outlives it too, so the plain read ran an
+        offboarded Owner's turns at their full authority from a chat account
+        nobody had unlinked - refused everywhere they sign in, except here.
         """
         if user_id is not None:
-            membership = await member_repo.get(
+            membership = await member_repo.get_active(
                 self.db, organization_id=organization_id, user_id=user_id
             )
             if membership is not None:

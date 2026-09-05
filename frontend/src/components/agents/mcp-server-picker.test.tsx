@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { McpServerPicker } from "./mcp-server-picker";
+import { bindingKey, McpServerPicker } from "./mcp-server-picker";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import type { McpServerRef } from "@/types/agents";
+import type { McpServerRef, OrgMcpServerRef, PersonalMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 function entry(overrides: Partial<McpCatalogEntry> = {}): McpCatalogEntry {
@@ -49,17 +49,14 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
   };
 }
 
-/** A bound server, with the substitution off - what ticking a row writes. */
-function bound(
-  connectionId: string,
-  personal = false,
-  tools: string[] | null = null,
-): McpServerRef {
-  return {
-    connection_id: connectionId,
-    use_personal_when_available: personal,
-    allowed_tools: tools,
-  };
+/** A binding to the organization's connection - what ticking a row writes. */
+function bound(connectionId: string, tools: string[] | null = null): OrgMcpServerRef {
+  return { account: "organization", connection_id: connectionId, allowed_tools: tools };
+}
+
+/** A binding to each person's own account on a catalog service. */
+function personal(catalogKey: string, tools: string[] | null = null): PersonalMcpServerRef {
+  return { account: "personal", catalog_key: catalogKey, allowed_tools: tools };
 }
 
 function picker(props: {
@@ -67,7 +64,7 @@ function picker(props: {
   catalog?: McpCatalogEntry[];
   value?: McpServerRef[];
   onChange?: (next: McpServerRef[]) => void;
-  onTools?: (connection: OrgMcpConnectionRecord, ref: McpServerRef) => void;
+  onTools?: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect?: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
@@ -204,6 +201,22 @@ describe("McpServerPicker", () => {
     expect(screen.getByText(/2 servers this organization does not offer/)).toBeInTheDocument();
   });
 
+  it("does not count a binding to each person's own account as unresolved", () => {
+    // It names a service, not a connection, so there is no id to be missing.
+    render(picker({ value: [personal("github")] }));
+
+    expect(screen.queryByText(/does not offer/)).toBeNull();
+  });
+
+  it("shows a personal binding to a key the catalog no longer describes", () => {
+    // No card can match it, so unlisted it would vanish from the Builder while
+    // publish kept refusing the unknown key.
+    render(picker({ value: [personal("gone-server")] }));
+
+    expect(screen.getByText(/1 server this organization does not offer/)).toBeInTheDocument();
+    expect(screen.getByText("gone-server")).toBeInTheDocument();
+  });
+
   it("shows the whole catalog, not only what already has credentials", () => {
     // "What can I attach right now" was answerable; "what could this agent
     // reach at all" needed another page, and a catalog nobody sees is a catalog
@@ -236,8 +249,9 @@ describe("McpServerPicker", () => {
   });
 
   it("hides the servers nobody connected when asked, which is most of the catalog", async () => {
-    // Only a connected server can be bound to an agent. The rest are shown to
-    // advertise, and sixty of them buries the two that can actually be picked.
+    // Only a connected server can be bound to the organization's account. The
+    // rest are shown to advertise, and sixty of them buries the two that can
+    // actually be picked.
     const linear = entry({ key: "linear", name: "Linear" });
     render(
       picker({
@@ -316,18 +330,6 @@ describe("several connections behind one catalog entry", () => {
     expect(onChange).toHaveBeenCalledWith([bound("c2")]);
   });
 
-  it("carries the substitution across a change of account", async () => {
-    // It is a property of the binding, not of the credential behind it, and
-    // silently clearing it would leave an agent answering as the wrong party.
-    const onChange = vi.fn();
-    render(picker({ connections: THREE, value: [bound("c1", true)], onChange }));
-
-    await userEvent.click(screen.getByRole("combobox", { name: /which github account/i }));
-    await userEvent.click(await screen.findByRole("option", { name: "gh-admin" }));
-
-    expect(onChange).toHaveBeenCalledWith([bound("c3", true)]);
-  });
-
   it("binds the account the select is showing", async () => {
     const onChange = vi.fn();
     render(picker({ connections: THREE, onChange }));
@@ -341,7 +343,7 @@ describe("several connections behind one catalog entry", () => {
     render(picker({ connections: [connection({ id: "c1", name: "gh", catalog_key: "github" })] }));
 
     expect(screen.getByText("GitHub")).toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /which github account/i })).toBeNull();
   });
 
   it("cannot be re-pointed by a viewer who cannot edit", () => {
@@ -351,68 +353,134 @@ describe("several connections behind one catalog entry", () => {
   });
 });
 
-describe("speaking as whoever is running the agent", () => {
-  const NOTION = connection({ id: "c1", name: "gh", catalog_key: "github" });
+describe("whose account a binding speaks through", () => {
+  /**
+   * A binding is one of two kinds. The organization's connection answers for
+   * everybody and is the reviewable default; each person's own account names
+   * the service instead, and whoever talks to the agent connects their own. The
+   * second needs no connection here, so an unconnected server offers it too.
+   */
+  const GH = connection({ id: "c1", name: "gh", catalog_key: "github" });
 
-  it("is not offered until the server is bound", () => {
-    // There would be no account to substitute, and a switch that writes nothing
-    // is a promise the run will not keep.
-    render(picker({ connections: [NOTION] }));
-
-    expect(screen.queryByRole("checkbox", { name: /speak as/i })).not.toBeInTheDocument();
-  });
-
-  it("is off when a binding is made, because the organization's account is the reviewable answer", async () => {
+  it("binds the organization's account when a connected row is ticked", async () => {
     const onChange = vi.fn();
-    render(picker({ connections: [NOTION], onChange }));
+    render(picker({ connections: [GH], onChange }));
 
     await userEvent.click(screen.getByRole("checkbox", { name: "GitHub" }));
 
-    expect(onChange).toHaveBeenCalledWith([bound("c1", false)]);
+    expect(onChange).toHaveBeenCalledWith([bound("c1")]);
   });
 
-  it("writes the flag onto the binding it belongs to", async () => {
+  it("asks whose account only once the server is bound", () => {
+    render(picker({ connections: [GH] }));
+
+    expect(screen.queryByRole("combobox", { name: /whose github account/i })).toBeNull();
+  });
+
+  it("switches a bound server to each person's own account, keeping its tools", async () => {
+    // The tools are chosen for the agent; whose credential reaches them is a
+    // different question, and the server offers the same tools either way.
     const onChange = vi.fn();
-    render(picker({ connections: [NOTION], value: [bound("c1")], onChange }));
+    render(picker({ connections: [GH], value: [bound("c1", ["search"])], onChange }));
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /speak as/i }));
+    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "Each person's own account" }));
 
-    expect(onChange).toHaveBeenCalledWith([bound("c1", true)]);
+    expect(onChange).toHaveBeenCalledWith([personal("github", ["search"])]);
+  });
+
+  it("switches back to the organization's account, keeping its tools", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: [GH], value: [personal("github", ["search"])], onChange }));
+
+    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "The organization's account" }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1", ["search"])]);
+  });
+
+  it("says on the card that each person's own account answers", () => {
+    render(picker({ connections: [GH], value: [personal("github")] }));
+
+    expect(screen.getByRole("combobox", { name: /whose github account/i })).toHaveTextContent(
+      "Each person's own account",
+    );
+    expect(screen.getByText(/Not available to API keys/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "GitHub" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("offers each person's own account for a server nobody has connected", async () => {
+    // The binding names the service, so it needs no connection to exist - the
+    // whole point of the kind is that each person brings their own.
+    const onChange = vi.fn();
+    render(picker({ onChange }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Use each person's own account" }));
+
+    expect(onChange).toHaveBeenCalledWith([personal("github")]);
+  });
+
+  it("still offers to connect the organization's account beside it", async () => {
+    const onConnect = vi.fn();
+    render(picker({ onConnect }));
+
+    await userEvent.click(screen.getByText("GitHub"));
+
+    expect(onConnect).toHaveBeenCalledWith(GITHUB);
+  });
+
+  it("renders a personal binding on an unconnected server as a bound card", () => {
+    render(picker({ value: [personal("github")] }));
+
+    expect(screen.getByRole("checkbox", { name: "GitHub" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.queryByRole("option", { name: "The organization's account" })).toBeNull();
+  });
+
+  it("unbinds a personal binding when its card is ticked again", async () => {
+    const onChange = vi.fn();
+    render(picker({ value: [personal("github")], onChange }));
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "GitHub" }));
+
+    expect(onChange).toHaveBeenCalledWith([]);
   });
 
   it("leaves the other bindings alone", async () => {
     const other = connection({ id: "c9", name: "linear", url: "https://mcp.linear.app/sse" });
     const onChange = vi.fn();
+    render(picker({ connections: [GH, other], value: [bound("c9"), bound("c1")], onChange }));
+
+    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "Each person's own account" }));
+
+    expect(onChange).toHaveBeenCalledWith([bound("c9"), personal("github")]);
+  });
+
+  it("does not offer each person's own account for a server outside the catalog", () => {
+    // A custom URL has no catalog key for anybody's own connection to be
+    // matched on, so only the organization's connection can be bound.
     render(
       picker({
-        connections: [NOTION, other],
-        value: [bound("c9", true), bound("c1")],
-        onChange,
+        connections: [connection({ id: "c1", name: "crm", url: "https://crm.internal/mcp" })],
+        value: [bound("c1")],
       }),
     );
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /speak as/i }));
-
-    expect(onChange).toHaveBeenCalledWith([bound("c9", true), bound("c1", true)]);
+    expect(screen.queryByRole("combobox", { name: /whose crm account/i })).toBeNull();
   });
 
-  it("turns back off", async () => {
-    const onChange = vi.fn();
-    render(picker({ connections: [NOTION], value: [bound("c1", true)], onChange }));
+  it("cannot be switched by a viewer who cannot edit", () => {
+    render(picker({ connections: [GH], value: [bound("c1")], disabled: true }));
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /speak as/i }));
-
-    expect(onChange).toHaveBeenCalledWith([bound("c1", false)]);
-  });
-
-  it("is not offered for a connection with no catalog key", () => {
-    // Publish refuses one, for the reason there is nothing to match a member's
-    // own connection against. Read off the connection rather than off the card:
-    // `entryForConnection` also matches on URL, so this row renders under the
-    // GitHub entry and still has no key to join anybody's own connection to.
-    render(picker({ connections: [connection({ id: "c1" })], value: [bound("c1")] }));
-
-    expect(screen.queryByRole("checkbox", { name: /speak as/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /whose github account/i })).toBeDisabled();
   });
 });
 
@@ -423,54 +491,79 @@ describe("which of a server's tools this agent may call", () => {
    * It is on the binding now, and the two intersect at run time - the
    * connection's list is an administrator's ceiling (#1341).
    */
-  const NOTION = connection({ id: "c1", name: "gh", catalog_key: "github" });
+  const GH = connection({ id: "c1", name: "gh", catalog_key: "github" });
 
   it("is not offered until the server is bound", () => {
-    render(picker({ connections: [NOTION] }));
+    render(picker({ connections: [GH] }));
 
     expect(screen.queryByRole("button", { name: /tool/i })).not.toBeInTheDocument();
   });
 
   it("says every tool while the binding narrows nothing", () => {
-    render(picker({ connections: [NOTION], value: [bound("c1")] }));
+    render(picker({ connections: [GH], value: [bound("c1")] }));
 
     expect(screen.getByRole("button", { name: "Every tool it offers" })).toBeVisible();
   });
 
   it("counts what the binding narrowed to", () => {
-    render(picker({ connections: [NOTION], value: [bound("c1", false, ["search", "fetch"])] }));
+    render(picker({ connections: [GH], value: [bound("c1", ["search", "fetch"])] }));
 
     expect(screen.getByRole("button", { name: "2 tools" })).toBeVisible();
   });
 
-  it("hands the caller the connection and the binding it belongs to", async () => {
+  it("hands the caller the binding, the connection whose probe lists the tools, and the server's name", async () => {
     const onTools = vi.fn();
-    render(picker({ connections: [NOTION], value: [bound("c1", false, ["search"])], onTools }));
+    render(picker({ connections: [GH], value: [bound("c1", ["search"])], onTools }));
 
     await userEvent.click(screen.getByRole("button", { name: "1 tool" }));
 
-    expect(onTools).toHaveBeenCalledWith(NOTION, bound("c1", false, ["search"]));
+    expect(onTools).toHaveBeenCalledWith(bound("c1", ["search"]), GH, "GitHub");
+  });
+
+  it("narrows a binding to each person's own account from an organization connection's probe", async () => {
+    // The server's tools are the same whoever's credential reaches them, and
+    // the organization's probe is the only catalogue of them this page holds.
+    const onTools = vi.fn();
+    render(picker({ connections: [GH], value: [personal("github")], onTools }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Every tool it offers" }));
+
+    expect(onTools).toHaveBeenCalledWith(personal("github"), GH, "GitHub");
+  });
+
+  it("cannot narrow a personal binding where the organization holds no connection to probe", () => {
+    render(picker({ value: [personal("github")] }));
+
+    expect(screen.queryByRole("button", { name: /tool/i })).not.toBeInTheDocument();
   });
 
   it("carries the choice across a change of account", async () => {
-    // The tools are chosen for the agent; which account it speaks through is a
-    // different question, and two accounts on one server expose the same tools.
     const onChange = vi.fn();
     const two = [
       connection({ id: "c1", name: "gh-work", catalog_key: "github" }),
       connection({ id: "c2", name: "gh-side", catalog_key: "github" }),
     ];
-    render(picker({ connections: two, value: [bound("c1", true, ["search"])], onChange }));
+    render(picker({ connections: two, value: [bound("c1", ["search"])], onChange }));
 
     await userEvent.click(screen.getByRole("combobox", { name: /which github account/i }));
     await userEvent.click(await screen.findByRole("option", { name: "gh-side" }));
 
-    expect(onChange).toHaveBeenCalledWith([bound("c2", true, ["search"])]);
+    expect(onChange).toHaveBeenCalledWith([bound("c2", ["search"])]);
   });
 
   it("cannot be opened by a viewer who cannot edit", () => {
-    render(picker({ connections: [NOTION], value: [bound("c1")], disabled: true }));
+    render(picker({ connections: [GH], value: [bound("c1")], disabled: true }));
 
     expect(screen.getByRole("button", { name: "Every tool it offers" })).toBeDisabled();
+  });
+});
+
+describe("bindingKey", () => {
+  it("tells the two kinds apart even when their ids coincide", () => {
+    expect(bindingKey(bound("notion"))).not.toBe(bindingKey(personal("notion")));
+  });
+
+  it("is the same for the same binding whatever its tools", () => {
+    expect(bindingKey(personal("notion", ["search"]))).toBe(bindingKey(personal("notion")));
   });
 });

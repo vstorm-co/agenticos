@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import yaml
@@ -58,10 +58,19 @@ logger = logging.getLogger(__name__)
 # through the *runner's own* account instead of the organization's. A bare id
 # had nowhere to carry that, and a second parallel list of flagged ids is two
 # lists that drift.
-SPEC_VERSION = 10
+#
+# 11 makes that policy the binding's *kind* rather than a flag on it. A binding
+# is either the organization's connection, used by everybody, or a service each
+# person reaches through their own account - `account: "personal"` with a
+# `catalog_key` and no connection at all. The flag
+# `use_personal_when_available` is withdrawn: it substituted a credential in
+# private conversations only, which left a personal account working in a direct
+# message and silently absent from the channel next to it.
+SPEC_VERSION = 11
 
 ApprovalMode = Literal["default", "required", "never"]
 
+_WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
 _THINKING_CAPABILITY = "thinking"
@@ -472,51 +481,26 @@ class ModelSettingsSpec(BaseModel):
 DelegationMode = Literal["sync", "async", "auto"]
 
 
-class McpServerRef(BaseModel):
-    """One MCP connection this agent may call, and on whose account.
+class OrgMcpServerRef(BaseModel):
+    """One of the organization's MCP connections, used by every run of this agent.
 
-    An id would have been enough while a binding was only a reference. It is not
-    one any more: `use_personal_when_available` is policy about *whose* account
-    answers, and policy belongs on the binding rather than in a second list of
-    ids kept in step with the first by hand.
+    The default kind of binding and the one an agent is reviewed against: the
+    account behind the tools is the organization's whoever is talking, on every
+    surface - the dashboard, a channel, the widget, an API key, a schedule.
 
-    The organization's connection is always what is bound, and it is what the
-    agent is reviewed against. The flag adds one narrow substitution on top of
-    it: in a conversation that holds exactly one identified person and nobody
-    else, that person's own connection to the same service is used instead. It
-    is off by default because the default has to be the reviewable answer - an
-    agent whose reach depends on who ran it is the thing
-    :func:`build_toolsets_for_agent` exists to prevent, and this is the one
-    place it is allowed, deliberately and per binding.
-
-    `allowed_tools` is the other thing a binding carries, and it is the reason
-    the same server can serve two agents differently. `allowed_tools` on the
-    *connection* is one administrator's decision for everybody bound to it; this
-    narrows within it, per agent. The two intersect at run time rather than one
-    overriding the other, so an agent cannot reach a tool the connection excluded
-    - not even one excluded after the agent was published.
-
-    Two constraints hold the substitution together, both checked at publish:
-
-    - The bound connection must carry a `catalog_key`. That key is what says a
-      person's Notion and the organization's Notion are the same service; a
-      connection somebody pointed at a bare URL has nothing to match on.
-    - Two flagged bindings may not share one `catalog_key`, because the
-      substitution would then have two answers and no way to choose.
+    `allowed_tools` is what a binding carries beyond the reference, and it is
+    the reason the same server can serve two agents differently. `allowed_tools`
+    on the *connection* is one administrator's decision for everybody bound to
+    it; this narrows within it, per agent. The two intersect at run time rather
+    than one overriding the other, so an agent cannot reach a tool the
+    connection excluded - not even one excluded after the agent was published.
     """
 
     model_config = ConfigDict(extra="forbid")
 
+    account: Literal["organization"] = "organization"
     connection_id: UUID = Field(
         description="The organization's MCP connection. A personal one is refused at publish."
-    )
-    use_personal_when_available: bool = Field(
-        default=False,
-        description=(
-            "Let a run reach this service through the runner's own connection "
-            "when the conversation is theirs alone. Off by default; ignored "
-            "wherever a second person can read the answer."
-        ),
     )
     allowed_tools: list[str] | None = Field(
         default=None,
@@ -527,6 +511,68 @@ class McpServerRef(BaseModel):
             "administrator's ceiling and this cannot reach past it."
         ),
     )
+
+
+class PersonalMcpServerRef(BaseModel):
+    """A service each person reaches through their own account.
+
+    Names a catalog entry rather than a connection, because the connection does
+    not exist when the agent is published: it is whichever of *their own* the
+    person talking to the agent holds for that service, found by `catalog_key`
+    when the turn runs. So the same agent speaks to Notion as Ania when Ania
+    asks and as Bartek when Bartek does - in the dashboard, in a direct message
+    and in a channel alike - and the audit trail at Notion says who did what.
+
+    The account is the sender of *this message*, never the thread's. A thread
+    is not a boundary anybody's credentials should cross: were the first person
+    to connect their account to answer for everybody after them, linking a
+    Notion in a channel would hand it to the channel.
+
+    Two things follow from there being no connection row:
+
+    - **Where nobody is talking, the tools are absent.** An API key, the
+      embedded widget, a schedule, a trigger and a channel sender who has not
+      linked their chat account have no account to speak through, so the run
+      proceeds without this server and is told so, in one line of its
+      instructions, with the link where the person connects one. Every other
+      binding of the agent is unaffected.
+    - **The tool prefix is the catalog key.** `notion` gives the model
+      `notion_search`, whichever of the person's own connections answers, so
+      the agent presents the same tools to everyone. Publish refuses a personal
+      binding whose key is also the name of an organization connection bound to
+      the same agent, because that would be two servers under one prefix.
+
+    `allowed_tools` here is the administrator's ceiling, and the only one: the
+    person's own connection may narrow further, and the two intersect.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    account: Literal["personal"]
+    catalog_key: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9-]*$",
+        description=(
+            "Which service, as the MCP catalog names it. A person's own connection "
+            "to it is found by this key when the turn runs."
+        ),
+    )
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        description=(
+            "Which of the server's tools this agent may call, whoever's account "
+            "answers. Null is every tool the person's own connection allows."
+        ),
+    )
+
+
+McpServerRef = Annotated[OrgMcpServerRef | PersonalMcpServerRef, Field(discriminator="account")]
+"""One MCP binding: the organization's connection, or each person's own account.
+
+Discriminated on `account`, so a stored document says which it is and a reader
+never has to infer it from which other fields are present.
+"""
 
 
 class SubagentRef(BaseModel):
@@ -830,10 +876,11 @@ class AgentSpec(BaseModel):
     mcp_servers: list[McpServerRef] = Field(
         default_factory=list,
         description=(
-            "Organization-scoped MCP connections this agent may call, each with "
-            "the one policy a binding carries. Personal connections are refused "
-            "at publish: a published agent's reach cannot depend on whose "
-            "session runs it, except where a binding says so explicitly."
+            "MCP services this agent may call, each bound either to one of the "
+            "organization's connections or to each person's own account on a "
+            "catalog service. A member's connection is never bound directly: a "
+            "published agent names the service, and whose account answers is the "
+            "binding's kind."
         ),
     )
 
@@ -884,12 +931,12 @@ class AgentSpec(BaseModel):
     def _migrate_version_9_mcp_server_ids(cls, data: Any) -> Any:
         """Let a spec written against `mcp_server_ids` load as `mcp_servers`.
 
-        Version 10 turned a list of ids into a list of references so the binding
-        could carry `use_personal_when_available`. Without this, `extra="forbid"`
-        would refuse every stored spec that names an MCP server - a 500 on every
-        run of something nobody touched - and the ids are the same ids, so there
-        is nothing to decide: each becomes a reference with the flag off, which
-        is the behaviour those specs already have.
+        Version 10 turned a list of ids into a list of references so a binding
+        could carry policy of its own. Without this, `extra="forbid"` would
+        refuse every stored spec that names an MCP server - a 500 on every run
+        of something nobody touched - and the ids are the same ids, so there is
+        nothing to decide: each becomes an organization binding, which is the
+        behaviour those specs already have.
 
         An explicit `mcp_servers` wins, so re-reading a migrated spec changes
         nothing.
@@ -909,8 +956,47 @@ class AgentSpec(BaseModel):
         migrated = {key: value for key, value in data.items() if key != "mcp_server_ids"}
         if "mcp_servers" in data:
             return migrated
-        migrated["mcp_servers"] = [{"connection_id": value} for value in legacy]
+        migrated["mcp_servers"] = [
+            {"account": "organization", "connection_id": value} for value in legacy
+        ]
         return migrated
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_10_mcp_bindings(cls, data: Any) -> Any:
+        """Let a version-10 binding load as an organization binding.
+
+        Version 11 discriminates a binding on `account`, and a discriminated
+        union needs the tag present - so a stored `{"connection_id": ...}` is
+        given `"organization"`, which is what every binding was.
+
+        The withdrawn flag is dropped rather than refused, for the same reason
+        `_MODEL_SETTINGS_WITHDRAWN` is: `extra="forbid"` on a stored spec is a
+        500 on every run of something nobody touched. A binding that had it on
+        loads as an organization binding and says so in the log, because the
+        behaviour it asked for - the runner's own account in private
+        conversations - is now a different kind of binding altogether, and
+        choosing it for somebody is not a migration's call. An item that is not
+        a mapping is left alone for the field's own validation to name.
+        """
+        if not isinstance(data, dict) or not isinstance(data.get("mcp_servers"), list):
+            return data
+        bindings: list[Any] = []
+        for item in data["mcp_servers"]:
+            if not isinstance(item, dict):
+                bindings.append(item)
+                continue
+            binding = {key: value for key, value in item.items() if key != _WITHDRAWN_MCP_FLAG}
+            if item.get(_WITHDRAWN_MCP_FLAG):
+                logger.warning(
+                    "Dropping withdrawn `%s` from an MCP binding to %s: it is an "
+                    "organization binding now. Bind the service as `account: personal` "
+                    "if each person should use their own account.",
+                    _WITHDRAWN_MCP_FLAG,
+                    item.get("connection_id"),
+                )
+            bindings.append({"account": "organization", **binding})
+        return {**data, "mcp_servers": bindings}
 
     @model_validator(mode="before")
     @classmethod

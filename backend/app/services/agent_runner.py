@@ -63,7 +63,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun as AgentIteration
@@ -175,7 +175,12 @@ from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
-from app.services.mcp_connection import build_toolsets_for_agent
+from app.services.mcp_catalog import get_entry as mcp_catalog_entry
+from app.services.mcp_connection import (
+    PersonalServiceGapKind,
+    UnavailablePersonalService,
+    build_toolsets_for_agent,
+)
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
@@ -467,6 +472,24 @@ class AdmittedAs(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _read_the_flag_under_its_old_name(cls, data: Any) -> Any:
+        """Let a run parked as `private_to_user` resume as `acts_for_sender`.
+
+        The field was renamed when whose account a binding speaks through became
+        the binding's kind rather than a private-conversation substitution, and
+        `extra="forbid"` would otherwise refuse every approval parked before that
+        deploy - a run somebody is waiting on, failing to resume for a key
+        nobody can edit. The old flag meant "one identified person, nobody
+        else", which implies the new one; the new key wins where both appear.
+        """
+        if not isinstance(data, dict) or "private_to_user" not in data:
+            return data
+        migrated = {key: value for key, value in data.items() if key != "private_to_user"}
+        migrated.setdefault("acts_for_sender", data["private_to_user"])
+        return migrated
+
     approval_mode: ApprovalMode = Field(
         default=ApprovalMode.FOLLOW_AGENT,
         description=(
@@ -476,13 +499,14 @@ class AdmittedAs(BaseModel):
             "rejected (#1326)."
         ),
     )
-    private_to_user: bool = Field(
+    acts_for_sender: bool = Field(
         default=False,
         description=(
-            "Whether the conversation held exactly one identified person. What "
-            "decides if a binding may speak through their own MCP account, and "
-            "unrecoverable from the row: `agent_runs` records the surface, and a "
-            "direct message and a channel are the same surface (#1343)."
+            "Whether an identified person wrote the message this run answers. What "
+            "decides if a personal MCP binding may speak through their own account, "
+            "and unrecoverable from the row: `agent_runs` records `user_id`, but on "
+            "a channel that is the binding's publisher when the sender is unlinked, "
+            "and on an API key it is the key's holder (#1343)."
         ),
     )
     subject_is_publisher_fallback: bool = Field(
@@ -976,6 +1000,17 @@ class PreparedRun:
     the run.
     """
 
+    personal_service_gaps: list[PersonalServiceGap] = field(default_factory=list)
+    """The agent's personal MCP services this person cannot reach on this turn.
+
+    What the model was told in its instructions, in a form a surface can draw: a
+    chat renders a card with the button that connects the account, so the
+    person acts on the same sentence the agent is about to say. Empty for every
+    run whose bindings all resolved, and always empty for an organization
+    binding - those are skipped with a log line, not reported, because nobody at
+    the keyboard can fix them.
+    """
+
     workspace_at_start: set[str] | None = None
     """Every path the workspace held before the turn ran.
 
@@ -1223,6 +1258,105 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{workspace.briefing}"})
 
 
+_CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
+
+
+class PersonalServiceGap(BaseModel):
+    """One personal MCP service a turn cannot reach, as a surface draws it.
+
+    The same fact the model is briefed with, carried to the person: which
+    service, why, and the one link that fixes it. `url` is the servers page
+    with `?connect=<key>` for a service they have not connected, and the bare
+    page for one they have - several accounts with no default, or a grant that
+    no longer authorizes - because `?connect=` always makes a *new* connection
+    and an expired Notion followed there becomes a second Notion.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    catalog_key: str
+    name: str = Field(
+        description="As the catalog names it; the key where the catalog no longer holds it"
+    )
+    gap: PersonalServiceGapKind
+    url: str
+
+
+def personal_service_gap(unavailable: UnavailablePersonalService) -> PersonalServiceGap:
+    """One gap as the model is briefed with it and the surface draws it.
+
+    Named after the catalog entry where there is one, and pointed at the connect
+    link only for a service the person has not connected at all: the other gaps
+    are about an account they already hold, and `?connect=` would make another.
+    """
+    entry = mcp_catalog_entry(unavailable.catalog_key)
+    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
+    return PersonalServiceGap(
+        catalog_key=unavailable.catalog_key,
+        name=unavailable.catalog_key if entry is None else entry.name,
+        gap=unavailable.gap,
+        url=(
+            f"{servers}?connect={unavailable.catalog_key}"
+            if unavailable.gap == "not_connected"
+            else servers
+        ),
+    )
+
+
+def _with_personal_service_gaps(
+    spec: AgentSpec, gaps: Sequence[UnavailablePersonalService], surface: RunSurface
+) -> AgentSpec:
+    """The spec told which personal services this turn cannot reach, and why.
+
+    A personal binding with nothing to speak through is skipped, and a skipped
+    server is invisible to the model: it answers as though the agent never had
+    Notion, and the person asking concludes the agent is broken. One paragraph
+    per gap turns that into an answer they can act on - connect the account,
+    mark one as default, link the chat account - with the link that does it.
+    Appended per run with `model_copy`, like a binding's prompt, because it is
+    true of this message and not of the published version.
+    """
+    if not gaps:
+        return spec
+    added = "\n\n".join(_personal_gap_briefing(personal_service_gap(gap), surface) for gap in gaps)
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
+
+
+def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
+    bound = f"{gap.name} is bound to the account of whoever is talking to you"
+    if gap.gap == "nobody_to_speak_as":
+        if surface in _CHANNEL_SURFACES:
+            return (
+                f"{bound}, and this message came from a chat account nobody has linked to a "
+                f"person here, so the {gap.name} tools are not available for it. If asked for "
+                f"anything in {gap.name}, say so and tell them to send /link to this bot first, "
+                "then ask again."
+            )
+        return (
+            f"{bound}, and nobody is signed in on this surface, so the {gap.name} tools are not "
+            f"available here. If asked for anything in {gap.name}, say so plainly rather than "
+            "attempting a workaround."
+        )
+    if gap.gap == "undecided":
+        return (
+            f"{bound}, and this person holds several {gap.name} connections with none marked as "
+            f"the one agents use, so its tools are not available for this message. If asked "
+            f"for anything in {gap.name}, say so and point them at {gap.url} to mark one of their "
+            f"{gap.name} connections as default, under You."
+        )
+    if gap.gap == "unauthorized":
+        return (
+            f"{bound}, and this person's own {gap.name} connection no longer authorizes, so its "
+            f"tools are not available for this message. If asked for anything in {gap.name}, say "
+            f"so and point them at {gap.url} to authorize their {gap.name} connection again, under You."
+        )
+    return (
+        f"{bound}, and this person has not connected their own {gap.name} yet, so its tools are "
+        f"not available for this message. If asked for anything in {gap.name}, say so and give "
+        f"them this link to connect it: {gap.url} - once connected, they ask again."
+    )
+
+
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
     """The spec with the lookups *this* binding grants, if it grants any.
 
@@ -1278,6 +1412,11 @@ class _Delegation:
 
     ctx: AuthContext
     run: AgentRun
+    surface: RunSurface
+    """Where the run came from, for the briefing a delegate gets on a personal
+    service nobody can speak through - the remedy differs between a chat channel
+    and an API key."""
+
     agent_id: UUID
     """The agent that started the run. An inline specialist is built under it,
     having no id of its own."""
@@ -1286,13 +1425,11 @@ class _Delegation:
     user_name: str | None
 
     personal_mcp_user_id: UUID | None
-    """Whose own MCP connections a binding flagged for substitution may use.
+    """Whose own MCP connections a personal binding speaks through.
 
-    Set only for a conversation that holds exactly one identified person, and
-    `None` everywhere else. Here rather than derived per delegate because it is a
-    fact about the *run*: a delegate answers into the same conversation its
-    parent does, so the second reader that makes substitution unsafe is the same
-    second reader at every level.
+    The person who wrote the message, and `None` where nobody did. Here rather
+    than derived per delegate because it is a fact about the *run*: a delegate
+    answers the same person its parent does, at every level of the tree.
     """
 
     approvals: ApprovalChannel
@@ -1635,7 +1772,7 @@ class AgentRunnerService:
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
-        private_to_user: bool = False,
+        acts_for_sender: bool = False,
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
@@ -1701,7 +1838,7 @@ class AgentRunnerService:
             channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
-            private_to_user=private_to_user,
+            acts_for_sender=acts_for_sender,
             extra_toolsets=extra_toolsets,
             exposure=exposure,
             decided={},
@@ -1774,7 +1911,7 @@ class AgentRunnerService:
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None,
-        private_to_user: bool = False,
+        acts_for_sender: bool = False,
         owner_user_id: UUID | None = None,
         restored_publisher_fallback: bool | None = None,
         extra_toolsets: list[Any] | None,
@@ -1880,29 +2017,31 @@ class AgentRunnerService:
         # secret may not.
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec))
 
-        # Whose own MCP connections a flagged binding may speak through, and the
-        # only place the answer is assembled. Both halves are required: a
-        # conversation nobody else can read, *and* a person to attribute it to.
-        # An API key run is neither, and a channel run is only the first when the
-        # caller says the chat is one-to-one.
+        # Whose own MCP connections a personal binding speaks through, and the
+        # only place the answer is assembled. Not `ctx.user_id` alone: on a
+        # channel an unlinked sender runs under the binding's publisher, and on
+        # an API key the context is the key holder's - neither of them is the
+        # person talking, so the caller says whether there is one.
         #
         # `owner_user_id` is who the run belongs to, and it is not always whoever
         # is calling. A run that parked for approval is resumed by an approver,
         # so deriving this from `ctx` alone read *their* personal account inside
         # somebody else's conversation - the resume path passes the recorded
         # owner and this falls back to the caller only for a run being started.
-        personal_mcp_user_id = (owner_user_id or ctx.user_id) if private_to_user else None
+        personal_mcp_user_id = (owner_user_id or ctx.user_id) if acts_for_sender else None
 
         # The MCP servers the spec binds, resolved here rather than by each
         # surface. A surface that forgot would produce an agent missing half its
         # tools with nothing to show for it, and the answer would differ between
         # the playground and Slack for no reason anybody could see.
-        spec_toolsets = await build_toolsets_for_agent(
+        resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
-            personal_for_user_id=personal_mcp_user_id,
+            sender_user_id=personal_mcp_user_id,
         )
+        spec_toolsets = resolved.toolsets
+        spec = _with_personal_service_gaps(spec, resolved.unavailable, surface)
 
         run = existing_run
         if run is None:
@@ -2044,6 +2183,7 @@ class AgentRunnerService:
             spec=spec,
             agent=agent,
             run=run,
+            surface=surface,
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
             resources=resources,
@@ -2125,6 +2265,7 @@ class AgentRunnerService:
             workspace=workspace,
             materialised_skills=materialised,
             workspace_at_start=started_with,
+            personal_service_gaps=[personal_service_gap(gap) for gap in resolved.unavailable],
             delegations=delegations,
             stash=stash,
             ctx=ctx,
@@ -2132,7 +2273,7 @@ class AgentRunnerService:
             finished_plan_withheld=finished_plan_withheld,
             admitted_as=AdmittedAs(
                 approval_mode=approval_mode,
-                private_to_user=private_to_user,
+                acts_for_sender=acts_for_sender,
                 subject_is_publisher_fallback=publisher_fallback,
             ),
         )
@@ -2144,6 +2285,7 @@ class AgentRunnerService:
         spec: AgentSpec,
         agent: Agent,
         run: AgentRun,
+        surface: RunSurface,
         user_name: str | None,
         personal_mcp_user_id: UUID | None,
         resources: dict[str, Any],
@@ -2194,6 +2336,7 @@ class AgentRunnerService:
         delegation = _Delegation(
             ctx=ctx,
             run=run,
+            surface=surface,
             agent_id=agent.id,
             # Not `str(ctx.user_id)`: a context with no subject would stringify to
             # the literal "None" and hand it to every delegate's tools as the
@@ -2574,12 +2717,17 @@ class AgentRunnerService:
         model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
-        toolsets = await build_toolsets_for_agent(
+        resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
-            personal_for_user_id=delegation.personal_mcp_user_id,
+            sender_user_id=delegation.personal_mcp_user_id,
         )
+        toolsets = resolved.toolsets
+        # Briefed like the parent: a delegate may bind a service the parent does
+        # not, and one that lost it silently would report failure where the
+        # parent could have relayed "connect your Notion" instead.
+        runnable = _with_personal_service_gaps(runnable, resolved.unavailable, delegation.surface)
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
         return ResolvedSubagent(
             name=delegate.slug,
@@ -3182,7 +3330,7 @@ class AgentRunnerService:
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
-        private_to_user: bool = False,
+        acts_for_sender: bool = False,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
@@ -3231,7 +3379,7 @@ class AgentRunnerService:
             conversation_id=conversation_id,
             channel_key=channel_key,
             channel_directory=channel_directory,
-            private_to_user=private_to_user,
+            acts_for_sender=acts_for_sender,
             exposure=exposure,
             environment_id=environment_id,
         )
@@ -3398,7 +3546,7 @@ class AgentRunnerService:
             # path where somebody had said no (#1326), and read a direct message
             # as a channel (#1343).
             approval_mode=state.admitted_as.approval_mode,
-            private_to_user=state.admitted_as.private_to_user and run.user_id is not None,
+            acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
             # speaks through - for personal MCP (`owner_user_id`) or for the

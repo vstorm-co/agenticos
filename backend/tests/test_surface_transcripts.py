@@ -416,7 +416,7 @@ class TestAMentionRecordsItsTranscript:
         with (
             _run_yielding(run) as (captured, conversations),
             patch(
-                "app.services.channels.mentions.member_repo.get",
+                "app.services.channels.mentions.member_repo.get_active",
                 new=AsyncMock(return_value=MagicMock(role="builder")),
             ),
             patch(
@@ -470,7 +470,7 @@ class TestTheDefaultAgentRecordsItsTranscript:
                 new=AsyncMock(return_value=[(exposure, agent)]),
             ),
             patch(
-                "app.services.channels.mentions.member_repo.get",
+                "app.services.channels.mentions.member_repo.get_active",
                 new=AsyncMock(return_value=MagicMock(role="builder")),
             ),
             patch.object(
@@ -518,7 +518,7 @@ class TestTheDefaultAgentRecordsItsTranscript:
                 new=AsyncMock(return_value=[(exposure, agent)]),
             ),
             patch(
-                "app.services.channels.mentions.member_repo.get",
+                "app.services.channels.mentions.member_repo.get_active",
                 new=AsyncMock(return_value=MagicMock(role="builder")),
             ),
             patch.object(
@@ -575,7 +575,7 @@ class TestTheDefaultAgentRecordsItsTranscript:
                 new=AsyncMock(return_value=[(exposure, agent)]),
             ),
             patch(
-                "app.services.channels.mentions.member_repo.get",
+                "app.services.channels.mentions.member_repo.get_active",
                 new=AsyncMock(return_value=MagicMock(role="builder")),
             ),
             patch.object(

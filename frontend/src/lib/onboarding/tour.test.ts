@@ -173,6 +173,7 @@ describe("stepsForPage", () => {
       "chat-plan",
       "chat-model-picker",
       "chat-approval-mode",
+      "chat-your-connections",
     ]);
   });
 

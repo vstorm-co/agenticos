@@ -353,8 +353,6 @@ class ChannelMessageRouter:
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 channel_directory=directory,
-                # Only ever the default path: a mention lands in a room.
-                one_to_one=incoming.one_to_one,
                 # How many turns this chat has had. `every_n` counts per chat,
                 # because "every tenth message" is a question about this
                 # conversation and not about whichever channel happened to be
