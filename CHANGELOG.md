@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.356] - 2026-09-05
+
 ### Changed
 
 - **An MCP binding says whose account it speaks through, and that is its
