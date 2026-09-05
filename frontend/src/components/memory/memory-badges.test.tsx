@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { OriginBadge, PartitionBadge } from "./memory-badges";
+import { OriginBadge, OwnerBadge } from "./memory-badges";
 
 describe("OriginBadge", () => {
   it("names an operator file, which is the trusted one", () => {
@@ -15,26 +15,26 @@ describe("OriginBadge", () => {
   });
 });
 
-describe("PartitionBadge", () => {
-  it("labels the shared store rather than showing an empty key", () => {
-    render(<PartitionBadge scopeKey={null} />);
-    expect(screen.getByText("Shared")).toBeInTheDocument();
+describe("OwnerBadge", () => {
+  it("labels the organisation's store rather than showing an empty key", () => {
+    render(<OwnerBadge ownerKey={null} />);
+    expect(screen.getByText("Organisation")).toBeInTheDocument();
   });
 
   it("shows the raw partition key for a private store", () => {
-    render(<PartitionBadge scopeKey="user:0f3a91b2" />);
-    expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
+    render(<OwnerBadge ownerKey="person:0f3a91b2" />);
+    expect(screen.getByText("person:0f3a91b2")).toBeInTheDocument();
   });
 
   it("shows the resolved name and keeps the raw key on hover", () => {
-    render(<PartitionBadge scopeKey="user:0f3a91b2" partitionLabel="dana@acme.example" />);
+    render(<OwnerBadge ownerKey="person:0f3a91b2" ownerLabel="dana@acme.example" />);
     const badge = screen.getByText("dana@acme.example");
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveAttribute("title", "user:0f3a91b2");
+    expect(badge).toHaveAttribute("title", "person:0f3a91b2");
   });
 
   it("falls back to the raw key when the label did not resolve", () => {
-    render(<PartitionBadge scopeKey="user:0f3a91b2" partitionLabel={null} />);
-    expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
+    render(<OwnerBadge ownerKey="person:0f3a91b2" ownerLabel={null} />);
+    expect(screen.getByText("person:0f3a91b2")).toBeInTheDocument();
   });
 });

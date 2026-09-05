@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.memory_keys import MemoryOwnerKind
 from app.db.models.memory import MemoryOrigin
 from app.repositories.memory import FactHit
 from app.services.memory import _native
@@ -36,28 +37,28 @@ def _own_session(monkeypatch):
     monkeypatch.setattr(f"{NATIVE}.get_db_context", _fake_session)
 
 
-def _row(*, origin=MemoryOrigin.AGENT.value, content="body", scope_key=None):
+def _row(*, origin=MemoryOrigin.AGENT.value, content="body", owner_key=None):
     row = MagicMock()
     row.origin = origin
     row.content = content
     row.name = "prefs"
     row.description = "d"
     row.kind = "note"
-    row.end_user_scope_key = scope_key
+    row.owner_key = owner_key
     return row
 
 
 class TestListFiles:
-    async def test_it_returns_detached_index_entries_tagged_by_tier(self):
-        rows = [_row(scope_key=None), _row(scope_key="user:1")]
+    async def test_it_returns_detached_index_entries_tagged_by_owner(self):
+        rows = [_row(owner_key=None), _row(owner_key="person:1")]
         with patch(f"{REPO}.list_readable", new=AsyncMock(return_value=rows)):
             entries = await _native.list_files(
-                organization_id=ORG, agent_id=AGENT, personal_key="user:1"
+                organization_id=ORG, agent_id=AGENT, read_keys=("person:1", None)
             )
         assert entries[0].name == "prefs"
         assert entries[0].kind == "note"
-        assert entries[0].personal is False
-        assert entries[1].personal is True
+        assert entries[0].owner is MemoryOwnerKind.ORG
+        assert entries[1].owner is MemoryOwnerKind.PERSON
 
 
 class TestReadFile:
@@ -65,7 +66,7 @@ class TestReadFile:
         with patch(f"{REPO}.get_readable_by_name", new=AsyncMock(return_value=_row(content="tea"))):
             assert (
                 await _native.read_file(
-                    organization_id=ORG, agent_id=AGENT, personal_key=None, name="prefs"
+                    organization_id=ORG, agent_id=AGENT, read_keys=(None,), name="prefs"
                 )
                 == "tea"
             )
@@ -74,7 +75,7 @@ class TestReadFile:
         with patch(f"{REPO}.get_readable_by_name", new=AsyncMock(return_value=None)):
             assert (
                 await _native.read_file(
-                    organization_id=ORG, agent_id=AGENT, personal_key=None, name="gone"
+                    organization_id=ORG, agent_id=AGENT, read_keys=(None,), name="gone"
                 )
                 is None
             )
@@ -89,7 +90,7 @@ class TestWriteFile:
             created = await _native.write_file(
                 organization_id=ORG,
                 agent_id=AGENT,
-                scope_key="user:1",
+                owner_key="person:1",
                 name="prefs",
                 content="x",
                 description="d",
@@ -97,7 +98,7 @@ class TestWriteFile:
             )
         assert created is True
         assert create.await_args.kwargs["origin"] == MemoryOrigin.AGENT.value
-        assert create.await_args.kwargs["end_user_scope_key"] == "user:1"
+        assert create.await_args.kwargs["owner_key"] == "person:1"
 
     async def test_a_taken_name_is_not_overwritten(self):
         with (
@@ -107,7 +108,7 @@ class TestWriteFile:
             created = await _native.write_file(
                 organization_id=ORG,
                 agent_id=AGENT,
-                scope_key=None,
+                owner_key=None,
                 name="prefs",
                 content="x",
                 description=None,
@@ -137,7 +138,7 @@ class TestWriteFile:
             created = await _native.write_file(
                 organization_id=ORG,
                 agent_id=AGENT,
-                scope_key=None,
+                owner_key=None,
                 name="prefs",
                 content="x",
                 description=None,
@@ -152,7 +153,7 @@ class TestEditFile:
         with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)):
             assert (
                 await _native.edit_file(
-                    organization_id=ORG, agent_id=AGENT, scope_key=None, name="gone", content="x"
+                    organization_id=ORG, agent_id=AGENT, owner_key=None, name="gone", content="x"
                 )
                 == "missing"
             )
@@ -166,7 +167,7 @@ class TestEditFile:
             patch(f"{REPO}.update", new=AsyncMock()) as update,
         ):
             result = await _native.edit_file(
-                organization_id=ORG, agent_id=AGENT, scope_key=None, name="policy", content="x"
+                organization_id=ORG, agent_id=AGENT, owner_key=None, name="policy", content="x"
             )
         assert result == "protected"
         update.assert_not_awaited()
@@ -177,7 +178,7 @@ class TestEditFile:
             patch(f"{REPO}.update", new=AsyncMock()) as update,
         ):
             result = await _native.edit_file(
-                organization_id=ORG, agent_id=AGENT, scope_key=None, name="prefs", content="new"
+                organization_id=ORG, agent_id=AGENT, owner_key=None, name="prefs", content="new"
             )
         assert result == "ok"
         assert update.await_args.kwargs["update_data"] == {"content": "new"}
@@ -188,7 +189,7 @@ class TestDeleteFile:
         with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)):
             assert (
                 await _native.delete_file(
-                    organization_id=ORG, agent_id=AGENT, scope_key=None, name="gone"
+                    organization_id=ORG, agent_id=AGENT, owner_key=None, name="gone"
                 )
                 == "missing"
             )
@@ -202,7 +203,7 @@ class TestDeleteFile:
             patch(f"{REPO}.delete", new=AsyncMock()) as remove,
         ):
             result = await _native.delete_file(
-                organization_id=ORG, agent_id=AGENT, scope_key=None, name="policy"
+                organization_id=ORG, agent_id=AGENT, owner_key=None, name="policy"
             )
         assert result == "protected"
         remove.assert_not_awaited()
@@ -213,7 +214,7 @@ class TestDeleteFile:
             patch(f"{REPO}.delete", new=AsyncMock()) as remove,
         ):
             result = await _native.delete_file(
-                organization_id=ORG, agent_id=AGENT, scope_key=None, name="prefs"
+                organization_id=ORG, agent_id=AGENT, owner_key=None, name="prefs"
             )
         assert result == "ok"
         remove.assert_awaited_once()
@@ -245,10 +246,10 @@ class TestRemember:
         monkeypatch.setattr(f"{NATIVE}._embed", AsyncMock(return_value=[0.1, 0.2]))
         with patch(f"{REPO}.create_fact", new=AsyncMock()) as create:
             await _native.remember(
-                organization_id=ORG, agent_id=AGENT, scope_key="user:1", content="likes tea"
+                organization_id=ORG, agent_id=AGENT, owner_key="person:1", content="likes tea"
             )
         assert create.await_args.kwargs["embedding"] == [0.1, 0.2]
-        assert create.await_args.kwargs["end_user_scope_key"] == "user:1"
+        assert create.await_args.kwargs["owner_key"] == "person:1"
         assert create.await_args.kwargs["content"] == "likes tea"
         # An agent's own write is the untrusted tier - it stays out of the shared brief.
         assert create.await_args.kwargs["origin"] == MemoryOrigin.AGENT.value
@@ -260,7 +261,7 @@ class TestRecall:
         hits = [FactHit(content="likes tea", score=0.9)]
         with patch(f"{REPO}.recall_facts", new=AsyncMock(return_value=hits)) as recall:
             out = await _native.recall(
-                organization_id=ORG, agent_id=AGENT, personal_key=None, query="q", limit=3
+                organization_id=ORG, agent_id=AGENT, read_keys=(None,), query="q", limit=3
             )
         assert out == hits
         assert recall.await_args.kwargs["query_embedding"] == [0.3]
@@ -272,8 +273,13 @@ class TestMemoryBrief:
         rows = [_row(content="likes nuts"), _row(content="based in Warsaw")]
         with patch(f"{REPO}.list_brief_facts", new=AsyncMock(return_value=rows)) as lst:
             out = await _native.memory_brief(
-                organization_id=ORG, agent_id=AGENT, personal_key="user:1", limit=30
+                organization_id=ORG,
+                agent_id=AGENT,
+                read_keys=("person:1", None),
+                self_key="person:1",
+                limit=30,
             )
         assert out == ["likes nuts", "based in Warsaw"]
-        assert lst.await_args.kwargs["personal_key"] == "user:1"
+        assert lst.await_args.kwargs["read_keys"] == ("person:1", None)
+        assert lst.await_args.kwargs["self_key"] == "person:1"
         assert lst.await_args.kwargs["limit"] == 30

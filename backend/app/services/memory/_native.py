@@ -10,18 +10,22 @@ close it. That is also why a memory written in a run that later fails still
 persists: the write committed on its own session the moment it was made, which
 is what a memory is supposed to do.
 
-Reads union the shared store with the current person's, when the run has one:
-`personal_key=None` is a run with no identified person and reads shared alone.
-Writes take a single resolved `scope_key` - `None` for shared, a
-`user:<id>`/`chan:<id>` for the person's own - chosen by the caller from the tier
-the agent asked for, never by the model naming a partition. Every write here is
-`origin="agent"` - untrusted content a later run may read as a tool result but
-that is never spliced into instructions (see the capability README).
+Reads take `read_keys` - the set of stores the run's audience admits, ordered
+most-specific first, from `MemoryAudience.read_keys`. Writes take a single
+resolved `owner_key`, chosen by the caller from the store the agent asked for,
+never by the model naming one. Neither is ever derived here: this module is the
+store, and who may reach it is decided in `app.agents.memory_scope`.
+
+Every write here is `origin="agent"` - untrusted content a later run may read as
+a tool result but that is never spliced into instructions unless the reader is
+the only person it can influence (see `list_brief_facts` and the capability
+README).
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -29,6 +33,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
+from app.core.memory_keys import MemoryOwnerKind, owner_kind
 from app.db.models.memory import MemoryOrigin
 from app.db.session import get_db_context
 from app.repositories import memory_repo
@@ -86,54 +91,54 @@ README describes).
 class MemoryFileIndexEntry:
     """One row of the runtime index - enough to decide whether to read the body.
 
-    `personal` is the tier the row came from - `True` for the current person's
-    own store, `False` for the agent's shared store - so `list_memory` can label
-    it and the agent can tell an organisation-wide note from this person's.
+    `owner` is which store the row came from, so `list_memory` can label it and
+    the agent can tell an organisation-wide note from this room's and from this
+    person's - which is also what tells it which `scope` to edit the file in.
     """
 
     name: str
     description: str | None
     kind: str
-    personal: bool
+    owner: MemoryOwnerKind
 
 
 async def list_files(
-    *, organization_id: UUID, agent_id: UUID, personal_key: str | None
+    *, organization_id: UUID, agent_id: UUID, read_keys: Sequence[str | None]
 ) -> list[MemoryFileIndexEntry]:
-    """The readable files - shared plus the current person's - detached from the session.
+    """The readable files, detached from the session.
 
-    Each entry is tagged with the tier it came from, so the index can show which
-    store a file lives in. `personal_key=None` lists the shared store alone.
+    Each entry is tagged with the kind of store it came from, so the index can
+    show whether a file is this person's, this room's or the organization's.
     """
     async with get_db_context() as db:
         rows = await memory_repo.list_readable(
-            db, organization_id=organization_id, agent_id=agent_id, personal_key=personal_key
+            db, organization_id=organization_id, agent_id=agent_id, read_keys=read_keys
         )
         return [
             MemoryFileIndexEntry(
                 name=row.name,
                 description=row.description,
                 kind=row.kind,
-                personal=row.end_user_scope_key is not None,
+                owner=owner_kind(row.owner_key),
             )
             for row in rows
         ]
 
 
 async def read_file(
-    *, organization_id: UUID, agent_id: UUID, personal_key: str | None, name: str
+    *, organization_id: UUID, agent_id: UUID, read_keys: Sequence[str | None], name: str
 ) -> str | None:
     """One readable file's body by name, or None when nothing readable matches.
 
-    Searches the shared store and the current person's; a name in both tiers
-    resolves to the person's own copy (see `get_readable_by_name`).
+    Searches every store the run reads; a name held in more than one resolves to
+    the most specific, in `read_keys` order (see `get_readable_by_name`).
     """
     async with get_db_context() as db:
         row = await memory_repo.get_readable_by_name(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            personal_key=personal_key,
+            read_keys=read_keys,
             name=name,
         )
         return None if row is None else row.content
@@ -143,13 +148,13 @@ async def write_file(
     *,
     organization_id: UUID,
     agent_id: UUID,
-    scope_key: str | None,
+    owner_key: str | None,
     name: str,
     content: str,
     description: str | None,
     kind: str,
 ) -> bool:
-    """Create a new file in the partition. False when the name is already taken.
+    """Create a new file in the owner's store. False when the name is already taken.
 
     A collision is reported rather than silently overwritten: overwriting is
     `edit_file`, a deliberately separate act, so the model cannot lose a note by
@@ -160,7 +165,7 @@ async def write_file(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            end_user_scope_key=scope_key,
+            owner_key=owner_key,
             name=name,
         )
         if existing is not None:
@@ -170,7 +175,7 @@ async def write_file(
                 db,
                 organization_id=organization_id,
                 agent_id=agent_id,
-                end_user_scope_key=scope_key,
+                owner_key=owner_key,
                 name=name,
                 description=description,
                 content=content,
@@ -187,11 +192,11 @@ async def write_file(
 
 
 async def edit_file(
-    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, name: str, content: str
+    *, organization_id: UUID, agent_id: UUID, owner_key: str | None, name: str, content: str
 ) -> MutationResult:
     """Replace an existing agent-authored file's body.
 
-    An operator-authored file in the same partition is `protected`: the agent may
+    An operator-authored file in the same store is `protected`: the agent may
     read it but must not change it, or it could edit trusted, injectable content
     into a poisoned prompt. The origin of an edited row is left `agent`.
     """
@@ -200,7 +205,7 @@ async def edit_file(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            end_user_scope_key=scope_key,
+            owner_key=owner_key,
             name=name,
         )
         if row is None:
@@ -212,9 +217,9 @@ async def edit_file(
 
 
 async def delete_file(
-    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, name: str
+    *, organization_id: UUID, agent_id: UUID, owner_key: str | None, name: str
 ) -> MutationResult:
-    """Remove an agent-authored file from the partition.
+    """Remove an agent-authored file from the owner's store.
 
     An operator-authored file is `protected` for the same reason it is in
     `edit_file`: the agent may read the operator's standing memory but not delete
@@ -225,7 +230,7 @@ async def delete_file(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            end_user_scope_key=scope_key,
+            owner_key=owner_key,
             name=name,
         )
         if row is None:
@@ -237,9 +242,9 @@ async def delete_file(
 
 
 async def remember(
-    *, organization_id: UUID, agent_id: UUID, scope_key: str | None, content: str
+    *, organization_id: UUID, agent_id: UUID, owner_key: str | None, content: str
 ) -> None:
-    """Embed a fact and store it in the partition.
+    """Embed a fact and store it in the owner's store.
 
     The embedding is computed before the session is opened - it is the slow part,
     and holding a session across it is the idle-in-transaction the file store
@@ -252,7 +257,7 @@ async def remember(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            end_user_scope_key=scope_key,
+            owner_key=owner_key,
             content=content,
             embedding=embedding,
             origin=MemoryOrigin.AGENT.value,
@@ -260,23 +265,33 @@ async def remember(
 
 
 async def recall(
-    *, organization_id: UUID, agent_id: UUID, personal_key: str | None, query: str, limit: int = 5
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    read_keys: Sequence[str | None],
+    query: str,
+    limit: int = 5,
 ) -> list[FactHit]:
-    """The facts most similar to a query - shared plus the current person's - most-similar first."""
+    """The facts most similar to a query, across every store the run reads."""
     embedding = await _embed(query)
     async with get_db_context() as db:
         return await memory_repo.recall_facts(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            personal_key=personal_key,
+            read_keys=read_keys,
             query_embedding=embedding,
             limit=limit,
         )
 
 
 async def memory_brief(
-    *, organization_id: UUID, agent_id: UUID, personal_key: str | None, limit: int
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    read_keys: Sequence[str | None],
+    self_key: str | None,
+    limit: int,
 ) -> list[str]:
     """The most recent facts safe to inject into the standing brief (see the repo).
 
@@ -284,15 +299,16 @@ async def memory_brief(
     agent's instructions every request so it recalls without a tool call, and a
     query embedded there would spend off the run's ledger for nothing. Opens its own
     session, like `recall`, so a run never reads memory on the session it runs on.
-    The trust filter (agent-authored shared facts stay recall-only) lives in
-    `list_brief_facts`; this only turns rows into lines.
+    The trust filter (agent-authored content in a store somebody else also reads
+    stays recall-only) lives in `list_brief_facts`; this only turns rows into lines.
     """
     async with get_db_context() as db:
         facts = await memory_repo.list_brief_facts(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
-            personal_key=personal_key,
+            read_keys=read_keys,
+            self_key=self_key,
             limit=limit,
         )
     return [fact.content for fact in facts]

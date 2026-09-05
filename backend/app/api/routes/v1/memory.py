@@ -14,6 +14,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import Auth, MemorySvc
+from app.core.memory_keys import parse_owner_selector
 from app.repositories.memory import MemorySort
 from app.schemas.memory import (
     AgentMemoryFactCreate,
@@ -33,9 +34,9 @@ async def list_memory_files(
     service: MemorySvc,
     ctx: Auth,
     agent_id: UUID = Query(description="The agent whose memory to list"),
-    partition: str = Query(
+    owner: str = Query(
         "all",
-        description="`all`, `shared`, `per_user`, or an end-user key to confine the listing",
+        description="`all`, `org`, `person`, `room`, or one owner key to confine the listing",
     ),
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     sort: MemorySort = Query("name", description="`name` A-Z, or `updated` newest change first"),
@@ -43,12 +44,12 @@ async def list_memory_files(
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Names, kinds, origins and sizes - the index, not the bodies."""
+    owner_key, owners = parse_owner_selector(owner)
     return await service.list_files(
         ctx,
         agent_id=agent_id,
-        scope_key=None if partition in ("all", "shared", "per_user") else partition,
-        all_partitions=partition == "all",
-        scoped_only=partition == "per_user",
+        owner_key=owner_key,
+        owners=owners,
         search=q,
         sort=sort,
         skip=skip,
@@ -92,9 +93,9 @@ async def list_memory_facts(
     service: MemorySvc,
     ctx: Auth,
     agent_id: UUID = Query(description="The agent whose facts to list"),
-    partition: str = Query(
+    owner: str = Query(
         "all",
-        description="`all`, `shared`, `per_user`, or an end-user key to confine the listing",
+        description="`all`, `org`, `person`, `room`, or one owner key to confine the listing",
     ),
     q: str | None = Query(None, max_length=100, description="Substring match on the fact text"),
     skip: int = Query(0, ge=0),
@@ -102,12 +103,12 @@ async def list_memory_facts(
 ) -> Any:
     """The agent's remembered facts, newest first. Search is a substring match,
     not semantic - a semantic query would embed off the run's ledger."""
+    owner_key, owners = parse_owner_selector(owner)
     return await service.list_facts(
         ctx,
         agent_id=agent_id,
-        scope_key=None if partition in ("all", "shared", "per_user") else partition,
-        all_partitions=partition == "all",
-        scoped_only=partition == "per_user",
+        owner_key=owner_key,
+        owners=owners,
         search=q,
         skip=skip,
         limit=limit,
@@ -137,7 +138,7 @@ async def clear_memory_facts(
     ctx: Auth,
     agent_id: UUID = Query(description="The agent whose facts to clear"),
 ) -> None:
-    """Forget every fact for an agent, in every partition, leaving its files -
+    """Forget every fact for an agent, in every store, leaving its files -
     what the agent has learned, reset without discarding operator-authored files."""
     await service.clear_facts(ctx, agent_id)
 
@@ -148,6 +149,6 @@ async def clear_memory(
     ctx: Auth,
     agent_id: UUID = Query(description="The agent whose memory to clear"),
 ) -> None:
-    """Delete every file and fact for an agent, in every partition - the danger
+    """Delete every file and fact for an agent, in every store - the danger
     zone. A memory store nobody can clear is a liability (#788)."""
     await service.clear(ctx, agent_id)

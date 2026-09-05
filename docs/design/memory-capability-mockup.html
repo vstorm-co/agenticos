@@ -199,6 +199,16 @@ details.map summary::-webkit-details-marker{display:none}
 </style>
 </head>
 <body>
+<div style="background:#7f1d1d;color:#fff;padding:14px 20px;font:14px/1.5 system-ui,sans-serif">
+  <b>Superseded — pre-implementation mockup, kept for its layout only.</b>
+  It draws the two-tier model (a <code>partition</code> config field, a
+  <code>Shared</code>/<code>Per-user</code> filter, <code>end_user_scope_key</code>)
+  that shipped as three <em>owners</em> instead — the organisation, a group chat, one
+  person — with which of them a run reaches decided by its audience rather than by a
+  partition (#788). No <code>partition</code> config field was ever built. For what the
+  console actually does, read <code>docs/reference/capabilities.md</code> and
+  <code>backend/app/agents/capabilities/memory/README.md</code>.
+</div>
 <div class="app">
 
   <!-- ===== SIDEBAR (real nav) ===== -->

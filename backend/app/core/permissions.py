@@ -358,13 +358,13 @@ class AuthContext:
     owner, not whoever is actually chatting. This is how a consumer tells that
     apart from a real subject (web chat, API, a linked member), where `user_id`
     *is* the asker. Like `channel_identity_id` it decides no permission - it
-    exists so personal memory can refuse to attribute a stranger's note to the
+    exists so a person store can refuse to attribute a stranger's note to the
     owner rather than leak it into the owner's store (#788).
 
     Invariant: set `True` in exactly one place - `publisher_context`, the sole
     constructor that runs a turn as someone other than the asker. Any future
-    stand-in constructor must set it too, or a personal-memory write silently
-    lands in the owner's store as if it were the visitor's. `test_publisher_standing.py` pins
+    stand-in constructor must set it too, or a person-store write silently lands
+    in the owner's store as if it were the visitor's. `test_publisher_standing.py` pins
     the one assignment site by grep, the way `AuthContext.anonymous` is the one
     subject-less constructor.
     """

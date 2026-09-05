@@ -39,7 +39,7 @@ def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthCon
     )
 
 
-def _file(name="prefs", *, origin=MemoryOrigin.AGENT.value, agent_id=None, scope_key=None):
+def _file(name="prefs", *, origin=MemoryOrigin.AGENT.value, agent_id=None, owner_key=None):
     file = MagicMock()
     file.id = uuid.uuid4()
     file.agent_id = agent_id or uuid.uuid4()
@@ -49,7 +49,7 @@ def _file(name="prefs", *, origin=MemoryOrigin.AGENT.value, agent_id=None, scope
     file.format = "md"
     file.kind = "note"
     file.origin = origin
-    file.end_user_scope_key = scope_key
+    file.owner_key = owner_key
     return file
 
 
@@ -59,7 +59,7 @@ def _fact():
     fact.agent_id = uuid.uuid4()
     fact.content = "likes tea"
     fact.origin = MemoryOrigin.AGENT.value
-    fact.end_user_scope_key = None
+    fact.owner_key = None
     fact.created_at = None
     return fact
 
@@ -173,14 +173,14 @@ class TestListing:
         assert result.total == 2
         assert [item.name for item in result.items] == ["a", "b"]
 
-    async def test_list_files_resolves_per_user_partitions_to_member_emails(self):
+    async def test_list_files_resolves_person_stores_to_member_emails(self):
         service = _service()
         get_agent, allow = _reachable_agent()
         known, emailless = uuid.uuid4(), uuid.uuid4()
         files = [
-            _file("company", scope_key=None),
-            _file("prefs", scope_key=f"user:{known}"),
-            _file("ghost", scope_key=f"user:{emailless}"),
+            _file("company", owner_key=None),
+            _file("prefs", owner_key=f"person:{known}"),
+            _file("ghost", owner_key=f"person:{emailless}"),
         ]
         with (
             get_agent,
@@ -197,17 +197,17 @@ class TestListing:
             result = await service.list_files(_ctx(), agent_id=uuid.uuid4())
         # The shared store and a member with no email carry no label; a resolvable
         # member shows their email.
-        labels = {item.name: item.partition_label for item in result.items}
+        labels = {item.name: item.owner_label for item in result.items}
         assert labels == {"company": None, "prefs": "dana@acme.example", "ghost": None}
         # Only the per-user ids are looked up, and the lookup is org-scoped.
         assert set(emails.await_args.kwargs["user_ids"]) == {known, emailless}
 
-    async def test_list_files_leaves_an_unresolvable_partition_key_unlabelled(self):
+    async def test_list_files_leaves_an_unresolvable_owner_key_unlabelled(self):
         service = _service()
         get_agent, allow = _reachable_agent()
         # A channel account and a malformed user key both parse to no member id, so
         # the lookup is skipped and the console falls back to the raw key.
-        files = [_file("c", scope_key="chan:abc"), _file("b", scope_key="user:not-a-uuid")]
+        files = [_file("c", owner_key="person:chan:abc"), _file("b", owner_key="person:not-a-uuid")]
         with (
             get_agent,
             allow,
@@ -218,15 +218,15 @@ class TestListing:
             patch(f"{MEMORY_PATH}.member_repo.get_emails_for_users", new=AsyncMock()) as emails,
         ):
             result = await service.list_files(_ctx(), agent_id=uuid.uuid4())
-        assert all(item.partition_label is None for item in result.items)
+        assert all(item.owner_label is None for item in result.items)
         emails.assert_not_awaited()
 
-    async def test_list_facts_resolves_the_partition_label(self):
+    async def test_list_facts_resolves_the_owner_label(self):
         service = _service()
         get_agent, allow = _reachable_agent()
         uid = uuid.uuid4()
         fact = _fact()
-        fact.end_user_scope_key = f"user:{uid}"
+        fact.owner_key = f"person:{uid}"
         fact.created_at = None
         with (
             get_agent,
@@ -241,11 +241,11 @@ class TestListing:
             ),
         ):
             result = await service.list_facts(_ctx(), agent_id=uuid.uuid4())
-        assert result.items[0].partition_label == "dana@acme.example"
+        assert result.items[0].owner_label == "dana@acme.example"
 
 
 class TestCreate:
-    async def test_a_duplicate_name_in_the_partition_is_refused(self):
+    async def test_a_duplicate_name_in_the_store_is_refused(self):
         service = _service()
         get_agent, allow = _reachable_agent()
         with (
@@ -298,11 +298,11 @@ class TestCreate:
             )
 
 
-class TestCreateAuthorizesByTier:
-    """The tier decides the permission: shared and another person's personal are
-    operator acts (`AGENTS_EDIT`); one's own personal needs only `AGENTS_VIEW`, so
-    a member keeps their own notes without touching the shared store or anyone
-    else's. The own-key is `user:<caller>`, matching the runtime derivation."""
+class TestCreateAuthorizesByOwner:
+    """The store decides the permission: the organization's, a room's and another
+    person's are operator acts (`AGENTS_EDIT`); one's own needs only `AGENTS_VIEW`,
+    so a member keeps their own notes without touching anything else. The own-key
+    is `person_owner_key(caller)`, matching the runtime derivation exactly."""
 
     def _perm(self, resolve_mock) -> Perm:
         # resolve_access(db, ctx, agent, perm, resource_type=AGENT) - perm is 4th positional.
@@ -317,7 +317,7 @@ class TestCreateAuthorizesByTier:
             patch(f"{MEMORY_PATH}.record_audit", new=AsyncMock()),
         )
 
-    async def test_the_shared_store_needs_edit(self):
+    async def test_the_organization_store_needs_edit(self):
         service = _service()
         resolve = AsyncMock(return_value=True)
         get_agent, allow, by_name, create, audit = self._create_patches(resolve)
@@ -325,7 +325,7 @@ class TestCreateAuthorizesByTier:
             await service.create(_ctx(), AgentMemoryFileCreate(agent_id=uuid.uuid4(), name="p"))
         assert self._perm(resolve) == Perm.AGENTS_EDIT
 
-    async def test_ones_own_personal_needs_only_view(self):
+    async def test_ones_own_store_needs_only_view(self):
         service = _service()
         me = uuid.uuid4()
         resolve = AsyncMock(return_value=True)
@@ -333,9 +333,7 @@ class TestCreateAuthorizesByTier:
         with get_agent, allow, by_name, create, audit:
             await service.create(
                 _ctx(user_id=me),
-                AgentMemoryFileCreate(
-                    agent_id=uuid.uuid4(), name="p", end_user_scope_key=f"user:{me}"
-                ),
+                AgentMemoryFileCreate(agent_id=uuid.uuid4(), name="p", owner_key=f"person:{me}"),
             )
         assert self._perm(resolve) == Perm.AGENTS_VIEW
 
@@ -347,12 +345,12 @@ class TestCreateAuthorizesByTier:
             await service.create(
                 _ctx(user_id=uuid.uuid4()),
                 AgentMemoryFileCreate(
-                    agent_id=uuid.uuid4(), name="p", end_user_scope_key=f"user:{uuid.uuid4()}"
+                    agent_id=uuid.uuid4(), name="p", owner_key=f"person:{uuid.uuid4()}"
                 ),
             )
         assert self._perm(resolve) == Perm.AGENTS_EDIT
 
-    async def test_a_member_creates_only_their_own_personal(self):
+    async def test_a_member_creates_only_their_own_store(self):
         """The refusal that makes the relaxation safe: a caller who has view but
         not edit may create their own personal file, and nothing else."""
         service = _service()
@@ -370,9 +368,7 @@ class TestCreateAuthorizesByTier:
         ):
             await service.create(
                 _ctx(user_id=me),
-                AgentMemoryFileCreate(
-                    agent_id=uuid.uuid4(), name="mine", end_user_scope_key=f"user:{me}"
-                ),
+                AgentMemoryFileCreate(agent_id=uuid.uuid4(), name="mine", owner_key=f"person:{me}"),
             )
             with pytest.raises(NotFoundError):
                 await service.create(
@@ -384,7 +380,7 @@ class TestCreateAuthorizesByTier:
                     AgentMemoryFileCreate(
                         agent_id=uuid.uuid4(),
                         name="theirs",
-                        end_user_scope_key=f"user:{uuid.uuid4()}",
+                        owner_key=f"person:{uuid.uuid4()}",
                     ),
                 )
 
@@ -494,8 +490,8 @@ class TestFacts:
         assert audit.call_args.kwargs["action"] == "memory.fact.deleted"
 
 
-class TestScopedListing:
-    async def test_per_user_files_listing_asks_the_repo_for_scoped_only(self):
+class TestOwnerFilteredListing:
+    async def test_a_person_files_listing_asks_the_repo_for_that_kind(self):
         service = _service()
         get_agent, allow = _reachable_agent()
         with (
@@ -506,10 +502,10 @@ class TestScopedListing:
                 new=AsyncMock(return_value=([], 0)),
             ) as listing,
         ):
-            await service.list_files(_ctx(), agent_id=uuid.uuid4(), scoped_only=True)
-        assert listing.await_args.kwargs["scoped_only"] is True
+            await service.list_files(_ctx(), agent_id=uuid.uuid4(), owners="person")
+        assert listing.await_args.kwargs["owners"] == "person"
 
-    async def test_per_user_facts_listing_asks_the_repo_for_scoped_only(self):
+    async def test_a_room_facts_listing_asks_the_repo_for_that_kind(self):
         service = _service()
         get_agent, allow = _reachable_agent()
         with (
@@ -520,8 +516,8 @@ class TestScopedListing:
                 new=AsyncMock(return_value=([], 0)),
             ) as listing,
         ):
-            await service.list_facts(_ctx(), agent_id=uuid.uuid4(), scoped_only=True)
-        assert listing.await_args.kwargs["scoped_only"] is True
+            await service.list_facts(_ctx(), agent_id=uuid.uuid4(), owners="room")
+        assert listing.await_args.kwargs["owners"] == "room"
 
 
 class TestClear:
@@ -574,8 +570,8 @@ class TestClear:
 
 
 class TestCrossUserRead:
-    """A viewer sees the shared store and their own personal partition; listing every
-    partition or another person's is an editor act."""
+    """A viewer sees the organization store and their own; listing a whole kind of
+    store, another person's, or any room is an editor act."""
 
     @staticmethod
     def _view_only():
@@ -584,17 +580,17 @@ class TestCrossUserRead:
 
         return AsyncMock(side_effect=_f)
 
-    async def test_a_viewer_may_list_the_shared_store(self):
+    async def test_a_viewer_may_list_the_organization_store(self):
         service = _service()
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.list_for_agent", new=AsyncMock(return_value=([], 0))),
         ):
-            result = await service.list_files(_ctx(), agent_id=uuid.uuid4(), scope_key=None)
+            result = await service.list_files(_ctx(), agent_id=uuid.uuid4(), owner_key=None)
         assert result.total == 0
 
-    async def test_a_viewer_may_list_their_own_personal(self):
+    async def test_a_viewer_may_list_their_own_store(self):
         service = _service()
         me = uuid.uuid4()
         with (
@@ -603,18 +599,18 @@ class TestCrossUserRead:
             patch(f"{MEMORY_PATH}.memory_repo.list_facts", new=AsyncMock(return_value=([], 0))),
         ):
             result = await service.list_facts(
-                _ctx(user_id=me), agent_id=uuid.uuid4(), scope_key=f"user:{me}"
+                _ctx(user_id=me), agent_id=uuid.uuid4(), owner_key=f"person:{me}"
             )
         assert result.total == 0
 
-    async def test_a_viewer_cannot_list_every_partition(self):
+    async def test_a_viewer_cannot_list_every_store(self):
         service = _service()
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             pytest.raises(NotFoundError),
         ):
-            await service.list_files(_ctx(), agent_id=uuid.uuid4(), all_partitions=True)
+            await service.list_files(_ctx(), agent_id=uuid.uuid4(), owners="all")
 
     async def test_a_viewer_cannot_list_another_persons_facts(self):
         service = _service()
@@ -624,13 +620,13 @@ class TestCrossUserRead:
             pytest.raises(NotFoundError),
         ):
             await service.list_facts(
-                _ctx(user_id=uuid.uuid4()), agent_id=uuid.uuid4(), scope_key="user:someone-else"
+                _ctx(user_id=uuid.uuid4()), agent_id=uuid.uuid4(), owner_key="person:someone-else"
             )
 
     async def test_a_viewer_reads_their_own_personal_file_by_id(self):
         service = _service()
         me = uuid.uuid4()
-        file = _file(scope_key=f"user:{me}")
+        file = _file(owner_key=f"person:{me}")
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
@@ -641,7 +637,7 @@ class TestCrossUserRead:
     async def test_a_viewer_cannot_read_another_persons_file_by_id(self):
         # A known id must not let a viewer GET a personal row it may not list.
         service = _service()
-        file = _file(scope_key="user:someone-else")
+        file = _file(owner_key="person:someone-else")
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
@@ -654,7 +650,7 @@ class TestCrossUserRead:
         service = _service()
         me = uuid.uuid4()
         fact = _fact()
-        fact.end_user_scope_key = f"user:{me}"
+        fact.owner_key = f"person:{me}"
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
@@ -665,7 +661,7 @@ class TestCrossUserRead:
     async def test_a_viewer_cannot_read_another_persons_fact_by_id(self):
         service = _service()
         fact = _fact()
-        fact.end_user_scope_key = "user:someone-else"
+        fact.owner_key = "person:someone-else"
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
@@ -690,7 +686,7 @@ class TestOwnPersonalWrites:
         service = _service()
         me = uuid.uuid4()
         fact = _fact()
-        fact.end_user_scope_key = f"user:{me}"
+        fact.owner_key = f"person:{me}"
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
@@ -715,7 +711,7 @@ class TestOwnPersonalWrites:
     async def test_a_viewer_forgets_their_own_personal_file(self):
         service = _service()
         me = uuid.uuid4()
-        file = _file(scope_key=f"user:{me}")
+        file = _file(owner_key=f"person:{me}")
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
@@ -728,7 +724,7 @@ class TestOwnPersonalWrites:
 
     async def test_a_viewer_cannot_forget_a_shared_file(self):
         service = _service()
-        file = _file(scope_key=None)  # shared
+        file = _file(owner_key=None)  # shared
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
@@ -950,7 +946,7 @@ class TestCreateFact:
             )
         assert resolve.call_args.args[3] == Perm.AGENTS_EDIT
 
-    async def test_ones_own_personal_fact_needs_only_view(self):
+    async def test_ones_own_fact_needs_only_view(self):
         service = _service()
         me = uuid.uuid4()
         resolve = AsyncMock(return_value=True)
@@ -959,7 +955,7 @@ class TestCreateFact:
             await service.create_fact(
                 _ctx(user_id=me),
                 AgentMemoryFactCreate(
-                    agent_id=uuid.uuid4(), content="about me", end_user_scope_key=f"user:{me}"
+                    agent_id=uuid.uuid4(), content="about me", owner_key=f"person:{me}"
                 ),
             )
         assert resolve.call_args.args[3] == Perm.AGENTS_VIEW

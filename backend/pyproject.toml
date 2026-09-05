@@ -514,6 +514,10 @@ include = [
     # and nothing else, which is what keeps a caller's own submission out of a
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
+    # Whose memory a row is - the three owner-key shapes, and the one place they
+    # are built and read. A leaf module because everything from the models to the
+    # capability needs it and every other home is an import cycle (#788).
+    "app/core/memory_keys.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
@@ -763,6 +767,10 @@ include = [
     # and nothing else, which is what keeps a caller's own submission out of a
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
+    # Whose memory a row is - the three owner-key shapes, and the one place they
+    # are built and read. A leaf module because everything from the models to the
+    # capability needs it and every other home is an import cycle (#788).
+    "app/core/memory_keys.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",

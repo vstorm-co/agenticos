@@ -157,36 +157,52 @@ a recommendation it could tailor. For a `native` facts agent the facts safe to
 inject are also placed into those instructions each request, as a short brief of what
 it already remembers (newest first, bounded), so it draws on them without first
 having to call `recall` — a lighter model, left to decide, often does not, and answers
-as if the store were empty. The brief carries a person's own facts and
-operator-authored shared ones; an agent-authored *shared* fact never enters it —
-that is user-influenced content, and injecting it would put a prompt every end-user
-obeys under one user's control — so it stays reachable through `recall` alone.
+as if the store were empty. The brief carries the reader's own facts and anything an operator wrote;
+agent-authored content in a store somebody else also reads never enters it — that is
+user-influenced text, and injecting it would put a prompt every end-user obeys under
+one user's control — so it stays reachable through `recall` alone. In a group chat
+nobody is the sole listener, so the brief there falls back to operator-authored
+content alone.
 `recall` itself is unchanged: it returns the whole store as a tool result, which is
 untrusted-safe. A `mem0` facts agent keeps the recall tool but no injected brief.
 
-**Memory is two-tier.** Every memory agent has a `shared` store — one per agent,
-read by every end-user it serves — and, when a run has an identified person, that
-person's private store as well. Reads (`list_memory`, `read_memory`, `recall`)
-union the two, so an agent always sees the organisation's memory and, for a known
-person, theirs on top; the index labels each entry's tier. Writes name a `scope` —
-`personal` or `shared` — that the model chooses from context, defaulting to
-`personal` when unsure, but only the *tier*: the per-end-user key is derived
-server-side from the request identity, never chosen by the model, so a write can
-only ever land in the current person's own store. On a surface with no identified
-person (a hosted page, an anonymous widget) personal memory is unavailable — reads
-fall back to shared alone and a `personal` write is refused rather than silently
-written to shared. There is no partition to configure; both tiers coexist for
-every agent, and two switches refine them. **Allow personal memory** off makes an
-agent shared-only — no per-end-user store at all, for compliance or privacy.
-**Allow agent shared writes** off keeps the shared store operator-curated: the
-agent still reads it, but a `shared` write is refused, so an agent write
+**Memory has three owners, and a run reaches them by audience.** A row belongs to
+the organisation (one store per agent), to a group chat, or to one person. Which of
+them a run can reach is decided by who will hear its answer, derived server-side
+from the request and never from the model.
+
+The rule is one sentence: a row is readable only when everyone who hears the run
+was already entitled to it. So the organisation's store is read everywhere; a
+group chat's only inside that chat; a person's only where that person is the sole
+listener. A direct message and web chat are the same audience for the same person,
+so they read one store — a member's chat account resolves to their account, not to
+the surface they arrived on. A group channel reads the room and the organisation,
+and **not** the speaker's private store: a note taken alone with somebody is not
+read back aloud where a whole channel sees it.
+
+Writes follow from the same rule. Saving to a *narrower* store than the audience is
+always safe — whoever reads it back has already heard the conversation — so the
+default `scope` is the audience's own store and the agent is told to omit it. The
+one direction that reaches further than the conversation is the organisation's
+store, and that is the only one behind a switch.
+
+The model picks a store, never a key: `personal`, `room` and `shared` resolve to
+keys the audience supplies, so a write can only ever land in this person's store,
+this room's, or the organisation's. Asking for a store the run does not have —
+`personal` on an anonymous widget, `room` in a one-to-one chat — is refused rather
+than redirected.
+
+Two switches refine this. **Allow personal memory** off drops the per-person store
+entirely, for compliance or privacy; room and organisation memory stay. **Allow
+agent shared writes** off keeps the organisation store operator-curated: the agent
+still reads it, but a `shared` write is refused, so an agent write
 (user-influenceable) can never change the company's memory.
 
 **Backend** decides where facts live. `native` keeps them in this deployment's
 own pgvector store, and the embedding cost is metered as above. `mem0` sends them
 to a [mem0](https://mem0.ai) service instead — cloud, or self-hosted via
 `mem0_base_url` — which needs an API key from the organization's vault; there a
-scope key of `organization:agent:partition` isolates one store from every other,
+namespace of `organization:agent:owner` isolates one store from every other,
 and mem0 bills its own embedding out of band, so the deployment's ledger does not
 see it. Files are always native — mem0 has no named-file concept — so `backend`
 moves facts only, and a files-only agent is forced back to `native` so it is
@@ -200,16 +216,19 @@ person vouched for; turning an agent note into an operator one is a deliberate
 
 A fact carries an `origin` for the same reason: the runtime `remember` writes an
 `agent` fact, an operator seed writes an `operator` one, and only the injectable
-set — a person's own facts and operator-authored shared ones — is placed in the
-standing brief, while an agent-authored shared fact stays `recall`-only.
+set reaches the standing brief — content whose author could influence nobody but
+the reader (the reader's own store), plus anything an operator vouched for.
+Agent-authored content in a store somebody else also reads — the organisation's, or
+a room's — stays `recall`-only, so one colleague's remembered sentence can never
+become another colleague's instructions.
 
 Access to the management API rides on the parent agent — whoever may view the
 agent may read its memory, whoever may edit the agent may
 change it — so there is no `memory:*` scope. Creating a file is the one act split
-by tier: writing the shared store or another person's personal store is an editor
-act, but writing one's *own* personal store (`user:<caller>`, the key the agent
-derives when that person chats) needs only view, so any member can keep their own
-notes without touching the shared store or anyone else's. Files are always
+by owner: writing the organisation's store, a room's, or another person's is an
+editor act, but writing one's *own* (the key the agent derives when that person
+chats) needs only view, so any member can keep their own notes without touching
+anything else. Files are always
 `origin=operator` (human-authored, agent-protected) however they are created.
 
 ## Web search

@@ -4,9 +4,9 @@ Gives an agent a store of its own across conversations, in two shapes: named
 **files** it writes and reads back by name, and short **facts** it remembers and
 recalls by meaning (semantic search over pgvector). Where `context` is a library
 a *person* authors and binds to many agents (read-only to the model), memory is
-the agent's own — agent-written, addressed by the agent and a memory tier
-(shared, or one end-user's), and inspected, seeded or cleared by operators
-through `/api/v1/memory`.
+the agent's own — agent-written, addressed by the agent and an *owner* (the
+organization, a group chat, or one person), and inspected, seeded or cleared by
+operators through `/api/v1/memory`.
 
 ## Why it is not `context`, and not a knowledge base
 
@@ -28,32 +28,52 @@ and the runtime `edit`/`delete` tools refuse to touch an `operator` row
 The one path from `agent` to `operator` is a deliberate operator action
 ("promote"), never a side effect of editing.
 
-**Two tiers, and the model picks the tier but never the person.** Every memory
-agent has a `shared` store (one per organization+agent, cross-user by design) and,
-when a run has an identified person, that person's private store. Reads union the
-two; writes carry a `scope` — `personal` or `shared` — the model chooses from
-context, defaulting to `personal` when unsure. Only the *tier* is the model's: the
-per-end-user key is derived server-side, never named by the model, so a write can
-only ever reach the current person's own store, never another's. A run with no way
-to identify the person (a hosted/widget visitor, an anonymous surface) simply loses
-the personal tier — it reads shared alone, and a `personal` write is **refused**
-rather than silently written to shared, which would leak one person's note to
-everyone. The derivation lives in `derive_end_user_scope_key` and is wired in the
-factory; it reads the request identity and no permission.
+**Whose memory a row is, and who may hear it, are two questions.** The row
+answers the first: `owner_key` is `NULL` for the organization's store,
+`person:<id>` for one human being, `room:<platform>:<chat>` for one group chat.
+The *run* answers the second, as a `MemoryAudience` derived server-side in
+`app.agents.memory_scope` — at most one person and at most one room.
 
-Two config switches refine the tiers. **`allow_personal`** off makes an agent
-shared-only — no per-end-user store at all, for compliance or privacy — by forcing
-the personal key to `None`, so the graceful-degradation path (shared reads, refused
-personal writes) does the work. **`allow_agent_shared_writes`** off keeps the shared
-store operator-curated: the agent reads it but a `shared` write is refused, because
-an agent write is user-influenceable and a curated company memory must not be. Both
-default on, the plain two-tier model; both off leaves a read-only, operator-curated
-memory.
+Collapsing the two into one column is the defect this design exists to prevent:
+a note taken alone with somebody was readable in a group channel, because "this
+person's store" and "somewhere only this person is listening" had been made the
+same value (#788).
+
+Two rules follow, and every refusal in the toolset is one of them.
+
+**Reading**: a row is readable only when everyone who hears the run was already
+entitled to it. The organization's store everywhere; a room's only in that room;
+a person's only where that person is the sole listener — so a direct message and
+web chat read the same store, and a group channel reads neither person's.
+
+**Writing**: writing *narrower* than the audience is always safe (the audience
+already heard it, and fewer people read it back); writing *wider* is the only
+dangerous direction and the only one behind a lever. So the default scope is the
+audience's own store, which can leak nothing by construction, and the model is
+told to omit `scope` rather than to reason about who is listening. It picks a
+*store*, never a key: the keys come from the audience, so a write can only ever
+reach this person's store, this room's, or the organization's.
+
+The person is resolved account-first, which is what makes web chat and a linked
+chat account one store rather than two. An unlinked chat account keys on the
+identity instead. A hosted or embedded visitor has no person at all — `user_id`
+there is the *publisher* standing in — so the run reads the organization store
+alone and a `personal` write is **refused** rather than attributed to the owner.
+
+Two config switches. **`allow_personal`** off drops the per-person store
+entirely, for compliance or privacy; room and organization memory stay.
+**`allow_agent_shared_writes`** off keeps the organization store
+operator-curated: the agent reads it but a `shared` write is refused, because an
+agent write is user-influenceable and a curated company memory must not be.
 
 One completeness limit, not a correctness one: the runtime read cap (the index's
-200, recall's `limit`) spans both tiers at once, with no cross-tier dedup, so a
-very large personal store can crowd shared rows out of a single read and the
-reverse. It bounds what one read returns, never what a run may reach.
+200, recall's `limit`) spans every readable store at once, with no dedup between
+them, so a very large person store can crowd organization rows out of a single
+read and the reverse. It bounds what one read returns, never what a run may reach.
+
+One deliberate limit: a private run does **not** read the rooms its person
+belongs to. Proving that entitlement means asking the platform for the membership
+of every room on every request, which a standing brief cannot afford.
 
 ## Shapes and backends
 
@@ -72,21 +92,21 @@ because mem0 has no named-file concept.
   into the prompt is not shipped — so there is no `injection` config field yet.
   `promote` still earns its keep: it moves a reviewed `agent` row into the
   trusted tier the console shows, the gate that feature will read.
-- **Root agent only.** A delegate does not derive its own end-user key
-  (`clone_for_subagent` is untouched), so the personal tier is unavailable inside a
-  delegation — a delegate reads and writes shared alone. The shared store a delegate
-  reaches is the parent agent's, because a delegate shares the parent's `agent_id`
-  by design.
+- **Root agent only.** A delegate does not inherit the run's audience
+  (`clone_for_subagent` drops it), so neither the person store nor the room is
+  reachable inside a delegation — a delegate reads and writes the organization's
+  store alone. That store is the *parent* agent's, because a delegate shares the
+  parent's `agent_id` by design.
 
 ## Two operational footguns
 
-- **A personal file seeded from the console keys on the surface, not the person
-  across surfaces.** Creating a personal file names an end-user partition key -
-  `user:<id>` for a web/API subject. That same person on a *channel* runs under
-  `chan:<id>` (a channel account is a different stable key), so a file seeded under
-  `user:<id>` does not come back in their Telegram/Slack chat. It is never
-  cross-user - just a read-back gap between surfaces; a single cross-surface
-  identity is a v1 non-goal (see `derive_end_user_scope_key`).
+- **A person store seeded from the console reaches an *unlinked* chat account
+  only by its own key.** A member's key is `person:<user_id>`, and that is the
+  store they reach from web chat, the API and any chat account linked to them.
+  A chat account nobody has linked keys on `person:chan:<identity_id>` instead,
+  so a note seeded under the member key does not come back in that chat until
+  the account is linked. It is never cross-user — just a read-back gap, and
+  linking closes it (see `derive_audience`).
 
 - **Do not change `EMBEDDING_MODEL` while an agent has stored facts.** Facts embed
   on the deployment model into a fixed-width `vector(N)` column, so a model of a

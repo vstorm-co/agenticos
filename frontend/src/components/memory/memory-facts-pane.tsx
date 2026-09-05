@@ -17,7 +17,7 @@ import {
   useDebounced,
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
-import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
+import { OriginBadge, OwnerBadge } from "@/components/memory/memory-badges";
 import { CreateMemoryFactDialog } from "@/components/memory/create-memory-fact-dialog";
 import { useMemoryDangerZone, useMemoryFacts } from "@/hooks/use-memory";
 import { getErrorMessage } from "@/lib/api-error";
@@ -26,9 +26,9 @@ import type { MemoryFact } from "@/types/memory";
 interface MemoryFactsPaneProps {
   agentId: string;
   canEdit: boolean;
-  /** The partition the whole Memory tab is filtered to; owned by the panel.
-   * `all`/`shared`/`per_user`, or a specific `user:<id>` key. */
-  scope: string;
+  /** Whose memory the whole tab is filtered to; owned by the panel.
+   * `all`/`org`/`person`/`room`, or one owner key. */
+  owner: string;
 }
 
 /**
@@ -40,7 +40,7 @@ interface MemoryFactsPaneProps {
  * semantic recall — a query an operator typed would embed off the run's spend
  * ledger, which the intro says out loud.
  */
-export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProps) {
+export function MemoryFactsPane({ agentId, canEdit, owner }: MemoryFactsPaneProps) {
   const t = useTranslations("memory");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
@@ -53,7 +53,7 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
   const { clearFacts } = useMemoryDangerZone(agentId);
   const { facts, total, isLoading, error, refetch, remove } = useMemoryFacts({
     agentId,
-    scope,
+    owner,
     search,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
@@ -127,10 +127,7 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
                     <p className="text-foreground text-sm">{fact.content}</p>
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
                       <OriginBadge origin={fact.origin} />
-                      <PartitionBadge
-                        scopeKey={fact.end_user_scope_key}
-                        partitionLabel={fact.partition_label}
-                      />
+                      <OwnerBadge ownerKey={fact.owner_key} ownerLabel={fact.owner_label} />
                       {fact.created_at !== null && (
                         <span>
                           {t("remembered", {

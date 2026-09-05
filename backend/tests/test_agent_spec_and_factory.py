@@ -26,6 +26,7 @@ from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.factory import DEFAULT_MAX_STEPS, BuiltAgent, build_agent
+from app.agents.memory_scope import MemoryAudience
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
     AgentSpec,
@@ -139,26 +140,21 @@ class TestFactory:
             **identity,
         )
 
-    def test_memory_derives_the_end_user_key_from_identity(self):
-        """Any memory binding turns the request identity into the person's partition
-        key, so the run can reach that person's personal store as well as shared."""
-        built = self._memory_agent(user_id="u-1", subject_is_publisher_fallback=False)
-        assert built.deps.end_user_scope_key == "user:u-1"
+    def test_a_memory_agent_carries_the_audience_it_was_given(self):
+        """The factory no longer derives the audience - the runner does, because
+        only it knows whether this is a fresh request or a resume (#788). What the
+        factory owns is putting it on the deps the tools read."""
+        audience = MemoryAudience(person_key="person:u-1", room_key="room:slack:C1")
+        built = self._memory_agent(memory_audience=audience)
+        assert built.deps.memory_audience == audience
 
-    def test_memory_refuses_a_publisher_fallback(self):
-        """N1: on a hosted/widget run `user_id` is the publisher, so no key is
-        derived - the run reads shared alone and a personal write is refused rather
-        than attributed to the owner."""
-        built = self._memory_agent(user_id="owner", subject_is_publisher_fallback=True)
-        assert built.deps.end_user_scope_key is None
-
-    def test_an_agent_without_memory_carries_no_end_user_key(self):
-        """The derivation is inert unless memory is bound, so an identity signal
-        alone derives nothing."""
+    def test_an_agent_without_memory_carries_no_audience(self):
+        """The binding is the gate: a spec that never asked for memory carries no
+        audience, whatever identity the request arrived with."""
         built = self._memory_agent(
-            bind_memory=False, user_id="u-1", subject_is_publisher_fallback=False
+            bind_memory=False, memory_audience=MemoryAudience(person_key="person:u-1")
         )
-        assert built.deps.end_user_scope_key is None
+        assert built.deps.memory_audience is None
 
     @pytest.mark.anyio
     async def test_an_agent_that_binds_nothing_still_reports_its_context(self):

@@ -20,8 +20,8 @@ interface NewMemoryFile {
   content: string;
   format: string;
   kind: string;
-  /** The partition to write to; omit (null) for the shared store. */
-  end_user_scope_key: string | null;
+  /** Whose memory to write to; omit (null) for the organisation's store. */
+  owner_key: string | null;
 }
 
 /** What the editor may change on a file that already exists — never its name. */
@@ -34,9 +34,9 @@ export interface MemoryEdit {
 
 interface MemoryFilesQuery {
   agentId: string;
-  /** The partition to list: `all`/`shared`/`per_user`, or a specific `user:<id>`
-   * key (the panel resolves its "mine" filter to the caller's own). */
-  scope?: string;
+  /** Whose memory to list: `all`/`org`/`person`/`room`, or one owner key (the
+   * panel resolves its "mine" filter to the caller's own). */
+  owner?: string;
   search?: string;
   sort?: MemorySort;
   skip?: number;
@@ -54,7 +54,7 @@ interface MemoryFilesQuery {
  */
 export function useMemoryFiles({
   agentId,
-  scope = "all",
+  owner = "all",
   search = "",
   sort = "name",
   skip = 0,
@@ -65,9 +65,9 @@ export function useMemoryFiles({
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.memory.files(agentId, { scope, search, sort, skip, limit }),
+    queryKey: qk.memory.files(agentId, { owner, search, sort, skip, limit }),
     queryFn: () => {
-      const params = new URLSearchParams({ agent_id: agentId, partition: scope, sort });
+      const params = new URLSearchParams({ agent_id: agentId, owner, sort });
       if (search) params.set("q", search);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
@@ -163,9 +163,9 @@ export function useMemoryFile(agentId: string, fileId: string | null) {
 
 interface MemoryFactsQuery {
   agentId: string;
-  /** The partition to list: `all`/`shared`/`per_user`, or a specific `user:<id>`
-   * key (the panel resolves its "mine" filter to the caller's own). */
-  scope?: string;
+  /** Whose memory to list: `all`/`org`/`person`/`room`, or one owner key (the
+   * panel resolves its "mine" filter to the caller's own). */
+  owner?: string;
   search?: string;
   skip?: number;
   limit?: number;
@@ -174,8 +174,8 @@ interface MemoryFactsQuery {
 /** The fields an operator sets when seeding a fact directly. */
 interface NewMemoryFact {
   content: string;
-  /** The partition to write to; omit (null) for the shared store. */
-  end_user_scope_key: string | null;
+  /** Whose memory to write to; omit (null) for the organisation's store. */
+  owner_key: string | null;
 }
 
 /**
@@ -188,7 +188,7 @@ interface NewMemoryFact {
  */
 export function useMemoryFacts({
   agentId,
-  scope = "all",
+  owner = "all",
   search = "",
   skip = 0,
   limit = PAGE_SIZE,
@@ -198,9 +198,9 @@ export function useMemoryFacts({
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.memory.facts(agentId, { scope, search, skip, limit }),
+    queryKey: qk.memory.facts(agentId, { owner, search, skip, limit }),
     queryFn: () => {
-      const params = new URLSearchParams({ agent_id: agentId, partition: scope });
+      const params = new URLSearchParams({ agent_id: agentId, owner });
       if (search) params.set("q", search);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
@@ -242,7 +242,7 @@ export function useMemoryFacts({
 /**
  * The two danger-zone clears.
  *
- * `clearMemory` deletes every file and fact for the agent in every partition
+ * `clearMemory` deletes every file and fact for the agent in every store
  * (so it invalidates the whole agent root); `clearFacts` deletes only the facts.
  * Both are single agent-scoped requests, so a confirm dialog is the only guard
  * the UI owes them.

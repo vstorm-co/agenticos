@@ -28,6 +28,7 @@ from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
+from app.agents.memory_scope import MemoryAudience
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec, OrgMcpServerRef
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -1734,7 +1735,8 @@ class TestParking:
             "admitted_as": {
                 "approval_mode": "follow_agent",
                 "acts_for_sender": False,
-                "subject_is_publisher_fallback": False,
+                "memory_person_key": None,
+                "memory_room_key": None,
             },
         }
 
@@ -2150,13 +2152,12 @@ class TestResume:
         assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
 
     @pytest.mark.anyio
-    async def test_the_memory_partition_is_the_runs_own_not_the_approvers(self):
-        """The factory derives the per-user memory key from `user_id`,
-        `channel_identity_id` and the publisher-fallback flag. Resuming read all
-        three off the approver, so an admin releasing a member's parked chat
-        injected their own personal memory and wrote the member's facts under
-        their account (#788) - the same bug the personal-MCP owner test guards,
-        on the store next to it. The run's own identity now feeds the build."""
+    async def test_the_memory_audience_is_the_runs_own_not_the_approvers(self):
+        """Resuming used to re-derive the memory identity off the approver, so an
+        admin releasing a member's parked chat injected their own memory and wrote
+        the member's notes under their account (#788) - the same bug the
+        personal-MCP owner test guards, on the store next to it. The audience is
+        now restored verbatim from the parked state instead."""
         build = await self._resumed(
             paused_state={
                 "messages": [],
@@ -2164,22 +2165,23 @@ class TestResume:
                 "admitted_as": {
                     "approval_mode": "follow_agent",
                     "acts_for_sender": True,
-                    "subject_is_publisher_fallback": False,
+                    "memory_person_key": "person:the-asker",
+                    "memory_room_key": None,
                 },
             }
         )
 
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
         assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
-        assert build.call_args.kwargs["channel_identity_id"] == self.resumed_run.channel_identity_id
-        assert build.call_args.kwargs["subject_is_publisher_fallback"] is False
+        assert build.call_args.kwargs["memory_audience"] == MemoryAudience(
+            person_key="person:the-asker", room_key=None
+        )
 
     @pytest.mark.anyio
     async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):
-        """The publisher-fallback flag is the one memory-identity input not on the
-        row, so it rides the parked state. A run that stood a publisher in for an
-        anonymous visitor had no personal partition; restoring the flag keeps it
-        that way on resume rather than keying on the approver."""
+        """A run that stood a publisher in for an anonymous visitor had no person
+        store. The parked state records that as a person key of `None`, so the
+        resume keys on nobody rather than on whoever approved it."""
         build = await self._resumed(
             paused_state={
                 "messages": [],
@@ -2187,12 +2189,35 @@ class TestResume:
                 "admitted_as": {
                     "approval_mode": "follow_agent",
                     "acts_for_sender": False,
-                    "subject_is_publisher_fallback": True,
+                    "memory_person_key": None,
+                    "memory_room_key": None,
                 },
             }
         )
 
-        assert build.call_args.kwargs["subject_is_publisher_fallback"] is True
+        assert build.call_args.kwargs["memory_audience"] == MemoryAudience()
+
+    @pytest.mark.anyio
+    async def test_a_parked_room_run_resumes_still_in_its_room(self):
+        """The room is unrecoverable from the row - `agent_runs` records no chat
+        type - so without it on the parked state a resumed channel run would read
+        a group conversation as a private one and lose the room's memory (#788)."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": True,
+                    "memory_person_key": "person:the-asker",
+                    "memory_room_key": "room:slack:C1",
+                },
+            }
+        )
+
+        audience = build.call_args.kwargs["memory_audience"]
+        assert audience.room_key == "room:slack:C1"
+        assert not audience.private
 
     @pytest.mark.anyio
     async def test_a_run_parked_with_nobody_at_the_keyboard_resumes_the_same_way(self):

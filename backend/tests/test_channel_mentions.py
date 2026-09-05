@@ -27,6 +27,7 @@ from app.services.channels.base import ROOM_HANDLES, channel_key, split_thread, 
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
+    _memory_room_key,
     parse_mention,
 )
 from app.services.usage_report import UsageReport
@@ -44,6 +45,35 @@ _BOT_ID = uuid.uuid4()
 def _bound(*, is_active: bool = True) -> AsyncMock:
     """An exposure lookup that says this agent answers on this bot."""
     return AsyncMock(return_value=MagicMock(is_active=is_active))
+
+
+class TestMemoryRoomKey:
+    """Which memory a channel turn writes to by default.
+
+    The only place that can answer it: deciding a chat has more than one listener
+    needs the platform's own channel type, which stops here - the runner sees a
+    `channel_key` and a Slack direct message has one exactly like a channel does.
+    """
+
+    def test_a_group_chat_names_its_room(self):
+        assert _memory_room_key("slack", "C1", "group") == "room:slack:C1"
+
+    def test_a_room_key_strips_the_thread_so_a_room_remembers_across_threads(self):
+        # Slack folds `thread_ts` into the chat id; a room that started over in each
+        # thread would be a room that remembers nothing.
+        assert _memory_room_key("slack", "C1:1700000000.1", "group") == "room:slack:C1"
+
+    def test_a_direct_message_names_no_room_and_stays_private(self):
+        """What makes a DM and web chat one audience for the same person."""
+        assert _memory_room_key("slack", "D1", "private") is None
+
+    def test_an_unknown_chat_type_is_read_as_private(self):
+        """Getting this wrong permissively is what would read a note taken alone
+        with somebody back to a whole channel, so the unknown case is the safe one."""
+        assert _memory_room_key("slack", "C1", None) is None
+
+    def test_no_chat_at_all_names_no_room(self):
+        assert _memory_room_key("slack", None, "group") is None
 
 
 class TestTheChannelAWorkspaceSharesAcross:

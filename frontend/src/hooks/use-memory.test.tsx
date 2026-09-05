@@ -49,7 +49,7 @@ describe("useMemoryFiles", () => {
       () =>
         useMemoryFiles({
           agentId: "a1",
-          scope: "shared",
+          owner: "shared",
           search: "pref",
           sort: "updated",
           skip: 50,
@@ -59,7 +59,7 @@ describe("useMemoryFiles", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/memory/files?agent_id=a1&partition=shared&sort=updated&q=pref&skip=50&limit=50",
+      "/memory/files?agent_id=a1&owner=shared&sort=updated&q=pref&skip=50&limit=50",
     );
   });
 
@@ -68,7 +68,7 @@ describe("useMemoryFiles", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/memory/files?agent_id=a1&partition=all&sort=name&skip=0&limit=50",
+      "/memory/files?agent_id=a1&owner=all&sort=name&skip=0&limit=50",
     );
   });
 
@@ -82,7 +82,7 @@ describe("useMemoryFiles", () => {
       content: "steps",
       format: "md",
       kind: "runbook",
-      end_user_scope_key: null,
+      owner_key: null,
     });
 
     expect(apiClient.post).toHaveBeenCalledWith("/memory/files", {
@@ -92,7 +92,7 @@ describe("useMemoryFiles", () => {
       content: "steps",
       format: "md",
       kind: "runbook",
-      end_user_scope_key: null,
+      owner_key: null,
     });
     expect(toastSuccess).toHaveBeenCalled();
   });
@@ -229,13 +229,13 @@ describe("useMemoryFacts", () => {
 
   it("asks the server for the partition and page, with no sort", async () => {
     const { result } = renderHook(
-      () => useMemoryFacts({ agentId: "a1", scope: "shared", search: "fy", skip: 50 }),
+      () => useMemoryFacts({ agentId: "a1", owner: "shared", search: "fy", skip: 50 }),
       { wrapper },
     );
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/memory/facts?agent_id=a1&partition=shared&q=fy&skip=50&limit=50",
+      "/memory/facts?agent_id=a1&owner=shared&q=fy&skip=50&limit=50",
     );
   });
 
@@ -244,7 +244,7 @@ describe("useMemoryFacts", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/memory/facts?agent_id=a1&partition=all&skip=0&limit=50",
+      "/memory/facts?agent_id=a1&owner=all&skip=0&limit=50",
     );
   });
 

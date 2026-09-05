@@ -40,19 +40,19 @@ import { useTranslations } from "next-intl";
 interface MemoryFilesPaneProps {
   agentId: string;
   canEdit: boolean;
-  /** The partition the whole Memory tab is filtered to; owned by the panel.
-   * `all`/`shared`/`per_user`, or a specific `user:<id>` key. */
-  scope: string;
+  /** Whose memory the whole tab is filtered to; owned by the panel.
+   * `all`/`org`/`person`/`room`, or one owner key. */
+  owner: string;
 }
 
 /**
  * The files half of the Memory tab: the agent's `MEMORY.md` index as a table an
  * operator can read, author into, edit and clear.
  *
- * The panel mounts this keyed by scope, so switching partition gives a fresh
- * page rather than paging into a partition that no longer applies.
+ * The panel mounts this keyed by owner, so switching store gives a fresh
+ * page rather than paging into a store that no longer applies.
  */
-export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProps) {
+export function MemoryFilesPane({ agentId, canEdit, owner }: MemoryFilesPaneProps) {
   const t = useTranslations("memory");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
@@ -64,7 +64,7 @@ export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProp
 
   const { files, total, isLoading, error, remove } = useMemoryFiles({
     agentId,
-    scope,
+    owner,
     search,
     sort,
     skip: page * PAGE_SIZE,

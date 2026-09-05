@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { FileEditor } from "@/components/files";
-import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
+import { OriginBadge, OwnerBadge } from "@/components/memory/memory-badges";
 import { FORMATS, displayName } from "@/components/context/file-name";
 import type { MemoryEdit } from "@/hooks/use-memory";
 import type { MemoryFile } from "@/types/memory";
@@ -39,7 +39,7 @@ interface MemoryFileEditorProps {
  *
  * The same shape as the context editor — the facts about the file in a strip at
  * the top, the body in the shared pane, one footer — with two things context
- * does not have: the origin and partition are shown (read-only facts a person
+ * does not have: the origin and owner are shown (read-only facts a person
  * cannot change here), and an agent-authored file offers a Promote that marks it
  * trusted. Editing never changes the origin: a promote is the one deliberate act
  * that makes an agent's writing injectable, so it is a separate button, not a
@@ -109,7 +109,7 @@ export function MemoryFileEditor({
             <Label>{t("colOrigin")}</Label>
             <div className="flex h-9 items-center gap-2">
               <OriginBadge origin={file.origin} />
-              <PartitionBadge scopeKey={file.end_user_scope_key} />
+              <OwnerBadge ownerKey={file.owner_key} />
             </div>
           </div>
         </div>

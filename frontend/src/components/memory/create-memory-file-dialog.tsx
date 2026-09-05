@@ -35,14 +35,14 @@ const MAX_DESCRIPTION = 500;
 const MAX_SCOPE_KEY = 128;
 const DEFAULT_KIND = "note";
 
-type Field = "name" | "description" | "format" | "kind" | "content" | "end_user_scope_key";
-type Tier = "shared" | "personal";
+type Field = "name" | "description" | "format" | "kind" | "content" | "owner_key";
+type Store = "org" | "owned";
 
 interface CreateMemoryFileDialogProps {
   agentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Whether the caller may write the shared store and other people's partitions. */
+  /** Whether the caller may write the organisation's store and other owners'. */
   canEdit: boolean;
 }
 
@@ -50,12 +50,13 @@ interface CreateMemoryFileDialogProps {
  * New human-authored memory file — a trusted record (`origin=operator`, so the
  * agent cannot rewrite it), created through the management surface.
  *
- * The scope decides who reads it and who may create it. **Shared** is the
- * organization-wide store and an operator act. **Personal** is one person's
- * private store: an operator (`canEdit`) may write anyone's — the key defaults to
- * their own and is editable to seed another person's — while a plain member sees
- * only their own, keyed to `user:<their-id>` (the same key the agent derives when
- * they chat). The backend enforces this regardless of what the dialog offers.
+ * The store decides who reads it back and who may create it. **The organisation's**
+ * is read by everyone the agent serves and is an operator act. **A specific
+ * store** is one person's or one group chat's: an operator (`canEdit`) may write
+ * any of them — the key defaults to their own and is editable to seed another —
+ * while a plain member sees only their own, keyed to `person:<their-id>`, the same
+ * key the agent derives when they chat. The backend enforces this regardless of
+ * what the dialog offers.
  */
 export function CreateMemoryFileDialog({
   agentId,
@@ -67,21 +68,21 @@ export function CreateMemoryFileDialog({
   const t = useTranslations("memory");
   const { create } = useMemoryFiles({ agentId });
   const { user } = useAuth();
-  const ownKey = user ? `user:${user.id}` : null;
+  const ownKey = user ? `person:${user.id}` : null;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [format, setFormat] = useState<string>(DEFAULT_FORMAT);
   const [kind, setKind] = useState(DEFAULT_KIND);
   const [content, setContent] = useState("");
-  const [tier, setTier] = useState<Tier>(canEdit ? "shared" : "personal");
-  const [personalKey, setPersonalKey] = useState("");
+  const [store, setStore] = useState<Store>(canEdit ? "org" : "owned");
+  const [ownerKey, setOwnerKey] = useState("");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
-  // A member writes only their own personal store; an operator may type another
-  // person's key to seed it. The backend re-checks all of this.
-  const scopeKey = tier === "shared" ? null : canEdit ? personalKey.trim() || ownKey : ownKey;
-  const scopeReady = tier === "shared" || scopeKey !== null;
+  // A member writes only their own store; an operator may type any owner key - a
+  // person's or a room's - to seed it. The backend re-checks all of this.
+  const resolvedOwnerKey = store === "org" ? null : canEdit ? ownerKey.trim() || ownKey : ownKey;
+  const ownerReady = store === "org" || resolvedOwnerKey !== null;
 
   const setters: Record<Field, (value: string) => void> = {
     name: setName,
@@ -89,7 +90,7 @@ export function CreateMemoryFileDialog({
     format: setFormat,
     kind: setKind,
     content: setContent,
-    end_user_scope_key: setPersonalKey,
+    owner_key: setOwnerKey,
   };
 
   function edit(field: Field, value: string) {
@@ -103,8 +104,8 @@ export function CreateMemoryFileDialog({
     setFormat(DEFAULT_FORMAT);
     setKind(DEFAULT_KIND);
     setContent("");
-    setTier(canEdit ? "shared" : "personal");
-    setPersonalKey("");
+    setStore(canEdit ? "org" : "owned");
+    setOwnerKey("");
     setErrors({});
   }
 
@@ -116,7 +117,7 @@ export function CreateMemoryFileDialog({
         content,
         format,
         kind: kind.trim() || DEFAULT_KIND,
-        end_user_scope_key: scopeKey,
+        owner_key: resolvedOwnerKey,
       });
       reset();
       onOpenChange(false);
@@ -124,7 +125,7 @@ export function CreateMemoryFileDialog({
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "description", "format", "kind", "content", "end_user_scope_key"],
+          fields: ["name", "description", "format", "kind", "content", "owner_key"],
           identifiedBy: "name",
         },
         tErrors,
@@ -146,36 +147,36 @@ export function CreateMemoryFileDialog({
           <div className="flex flex-wrap items-start gap-4">
             {canEdit ? (
               <div className="w-40 shrink-0 space-y-1.5">
-                <Label htmlFor="new-memory-tier">{t("tierLabel")}</Label>
-                <Select value={tier} onValueChange={(value) => setTier(value as Tier)}>
-                  <SelectTrigger id="new-memory-tier">
+                <Label htmlFor="new-memory-store">{t("storeLabel")}</Label>
+                <Select value={store} onValueChange={(value) => setStore(value as Store)}>
+                  <SelectTrigger id="new-memory-store">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="shared">{t("tierShared")}</SelectItem>
-                    <SelectItem value="personal">{t("tierPersonal")}</SelectItem>
+                    <SelectItem value="org">{t("storeOrg")}</SelectItem>
+                    <SelectItem value="owned">{t("storeOwned")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             ) : null}
-            {tier === "personal" && canEdit ? (
+            {store === "owned" && canEdit ? (
               <div className="min-w-56 flex-1 space-y-1.5">
-                <Label htmlFor="new-memory-scope">{t("personalKeyLabel")}</Label>
+                <Label htmlFor="new-memory-scope">{t("ownerKeyLabel")}</Label>
                 <Input
                   id="new-memory-scope"
-                  value={personalKey}
-                  onChange={(event) => edit("end_user_scope_key", event.target.value)}
+                  value={ownerKey}
+                  onChange={(event) => edit("owner_key", event.target.value)}
                   placeholder={ownKey ?? "user:<id>"}
                   maxLength={MAX_SCOPE_KEY}
                   className="font-mono"
-                  aria-invalid={errors.end_user_scope_key ? true : undefined}
+                  aria-invalid={errors.owner_key ? true : undefined}
                 />
-                <FieldNote error={errors.end_user_scope_key}>{t("personalKeyNote")}</FieldNote>
+                <FieldNote error={errors.owner_key}>{t("ownerKeyNote")}</FieldNote>
               </div>
             ) : null}
           </div>
 
-          {tier === "personal" && !canEdit ? (
+          {store === "owned" && !canEdit ? (
             <p className="text-muted-foreground text-xs">{t("personalOwnNote")}</p>
           ) : null}
 
@@ -259,7 +260,7 @@ export function CreateMemoryFileDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || !scopeReady || create.isPending}>
+          <Button onClick={handleCreate} disabled={!name.trim() || !ownerReady || create.isPending}>
             {t("create")}
           </Button>
         </DialogFooter>

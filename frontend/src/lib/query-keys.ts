@@ -258,13 +258,13 @@ export const qk = {
     filesRoot: (agentId: string) => ["memory", agentId, "files"] as const,
     files: (
       agentId: string,
-      query: { scope: string; search: string; sort: string; skip: number; limit: number },
+      query: { owner: string; search: string; sort: string; skip: number; limit: number },
     ) => ["memory", agentId, "files", query] as const,
     file: (agentId: string, fileId: string) => ["memory", agentId, "file", fileId] as const,
     factsRoot: (agentId: string) => ["memory", agentId, "facts"] as const,
     facts: (
       agentId: string,
-      query: { scope: string; search: string; skip: number; limit: number },
+      query: { owner: string; search: string; skip: number; limit: number },
     ) => ["memory", agentId, "facts", query] as const,
   },
   invitations: {

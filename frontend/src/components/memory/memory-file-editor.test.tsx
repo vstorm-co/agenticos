@@ -20,7 +20,7 @@ const FILE: MemoryFile = {
   format: "md",
   kind: "note",
   origin: "operator",
-  end_user_scope_key: null,
+  owner_key: null,
   created_at: null,
   updated_at: null,
 };
@@ -47,10 +47,10 @@ function mount(props: Partial<React.ComponentProps<typeof MemoryFileEditor>> = {
 const save = () => screen.getByRole("button", { name: "Save" });
 
 describe("MemoryFileEditor", () => {
-  it("shows the origin and partition as read-only facts", () => {
+  it("shows the origin and owner as read-only facts", () => {
     mount();
     expect(screen.getByText("Operator")).toBeInTheDocument();
-    expect(screen.getByText("Shared")).toBeInTheDocument();
+    expect(screen.getByText("Organisation")).toBeInTheDocument();
   });
 
   it("saves the whole editable set, so an untouched field is not lost", async () => {

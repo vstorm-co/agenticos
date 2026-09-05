@@ -1,10 +1,10 @@
-"""Schemas for an agent's memory files.
+"""Schemas for an agent's memory files and facts.
 
-The operator-facing shape of the `memory` capability's file store. `origin` and
-`end_user_scope_key` are read-only facts about a row: a person creates trusted
-(`operator`) files and never chooses a row's partition key by hand beyond the
-optional one on create — the agent's own writes carry `origin="agent"` and a
-partition derived server-side from the request.
+The operator-facing shape of the `memory` capability. `origin` and `owner_key`
+are read-only facts about a row: a person creates trusted (`operator`) rows and
+never chooses a row's owner by hand beyond the optional one on create — the
+agent's own writes carry `origin="agent"` and an owner derived server-side from
+the request.
 """
 
 import re
@@ -19,24 +19,31 @@ from app.schemas.base import BaseSchema
 
 MemoryOriginLiteral = Literal["operator", "agent"]
 
-# The shapes `derive_end_user_scope_key` produces, and so the only keys a run reads.
-_PARTITION_KEY = re.compile(r"(?:user|chan):[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
+_UUID = r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"
+# The shapes `app.core.memory_keys` produces, and so the only owners a run reads.
+# A room key ends in a platform chat id, which is the platform's to shape, so it
+# is bounded rather than matched: `channel_key` has already stripped the thread.
+_OWNER_KEY = re.compile(rf"person:(?:chan:)?{_UUID}|room:[a-z]+:[^\s]{{1,150}}")
 
 
-def _derivable_partition_key(value: str | None) -> str | None:
-    """Refuse a partition key the runtime never derives.
+def _derivable_owner_key(value: str | None) -> str | None:
+    """Refuse an owner key the runtime never derives.
 
     Both create dialogs let an editor type the key by hand, and a mistyped one
-    would seed a file or fact into a partition no run ever reads - a silent no-op
-    answered with a 201 and an audit row. Only `user:<uuid>` and `chan:<uuid>`
-    are ever derived, so anything else is a typo and is refused as one.
+    would seed a file or fact into a store no run ever reads - a silent no-op
+    answered with a 201 and an audit row. Only the three shapes
+    `app.core.memory_keys` builds are ever derived, so anything else is a typo and
+    is refused as one.
     """
-    if value is not None and _PARTITION_KEY.fullmatch(value) is None:
-        raise PydanticCustomError("partition_key", "A partition key is user:<uuid> or chan:<uuid>")
+    if value is not None and _OWNER_KEY.fullmatch(value) is None:
+        raise PydanticCustomError(
+            "owner_key",
+            "An owner key is person:<uuid>, person:chan:<uuid> or room:<platform>:<chat>",
+        )
     return value
 
 
-PartitionKey = Annotated[str | None, AfterValidator(_derivable_partition_key)]
+OwnerKey = Annotated[str | None, AfterValidator(_derivable_owner_key)]
 
 
 class AgentMemoryFileRead(BaseSchema):
@@ -48,9 +55,9 @@ class AgentMemoryFileRead(BaseSchema):
     format: str
     kind: str
     origin: MemoryOriginLiteral
-    # NULL is the shared partition; a `user:<id>`/`chan:<id>` names one end-user's
-    # private store. Raw so an operator can see which partition a row is in.
-    end_user_scope_key: str | None = None
+    # NULL is the organisation's store; `person:…`/`room:…` name one person or one
+    # group chat. Raw so an operator can see which store a row is in.
+    owner_key: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -69,10 +76,10 @@ class AgentMemoryFileSummary(BaseSchema):
     format: str
     kind: str
     origin: MemoryOriginLiteral
-    end_user_scope_key: str | None = None
-    partition_label: str | None = Field(
+    owner_key: str | None = None
+    owner_label: str | None = Field(
         default=None,
-        description="A readable name for a per-user partition (the member's email), "
+        description="A readable name for a person's store (the member's email), "
         "resolved org-scoped; None for the shared store or a key that does not resolve",
     )
     size_bytes: int = Field(description="The body's size, so the index can hint at its weight")
@@ -88,7 +95,7 @@ class AgentMemoryFileCreate(BaseSchema):
     name: str = Field(
         min_length=1,
         max_length=64,
-        description="How the file is referred to; unique within its partition",
+        description="How the file is referred to; unique within its store",
     )
     description: str | None = Field(default=None, max_length=500)
     content: str = Field(default="", description="The file body, as text")
@@ -104,11 +111,11 @@ class AgentMemoryFileCreate(BaseSchema):
         max_length=32,
         description="A free-text category shown in the index, e.g. `note`, `profile`",
     )
-    end_user_scope_key: PartitionKey = Field(
+    owner_key: OwnerKey = Field(
         default=None,
-        max_length=128,
-        description="Which end-user partition to write to - `user:<uuid>` or `chan:<uuid>`; "
-        "omit for the shared store",
+        max_length=200,
+        description="Whose memory to write to - `person:<uuid>`, `person:chan:<uuid>` or "
+        "`room:<platform>:<chat>`; omit for the organisation's own store",
     )
 
 
@@ -134,11 +141,11 @@ class AgentMemoryFactCreate(BaseSchema):
         max_length=2000,
         description="The fact to remember, as a short self-contained sentence",
     )
-    end_user_scope_key: PartitionKey = Field(
+    owner_key: OwnerKey = Field(
         default=None,
-        max_length=128,
-        description="Which end-user partition to write to - `user:<uuid>` or `chan:<uuid>`; "
-        "omit for the shared store",
+        max_length=200,
+        description="Whose memory to write to - `person:<uuid>`, `person:chan:<uuid>` or "
+        "`room:<platform>:<chat>`; omit for the organisation's own store",
     )
 
 
@@ -156,10 +163,10 @@ class AgentMemoryFactRead(BaseSchema):
     agent_id: UUID
     content: str
     origin: MemoryOriginLiteral
-    end_user_scope_key: str | None = None
-    partition_label: str | None = Field(
+    owner_key: str | None = None
+    owner_label: str | None = Field(
         default=None,
-        description="A readable name for a per-user partition (the member's email), "
+        description="A readable name for a person's store (the member's email), "
         "resolved org-scoped; None for the shared store or a key that does not resolve",
     )
     created_at: datetime | None = None

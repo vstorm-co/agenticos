@@ -16,13 +16,14 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.memory._capability import Memory
+from app.agents.memory_scope import MemoryAudience, derive_audience
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
 
 __all__ = [
     "MEMORY_CAPABILITY_ID",
     "Memory",
     "MemoryConfig",
-    "derive_end_user_scope_key",
+    "memory_audience_for",
     "memory_requested",
 ]
 
@@ -43,17 +44,18 @@ class MemoryConfig(BaseModel):
     allow_personal: bool = Field(
         default=True,
         description=(
-            "Whether the agent keeps a private memory for each identified end-user, "
-            "alongside the shared store. Off makes memory shared-only, for compliance "
-            "or privacy."
+            "Whether the agent keeps a private memory for each person it talks to, "
+            "readable only when it is alone with them. Off drops that store entirely, "
+            "for compliance or privacy; group-chat and organisation memory stay."
         ),
     )
     allow_agent_shared_writes: bool = Field(
         default=True,
         description=(
-            "Whether the agent may write to the shared, organisation-wide memory. Off "
-            "keeps the shared store curated by operators — the agent still reads it, "
-            "but saves only to its personal memory."
+            "Whether the agent may write to the organisation-wide memory — the one "
+            "direction that reaches more people than the conversation it came from. "
+            "Off keeps that store curated by operators; the agent still reads it, and "
+            "still saves to the memory of the conversation it is in."
         ),
     )
     backend: Literal["native", "mem0"] = Field(
@@ -109,51 +111,36 @@ class MemoryConfig(BaseModel):
 def memory_requested(bindings: Iterable[CapabilityBinding]) -> bool:
     """Whether any enabled memory binding is present.
 
-    The factory derives the per-end-user partition key whenever memory is bound,
-    because every memory agent now reads its shared store and, when the run has an
-    identified person, that person's personal store too. Read off the raw binding
-    config rather than a built capability, because the factory needs the answer
-    before it derives the key and builds anything; the key stays `None`, and
-    personal memory inert, for every agent without memory and for a run with no
-    per-person signal.
+    The factory derives the run's memory audience whenever memory is bound, because
+    every memory agent reads at least the organization's store. Read off the raw
+    binding config rather than a built capability, because the factory needs the
+    answer before it derives the audience and builds anything; the audience stays
+    `None` for every agent without memory.
     """
     return any(
         binding.enabled and binding.capability_id == MEMORY_CAPABILITY_ID for binding in bindings
     )
 
 
-def derive_end_user_scope_key(
+def memory_audience_for(
     *,
     channel_identity_id: UUID | None,
     user_id: str | None,
     subject_is_publisher_fallback: bool,
-) -> str | None:
-    """The stable per-end-user key for a run, or `None` when there is no signal.
+    room_key: str | None,
+) -> MemoryAudience:
+    """The run's memory audience, from the identity the request arrived with.
 
-    A personal store must attribute a memory to the *person asking*, and the
-    trap is that on a hosted/widget surface `user_id` is the publisher, not the
-    visitor (`publisher_context`), so keying on it alone would collapse every
-    visitor onto the owner's partition - the cross-user leak this exists to stop.
-    So:
-
-    - a channel identity (linked or unlinked) is a stable per-account key;
-    - otherwise a real subject (web chat, API, a linked member) keys on the user,
-      but only when it is *not* the publisher fallback;
-    - otherwise there is no per-person signal, and the caller refuses rather than
-      writing into a shared owner partition.
-
-    A consequence worth naming: a member linked to a channel keys on `chan:` in
-    that channel and on `user:` on web or the API, so their per-user memory does
-    not follow them across surfaces. Both keys are stable and neither leaks into
-    anyone else's partition; a single cross-surface store is a v1 non-goal - it
-    would need the channel-to-user link resolved here, which this pure function
-    deliberately does not reach for.
+    A thin re-export of :func:`app.agents.memory_scope.derive_audience` so the
+    factory reaches the capability's vocabulary through the capability package,
+    the way it does for every other capability. The reasoning is in that module.
     """
-    if channel_identity_id is not None:
-        return f"chan:{channel_identity_id}"
-    if user_id is not None and not subject_is_publisher_fallback:
-        return f"user:{user_id}"
-    return None
+    return derive_audience(
+        channel_identity_id=channel_identity_id,
+        user_id=user_id,
+        subject_is_publisher_fallback=subject_is_publisher_fallback,
+        room_key=room_key,
+    )
 
 
 @register(

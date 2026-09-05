@@ -25,14 +25,14 @@ const FILE = {
   format: "md",
   kind: "note",
   origin: "operator",
-  end_user_scope_key: null,
+  owner_key: null,
   size_bytes: 40,
 };
 const FACT = {
   id: "x1",
   agent_id: "a1",
   content: "Acme's fiscal year starts in April.",
-  end_user_scope_key: null,
+  owner_key: null,
   created_at: null,
 };
 
@@ -82,7 +82,7 @@ describe("MemoryPanel", () => {
   it("shows how memory is configured, defaulting to the files half", async () => {
     mount();
 
-    expect(screen.getByText("Shared + per-user")).toBeInTheDocument();
+    expect(screen.getByText("Personal memory on")).toBeInTheDocument();
     expect(screen.getByText("Backend: native")).toBeInTheDocument();
     expect(await screen.findByText("user-preferences")).toBeInTheDocument();
   });
@@ -90,7 +90,7 @@ describe("MemoryPanel", () => {
   it("reflects the mem0 backend in its badge", () => {
     mount({ backend: "mem0" });
 
-    expect(screen.getByText("Shared + per-user")).toBeInTheDocument();
+    expect(screen.getByText("Personal memory on")).toBeInTheDocument();
     expect(screen.getByText("Backend: mem0")).toBeInTheDocument();
   });
 
@@ -120,20 +120,20 @@ describe("MemoryPanel", () => {
     expect(screen.queryByRole("button", { name: "Clear all memory" })).not.toBeInTheDocument();
   });
 
-  it("shows a shared-only badge when personal memory is off", () => {
+  it("shows a no-personal badge when personal memory is off", () => {
     mount({ allowPersonal: false });
 
-    expect(screen.getByText("Shared only")).toBeInTheDocument();
+    expect(screen.getByText("No personal memory")).toBeInTheDocument();
   });
 
-  it("filters both halves by the shared scope control", async () => {
+  it("filters both halves by the organisation owner control", async () => {
     mount();
     await screen.findByText("user-preferences");
 
     await userEvent.click(screen.getByRole("button", { name: "All" }));
-    await userEvent.click(screen.getByRole("button", { name: "Shared" }));
+    await userEvent.click(screen.getByRole("button", { name: "Organisation" }));
 
-    await waitFor(() => expect(lastFilesCall()).toContain("partition=shared"));
+    await waitFor(() => expect(lastFilesCall()).toContain("owner=org"));
   });
 
   it("switches between the files and facts halves", async () => {
@@ -167,13 +167,13 @@ describe("MemoryPanel", () => {
     expect(screen.getByText("Memory is off")).toBeInTheDocument();
   });
 
-  it("filters both halves to the per-user partitions", async () => {
+  it("filters both halves to the person stores", async () => {
     mount();
     await screen.findByText("user-preferences");
 
-    await userEvent.click(screen.getByRole("button", { name: "Per-user" }));
+    await userEvent.click(screen.getByRole("button", { name: "People" }));
 
-    await waitFor(() => expect(lastFilesCall()).toContain("partition=per_user"));
+    await waitFor(() => expect(lastFilesCall()).toContain("owner=person"));
   });
 
   it("clears all memory from the danger zone, behind a confirm", async () => {
@@ -211,21 +211,21 @@ describe("MemoryPanel", () => {
     expect(screen.queryByRole("button", { name: "Clear all memory" })).not.toBeInTheDocument();
   });
 
-  it("starts a viewer on the shared store, not the all filter that would 404", async () => {
+  it("starts a viewer on the organisation store, not the all filter that would 404", async () => {
     useAuthStore.setState({
       user: { id: "u-7", email: "viewer@example.com", is_active: true, created_at: "2026-01-01" },
     });
     mount({ canEdit: false });
     await screen.findByText("user-preferences");
 
-    await waitFor(() => expect(lastFilesCall()).toContain("partition=shared"));
+    await waitFor(() => expect(lastFilesCall()).toContain("owner=org"));
     // A viewer cannot list every partition or the per-user store, so those
     // filters are not even offered.
     expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Per-user" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "People" })).not.toBeInTheDocument();
   });
 
-  it("lets a viewer filter to their own personal memory", async () => {
+  it("lets a viewer filter to their own memory", async () => {
     useAuthStore.setState({
       user: { id: "u-7", email: "viewer@example.com", is_active: true, created_at: "2026-01-01" },
     });
@@ -233,12 +233,10 @@ describe("MemoryPanel", () => {
     await screen.findByText("user-preferences");
 
     await userEvent.click(screen.getByRole("button", { name: "Mine" }));
-    await waitFor(() =>
-      expect(decodeURIComponent(lastFilesCall())).toContain("partition=user:u-7"),
-    );
+    await waitFor(() => expect(decodeURIComponent(lastFilesCall())).toContain("owner=person:u-7"));
 
     // ...and back to the shared store.
-    await userEvent.click(screen.getByRole("button", { name: "Shared" }));
-    await waitFor(() => expect(lastFilesCall()).toContain("partition=shared"));
+    await userEvent.click(screen.getByRole("button", { name: "Organisation" }));
+    await waitFor(() => expect(lastFilesCall()).toContain("owner=org"));
   });
 });

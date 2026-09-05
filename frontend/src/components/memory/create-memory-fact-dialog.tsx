@@ -31,13 +31,13 @@ import { DIALOG_FORM } from "@/lib/dialog-sizes";
 const MAX_CONTENT = 2000;
 const MAX_SCOPE_KEY = 128;
 
-type Tier = "shared" | "personal";
+type Store = "org" | "owned";
 
 interface CreateMemoryFactDialogProps {
   agentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Whether the caller may write the shared store and other people's partitions. */
+  /** Whether the caller may write the organisation's store and other owners'. */
   canEdit: boolean;
 }
 
@@ -60,34 +60,34 @@ export function CreateMemoryFactDialog({
   const t = useTranslations("memory");
   const { create } = useMemoryFacts({ agentId });
   const { user } = useAuth();
-  const ownKey = user ? `user:${user.id}` : null;
+  const ownKey = user ? `person:${user.id}` : null;
 
   const [content, setContent] = useState("");
-  const [tier, setTier] = useState<Tier>(canEdit ? "shared" : "personal");
-  const [personalKey, setPersonalKey] = useState("");
+  const [store, setStore] = useState<Store>(canEdit ? "org" : "owned");
+  const [ownerKey, setOwnerKey] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [scopeError, setScopeError] = useState<string | null>(null);
+  const [ownerError, setOwnerError] = useState<string | null>(null);
 
-  const scopeKey = tier === "shared" ? null : canEdit ? personalKey.trim() || ownKey : ownKey;
-  const scopeReady = tier === "shared" || scopeKey !== null;
+  const resolvedOwnerKey = store === "org" ? null : canEdit ? ownerKey.trim() || ownKey : ownKey;
+  const ownerReady = store === "org" || resolvedOwnerKey !== null;
 
   function reset() {
     setContent("");
-    setTier(canEdit ? "shared" : "personal");
-    setPersonalKey("");
+    setStore(canEdit ? "org" : "owned");
+    setOwnerKey("");
     setError(null);
-    setScopeError(null);
+    setOwnerError(null);
   }
 
   async function handleCreate() {
     try {
-      await create.mutateAsync({ content, end_user_scope_key: scopeKey });
+      await create.mutateAsync({ content, owner_key: resolvedOwnerKey });
       reset();
       onOpenChange(false);
     } catch (err) {
-      const failure = submitFailure(err, { fields: ["content", "end_user_scope_key"] }, tErrors);
+      const failure = submitFailure(err, { fields: ["content", "owner_key"] }, tErrors);
       setError(failure.fields.content ?? null);
-      setScopeError(failure.fields.end_user_scope_key ?? null);
+      setOwnerError(failure.fields.owner_key ?? null);
       if (failure.toast) toast.error(failure.toast);
     }
   }
@@ -104,46 +104,46 @@ export function CreateMemoryFactDialog({
           <div className="flex flex-wrap items-start gap-4">
             {canEdit ? (
               <div className="w-40 shrink-0 space-y-1.5">
-                <Label htmlFor="new-fact-tier">{t("tierLabel")}</Label>
-                <Select value={tier} onValueChange={(value) => setTier(value as Tier)}>
-                  <SelectTrigger id="new-fact-tier">
+                <Label htmlFor="new-fact-store">{t("storeLabel")}</Label>
+                <Select value={store} onValueChange={(value) => setStore(value as Store)}>
+                  <SelectTrigger id="new-fact-store">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="shared">{t("tierShared")}</SelectItem>
-                    <SelectItem value="personal">{t("tierPersonal")}</SelectItem>
+                    <SelectItem value="org">{t("storeOrg")}</SelectItem>
+                    <SelectItem value="owned">{t("storeOwned")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             ) : null}
-            {tier === "personal" && canEdit ? (
+            {store === "owned" && canEdit ? (
               <div className="min-w-56 flex-1 space-y-1.5">
-                <Label htmlFor="new-fact-scope">{t("personalKeyLabel")}</Label>
+                <Label htmlFor="new-fact-scope">{t("ownerKeyLabel")}</Label>
                 <Input
                   id="new-fact-scope"
-                  value={personalKey}
+                  value={ownerKey}
                   onChange={(event) => {
-                    setPersonalKey(event.target.value);
-                    if (scopeError) setScopeError(null);
+                    setOwnerKey(event.target.value);
+                    if (ownerError) setOwnerError(null);
                   }}
                   placeholder={ownKey ?? "user:<id>"}
                   maxLength={MAX_SCOPE_KEY}
                   className="font-mono"
-                  aria-invalid={scopeError ? true : undefined}
+                  aria-invalid={ownerError ? true : undefined}
                 />
                 <p
                   className={cn(
                     "text-xs",
-                    scopeError ? "text-destructive" : "text-muted-foreground",
+                    ownerError ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
-                  {scopeError ?? t("personalKeyNote")}
+                  {ownerError ?? t("ownerKeyNote")}
                 </p>
               </div>
             ) : null}
           </div>
 
-          {tier === "personal" && !canEdit ? (
+          {store === "owned" && !canEdit ? (
             <p className="text-muted-foreground text-xs">{t("personalOwnNote")}</p>
           ) : null}
 
@@ -173,7 +173,7 @@ export function CreateMemoryFactDialog({
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={!content.trim() || !scopeReady || create.isPending}
+            disabled={!content.trim() || !ownerReady || create.isPending}
           >
             {t("create")}
           </Button>

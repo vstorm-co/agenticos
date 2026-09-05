@@ -19,7 +19,7 @@ const FACT_SHARED = {
   agent_id: "a1",
   content: "Acme's fiscal year starts in April.",
   origin: "operator",
-  end_user_scope_key: null,
+  owner_key: null,
   created_at: "2026-08-30T10:00:00Z",
 };
 // A fact with no timestamp exercises the guard that renders the "remembered"
@@ -29,7 +29,7 @@ const FACT_USER = {
   agent_id: "a1",
   content: "Prefers weekly summaries on Fridays.",
   origin: "agent",
-  end_user_scope_key: "user:0f3a91b2",
+  owner_key: "person:0f3a91b2",
   created_at: null,
 };
 
@@ -50,7 +50,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function mount(props: Partial<React.ComponentProps<typeof MemoryFactsPane>> = {}) {
-  render(<MemoryFactsPane agentId="a1" canEdit scope="all" {...props} />, { wrapper });
+  render(<MemoryFactsPane agentId="a1" canEdit owner="all" {...props} />, { wrapper });
 }
 
 describe("MemoryFactsPane", () => {
@@ -67,7 +67,7 @@ describe("MemoryFactsPane", () => {
     // One operator-seeded shared fact, one agent-written personal one.
     expect(screen.getByText("Operator")).toBeInTheDocument();
     expect(screen.getByText("Agent")).toBeInTheDocument();
-    expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
+    expect(screen.getByText("person:0f3a91b2")).toBeInTheDocument();
     // Only the fact that carries a timestamp shows when it was remembered.
     expect(screen.getAllByText(/^remembered/)).toHaveLength(1);
   });
@@ -97,9 +97,9 @@ describe("MemoryFactsPane", () => {
   });
 
   it("uses the partition the panel gave it", async () => {
-    mount({ scope: "shared" });
+    mount({ owner: "shared" });
 
-    await waitFor(() => expect(lastFactsCall()).toContain("partition=shared"));
+    await waitFor(() => expect(lastFactsCall()).toContain("owner=shared"));
   });
 
   it("confirms before forgetting a fact", async () => {

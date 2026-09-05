@@ -28,11 +28,11 @@ type SubTab = "files" | "facts";
 /**
  * The Memory tab: the stored memories of one agent, managed by an operator.
  *
- * Memory is two-tier — a shared store and one private store per end-user — so the
- * scope control filters both halves at once, and "show me the shared store" means
- * one thing across the tab. The Files / Facts switcher appears only when both
- * shapes are enabled, and each pane is mounted keyed by scope so switching the
- * filter gives it a fresh page.
+ * Memory has three owners — the organisation, one group chat, one person — so the
+ * owner control filters both halves at once and "show me the rooms" means one
+ * thing across the tab. The Files / Facts switcher appears only when both shapes
+ * are enabled, and each pane is mounted keyed by owner so switching the filter
+ * gives it a fresh page.
  */
 export function MemoryPanel({
   agentId,
@@ -44,11 +44,13 @@ export function MemoryPanel({
 }: MemoryPanelProps) {
   const t = useTranslations("memory");
 
-  // A viewer may not list every partition, so starting them on "all" 404s the whole
-  // tab; they start on shared and reach their own notes through the "mine" chip.
+  // A viewer may not list a whole kind of store, so starting them on "all" 404s the
+  // tab; they start on the organisation's and reach their own notes through "mine".
   const ownUserId = useAuthStore((state) => state.user?.id);
-  const ownKey = ownUserId ? `user:${ownUserId}` : null;
-  const [scope, setScope] = useState<string>(canEdit ? "all" : "shared");
+  // The key the runtime derives for this person, so "mine" opens the very store the
+  // agent reads back when they chat (`person_owner_key`).
+  const ownKey = ownUserId ? `person:${ownUserId}` : null;
+  const [owner, setOwner] = useState<string>(canEdit ? "all" : "org");
   const [sub, setSub] = useState<SubTab>(enableFiles ? "files" : "facts");
 
   const showSwitcher = enableFiles && enableFacts;
@@ -64,30 +66,33 @@ export function MemoryPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2" data-tour="agent-memory">
-          <Badge variant="secondary">{t(allowPersonal ? "cfgTwoTier" : "cfgSharedOnly")}</Badge>
+          <Badge variant="secondary">{t(allowPersonal ? "cfgPersonalOn" : "cfgNoPersonal")}</Badge>
           <Badge variant="outline">{t(backend === "mem0" ? "cfgMem0" : "cfgNative")}</Badge>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground text-xs">{t("scope")}</span>
           {canEdit ? (
             <>
-              <Chip active={scope === "all"} onClick={() => setScope("all")}>
+              <Chip active={owner === "all"} onClick={() => setOwner("all")}>
                 {t("scopeAll")}
               </Chip>
-              <Chip active={scope === "shared"} onClick={() => setScope("shared")}>
-                {t("scopeShared")}
+              <Chip active={owner === "org"} onClick={() => setOwner("org")}>
+                {t("scopeOrg")}
               </Chip>
-              <Chip active={scope === "per_user"} onClick={() => setScope("per_user")}>
-                {t("scopePerUser")}
+              <Chip active={owner === "person"} onClick={() => setOwner("person")}>
+                {t("scopePeople")}
+              </Chip>
+              <Chip active={owner === "room"} onClick={() => setOwner("room")}>
+                {t("scopeRooms")}
               </Chip>
             </>
           ) : (
             <>
-              <Chip active={scope === "shared"} onClick={() => setScope("shared")}>
-                {t("scopeShared")}
+              <Chip active={owner === "org"} onClick={() => setOwner("org")}>
+                {t("scopeOrg")}
               </Chip>
               {ownKey !== null && (
-                <Chip active={scope === ownKey} onClick={() => setScope(ownKey)}>
+                <Chip active={owner === ownKey} onClick={() => setOwner(ownKey)}>
                   {t("scopeMine")}
                 </Chip>
               )}
@@ -114,11 +119,11 @@ export function MemoryPanel({
           description={t("nothingEnabledHint")}
         />
       ) : active === "files" ? (
-        <MemoryFilesPane key={scope} agentId={agentId} canEdit={canEdit} scope={scope} />
+        <MemoryFilesPane key={owner} agentId={agentId} canEdit={canEdit} owner={owner} />
       ) : factsAreRemote ? (
         <EmptyState icon={Database} title={t("factsInMem0")} description={t("factsInMem0Hint")} />
       ) : (
-        <MemoryFactsPane key={scope} agentId={agentId} canEdit={canEdit} scope={scope} />
+        <MemoryFactsPane key={owner} agentId={agentId} canEdit={canEdit} owner={owner} />
       )}
 
       {canEdit && !factsAreRemote && (enableFiles || enableFacts) && (

@@ -8,12 +8,13 @@ builds the toolset that does the work; the store itself is reached through
 `app.services.memory`, which opens its own session so a mid-run read or write
 never rides the session the run is on (see that module).
 
-Memory is two-tier: a shared store (one per organization+agent) and, when a run
-has an identified person, that person's personal store. Reads union the two;
-writes let the model choose the *tier* while the per-end-user key is derived
-server-side in the factory - so a run can never reach another person's store. A
-standing preamble (`get_instructions`) tells the agent how the two tiers work and
-how to classify a write, the same guidance the tool descriptions carry.
+Memory has three stores - the organization's, a group chat's, and one person's -
+and which of them a run reaches is decided by its *audience*, derived server-side
+in the factory and carried on `AgentDeps` (`app.agents.memory_scope`). Reads span
+every store the audience admits; a write defaults to the audience's own, which is
+the one choice that can leak nothing. A standing preamble (`get_instructions`)
+tells the agent what it has and how to save, the same guidance the tool
+descriptions carry.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.memory._toolset import MemoryToolset
 from app.agents.deps import AgentDeps
+from app.agents.memory_scope import MemoryAudience
 from app.services import memory as memory_store
 
 __all__ = ["Memory"]
@@ -40,13 +42,14 @@ _BRIEF_MAX_CHARS = 4000
 
 
 def _preamble(*, allow_personal: bool, allow_agent_shared_writes: bool) -> str:
-    """The standing note teaching the agent to read its memory, its tiers, and how to save.
+    """The standing note teaching the agent to read its memory, its stores, and how to save.
 
-    Composed from the two operator levers so it never promises a tier the config has
-    switched off: an agent told to "choose a scope" that then has every choice
-    refused is worse than one told plainly what it can do. The narrowing default
-    (personal when unsure) is stated here and defaulted in the tools, because a
-    personal-to-shared misclassification exposes one person's note to everyone (#788).
+    Composed from the two operator levers so it never promises a store the config
+    has switched off: an agent told to "choose a scope" that then has every choice
+    refused is worse than one told plainly what it can do. It deliberately does
+    *not* teach the agent to reason about who is listening - the default scope is
+    the audience's own and is resolved server-side, so the safe choice is the one
+    the model makes by saying nothing (#788).
 
     The reading habit leads, because the whole store is inert if the agent never
     looks: memory only pays off when a later run recalls what an earlier one saved,
@@ -59,36 +62,29 @@ def _preamble(*, allow_personal: bool, allow_agent_shared_writes: bool) -> str:
         "conversation, or a recommendation you could tailor to them - rather than "
         "answering generically or assuming you have nothing."
     )
-    if allow_personal:
-        reading = (
-            "Your memory has two tiers: a shared store (organisation-wide, the same "
-            "for everyone) and, when this conversation has an identified person, that "
-            "person's personal store. Reading searches both."
+    reading = (
+        "Your memory comes in up to three stores, and reading searches all of the ones "
+        "this conversation can reach: the organisation's, shared by everyone; this "
+        "group chat's, when you are in one; and the private memory of the person you "
+        "are speaking with, when you are alone with them."
+    )
+    if allow_agent_shared_writes:
+        writing = (
+            "When you save something, omit `scope` unless you have a reason: it goes to "
+            "this conversation's own memory, which is where nearly everything belongs. "
+            "Use scope='shared' only for a fact true for the whole organisation, and "
+            "remember that anything saved there is read by everyone the agent serves."
         )
     else:
-        reading = (
-            "You have a shared, organisation-wide memory (the same for everyone). "
-            "Reading searches it."
-        )
-    if allow_personal and allow_agent_shared_writes:
         writing = (
-            "When you save something, choose its scope: 'personal' for anything "
-            "specific to this person, 'shared' only for facts true for the whole "
-            "organisation, and 'personal' when you are unsure. Where there is no "
-            "identified person, only 'shared' can be saved to."
+            "When you save something, omit `scope`: it goes to this conversation's own "
+            "memory. The organisation-wide store is curated by operators and is "
+            "read-only to you."
         )
-    elif allow_personal:
-        writing = (
-            "Save what you learn to your personal memory (scope='personal'); the "
-            "shared store is curated by operators and is read-only to you. Where there "
-            "is no identified person, you cannot save."
-        )
-    elif allow_agent_shared_writes:
-        writing = "Save what you learn to the shared memory (scope='shared')."
-    else:
-        writing = (
-            "This memory is read-only to you - operators curate it - so you cannot "
-            "save to it, only read."
+    if not allow_personal:
+        writing += (
+            " This agent keeps no private per-person memory, so nothing you save is "
+            "specific to one person."
         )
     return f"{habit} {reading} {writing}"
 
@@ -99,9 +95,11 @@ class Memory(AbstractCapability[AgentDepsT]):
 
     Attached only when at least one store is enabled; the builder returns `None`
     when both are off, so an agent with memory switched off carries no memory
-    tools. The two stores are independent: an agent can have named files, semantic
-    facts, or both. Both are two-tier - shared and, per run, the current person's -
-    and the tier is resolved per operation, not fixed on the capability.
+    tools. Files and facts are independent: an agent can have named files, semantic
+    facts, or both. Which memory either half reaches is decided per run by the
+    audience on `AgentDeps`, not fixed on the capability - the same agent is alone
+    with one person in a direct message and in front of a whole channel an hour
+    later.
 
     ```python
     from pydantic_ai import Agent
@@ -130,7 +128,7 @@ class Memory(AbstractCapability[AgentDepsT]):
     def get_instructions(self) -> str | Callable[[RunContext[Any]], Awaitable[str]]:
         """A standing note on how this agent's memory works, and what it already holds.
 
-        The preamble (how the tiers work, how to classify a write, to read before
+        The preamble (what the stores are, how to save, to read before
         answering) is run-invariant, so a files-only or mem0-facts agent gets it as a
         plain string. A native-facts agent gets a per-request callable instead, so the
         note carries a brief of what is already remembered - the facts a run would
@@ -162,19 +160,27 @@ class Memory(AbstractCapability[AgentDepsT]):
         """The facts already remembered, listed for the agent's context, or None.
 
         Injected every request rather than left to a `recall` the model may not make -
-        the standing digest that makes memory feel present. The tier is the run's own
-        read tier (shared, plus this person's when `allow_personal` and the run has a
-        person), so the brief can never surface another person's note. `None` when
-        there is nothing to show, so no empty heading is added.
+        the standing digest that makes memory feel present. It spans the run's own
+        read set, so it can never surface another person's or another room's note,
+        and within that it is narrower than `recall`: the brief becomes the agent's
+        *instructions*, so it carries only what the reader alone could have
+        influenced plus what an operator vouched for (see `list_brief_facts`).
+        `None` when there is nothing to show, so no empty heading is added.
         """
         deps: AgentDeps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return None
-        personal_key = deps.end_user_scope_key if self.allow_personal else None
+        audience = deps.memory_audience or MemoryAudience()
+        read_keys = audience.read_keys(allow_personal=self.allow_personal)
+        # The reader's own store, and only when they are the only listener: in a
+        # room, `read_keys` still carries the room but nobody there is the sole
+        # audience, so the brief falls back to operator-authored content alone.
+        self_key = audience.person_key if self.allow_personal and audience.private else None
         facts = await memory_store.memory_brief(
             organization_id=deps.organization_id,
             agent_id=deps.agent_id,
-            personal_key=personal_key,
+            read_keys=read_keys,
+            self_key=self_key,
             limit=_BRIEF_LIMIT,
         )
         if not facts:

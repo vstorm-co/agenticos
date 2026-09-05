@@ -5,7 +5,7 @@ import { Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
-import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
+import { OriginBadge, OwnerBadge } from "@/components/memory/memory-badges";
 import type { MemoryFileSummary } from "@/types/memory";
 
 interface MemoryFileTableProps {
@@ -22,7 +22,7 @@ interface MemoryFileTableProps {
 
 /**
  * The memory index as a table — the rows the agent's `MEMORY.md` is derived
- * from. Origin, kind and partition are badges rather than text because each is a
+ * from. Origin, kind and owner are badges rather than text because each is a
  * closed set a reader scans down a column, and origin in particular is the trust
  * signal that must be legible without opening the file.
  */
@@ -68,15 +68,10 @@ export function MemoryFileTable({
         cell: (file) => <Badge variant="outline">{file.kind}</Badge>,
       },
       {
-        key: "partition",
+        key: "owner",
         header: t("colPartition"),
         hideBelow: "sm",
-        cell: (file) => (
-          <PartitionBadge
-            scopeKey={file.end_user_scope_key}
-            partitionLabel={file.partition_label}
-          />
-        ),
+        cell: (file) => <OwnerBadge ownerKey={file.owner_key} ownerLabel={file.owner_label} />,
       },
       {
         key: "actions",

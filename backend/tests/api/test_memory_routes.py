@@ -43,7 +43,7 @@ def _row(name: str = "prefs", *, origin: str = MemoryOrigin.AGENT.value) -> Agen
         id=uuid.uuid4(),
         organization_id=_ORGANIZATION_ID,
         agent_id=_AGENT_ID,
-        end_user_scope_key=None,
+        owner_key=None,
         name=name,
         description=f"about {name}",
         content="# body\n\nremembered",
@@ -112,21 +112,24 @@ class TestListing:
         assert "content" not in by_name["prefs"]
 
     @pytest.mark.parametrize(
-        ("partition", "all_partitions", "scope_key", "scoped_only"),
+        ("owner", "owners", "owner_key"),
         [
-            ("all", True, None, False),
-            ("shared", False, None, False),
-            ("per_user", False, None, True),
-            ("user:42", False, "user:42", False),
+            ("all", "all", None),
+            ("org", "org", None),
+            ("person", "person", None),
+            ("room", "room", None),
+            # A key is passed as a key, never inferred into a kind: listing every
+            # person's store to somebody auditing one is the direction that leaks.
+            ("person:42", None, "person:42"),
+            ("room:slack:C1", None, "room:slack:C1"),
         ],
     )
-    async def test_the_partition_filter_translates_to_service_arguments(
+    async def test_the_owner_filter_translates_to_service_arguments(
         self,
         client: OpenClient,
-        partition: str,
-        all_partitions: bool,
-        scope_key: str | None,
-        scoped_only: bool,
+        owner: str,
+        owners: str | None,
+        owner_key: str | None,
     ):
         get_agent, allow = _reachable()
         with (
@@ -137,10 +140,9 @@ class TestListing:
             ) as listed,
         ):
             async with client() as http:
-                await http.get(_url(f"/files?agent_id={_AGENT_ID}&partition={partition}"))
-        assert listed.call_args.kwargs["all_partitions"] is all_partitions
-        assert listed.call_args.kwargs["scope_key"] == scope_key
-        assert listed.call_args.kwargs["scoped_only"] is scoped_only
+                await http.get(_url(f"/files?agent_id={_AGENT_ID}&owner={owner}"))
+        assert listed.call_args.kwargs["owners"] == owners
+        assert listed.call_args.kwargs["owner_key"] == owner_key
 
     async def test_a_listing_without_an_agent_is_refused(self, client: OpenClient):
         async with client() as http:
@@ -253,7 +255,7 @@ def _fact_row(content: str = "likes tea") -> AgentMemoryFact:
         id=uuid.uuid4(),
         organization_id=_ORGANIZATION_ID,
         agent_id=_AGENT_ID,
-        end_user_scope_key=None,
+        owner_key=None,
         content=content,
         origin=MemoryOrigin.AGENT.value,
     )
@@ -346,12 +348,14 @@ class TestPartitionKeyShape:
     async def test_a_key_the_runtime_never_derives_is_refused(
         self, client: OpenClient, suffix: str
     ):
-        body = {"agent_id": str(_AGENT_ID), "end_user_scope_key": "user:someone-else"}
+        body = {"agent_id": str(_AGENT_ID), "owner_key": "user:someone-else"}
         body["name" if suffix == "/files" else "content"] = "typo"
         async with client() as http:
             response = await http.post(_url(suffix), json=body)
         assert response.status_code == 422
         assert {
-            "field": "end_user_scope_key",
-            "message": "A partition key is user:<uuid> or chan:<uuid>",
+            "field": "owner_key",
+            "message": (
+                "An owner key is person:<uuid>, person:chan:<uuid> or room:<platform>:<chat>"
+            ),
         } in response.json()["error"]["details"]["fields"]

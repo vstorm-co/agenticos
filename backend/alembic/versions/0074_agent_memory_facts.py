@@ -53,7 +53,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("agent_id", sa.UUID(), nullable=False),
-        sa.Column("end_user_scope_key", sa.String(length=128), nullable=True),
+        sa.Column("owner_key", sa.String(length=200), nullable=True),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column(
             "created_at",

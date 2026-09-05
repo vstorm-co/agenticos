@@ -23,32 +23,33 @@ export function OriginBadge({ origin }: { origin: MemoryOrigin }) {
 }
 
 /**
- * Which partition a row lives in — the shared store, or one end-user's private
- * one. A private partition shows the resolved name the server attaches
- * (`partitionLabel`, the member's email) when it has one, with the raw
- * `user:`/`chan:` key on hover; a key that did not resolve — a channel account, a
- * departed or non-member user — falls back to the raw key, the only stable handle
- * left.
+ * Whose memory a row is — the organisation's, one group chat's, or one person's.
+ *
+ * A person's store shows the resolved name the server attaches (`ownerLabel`, the
+ * member's email) when it has one, with the raw key on hover; a key that did not
+ * resolve — an unlinked chat account, a departed or non-member user — falls back
+ * to the raw key, the only stable handle left. A room shows its key, which is the
+ * channel, because the platform's own channel name is not ours to resolve.
  */
-export function PartitionBadge({
-  scopeKey,
-  partitionLabel,
+export function OwnerBadge({
+  ownerKey,
+  ownerLabel,
 }: {
-  scopeKey: string | null;
-  partitionLabel?: string | null;
+  ownerKey: string | null;
+  ownerLabel?: string | null;
 }) {
   const t = useTranslations("memory");
-  if (scopeKey === null) return <Badge variant="outline">{t("partitionShared")}</Badge>;
-  if (partitionLabel) {
+  if (ownerKey === null) return <Badge variant="outline">{t("ownerOrg")}</Badge>;
+  if (ownerLabel) {
     return (
-      <Badge variant="secondary" title={scopeKey}>
-        {partitionLabel}
+      <Badge variant="secondary" title={ownerKey}>
+        {ownerLabel}
       </Badge>
     );
   }
   return (
     <Badge variant="secondary" className="font-mono">
-      {scopeKey}
+      {ownerKey}
     </Badge>
   );
 }

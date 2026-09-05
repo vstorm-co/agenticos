@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -63,9 +64,9 @@ _CLOUD_BASE_URL = "https://api.mem0.ai"
 _TIMEOUT = 30.0
 
 
-def _namespace(organization_id: UUID, agent_id: UUID, scope_key: str | None) -> str:
-    """The mem0 `user_id` that isolates one (org, agent, partition) from every other."""
-    return f"{organization_id}:{agent_id}:{scope_key or 'shared'}"
+def _namespace(organization_id: UUID, agent_id: UUID, owner_key: str | None) -> str:
+    """The mem0 `user_id` that isolates one (org, agent, owner) from every other."""
+    return f"{organization_id}:{agent_id}:{owner_key or 'org'}"
 
 
 def _endpoint(base_url: str | None, path: str) -> str:
@@ -104,14 +105,14 @@ async def mem0_remember(
     api_key: str,
     organization_id: UUID,
     agent_id: UUID,
-    scope_key: str | None,
+    owner_key: str | None,
     content: str,
 ) -> None:
-    """Store one fact in the mem0 service, scoped to this (org, agent, partition)."""
+    """Store one fact in the mem0 service, scoped to this (org, agent, owner)."""
     _require_allowlisted_base_url(base_url)
     payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": content}],
-        "user_id": _namespace(organization_id, agent_id, scope_key),
+        "user_id": _namespace(organization_id, agent_id, owner_key),
     }
     try:
         async with PinnedAsyncClient(timeout=httpx.Timeout(_TIMEOUT)) as client:
@@ -140,7 +141,7 @@ async def _mem0_search_namespace(
     api_key: str,
     organization_id: UUID,
     agent_id: UUID,
-    scope_key: str | None,
+    owner_key: str | None,
     query: str,
     limit: int,
 ) -> list[FactHit]:
@@ -148,7 +149,7 @@ async def _mem0_search_namespace(
     _require_allowlisted_base_url(base_url)
     payload: dict[str, Any] = {
         "query": query,
-        "user_id": _namespace(organization_id, agent_id, scope_key),
+        "user_id": _namespace(organization_id, agent_id, owner_key),
         "limit": limit,
     }
     try:
@@ -190,22 +191,20 @@ async def mem0_recall(
     api_key: str,
     organization_id: UUID,
     agent_id: UUID,
-    personal_key: str | None,
+    read_keys: Sequence[str | None],
     query: str,
     limit: int,
 ) -> list[FactHit]:
-    """The facts most relevant to a query - shared plus the current person's - most-relevant first.
+    """The facts most relevant to a query, across every store the run reads.
 
-    mem0 searches one namespace per call, so the two-tier read queries the shared
-    namespace and, when the run has an identified person, that person's too, then
-    merges by score and caps at `limit`. `personal_key=None` searches shared alone;
-    the key is server-derived, so the personal namespace is only ever this person's.
+    mem0 searches one namespace per call and a run reads up to three stores, so
+    this fans out over `read_keys`, merges by score and caps at `limit`. The keys
+    are server-derived, so a namespace is only ever one the run was admitted to.
 
-    The two searches are independent, so they go out together: run one after the
-    other, a slow mem0 costs this tool call two whole `_TIMEOUT` windows instead of
-    one.
+    The searches are independent, so they go out together: run one after another,
+    a slow mem0 costs this tool call a whole `_TIMEOUT` window per store instead
+    of one for all of them.
     """
-    scope_keys: list[str | None] = [None] if personal_key is None else [None, personal_key]
     pages = await asyncio.gather(
         *(
             _mem0_search_namespace(
@@ -213,11 +212,11 @@ async def mem0_recall(
                 api_key=api_key,
                 organization_id=organization_id,
                 agent_id=agent_id,
-                scope_key=scope_key,
+                owner_key=owner_key,
                 query=query,
                 limit=limit,
             )
-            for scope_key in scope_keys
+            for owner_key in read_keys
         )
     )
     hits = [hit for page in pages for hit in page]

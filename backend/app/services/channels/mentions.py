@@ -50,6 +50,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.memory_keys import room_owner_key
 from app.core.permissions import AuthContext
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -225,6 +226,26 @@ class AnsweredTurn:
     """
 
 
+def _memory_room_key(
+    platform: str, platform_chat_id: str | None, chat_type: str | None
+) -> str | None:
+    """The memory store of the room a message arrived in, or `None` for a DM.
+
+    The one place that can answer it: deciding a chat has more than one listener
+    needs the platform's own channel type, which stops here - the runner sees only
+    a `channel_key`, and a Slack DM has one of those exactly like a channel does.
+    Getting it wrong in the permissive direction is what would let a note taken in
+    a direct message be read back to a whole channel, so an unknown `chat_type` is
+    read as private (#788).
+
+    Keyed on `channel_key`, not the raw id, so a room remembers across its threads
+    rather than starting over in each one.
+    """
+    if platform_chat_id is None or chat_type is None or chat_type == "private":
+        return None
+    return room_owner_key(platform, channel_key(platform_chat_id))
+
+
 class ChannelAgentRouter:
     """Answers channel messages that name a published agent."""
 
@@ -245,6 +266,7 @@ class ChannelAgentRouter:
         admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        chat_type: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
@@ -353,6 +375,7 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            memory_room_key=_memory_room_key(platform, platform_chat_id, chat_type),
             channel_directory=channel_directory,
             # The thread this agent was brought into, where the router read one.
             # Without it a named agent answered an existing thread as though it
@@ -395,6 +418,7 @@ class ChannelAgentRouter:
         admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        chat_type: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
@@ -457,6 +481,7 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            memory_room_key=_memory_room_key(platform, platform_chat_id, chat_type),
             channel_directory=channel_directory,
             # A sender who is a member speaks through their own MCP accounts, in
             # a room as much as in a direct message: the account is this

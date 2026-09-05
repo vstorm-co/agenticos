@@ -26,7 +26,7 @@ const OPERATOR = {
   format: "md",
   kind: "note",
   origin: "operator",
-  end_user_scope_key: null,
+  owner_key: null,
   size_bytes: 40,
 };
 const AGENT = {
@@ -36,7 +36,7 @@ const AGENT = {
   format: "md",
   kind: "memory",
   origin: "agent",
-  end_user_scope_key: "user:0f3a91b2",
+  owner_key: "person:0f3a91b2",
   size_bytes: 30,
 };
 const BODY_OPERATOR = {
@@ -75,7 +75,7 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 function mount(props: Partial<React.ComponentProps<typeof MemoryFilesPane>> = {}) {
-  render(<MemoryFilesPane agentId="a1" canEdit scope="all" {...props} />, { wrapper });
+  render(<MemoryFilesPane agentId="a1" canEdit owner="all" {...props} />, { wrapper });
 }
 
 describe("MemoryFilesPane", () => {
@@ -91,7 +91,7 @@ describe("MemoryFilesPane", () => {
     expect(screen.getByText("acme-notes")).toBeInTheDocument();
     expect(screen.getByText("Operator")).toBeInTheDocument();
     expect(screen.getByText("Agent")).toBeInTheDocument();
-    expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
+    expect(screen.getByText("person:0f3a91b2")).toBeInTheDocument();
   });
 
   it("shows an error with retry when the file detail fails to load, and recovers", async () => {
@@ -117,9 +117,9 @@ describe("MemoryFilesPane", () => {
   });
 
   it("confines the listing to the partition the panel gave it", async () => {
-    mount({ scope: "shared" });
+    mount({ owner: "shared" });
 
-    await waitFor(() => expect(lastListCall()).toContain("partition=shared"));
+    await waitFor(() => expect(lastListCall()).toContain("owner=shared"));
   });
 
   it("orders by recent change when asked", async () => {

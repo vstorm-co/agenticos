@@ -2,7 +2,7 @@
 
 There is no mem0 instance in tests, so the httpx transport is faked and what is
 under test is the orchestration: the scope namespace that isolates one
-(org, agent, partition) from every other, the key riding in the header rather
+(org, agent, owner) from every other, the key riding in the header rather
 than the URL, the liberal response parsing, and a network error becoming a
 controlled refusal that carries no upstream text.
 """
@@ -78,12 +78,14 @@ def allow_self_hosted(monkeypatch):
     monkeypatch.setattr(_mem0.settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
 
 
-def test_the_namespace_isolates_org_agent_and_partition():
-    shared = _mem0._namespace(ORG, AGENT, None)
-    per_user = _mem0._namespace(ORG, AGENT, "user:1")
-    assert shared == f"{ORG}:{AGENT}:shared"
-    assert per_user == f"{ORG}:{AGENT}:user:1"
-    assert shared != per_user
+def test_the_namespace_isolates_org_agent_and_owner():
+    org = _mem0._namespace(ORG, AGENT, None)
+    person = _mem0._namespace(ORG, AGENT, "person:1")
+    room = _mem0._namespace(ORG, AGENT, "room:slack:C1")
+    assert org == f"{ORG}:{AGENT}:org"
+    assert person == f"{ORG}:{AGENT}:person:1"
+    assert room == f"{ORG}:{AGENT}:room:slack:C1"
+    assert len({org, person, room}) == 3
 
 
 class TestRemember:
@@ -93,12 +95,12 @@ class TestRemember:
             api_key="k-123",
             organization_id=ORG,
             agent_id=AGENT,
-            scope_key="user:1",
+            owner_key="person:1",
             content="likes tea",
         )
         url, body, headers = transport.client.calls[0]
         assert url == "https://api.mem0.ai/v1/memories/"
-        assert body["user_id"] == f"{ORG}:{AGENT}:user:1"
+        assert body["user_id"] == f"{ORG}:{AGENT}:person:1"
         assert body["messages"][0]["content"] == "likes tea"
         assert headers["Authorization"] == "Token k-123"
 
@@ -108,7 +110,7 @@ class TestRemember:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            scope_key=None,
+            owner_key=None,
             content="x",
         )
         assert transport.client.calls[0][0] == "https://mem0.internal/v1/memories/"
@@ -124,7 +126,7 @@ class TestBaseUrlValidation:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            scope_key=None,
+            owner_key=None,
             content="x",
         )
 
@@ -146,7 +148,7 @@ class TestBaseUrlValidation:
                 api_key="k",
                 organization_id=ORG,
                 agent_id=AGENT,
-                personal_key=None,
+                read_keys=(None,),
                 query="q",
                 limit=5,
             )
@@ -159,7 +161,7 @@ class TestBaseUrlValidation:
                 api_key="k",
                 organization_id=ORG,
                 agent_id=AGENT,
-                scope_key=None,
+                owner_key=None,
                 content="x",
             )
         # The upstream text and the key never reach the refusal.
@@ -181,7 +183,7 @@ class TestBaseUrlValidation:
                 api_key="k",
                 organization_id=ORG,
                 agent_id=AGENT,
-                scope_key=None,
+                owner_key=None,
                 content="x",
             )
 
@@ -196,7 +198,7 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            personal_key=None,
+            read_keys=(None,),
             query="q",
             limit=5,
         )
@@ -211,7 +213,7 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            personal_key=None,
+            read_keys=(None,),
             query="q",
             limit=5,
         )
@@ -224,21 +226,21 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            personal_key=None,
+            read_keys=(None,),
             query="q",
             limit=5,
         )
         assert len(transport.client.calls) == 1
-        assert transport.client.calls[0][1]["user_id"] == f"{ORG}:{AGENT}:shared"
+        assert transport.client.calls[0][1]["user_id"] == f"{ORG}:{AGENT}:org"
 
-    async def test_it_unions_shared_and_personal_merged_by_score_and_capped(self, monkeypatch):
+    async def test_it_unions_every_readable_store_merged_by_score_and_capped(self, monkeypatch):
         # Shared and personal namespaces are searched, merged by score and capped at
         # `limit`; the personal namespace is the run's own key, never another person's.
         responses = {
-            f"{ORG}:{AGENT}:shared": {
+            f"{ORG}:{AGENT}:org": {
                 "results": [{"memory": "s1", "score": 0.4}, {"memory": "s2", "score": 0.3}]
             },
-            f"{ORG}:{AGENT}:user:1": {
+            f"{ORG}:{AGENT}:person:1": {
                 "results": [{"memory": "p1", "score": 0.95}, {"memory": "p2", "score": 0.35}]
             },
         }
@@ -261,11 +263,11 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            personal_key="user:1",
+            read_keys=("person:1", None),
             query="q",
             limit=3,
         )
-        assert set(queried) == {f"{ORG}:{AGENT}:shared", f"{ORG}:{AGENT}:user:1"}
+        assert set(queried) == {f"{ORG}:{AGENT}:org", f"{ORG}:{AGENT}:person:1"}
         assert [h.content for h in hits] == ["p1", "s1", "p2"]
 
     async def test_a_network_error_becomes_a_controlled_refusal(self, transport):
@@ -276,7 +278,7 @@ class TestRecall:
                 api_key="k",
                 organization_id=ORG,
                 agent_id=AGENT,
-                personal_key=None,
+                read_keys=(None,),
                 query="q",
                 limit=5,
             )
@@ -290,7 +292,7 @@ class TestRecall:
                 api_key="k",
                 organization_id=ORG,
                 agent_id=AGENT,
-                personal_key=None,
+                read_keys=(None,),
                 query="q",
                 limit=5,
             )
@@ -302,7 +304,7 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            personal_key=None,
+            read_keys=(None,),
             query="q",
             limit=5,
         )
@@ -315,7 +317,7 @@ class TestRecall:
             api_key="k",
             organization_id=ORG,
             agent_id=AGENT,
-            personal_key=None,
+            read_keys=(None,),
             query="q",
             limit=5,
         )

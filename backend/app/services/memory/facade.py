@@ -25,12 +25,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.memory_keys import (
+    PERSON_PREFIX,
+    MemoryOwnerKind,
+    owner_kind,
+    person_owner_key,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFact, AgentMemoryFile, MemoryOrigin
 from app.db.updates import writable
 from app.repositories import agent_repo, ingestion_spend_repo, member_repo, memory_repo
-from app.repositories.memory import MemorySort
+from app.repositories.memory import MemorySort, OwnerFilter
 from app.schemas.memory import (
     AgentMemoryFactCreate,
     AgentMemoryFactList,
@@ -48,9 +54,7 @@ from app.services.spend import assert_organization_within_budget
 logger = logging.getLogger(__name__)
 
 
-def _summary(
-    file: AgentMemoryFile, *, partition_label: str | None = None
-) -> AgentMemoryFileSummary:
+def _summary(file: AgentMemoryFile, *, owner_label: str | None = None) -> AgentMemoryFileSummary:
     """A memory file as the index shows it - the body is a byte count only."""
     return AgentMemoryFileSummary(
         id=file.id,
@@ -59,8 +63,8 @@ def _summary(
         format=file.format,
         kind=file.kind,
         origin=cast(MemoryOriginLiteral, file.origin),
-        end_user_scope_key=file.end_user_scope_key,
-        partition_label=partition_label,
+        owner_key=file.owner_key,
+        owner_label=owner_label,
         size_bytes=len(file.content.encode("utf-8")),
     )
 
@@ -128,54 +132,61 @@ class MemoryService:
 
     async def get(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
         file = await self._file_row_or_404(ctx, file_id)
-        await self._agent_or_404(
-            ctx, file.agent_id, perm=self._read_perm(ctx, file.end_user_scope_key)
-        )
+        await self._agent_or_404(ctx, file.agent_id, perm=self._read_perm(ctx, file.owner_key))
         return file
 
-    def _own_personal(self, ctx: AuthContext, scope_key: str | None) -> bool:
-        """Whether a partition is the caller's own personal store.
+    def _own_person_store(self, ctx: AuthContext, owner_key: str | None) -> bool:
+        """Whether an owner key is the caller's own person store.
 
-        A person may keep, amend and forget their *own* personal memory with only
-        view on the agent - the relaxation `create` already makes, extended to
-        update and delete so a viewer is not left with personal data they can
-        create but never remove. Any other partition - the shared store
-        or another person's - stays an editor act, so a viewer can never touch what
-        is not theirs.
+        A person may keep, amend and forget their *own* memory with only view on
+        the agent - the relaxation `create` already makes, extended to update and
+        delete so a viewer is not left with personal data they can create but never
+        remove. Every other store stays an editor act, so a viewer can never touch
+        what is not theirs.
+
+        The key is the one the runtime derives when that person chats
+        (`person_owner_key`), so a note seeded here is the note the agent reads
+        back. Deriving it from the same function rather than re-spelling the prefix
+        is what keeps the console and the run path pointed at one store.
         """
-        own = f"user:{ctx.user_id}" if ctx.user_id is not None else None
-        return scope_key is not None and scope_key == own
+        own = person_owner_key(ctx.user_id) if ctx.user_id is not None else None
+        return owner_key is not None and owner_key == own
 
     async def _require_write(
-        self, ctx: AuthContext, *, agent_id: UUID, scope_key: str | None
+        self, ctx: AuthContext, *, agent_id: UUID, owner_key: str | None
     ) -> None:
-        """View suffices to write one's own personal partition; else editor."""
-        perm = Perm.AGENTS_VIEW if self._own_personal(ctx, scope_key) else Perm.AGENTS_EDIT
+        """View suffices to write one's own person store; else editor."""
+        perm = Perm.AGENTS_VIEW if self._own_person_store(ctx, owner_key) else Perm.AGENTS_EDIT
         await self._agent_or_404(ctx, agent_id, perm=perm)
 
     def _cross_user_read(
-        self, ctx: AuthContext, *, scope_key: str | None, all_partitions: bool, scoped_only: bool
+        self, ctx: AuthContext, *, owner_key: str | None, owners: OwnerFilter | None
     ) -> bool:
-        """Whether a listing reaches beyond the shared store and the caller's own.
+        """Whether a listing reaches beyond the organization store and the caller's own.
 
-        Reading every partition, every per-user store, or a specific other person's
-        is cross-user inspection - an editor act. A viewer sees the shared store and
-        their own personal partition, nothing else, so a member with view on a shared
-        agent cannot page through everyone's private memory.
+        Any filter spanning a *kind* of store reaches other people's or other
+        rooms', and so does naming a specific store that is not the caller's own.
+        Both are cross-user inspection - an editor act. A viewer sees the
+        organization store and their own, nothing else, so a member with view on a
+        shared agent cannot page through everyone's private memory, nor read a
+        channel they are not in.
         """
-        if all_partitions or scoped_only:
+        if owners is not None and owners != MemoryOwnerKind.ORG:
             return True
-        return scope_key is not None and not self._own_personal(ctx, scope_key)
+        if owners == MemoryOwnerKind.ORG:
+            return False
+        return owner_key is not None and not self._own_person_store(ctx, owner_key)
 
-    def _read_perm(self, ctx: AuthContext, scope_key: str | None) -> Perm:
+    def _read_perm(self, ctx: AuthContext, owner_key: str | None) -> Perm:
         """The permission a read of one row by id demands.
 
-        The shared store and the caller's own personal partition are view; another
-        person's personal partition is cross-user inspection, an editor act - the
-        same rule `_cross_user_read` applies to a listing. Without it a viewer who
-        learned an id could `GET` a stranger's personal file or fact it may not list.
+        The organization store and the caller's own are view; anybody else's store
+        - another person's, or any room, since a viewer is not necessarily in that
+        channel - is cross-user inspection and an editor act, the same rule
+        `_cross_user_read` applies to a listing. Without it a viewer who learned an
+        id could `GET` a stranger's file or fact it may not list.
         """
-        if scope_key is None or self._own_personal(ctx, scope_key):
+        if owner_key is None or self._own_person_store(ctx, owner_key):
             return Perm.AGENTS_VIEW
         return Perm.AGENTS_EDIT
 
@@ -224,39 +235,41 @@ class MemoryService:
             details={"agent_id": str(agent.id)},
         )
 
-    async def _partition_labels(
-        self, ctx: AuthContext, scope_keys: set[str | None]
-    ) -> dict[str, str]:
-        """Map each `user:<id>` partition key in a page to a readable label.
+    async def _owner_labels(self, ctx: AuthContext, owner_keys: set[str | None]) -> dict[str, str]:
+        """Map each `person:<user_id>` key in a page to a readable label.
 
         The member's email, resolved org-scoped through `get_emails_for_users` -
-        which restricts to members precisely so a partition key cannot surface the
-        identity of someone outside the tenant. The shared store, a channel account
-        (`chan:`) and a departed or non-member user have no label, so the console
-        falls back to the raw key. One query for a page, not one per row.
+        which restricts to members precisely so an owner key cannot surface the
+        identity of someone outside the tenant. The organization store, a room, an
+        unlinked chat account (`person:chan:`) and a departed or non-member user
+        have no label, so the console falls back to the raw key. One query for a
+        page, not one per row.
         """
         user_ids: list[UUID] = []
-        for key in scope_keys:
-            if key and key.startswith("user:"):
-                try:
-                    user_ids.append(UUID(key.removeprefix("user:")))
-                except ValueError:
-                    continue
+        for key in owner_keys:
+            if key is None or owner_kind(key) is not MemoryOwnerKind.PERSON:
+                continue
+            raw = key.removeprefix(PERSON_PREFIX)
+            try:
+                user_ids.append(UUID(raw))
+            except ValueError:
+                # `person:chan:<id>` - a chat account with no app user, so there is
+                # no member to name and the console shows the key.
+                continue
         if not user_ids:
             return {}
         emails = await member_repo.get_emails_for_users(
             self.db, organization_id=ctx.organization_id, user_ids=user_ids
         )
-        return {f"user:{user_id}": email for user_id, email in emails.items() if email}
+        return {person_owner_key(user_id): email for user_id, email in emails.items() if email}
 
     async def list_files(
         self,
         ctx: AuthContext,
         *,
         agent_id: UUID,
-        scope_key: str | None = None,
-        all_partitions: bool = False,
-        scoped_only: bool = False,
+        owner_key: str | None = None,
+        owners: OwnerFilter | None = None,
         search: str | None = None,
         sort: MemorySort = "name",
         skip: int = 0,
@@ -265,9 +278,7 @@ class MemoryService:
         """A page of one agent's memory files, and the total the pager needs."""
         perm = (
             Perm.AGENTS_EDIT
-            if self._cross_user_read(
-                ctx, scope_key=scope_key, all_partitions=all_partitions, scoped_only=scoped_only
-            )
+            if self._cross_user_read(ctx, owner_key=owner_key, owners=owners)
             else Perm.AGENTS_VIEW
         )
         await self._agent_or_404(ctx, agent_id, perm=perm)
@@ -275,20 +286,16 @@ class MemoryService:
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
-            scope_key=scope_key,
-            all_partitions=all_partitions,
-            scoped_only=scoped_only,
+            owner_key=owner_key,
+            owners=owners,
             search=search,
             sort=sort,
             skip=skip,
             limit=limit,
         )
-        labels = await self._partition_labels(ctx, {file.end_user_scope_key for file in items})
+        labels = await self._owner_labels(ctx, {file.owner_key for file in items})
         return AgentMemoryFileList(
-            items=[
-                _summary(file, partition_label=labels.get(file.end_user_scope_key or ""))
-                for file in items
-            ],
+            items=[_summary(file, owner_label=labels.get(file.owner_key or "")) for file in items],
             total=total,
         )
 
@@ -297,36 +304,29 @@ class MemoryService:
 
         Authored through the management surface, so `origin` is always `operator`
         (the agent cannot edit or delete it) regardless of who created it - the
-        trust tier is human-vs-agent, not a role. The *tier* decides the
-        permission: writing the shared store, or another person's personal store,
-        is an operator act (`AGENTS_EDIT`); writing one's *own* personal store
-        needs only `AGENTS_VIEW`, so any member can keep their own notes without
-        being able to touch the shared store or anyone else's. The own-key is
-        `user:<caller>`, the same key the runtime derives when that person chats
-        (see `derive_end_user_scope_key`), so a note seeded here is the one the
-        agent reads back. The check rides on the parent agent through
-        `resolve_access`, so an explicit edit grant widens it the usual way.
+        trust tier is human-vs-agent, not a role. The *store* decides the
+        permission: writing the organization's, a room's, or another person's is an
+        operator act (`AGENTS_EDIT`); writing one's *own* needs only `AGENTS_VIEW`,
+        so any member can keep their own notes without being able to touch the
+        organization store or anyone else's. The check rides on the parent agent
+        through `resolve_access`, so an explicit edit grant widens it the usual way.
 
         Raises:
-            AlreadyExistsError: If the name is taken in that partition - the name
-                is how the agent and a person refer to a file, so two with one
-                name in one partition is an ambiguity nothing can resolve.
+            AlreadyExistsError: If the name is taken in that store - the name is how
+                the agent and a person refer to a file, so two with one name in one
+                store is an ambiguity nothing can resolve.
         """
-        own_key = f"user:{ctx.user_id}" if ctx.user_id is not None else None
-        creating_own_personal = (
-            data.end_user_scope_key is not None and data.end_user_scope_key == own_key
-        )
-        perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
+        perm = Perm.AGENTS_VIEW if self._own_person_store(ctx, data.owner_key) else Perm.AGENTS_EDIT
         await self._agent_or_404(ctx, data.agent_id, perm=perm)
         if await memory_repo.get_by_name(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=data.agent_id,
-            end_user_scope_key=data.end_user_scope_key,
+            owner_key=data.owner_key,
             name=data.name,
         ):
             raise AlreadyExistsError(
-                message=f"A memory file named '{data.name}' already exists in this partition.",
+                message=f"A memory file named '{data.name}' already exists in this store.",
                 details={"name": data.name},
             )
         try:
@@ -334,7 +334,7 @@ class MemoryService:
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=data.agent_id,
-                end_user_scope_key=data.end_user_scope_key,
+                owner_key=data.owner_key,
                 name=data.name,
                 description=data.description,
                 content=data.content,
@@ -346,7 +346,7 @@ class MemoryService:
             # The `get_by_name` check and this insert are not atomic; the unique index is
             # the real guard, so a race gets the same 409 as a sequential duplicate.
             raise AlreadyExistsError(
-                message=f"A memory file named '{data.name}' already exists in this partition.",
+                message=f"A memory file named '{data.name}' already exists in this store.",
                 details={"name": data.name},
             ) from exc
         await record_audit(
@@ -371,7 +371,7 @@ class MemoryService:
         into something the prompt will splice in.
         """
         file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
-        await self._require_write(ctx, agent_id=file.agent_id, scope_key=file.end_user_scope_key)
+        await self._require_write(ctx, agent_id=file.agent_id, owner_key=file.owner_key)
         update_data = writable(data, over=AgentMemoryFile)
         updated = await memory_repo.update(self.db, file=file, update_data=update_data)
         await record_audit(
@@ -413,7 +413,7 @@ class MemoryService:
 
     async def delete(self, ctx: AuthContext, file_id: UUID) -> None:
         file = await self._file_or_404(ctx, file_id, perm=Perm.AGENTS_VIEW)
-        await self._require_write(ctx, agent_id=file.agent_id, scope_key=file.end_user_scope_key)
+        await self._require_write(ctx, agent_id=file.agent_id, owner_key=file.owner_key)
         await memory_repo.delete(self.db, file)
         await record_audit(
             self.db,
@@ -429,9 +429,9 @@ class MemoryService:
     ) -> AgentMemoryFactRead:
         """Seed a fact an operator authored, embedded server-side.
 
-        The tier decides the permission the same way file create does: the shared
-        store or another person's personal store is an operator act (`AGENTS_EDIT`),
-        one's own personal store needs only `AGENTS_VIEW`. The fact is written with
+        The store decides the permission the same way file create does: the
+        organization's, a room's or another person's is an operator act
+        (`AGENTS_EDIT`), one's own needs only `AGENTS_VIEW`. The fact is written with
         `origin=operator` - the trusted tier - so, unlike an agent-authored one, it
         may enter the standing brief injected into the agent's instructions (a person
         vouched for it). The embedding is metered to the organization's ingestion
@@ -441,11 +441,7 @@ class MemoryService:
         not. The organization's monthly cap is checked before the embed, so a seed
         cannot spend past an exhausted budget.
         """
-        own_key = f"user:{ctx.user_id}" if ctx.user_id is not None else None
-        creating_own_personal = (
-            data.end_user_scope_key is not None and data.end_user_scope_key == own_key
-        )
-        perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
+        perm = Perm.AGENTS_VIEW if self._own_person_store(ctx, data.owner_key) else Perm.AGENTS_EDIT
         agent = await self._agent_or_404(ctx, data.agent_id, perm=perm)
         await self._refuse_if_mem0(agent)
         # Checked before the embed spends, so a seed cannot embed past an exhausted budget.
@@ -458,7 +454,7 @@ class MemoryService:
             self.db,
             organization_id=ctx.organization_id,
             agent_id=data.agent_id,
-            end_user_scope_key=data.end_user_scope_key,
+            owner_key=data.owner_key,
             content=data.content,
             embedding=embedding,
             origin=MemoryOrigin.OPERATOR.value,
@@ -477,7 +473,7 @@ class MemoryService:
             agent_id=data.agent_id,
             content=data.content,
             origin=cast(MemoryOriginLiteral, MemoryOrigin.OPERATOR.value),
-            end_user_scope_key=data.end_user_scope_key,
+            owner_key=data.owner_key,
             created_at=created_at,
         )
 
@@ -497,9 +493,8 @@ class MemoryService:
         ctx: AuthContext,
         *,
         agent_id: UUID,
-        scope_key: str | None = None,
-        all_partitions: bool = False,
-        scoped_only: bool = False,
+        owner_key: str | None = None,
+        owners: OwnerFilter | None = None,
         search: str | None = None,
         skip: int = 0,
         limit: int = 50,
@@ -509,9 +504,7 @@ class MemoryService:
         semantic recall stays the agent's runtime tool."""
         perm = (
             Perm.AGENTS_EDIT
-            if self._cross_user_read(
-                ctx, scope_key=scope_key, all_partitions=all_partitions, scoped_only=scoped_only
-            )
+            if self._cross_user_read(ctx, owner_key=owner_key, owners=owners)
             else Perm.AGENTS_VIEW
         )
         agent = await self._agent_or_404(ctx, agent_id, perm=perm)
@@ -520,14 +513,13 @@ class MemoryService:
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
-            scope_key=scope_key,
-            all_partitions=all_partitions,
-            scoped_only=scoped_only,
+            owner_key=owner_key,
+            owners=owners,
             search=search,
             skip=skip,
             limit=limit,
         )
-        labels = await self._partition_labels(ctx, {fact.end_user_scope_key for fact in items})
+        labels = await self._owner_labels(ctx, {fact.owner_key for fact in items})
         return AgentMemoryFactList(
             items=[
                 AgentMemoryFactRead(
@@ -535,8 +527,8 @@ class MemoryService:
                     agent_id=fact.agent_id,
                     content=fact.content,
                     origin=cast(MemoryOriginLiteral, fact.origin),
-                    end_user_scope_key=fact.end_user_scope_key,
-                    partition_label=labels.get(fact.end_user_scope_key or ""),
+                    owner_key=fact.owner_key,
+                    owner_label=labels.get(fact.owner_key or ""),
                     created_at=fact.created_at,
                 )
                 for fact in items
@@ -546,16 +538,14 @@ class MemoryService:
 
     async def get_fact(self, ctx: AuthContext, fact_id: UUID) -> AgentMemoryFact:
         fact = await self._fact_row_or_404(ctx, fact_id)
-        await self._agent_or_404(
-            ctx, fact.agent_id, perm=self._read_perm(ctx, fact.end_user_scope_key)
-        )
+        await self._agent_or_404(ctx, fact.agent_id, perm=self._read_perm(ctx, fact.owner_key))
         return fact
 
     async def delete_fact(self, ctx: AuthContext, fact_id: UUID) -> None:
         """Forget a fact. There is no operator create or edit - facts are the
         agent's own runtime writes - but clearing one is a management action."""
         fact = await self._fact_or_404(ctx, fact_id, perm=Perm.AGENTS_VIEW)
-        await self._require_write(ctx, agent_id=fact.agent_id, scope_key=fact.end_user_scope_key)
+        await self._require_write(ctx, agent_id=fact.agent_id, owner_key=fact.owner_key)
         await memory_repo.delete_fact(self.db, fact)
         await record_audit(
             self.db,
@@ -567,7 +557,7 @@ class MemoryService:
         )
 
     async def clear(self, ctx: AuthContext, agent_id: UUID) -> None:
-        """Delete every file and fact for an agent, in every partition.
+        """Delete every file and fact for an agent, in every store.
 
         The danger-zone counterpart to per-row delete: a memory store nobody can
         clear is a liability (#788). One agent-scoped action, checked against

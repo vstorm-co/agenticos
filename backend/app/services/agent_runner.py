@@ -108,6 +108,7 @@ from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
+from app.agents.memory_scope import MemoryAudience, derive_audience
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -509,15 +510,26 @@ class AdmittedAs(BaseModel):
             "and on an API key it is the key's holder (#1343)."
         ),
     )
-    subject_is_publisher_fallback: bool = Field(
-        default=False,
+    memory_person_key: str | None = Field(
+        default=None,
         description=(
-            "Whether the run's `user_id` is only a publisher standing in for an "
-            "unidentified visitor, so per-user memory keys on nobody rather than "
-            "on the publisher. Unrecoverable from the row and decided by the "
-            "request: a resume that re-derived it from the approver keyed the "
-            "memory partition on their identity and wrote one person's facts "
-            "under another (#788)."
+            "The memory store of the person this run answers, already derived. "
+            "Stored rather than re-derived because re-deriving needs the request "
+            "that is gone: whether `user_id` was a real subject or a publisher "
+            "standing in for an unidentified visitor, and whether the chat account "
+            "was linked. A resume that re-derived it from the approver keyed the "
+            "memory on their identity and wrote one person's notes under another "
+            "(#788)."
+        ),
+    )
+    memory_room_key: str | None = Field(
+        default=None,
+        description=(
+            "The memory store of the group chat this run answers in, or `None` for "
+            "a one-to-one conversation. Unrecoverable from the row for the same "
+            "reason: `agent_runs` records no chat type, so a resumed run read a "
+            "direct message and a channel alike and would have lost the room's "
+            "memory on the way back (#788)."
         ),
     )
 
@@ -1770,6 +1782,7 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
         acts_for_sender: bool = False,
@@ -1835,6 +1848,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
@@ -1913,7 +1927,8 @@ class AgentRunnerService:
         user_name: str | None,
         acts_for_sender: bool = False,
         owner_user_id: UUID | None = None,
-        restored_publisher_fallback: bool | None = None,
+        memory_room_key: str | None = None,
+        restored_audience: MemoryAudience | None = None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -2196,18 +2211,23 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
-        # The memory identity is the run's own, not the resuming caller's: an approver
-        # releasing somebody else's run must not become its memory end-user (#788).
+        # The memory audience is the run's own, not the resuming caller's: an approver
+        # releasing somebody else's run must not become its memory person (#788). On a
+        # resume it is restored verbatim rather than re-derived, because the facts it
+        # was derived from - whether the subject was a publisher stand-in, whether the
+        # chat account was linked, whether the chat was a room - are all gone with the
+        # request that carried them.
         memory_user_id = owner_user_id or ctx.user_id
-        memory_channel_identity_id = (
-            existing_run.channel_identity_id
-            if existing_run is not None
-            else ctx.channel_identity_id
-        )
-        publisher_fallback = (
-            ctx.subject_is_publisher_fallback
-            if restored_publisher_fallback is None
-            else restored_publisher_fallback
+        memory_audience = restored_audience or derive_audience(
+            channel_identity_id=(
+                existing_run.channel_identity_id
+                if existing_run is not None
+                else ctx.channel_identity_id
+            ),
+            # The guard keeps a subject-less context deriving from None, never "None".
+            user_id=None if memory_user_id is None else str(memory_user_id),
+            subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
+            room_key=memory_room_key,
         )
         built = build_agent(
             spec,
@@ -2218,8 +2238,7 @@ class AgentRunnerService:
             # The guard keeps a subject-less context stringifying to None, never "None".
             user_id=None if memory_user_id is None else str(memory_user_id),
             user_name=user_name,
-            channel_identity_id=memory_channel_identity_id,
-            subject_is_publisher_fallback=publisher_fallback,
+            memory_audience=memory_audience,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -2266,7 +2285,8 @@ class AgentRunnerService:
             admitted_as=AdmittedAs(
                 approval_mode=approval_mode,
                 acts_for_sender=acts_for_sender,
-                subject_is_publisher_fallback=publisher_fallback,
+                memory_person_key=memory_audience.person_key,
+                memory_room_key=memory_audience.room_key,
             ),
         )
 
@@ -3321,6 +3341,7 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         acts_for_sender: bool = False,
         message_history: list[Any] | None = None,
@@ -3370,6 +3391,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
             acts_for_sender=acts_for_sender,
             exposure=exposure,
@@ -3541,9 +3563,12 @@ class AgentRunnerService:
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
-            # speaks through - for personal MCP or for the per-user memory partition.
+            # speaks through - for personal MCP or for its memory audience.
             owner_user_id=run.user_id,
-            restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
+            restored_audience=MemoryAudience(
+                person_key=state.admitted_as.memory_person_key,
+                room_key=state.admitted_as.memory_room_key,
+            ),
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

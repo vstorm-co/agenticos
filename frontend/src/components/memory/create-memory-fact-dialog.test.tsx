@@ -26,9 +26,9 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const fact = () => screen.getByLabelText("Fact");
 const create = () => screen.getByRole("button", { name: "Create" });
-const scope = () => screen.getByLabelText("Scope");
-const chooseScope = async (option: "Shared" | "Personal") => {
-  await userEvent.click(scope());
+const store = () => screen.getByLabelText("Whose memory");
+const chooseStore = async (option: "The organisation's" | "A specific person or room") => {
+  await userEvent.click(store());
   await userEvent.click(await screen.findByRole("option", { name: option }));
 };
 
@@ -59,39 +59,39 @@ describe("CreateMemoryFactDialog", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/memory/facts", {
       agent_id: "a1",
       content: "Acme FY starts in April",
-      end_user_scope_key: null,
+      owner_key: null,
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("writes to the operator's own personal store when personal is chosen", async () => {
+  it("writes to the operator's own store when a specific store is chosen", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "x1" });
     mount();
 
     await userEvent.type(fact(), "I prefer mornings");
-    await chooseScope("Personal");
+    await chooseStore("A specific person or room");
     await userEvent.click(create());
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({
-      end_user_scope_key: "user:u-42",
+      owner_key: "person:u-42",
     });
   });
 
-  it("lets an operator target another person's personal store", async () => {
+  it("lets an operator target another owner's store", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "x1" });
     mount();
 
     await userEvent.type(fact(), "note");
-    await chooseScope("Personal");
-    const key = screen.getByLabelText("Whose personal store");
+    await chooseStore("A specific person or room");
+    const key = screen.getByLabelText("Whose store");
     await userEvent.clear(key);
-    await userEvent.type(key, "user:someone-else");
+    await userEvent.type(key, "person:someone-else");
     await userEvent.click(create());
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({
-      end_user_scope_key: "user:someone-else",
+      owner_key: "person:someone-else",
     });
   });
 
@@ -99,13 +99,13 @@ describe("CreateMemoryFactDialog", () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "x1" });
     mount(vi.fn(), { canEdit: false });
 
-    expect(screen.queryByLabelText("Scope")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Whose memory")).not.toBeInTheDocument();
     await userEvent.type(fact(), "note");
     await userEvent.click(create());
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({
-      end_user_scope_key: "user:u-42",
+      owner_key: "person:u-42",
     });
   });
 
@@ -159,23 +159,23 @@ describe("CreateMemoryFactDialog", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
-  it("marks a partition key the server refused, cleared on edit", async () => {
+  it("marks an owner key the server refused, cleared on edit", async () => {
     const refusal = "A partition key is user:<uuid> or chan:<uuid>";
     const problems = {
       error: {
         code: "VALIDATION_ERROR",
         message: "invalid",
-        details: { fields: [{ field: "end_user_scope_key", message: refusal }] },
+        details: { fields: [{ field: "owner_key", message: refusal }] },
       },
     };
     vi.mocked(apiClient.post).mockRejectedValue(new ApiError(422, "invalid", problems));
     const { onOpenChange } = mount();
 
     await userEvent.type(fact(), "note");
-    await chooseScope("Personal");
-    const key = screen.getByLabelText("Whose personal store");
+    await chooseStore("A specific person or room");
+    const key = screen.getByLabelText("Whose store");
     await userEvent.clear(key);
-    await userEvent.type(key, "user:someone");
+    await userEvent.type(key, "person:someone");
     await userEvent.click(create());
 
     await waitFor(() => expect(screen.getByText(refusal)).toBeInTheDocument());

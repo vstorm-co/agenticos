@@ -3,7 +3,7 @@
 The file half of the `memory` capability (#788). Unlike a context file (0030),
 which a person authors and binds to many agents read-only, a memory file is the
 agent's *own*: the agent writes and edits it through a runtime tool, and it is
-addressed by its agent plus the end-user partition it was written in, never
+addressed by its agent plus the owner it was written for, never
 bound by id.
 
 Two columns are the capability's safety surface rather than plain metadata:
@@ -13,12 +13,14 @@ management API) or `agent` (written by a tool mid-run) — CHECK-constrained
 because only `operator` content is ever injected into instructions; an
 agent-authored row is untrusted input reachable only as a tool result.
 
-`end_user_scope_key` is the per-end-user partition: `NULL` is the one shared
-store per (organization, agent); a non-null `user:<id>`/`chan:<id>` is one
-end-user's private store. Because `NULL` means "the shared store" and not "a
-missing value", the uniqueness of a name within a scope has to treat two shared
-rows as colliding — hence `NULLS NOT DISTINCT`, which plain SQL uniqueness does
-not do (two `NULL` scopes would read as distinct and let one name exist twice).
+`owner_key` says whose memory the row is: `NULL` is the one store per
+(organization, agent) that belongs to the organization; `person:<user_id>` (or
+`person:chan:<identity_id>`) is one human being's; `room:<platform>:<chat_id>` is
+one group chat's. Because `NULL` means "the organization's store" and not "a
+missing value", the uniqueness of a name within a store has to treat two
+organization rows as colliding — hence `NULLS NOT DISTINCT`, which plain SQL
+uniqueness does not do (two `NULL` owners would read as distinct and let one name
+exist twice).
 This is the first `NULLS NOT DISTINCT` constraint in the schema; it needs
 PostgreSQL 15+, which the deployment already requires (pgvector/pgvector:pg16).
 
@@ -46,7 +48,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("agent_id", sa.UUID(), nullable=False),
-        sa.Column("end_user_scope_key", sa.String(length=128), nullable=True),
+        sa.Column("owner_key", sa.String(length=200), nullable=True),
         sa.Column("name", sa.String(length=64), nullable=False),
         sa.Column("description", sa.String(length=500), nullable=True),
         sa.Column("content", sa.Text(), nullable=False),
@@ -80,9 +82,9 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "organization_id",
             "agent_id",
-            "end_user_scope_key",
+            "owner_key",
             "name",
-            name="uq_agent_memory_file_scope_name",
+            name="uq_agent_memory_file_owner_name",
             postgresql_nulls_not_distinct=True,
         ),
     )
