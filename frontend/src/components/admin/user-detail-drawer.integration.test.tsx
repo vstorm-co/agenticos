@@ -67,16 +67,18 @@ function mount(user: AdminUser = USER) {
     <UserDetailDrawer
       user={user}
       open
-      onOpenChange={vi.fn()}
+      onOpenChange={openChange}
       onUpdate={update}
       onDelete={vi.fn()}
-      onImpersonate={vi.fn()}
+      onImpersonate={impersonate}
     />,
     { wrapper },
   );
 }
 
 const update = vi.fn();
+const openChange = vi.fn();
+const impersonate = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -177,5 +179,35 @@ describe("the three privileged actions", () => {
 
     await waitFor(() => expect(update).toHaveBeenCalledWith("u-1", { is_active: true }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
+
+describe("acting as the person", () => {
+  it("starts from the drawer and puts nothing on the clipboard", async () => {
+    // The browser's own session becomes the impersonation; the token used to
+    // land in the operating system clipboard, where it outlived the tab (#1044).
+    const writeText = vi.fn();
+    Object.assign(navigator, { clipboard: { writeText } });
+    impersonate.mockResolvedValue(true);
+    mount();
+    await screen.findByText("Acme");
+
+    await userEvent.click(screen.getByRole("button", { name: "Impersonate" }));
+
+    await waitFor(() => expect(impersonate).toHaveBeenCalledWith("u-1"));
+    expect(writeText).not.toHaveBeenCalled();
+    // The page under the sheet is about to be somebody else's.
+    await waitFor(() => expect(openChange).toHaveBeenCalledWith(false));
+  });
+
+  it("stays open when the impersonation was refused", async () => {
+    impersonate.mockResolvedValue(false);
+    mount();
+    await screen.findByText("Acme");
+
+    await userEvent.click(screen.getByRole("button", { name: "Impersonate" }));
+
+    await waitFor(() => expect(impersonate).toHaveBeenCalledWith("u-1"));
+    expect(openChange).not.toHaveBeenCalled();
   });
 });

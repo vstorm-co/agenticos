@@ -262,10 +262,19 @@ describe("acting on one user", () => {
     expect(response.status).toBe(204);
   });
 
-  it("mints an impersonation token on that user's own endpoint", async () => {
-    // The most privileged action in the product: it hands back a token that acts
-    // as somebody else.
-    vi.mocked(backendFetch).mockResolvedValue({ access_token: "imp" });
+  it("starts an impersonation by swapping the access cookie, and hands back no token", async () => {
+    // The most privileged action in the product. The token used to be returned in
+    // the body and copied to the clipboard; now it goes where every other access
+    // token lives, an HttpOnly cookie the page cannot read (#1044).
+    vi.mocked(backendFetch).mockResolvedValue({
+      access_token: "imp",
+      token_type: "bearer",
+      impersonated_user_id: "u-1",
+      impersonated_by: "a-1",
+      expires_in: 3600,
+      expires_at: "2026-09-05T11:00:00Z",
+      session_id: "s-1",
+    });
 
     const response = await impersonate(
       request("http://localhost:3000/api/admin/users/u-1/impersonate"),
@@ -273,6 +282,29 @@ describe("acting on one user", () => {
     );
 
     expect(forwarded()).toBe("/api/v1/admin/users/u-1/impersonate");
-    await expect(response.json()).resolves.toMatchObject({ access_token: "imp" });
+    const body = await response.json();
+    expect(body).toMatchObject({ impersonated_user_id: "u-1", session_id: "s-1" });
+    expect(body).not.toHaveProperty("access_token");
+    const cookie = response.headers
+      .getSetCookie()
+      .find((entry) => entry.startsWith("access_token="));
+    expect(cookie).toContain("access_token=imp");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Max-Age=3600");
+  });
+
+  it("leaves the administrator's refresh cookie alone", async () => {
+    // It is what the next `/api/auth/me` refreshes from once the impersonation
+    // has ended, so ending one never means signing in again.
+    vi.mocked(backendFetch).mockResolvedValue({ access_token: "imp", expires_in: 3600 });
+
+    const response = await impersonate(
+      request("http://localhost:3000/api/admin/users/u-1/impersonate"),
+      { params: Promise.resolve({ userId: "u-1" }) },
+    );
+
+    expect(
+      response.headers.getSetCookie().some((entry) => entry.startsWith("refresh_token=")),
+    ).toBe(false);
   });
 });

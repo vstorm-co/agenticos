@@ -19,6 +19,23 @@ export interface User {
   notify_budget_alerts?: boolean;
   notify_approval_requests?: boolean;
   notify_usage_reports?: boolean;
+  /**
+   * Set while an administrator is acting as this account, and what the banner
+   * is drawn from. Absent - not merely null - on a persisted store that predates
+   * it, which reads the same as nobody acting as anybody.
+   */
+  impersonation?: Impersonation | null;
+}
+
+/** An administrator acting as the signed-in account: who, and until when. */
+export interface Impersonation {
+  session_id: string;
+  impersonator: {
+    id: string;
+    email: string;
+    full_name?: string | null;
+  };
+  expires_at: string;
 }
 
 export interface Session {
