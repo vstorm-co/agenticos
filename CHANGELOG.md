@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.359] - 2026-09-05
+
+### Changed
+
+- **Impersonation is a session an administrator can end, not a token on the
+  clipboard.** It was a bare one-hour bearer token, copied to the operating
+  system clipboard, that nothing could revoke. It is started from the console
+  with no token exposed, shown in a banner while it lasts, and ended by the
+  administrator, by the person's own sign-out-everywhere or password reset, by
+  the hour, or by the administrator's account being deleted - whichever comes
+  first. `sessions.impersonator_user_id` marks the row and the token carries
+  `sid` beside `act`, so every request binds the token to its row and refuses it
+  once the row is gone, deactivated, expired, held by another administrator or
+  for another account. A deployment can tell the impersonated person it
+  happened (`notify_impersonated_users`).
+
 ## [0.0.358] - 2026-09-05
 
 ### Fixed
