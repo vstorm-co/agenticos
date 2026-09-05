@@ -77,12 +77,11 @@ class MemoryConfig(BaseModel):
     def _mem0_base_url_is_a_valid_https_url(cls, value: str | None) -> str | None:
         """Settle the URL's shape at publish, not mid-run.
 
-        An unparseable or non-https value - `https://[` is the one that bit -
-        otherwise passed publication and reached `urlsplit` on the run path,
-        outside its HTTP error handling, ending the run with a `ValueError`
-        (codex). The host allowlist stays a runtime check: it is a deployment
-        setting a spec may outlive or be imported past, so it cannot be decided
-        here.
+        An unparsable or non-https value would otherwise pass publication and
+        reach `urlsplit` on the run path, outside its HTTP error handling,
+        ending the run with a `ValueError`. The host allowlist stays a runtime
+        check: it is a deployment setting a spec may outlive or be imported
+        past, so it cannot be decided here.
         """
         if value is None:
             return None
