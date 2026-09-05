@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.357] - 2026-09-05
+
+### Fixed
+
+- **A teardown reservation nobody released blocked a collection name for
+  ever.** The reservation is committed with the delete and released when the
+  durable drop runs; a drop lost to a crash in the commit-to-dispatch gap, or
+  failing past the flow's retries, left the row behind and `claim` refused that
+  name from then on, with nothing to reattempt it. An hourly
+  `teardown-reservation-sweep` retries the drop for any reservation older than
+  its window, the way the other reap-sweeps do.
+- **An upload could repopulate a collection on its way out.** `dispatch_upload`
+  refuses a name under teardown, which `claim` already did.
+- **An organization whose default collection was dropped kept pointing at it.**
+
 ## [0.0.356] - 2026-09-05
 
 ### Changed
