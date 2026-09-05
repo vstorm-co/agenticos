@@ -397,6 +397,12 @@
     "orphanedContext": "This agent also references {count, plural, =1 {1 context file} other {# context files}} this organization no longer has. Publishing is refused until they are cleared:",
     "orphanedServers": "This agent also references {count, plural, =1 {1 server} other {# servers}} this organization does not offer - removed since, or carried in from an imported spec. Publishing is refused until they are cleared:",
     "orphanedSkills": "This agent also references {count, plural, =1 {1 skill} other {# skills}} this organization no longer has. Publishing is refused until they are cleared:",
+    "staleReferences": "This draft still references {list} this organization no longer has. Publishing is refused until they are cleared.",
+    "staleCollections": "{count, plural, =1 {1 knowledge collection} other {# knowledge collections}}",
+    "staleContext": "{count, plural, =1 {1 context file} other {# context files}}",
+    "staleSkills": "{count, plural, =1 {1 skill} other {# skills}}",
+    "staleServers": "{count, plural, =1 {1 MCP server} other {# MCP servers}}",
+    "removeStaleReferences": "Remove them",
     "overridden": "overridden",
     "pageAllowFiles": "A way to attach a file",
     "pageAllowFilesHint": "The only thing here that lets a stranger store something on this deployment. The file goes through the same checks and parser a member's upload does, under a smaller cap and a limit per visitor - and the agent reads it the way it reads any attachment.",
@@ -637,8 +643,11 @@
     "zoom": "Zoom in",
     "zoomOut": "Zoom out",
     "whichAccount": "Which {name} account this agent uses",
-    "useTheirOwnAccount": "Speak as whoever is running it",
-    "useTheirOwnAccountHint": "In the dashboard chat and one-to-one direct messages, use that person's own connection to this service where they have one. Everywhere else the organization's account answers.",
+    "accountForServer": "Whose {name} account this agent uses",
+    "organizationsAccount": "The organization's account",
+    "eachPersonsOwnAccount": "Each person's own account",
+    "useEachPersonsOwnAccount": "Use each person's own account",
+    "eachPersonsOwnAccountHint": "Whoever talks to this agent connects their own account and the agent speaks to the service as them - in the dashboard, in direct messages and in channels alike. Not available to API keys, the widget, schedules and triggers, where nobody is signed in.",
     "everyToolThisServerOffers": "Every tool it offers"
   },
   "auth": {
@@ -784,6 +793,26 @@
     "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
     "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
     "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
+    "personalServices": {
+      "intro": "This agent works in these services through your own accounts. Connect them, then ask again.",
+      "dismiss": "Dismiss",
+      "connect": "Connect",
+      "openServers": "Open MCP servers",
+      "nowConnected": "Connected. Ask again.",
+      "yourAccounts": "This agent uses your own accounts for these services.",
+      "gap": {
+        "not_connected": "You have not connected this yet.",
+        "undecided": "You hold several connections to it and none is marked as default.",
+        "unauthorized": "Your connection to it needs authorizing again.",
+        "nobody_to_speak_as": "Nobody is signed in here, so it is not available."
+      },
+      "status": {
+        "connected": "Connected",
+        "not_connected": "Not connected",
+        "undecided": "Several accounts, none marked default",
+        "unauthorized": "Needs authorizing again"
+      }
+    },
     "controls": {
       "approvalMode": "Approval mode",
       "backAgentAposS": "Back to the agent's own model",
@@ -2501,6 +2530,7 @@
     "saving2": "Saving…",
     "scopeOrganization": "Organization",
     "scopeYou": "You",
+    "noSuchServerToConnect": "No server in the catalog is called {key}.",
     "searchServers": "Search servers…",
     "searchTools": "Search tools…",
     "selectAll": "Select all",
@@ -2735,6 +2765,10 @@
       "chat-approval-mode": {
         "title": "Decide how much you are asked",
         "body": "Follow the agent's own settings, ask about every tool it can use, or - if you may decide approvals - let this conversation run without stopping. Every waived call is still recorded against your account."
+      },
+      "chat-your-connections": {
+        "title": "Your own accounts, where the agent uses them",
+        "body": "An agent bound to each person's own account speaks to Notion or Jira as you. This lists which of its services need an account of yours, and connects one without leaving the chat."
       },
       "chat-composer": {
         "title": "Ask anything",
@@ -3290,13 +3324,14 @@
       "mapSurfaces": "Surfaces",
       "maxStepsPerRun": "Max steps per run",
       "mcpServers": "MCP servers",
-      "mcpServersDescription": "External tools this agent may call, from the servers <servers>your organization has connected</servers>. Only the organization's servers appear here - an agent everyone runs cannot depend on whose credential is behind it, so a personal connection is refused at publish.",
+      "mcpServersDescription": "External tools this agent may call, from <servers>the catalog</servers>. Bind a server to the organization's account, which answers for everybody, or to each person's own account, which they connect themselves. A member's connection is never bound directly - an agent everyone runs cannot depend on whose credential is behind it.",
       "model": "Model",
       "modelSettings": "Model settings",
       "monthlyUsd": "Monthly (USD)",
       "moreActions": "More actions",
       "n100Default": "100 (default)",
       "namedMissing": "{name} (missing)",
+      "eachPersonsOwnNamed": "{name} (each person's own)",
       "namedPointersAtPublished": "A publish mints a version; putting it somewhere is a separate decision. An environment either waits to be promoted onto - which the default does - or follows every publish, which is what a dev environment usually wants. A bot bound to an environment serves its version.",
       "newAgent": "New agent",
       "noAgentHereMatches": "No agent here matches that filter and search.",

@@ -12,7 +12,7 @@ name before dropping it.
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,6 +24,8 @@ from app.worker.tasks.teardown_tasks import (
     cleanup_external_state,
     dispatch_external_state_cleanup,
     external_state_cleanup_flow,
+    sweep_teardown_reservations,
+    teardown_reservation_sweep_flow,
 )
 
 pytestmark = pytest.mark.anyio
@@ -232,3 +234,105 @@ class TestTheFlow:
 
         impl.assert_awaited_once_with(["u/a.txt"], ["docs"])
         assert result == {"unlinked": 1, "dropped": 1}
+
+
+def _patch_sweep(stale: list[Any], *, reserved: bool = True) -> Any:
+    """Patch what `sweep_teardown_reservations` reaches - the stale scan, the still-
+    reserved re-check, and everything `_drop_then_release`/`_vector_store` touch."""
+    _storage, store, engine, release, patches = _patch_cleanup()
+    scan = patches[1:]  # drop the file-storage patch; the sweep touches no files
+    scan += [
+        patch(
+            "app.repositories.collection_teardown_repo.list_stale",
+            AsyncMock(return_value=stale),
+        ),
+        patch(
+            "app.repositories.collection_teardown_repo.is_reserved",
+            AsyncMock(return_value=reserved),
+        ),
+    ]
+    return store, engine, release, scan
+
+
+class TestTheSweep:
+    async def test_it_drops_and_releases_every_stale_reservation(self) -> None:
+        stale = [MagicMock(collection_name="docs"), MagicMock(collection_name="wiki")]
+        store, engine, release, scan = _patch_sweep(stale)
+        with ExitStack() as stack:
+            for p in scan:
+                stack.enter_context(p)
+            result = await sweep_teardown_reservations()
+
+        assert store.delete_collection.await_count == 2
+        assert [call.args[1] for call in release.await_args_list] == ["docs", "wiki"]
+        assert result == {"swept": 2, "dropped": 2}
+        engine.dispose.assert_awaited_once()
+
+    async def test_a_reservation_finished_since_the_scan_is_skipped(self) -> None:
+        """A normal cleanup, or an earlier sweep, may have dropped and released the
+        name between the scan and the lock; the re-check under the lock skips it."""
+        store, _engine, release, scan = _patch_sweep(
+            [MagicMock(collection_name="docs")], reserved=False
+        )
+        with ExitStack() as stack:
+            for p in scan:
+                stack.enter_context(p)
+            result = await sweep_teardown_reservations()
+
+        store.delete_collection.assert_not_awaited()
+        release.assert_not_awaited()
+        assert result == {"swept": 1, "dropped": 0}
+
+    async def test_a_failed_drop_leaves_the_reservation_for_the_next_sweep(self) -> None:
+        store, _engine, release, scan = _patch_sweep([MagicMock(collection_name="docs")])
+        store.delete_collection = AsyncMock(side_effect=SQLAlchemyError("blip"))
+        with ExitStack() as stack:
+            for p in scan:
+                stack.enter_context(p)
+            result = await sweep_teardown_reservations()
+
+        release.assert_not_awaited()
+        assert result == {"swept": 1, "dropped": 0}
+
+    async def test_a_reservation_that_cannot_be_dropped_does_not_abort_the_sweep(self) -> None:
+        """A legacy name current validation rejects raises from `_table` - a
+        `BadRequestError`, not the `SQLAlchemyError` the drop catches - which must not
+        disable the whole sweep: the row is isolated and the rest still run (#1364)."""
+        from app.core.exceptions import BadRequestError
+
+        store, _engine, release, scan = _patch_sweep(
+            [MagicMock(collection_name="bad"), MagicMock(collection_name="docs")]
+        )
+        store.delete_collection = AsyncMock(side_effect=[BadRequestError(message="bad"), None])
+        with ExitStack() as stack:
+            for p in scan:
+                stack.enter_context(p)
+            result = await sweep_teardown_reservations()
+
+        assert store.delete_collection.await_count == 2  # carried on past the bad one
+        assert [call.args[1] for call in release.await_args_list] == ["docs"]
+        assert result == {"swept": 2, "dropped": 1}
+
+    async def test_no_stale_reservations_builds_no_store(self) -> None:
+        """The common tick returns no rows, so it never builds a vector-store engine."""
+        _store, _engine, _release, scan = _patch_sweep([])
+        with (
+            patch.object(teardown_tasks, "create_async_engine") as make_engine,
+            ExitStack() as stack,
+        ):
+            for p in scan[1:]:  # keep our own create_async_engine assertion patch
+                stack.enter_context(p)
+            result = await sweep_teardown_reservations()
+
+        make_engine.assert_not_called()
+        assert result == {"swept": 0, "dropped": 0}
+
+
+class TestTheSweepFlow:
+    async def test_it_runs_the_sweep(self) -> None:
+        impl = AsyncMock(return_value={"swept": 2, "dropped": 1})
+        with patch.object(teardown_tasks, "sweep_teardown_reservations", impl):
+            result = await teardown_reservation_sweep_flow()
+
+        impl.assert_awaited_once_with()
+        assert result == {"swept": 2, "dropped": 1}

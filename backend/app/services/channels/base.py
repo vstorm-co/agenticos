@@ -175,16 +175,6 @@ class IncomingMessage:
     raw: dict[str, Any] = field(default_factory=dict)
     platform_username: str | None = None
     platform_display_name: str | None = None
-    one_to_one: bool = False
-    """Whether this chat holds exactly this person and the bot, and nobody else.
-
-    Deliberately not `chat_type == "private"`. Slack reports a multi-person
-    direct message as `im`-like and Mattermost has group channels of the same
-    shape, so `chat_type` answers "is this off-channel", which is a different
-    question. This one gates speaking through a member's own MCP account, and a
-    second reader in the room is exactly what must not happen - so each adapter
-    sets it from the one channel kind it knows holds one person.
-    """
     message_id: str | None = None
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.

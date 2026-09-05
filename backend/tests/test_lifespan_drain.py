@@ -74,6 +74,11 @@ def _stub_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "RedisClient", lambda *a, **k: _FakeRedis())
     monkeypatch.setattr(main, "_start_channel_polling", AsyncMock())
     monkeypatch.setattr(main, "close_db", AsyncMock())
+    # A shutdown collaborator, like `close_db`: the real one closes a module-global
+    # httpx client that another test may have opened on its own event loop, and
+    # closing it here - on this test's loop - raises "Event loop is closed" under
+    # xdist. The lifespan runs in-process, so stub it out the same way.
+    monkeypatch.setattr("app.services.model_catalog.close_listing_client", AsyncMock())
     monkeypatch.setattr(main, "reset_retrieval_service", MagicMock())
     monkeypatch.setattr(main, "EventLoopWatchdog", lambda *a, **k: MagicMock())
     # Warmup raises, so the embedder is None and no PgVectorStore is built - the

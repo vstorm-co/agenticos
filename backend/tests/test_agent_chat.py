@@ -40,7 +40,6 @@ from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.services import agent_chat as agent_chat_service
 from app.services.agent_chat import (
     ChatAgentRunner,
     display_output,
@@ -48,28 +47,9 @@ from app.services.agent_chat import (
     requested_environment_id,
     requested_model_profile_id,
 )
-from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(autouse=True)
-def _no_shares(monkeypatch):
-    """Every conversation in this module has one reader unless a test says so.
-
-    `ChatAgentRunner` asks the share repository whether anybody else can read the
-    conversation before it lets a binding speak as the runner's own account, and
-    these tests hand it a `MagicMock` session - so the real call fails inside
-    `db.execute`. Staged here rather than per test, and overridden where a test
-    is about a shared conversation.
-    """
-    from unittest.mock import AsyncMock
-
-    monkeypatch.setattr(
-        agent_chat_service.conversation_share_repo,
-        "get_shares_for_conversation",
-        AsyncMock(return_value=[]),
-    )
 
 
 class TestWhatTheTurnCost:
@@ -266,6 +246,7 @@ async def _run(
     user_input: Any = "what is the refund window",
     attachments: Any = None,
     subagent_events: Any = None,
+    on_personal_gaps: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -280,6 +261,7 @@ async def _run(
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
         subagent_events=subagent_events,
+        on_personal_gaps=on_personal_gaps,
     )
 
 
@@ -444,35 +426,15 @@ class TestWhoTheRunBelongsTo:
 
             runner.prepare.assert_not_called()
 
-    async def test_a_conversation_nobody_else_can_read_is_private(self):
-        """The condition a personal MCP substitution waits for."""
+    async def test_the_dashboard_always_has_a_person_at_the_keyboard(self):
+        """A personal MCP binding speaks as whoever typed - in a conversation
+        shared with others too, exactly as it does in a channel. The binding is
+        explicit in the spec, so the answer landing where others read it is the
+        author's decision and not a surprise the surface has to prevent."""
         with _runner(_prepared()) as runner:
             await _run(_db(), conversation_id=uuid.uuid4())
 
-        assert runner.prepare.call_args.kwargs["private_to_user"] is True
-
-    async def test_a_shared_conversation_is_not_private(self, monkeypatch):
-        """A dashboard conversation can be shared with a member or through a
-        public link, and both leave a second reader in the room. Marking the
-        whole web surface private let a binding query the runner's own
-        third-party account and persist the answer where other people read it."""
-        monkeypatch.setattr(
-            agent_chat_service.conversation_share_repo,
-            "get_shares_for_conversation",
-            AsyncMock(return_value=[MagicMock()]),
-        )
-
-        with _runner(_prepared()) as runner:
-            await _run(_db(), conversation_id=uuid.uuid4())
-
-        assert runner.prepare.call_args.kwargs["private_to_user"] is False
-
-    async def test_a_conversation_that_does_not_exist_yet_is_private(self):
-        """Nothing has been shared with anybody, so there is nobody else in it."""
-        with _runner(_prepared()) as runner:
-            await _run(_db(), conversation_id=None)
-
-        assert runner.prepare.call_args.kwargs["private_to_user"] is True
+        assert runner.prepare.call_args.kwargs["acts_for_sender"] is True
 
 
 class TestMeteringWhatTheTurnEmbedded:
@@ -1055,3 +1017,33 @@ class TestACommitThatCannotLand:
             except ValueError:
                 with pytest.raises(RuntimeError, match="could not commit"):
                     await _run(db)
+
+
+class TestTellingTheChatWhatThePersonCannotReach:
+    """A personal binding nobody can speak through is one sentence in the model's
+    instructions and one card in the chat, and the card has to be up while the
+    sentence is being said - so the sink is called before the run, not after."""
+
+    async def test_the_gaps_reach_the_sink_before_the_run(self):
+        prepared = _prepared()
+        gap = PersonalServiceGap(
+            catalog_key="notion",
+            name="Notion",
+            gap="not_connected",
+            url="http://localhost:3000/mcp-servers?connect=notion",
+        )
+        prepared.personal_service_gaps = [gap]
+        sink = AsyncMock()
+
+        with _runner(prepared):
+            await _run(_db(), on_personal_gaps=sink)
+
+        sink.assert_awaited_once_with([gap])
+
+    async def test_a_turn_with_nothing_missing_says_nothing(self):
+        sink = AsyncMock()
+
+        with _runner(_prepared()):
+            await _run(_db(), on_personal_gaps=sink)
+
+        sink.assert_not_awaited()

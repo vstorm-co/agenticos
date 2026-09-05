@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,3 +44,18 @@ async def release(db: AsyncSession, collection_name: str) -> None:
     if row is not None:
         await db.delete(row)
         await db.flush()
+
+
+async def list_stale(db: AsyncSession, *, older_than: datetime) -> Sequence[CollectionTeardown]:
+    """Reservations older than a cutoff - a teardown whose drop never completed.
+
+    A reservation is committed with its delete and released the instant the durable
+    drop runs, so a row that outlives the cutoff is one whose cleanup failed for good
+    (Prefect retries exhausted) or was lost in the commit-to-dispatch gap, leaving the
+    name blocked with nothing left to reattempt it. The sweep drops their tables and
+    releases them (#1364).
+    """
+    result = await db.execute(
+        select(CollectionTeardown).where(CollectionTeardown.created_at < older_than)
+    )
+    return result.scalars().all()

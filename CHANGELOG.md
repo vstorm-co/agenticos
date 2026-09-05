@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **10**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,42 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.356] - 2026-09-05
+
+### Changed
+
+- **An MCP binding says whose account it speaks through, and that is its
+  kind.** `SPEC_VERSION` 11: `mcp_servers` entries carry `account`, either
+  `organization` with a `connection_id` — everybody's, on every surface, as
+  before — or `personal` with a `catalog_key` and no connection at all: whoever
+  talks to the agent connects their own Notion and the agent speaks as them, in
+  the dashboard, in a direct message and in a channel alike. The account is
+  always the author of the message, never the thread's. Where nobody is talking
+  — an API key, the widget, a schedule, an unlinked chat sender — the server is
+  absent from that run and the agent is told why and where the person connects
+  one, rather than answering as though it never had the tool. The Builder asks
+  whose account on the card; `/mcp-servers?connect=<key>` opens the personal
+  connect flow the agent links to. `use_personal_when_available`, which
+  substituted a credential in private conversations only, is withdrawn: a stored
+  binding that had it loads as the organization's and says so in the log.
+- **The chat connects the account, not just the agent's sentence about it.** A
+  turn that finds a personal service this person cannot reach sends
+  `personal_services_unavailable` before the model answers, and the chat draws a
+  card with a connect button beside the refusal. The chat's controls list the
+  agent's personal services with each one's status - connected, not connected,
+  several with no default, needs authorizing - so a new member sees what to
+  connect before their first question. Personal connections made from the
+  console now carry their catalog key, without which no binding could have
+  matched them; `0071_mcp_connection_catalog_key` backfills the key on every
+  connection made from a catalog entry before the console sent it. A consent
+  started from the chat returns to the conversation, not to the servers page.
+- **The Builder clears stale references and probes a server's tools in place.**
+  A draft naming a deleted collection, context file, skill or connection is
+  refused at publish, and used to say so only there; a notice above the tabs
+  now names them and removes them in one click. The tool picker for a binding
+  probes a connection nobody has checked yet, for a caller who may, instead of
+  opening empty.
 
 ## [0.0.355] - 2026-09-02
 

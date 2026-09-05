@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { McpConnectionRecord } from "./mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "./org-mcp-connections-api";
 import {
+  ownAccountStatus,
   CUSTOM_CATEGORY,
   connectionState,
   matchingCustomRows,
@@ -312,5 +313,88 @@ describe("narrowedSelection", () => {
 
   it("keeps an empty list rather than reading it as unrestricted", () => {
     expect(narrowedSelection(new Set(), tools, true)).toEqual([]);
+  });
+});
+
+describe("ownAccountStatus", () => {
+  /**
+   * The rule a run applies when a binding to each person's own account looks for
+   * theirs, so the chat can say the same thing before the run does.
+   */
+  function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord {
+    return {
+      id: "m1",
+      name: "notion",
+      url: "https://mcp.notion.com/mcp",
+      has_auth_token: true,
+      allowed_tools: null,
+      is_enabled: true,
+      auth_type: "oauth",
+      oauth_authorized: true,
+      last_status: "ok",
+      last_error: null,
+      last_checked_at: null,
+      catalog_key: "notion",
+      is_default: false,
+      label: null,
+      last_tools: null,
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: null,
+      ...overrides,
+    };
+  }
+
+  it("is not connected with nothing on that service", () => {
+    expect(ownAccountStatus("notion", [own({ catalog_key: "linear" })])).toBe("not_connected");
+  });
+
+  it("ignores a connection somebody switched off", () => {
+    expect(ownAccountStatus("notion", [own({ is_enabled: false })])).toBe("not_connected");
+  });
+
+  it("needs no default with one account", () => {
+    expect(ownAccountStatus("notion", [own()])).toBe("connected");
+  });
+
+  it("is undecided with several and none marked default", () => {
+    expect(ownAccountStatus("notion", [own(), own({ id: "m2", name: "notion-2" })])).toBe(
+      "undecided",
+    );
+  });
+
+  it("follows the default among several", () => {
+    expect(
+      ownAccountStatus("notion", [own(), own({ id: "m2", name: "notion-2", is_default: true })]),
+    ).toBe("connected");
+  });
+
+  it("is unauthorized when the chosen grant no longer stands", () => {
+    expect(ownAccountStatus("notion", [own({ oauth_authorized: false })])).toBe("unauthorized");
+  });
+});
+
+describe("ownAccountStatus and a failed health check", () => {
+  it("still reads connected, because the run still sends the token it holds", () => {
+    const failing: McpConnectionRecord = {
+      id: "m1",
+      name: "github",
+      url: "https://api.githubcopilot.com/mcp/",
+      has_auth_token: true,
+      allowed_tools: null,
+      is_enabled: true,
+      auth_type: "bearer",
+      oauth_authorized: false,
+      last_status: "error",
+      last_error: "timed out",
+      last_checked_at: null,
+      catalog_key: "github",
+      is_default: false,
+      label: null,
+      last_tools: null,
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: null,
+    };
+
+    expect(ownAccountStatus("github", [failing])).toBe("connected");
   });
 });

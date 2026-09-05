@@ -70,7 +70,7 @@ export interface McpServerRef {
 }
 
 /**
- * The prefix a server's tools carry, mirroring `app/agents/mcp.py::_tool_prefix`.
+ * The prefix a server's tools carry, mirroring `app/agents/mcp.py::tool_prefix`.
  *
  * The backend prefixes every MCP tool with its connection's name so two servers
  * exposing `create_issue` cannot collide, and that prefix is the only trace of where

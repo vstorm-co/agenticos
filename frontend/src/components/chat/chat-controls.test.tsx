@@ -32,6 +32,10 @@ vi.mock("@/stores", () => ({
   useOrgStore: (pick: (state: unknown) => unknown) => pick({ activeOrgId: "org-1" }),
 }));
 
+// The agent's own-account section is tested on its own, and reads hooks this
+// file does not stage.
+vi.mock("./your-connections", () => ({ YourConnections: () => null }));
+
 // The picker is tested on its own; here it only needs to be able to choose.
 vi.mock("./chat-model-picker", () => ({
   ChatModelPicker: ({

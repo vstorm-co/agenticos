@@ -812,3 +812,37 @@ describe("a hosted page's logo", () => {
     expect((await logo()).status).toBe(502);
   });
 });
+
+describe("coming back from an MCP OAuth consent to where it started", () => {
+  function callbackWithReturn(returnTo: string | null) {
+    return new NextRequest(
+      "http://localhost:3000/api/me/mcp-connections/oauth/callback?code=abc&state=xyz",
+      returnTo === null
+        ? undefined
+        : { headers: { cookie: `mcp_oauth_return=${encodeURIComponent(returnTo)}` } },
+    );
+  }
+
+  it("returns to the page that remembered itself, keeping its own query", async () => {
+    // A chat that sent somebody to connect their Notion gets them back to the
+    // conversation, with the outcome beside the conversation's own `id`.
+    vi.mocked(backendFetch).mockResolvedValue({ ok: true, connection_name: "Notion", error: null });
+
+    const response = await callback(callbackWithReturn("/chat?id=conv-1"));
+
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/chat");
+    expect(location.searchParams.get("id")).toBe("conv-1");
+    expect(location.searchParams.get("mcp_oauth")).toBe("success");
+    // One consent, one return.
+    expect(response.headers.get("set-cookie")).toMatch(/mcp_oauth_return=;/);
+  });
+
+  it("ignores a return target that is not this app's own", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({ ok: true, connection_name: "Notion", error: null });
+
+    const response = await callback(callbackWithReturn("//evil.example/steal"));
+
+    expect(new URL(response.headers.get("location")!).pathname).toBe("/mcp-servers");
+  });
+});

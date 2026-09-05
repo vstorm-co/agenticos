@@ -23,6 +23,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from prefect import flow
 from prefect.deployments import run_deployment
@@ -31,6 +34,13 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import settings
 from app.core.logging import setup_logging
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.services.rag.vectorstore import PgVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +67,13 @@ _MAX_PATHS_PER_RUN = 500
 # safe (#1274).
 _SUBMIT_ATTEMPTS = 3
 _SUBMIT_BACKOFF_SECONDS = 2.0
+
+# A reservation older than this is treated as stuck. The normal cleanup releases a
+# name within seconds of the commit, and even a run exhausting the flow's three
+# 30-second retries clears in minutes; an hour is well past both, so a reservation
+# that outlives it lost its run to the commit-to-dispatch gap or to a drop that
+# fails for good - and its name is blocked with nothing left to reattempt it (#1364).
+_RESERVATION_MAX_AGE = timedelta(hours=1)
 
 
 async def dispatch_external_state_cleanup(storage_paths: list[str], collections: list[str]) -> None:
@@ -111,6 +128,52 @@ async def _submit_cleanup_run(storage_paths: list[str], collections: list[str]) 
             return
 
 
+@asynccontextmanager
+async def _vector_store() -> AsyncIterator[PgVectorStore]:
+    """A `PgVectorStore` on an engine built for one run and disposed after it.
+
+    A pooled connection made on one flow's event loop breaks on the next, so each run
+    that touches vector tables builds and disposes its own engine - the reason
+    `rag_tasks._ingestion_service` does too (#948).
+    """
+    from app.services.embedding_resolution import embeddings_for_collection
+    from app.services.rag.embeddings import EmbeddingService
+    from app.services.rag.vectorstore import PgVectorStore
+
+    rag_settings = settings.rag
+    engine = create_async_engine(settings.DATABASE_URL)
+    try:
+        yield PgVectorStore(
+            settings=rag_settings,
+            embedding_service=EmbeddingService(settings=rag_settings),
+            resolver=embeddings_for_collection,
+            engine=engine,
+        )
+    finally:
+        await engine.dispose()
+
+
+async def _drop_then_release(store: PgVectorStore, db: AsyncSession, collection: str) -> bool:
+    """Drop a reserved collection's vector table, then free its reservation.
+
+    Dropped first and released only then, so a claim never sees the name free while
+    its populated table still exists; a drop that fails leaves the reservation in
+    place for a retry rather than freeing a name whose table may still hold data
+    (#1362). `delete_collection` issues `DROP TABLE IF EXISTS`, so a retry that drops
+    a table already gone is a no-op. The caller holds the teardown lock across this,
+    serialising it against a claim's reservation check (#1355).
+    """
+    from app.repositories import collection_teardown_repo
+
+    try:
+        await store.delete_collection(collection)
+    except SQLAlchemyError as exc:
+        logger.warning("Failed to drop collection %s: %s", collection, exc)
+        return False
+    await collection_teardown_repo.release(db, collection)
+    return True
+
+
 async def cleanup_external_state(
     storage_paths: list[str], collections: list[str]
 ) -> dict[str, int]:
@@ -121,28 +184,20 @@ async def cleanup_external_state(
     committed-gone, so the paths and collection names it is handed are all that is
     left of them.
 
-    Idempotent, because the flow's retries must be safe: unlinking a file already
-    gone is a no-op, and `delete_collection` issues `DROP TABLE IF EXISTS`. The delete
-    path decided each name should be dropped and reserved it against reuse
-    (`collection_teardowns`, #1362), so a reserved name is dropped whatever now claims
-    it - the reservation blocked any legitimate claim. A name with no reservation is a
-    run queued by code from before #1362 (an upgrade replaying an old run under the
-    retained deployment name), and that one falls back to the reference check so it
-    does not drop a name reclaimed since. The table is dropped and only then is the
-    reservation released, so a claim never sees the name free while its populated table
-    still exists; a drop that fails leaves the reservation in place for a retry. The
-    advisory lock serialises the drop against a claim's reservation check (#1355). The
-    store rides an engine built for this one run and disposed on the way out, because a
-    pooled connection made on one flow's event loop breaks the next (the reason
-    `rag_tasks._ingestion_service` builds per-flow engines too, #948).
+    Idempotent, because the flow's retries must be safe: unlinking a file already gone
+    is a no-op, and the drop issues `DROP TABLE IF EXISTS`. The delete path decided
+    each name should be dropped and reserved it against reuse (`collection_teardowns`,
+    #1362), so a reserved name is dropped whatever now claims it - the reservation
+    blocked any legitimate claim. A name with no reservation is a run queued by code
+    from before #1362 (an upgrade replaying an old run under the retained deployment
+    name), and that one falls back to the reference check so it does not drop a name
+    reclaimed since. The drop, the ordered release and the lock live in
+    :func:`_drop_then_release`.
     """
     from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
     from app.repositories import collection_teardown_repo, knowledge_base_repo
-    from app.services.embedding_resolution import embeddings_for_collection
     from app.services.file_storage import get_file_storage
-    from app.services.rag.embeddings import EmbeddingService
-    from app.services.rag.vectorstore import PgVectorStore
 
     storage = get_file_storage()
     for storage_path in storage_paths:
@@ -156,44 +211,71 @@ async def cleanup_external_state(
 
     dropped = 0
     if collections:
-        rag_settings = settings.rag
-        engine = create_async_engine(settings.DATABASE_URL)
-        try:
-            store = PgVectorStore(
-                settings=rag_settings,
-                embedding_service=EmbeddingService(settings=rag_settings),
-                resolver=embeddings_for_collection,
-                engine=engine,
-            )
-            async with get_worker_db_context() as db:
-                for collection in collections:
-                    await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
-                    # A run this code reserved drops unconditionally; a legacy run from
-                    # before the reservation existed - an upgrade executing an old
-                    # queued run under the retained deployment name - has no row, so it
-                    # falls back to the reference check and does not drop a name that
-                    # was reclaimed since it was queued (#1362 review, #913).
-                    reserved = await collection_teardown_repo.is_reserved(db, collection)
-                    if not reserved and await knowledge_base_repo.list_by_collection_name(
-                        db, collection
-                    ):
-                        continue
-                    try:
-                        await store.delete_collection(collection)
-                    except SQLAlchemyError as exc:
-                        # The table may still hold data, so leave the name reserved for
-                        # a retry rather than freeing it now (#1362).
-                        logger.warning("Failed to drop collection %s: %s", collection, exc)
-                        continue
+        async with _vector_store() as store, get_worker_db_context() as db:
+            for collection in collections:
+                await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
+                # A run this code reserved drops unconditionally; a legacy run from
+                # before the reservation existed - an upgrade executing an old queued
+                # run under the retained deployment name - has no row, so it falls back
+                # to the reference check and does not drop a name that was reclaimed
+                # since it was queued (#1362 review, #913).
+                reserved = await collection_teardown_repo.is_reserved(db, collection)
+                if not reserved and await knowledge_base_repo.list_by_collection_name(
+                    db, collection
+                ):
+                    continue
+                if await _drop_then_release(store, db, collection):
                     dropped += 1
-                    await collection_teardown_repo.release(db, collection)
-        finally:
-            await engine.dispose()
 
     logger.info(
         "external_state_cleanup", extra={"unlinked": len(storage_paths), "dropped": dropped}
     )
     return {"unlinked": len(storage_paths), "dropped": dropped}
+
+
+async def sweep_teardown_reservations() -> dict[str, int]:
+    """Reattempt the drop for reservations whose durable cleanup never finished.
+
+    A reservation is committed with its delete and released the instant the drop runs,
+    so one older than `_RESERVATION_MAX_AGE` lost its cleanup run to the
+    commit-to-dispatch gap or to a drop that fails for good - and blocks its name with
+    nothing left to reattempt it (#1364). This is that reattempt: for each stale
+    reservation it takes the teardown lock, re-checks the name is still reserved (a
+    normal cleanup, or an earlier sweep, may have finished it since the scan), and
+    drops the table and releases the name. A name reclaimed since it was reserved
+    cannot reach here - `claim` refuses a reserved name and uploads to one are refused
+    (#1362, #1364) - so a lingering table under a reserved name is always that
+    teardown's, safe to drop.
+    """
+    from app.db.locks import LockScope, hold_name
+    from app.db.session import get_worker_db_context
+    from app.repositories import collection_teardown_repo
+
+    cutoff = datetime.now(UTC) - _RESERVATION_MAX_AGE
+    dropped = 0
+    async with get_worker_db_context() as db:
+        stale = await collection_teardown_repo.list_stale(db, older_than=cutoff)
+        if not stale:
+            return {"swept": 0, "dropped": 0}
+        async with _vector_store() as store:
+            for row in stale:
+                collection = row.collection_name
+                try:
+                    await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
+                    if not await collection_teardown_repo.is_reserved(db, collection):
+                        continue
+                    if await _drop_then_release(store, db, collection):
+                        dropped += 1
+                except Exception:
+                    # One bad tombstone must not disable the sweep. A legacy name
+                    # current validation rejects raises from `_table` (a
+                    # `BadRequestError`, not the `SQLAlchemyError` `_drop_then_release`
+                    # catches), so isolate every reservation and carry on - the row
+                    # stays reserved, blocking a name that is already unusable (#1364).
+                    logger.exception("teardown_reservation_sweep skipped %s", collection)
+    if dropped:
+        logger.warning("teardown_reservation_sweep dropped %d stuck reservation(s)", dropped)
+    return {"swept": len(stale), "dropped": dropped}
 
 
 # Flow name held at `org-purge-cleanup` deliberately - it is half the deployment
@@ -212,3 +294,15 @@ async def external_state_cleanup_flow(
     """
     setup_logging()
     return await cleanup_external_state(storage_paths, collections)
+
+
+@flow(name="teardown-reservation-sweep", log_prints=True)
+async def teardown_reservation_sweep_flow() -> dict[str, int]:
+    """Scheduled sweep: reattempt the drop for reservations whose cleanup was lost.
+
+    Thin over :func:`sweep_teardown_reservations` so it can be tested without a Prefect
+    runtime. No `retries`: the next hourly tick is the retry, and a reservation stuck
+    long enough to be swept is by definition not urgent (#1364).
+    """
+    setup_logging()
+    return await sweep_teardown_reservations()
