@@ -16,7 +16,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import ConcurrentChangeError
-from app.db.locks import LockScope
+from app.db.locks import LockScope, try_hold_name
 from app.services.organization import OrganizationService
 
 pytestmark = pytest.mark.anyio
@@ -144,3 +144,33 @@ class TestWithNoVectorStoreWired:
         mocks["hold_name"].assert_not_awaited()
         mocks["try_hold_name"].assert_not_awaited()
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
+
+
+class TestTakingTheLockWithoutWaiting:
+    """`try_hold_name` is the half of `hold_name` a caller reaches for when it
+    already holds the lock the other side takes second."""
+
+    @staticmethod
+    def _db(taken: bool) -> MagicMock:
+        db = MagicMock()
+        db.execute = AsyncMock(return_value=MagicMock(scalar_one=MagicMock(return_value=taken)))
+        return db
+
+    async def test_it_answers_that_it_took_a_free_lock(self):
+        db = self._db(taken=True)
+
+        assert await try_hold_name(db, LockScope.COLLECTION_TEARDOWN, "handbook") is True
+
+    async def test_it_answers_no_for_one_somebody_holds(self):
+        db = self._db(taken=False)
+
+        assert await try_hold_name(db, LockScope.COLLECTION_TEARDOWN, "handbook") is False
+
+    async def test_it_asks_postgres_for_the_variant_that_does_not_block(self):
+        """The whole point: `pg_advisory_xact_lock` here would be the deadlock
+        this function exists to avoid, and the two read almost the same."""
+        db = self._db(taken=True)
+
+        await try_hold_name(db, LockScope.COLLECTION_TEARDOWN, "handbook")
+
+        assert "pg_try_advisory_xact_lock" in str(db.execute.await_args.args[0])
