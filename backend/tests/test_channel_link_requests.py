@@ -356,6 +356,16 @@ class TestWhoIsAskedToLinkAtAll:
 
         assert identity.user_id is None
 
+    def test_jwt_linked_with_both_switches_is_refused_at_the_admission_gate(self):
+        """The refusal `_resolve_identity` used to carry was reachable only with
+        both switches set. Removing it must not have been the only barrier for
+        that combination: the admission gate refuses it too, in a room and in a
+        direct message, so the invite path is what answers and nothing runs."""
+        bot = self._bot(mode="jwt_linked", require_link=True)
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is False
+
 
 class TestASlashAPlatformAte:
     """Mattermost parses a leading `/` itself.
