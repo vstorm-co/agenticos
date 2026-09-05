@@ -28,8 +28,8 @@ Nothing is backfilled. Every row already in `sessions` is somebody's own
 sign-in, and a token minted before this revision carries no `sid`, so it is
 refused from the first request after the upgrade - which is the point.
 
-Revision ID: 0071_impersonation_sessions
-Revises: 0070_mcp_registry_servers
+Revision ID: 0072_impersonation_sessions
+Revises: 0071_mcp_connection_catalog_key
 Create Date: 2026-09-05
 """
 
@@ -40,8 +40,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0071_impersonation_sessions"
-down_revision: str | None = "0070_mcp_registry_servers"
+revision: str = "0072_impersonation_sessions"
+down_revision: str | None = "0071_mcp_connection_catalog_key"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
