@@ -20,8 +20,8 @@ default is dropped, so the application sets `origin` on every write (`agent` fro
 the runtime `remember`, `operator` from `create_fact`), matching the model, which
 mirrors `agent_memory_files`.
 
-Revision ID: 0074_agent_memory_fact_origin
-Revises: 0073_agent_memory_facts
+Revision ID: 0075_agent_memory_fact_origin
+Revises: 0074_agent_memory_facts
 Create Date: 2026-09-03
 
 """
@@ -32,8 +32,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0074_agent_memory_fact_origin"
-down_revision: str | None = "0073_agent_memory_facts"
+revision: str = "0075_agent_memory_fact_origin"
+down_revision: str | None = "0074_agent_memory_facts"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
