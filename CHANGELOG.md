@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.362] - 2026-09-05
+
+### Fixed
+
+- **A collection teardown and a claim could deadlock each other.** Every path
+  that drops a collection takes its teardown lock before any row lock now, so a
+  claim - which takes the teardown lock and then the organization FK - cannot
+  cross a teardown into an ABBA deadlock.
+- **A purge could drop a collection without reserving its name, and another
+  organization could then inherit its vectors.** The purge locks the names its
+  snapshot saw, taken before the organization row is; one created between that
+  snapshot and the row lock is found only by the authoritative scan, and was
+  dropped unreserved - so a claim in the commit-to-drop window adopted the name,
+  and the deferred cleanup, finding the table newly referenced, preserved it with
+  the deleted organization's rows still in it. That lock is taken without waiting
+  now: free, and the name reserves like any other; held by a claim already in
+  flight, and the purge refuses rather than dropping unreserved.
+
 ## [0.0.361] - 2026-09-05
 
 ### Fixed
