@@ -328,6 +328,34 @@ class TestWhoIsAskedToLinkAtAll:
 
         assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is True
 
+    def test_jwt_linked_mode_requires_a_link_even_without_require_link(self):
+        """A mode named for a linked account is a request for one. It used to
+        decide nothing on its own - `mode="jwt_linked", require_link=False` admitted
+        a room exactly as `open` did, a gate that read as applied and was inert."""
+        bot = self._bot(mode="jwt_linked")
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is False
+
+    def test_jwt_linked_is_read_from_a_policy_stored_as_a_string(self):
+        bot = MagicMock(access_policy='{"mode":"jwt_linked","require_link":false}')
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+
+    async def test_identity_resolution_no_longer_refuses_on_its_own(self):
+        """The refusal belonged in one place. A second one here, reached only when
+        both switches were set, answered a bare sentence where the invite path
+        answers with the link in a direct message."""
+        with patch(
+            "app.services.channels.router.channel_identity_repo.get_or_create",
+            new=AsyncMock(return_value=MagicMock(user_id=None)),
+        ):
+            identity = await ChannelMessageRouter()._resolve_identity(
+                _incoming(), self._bot(mode="jwt_linked", require_link=True), MagicMock()
+            )
+
+        assert identity.user_id is None
+
 
 class TestASlashAPlatformAte:
     """Mattermost parses a leading `/` itself.
