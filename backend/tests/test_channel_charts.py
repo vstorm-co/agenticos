@@ -227,7 +227,7 @@ class TestTheReplyAChannelTurnBuilds:
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             exposures.get_for_bot = AsyncMock(return_value=MagicMock(is_active=True))
             runner_cls.return_value.execute = _runner_that_draws()
@@ -254,7 +254,7 @@ class TestTheReplyAChannelTurnBuilds:
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             exposures.list_active_for_bot = AsyncMock(
                 return_value=[(MagicMock(), MagicMock(id=uuid.uuid4(), slug="support"))]
             )

@@ -17,6 +17,48 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.359] - 2026-09-05
+
+### Changed
+
+- **Impersonation is a session an administrator can end, not a token on the
+  clipboard.** It was a bare one-hour bearer token, copied to the operating
+  system clipboard, that nothing could revoke. It is started from the console
+  with no token exposed, shown in a banner while it lasts, and ended by the
+  administrator, by the person's own sign-out-everywhere or password reset, by
+  the hour, or by the administrator's account being deleted - whichever comes
+  first. `sessions.impersonator_user_id` marks the row and the token carries
+  `sid` beside `act`, so every request binds the token to its row and refuses it
+  once the row is gone, deactivated, expired, held by another administrator or
+  for another account. A deployment can tell the impersonated person it
+  happened (`notify_impersonated_users`).
+
+## [0.0.358] - 2026-09-05
+
+### Fixed
+
+- **A member deactivated in the console kept answering through a channel.**
+  Their chat account is still linked and the bot still routes to it, so the turn
+  ran under a person the organization had switched off, with their role, their
+  grants and their budget. The channel path now asks for a membership that can
+  sign in - the same question `access.publisher_context` already asks of a
+  binding's creator, so the two answers cannot drift.
+
+## [0.0.357] - 2026-09-05
+
+### Fixed
+
+- **A teardown reservation nobody released blocked a collection name for
+  ever.** The reservation is committed with the delete and released when the
+  durable drop runs; a drop lost to a crash in the commit-to-dispatch gap, or
+  failing past the flow's retries, left the row behind and `claim` refused that
+  name from then on, with nothing to reattempt it. An hourly
+  `teardown-reservation-sweep` retries the drop for any reservation older than
+  its window, the way the other reap-sweeps do.
+- **An upload could repopulate a collection on its way out.** `dispatch_upload`
+  refuses a name under teardown, which `claim` already did.
+- **An organization whose default collection was dropped kept pointing at it.**
+
 ## [0.0.356] - 2026-09-05
 
 ### Changed

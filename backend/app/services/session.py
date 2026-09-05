@@ -13,7 +13,8 @@ from app.repositories import session_repo
 from app.schemas.session import SessionListResponse, SessionRead
 
 
-def _hash_token(token: str) -> str:
+def hash_token(token: str) -> str:
+    """The fingerprint a session row holds for its credential; never the credential."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -61,7 +62,7 @@ class SessionService:
         return await session_repo.create(
             self.db,
             user_id=user_id,
-            refresh_token_hash=_hash_token(refresh_token),
+            refresh_token_hash=hash_token(refresh_token),
             expires_at=expires_at,
             device_name=device_name,
             device_type=device_type,
@@ -76,14 +77,60 @@ class SessionService:
         return await session_repo.count_user_sessions(self.db, user_id, open_only=True, now=now)
 
     async def validate_refresh_token(self, refresh_token: str) -> Session | None:
-        token_hash = _hash_token(refresh_token)
+        """The session a refresh token belongs to, or None for one that cannot refresh.
+
+        An impersonation row is found by the hash of its *access* token, and a
+        refresh minted from it would be a plain token as the target - no `act`,
+        no `sid`, a fresh week-long session - which launders the administrator
+        out of every request that follows and makes the impersonation unendable
+        again (#1044). So an impersonation is not a refresh token, whoever holds
+        it: its window is the access token's own, and nothing extends it.
+        """
+        token_hash = hash_token(refresh_token)
         session = await session_repo.get_by_refresh_token_hash(self.db, token_hash)
 
-        if session and session.expires_at > datetime.now(UTC):
+        if (
+            session
+            and session.impersonator_user_id is None
+            and session.expires_at > datetime.now(UTC)
+        ):
             await session_repo.update_last_used(self.db, session.id)
             return session
 
         return None
+
+    async def open_impersonation(
+        self,
+        *,
+        session_id: UUID,
+        target_id: UUID,
+        impersonator_id: UUID,
+        access_token: str,
+        expires_at: datetime,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> Session:
+        """The row an administrator's access to somebody else's account is.
+
+        Its id is the caller's, because the token that names it in `sid` has to be
+        minted before the row exists and the row has to hold that token's hash:
+        one of the two is decided first, and an id is the cheaper one to decide.
+        The device columns are the administrator's browser, which is where the
+        session actually is.
+        """
+        device_name, device_type = _parse_user_agent(user_agent)
+        return await session_repo.create(
+            self.db,
+            session_id=session_id,
+            user_id=target_id,
+            refresh_token_hash=hash_token(access_token),
+            expires_at=expires_at,
+            device_name=device_name,
+            device_type=device_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            impersonator_user_id=impersonator_id,
+        )
 
     async def logout_session(self, session_id: UUID, user_id: UUID) -> Session:
         session = await session_repo.get_by_id(self.db, session_id)
@@ -97,7 +144,7 @@ class SessionService:
         return await session_repo.deactivate_all_user_sessions(self.db, user_id)
 
     async def logout_by_refresh_token(self, refresh_token: str) -> Session | None:
-        token_hash = _hash_token(refresh_token)
+        token_hash = hash_token(refresh_token)
         return await session_repo.deactivate_by_refresh_token_hash(self.db, token_hash)
 
     async def list_sessions(

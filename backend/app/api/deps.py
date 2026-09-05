@@ -14,7 +14,7 @@ is why every write in this API used to be acknowledged before it was durable
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends
 from fastapi import Header
@@ -83,6 +83,7 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 
 from app.services.user import UserService
 from app.services.session import SessionService
+from app.services.impersonation import ImpersonationService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.sandbox_connection import SandboxConnectionService
@@ -100,6 +101,11 @@ def get_session_service(db: DBSession) -> SessionService:
     return SessionService(db)
 
 
+def get_impersonation_service(db: DBSession) -> ImpersonationService:
+    """Create ImpersonationService instance with database session."""
+    return ImpersonationService(db)
+
+
 def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
     """Create OAuthExchangeService instance with the Redis client."""
     return OAuthExchangeService(redis)
@@ -107,6 +113,7 @@ def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
 
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
+ImpersonationSvc = Annotated[ImpersonationService, Depends(get_impersonation_service)]
 OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
 
 
@@ -273,40 +280,27 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
-from app.core.audit import set_impersonator
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 
-def _impersonator_from(payload: dict[str, Any]) -> UUID | None:
-    """The administrator behind an impersonated token, or None for an ordinary one.
-
-    An `act` claim that is not a valid uuid is dropped rather than trusted: a
-    malformed actor is no actor, and the request is still attributable to its
-    subject. Set on the audit context so every action the request records names
-    who was really acting (#943).
-    """
-    act = payload.get("act")
-    if not act:
-        return None
-    try:
-        return UUID(str(act))
-    except ValueError:
-        return None
-
-
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     user_service: UserSvc,
+    impersonation: ImpersonationSvc,
 ) -> User:
     """Get current authenticated user from JWT token.
 
-    Returns the full User object including role information.
+    An impersonated token - one carrying `act` - is bound to the session row it
+    names before the subject is loaded, so an impersonation that has been ended
+    is refused here rather than served for the rest of its hour (#1044). The
+    check also puts who is really acting on the request's audit context (#943).
 
     Raises:
-        AuthenticationError: If token is invalid or user not found.
+        AuthenticationError: If token is invalid, its impersonation has ended, or
+            the user is not found.
     """
 
     payload = verify_token(token)
@@ -320,7 +314,7 @@ async def get_current_user(
     if user_id is None:
         raise AuthenticationError(message="Invalid token payload")
 
-    set_impersonator(_impersonator_from(payload))
+    await impersonation.verify(payload=payload, token=token, subject=user_id)
 
     user = await user_service.get_by_id(UUID(user_id))
     if not user.is_active:
@@ -816,9 +810,13 @@ async def get_current_user_ws(
     if user_id is None:
         raise WebSocketException(code=4001, reason="Invalid token payload")
 
-    set_impersonator(_impersonator_from(payload))
-
     async with get_db_context() as db:
+        try:
+            await ImpersonationService(db).verify(
+                payload=payload, token=auth_token, subject=user_id
+            )
+        except AuthenticationError as exc:
+            raise WebSocketException(code=4001, reason=exc.message) from None
         user_service = UserService(db)
         try:
             user = await user_service.get_by_id(UUID(user_id))

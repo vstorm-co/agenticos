@@ -809,6 +809,12 @@ Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
 binding, and only in a channel. A direct message asks for the account first.
 
+A linked account whose member has left the organization, or whose account has
+been deactivated, is treated as unlinked: refused in a direct message, run under
+the binding in a channel. Offboarding clears neither the membership row nor the
+chat account's link, so the role is read only off a membership that can still
+sign in.
+
 ### One conversation per thread
 
 **The unit is the thread, and that now includes a direct message.** Send the bot
@@ -1129,7 +1135,10 @@ it is about to wait.
     Linking still matters in a channel, and it is worth doing: a linked sender
     runs as *themselves* rather than under the binding, and linking later makes
     their earlier channel turns attributable to them — the run points at the chat
-    account, and the chat account gains a person.
+    account, and the chat account gains a person. Only while that person is a
+    member who can sign in: a linked sender who has left, or whose account was
+    deactivated, is admitted the way a stranger is — under the binding in a
+    channel, refused in a direct message.
 
     It is also what lets an agent reach *their* tools. A binding to
     [each person's own account](mcp.md#whose-account-a-binding-speaks-through)

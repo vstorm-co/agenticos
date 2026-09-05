@@ -414,6 +414,13 @@ their account has been deactivated, so neither can silently widen what a public
 surface reaches. The subject is therefore a real one, and it is not the person who
 typed the message.
 
+A channel sender who *has* linked a member account runs as that member — and the
+same joined read decides whether they still are one. Deactivation leaves both the
+membership row and the chat account's link in place, so a role read off the
+membership alone kept an offboarded Owner running turns from Slack at Owner. A
+deactivated or departed sender is treated as unlinked instead: refused in a direct
+message, run under the binding in a room.
+
 `AuthContext.channel_identity_id` is who typed it, when that is a chat account
 rather than a member. It carries no authority - no permission reads it - and
 exists so a channel turn is attributable: it is stamped on `agent_runs`, and

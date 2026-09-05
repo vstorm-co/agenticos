@@ -23,6 +23,7 @@ class EmailKey(enum.StrEnum):
     APPROVAL_REQUESTED = "approval_requested"
     APPROVAL_PENDING = "approval_pending"
     USAGE_REPORT = "usage_report"
+    IMPERSONATION_NOTICE = "impersonation_notice"
 
 
 class EmailCategory(enum.StrEnum):
@@ -45,6 +46,10 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
     EmailKey.APPROVAL_REQUESTED: EmailCategory.LIFECYCLE,
     EmailKey.APPROVAL_PENDING: EmailCategory.LIFECYCLE,
     EmailKey.USAGE_REPORT: EmailCategory.LIFECYCLE,
+    # Transactional, not lifecycle: whether it is sent at all is the deployment's
+    # `notify_impersonated_users` policy, not a preference of the recipient - a
+    # person cannot opt out of being told an administrator acted as them.
+    EmailKey.IMPERSONATION_NOTICE: EmailCategory.TRANSACTIONAL,
 }
 
 

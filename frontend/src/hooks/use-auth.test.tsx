@@ -486,6 +486,72 @@ describe("refreshing the token by hand", () => {
   });
 });
 
+describe("a read the identity changed underneath", () => {
+  it("discards a poll read that a re-authentication overtook", async () => {
+    // The shared ten-minute read is in flight when the cookies are swapped for
+    // somebody else's - an impersonation starting. Landing last, it would put the
+    // administrator and their token back in the store while every request runs
+    // as the other account (#1044).
+    vi.useFakeTimers();
+    vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-admin" });
+    renderHook(() => useAuth(), { wrapper });
+    await vi.waitFor(() => expect(useAuthStore.getState().accessToken).toBe("t-admin"));
+
+    let releasePoll: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releasePoll = resolve;
+        }),
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      await Promise.resolve();
+    });
+
+    vi.mocked(apiClient.get).mockResolvedValue({
+      ...user({ id: "u-2", email: "customer@example.com" }),
+      access_token: "t-target",
+    });
+    const { result } = renderHook(() => useReauthenticate(), { wrapper });
+    await act(() => result.current());
+    expect(useAuthStore.getState().user?.id).toBe("u-2");
+
+    await act(async () => {
+      releasePoll({ ...user(), access_token: "t-admin" });
+      await Promise.resolve();
+    });
+
+    expect(useAuthStore.getState().user?.id).toBe("u-2");
+    expect(useAuthStore.getState().accessToken).toBe("t-target");
+  });
+
+  it("discards a re-read that a later one overtook", async () => {
+    const { result } = renderHook(() => useReauthenticate(), { wrapper });
+    let releaseFirst: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseFirst = resolve;
+        }),
+    );
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current();
+    });
+
+    vi.mocked(apiClient.get).mockResolvedValue({ ...user({ id: "u-2" }), access_token: "t-2" });
+    await act(() => result.current());
+    await act(async () => {
+      releaseFirst({ ...user({ id: "u-1" }), access_token: "t-1" });
+      await first;
+    });
+
+    expect(useAuthStore.getState().user?.id).toBe("u-2");
+    expect(useAuthStore.getState().accessToken).toBe("t-2");
+  });
+});
+
 describe("keeping the in-memory token fresh", () => {
   it("re-reads the token ahead of expiry, on one shared timer", async () => {
     // Access tokens last 15 minutes and the websocket authenticates with the
