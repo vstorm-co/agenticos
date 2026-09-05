@@ -473,6 +473,17 @@ running this organization's text through their credential
 therefore resolves each organization's own configuration, falling back to an
 app-scoped collection but never to a third tenant's.
 
+!!! warning "One collection name is one embedding space"
+
+    Resolving per organization is only safe because every row on one collection
+    name agrees on how it embeds. A knowledge base created against a name that
+    already exists **adopts** that collection's model, width, provider and vault
+    key, and an explicit choice that disagrees is refused rather than quietly
+    overridden. Without that, one physical table could hold two embedding
+    spaces: pgvector refuses the comparison outright where the widths differ,
+    and where they happen to match it ranks one model's vectors against
+    another's and answers with plausible nonsense.
+
 The provider used to be hardcoded: every request went to `openrouter.ai`,
 so an organization holding an OpenAI key could not use it, a
 key moved to another account meant recreating the collection and re-ingesting
