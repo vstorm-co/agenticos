@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.367] - 2026-09-05
+
+### Fixed
+
+- **A collection name shared by two organizations resolved the wrong tenant's
+  embedding configuration.** `knowledge_bases.collection_name` is indexed but not
+  unique, and resolution by name alone answered with whichever row the database
+  ordered first - so an embedding call for one organization could read another's
+  model and unseal *their* vault key, billing them and running this
+  organization's text through their credential. Resolution is now scoped to the
+  organization the embedding is for, falling back to an app-scoped collection
+  but never to a third tenant's.
+- **One collection name is one embedding space, and nothing used to enforce it.**
+  A name is one physical vector table, so several knowledge bases can index into
+  the same vectors - at different widths, where pgvector then refuses the
+  comparison outright, or at the same width with different models, where it ranks
+  one embedding space against another and answers with plausible nonsense. The
+  credential had the same shape of problem: whichever sibling was read is the key
+  that got billed. A row created against a name that already exists now adopts
+  that collection's model, width, provider and vault key, and a caller who named
+  a different one is refused rather than silently overridden.
+
 ## [0.0.366] - 2026-09-05
 
 ### Fixed
