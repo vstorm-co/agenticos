@@ -84,9 +84,15 @@ Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`.
 
 ## Where charts come from
 
-Rendering a chart for a channel is the `charts` capability's job
-(`app/agents/capabilities/charts/`), not a channel module. There is no
-`chart_render.py` in `services/channels/` any more.
+Two halves, and the split is the point. The `charts` capability
+(`app/agents/capabilities/charts/`) owns the **spec**: `create_chart` returns a
+`ChartSpec`, which the web chat renders with Recharts and a replay draws again.
+A chat platform can render neither, so `services/channels/chart_png.py` owns the
+**channel raster**: `mentions.drawn_chart` takes the turn's last chart call and
+`render_chart_png` rasterises it to a PNG the adapter attaches. `RENDERERS` there
+is one entry per `ChartType`, held equal to the capability's list by
+`tests/test_channel_charts.py` — a new type is added in both places or fails
+there. There is no `chart_render.py`; the file is `chart_png.py`.
 
 ## Coverage
 
