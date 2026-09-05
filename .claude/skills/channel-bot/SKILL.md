@@ -62,7 +62,9 @@ uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
 
 There is no `cmd channel` group — the commands are flat, hyphenated names.
 
-Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`.
+Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`. `jwt_linked` refuses
+an unlinked chat account everywhere on its own; `require_link` is the switch that
+makes the *other* modes refuse in a channel too (#639).
 
 ## Webhook vs polling
 

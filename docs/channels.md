@@ -1097,7 +1097,9 @@ it is about to wait.
     failure — no credential, a recording over the endpoint's limit, a refusal, a
     timeout — is reported on the reply and the turn goes ahead without it.
 
-- **Access policy per bot** — open, whitelist, or "must be linked to a member".
+- **Access policy per bot** — open, whitelist, group-only, or `jwt_linked`: "must
+  be linked to a member", in a channel as much as in a direct message, with no
+  second setting to flip.
 - **A credential can be added or replaced after registration.** The pencil on a
   bot's row opens it: rename it, paste a rotated token, or supply the credential
   that was not in hand when it was registered — which is the ordinary case on
@@ -1130,7 +1132,9 @@ it is about to wait.
     chat account, the access policy, and the organization's monthly cap.
 
     Set **`require_link`** on the bot's access policy to refuse in channels too,
-    which is the old behaviour.
+    which is the old behaviour. The **`jwt_linked`** mode refuses on its own: a
+    mode named for a linked account asks for one, and it used to decide nothing
+    unless `require_link` was also set.
 
     Linking still matters in a channel, and it is worth doing: a linked sender
     runs as *themselves* rather than under the binding, and linking later makes
