@@ -9,6 +9,7 @@ for a chart on a channel answered "here is the chart" with no chart, which is th
 worst shape a bug can take: the sentence is confident and the evidence is absent.
 """
 
+import threading
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -272,3 +273,49 @@ class TestTheReplyAChannelTurnBuilds:
         assert answered.image_png.startswith(b"\x89PNG")
         assert [a.filename for a in answered.attachments] == ["revenue.csv"]
         assert answered.refused == ["/too-big.csv"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("path", ["answer", "answer_default"])
+    async def test_a_channel_chart_is_rendered_off_the_event_loop(
+        self, path: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Pillow rasterises and PNG-encodes the picture, and a channel turn runs
+        on the loop every poller and webhook task on the worker shares - so a
+        chart drawn inline stalled every other channel turn for its duration.
+        Asserted the way the upload offload is: the render lands on a thread
+        other than the loop's, which fails if the `to_thread` is removed."""
+        loop_thread = threading.get_ident()
+        ran_on: list[int] = []
+
+        def recording(spec: ChartSpec) -> bytes:
+            ran_on.append(threading.get_ident())
+            return render_chart_png(spec)
+
+        monkeypatch.setattr("app.services.channels.mentions.render_chart_png", recording)
+        membership = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = membership
+            members.get_active = membership
+            agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            exposures.get_for_bot = AsyncMock(return_value=MagicMock(is_active=True))
+            exposures.list_active_for_bot = AsyncMock(
+                return_value=[(MagicMock(), MagicMock(id=uuid.uuid4(), slug="support"))]
+            )
+            runner_cls.return_value.execute = _runner_that_draws()
+
+            answered = await getattr(ChannelAgentRouter(MagicMock()), path)(
+                "@support chart my revenue" if path == "answer" else "chart my revenue",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+            )
+
+        assert answered.image_png is not None
+        assert ran_on and ran_on[0] != loop_thread

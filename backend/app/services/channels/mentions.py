@@ -38,6 +38,7 @@ handle typed into a public channel is a name, not a key.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
@@ -97,6 +98,10 @@ def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
     a reply carries one image. A result that no longer parses is skipped rather
     than raised on: the payload is whatever the tool returned, and a chart that
     cannot be drawn must not cost somebody the answer it came with.
+
+    Blocking: Pillow rasterises and PNG-encodes here, and a channel turn runs on
+    the loop the pollers and the other webhook tasks share - so the callers reach
+    it through `asyncio.to_thread`, never inline.
     """
     for call in reversed(called):
         if call.tool_name != _CHART_TOOL or call.result is None:
@@ -370,7 +375,7 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
-            image_png=drawn_chart(called),
+            image_png=await asyncio.to_thread(drawn_chart, called),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
@@ -468,7 +473,7 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
-            image_png=drawn_chart(called),
+            image_png=await asyncio.to_thread(drawn_chart, called),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
