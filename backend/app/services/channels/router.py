@@ -7,7 +7,8 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +23,7 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
 )
+from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
@@ -45,6 +47,7 @@ from app.services.channels.mentions import (
     parse_mention,
 )
 from app.services.conversation import ConversationService
+from app.services.rate_limit import Limit
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
@@ -57,15 +60,87 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# key format: "{bot_id}:{identity_id}", value = (count, window_start_ts)
-_rate_buckets: dict[str, tuple[int, float]] = {}
-
 _DEFAULT_RPM = 10
 
-# In group chats multiple users can message simultaneously. Without a lock the router
-# would race: duplicate ChannelSession creation, interleaved agent calls, rate-limit races.
-# Key = (bot_id, platform_chat_id); 1-on-1 chats also acquire it but contention is negligible.
-_chat_locks: dict[str, asyncio.Lock] = {}
+
+class _ChatLocks:
+    """One lock per chat with a message in flight, and none for the rest.
+
+    In a group chat several people message at once, and without the lock the
+    router races: a duplicate `ChannelSession`, interleaved agent calls. The lock
+    is keyed on the bot and the chat the message arrived in - on Slack that is
+    the thread, and a top-level message opens a thread of its own, so a busy
+    workspace mints a new key with nearly every message. An entry lives only
+    while somebody holds or waits for it and is dropped by the last one out, so
+    the map is the size of the chats in flight rather than of every chat this
+    process has ever heard from.
+
+    Per process on purpose: what it serialises is the turns *this* worker runs
+    in one chat. Once-only delivery across workers is the dedupe claim's job,
+    and the rate limit counts in the shared Redis - neither is a job for a lock.
+    """
+
+    def __init__(self) -> None:
+        self._held: dict[str, tuple[asyncio.Lock, int]] = {}
+
+    def __len__(self) -> int:
+        return len(self._held)
+
+    @asynccontextmanager
+    async def hold(self, bot_id: str, chat_id: str) -> AsyncIterator[None]:
+        key = f"{bot_id}:{chat_id}"
+        lock, waiting = self._held.get(key) or (asyncio.Lock(), 0)
+        self._held[key] = (lock, waiting + 1)
+        try:
+            async with lock:
+                yield
+        finally:
+            lock, waiting = self._held[key]
+            if waiting == 1:
+                del self._held[key]
+            else:
+                self._held[key] = (lock, waiting - 1)
+
+
+_chat_locks = _ChatLocks()
+
+
+class _LocalWindows:
+    """A per-process fixed window, for the turns the shared limiter could not count.
+
+    `rate_limit.consume` is the limit that holds across workers, and it fails
+    open when Redis is down or nobody configured one. For a public widget that
+    is the documented trade; for a channel bot the per-sender `rate_limit_rpm`
+    is a production control (`SECURITY.md`), and a limiter that vanishes for
+    the length of a Redis outage lets a permitted participant run the model as
+    fast as they can type until it recovers. So this stands in for exactly that
+    stretch: wrong by the worker count, which is the defect the shared limiter
+    exists to fix, and still a floor where there would have been none.
+
+    Bounded: every write drops the windows that have expired, so the map is the
+    size of the callers seen in the last minute, not of every caller since the
+    process started - which is what the dict this replaces did.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._windows: dict[str, tuple[int, float]] = {}
+        self._clock = clock
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
+        now = self._clock()
+        for key in [
+            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
+        ]:
+            del self._windows[key]
+        count, opened = self._windows.get(caller, (0, now))
+        self._windows[caller] = (count + 1, opened)
+        return count < attempts
+
+
+_fallback_windows = _LocalWindows()
 
 
 _SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
@@ -122,14 +197,6 @@ turns we already hold, paid for once; this is an HTTP round trip to somebody's
 chat platform before an answer can start. Fifty is a thread worth joining and a
 transcript still short enough to be a prompt.
 """
-
-
-def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
-    """Return (or create) the asyncio.Lock for a bot + chat pair."""
-    key = f"{bot_id}:{chat_id}"
-    if key not in _chat_locks:
-        _chat_locks[key] = asyncio.Lock()
-    return _chat_locks[key]
 
 
 def _needs_approval(run_id: Any) -> str:
@@ -206,9 +273,8 @@ class ChannelMessageRouter:
                 incoming.message_id,
             )
             return
-        lock = _get_chat_lock(incoming.bot_id, incoming.platform_chat_id)
         try:
-            async with lock:
+            async with _chat_locks.hold(incoming.bot_id, incoming.platform_chat_id):
                 await self._route_inner(incoming, db)
         except BaseException:
             await release_delivery(incoming)
@@ -276,7 +342,7 @@ class ChannelMessageRouter:
         session = await self._resolve_session(incoming, bot, identity, db)
 
         try:
-            self._check_rate_limit(bot, str(identity.id))
+            await self._check_rate_limit(bot, str(identity.id))
         except BadRequestError as exc:
             await self._send_reply(bot, incoming, exc.message)
             return
@@ -1054,32 +1120,37 @@ class ChannelMessageRouter:
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
 
-    def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
-        """In-memory token-bucket rate limiter.
+    async def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
+        """Count this message against the chat account's allowance on this bot.
 
-        Uses a module-level dict. Default: 10 req/minute from
-        `bot.access_policy.rate_limit_rpm`.
+        Ten a minute unless `bot.access_policy.rate_limit_rpm` says otherwise.
+        Counted in the deployment's shared Redis through `rate_limit.consume`,
+        for the reason that module gives: production runs several API workers,
+        and a count kept in this process lets through the allowance once per
+        worker while reading as the number that was configured. The window's
+        expiry is also what bounds the keyspace - a per-process dict kept an
+        entry for every chat account the process had ever heard from.
+
+        When that limiter could not count - Redis down, or none configured - the
+        turn is counted in `_fallback_windows` instead, so a permitted sender is
+        still held to the allowance on this worker for as long as the outage
+        lasts. Fail-open here would remove a production control for the length
+        of a cache blip.
 
         Raises:
             BadRequestError: If the rate limit is exceeded.
         """
         policy: dict[str, Any] = self._parse_policy(bot)
-        rpm: int = int(policy.get("rate_limit_rpm", _DEFAULT_RPM))
-        window: float = 60.0
-
-        key = f"{bot.id}:{identity_id}"
-        now = time.monotonic()
-
-        if key in _rate_buckets:
-            count, window_start = _rate_buckets[key]
-            if now - window_start < window:
-                if count >= rpm:
-                    raise BadRequestError(message="Rate limit exceeded. Please slow down.")
-                _rate_buckets[key] = (count + 1, window_start)
-            else:
-                _rate_buckets[key] = (1, now)
-        else:
-            _rate_buckets[key] = (1, now)
+        limit = Limit(attempts=int(policy.get("rate_limit_rpm", _DEFAULT_RPM)))
+        caller = f"bot:{bot.id}:identity:{identity_id}"
+        decision = await rate_limit.consume(surface="channel", caller=caller, limit=limit)
+        allowed = decision.allowed
+        if not decision.metered:
+            allowed = _fallback_windows.consume(
+                caller, attempts=limit.attempts, window_seconds=limit.window_seconds
+            )
+        if not allowed:
+            raise BadRequestError(message="Rate limit exceeded. Please slow down.")
 
     async def _open_reply(
         self, bot: ChannelBot, incoming: IncomingMessage
