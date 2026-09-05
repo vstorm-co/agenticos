@@ -328,6 +328,94 @@ class TestWhoIsAskedToLinkAtAll:
 
         assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is True
 
+    def test_jwt_linked_mode_requires_a_link_even_without_require_link(self):
+        """A mode named for a linked account is a request for one. It used to
+        decide nothing on its own - `mode="jwt_linked", require_link=False` admitted
+        a room exactly as `open` did, a gate that read as applied and was inert."""
+        bot = self._bot(mode="jwt_linked")
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is False
+
+    def test_jwt_linked_is_read_from_a_policy_stored_as_a_string(self):
+        bot = MagicMock(access_policy='{"mode":"jwt_linked","require_link":false}')
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+
+    async def test_identity_resolution_no_longer_refuses_on_its_own(self):
+        """The refusal belonged in one place. A second one here, reached only when
+        both switches were set, answered a bare sentence where the invite path
+        answers with the link in a direct message."""
+        with patch(
+            "app.services.channels.router.channel_identity_repo.get_or_create",
+            new=AsyncMock(return_value=MagicMock(user_id=None)),
+        ):
+            identity = await ChannelMessageRouter()._resolve_identity(
+                _incoming(), self._bot(mode="jwt_linked", require_link=True), MagicMock()
+            )
+
+        assert identity.user_id is None
+
+    def test_jwt_linked_with_both_switches_is_refused_at_the_admission_gate(self):
+        """The refusal `_resolve_identity` used to carry was reachable only with
+        both switches set. Removing it must not have been the only barrier for
+        that combination: the admission gate refuses it too, in a room and in a
+        direct message, so the invite path is what answers and nothing runs."""
+        bot = self._bot(mode="jwt_linked", require_link=True)
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), bot) is False
+
+
+class TestWhereTheInvitationIsPosted:
+    """A room message that names a colleague passes the overheard gate on its
+    handle - `@ada` is a handle as far as the pattern knows - and the bot must
+    keep the link invitation to itself there. Sent unconditionally, a
+    `jwt_linked` bot interrupted two people talking to each other with "send me
+    a direct message". The invitation takes the same addressed-only rule every
+    other refusal takes."""
+
+    @staticmethod
+    def _incoming(*, addressed: bool | None) -> IncomingMessage:
+        message = _incoming("group")
+        message.text = "@ada could you look at this?"
+        message.addressed = addressed
+        return message
+
+    async def _routed(self, incoming: IncomingMessage) -> AsyncMock:
+        router = ChannelMessageRouter()
+        bot = MagicMock(is_active=True, access_policy={"mode": "jwt_linked"})
+        sent = AsyncMock()
+        with (
+            patch(
+                "app.services.channels.router.channel_bot_repo.get_for_inbound",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch.object(ChannelMessageRouter, "_handle_command", new=AsyncMock(return_value=None)),
+            patch.object(
+                ChannelMessageRouter,
+                "_resolve_identity",
+                new=AsyncMock(return_value=MagicMock(user_id=None)),
+            ),
+            patch.object(
+                ChannelMessageRouter, "_invite_to_link", new=AsyncMock(return_value="link first")
+            ),
+            patch.object(ChannelMessageRouter, "_send_reply", new=sent),
+        ):
+            await router._route_inner(incoming, MagicMock())
+        return sent
+
+    async def test_a_colleague_mention_in_a_room_is_not_answered_with_the_invitation(self):
+        sent = await self._routed(self._incoming(addressed=False))
+
+        sent.assert_not_awaited()
+
+    async def test_a_message_that_names_the_bot_still_gets_it(self):
+        sent = await self._routed(self._incoming(addressed=True))
+
+        sent.assert_awaited_once()
+        assert sent.await_args.args[2] == "link first"
+
 
 class TestASlashAPlatformAte:
     """Mattermost parses a leading `/` itself.
