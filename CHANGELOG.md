@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.358] - 2026-09-05
+
+### Fixed
+
+- **A member deactivated in the console kept answering through a channel.**
+  Their chat account is still linked and the bot still routes to it, so the turn
+  ran under a person the organization had switched off, with their role, their
+  grants and their budget. The channel path now asks for a membership that can
+  sign in - the same question `access.publisher_context` already asks of a
+  binding's creator, so the two answers cannot drift.
+
 ## [0.0.357] - 2026-09-05
 
 ### Fixed
