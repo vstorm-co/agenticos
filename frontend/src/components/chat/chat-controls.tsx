@@ -5,6 +5,7 @@ import { ChevronDown, Sliders } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChatModelPicker } from "./chat-model-picker";
+import { YourConnections } from "./your-connections";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
 import { useConversationStore, useOrgStore } from "@/stores";
@@ -187,6 +188,7 @@ export function ChatControls({
               </p>
             )}
           </div>
+          <YourConnections />
         </div>
 
         <div className="border-foreground/10 text-foreground/45 flex items-center justify-between border-t px-4 py-2 font-mono text-[10px] tracking-wider uppercase">

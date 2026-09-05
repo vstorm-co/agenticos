@@ -145,6 +145,13 @@ class DeploymentSettingsRead(BrandingRead):
     announcement_level: NoticeLevel = "info"
     max_organizations_per_user: int | None = None
     max_agents_per_organization: int | None = None
+    notify_impersonated_users: bool = False
+    """Whether somebody is emailed when an administrator acts as them.
+
+    Here and not in `BrandingRead`: what the deployment tells its own users about
+    administrator access is the administrator's business, not a stranger's on the
+    sign-in page.
+    """
     updated_at: datetime | None = None
 
 
@@ -180,6 +187,8 @@ class DeploymentSettingsUpdate(BaseSchema):
     # cannot own the personal organization sign-up creates for it.
     max_organizations_per_user: int | None = Field(default=None, ge=1, le=10_000)
     max_agents_per_organization: int | None = Field(default=None, ge=1, le=10_000)
+
+    notify_impersonated_users: bool | None = None
 
     @field_validator("app_name", "tagline", "description", "footer_text", mode="after")
     @classmethod

@@ -222,17 +222,11 @@ export interface SubagentsConfig {
   share_with_delegates: string[];
 }
 
-/** One MCP connection an agent may call, and on whose account. */
-export interface McpServerRef {
+/** One of the organization's MCP connections, used by every run of the agent. */
+export interface OrgMcpServerRef {
+  account: "organization";
   /** The organization's connection. A personal one is refused at publish. */
   connection_id: string;
-  /**
-   * Let a run reach this service through the runner's own connection, where the
-   * conversation is theirs alone - the dashboard chat, or a one-to-one direct
-   * message. Off by default: the organization's account is the answer an agent
-   * is reviewed against, and this is the one place that can differ per run.
-   */
-  use_personal_when_available: boolean;
   /**
    * Which of the server's tools this agent may call. `null` is every tool the
    * connection allows. Narrowing only: the connection's own allowlist is an
@@ -240,6 +234,24 @@ export interface McpServerRef {
    */
   allowed_tools: string[] | null;
 }
+
+/**
+ * A service each person reaches through their own account.
+ *
+ * Names a catalog entry rather than a connection: whose connection answers is
+ * decided when the turn runs, from whoever wrote the message. Where nobody did
+ * - an API key, the widget, a schedule, an unlinked chat account - the server
+ * is absent from that run and the agent is told so.
+ */
+export interface PersonalMcpServerRef {
+  account: "personal";
+  catalog_key: string;
+  /** The administrator's ceiling; the person's own connection may narrow further. */
+  allowed_tools: string[] | null;
+}
+
+/** One MCP binding: the organization's connection, or each person's own account. */
+export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef;
 
 export interface AgentSpec {
   /**

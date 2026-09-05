@@ -28,7 +28,7 @@ from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, McpServerRef, ObservabilitySpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec, OrgMcpServerRef
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -38,13 +38,16 @@ from app.services.agent_runner import (
     ApprovalChannel,
     ParkedApproval,
     PausedRunState,
+    PersonalServiceGap,
     PreparedRun,
     RecordedDelegation,
     RunSegment,
+    _with_personal_service_gaps,
     month_start,
     run_failure_summary,
 )
 from app.services.approvals import ApprovalService
+from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 from app.services.transcript import RecordedToolCall
 
 
@@ -256,7 +259,10 @@ class TestPrepare:
         ctx = _ctx()
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
-        refs = [McpServerRef(connection_id=uuid.uuid4()), McpServerRef(connection_id=uuid.uuid4())]
+        refs = [
+            OrgMcpServerRef(connection_id=uuid.uuid4()),
+            OrgMcpServerRef(connection_id=uuid.uuid4()),
+        ]
         spec = AgentSpec(name="Support", mcp_servers=refs)
 
         with (
@@ -275,7 +281,7 @@ class TestPrepare:
             ),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=["linear-toolset"]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
             ) as toolsets,
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -284,9 +290,9 @@ class TestPrepare:
         assert toolsets.await_args.kwargs == {
             "organization_id": ctx.organization_id,
             "refs": refs,
-            # An API run has neither a private conversation nor, necessarily, a
-            # person - so no binding may reach for anybody's own account.
-            "personal_for_user_id": None,
+            # An API run has no person at the keyboard - the context is the key
+            # holder's - so no personal binding may reach for anybody's account.
+            "sender_user_id": None,
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
@@ -304,7 +310,7 @@ class TestPrepare:
         service = AgentRunnerService(_db())
         run = _parked_run()
         agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
-        spec = AgentSpec(name="Support", mcp_servers=[McpServerRef(connection_id=uuid.uuid4())])
+        spec = AgentSpec(name="Support", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
 
         with (
             patch(
@@ -324,7 +330,7 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=["linear-toolset"]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
             ) as toolsets,
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -374,7 +380,7 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -418,7 +424,7 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -1725,7 +1731,7 @@ class TestParking:
             "plan": [],
             # What the request asked for, so the continuation is the same run
             # rather than a default-mode one wearing its id (#1326, #1343).
-            "admitted_as": {"approval_mode": "follow_agent", "private_to_user": False},
+            "admitted_as": {"approval_mode": "follow_agent", "acts_for_sender": False},
         }
 
     @pytest.mark.anyio
@@ -2059,7 +2065,7 @@ class TestResume:
             paused_state={
                 "messages": [],
                 "tool_call_ids": {},
-                "admitted_as": {"approval_mode": "ask_all", "private_to_user": False},
+                "admitted_as": {"approval_mode": "ask_all", "acts_for_sender": False},
             }
         )
 
@@ -2074,13 +2080,34 @@ class TestResume:
         assert build.call_args.kwargs["gate_every_tool"] is False
 
     @pytest.mark.anyio
-    async def test_a_parked_direct_message_still_speaks_as_the_member_who_started_it(self):
-        """Half a conversation as the member and half as the organization is
-        worse than either, and the surface alone cannot tell a direct message
-        from a channel (#1343)."""
+    async def test_a_run_parked_under_the_flags_old_name_still_speaks_as_its_owner(self):
+        """`private_to_user` became `acts_for_sender` with the personal binding kind.
+        A run parked for approval before that deploy carries the old key, and
+        `extra="forbid"` would refuse to resume it - an approval somebody is
+        waiting on, failing for a key nobody can edit."""
         with patch(
             "app.services.agent_runner.build_toolsets_for_agent",
-            new=AsyncMock(return_value=[]),
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"approval_mode": "follow_agent", "private_to_user": True},
+                }
+            )
+
+        assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
+
+    @pytest.mark.anyio
+    async def test_a_parked_run_still_speaks_as_the_person_who_started_it(self):
+        """Half a conversation through their own account and half without it is
+        worse than either, and the row alone cannot say whether a person was at
+        the keyboard: a channel run by an unlinked sender records the binding's
+        publisher as its user (#1343)."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
         ) as toolsets:
             run_user_id = await self._resumed(
                 paused_state={
@@ -2088,13 +2115,13 @@ class TestResume:
                     "tool_call_ids": {},
                     "admitted_as": {
                         "approval_mode": "follow_agent",
-                        "private_to_user": True,
+                        "acts_for_sender": True,
                     },
                 }
             )
 
         assert run_user_id is not None
-        assert toolsets.await_args.kwargs["personal_for_user_id"] is not None
+        assert toolsets.await_args.kwargs["sender_user_id"] is not None
 
     @pytest.mark.anyio
     async def test_the_continuation_speaks_as_the_runs_owner_and_not_the_approver(self):
@@ -2105,29 +2132,30 @@ class TestResume:
         the identity was not None."""
         with patch(
             "app.services.agent_runner.build_toolsets_for_agent",
-            new=AsyncMock(return_value=[]),
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
         ) as toolsets:
             await self._resumed(
                 paused_state={
                     "messages": [],
                     "tool_call_ids": {},
-                    "admitted_as": {"approval_mode": "follow_agent", "private_to_user": True},
+                    "admitted_as": {"approval_mode": "follow_agent", "acts_for_sender": True},
                 }
             )
 
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
-        assert toolsets.await_args.kwargs["personal_for_user_id"] == self.resumed_run.user_id
+        assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
 
     @pytest.mark.anyio
-    async def test_a_parked_channel_run_answers_as_the_organization(self):
-        """The default, and what a run admitted in a room was."""
+    async def test_a_run_parked_with_nobody_at_the_keyboard_resumes_the_same_way(self):
+        """The default, and what a run admitted through an API key or an
+        unlinked chat account was."""
         with patch(
             "app.services.agent_runner.build_toolsets_for_agent",
-            new=AsyncMock(return_value=[]),
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
         ) as toolsets:
             await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
 
-        assert toolsets.await_args.kwargs["personal_for_user_id"] is None
+        assert toolsets.await_args.kwargs["sender_user_id"] is None
 
     @pytest.mark.anyio
     async def test_leaving_the_queue_is_committed_before_the_call_is_replayed(self):
@@ -3417,3 +3445,189 @@ class TestACommitThatCannotLandRunner:
             except ValueError:
                 with pytest.raises(RuntimeError, match="could not commit"):
                     await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+
+class TestTellingTheAgentWhatItCannotReach:
+    """A personal binding nobody can speak through is a sentence, not a silence.
+
+    A skipped server is invisible to the model: it answers as though the agent
+    never had Notion, and the person asking concludes the agent is broken. The
+    briefing appended for each gap is what turns that into something they can
+    act on - and it has to name the right remedy, because "connect your account"
+    is wrong advice to somebody whose chat account is simply not linked.
+    """
+
+    _SERVERS = "http://localhost:3000/mcp-servers"
+    _CONNECT = "http://localhost:3000/mcp-servers?connect=notion"
+
+    @staticmethod
+    def _briefed(gap: str, surface: RunSurface = RunSurface.WEB) -> str:
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="Be brief."),
+            [UnavailablePersonalService("notion", gap)],  # type: ignore[arg-type]  # each literal is exercised below
+            surface,
+        )
+        return spec.instructions
+
+    def test_nothing_missing_leaves_the_instructions_alone(self):
+        spec = AgentSpec(name="Support", instructions="Be brief.")
+
+        assert _with_personal_service_gaps(spec, [], RunSurface.WEB) is spec
+
+    def test_the_published_instructions_come_first_and_are_kept(self):
+        assert self._briefed("not_connected").startswith("Be brief.\n\n")
+
+    def test_a_person_with_nothing_connected_is_sent_to_connect_it(self):
+        text = self._briefed("not_connected")
+
+        assert "has not connected their own Notion" in text
+        assert self._CONNECT in text
+
+    def test_several_accounts_with_no_default_are_sent_to_pick_one(self):
+        """To the page, not to the connect link: `?connect=` always makes a new
+        connection, and a third Notion is not how somebody picks between two."""
+        text = self._briefed("undecided")
+
+        assert "none marked as the one agents use" in text
+        assert self._SERVERS in text
+        assert self._CONNECT not in text
+
+    def test_an_expired_grant_is_sent_to_authorize_again(self):
+        """Same page, same reason: re-authorizing is done on the connection they
+        have, and the connect link would mint a second one beside it."""
+        text = self._briefed("unauthorized")
+
+        assert "no longer authorizes" in text
+        assert self._SERVERS in text
+        assert self._CONNECT not in text
+
+    @pytest.mark.parametrize(
+        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST]
+    )
+    def test_an_unlinked_chat_account_is_told_to_link_before_connecting(self, surface):
+        """Connecting a Notion needs an account here to hold it; the link comes
+        first, and a briefing pointing at the connect page would send them to a
+        sign-in wall."""
+        text = self._briefed("nobody_to_speak_as", surface)
+
+        assert "send /link to this bot" in text
+        assert self._CONNECT not in text
+
+    @pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.EMBED, RunSurface.SCHEDULE])
+    def test_a_surface_with_nobody_signed_in_is_named_as_such(self, surface):
+        text = self._briefed("nobody_to_speak_as", surface)
+
+        assert "nobody is signed in on this surface" in text
+        assert "/link" not in text
+
+    def test_the_service_is_named_as_the_catalog_names_it(self):
+        """`notion` is a key; the person reads "Notion"."""
+        assert "Notion is bound to the account" in self._briefed("not_connected")
+
+    def test_a_key_the_catalog_no_longer_holds_is_named_as_itself(self):
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [UnavailablePersonalService("gone-server", "not_connected")],
+            RunSurface.WEB,
+        )
+
+        assert "gone-server is bound to the account" in spec.instructions
+
+    def test_each_gap_gets_its_own_paragraph(self):
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailablePersonalService("notion", "not_connected"),
+                UnavailablePersonalService("linear", "undecided"),
+            ],
+            RunSurface.WEB,
+        )
+
+        assert spec.instructions.count("is bound to the account") == 2
+
+
+class TestWhatAPreparedRunSaysThePersonCannotReach:
+    """The same gaps the model is briefed with, carried to the surface so a chat
+    can draw the button that connects the account beside the agent's sentence."""
+
+    @pytest.mark.anyio
+    async def test_the_gaps_are_named_with_the_link_that_fixes_each(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(
+                    return_value=ResolvedMcpToolsets(
+                        [],
+                        [
+                            UnavailablePersonalService("notion", "not_connected"),
+                            UnavailablePersonalService("linear", "undecided"),
+                        ],
+                    )
+                ),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, acts_for_sender=True)
+
+        assert prepared.personal_service_gaps == [
+            PersonalServiceGap(
+                catalog_key="notion",
+                name="Notion",
+                gap="not_connected",
+                url="http://localhost:3000/mcp-servers?connect=notion",
+            ),
+            PersonalServiceGap(
+                catalog_key="linear",
+                name="Linear",
+                gap="undecided",
+                url="http://localhost:3000/mcp-servers",
+            ),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_run_whose_bindings_all_resolved_reports_nothing(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), uuid.uuid4())),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id)
+
+        assert prepared.personal_service_gaps == []

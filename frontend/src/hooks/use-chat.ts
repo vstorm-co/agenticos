@@ -18,6 +18,7 @@ import type {
   AskUserQuestion,
   ChatMessageFile,
   Compaction,
+  PersonalServiceGap,
   ConversationCost,
   Decision,
   Delegation,
@@ -163,6 +164,10 @@ export function useChat(options: UseChatOptions = {}) {
   // it outlives a turn: it describes what is configured, and clearing it when the
   // turn ends would flash the one message that explains why nothing happened.
   const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+  // The agent's personal MCP services this person cannot reach, for the turn on
+  // screen. Cleared when the next question is sent: the card belongs beside the
+  // answer that says the agent could not reach them.
+  const [personalGaps, setPersonalGaps] = useState<PersonalServiceGap[]>([]);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -414,6 +419,13 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "personal_services_unavailable": {
+          // Before the model answers, so the button that connects the account is on
+          // screen while the agent is still saying it cannot reach it.
+          setPersonalGaps((wsEvent.data as { services: PersonalServiceGap[] }).services);
+          break;
+        }
+
         case "error": {
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
@@ -629,6 +641,7 @@ export function useChat(options: UseChatOptions = {}) {
       // late frame from a background delegation of the turn before is dropped by
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
+      setPersonalGaps([]);
       // A new question ends whatever the agent was saying, and it is the only
       // boundary that always holds. `complete` clears this on every ordinary
       // ending, but a socket that dropped mid-answer sends no `complete` at all -
@@ -776,6 +789,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingQuestions(null);
     setCompacting(null);
     setCompactionImpossible(null);
+    setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
   }, [activeConversationId]);
 
@@ -1113,6 +1127,8 @@ export function useChat(options: UseChatOptions = {}) {
     isProcessing,
     compacting,
     compactionImpossible,
+    /** The agent's personal MCP services this person cannot reach, for the turn on screen. */
+    personalGaps,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,

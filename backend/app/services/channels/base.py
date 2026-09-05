@@ -1,4 +1,7 @@
+import asyncio
+import logging
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -9,6 +12,10 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.services.channels import connection_state
+from app.services.channels.exceptions import ChannelNotConfigured
+
+logger = logging.getLogger(__name__)
 
 # Handles every chat platform reserves for addressing the room, rather than one
 # member of it. They match the shape of an agent slug, so `@channel deploying at
@@ -175,16 +182,6 @@ class IncomingMessage:
     raw: dict[str, Any] = field(default_factory=dict)
     platform_username: str | None = None
     platform_display_name: str | None = None
-    one_to_one: bool = False
-    """Whether this chat holds exactly this person and the bot, and nobody else.
-
-    Deliberately not `chat_type == "private"`. Slack reports a multi-person
-    direct message as `im`-like and Mattermost has group channels of the same
-    shape, so `chat_type` answers "is this off-channel", which is a different
-    question. This one gates speaking through a member's own MCP account, and a
-    second reader in the room is exactly what must not happen - so each adapter
-    sets it from the one channel kind it knows holds one person.
-    """
     message_id: str | None = None
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.
@@ -243,9 +240,40 @@ class OutgoingMessage:
 
 
 class ChannelAdapter(ABC):
-    """Abstract base class for all messaging platform adapters."""
+    """One messaging platform, behind the interface the router speaks.
+
+    An adapter is a singleton serving every bot on its platform, so anything
+    per bot - a self-hosted server's address, a Slack app's own token - is
+    registered against the bot id through :meth:`prepare_connection` before a
+    stream opens, never read off a row at send time.
+
+    **HTTP clients, decided once here rather than three times.** REST traffic
+    the adapter makes itself goes through one `httpx.AsyncClient` per adapter,
+    built in `__init__` and closed in :meth:`aclose`: a streamed turn is dozens
+    of calls to one host, and a client per call throws the pool away before it
+    is reused, paying a TLS handshake each time (#952). A vendor SDK object is
+    the exception and is built per call inside a context manager that closes
+    it: aiogram's `Bot` opens a session it leaks unless closed, and slack-sdk's
+    `AsyncWebClient` is a thin wrapper that holds nothing worth keeping. So
+    Mattermost is one client; Slack is one client for its own downloads and an
+    SDK object per send; Telegram is an SDK object per call, closed on the way
+    out. What none of them does is build an `httpx.AsyncClient` per message.
+    """
 
     platform: str  # class-level constant e.g. "telegram"
+
+    def prepare_connection(  # noqa: B027
+        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+    ) -> None:
+        """Register what this bot's connection needs before the stream opens.
+
+        The adapter is one object serving every bot, so a per-bot fact - a
+        self-hosted server's address, a Slack app's `xapp-` token - is keyed on
+        the bot id here, and a stream opened before this ran would have nowhere
+        to connect. A platform that needs neither leaves it alone; the supervisor
+        calls it on every adapter the same way, which is what replaced reaching
+        for two differently named methods by `getattr`.
+        """
 
     @abstractmethod
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
@@ -469,3 +497,59 @@ class ChannelAdapter(ABC):
     @abstractmethod
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Parse raw platform payload into IncomingMessage. Return None to ignore."""
+
+
+RECONNECT_FLOOR_SECONDS = 5.0
+RECONNECT_CEILING_SECONDS = 60.0
+
+
+async def supervise_stream(
+    bot_id: str,
+    *,
+    platform: str,
+    session: Callable[[], Awaitable[None]],
+    failing: str,
+) -> None:
+    """Run one bot's inbound stream, session after session, until cancelled.
+
+    The one reconnect loop for Telegram long-polling, Slack Socket Mode and the
+    Mattermost event stream. Each adapter used to carry its own, and the three
+    disagreed: one backed off, two retried every five seconds flat; two knew a
+    configuration error from a crash, one retried a rejected bot token for ever,
+    a traceback every five seconds. A reconnect fix had to find three loops.
+
+    `session` opens one connection and returns when it ends or raises when it
+    fails. A session that ends is reopened after `RECONNECT_FLOOR_SECONDS`; one
+    that raises is reopened after a wait that doubles up to
+    `RECONNECT_CEILING_SECONDS`, so a server down for an hour is not hammered 720
+    times by every bot on it. A clean session resets the wait.
+
+    `ChannelNotConfigured` is not a crash and not something a retry fixes - an
+    operator has to add the token or the server URL - so it is recorded once
+    and the loop stops. `failing` is what the connection row says while a
+    session keeps crashing.
+
+    The wait is outside the `except` on purpose: a session may return without
+    ever awaiting (a row not filled in yet), and awaiting a coroutine that never
+    suspends does not yield to the event loop. Without the wait this loop spun
+    at 100% CPU and nothing else on the process - the health check included -
+    was scheduled again. The line logged before each wait names the delay it is
+    about to wait, so the doubling happens after it.
+    """
+    delay = RECONNECT_FLOOR_SECONDS
+    while True:
+        try:
+            await session()
+        except asyncio.CancelledError:
+            raise
+        except ChannelNotConfigured as exc:
+            logger.warning("%s not started for bot %s: %s", platform, bot_id, exc.message)
+            await connection_state.record_down(bot_id, exc.message)
+            return
+        except Exception:
+            logger.exception("%s failed for bot %s, retrying in %.0fs", platform, bot_id, delay)
+            await connection_state.record_down(bot_id, failing)
+            wait, delay = delay, min(delay * 2, RECONNECT_CEILING_SECONDS)
+        else:
+            wait = delay = RECONNECT_FLOOR_SECONDS
+        await asyncio.sleep(wait)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Plug, Wrench } from "lucide-react";
+import { Check, Plug, UserRound, Wrench } from "lucide-react";
 
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import {
@@ -29,8 +29,21 @@ import type { McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
 
+/**
+ * What identifies a binding in the spec: the connection it names, or the
+ * service each person reaches through their own account.
+ *
+ * Two bindings with one key are the same binding, which is what the Builder
+ * needs to replace a binding's tools without knowing which kind it is.
+ */
+export function bindingKey(ref: McpServerRef): string {
+  return ref.account === "personal"
+    ? `personal:${ref.catalog_key}`
+    : `organization:${ref.connection_id}`;
+}
+
 interface McpServerPickerProps {
-  /** The organization's servers - the only ones an agent may be bound to. */
+  /** The organization's servers - what an organization binding may name. */
   connections: OrgMcpConnectionRecord[];
   /** The organization catalog: every server that can be connected in one click. */
   catalog: McpCatalogEntry[];
@@ -40,18 +53,20 @@ interface McpServerPickerProps {
    * The whole list, rebuilt.
    *
    * One callback rather than one per gesture. Binding, choosing which account
-   * and turning personal substitution on all write the same list, and three
-   * callbacks reading the same spec would each start from the copy the previous
-   * one replaced.
+   * and switching a binding between the organization's account and each
+   * person's own all write the same list, and three callbacks reading the same
+   * spec would each start from the copy the previous one replaced.
    */
   onChange: (next: McpServerRef[]) => void;
   /**
-   * Choose which of a bound server's tools this agent may call.
+   * Choose which of a server's tools this agent may call.
    *
-   * The dialog is the caller's, like `onConnect`: the tool list comes from the
-   * connection's last probe and the picker is shared with the servers page.
+   * The dialog is the caller's, like `onConnect`. The tool list comes from an
+   * organization connection's last probe, which is why one is handed over even
+   * for a binding to each person's own account: the catalogue of tools is the
+   * server's, whoever's credential reaches it.
    */
-  onTools: (connection: OrgMcpConnectionRecord, ref: McpServerRef) => void;
+  onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   /**
    * Connect a server that has none, without leaving the page.
    *
@@ -72,30 +87,20 @@ interface McpServerPickerProps {
  * unanswerable without leaving the page - and a catalog nobody sees is a
  * catalog nobody connects from.
  *
- * Only a connection can be bound, and that is not a UI preference. The spec
- * stores connection ids, and the only MCP things in this system with an id
- * are connections; a catalog entry is keyed by name and has none. So an
- * unconnected server is shown, described, and offers the way to connect it -
- * it is not a checkbox that would have nothing to write.
- *
- * It offers the **organization's** connections and never the caller's own.
- * `validate_spec` refuses a personal connection at publish, so offering one
- * here would be offering a choice that guarantees publishing fails. The reason
- * behind the refusal is the same one that decides what belongs on this screen:
- * an agent everybody runs cannot reach whatever the person who happened to
- * trigger it had connected.
+ * A binding is one of two kinds, and the card asks which. **The organization's
+ * account** names one of the organization's connections and answers for
+ * everybody - the reviewable default. **Each person's own account** names the
+ * catalog service instead: whoever talks to the agent connects their own, and
+ * the agent speaks to the service as them. The second needs no connection to
+ * exist here, which is why an unconnected server still offers it. A member's
+ * connection is never bound directly - `validate_spec` refuses one at publish -
+ * because what a published agent reaches must not depend on who happened to
+ * build it.
  *
  * Ids in the spec that match no connection are shown rather than dropped: they
  * belong to a server that has since been removed, or to another organization in
  * an imported spec, and an id that quietly vanishes from a form is an id that
  * quietly vanishes from the spec.
- *
- * **What this picker cannot do, and says so.** The choice is per server, not per
- * tool, and it is not an approval decision. `allowed_tools` lives on the
- * connection, so two agents bound to the same server get the same tools, and
- * a binding has nowhere to put a per-agent override. Separately, the approval capability gates only tools a
- * capability owns - MCP tools are not among them, so nothing here can be held
- * for a human.
  */
 export function McpServerPicker({
   connections,
@@ -109,54 +114,34 @@ export function McpServerPicker({
   const t = useTranslations("agents");
   const tMcp = useTranslations("mcp");
   const [connectedOnly, setConnectedOnly] = useState(false);
-  const bound = new Map(value.map((ref) => [ref.connection_id, ref]));
   const known = new Set(connections.map((connection) => connection.id));
-  const orphaned = value.map((ref) => ref.connection_id).filter((id) => !known.has(id));
+  const catalogKeys = new Set(catalog.map((entry) => entry.key));
+  // Of either kind: an organization binding to a connection this organization no
+  // longer holds, and a personal one to a key the catalog no longer describes.
+  // A card can match neither, so unlisted they would vanish from the Builder
+  // while publish kept refusing them.
+  const orphaned = value.flatMap((ref) =>
+    ref.account === "organization"
+      ? known.has(ref.connection_id)
+        ? []
+        : [ref.connection_id]
+      : catalogKeys.has(ref.catalog_key)
+        ? []
+        : [ref.catalog_key],
+  );
 
-  /** Bind a connection, or drop it. */
-  const toggle = (connectionId: string) =>
-    onChange(
-      bound.has(connectionId)
-        ? value.filter((ref) => ref.connection_id !== connectionId)
-        : [
-            ...value,
-            {
-              connection_id: connectionId,
-              use_personal_when_available: false,
-              allowed_tools: null,
-            },
-          ],
+  /** Replace whatever this row's binding was with `next`, or drop it. */
+  const rebind = (row: CardRow, next: McpServerRef | null) => {
+    const ids = new Set(row.connections.map((connection) => connection.id));
+    const others = value.filter(
+      (ref) =>
+        !(
+          (ref.account === "organization" && ids.has(ref.connection_id)) ||
+          (ref.account === "personal" && ref.catalog_key === row.entry?.key)
+        ),
     );
-
-  /**
-   * Point a bound row at a different account of the same server, keeping what
-   * the binding already said. Binding when none of them was bound: there is
-   * nowhere but the spec to remember a choice, so a select that only recorded
-   * an intention would forget it on reload.
-   */
-  const choose = (options: OrgMcpConnectionRecord[], connectionId: string) => {
-    const previous = options.find((option) => bound.has(option.id));
-    const kept = previous ? bound.get(previous.id) : undefined;
-    const ids = new Set(options.map((option) => option.id));
-    onChange([
-      ...value.filter((ref) => !ids.has(ref.connection_id)),
-      {
-        connection_id: connectionId,
-        use_personal_when_available: kept?.use_personal_when_available ?? false,
-        // Carried over: the tools are chosen for the *agent*, and the account it
-        // speaks through is a different question. Two accounts on one server
-        // expose the same tools.
-        allowed_tools: kept?.allowed_tools ?? null,
-      },
-    ]);
+    onChange(next === null ? others : [...others, next]);
   };
-
-  const setPersonal = (connectionId: string, use_personal_when_available: boolean) =>
-    onChange(
-      value.map((ref) =>
-        ref.connection_id === connectionId ? { ...ref, use_personal_when_available } : ref,
-      ),
-    );
 
   // A connection the catalog does not describe is a custom server somebody
   // pointed at a URL. It belongs on the gallery under its own name rather than
@@ -209,9 +194,10 @@ export function McpServerPicker({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchServers")} />
-        {/* The catalog is mostly servers nobody has connected, and only a
-            connected one can be bound - so "hide the rest" is the filter this
-            picker actually needs. */}
+        {/* The catalog is mostly servers nobody has connected. Hiding them is
+            the filter this picker needs when the organization's account is what
+            is being bound; a binding to each person's own account is offered
+            either way. */}
         <label className="text-muted-foreground flex items-center gap-2 text-sm">
           <Checkbox
             checked={connectedOnly}
@@ -225,16 +211,9 @@ export function McpServerPicker({
         {list.visible.map((row) => (
           <ServerCard
             key={row.key}
-            name={row.name}
-            description={row.description}
-            icon={row.icon}
-            auth={row.auth}
-            connections={row.connections}
-            entry={row.entry}
-            binding={(id) => bound.get(id) ?? null}
-            onToggle={toggle}
-            onChoose={choose}
-            onPersonal={setPersonal}
+            row={row}
+            binding={bindingFor(row, value)}
+            onRebind={(next) => rebind(row, next)}
             onTools={onTools}
             onConnect={onConnect}
             disabled={disabled}
@@ -266,8 +245,9 @@ interface CardRow {
   /**
    * Every account the organization holds on this server.
    *
-   * Empty means nothing to bind - the card offers to connect one instead. More
-   * than one means the card asks *which*, because an agent binds a connection
+   * Empty means the organization's account cannot be bound - the card offers to
+   * connect one instead, beside binding each person's own. More than one means
+   * the card asks *which*, because an organization binding names a connection
    * and the answer to "whose credential is this" has to be on screen.
    */
   connections: OrgMcpConnectionRecord[];
@@ -275,46 +255,69 @@ interface CardRow {
   entry: McpCatalogEntry | null;
 }
 
+/** The spec's binding for this row, of either kind, or none. */
+function bindingFor(row: CardRow, value: McpServerRef[]): McpServerRef | null {
+  const ids = new Set(row.connections.map((connection) => connection.id));
+  return (
+    value.find(
+      (ref) =>
+        (ref.account === "organization" && ids.has(ref.connection_id)) ||
+        (ref.account === "personal" && row.entry !== null && ref.catalog_key === row.entry.key),
+    ) ?? null
+  );
+}
+
 function ServerCard({
-  name,
-  description,
-  icon,
-  auth,
-  connections,
-  entry,
+  row,
   binding,
-  onToggle,
-  onChoose,
-  onPersonal,
+  onRebind,
   onTools,
   onConnect,
   disabled,
 }: {
-  name: string;
-  description: string;
-  icon?: string | null;
-  auth: string | null;
-  connections: OrgMcpConnectionRecord[];
-  entry: McpCatalogEntry | null;
-  binding: (connectionId: string) => McpServerRef | null;
-  onToggle: (connectionId: string) => void;
-  onChoose: (options: OrgMcpConnectionRecord[], connectionId: string) => void;
-  onPersonal: (connectionId: string, use: boolean) => void;
-  onTools: (connection: OrgMcpConnectionRecord, ref: McpServerRef) => void;
+  row: CardRow;
+  binding: McpServerRef | null;
+  onRebind: (next: McpServerRef | null) => void;
+  onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
   // The state words belong to the MCP page, which is where they are also read.
   const tMcp = useTranslations("mcp");
-  // Which account this row acts on: the one the spec already names, else the
-  // first. Ticking the row binds it; the select below changes which it is.
-  const ref = connections.map((account) => binding(account.id)).find((one) => one !== null) ?? null;
+  const { name, description, icon, auth, connections, entry } = row;
+  // Which of the organization's accounts this row acts on: the one the spec
+  // names, else the first. Ticking the row binds it; the select changes which.
   const connection =
-    connections.find((account) => account.id === ref?.connection_id) ?? connections[0] ?? null;
+    connections.find(
+      (account) => binding?.account === "organization" && account.id === binding.connection_id,
+    ) ??
+    connections[0] ??
+    null;
   const state = connectionState(connection);
-  const isOn = ref !== null;
-  const bindable = connection !== null;
+  const isOn = binding !== null;
+  const personal = binding?.account === "personal";
+  const orgBindable = connection !== null;
+  // A server the catalog does not describe has no key for a person's own
+  // connection to be matched on, so only an organization's can be bound.
+  const personalBindable = entry !== null;
+
+  const bindOrganization = (target: OrgMcpConnectionRecord) =>
+    onRebind({
+      account: "organization",
+      connection_id: target.id,
+      // Carried over: the tools are chosen for the *agent*, and the account it
+      // speaks through is a different question - the server offers the same
+      // tools either way.
+      allowed_tools: binding?.allowed_tools ?? null,
+    });
+  const bindPersonal = () =>
+    entry &&
+    onRebind({
+      account: "personal",
+      catalog_key: entry.key,
+      allowed_tools: binding?.allowed_tools ?? null,
+    });
 
   const body = (
     <>
@@ -322,7 +325,7 @@ function ServerCard({
         className={cn(
           "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
           isOn ? "border-brand bg-brand text-brand-foreground" : "border-input",
-          !bindable && "border-dashed",
+          !orgBindable && "border-dashed",
         )}
       >
         {isOn && <Check className="h-3 w-3" />}
@@ -335,10 +338,14 @@ function ServerCard({
         <span className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{name}</span>
           {auth && <Badge variant="outline">{auth}</Badge>}
-          {state !== "connected" && (
-            <Badge variant={state === "error" ? "destructive" : "secondary"}>
-              {tMcp(MCP_STATE_LABEL[state])}
-            </Badge>
+          {personal ? (
+            <Badge variant="secondary">{t("eachPersonsOwnAccount")}</Badge>
+          ) : (
+            state !== "connected" && (
+              <Badge variant={state === "error" ? "destructive" : "secondary"}>
+                {tMcp(MCP_STATE_LABEL[state])}
+              </Badge>
+            )
           )}
         </span>
         <span className="text-muted-foreground mt-1 block truncate text-xs">{description}</span>
@@ -346,22 +353,38 @@ function ServerCard({
     </>
   );
 
-  // Nothing to bind to, so the card is the way to make one rather than a
-  // checkbox that would have no id to write into the spec. It opens the connect
-  // dialog here rather than linking to the servers page, which threw away an
-  // unsaved draft and asked somebody to find their way back.
-  if (!bindable) {
+  // No organization account to bind and none bound, so the card is the way to
+  // make one rather than a checkbox that would have no id to write into the
+  // spec - it opens the connect dialog here rather than linking to the servers
+  // page, which threw away an unsaved draft. Beside it, the other kind of
+  // binding, which needs no connection to exist: each person brings their own.
+  if (!orgBindable && !isOn) {
     return (
-      <button
-        type="button"
-        disabled={disabled || entry === null}
-        onClick={() => entry && onConnect(entry)}
-        className="border-border hover:border-foreground/20 flex items-start gap-3 rounded-xl border border-dashed p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {body}
-        <Plug className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="sr-only">{t("connectServerFirst")}</span>
-      </button>
+      <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-4">
+        <button
+          type="button"
+          disabled={disabled || entry === null}
+          onClick={() => entry && onConnect(entry)}
+          className="hover:text-foreground flex items-start gap-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {body}
+          <Plug className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="sr-only">{t("connectServerFirst")}</span>
+        </button>
+        {personalBindable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={bindPersonal}
+            className="self-start pl-7"
+          >
+            <UserRound className="mr-1 h-3.5 w-3.5" />
+            {t("useEachPersonsOwnAccount")}
+          </Button>
+        )}
+      </div>
     );
   }
 
@@ -379,21 +402,59 @@ function ServerCard({
         aria-checked={isOn}
         aria-label={name}
         disabled={disabled}
-        onClick={() => onToggle(connection.id)}
+        onClick={() => (isOn ? onRebind(null) : connection && bindOrganization(connection))}
         className="flex w-full items-start gap-3 text-left"
       >
         {body}
       </button>
 
-      {/* Which account, where the organization holds more than one. Choosing is
-          binding: there is nowhere but the spec to remember a choice, so a
+      {/* Whose account, once bound. The organization's is what a binding
+          means by default; each person's own is the other kind, and switching
+          rewrites the binding rather than flagging it - the spec stores which
+          kind it is, and a run reads that. */}
+      {isOn && personalBindable && (
+        <div className="mt-3 pl-7">
+          <Select
+            value={personal ? "personal" : "organization"}
+            disabled={disabled}
+            onValueChange={(next) =>
+              next === "personal" ? bindPersonal() : connection && bindOrganization(connection)
+            }
+          >
+            <SelectTrigger className="h-8 text-xs" aria-label={t("accountForServer", { name })}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* Offered only where there is one to bind; the row above says
+                  how to connect one. */}
+              {orgBindable && (
+                <SelectItem value="organization" className="text-xs">
+                  {t("organizationsAccount")}
+                </SelectItem>
+              )}
+              <SelectItem value="personal" className="text-xs">
+                {t("eachPersonsOwnAccount")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {personal && (
+            <p className="text-muted-foreground mt-2 text-xs">{t("eachPersonsOwnAccountHint")}</p>
+          )}
+        </div>
+      )}
+
+      {/* Which connection, where the organization holds more than one. Choosing
+          is binding: there is nowhere but the spec to remember a choice, so a
           select that only recorded an intention would forget it on reload. */}
-      {connections.length > 1 && (
+      {!personal && connections.length > 1 && connection && (
         <div className="mt-3 pl-7">
           <Select
             value={connection.id}
             disabled={disabled}
-            onValueChange={(next) => onChoose(connections, next)}
+            onValueChange={(next) => {
+              const target = connections.find((option) => option.id === next);
+              if (target) bindOrganization(target);
+            }}
           >
             <SelectTrigger className="h-8 text-xs" aria-label={t("whichAccount", { name })}>
               <SelectValue />
@@ -415,47 +476,26 @@ function ServerCard({
         </div>
       )}
 
-      {/* Which of the server's tools this agent may call - the question this
-          picker could not answer, because `allowed_tools` lived on the
-          connection and two agents bound to one server got the same tools. Only
-          once bound, for the same reason the switch below is. */}
-      {isOn && (
+      {/* Which of the server's tools this agent may call. The catalogue of
+          tools comes from an organization connection's probe, so a binding to
+          each person's own account can be narrowed only where the organization
+          holds a connection to the same server - the server's tools are the
+          same whoever's credential reaches them. */}
+      {isOn && binding && connection && (
         <div className="mt-3 pl-7">
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={disabled}
-            onClick={() => onTools(connection, ref)}
+            onClick={() => onTools(binding, connection, name)}
           >
             <Wrench className="mr-1 h-3.5 w-3.5" />
-            {ref.allowed_tools === null
+            {binding.allowed_tools === null
               ? t("everyToolThisServerOffers")
-              : t("toolCount", { count: ref.allowed_tools.length })}
+              : t("toolCount", { count: binding.allowed_tools.length })}
           </Button>
         </div>
-      )}
-
-      {/* Only once bound: an agent that reaches this server through nobody has
-          no account to substitute, and a switch that writes nothing is a
-          promise the run will not keep. On the connection's own `catalog_key`
-          rather than on the entry it renders under, because that is the column
-          publish checks - `entryForConnection` also matches on URL, so a card
-          can carry an entry while the row has no key to join a member's own
-          connection to. */}
-      {isOn && connection.catalog_key !== null && (
-        <label className="mt-3 flex items-start gap-2 pl-7">
-          <Checkbox
-            checked={ref.use_personal_when_available}
-            disabled={disabled}
-            onCheckedChange={(next) => onPersonal(connection.id, next === true)}
-            className="mt-0.5"
-          />
-          <span className="text-muted-foreground text-xs">
-            {t("useTheirOwnAccount")}
-            <span className="mt-0.5 block">{t("useTheirOwnAccountHint")}</span>
-          </span>
-        </label>
       )}
     </div>
   );

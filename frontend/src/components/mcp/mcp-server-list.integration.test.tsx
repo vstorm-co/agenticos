@@ -268,9 +268,10 @@ describe("McpServerList", () => {
     expect(apiClient.post).not.toHaveBeenCalledWith("/me/mcp-connections", expect.anything());
   });
 
-  it("sends a personal connection to the personal endpoint, without a catalog key", async () => {
-    // The two endpoints take different bodies. `catalog_key` is a column the
-    // personal one does not have, and sending it would 422 the whole request.
+  it("sends a personal connection to the personal endpoint, with its catalog key", async () => {
+    // The key is what a binding to each person's own account matches the
+    // connection on. Created without it, the connection could never be reached
+    // by the agent that asked for it.
     await mount();
     vi.mocked(apiClient.post).mockResolvedValue(connection());
 
@@ -283,6 +284,7 @@ describe("McpServerList", () => {
       expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections", {
         name: "github",
         url: "https://api.githubcopilot.com/mcp/",
+        catalog_key: "github",
       }),
     );
   });
@@ -764,5 +766,60 @@ describe("naming a connection something a person can read", () => {
 
     await waitFor(() => expect(screen.queryByText("GitHub")).toBeNull());
     expect(screen.queryByText(/not from the catalog/i)).toBeNull();
+  });
+});
+
+describe("arriving with ?connect=<catalog key>", () => {
+  /**
+   * The link an agent hands somebody whose own account a personal binding
+   * needs: the backend writes it, so what the parameter is called is a contract
+   * between the two. It opens the *personal* connect flow for that server and
+   * is stripped as it is read, so a reload does not reopen a dialog somebody
+   * closed.
+   */
+  it("opens the personal connect dialog for the named server", async () => {
+    window.history.replaceState({}, "", "/mcp-servers?connect=github");
+
+    await mount();
+
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByRole("radio", { name: "You" })).toBeChecked();
+    expect(window.location.search).toBe("");
+  });
+
+  it("says so when the catalog holds no such server", async () => {
+    const { toast } = await import("sonner");
+    window.history.replaceState({}, "", "/mcp-servers?connect=no-such-server");
+
+    await mount();
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "No server in the catalog is called no-such-server.",
+      ),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(window.location.search).toBe("");
+  });
+});
+
+describe("arriving with ?connect= for a server behind OAuth", () => {
+  it("starts the personal consent with the catalog key, so the connection can be matched", async () => {
+    // The key is what a binding to each person's own account finds the
+    // connection by. The callback creates the row from the staged flow, so the
+    // key has to travel with the start request or the row never carries one.
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
+    window.history.replaceState({}, "", "/mcp-servers?connect=linear");
+
+    await mount();
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections/oauth/start", {
+        name: "linear",
+        url: "https://mcp.linear.app/sse",
+        catalog_key: "linear",
+      }),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

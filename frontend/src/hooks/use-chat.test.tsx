@@ -2140,3 +2140,40 @@ describe("useChat - the socket it opens", () => {
     expect(disconnect).toHaveBeenCalled();
   });
 });
+
+describe("what the person cannot reach", () => {
+  const NOTION = {
+    catalog_key: "notion",
+    name: "Notion",
+    gap: "not_connected",
+    url: "http://localhost:3000/mcp-servers?connect=notion",
+  };
+
+  it("holds the turn's unavailable personal services for the card", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("personal_services_unavailable", { services: [NOTION] });
+
+    expect(result.current.personalGaps).toEqual([NOTION]);
+  });
+
+  it("keeps them up past the end of the turn", () => {
+    // The card belongs beside the answer that says the agent could not reach
+    // them, and that answer is on screen after `complete`.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("personal_services_unavailable", { services: [NOTION] });
+    receive("complete", {});
+
+    expect(result.current.personalGaps).toEqual([NOTION]);
+  });
+
+  it("drops them when the next question is sent", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("personal_services_unavailable", { services: [NOTION] });
+
+    act(() => result.current.sendMessage("try again"));
+
+    expect(result.current.personalGaps).toEqual([]);
+  });
+});

@@ -87,6 +87,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "approval-expiry-sweep",
         "invitation-expiry-sweep",
         "stale-run-sweep",
+        "teardown-reservation-sweep",
         "weekly-usage-report",
         "monthly-usage-report",
     }

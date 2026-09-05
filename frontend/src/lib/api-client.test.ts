@@ -238,6 +238,46 @@ describe("recovering from an expired token", () => {
     await expect(apiClient.get("/agents")).rejects.toMatchObject({ status: 401 });
   });
 
+  it("does not replay the request when the refresh says the impersonation is over", async () => {
+    // The request was made as the account being acted as. Replaying it with the
+    // token a refresh would mint runs it as the administrator (#1044). The 401
+    // surfaces instead, and the store is told so the banner can take the exit.
+    useAuthStore.setState({ impersonationRevoked: false });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, { detail: "Impersonation has ended" }))
+      .mockResolvedValueOnce(refused(401, { code: "IMPERSONATION_ENDED" }));
+
+    await expect(apiClient.post("/agents", { name: "x" })).rejects.toMatchObject({
+      status: 401,
+      message: "Impersonation has ended",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(useAuthStore.getState().impersonationRevoked).toBe(true);
+  });
+
+  it("does not raise the flag for a refusal that is about something else", async () => {
+    useAuthStore.setState({ impersonationRevoked: false });
+    fetchMock
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(401, { code: "NO_REFRESH_TOKEN" }))
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce(refused(503, { code: "IMPERSONATION_ENDED" }))
+      .mockResolvedValueOnce(refused(401, {}))
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () => Promise.reject(new Error("not json")),
+        text: () => Promise.resolve(""),
+      } as Response);
+
+    await expect(apiClient.get("/a")).rejects.toMatchObject({ status: 401 });
+    await expect(apiClient.get("/b")).rejects.toMatchObject({ status: 401 });
+    await expect(apiClient.get("/c")).rejects.toMatchObject({ status: 401 });
+
+    expect(useAuthStore.getState().impersonationRevoked).toBe(false);
+  });
+
   it("never refreshes in response to the refresh route's own 401", async () => {
     // Which would recurse until the stack gave out.
     fetchMock.mockResolvedValue(refused(401, { detail: "No refresh cookie" }));

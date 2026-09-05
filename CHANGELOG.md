@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **10**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,174 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.365] - 2026-09-05
+
+### Fixed
+
+- **Slack's attachment download sent the bot token to whatever host the event
+  named.** The payload is signed, so this is the second lock rather than the
+  first - but a token posted to a host somebody else chose is a token gone. The
+  host is checked against `slack.com` and `slack-files.com` over TLS before
+  anything is sent, and anything else is refused with the client untouched.
+- **Telegram's webhook secret is compared through `encode_untrusted`**, as Slack
+  and Mattermost already did. Safe today, because Starlette decodes headers as
+  latin-1; the same defence in depth regardless.
+
+### Changed
+
+- **`router.py` names its domain objects.** `db`, `bot`, `identity` and `session`
+  were `Any` forty-three times. The first thing the type checker found was a
+  `/start` branch reading a `welcome_message` field no model, schema, page or
+  test has ever had; `list_platforms()` went the same way, defined and exported
+  and called by nothing. The HTTP-client decision is written once on
+  `ChannelAdapter`, and a `prepare_connection` hook replaces `getattr`
+  duck-typing in the supervisor.
+
+## [0.0.364] - 2026-09-05
+
+### Fixed
+
+- **A quiet Telegram bot read `unknown` on the channels listing while polling
+  fine.** `record_up` fires once when the poll opens and the connection entry
+  expires on a fifteen-minute TTL, with nothing re-stamping it - the defect
+  #1351 fixed for Slack Socket Mode and the Mattermost event stream, whose own
+  body named Telegram polling as the same shape. It gets the same heartbeat.
+
+## [0.0.363] - 2026-09-05
+
+### Fixed
+
+- **A Telegram bot with a token Telegram rejects was retried for ever.** Each
+  adapter carried its own reconnect loop and the three disagreed - a fixed five
+  seconds against a 5s-to-60s backoff, the sleep inside the `except` in one and
+  outside it in the others, and a stop-on-misconfiguration branch in two of the
+  three. So that bot logged a traceback and wrote a fresh `down` record every
+  five seconds, where the same bot on Slack or Mattermost recorded `down` once
+  and stopped. One supervised loop serves all three, with the backoff, the stop
+  condition and the accounting written once.
+
+## [0.0.362] - 2026-09-05
+
+### Fixed
+
+- **A bot saved as `jwt_linked` admitted senders with no linked account.** The
+  mode decided nothing on its own: with `require_link` off, which is the default,
+  it admitted an unlinked room sender under the binding's creator exactly as
+  `open` did - the access check enforced only `whitelist` and `group_only`, and
+  the one place that read the mode required both switches. An operator who picks
+  a mode named for a linked account has asked for one, so the mode requires it.
+- **A collection teardown and a claim could deadlock each other.** Every path
+  that drops a collection takes its teardown lock before any row lock now, so a
+  claim - which takes the teardown lock and then the organization FK - cannot
+  cross a teardown into an ABBA deadlock.
+- **A purge could drop a collection without reserving its name, and another
+  organization could then inherit its vectors.** The purge locks the names its
+  snapshot saw, taken before the organization row is; one created between that
+  snapshot and the row lock is found only by the authoritative scan, and was
+  dropped unreserved - so a claim in the commit-to-drop window adopted the name,
+  and the deferred cleanup, finding the table newly referenced, preserved it with
+  the deleted organization's rows still in it. That lock is taken without waiting
+  now: free, and the name reserves like any other; held by a claim already in
+  flight, and the purge refuses rather than dropping unreserved.
+
+## [0.0.361] - 2026-09-05
+
+### Fixed
+
+- **A new chart type would have been drawn as a line chart, silently.** The
+  `charts` capability's `ChartType` and the channel renderer's dispatch are two
+  lists in two packages that have to agree, and nothing checked them against each
+  other: the renderer named three types and sent everything else to the line
+  drawer. There is one renderer per member now, and a test that fails when the
+  two lists drift.
+
+## [0.0.360] - 2026-09-05
+
+### Fixed
+
+- **A chart in a channel reply stalled every other channel turn while it drew.**
+  The PNG was rasterised and encoded by Pillow synchronously on the event loop
+  the worker's pollers and webhooks all share. It is handed to a thread now, like
+  the upload parse and the worker's file hash before it.
+
+## [0.0.359] - 2026-09-05
+
+### Changed
+
+- **Impersonation is a session an administrator can end, not a token on the
+  clipboard.** It was a bare one-hour bearer token, copied to the operating
+  system clipboard, that nothing could revoke. It is started from the console
+  with no token exposed, shown in a banner while it lasts, and ended by the
+  administrator, by the person's own sign-out-everywhere or password reset, by
+  the hour, or by the administrator's account being deleted - whichever comes
+  first. `sessions.impersonator_user_id` marks the row and the token carries
+  `sid` beside `act`, so every request binds the token to its row and refuses it
+  once the row is gone, deactivated, expired, held by another administrator or
+  for another account. A deployment can tell the impersonated person it
+  happened (`notify_impersonated_users`).
+
+## [0.0.358] - 2026-09-05
+
+### Fixed
+
+- **A member deactivated in the console kept answering through a channel.**
+  Their chat account is still linked and the bot still routes to it, so the turn
+  ran under a person the organization had switched off, with their role, their
+  grants and their budget. The channel path now asks for a membership that can
+  sign in - the same question `access.publisher_context` already asks of a
+  binding's creator, so the two answers cannot drift.
+
+## [0.0.357] - 2026-09-05
+
+### Fixed
+
+- **A teardown reservation nobody released blocked a collection name for
+  ever.** The reservation is committed with the delete and released when the
+  durable drop runs; a drop lost to a crash in the commit-to-dispatch gap, or
+  failing past the flow's retries, left the row behind and `claim` refused that
+  name from then on, with nothing to reattempt it. An hourly
+  `teardown-reservation-sweep` retries the drop for any reservation older than
+  its window, the way the other reap-sweeps do.
+- **An upload could repopulate a collection on its way out.** `dispatch_upload`
+  refuses a name under teardown, which `claim` already did.
+- **An organization whose default collection was dropped kept pointing at it.**
+
+## [0.0.356] - 2026-09-05
+
+### Changed
+
+- **An MCP binding says whose account it speaks through, and that is its
+  kind.** `SPEC_VERSION` 11: `mcp_servers` entries carry `account`, either
+  `organization` with a `connection_id` — everybody's, on every surface, as
+  before — or `personal` with a `catalog_key` and no connection at all: whoever
+  talks to the agent connects their own Notion and the agent speaks as them, in
+  the dashboard, in a direct message and in a channel alike. The account is
+  always the author of the message, never the thread's. Where nobody is talking
+  — an API key, the widget, a schedule, an unlinked chat sender — the server is
+  absent from that run and the agent is told why and where the person connects
+  one, rather than answering as though it never had the tool. The Builder asks
+  whose account on the card; `/mcp-servers?connect=<key>` opens the personal
+  connect flow the agent links to. `use_personal_when_available`, which
+  substituted a credential in private conversations only, is withdrawn: a stored
+  binding that had it loads as the organization's and says so in the log.
+- **The chat connects the account, not just the agent's sentence about it.** A
+  turn that finds a personal service this person cannot reach sends
+  `personal_services_unavailable` before the model answers, and the chat draws a
+  card with a connect button beside the refusal. The chat's controls list the
+  agent's personal services with each one's status - connected, not connected,
+  several with no default, needs authorizing - so a new member sees what to
+  connect before their first question. Personal connections made from the
+  console now carry their catalog key, without which no binding could have
+  matched them; `0071_mcp_connection_catalog_key` backfills the key on every
+  connection made from a catalog entry before the console sent it. A consent
+  started from the chat returns to the conversation, not to the servers page.
+- **The Builder clears stale references and probes a server's tools in place.**
+  A draft naming a deleted collection, context file, skill or connection is
+  refused at publish, and used to say so only there; a notice above the tabs
+  now names them and removes them in one click. The tool picker for a binding
+  probes a connection nobody has checked yet, for a caller who may, instead of
+  opening empty.
 
 ## [0.0.355] - 2026-09-02
 
