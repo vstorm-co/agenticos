@@ -199,9 +199,49 @@ class TestTheAllowanceAChatAccountGets:
         with pytest.raises(BadRequestError):
             await ChannelMessageRouter()._check_rate_limit(_bot('{"rate_limit_rpm": 2}'), "id")
 
-    async def test_a_deployment_with_no_limiter_answers_rather_than_refusing(self, caplog):
-        """The same fail-open the limiter applies everywhere: a cache that is
-        down is logged, a message that is dropped is silence in front of a user."""
-        await ChannelMessageRouter()._check_rate_limit(_bot(), "identity-1")
+    async def test_a_redis_that_cannot_count_still_bounds_the_sender_on_this_worker(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The shared limiter fails open, and for a widget that is the documented
+        trade. A channel bot's per-sender allowance is a production control, and
+        the in-process dict this branch removed used to hold it through a Redis
+        outage - so the outage is counted locally instead of not at all."""
+        redis = MagicMock()
+        redis.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(redis)
+        monkeypatch.setattr(router_module, "_fallback_windows", router_module._LocalWindows())
+        router = ChannelMessageRouter()
+        bot = _bot({"rate_limit_rpm": 3})
+
+        for _ in range(3):
+            await router._check_rate_limit(bot, "identity-1")
+        with pytest.raises(BadRequestError):
+            await router._check_rate_limit(bot, "identity-1")
+        await router._check_rate_limit(bot, "identity-2")
+
+    async def test_a_deployment_with_no_limiter_is_bounded_locally_and_says_so(
+        self, monkeypatch: pytest.MonkeyPatch, caplog
+    ):
+        monkeypatch.setattr(router_module, "_fallback_windows", router_module._LocalWindows())
+        router = ChannelMessageRouter()
+        bot = _bot({"rate_limit_rpm": 1})
+
+        await router._check_rate_limit(bot, "identity-1")
+        with pytest.raises(BadRequestError):
+            await router._check_rate_limit(bot, "identity-1")
 
         assert "Rate limiting not configured" in caplog.text
+
+    async def test_the_local_fallback_forgets_expired_windows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Bounded the way the shared window is bounded by its TTL: an entry
+        lives one window, so the map is the callers of the last minute."""
+        clock = iter([0.0, 1.0, 61.0, 62.0])
+        windows = router_module._LocalWindows(clock=lambda: next(clock))
+
+        assert windows.consume("a", attempts=1, window_seconds=60) is True
+        assert windows.consume("a", attempts=1, window_seconds=60) is False
+        assert windows.consume("b", attempts=1, window_seconds=60) is True
+        assert windows.consume("a", attempts=1, window_seconds=60) is True, "a new window"
+        assert len(windows) == 2

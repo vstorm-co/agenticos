@@ -33,7 +33,10 @@ somebody's money, not a traffic shaper.
 *It fails open, loudly.* A Redis nobody can reach means the limit is not
 applied and a warning is logged. Refusing a visitor their answer because a
 cache blipped is the worse failure of the two, and it is the same trade-off,
-for the same reason, as the deduplication claim.
+for the same reason, as the deduplication claim. The `Decision` says when that
+happened (`metered=False`), so a surface whose per-caller limit is a production
+control - a channel bot's `rate_limit_rpm` - can keep a per-process floor under
+the caller for as long as the outage lasts rather than none at all.
 """
 
 from __future__ import annotations
@@ -82,10 +85,18 @@ class Limit:
 
 @dataclass(frozen=True)
 class Decision:
-    """Whether this attempt is allowed, and when to try again if not."""
+    """Whether this attempt is allowed, and when to try again if not.
+
+    `metered` says whether the answer came from a count at all. It is `False`
+    on the two fail-open paths - no limiter configured, a Redis that could not
+    be reached - where `allowed` is a default rather than a decision, so a
+    surface that must keep a floor under a caller while Redis is down can tell
+    the two apart and count locally instead of reading "allowed" as "inside".
+    """
 
     allowed: bool
     retry_after_seconds: int
+    metered: bool = True
 
 
 def caller_ip(connection: HTTPConnection) -> str:
@@ -138,14 +149,14 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     """
     if _redis is None:
         logger.warning("Rate limiting not configured - %s reached unmetered by %s", surface, caller)
-        return Decision(allowed=True, retry_after_seconds=0)
+        return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     key = f"ratelimit:{surface}:{_bounded(caller)}"
     try:
         used = await _redis.count_in_window(key, ttl=limit.window_seconds)
     except Exception:
         logger.warning("rate_limit_redis_unavailable", exc_info=True)
-        return Decision(allowed=True, retry_after_seconds=0)
+        return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     if used > limit.attempts:
         return Decision(allowed=False, retry_after_seconds=limit.window_seconds)

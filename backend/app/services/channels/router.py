@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -92,6 +93,44 @@ class _ChatLocks:
 
 
 _chat_locks = _ChatLocks()
+
+
+class _LocalWindows:
+    """A per-process fixed window, for the turns the shared limiter could not count.
+
+    `rate_limit.consume` is the limit that holds across workers, and it fails
+    open when Redis is down or nobody configured one. For a public widget that
+    is the documented trade; for a channel bot the per-sender `rate_limit_rpm`
+    is a production control (`SECURITY.md`), and a limiter that vanishes for
+    the length of a Redis outage lets a permitted participant run the model as
+    fast as they can type until it recovers. So this stands in for exactly that
+    stretch: wrong by the worker count, which is the defect the shared limiter
+    exists to fix, and still a floor where there would have been none.
+
+    Bounded: every write drops the windows that have expired, so the map is the
+    size of the callers seen in the last minute, not of every caller since the
+    process started - which is what the dict this replaces did.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._windows: dict[str, tuple[int, float]] = {}
+        self._clock = clock
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
+        now = self._clock()
+        for key in [
+            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
+        ]:
+            del self._windows[key]
+        count, opened = self._windows.get(caller, (0, now))
+        self._windows[caller] = (count + 1, opened)
+        return count < attempts
+
+
+_fallback_windows = _LocalWindows()
 
 
 _SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
@@ -1051,17 +1090,25 @@ class ChannelMessageRouter:
         expiry is also what bounds the keyspace - a per-process dict kept an
         entry for every chat account the process had ever heard from.
 
+        When that limiter could not count - Redis down, or none configured - the
+        turn is counted in `_fallback_windows` instead, so a permitted sender is
+        still held to the allowance on this worker for as long as the outage
+        lasts. Fail-open here would remove a production control for the length
+        of a cache blip.
+
         Raises:
             BadRequestError: If the rate limit is exceeded.
         """
         policy: dict[str, Any] = self._parse_policy(bot)
-        rpm: int = int(policy.get("rate_limit_rpm", _DEFAULT_RPM))
-        decision = await rate_limit.consume(
-            surface="channel",
-            caller=f"bot:{bot.id}:identity:{identity_id}",
-            limit=Limit(attempts=rpm),
-        )
-        if not decision.allowed:
+        limit = Limit(attempts=int(policy.get("rate_limit_rpm", _DEFAULT_RPM)))
+        caller = f"bot:{bot.id}:identity:{identity_id}"
+        decision = await rate_limit.consume(surface="channel", caller=caller, limit=limit)
+        allowed = decision.allowed
+        if not decision.metered:
+            allowed = _fallback_windows.consume(
+                caller, attempts=limit.attempts, window_seconds=limit.window_seconds
+            )
+        if not allowed:
             raise BadRequestError(message="Rate limit exceeded. Please slow down.")
 
     async def _open_reply(
