@@ -225,6 +225,8 @@ sign themselves out, drop `/admin`, or delete the account.
 `admin_delete` refuse the self-suspend and the self-delete, and the drawer does
 not offer Suspend, Demote or Impersonate on your own row (Delete stays, visible
 and refused, because "why can I not delete myself" has an answer worth showing).
+The API refuses acting as yourself too — nobody acting as anybody is not an
+impersonation.
 
 The deployment cannot be left with no app admin through the API at all: the one
 global privilege is granted only by CLI (`agenticos cmd create-app-admin`) and
@@ -248,6 +250,35 @@ Ordered, because two requests taking the same rows in different orders is a dead
 rather than a queue. And taken on every admin deletion rather than only on an
 admin's: deleting a user is an administrator's action, not a hot path, and a total
 order is worth more than the contention it costs.
+
+## Acting as another account
+
+**Impersonate** on `/admin/users` starts acting as that person from your own
+browser. Nothing is copied anywhere: the console swaps the session's access
+cookie for one that names the target, every page renders as they would see it,
+and a banner across the top says whose account this is and who is really acting,
+with the one button that ends it.
+
+An impersonation is a **session**, not a bare credential. The token names a row
+in `sessions` with `impersonator_user_id` set, and the API refuses it the moment
+that row is ended or has expired — so it stops when you press **End
+impersonation**, when the person signs out everywhere or resets their password,
+when the hour is up, or when the administrator's own account is deleted,
+whichever is first. It cannot be refreshed: the window is the access token's own,
+and the hour is the ceiling rather than a renewable lease.
+
+!!! note "The person's own devices list does not show it"
+
+    An impersonation is a row under their id that an administrator holds, not a
+    device they signed in from — so it is not in their devices list, not in the
+    drawer's open-session count, and not their "last seen". Whether they are told
+    at all is the setting below, and a row in that list would decide it for them.
+
+**Whether the person is told is a policy, set on this row.**
+`notify_impersonated_users` is off by default; on, the person is emailed once
+when the impersonation starts, naming the administrator. The audit trail records
+the impersonation either way — both the start and the end, with the session they
+belong to — which is what [Governance](governance.md#audit) describes.
 
 ## Notices, and closing the deployment
 
@@ -407,4 +438,8 @@ which is when the module goes away.
 - `signup_mode` is applied in **one place** and gates both paths that mint an
   account. An invitation overrides a domain list; nothing overrides `closed`.
 - An app admin **cannot lock themselves out** through the console.
+- **Impersonation is a session**: started from the console with no token exposed,
+  named in a banner, ended by the administrator, by the person signing out
+  everywhere, or by the hour. Whether the person is told is
+  `notify_impersonated_users`, off by default.
 - Every refusal from this deployment looks the same, whichever layer produced it.
