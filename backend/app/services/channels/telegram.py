@@ -284,6 +284,11 @@ class TelegramAdapter(ChannelAdapter):
         left as the vendor's 401: nothing a retry does will make the token valid,
         and the supervisor retried it for ever, a traceback every five seconds,
         where the other two platforms record `down` once and stop.
+
+        The connection entry is re-stamped on its own clock for as long as the
+        poll runs, as the other two streams do (#1351): `record_up` fires once
+        and the entry expires on a TTL, so a bot nobody messaged for fifteen
+        minutes read `unknown` on the channels listing while polling fine.
         """
         async with self._bot(
             bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
@@ -295,6 +300,7 @@ class TelegramAdapter(ChannelAdapter):
                 await self._handle_update(message, bot_id)
 
             await connection_state.record_up(bot_id)
+            beat = asyncio.create_task(connection_state.heartbeat(bot_id))
             try:
                 await dp.start_polling(bot, handle_signals=False)
             except TelegramUnauthorizedError as exc:
@@ -305,6 +311,10 @@ class TelegramAdapter(ChannelAdapter):
                     ),
                     details={"bot_id": bot_id},
                 ) from exc
+            finally:
+                beat.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await beat
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Register a webhook URL with Telegram."""
