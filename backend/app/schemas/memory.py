@@ -102,8 +102,8 @@ class AgentMemoryFactCreate(BaseSchema):
 
     The one exception to "operators never author facts": seeding standing semantic
     knowledge - a company fact the agent should recall - is a deliberate management
-    act. The embedding is unmetered, since there is no run to book it against, so it
-    is a deployment cost rather than a budget charge (see `embed_operator_fact`).
+    act. The embedding is metered to the organisation's ingestion spend, the same
+    as a RAG document, and the monthly cap is checked before it is spent.
     """
 
     agent_id: UUID = Field(description="The agent whose memory this fact belongs to")

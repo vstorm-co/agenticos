@@ -44,10 +44,11 @@ interface CreateMemoryFactDialogProps {
 /**
  * New operator-seeded fact — a sentence embedded server-side so `recall` finds it
  * by meaning. The one exception to "operators never author facts": seeding standing
- * semantic knowledge is a deliberate management act (the embedding is a deployment
- * cost, not a run's). Scope works exactly as it does for a file: shared is an
- * operator act, personal defaults to the caller's own key and a member may seed
- * only that; the backend re-checks regardless of what the dialog offers.
+ * semantic knowledge is a deliberate management act (the embedding books to the
+ * organisation's ingestion spend rather than a run's, the same as a RAG document).
+ * Scope works exactly as it does for a file: shared is an operator act, personal
+ * defaults to the caller's own key and a member may seed only that; the backend
+ * re-checks regardless of what the dialog offers.
  */
 export function CreateMemoryFactDialog({
   agentId,
