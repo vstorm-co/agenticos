@@ -10,15 +10,17 @@ worst shape a bug can take: the sentence is confident and the evidence is absent
 """
 
 import uuid
-from typing import Any
+from io import BytesIO
+from typing import Any, get_args
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from PIL import Image, ImageChops
 
-from app.agents.capabilities.charts._spec import ChartSpec
+from app.agents.capabilities.charts._spec import ChartSpec, ChartType
 from app.core.permissions import OrgRoleName
 from app.services.channels.base import OutgoingAttachment
-from app.services.channels.chart_png import render_chart_png
+from app.services.channels.chart_png import RENDERERS, render_chart_png
 from app.services.channels.mentions import ChannelAgentRouter, drawn_chart
 from app.services.transcript import RecordedToolCall
 
@@ -41,13 +43,30 @@ def _call(result: str | None, name: str = "create_chart") -> RecordedToolCall:
 
 
 class TestDrawing:
-    @pytest.mark.parametrize("chart_type", ["bar", "line", "area", "scatter", "pie"])
+    @pytest.mark.parametrize("chart_type", get_args(ChartType))
     def test_every_chart_type_the_spec_allows_can_be_drawn(self, chart_type: str):
         """A type the tool accepts and the renderer cannot draw is an answer with
         a confident sentence and no picture, which is what this replaced."""
         png = render_chart_png(_spec(chart_type))
 
         assert png.startswith(b"\x89PNG")
+
+    def test_every_chart_type_has_its_own_channel_renderer(self):
+        """Two lists in two packages that have to agree: the types the `charts`
+        capability accepts and the renderers the channel raster knows. A type
+        the table lacked used to fall into an `else` and come out as a line
+        chart, no failure, no note - the #144 shape. Held equal both ways, so a
+        sixth `ChartType` fails here and a renderer for a type nobody can ask
+        for is noticed too."""
+        assert set(RENDERERS) == set(get_args(ChartType))
+
+    def test_an_area_chart_is_not_a_line_chart(self):
+        """The band under the line is what makes it one; the same rows drawn as
+        `line` must come out different."""
+        area = Image.open(BytesIO(render_chart_png(_spec("area")))).convert("RGB")
+        line = Image.open(BytesIO(render_chart_png(_spec("line")))).convert("RGB")
+
+        assert ImageChops.difference(area, line).getbbox() is not None
 
     def test_a_chart_with_no_series_plots_the_numbers_it_was_given(self):
         """A model that sends rows and names no series has still described a
