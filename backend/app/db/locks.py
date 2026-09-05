@@ -71,3 +71,21 @@ async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:
     answer, because `hashtext` and the scope are the whole key.
     """
     await db.execute(select(func.pg_advisory_xact_lock(scope.value, func.hashtext(name))))
+
+
+async def try_hold_name(db: AsyncSession, scope: LockScope, name: str) -> bool:
+    """Take the lock for a string subject if it is free, without ever waiting.
+
+    :func:`hold_name` for a caller that already holds a lock the other side takes
+    *second*. Waiting there is the ABBA deadlock the lock order exists to avoid,
+    so the only answer such a caller can act on is "free, and now mine" or "held
+    by somebody, right now" - never "held, and I will wait to find out".
+
+    True means this transaction holds it until it ends, exactly as `hold_name`
+    would. False means another transaction does, and the caller has to decide
+    what to do about that rather than block.
+    """
+    result = await db.execute(
+        select(func.pg_try_advisory_xact_lock(scope.value, func.hashtext(name)))
+    )
+    return bool(result.scalar_one())
