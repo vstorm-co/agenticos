@@ -17,10 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.363] - 2026-09-05
+
+### Fixed
+
+- **A Telegram bot with a token Telegram rejects was retried for ever.** Each
+  adapter carried its own reconnect loop and the three disagreed - a fixed five
+  seconds against a 5s-to-60s backoff, the sleep inside the `except` in one and
+  outside it in the others, and a stop-on-misconfiguration branch in two of the
+  three. So that bot logged a traceback and wrote a fresh `down` record every
+  five seconds, where the same bot on Slack or Mattermost recorded `down` once
+  and stopped. One supervised loop serves all three, with the backoff, the stop
+  condition and the accounting written once.
+
 ## [0.0.362] - 2026-09-05
 
 ### Fixed
 
+- **A bot saved as `jwt_linked` admitted senders with no linked account.** The
+  mode decided nothing on its own: with `require_link` off, which is the default,
+  it admitted an unlinked room sender under the binding's creator exactly as
+  `open` did - the access check enforced only `whitelist` and `group_only`, and
+  the one place that read the mode required both switches. An operator who picks
+  a mode named for a linked account has asked for one, so the mode requires it.
 - **A collection teardown and a claim could deadlock each other.** Every path
   that drops a collection takes its teardown lock before any row lock now, so a
   claim - which takes the teardown lock and then the organization FK - cannot
