@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.366] - 2026-09-05
+
+### Fixed
+
+- **The channel router's two module-level dicts grew without bound.** One held
+  an asyncio lock per chat, the other a rate-limit window per sender, and
+  neither ever dropped an entry - a long-running API worker kept one of each for
+  every chat and every chat account it had ever heard from. The lock map is now
+  reference-counted and drops a lock when the last waiter leaves it; the window
+  map drops what has expired on every write, so it is the size of the callers
+  seen in the last minute.
+- **The per-sender channel limit survives a Redis outage.** `rate_limit.consume`
+  fails open when Redis is unreachable, which is the documented trade for a
+  public widget - but for a channel bot `rate_limit_rpm` is a production
+  control, and a limiter that vanishes for the length of an outage lets a
+  permitted participant run the model as fast as they can type. `Decision` now
+  says whether it counted at all, and a turn it could not count is counted in a
+  bounded per-process window instead: wrong by the worker count, and still a
+  floor where there had been none.
+
 ## [0.0.365] - 2026-09-05
 
 ### Fixed
