@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.360] - 2026-09-05
+
+### Fixed
+
+- **A chart in a channel reply stalled every other channel turn while it drew.**
+  The PNG was rasterised and encoded by Pillow synchronously on the event loop
+  the worker's pollers and webhooks all share. It is handed to a thread now, like
+  the upload parse and the worker's file hash before it.
+
 ## [0.0.359] - 2026-09-05
 
 ### Changed
