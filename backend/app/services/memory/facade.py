@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -179,7 +179,18 @@ class MemoryService:
             return Perm.AGENTS_VIEW
         return Perm.AGENTS_EDIT
 
-    def _refuse_if_mem0(self, agent: Agent) -> None:
+    @staticmethod
+    def _declares_mem0(spec: dict[str, Any]) -> bool:
+        """Whether a stored spec binds the memory capability to the mem0 backend."""
+        return any(
+            isinstance(binding, dict)
+            and binding.get("id") == "memory"
+            and binding.get("enabled", True)
+            and (binding.get("config") or {}).get("backend") == "mem0"
+            for binding in spec.get("capabilities", [])
+        )
+
+    async def _refuse_if_mem0(self, agent: Agent) -> None:
         """Operator fact management is native-only; refuse it for a mem0-backed agent.
 
         These operations read and write the deployment's own pgvector store, but a
@@ -187,20 +198,31 @@ class MemoryService:
         would report a success the agent can never recall, and the listing would show
         an empty native store while the agent's real facts sit in mem0.
         Routing the console to mem0 is a separate feature; until then this refuses
-        rather than misleads. Read from the draft spec the operator is managing.
+        rather than misleads.
+
+        **Both specs are read, and either one saying mem0 refuses.** The draft is what
+        the operator is managing, but what *runs* is the published version, and the
+        two disagree for as long as an edit goes unpublished - which is exactly when
+        a native write is misleading. Reading the draft alone let a spec published on
+        mem0 and edited back to `native` seed a fact that the running agent could
+        never recall, with a 201 and an audit row to say it worked.
         """
-        spec = agent.draft_spec if isinstance(agent.draft_spec, dict) else {}
-        for binding in spec.get("capabilities", []):
-            if (
-                isinstance(binding, dict)
-                and binding.get("id") == "memory"
-                and binding.get("enabled", True)
-                and (binding.get("config") or {}).get("backend") == "mem0"
-            ):
-                raise BadRequestError(
-                    message="Operator fact management is unavailable for the mem0 backend",
-                    details={"agent_id": str(agent.id)},
-                )
+        if self._declares_mem0(agent.draft_spec):
+            raise self._mem0_refusal(agent)
+        if agent.current_version_id is None:
+            return
+        version = await agent_repo.get_version(
+            self.db, agent.current_version_id, organization_id=agent.organization_id
+        )
+        if version is not None and self._declares_mem0(version.spec):
+            raise self._mem0_refusal(agent)
+
+    @staticmethod
+    def _mem0_refusal(agent: Agent) -> BadRequestError:
+        return BadRequestError(
+            message="Operator fact management is unavailable for the mem0 backend",
+            details={"agent_id": str(agent.id)},
+        )
 
     async def _partition_labels(
         self, ctx: AuthContext, scope_keys: set[str | None]
@@ -425,7 +447,7 @@ class MemoryService:
         )
         perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
         agent = await self._agent_or_404(ctx, data.agent_id, perm=perm)
-        self._refuse_if_mem0(agent)
+        await self._refuse_if_mem0(agent)
         # Checked before the embed spends, so a seed cannot embed past an exhausted budget.
         await assert_organization_within_budget(self.db, ctx.organization_id)
         ledger = SpendLedger(organization_id=ctx.organization_id)
@@ -493,7 +515,7 @@ class MemoryService:
             else Perm.AGENTS_VIEW
         )
         agent = await self._agent_or_404(ctx, agent_id, perm=perm)
-        self._refuse_if_mem0(agent)
+        await self._refuse_if_mem0(agent)
         items, total = await memory_repo.list_facts(
             self.db,
             organization_id=ctx.organization_id,
@@ -558,7 +580,7 @@ class MemoryService:
         separate feature.
         """
         agent = await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
-        self._refuse_if_mem0(agent)
+        await self._refuse_if_mem0(agent)
         files = await memory_repo.delete_all_files(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
@@ -582,7 +604,7 @@ class MemoryService:
         without discarding the reference files an operator authored.
         """
         agent = await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
-        self._refuse_if_mem0(agent)
+        await self._refuse_if_mem0(agent)
         facts = await memory_repo.delete_all_facts(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )

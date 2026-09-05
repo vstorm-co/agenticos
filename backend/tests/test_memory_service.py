@@ -71,10 +71,37 @@ def _service() -> MemoryService:
     return MemoryService(db)
 
 
+def _agent(*, draft_spec=None, current_version_id=None):
+    """An agent row as the mem0 guard reads it: a draft spec, and what is published.
+
+    `current_version_id=None` is "nothing published", which is what keeps the guard
+    from reaching for a version on a mocked session; a test about the published spec
+    sets it and patches `agent_repo.get_version`.
+    """
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        draft_spec=draft_spec if draft_spec is not None else {},
+        current_version_id=current_version_id,
+    )
+
+
+def _memory_spec(backend: str) -> dict:
+    return {"capabilities": [{"id": "memory", "enabled": True, "config": {"backend": backend}}]}
+
+
+def _version(spec: dict):
+    """A published version row. `spec` is set after construction: `MagicMock(spec=...)`
+    is the mock's own spec argument, not an attribute."""
+    version = MagicMock()
+    version.spec = spec
+    return version
+
+
 def _reachable_agent():
     """`agent_repo.get` returns a row; `resolve_access` says yes."""
     return (
-        patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+        patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
         patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
     )
 
@@ -102,7 +129,7 @@ class TestAgentAccess:
         """A denial is a 404, never a 403 - existence is not leaked."""
         service = _service()
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=False)),
             pytest.raises(NotFoundError),
         ):
@@ -283,7 +310,7 @@ class TestCreateAuthorizesByTier:
 
     def _create_patches(self, resolve: AsyncMock):
         return (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=resolve),
             patch(f"{MEMORY_PATH}.memory_repo.get_by_name", new=AsyncMock(return_value=None)),
             patch(f"{MEMORY_PATH}.memory_repo.create", new=AsyncMock(return_value=_file())),
@@ -335,7 +362,7 @@ class TestCreateAuthorizesByTier:
             return perm == Perm.AGENTS_VIEW
 
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(side_effect=_view_only)),
             patch(f"{MEMORY_PATH}.memory_repo.get_by_name", new=AsyncMock(return_value=None)),
             patch(f"{MEMORY_PATH}.memory_repo.create", new=AsyncMock(return_value=_file())),
@@ -558,7 +585,7 @@ class TestCrossUserRead:
     async def test_a_viewer_may_list_the_shared_store(self):
         service = _service()
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.list_for_agent", new=AsyncMock(return_value=([], 0))),
         ):
@@ -569,7 +596,7 @@ class TestCrossUserRead:
         service = _service()
         me = uuid.uuid4()
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.list_facts", new=AsyncMock(return_value=([], 0))),
         ):
@@ -581,7 +608,7 @@ class TestCrossUserRead:
     async def test_a_viewer_cannot_list_every_partition(self):
         service = _service()
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             pytest.raises(NotFoundError),
         ):
@@ -590,7 +617,7 @@ class TestCrossUserRead:
     async def test_a_viewer_cannot_list_another_persons_facts(self):
         service = _service()
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             pytest.raises(NotFoundError),
         ):
@@ -603,7 +630,7 @@ class TestCrossUserRead:
         me = uuid.uuid4()
         file = _file(scope_key=f"user:{me}")
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
         ):
@@ -614,7 +641,7 @@ class TestCrossUserRead:
         service = _service()
         file = _file(scope_key="user:someone-else")
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
             pytest.raises(NotFoundError),
@@ -627,7 +654,7 @@ class TestCrossUserRead:
         fact = _fact()
         fact.end_user_scope_key = f"user:{me}"
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
         ):
@@ -638,7 +665,7 @@ class TestCrossUserRead:
         fact = _fact()
         fact.end_user_scope_key = "user:someone-else"
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
             pytest.raises(NotFoundError),
@@ -663,7 +690,7 @@ class TestOwnPersonalWrites:
         fact = _fact()
         fact.end_user_scope_key = f"user:{me}"
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
             patch(f"{MEMORY_PATH}.memory_repo.delete_fact", new=AsyncMock()) as delete,
@@ -676,7 +703,7 @@ class TestOwnPersonalWrites:
         service = _service()
         fact = _fact()  # shared (scope None)
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get_fact", new=AsyncMock(return_value=fact)),
             pytest.raises(NotFoundError),
@@ -688,7 +715,7 @@ class TestOwnPersonalWrites:
         me = uuid.uuid4()
         file = _file(scope_key=f"user:{me}")
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
             patch(f"{MEMORY_PATH}.memory_repo.delete", new=AsyncMock()) as delete,
@@ -701,7 +728,7 @@ class TestOwnPersonalWrites:
         service = _service()
         file = _file(scope_key=None)  # shared
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=self._view_only()),
             patch(f"{MEMORY_PATH}.memory_repo.get", new=AsyncMock(return_value=file)),
             pytest.raises(NotFoundError),
@@ -710,12 +737,7 @@ class TestOwnPersonalWrites:
 
 
 def _mem0_agent():
-    return MagicMock(
-        id=uuid.uuid4(),
-        draft_spec={
-            "capabilities": [{"id": "memory", "enabled": True, "config": {"backend": "mem0"}}]
-        },
-    )
+    return _agent(draft_spec=_memory_spec("mem0"))
 
 
 class TestMem0FactManagement:
@@ -774,12 +796,7 @@ class TestMem0FactManagement:
         # The binding is present but native, so the guard's loop runs and finds
         # nothing to refuse - the management path proceeds as normal.
         service = _service()
-        agent = MagicMock(
-            id=uuid.uuid4(),
-            draft_spec={
-                "capabilities": [{"id": "memory", "enabled": True, "config": {"backend": "native"}}]
-            },
-        )
+        agent = _agent(draft_spec=_memory_spec("native"))
         with (
             patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
             patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
@@ -788,9 +805,71 @@ class TestMem0FactManagement:
             result = await service.list_facts(_ctx(), agent_id=uuid.uuid4())
         assert result.total == 0
 
+    async def test_a_published_mem0_spec_is_refused_though_the_draft_says_native(self):
+        """The version that runs decides, not the one being edited.
+
+        Published on mem0, then edited back to `native` and not published: the agent's
+        facts are still in mem0, so a native seed would report a success nothing can
+        recall. Reading the draft alone missed exactly this.
+        """
+        service = _service()
+        agent = _agent(draft_spec=_memory_spec("native"), current_version_id=uuid.uuid4())
+        version = _version(_memory_spec("mem0"))
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{MEMORY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=version)
+            ) as get_version,
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            pytest.raises(BadRequestError),
+        ):
+            await service.list_facts(_ctx(), agent_id=uuid.uuid4())
+        get_version.assert_awaited_once()
+
+    async def test_a_native_agent_with_a_published_version_is_not_refused(self):
+        service = _service()
+        agent = _agent(draft_spec=_memory_spec("native"), current_version_id=uuid.uuid4())
+        version = _version(_memory_spec("native"))
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MEMORY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{MEMORY_PATH}.memory_repo.list_facts", new=AsyncMock(return_value=([], 0))),
+        ):
+            result = await service.list_facts(_ctx(), agent_id=uuid.uuid4())
+        assert result.total == 0
+
+    async def test_a_version_row_that_has_gone_missing_refuses_nothing(self):
+        # `current_version_id` names a row this organization cannot read; there is no
+        # published spec to consult, so the draft's answer stands.
+        service = _service()
+        agent = _agent(draft_spec=_memory_spec("native"), current_version_id=uuid.uuid4())
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MEMORY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=None)),
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{MEMORY_PATH}.memory_repo.list_facts", new=AsyncMock(return_value=([], 0))),
+        ):
+            result = await service.list_facts(_ctx(), agent_id=uuid.uuid4())
+        assert result.total == 0
+
+    async def test_a_mem0_draft_is_refused_without_reading_the_published_version(self):
+        # The draft is checked first, so an agent being switched *to* mem0 refuses
+        # before a version lookup it does not need.
+        service = _service()
+        agent = _agent(draft_spec=_memory_spec("mem0"), current_version_id=uuid.uuid4())
+        with (
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{MEMORY_PATH}.agent_repo.get_version", new=AsyncMock()) as get_version,
+            patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            pytest.raises(BadRequestError),
+        ):
+            await service.list_facts(_ctx(), agent_id=uuid.uuid4())
+        get_version.assert_not_awaited()
+
 
 class TestCreateFact:
-    """The operator seeds a fact directly: it is embedded server-side (unmetered),
+    """The operator seeds a fact directly: it is embedded server-side and metered,
     stored, and audited, and the tier decides the permission the same way a file
     create does."""
 
@@ -824,7 +903,7 @@ class TestCreateFact:
 
     def _fact_authz_patches(self, resolve: AsyncMock):
         return (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=resolve),
             patch(f"{MEMORY_PATH}.assert_organization_within_budget", new=AsyncMock()),
             patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock(return_value=[0.1])),
@@ -892,7 +971,7 @@ class TestCreateFact:
             return perm == Perm.AGENTS_VIEW
 
         with (
-            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MEMORY_PATH}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{MEMORY_PATH}.resolve_access", new=AsyncMock(side_effect=_view_only)),
             patch(f"{MEMORY_PATH}.embed_operator_fact", new=AsyncMock()) as embed,
             pytest.raises(NotFoundError),

@@ -75,10 +75,17 @@ def _url(suffix: str = "") -> str:
     return f"{settings.API_V1_STR}/memory{suffix}"
 
 
+def _agent() -> MagicMock:
+    """An agent row with nothing published, so the mem0 guard reads the draft alone."""
+    return MagicMock(
+        id=_AGENT_ID, organization_id=_ORGANIZATION_ID, draft_spec={}, current_version_id=None
+    )
+
+
 def _reachable():
     """The parent agent exists and access resolves to yes."""
     return (
-        patch(f"{FACADE}.agent_repo.get", new=AsyncMock(return_value=MagicMock())),
+        patch(f"{FACADE}.agent_repo.get", new=AsyncMock(return_value=_agent())),
         patch(f"{FACADE}.resolve_access", new=AsyncMock(return_value=True)),
     )
 
