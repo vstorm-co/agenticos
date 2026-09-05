@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.357"
+version = "0.0.359"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -567,6 +567,7 @@ include = [
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
+    "app/services/impersonation.py",
     "app/services/health.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
@@ -825,6 +826,10 @@ include = [
     # did what in an organization, and the scope is the whole point of the
     # service: one wrong argument here would show another tenant's actions.
     "app/services/audit.py",
+    # An administrator acting as somebody else. Every branch here is a refusal -
+    # an ended row, an expired one, a token carried onto another session - and a
+    # refusal nobody has watched fail is the credential #1044 replaced.
+    "app/services/impersonation.py",
     # The health probes are ours: the template's version reported a hardcoded
     # "unknown" for the vector store and read environment variables for a
     # provider check. A probe nobody has watched fail is not a probe, which is

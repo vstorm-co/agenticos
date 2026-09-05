@@ -11,6 +11,11 @@ vi.mock("@/lib/api-client", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+const push = vi.fn();
+const reauthenticate = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/hooks/use-auth", () => ({ useReauthenticate: () => reauthenticate }));
+
 /** The path of the nth GET, which is where every filter on these screens ends up. */
 function path(nth = 0): string {
   return vi.mocked(apiClient.get).mock.calls[nth]![0] as string;
@@ -19,6 +24,7 @@ function path(nth = 0): string {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  reauthenticate.mockResolvedValue(undefined);
 });
 
 /**
@@ -30,9 +36,11 @@ beforeEach(() => {
  * every filter on the screen has to reach the server, and a dropped one shows a
  * full list under a heading that says it is filtered.
  *
- * `impersonateUser` is the one action here with a security consequence. It hands
- * back a token, and a refusal has to hand back nothing at all rather than an
- * undefined that a caller could treat as success.
+ * `impersonateUser` is the one action here with a security consequence. Nothing
+ * it answers is a credential - the BFF swaps the browser's cookie - and what it
+ * does afterwards is change identity: re-read the session, which adopts the
+ * account now being acted as and empties the administrator's cache, then open
+ * the dashboard as them (#1044).
  */
 describe("useAdminUsers", () => {
   it("pages the list, with the defaults the screen opens on", async () => {
@@ -168,7 +176,7 @@ describe("useAdminUsers", () => {
   it("marks who is being impersonated while the request is in flight", async () => {
     // The row's button is disabled off this, so a request that left it unset would
     // let somebody fire two impersonations at once.
-    let release: (value: { access_token: string }) => void = () => {};
+    let release: (value: unknown) => void = () => {};
     vi.mocked(apiClient.post).mockReturnValue(
       new Promise((resolve) => {
         release = resolve;
@@ -180,28 +188,66 @@ describe("useAdminUsers", () => {
     await waitFor(() => expect(result.current.impersonating).toBe("u-1"));
 
     await act(async () => {
-      release({ access_token: "imp-token" });
+      release({ impersonated_user_id: "u-1", session_id: "s-1" });
       await pending;
     });
 
-    await expect(pending).resolves.toBe("imp-token");
+    await expect(pending).resolves.toBe(true);
     expect(apiClient.post).toHaveBeenCalledWith("/admin/users/u-1/impersonate");
     expect(result.current.impersonating).toBeNull();
   });
 
-  it("hands back nothing when impersonation is refused", async () => {
-    // Not `undefined`: the caller signs in with whatever comes back, and only an
-    // explicit null is safe to branch on.
+  it("becomes the other account once the cookie has been swapped", async () => {
+    // Identity first, navigation second: the re-read is what adopts the account
+    // now being acted as - clearing the cache and the tenant state that were the
+    // administrator's - and the dashboard opened after it is theirs.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "u-1", email: "customer@example.com" }],
+      total: 1,
+    });
+    vi.mocked(apiClient.post).mockResolvedValue({ impersonated_user_id: "u-1" });
+    const { result } = renderHook(() => useAdminUsers());
+    await act(() => result.current.fetchUsers());
+
+    await act(async () => {
+      await result.current.impersonateUser("u-1");
+    });
+
+    expect(reauthenticate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(apiClient.post).mock.invocationCallOrder[0]).toBeLessThan(
+      reauthenticate.mock.invocationCallOrder[0]!,
+    );
+    expect(toast.success).toHaveBeenCalledWith("Now acting as customer@example.com");
+    expect(push).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("names the account by id when the list does not hold it", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ impersonated_user_id: "u-9" });
+    const { result } = renderHook(() => useAdminUsers());
+
+    await act(async () => {
+      await result.current.impersonateUser("u-9");
+    });
+
+    expect(toast.success).toHaveBeenCalledWith("Now acting as u-9");
+  });
+
+  it("changes nothing when the impersonation is refused", async () => {
+    // A refusal leaves the administrator exactly where they were: no identity
+    // re-read, no navigation, and `false` rather than an undefined a caller could
+    // read as success.
     vi.mocked(apiClient.post).mockRejectedValue(new Error("403"));
     const { result } = renderHook(() => useAdminUsers());
 
-    let token: string | null | undefined;
+    let started: boolean | undefined;
     await act(async () => {
-      token = await result.current.impersonateUser("u-1");
+      started = await result.current.impersonateUser("u-1");
     });
 
-    expect(token).toBeNull();
+    expect(started).toBe(false);
     expect(toast.error).toHaveBeenCalledWith("Failed to impersonate user");
+    expect(reauthenticate).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
     expect(result.current.impersonating).toBeNull();
   });
 });

@@ -27,14 +27,18 @@ def create_access_token(
     expires_delta: timedelta | None = None,
     *,
     act: str | None = None,
+    sid: str | None = None,
 ) -> str:
     """Create a JWT access token.
 
     `act` is the actor behind the subject when the two differ - an administrator
     impersonating another account. It is carried as its own claim so a request
     made with the token is attributable to the person who is really acting, not
-    only to the account they are acting as (#943). Omitted from the payload when
-    unset, so an ordinary token is byte-for-byte what it was.
+    only to the account they are acting as (#943). `sid` is the session row that
+    impersonation is, so the token can be refused once the row has been ended -
+    a bare token is good until it expires whatever anybody does (#1044). Both are
+    omitted from the payload when unset, so an ordinary token is byte-for-byte
+    what it was.
     """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
@@ -44,6 +48,8 @@ def create_access_token(
     to_encode: dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "access"}
     if act is not None:
         to_encode["act"] = str(act)
+    if sid is not None:
+        to_encode["sid"] = str(sid)
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
