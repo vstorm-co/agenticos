@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.363] - 2026-09-05
+
+### Fixed
+
+- **A bot saved as `jwt_linked` admitted senders with no linked account.** The
+  mode decided nothing on its own: with `require_link` off, which is the default,
+  it admitted an unlinked room sender under the binding's creator exactly as
+  `open` did - the access check enforced only `whitelist` and `group_only`, and
+  the one place that read the mode required both switches. An operator who picks
+  a mode named for a linked account has asked for one, so the mode requires it.
+
 ## [0.0.362] - 2026-09-05
 
 ### Fixed
