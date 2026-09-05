@@ -221,7 +221,7 @@ async def get_collection_info(
 ) -> Any:
     """Retrieve stats for a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(collection.collection_name)
+    return await vector_store.get_collection_info(collection.collection_name, ctx.organization_id)
 
 
 @router.get(
@@ -265,6 +265,7 @@ async def search_documents(
             collection_names=collections,
             limit=request.limit,
             min_score=request.min_score,
+            organization_id=ctx.organization_id,
         )
     else:
         results = await retrieval_service.retrieve(
@@ -273,6 +274,7 @@ async def search_documents(
             limit=request.limit,
             min_score=request.min_score,
             filter=request.filter or "",
+            organization_id=ctx.organization_id,
         )
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)

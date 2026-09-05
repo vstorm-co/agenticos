@@ -35,6 +35,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import StrEnum
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -151,13 +152,23 @@ class ResolvedEmbeddings:
         )
 
 
-async def embeddings_for_collection(collection_name: str) -> ResolvedEmbeddings | None:
+async def embeddings_for_collection(
+    collection_name: str, organization_id: UUID | None = None
+) -> ResolvedEmbeddings | None:
     """Resolve one collection's embedding model, provider and credential.
 
     Returns None for a collection no knowledge base claims - the store then
     uses its deployment defaults, which is what such collections have always
     gotten. Opens its own session because the store embeds from places with no
     request in sight: a worker mid-ingestion, a capability mid-run.
+
+    `organization_id` scopes the resolution: `collection_name` is not unique, so
+    resolving by name alone can land on another tenant's knowledge base and unseal
+    *their* vault key for *this* organization's embedding call (#913). The caller
+    passes the organization it is embedding for - the ingesting flow's, the
+    searching agent's - and resolution stays within it, falling back to an
+    app-scoped collection but never to a third organization's. `None` is a caller
+    with no organization in hand and keeps the first-match behaviour it had.
 
     A provider the catalog no longer names - an entry removed from the file
     under a collection that was using it - resolves to the deployment's, with a
@@ -166,7 +177,7 @@ async def embeddings_for_collection(collection_name: str) -> ResolvedEmbeddings 
     address this build is certain of.
     """
     async with get_db_context() as db:
-        kb = await knowledge_base_repo.get_by_collection_name(db, collection_name)
+        kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
         if kb is None:
             return None
         provider = embedding_providers.get(kb.embedding_provider)

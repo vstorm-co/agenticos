@@ -83,8 +83,13 @@ def _say_in_flow_log(message: str) -> None:
         logger.warning(message)
 
 
-def _announcing_resolver() -> EmbeddingResolver:
+def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
     """`embeddings_for_collection`, saying a degraded credential out loud once.
+
+    The organization is the ingesting flow's own, threaded into resolution so a
+    collection name shared across tenants embeds on this document's organization's
+    key rather than whichever knowledge base the database ordered first (#913). The
+    store passes no organization on the ingest path, so the flow's stands in.
 
     The resolver falls back to the deployment key on three paths - the chosen
     secret deleted, unsealable, or not an API key - each a `logger.warning` in
@@ -104,8 +109,12 @@ def _announcing_resolver() -> EmbeddingResolver:
     """
     announced: set[str] = set()
 
-    async def resolve(collection_name: str) -> ResolvedEmbeddings | None:
-        resolved = await embeddings_for_collection(collection_name)
+    async def resolve(
+        collection_name: str, store_organization_id: UUID | None = None
+    ) -> ResolvedEmbeddings | None:
+        resolved = await embeddings_for_collection(
+            collection_name, store_organization_id or organization_id
+        )
         if (
             resolved is not None
             and resolved.key_source.is_degraded
@@ -119,7 +128,9 @@ def _announcing_resolver() -> EmbeddingResolver:
 
 
 @asynccontextmanager
-async def _ingestion_service(*, processor: DocumentProcessor) -> AsyncIterator[IngestionService]:
+async def _ingestion_service(
+    *, processor: DocumentProcessor, organization_id: UUID | None
+) -> AsyncIterator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
 
     Both halves come off the collection. The parser, the chunker and the image
@@ -155,7 +166,7 @@ async def _ingestion_service(*, processor: DocumentProcessor) -> AsyncIterator[I
             vector_store=VectorStore(
                 settings=rag_settings,
                 embedding_service=EmbeddingService(settings=rag_settings),
-                resolver=_announcing_resolver(),
+                resolver=_announcing_resolver(organization_id),
                 engine=engine,
             ),
         )
@@ -197,30 +208,17 @@ async def _knowledge_base_for(
 ) -> KnowledgeBase | None:
     """The knowledge base behind a collection name, or `None` if none claims it.
 
-    The organization narrows the candidates because `collection_name` is not
-    unique across tenants - and the caller's own row wins over a deployment-wide
-    one of the same name, which is the reason for two passes rather than one
-    condition.
-
-    An `app`-scoped collection belongs to no organization, so it is matched on
-    the second pass rather than skipped. Skipping it meant a source pointed at
-    one was parsed with the deployment defaults instead of the settings that
-    collection had chosen, and - once a sync started recording documents - filed
-    them under no knowledge base, which is the invisibility this was fixing
-    (#992).
-
-    Two callers still reach `None`: a local-directory sync, which names a path on
-    the server rather than a collection somebody configured, and a sync source
-    with no collection at all - an org-level integration template that exists to
-    be cloned and should never have been run.
+    The org-scoped resolution itself is `knowledge_base_repo.get_for_collection`,
+    shared with per-collection embedding resolution so the tenant-narrowing rule
+    the non-unique `collection_name` needs lives in one place (#913, #992). Two
+    callers still reach `None` before it: a local-directory sync, which names a
+    path on the server rather than a collection somebody configured, and a sync
+    source with no collection at all - an org-level integration template that
+    exists to be cloned and should never have been run.
     """
     if collection_name is None:
         return None
-    candidates = await knowledge_base_repo.list_by_collection_name(db, collection_name)
-    for kb in candidates:
-        if organization_id is None or kb.organization_id == organization_id:
-            return kb
-    return next((kb for kb in candidates if kb.organization_id is None), None)
+    return await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
 
 
 async def _config_for_collection(
@@ -363,7 +361,7 @@ async def _run_ingestion(
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
-    async with _ingestion_service(processor=processor) as ingester:
+    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
         try:
             with metered_by(ledger):
                 result = await ingester.ingest_file(
@@ -456,7 +454,7 @@ async def _run_sync(
 
     # Entered after the validations above, so an early "path not found" return
     # builds no engine, and every return inside the loop still disposes one (#948).
-    async with _ingestion_service(processor=processor) as ingester:
+    async with _ingestion_service(processor=processor, organization_id=None) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
                 sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
@@ -809,7 +807,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     total = 0
     ledger = SpendLedger(organization_id=organization_id)
 
-    async with _ingestion_service(processor=processor) as ingester:
+    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
         try:
             files = await connector.list_files(config, credential)
             total = len(files)

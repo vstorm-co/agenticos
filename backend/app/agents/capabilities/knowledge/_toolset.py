@@ -45,6 +45,9 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 # model chooses *what* to search, never *where*.
                 kb_collection_names=ctx.deps.kb_collection_names,
                 top_k=top_k or default_top_k,
+                # Scopes embedding resolution to this agent's tenant, so a shared
+                # collection name embeds on its own organization's key (#913).
+                organization_id=ctx.deps.organization_id,
             )
         except Exception:
             # A retry rather than a returned message: an error in the shape of a

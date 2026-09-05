@@ -259,3 +259,33 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
         .order_by(KnowledgeBase.created_at)
     )
     return list(result.scalars().all())
+
+
+async def get_for_collection(
+    db: AsyncSession, collection_name: str, organization_id: UUID | None
+) -> KnowledgeBase | None:
+    """The knowledge base behind a collection name, resolved within one organization.
+
+    The org-scoped counterpart to :func:`get_by_collection_name`, and the one any
+    per-collection resolution reaches for: the column is not unique, so picking
+    whichever row the database orders first resolves another tenant's embedding
+    config and unseals their vault key when two organizations share a name (#913).
+    This narrows to the caller's own organization first, then to an `app`-scoped row
+    (owned by no organization, deployment-wide by design), and never to a third
+    organization's row.
+
+    `organization_id=None` is a caller with no organization in hand - a
+    deployment-level operation, a local-directory sync - and keeps the first-match
+    behaviour it always had; a name shared across tenants stays ambiguous for it.
+
+    Within one organization the choice among siblings is immaterial by
+    construction: a row joining an occupied collection name adopts that name's
+    embedding configuration and credential, so every row on one vector table
+    answers the same way. `KnowledgeBaseService._shared_embedding` is what holds
+    that true.
+    """
+    candidates = await list_by_collection_name(db, collection_name)
+    for kb in candidates:
+        if organization_id is None or kb.organization_id == organization_id:
+            return kb
+    return next((kb for kb in candidates if kb.organization_id is None), None)
