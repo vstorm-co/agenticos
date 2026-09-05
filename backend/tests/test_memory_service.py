@@ -252,10 +252,8 @@ class TestCreate:
         assert audit.call_args.kwargs["action"] == "memory.file.created"
 
     async def test_a_racing_duplicate_becomes_a_conflict_not_a_500(self):
-        # The name check and the insert are not atomic; a concurrent create that
-        # wins the race raises IntegrityError at the unique index, which the
-        # service turns into the same AlreadyExistsError a sequential duplicate
-        # gets, not a bare 500.
+        # A concurrent create that wins the race raises IntegrityError at the unique
+        # index, which becomes the same AlreadyExistsError a sequential duplicate gets.
         service = _service()
         get_agent, allow = _reachable_agent()
         with (
@@ -548,7 +546,7 @@ class TestClear:
 
 class TestCrossUserRead:
     """A viewer sees the shared store and their own personal partition; listing every
-    partition or another person's is an editor act (codex P2)."""
+    partition or another person's is an editor act."""
 
     @staticmethod
     def _view_only():
@@ -612,8 +610,7 @@ class TestCrossUserRead:
             assert await service.get(_ctx(user_id=me), file.id) is file
 
     async def test_a_viewer_cannot_read_another_persons_file_by_id(self):
-        # The leak this closes: a known id let a viewer GET a personal row it may
-        # not list. Reading another partition needs edit, like listing it (codex).
+        # A known id must not let a viewer GET a personal row it may not list.
         service = _service()
         file = _file(scope_key="user:someone-else")
         with (
@@ -651,7 +648,7 @@ class TestCrossUserRead:
 
 class TestOwnPersonalWrites:
     """A viewer may amend and forget their *own* personal memory, but nothing else -
-    the delete/update side of the create relaxation (codex P1)."""
+    the delete/update side of the create relaxation."""
 
     @staticmethod
     def _view_only():
@@ -723,7 +720,7 @@ def _mem0_agent():
 
 class TestMem0FactManagement:
     """Native fact management refuses a mem0-backed agent rather than misleading: a
-    seed would report a success the agent can never recall (codex P1)."""
+    seed would report a success the agent can never recall."""
 
     def _reachable_mem0(self):
         return (
@@ -758,9 +755,8 @@ class TestMem0FactManagement:
             await service.clear_facts(_ctx(), agent_id=uuid.uuid4())
 
     async def test_clearing_all_memory_is_refused_and_deletes_nothing(self):
-        # The combined danger-zone clear refuses before any partial delete:
-        # dropping the native files while the mem0 facts stay recallable is a wipe
-        # that reports success and leaves the agent remembering (codex).
+        # The combined clear refuses before any partial delete: dropping the native files
+        # while the mem0 facts stay recallable would be a wipe reporting success.
         service = _service()
         get_agent, allow = self._reachable_mem0()
         with (

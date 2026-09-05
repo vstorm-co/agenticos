@@ -64,8 +64,7 @@ describe("MemoryFactsPane", () => {
 
     expect(await screen.findByText("Acme's fiscal year starts in April.")).toBeInTheDocument();
     expect(screen.getByText("Prefers weekly summaries on Fridays.")).toBeInTheDocument();
-    // One operator-seeded shared fact, one agent-written personal one — the badge
-    // reads each row's own origin now, not a hardcoded "Agent".
+    // One operator-seeded shared fact, one agent-written personal one.
     expect(screen.getByText("Operator")).toBeInTheDocument();
     expect(screen.getByText("Agent")).toBeInTheDocument();
     expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
@@ -195,9 +194,8 @@ describe("MemoryFactsPane", () => {
   });
 
   it("steps back after forgetting the last fact of a later page", async () => {
-    // The facts pane strands the same way (codex): forgetting the one fact on a
-    // later page empties it and hides the pager, so the pane must fall back to
-    // the previous page.
+    // Forgetting the one fact on a later page empties it and hides the pager, so the
+    // pane must fall back to the previous page.
     let total = PAGE_SIZE + 1;
     const factAt = (i: number) => ({ ...FACT_SHARED, id: `x-${i}`, content: `fact-${i}` });
     vi.mocked(apiClient.get).mockImplementation((url: string) => {

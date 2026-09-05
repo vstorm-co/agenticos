@@ -139,7 +139,7 @@ class MemoryService:
         A person may keep, amend and forget their *own* personal memory with only
         view on the agent - the relaxation `create` already makes, extended to
         update and delete so a viewer is not left with personal data they can
-        create but never remove (codex P1). Any other partition - the shared store
+        create but never remove. Any other partition - the shared store
         or another person's - stays an editor act, so a viewer can never touch what
         is not theirs.
         """
@@ -161,7 +161,7 @@ class MemoryService:
         Reading every partition, every per-user store, or a specific other person's
         is cross-user inspection - an editor act. A viewer sees the shared store and
         their own personal partition, nothing else, so a member with view on a shared
-        agent cannot page through everyone's private memory (codex P2).
+        agent cannot page through everyone's private memory.
         """
         if all_partitions or scoped_only:
             return True
@@ -173,8 +173,7 @@ class MemoryService:
         The shared store and the caller's own personal partition are view; another
         person's personal partition is cross-user inspection, an editor act - the
         same rule `_cross_user_read` applies to a listing. Without it a viewer who
-        learned an id could `GET` a stranger's personal file or fact it may not list
-        (codex).
+        learned an id could `GET` a stranger's personal file or fact it may not list.
         """
         if scope_key is None or self._own_personal(ctx, scope_key):
             return Perm.AGENTS_VIEW
@@ -186,7 +185,7 @@ class MemoryService:
         These operations read and write the deployment's own pgvector store, but a
         mem0-backed agent keeps its facts in mem0. Left unchecked, an operator seed
         would report a success the agent can never recall, and the listing would show
-        an empty native store while the agent's real facts sit in mem0 (codex P1).
+        an empty native store while the agent's real facts sit in mem0.
         Routing the console to mem0 is a separate feature; until then this refuses
         rather than misleads. Read from the draft spec the operator is managing.
         """
@@ -322,10 +321,8 @@ class MemoryService:
                 origin=MemoryOrigin.OPERATOR.value,
             )
         except IntegrityError as exc:
-            # The `get_by_name` check above and this insert are not atomic; a
-            # concurrent create with the same name in the same partition loses the
-            # race here. The unique index is the real guard, so a race gets the
-            # same 409 as a sequential duplicate rather than a 500.
+            # The `get_by_name` check and this insert are not atomic; the unique index is
+            # the real guard, so a race gets the same 409 as a sequential duplicate.
             raise AlreadyExistsError(
                 message=f"A memory file named '{data.name}' already exists in this partition.",
                 details={"name": data.name},
@@ -429,8 +426,7 @@ class MemoryService:
         perm = Perm.AGENTS_VIEW if creating_own_personal else Perm.AGENTS_EDIT
         agent = await self._agent_or_404(ctx, data.agent_id, perm=perm)
         self._refuse_if_mem0(agent)
-        # Check the cap before spending on the embed, the pre-check RAG ingestion
-        # makes, so a seed cannot embed past an exhausted monthly budget (codex P2).
+        # Checked before the embed spends, so a seed cannot embed past an exhausted budget.
         await assert_organization_within_budget(self.db, ctx.organization_id)
         ledger = SpendLedger(organization_id=ctx.organization_id)
         with metered_by(ledger):
@@ -559,7 +555,7 @@ class MemoryService:
         mem0, so a native clear would drop the files, report "cleared", and leave
         every fact still recallable - a partial wipe wearing a success. The
         single-target clear refuses the same way; routing the delete to mem0 is a
-        separate feature (codex).
+        separate feature.
         """
         agent = await self._agent_or_404(ctx, agent_id, perm=Perm.AGENTS_EDIT)
         self._refuse_if_mem0(agent)

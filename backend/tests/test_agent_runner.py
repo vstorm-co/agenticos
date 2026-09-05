@@ -1729,10 +1729,8 @@ class TestParking:
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "plan": [],
-            # What the request asked for, so the continuation is the same run
-            # rather than a default-mode one wearing its id (#1326, #1343), and the
-            # memory partition keys on the run's own identity, not the approver's
-            # (#788).
+            # What the request asked for, so the continuation is the same run rather
+            # than a default-mode one wearing its id (#1326, #1343, #788).
             "admitted_as": {
                 "approval_mode": "follow_agent",
                 "acts_for_sender": False,

@@ -202,9 +202,8 @@ def derive_end_user_scope_key(
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         description="The mem0 API key, when facts are stored in a mem0 service",
-        # Only the mem0 backend authenticates; native pgvector needs no key. The
-        # config validator forces backend to native when facts are off, so this
-        # is asked for exactly when it will be used (H1).
+        # The config validator forces backend to native when facts are off, so the
+        # key is asked for exactly when it will be used.
         required_when=SecretCondition(field="backend", equals=("mem0",)),
     ),
 )

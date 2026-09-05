@@ -333,9 +333,8 @@ describe("useChat - the streamed answer", () => {
   });
 
   it("refreshes the Memory tab when the agent finishes writing memory", () => {
-    // The Memory tab is a separate view the chat cannot see; a write in chat must
-    // invalidate that agent's memory queries so the tab refetches rather than
-    // showing a stale list.
+    // A write in chat must invalidate that agent's memory queries, or the Memory tab
+    // shows a stale list.
     useAgentSelectionStore.setState({ selectedAgentId: "agent-1" });
     const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
     const { result } = renderHook(() => useChat(), { wrapper });

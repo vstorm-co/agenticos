@@ -114,7 +114,7 @@ class TestRemember:
 
 
 class TestBaseUrlValidation:
-    """The vault key never leaves for an unvetted URL (codex P1): a self-hosted host
+    """The vault key never leaves for an unvetted URL: a self-hosted host
     must be https, allowlisted, and resolve to a public address."""
 
     async def _remember(self, base_url: str):
@@ -212,10 +212,8 @@ class TestRecall:
         assert transport.client.calls[0][1]["user_id"] == f"{ORG}:{AGENT}:shared"
 
     async def test_it_unions_shared_and_personal_merged_by_score_and_capped(self, monkeypatch):
-        # With a person, both the shared and the personal namespace are searched;
-        # hits merge, sort by score descending, and cap at `limit`, so a person's
-        # closer hit outranks a shared one. The personal namespace is the run's own
-        # key, so the union can never reach another person's facts.
+        # Shared and personal namespaces are searched, merged by score and capped at
+        # `limit`; the personal namespace is the run's own key, never another person's.
         responses = {
             f"{ORG}:{AGENT}:shared": {
                 "results": [{"memory": "s1", "score": 0.4}, {"memory": "s2", "score": 0.3}]
@@ -264,9 +262,7 @@ class TestRecall:
             )
 
     async def test_a_body_that_is_not_json_becomes_a_controlled_refusal(self, transport):
-        # A 200 whose body is not JSON (an HTML error page) makes `response.json()`
-        # raise a `JSONDecodeError`, a `ValueError` - a garbled response is a
-        # service failure, not a crash mid-run.
+        # A 200 whose body is not JSON (an HTML error page) is a service failure, not a crash mid-run.
         transport.response = _Response(json_error=ValueError("no json here"))
         with pytest.raises(ExternalServiceError):
             await _mem0.mem0_recall(

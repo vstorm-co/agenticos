@@ -117,9 +117,8 @@ class TestWriteFile:
         create.assert_not_awaited()
 
     async def test_a_racing_create_is_reported_taken_rather_than_crashing(self, monkeypatch):
-        # Two writers pass the name check, and the second loses the unique-index
-        # race. The IntegrityError is rolled back and the name reported taken, not
-        # left to crash the run.
+        # The second writer loses the unique-index race: rolled back and reported taken,
+        # not left to crash the run.
         session = MagicMock()
         session.rollback = AsyncMock()
 

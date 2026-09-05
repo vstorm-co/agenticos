@@ -221,11 +221,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
-  // "?"-only and optional: the Memory tab renders only for an agent with the
-  // memory capability bound, so the curated walk (which opens an example agent
-  // that may have none) would skip it, while the exhaustive "?" shows it on one
-  // that has it. Anchored on the config badges — a bounded row — not the file
-  // table, whose body is a full listing that would spotlight the whole viewport.
+  // "?"-only and optional: the Memory tab renders only when memory is bound, which the
+  // curated walk's example agent may lack. Anchored on the bounded badge row, not the table.
   {
     id: "agent-memory",
     page: AGENT_BUILDER,

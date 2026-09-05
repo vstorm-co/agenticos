@@ -187,9 +187,8 @@ describe("useMemoryFile", () => {
   });
 
   it("writes a saved file back over its detail cache, so a reopen is not stale", async () => {
-    // The detail key nests under the agent root, and the mutation writes its
-    // result there directly — a bare list invalidation would leave a reopened
-    // file (and, worse, a just-promoted one) showing its pre-write state.
+    // The mutation writes its result over the detail key; a bare list invalidation
+    // would leave a reopened (or just-promoted) file showing its pre-write state.
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });

@@ -72,19 +72,15 @@ class AgentMemoryFile(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    # NULL is the shared partition (one store per org+agent); a non-null
-    # `user:<id>`/`chan:<id>` is one end-user's private store. Derived
-    # server-side, never model-chosen. See the module docstring.
+    # NULL is the shared partition; `user:<id>`/`chan:<id>` is one end-user's private
+    # store. Derived server-side, never model-chosen.
     end_user_scope_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
-    # The handle the agent and a person refer to it by, unique within its scope.
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    # A hint for fencing the content when it is injected and for the editor to
-    # render it - steers presentation, not behaviour, so it is not constrained.
+    # A rendering hint - presentation, not behaviour, so it is not constrained.
     format: Mapped[str] = mapped_column(String(16), nullable=False, default="md")
-    # A free-text category the operator or agent assigns, shown in the index.
     kind: Mapped[str] = mapped_column(String(32), nullable=False, default="note")
     origin: Mapped[str] = mapped_column(
         String(16), nullable=False, default=MemoryOrigin.AGENT.value

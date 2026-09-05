@@ -48,18 +48,13 @@ _NO_SHARED_WRITE = (
     "you learn to your personal memory instead (scope='personal')."
 )
 
-# The `agent_memory_files` metadata column widths. A runtime write past them is an
-# asyncpg `DataError` that fails the whole run, so `write_memory` refuses over-long
-# metadata with a note the model *can* act on - shorten and retry. The body is a
-# `Text` column and is not bounded here.
+# The `agent_memory_files` metadata column widths: a write past them is an asyncpg
+# `DataError` that fails the whole run, so `write_memory` refuses first.
 _MAX_NAME = 64
 _MAX_KIND = 32
 _MAX_DESCRIPTION = 500
 
-# The model supplies `recall`'s `limit`, so it is capped before the query - an
-# unbounded value would otherwise reach `LIMIT` on the fact search directly, the
-# way the RAG retrieval caps its own fan-out. A recall wanting more than this is
-# not a real need.
+# The model supplies `recall`'s `limit`; uncapped it would reach `LIMIT` directly.
 _MAX_RECALL_LIMIT = 50
 
 
@@ -93,20 +88,12 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         mem0_api_key: str | None = None,
     ) -> None:
         super().__init__()
-        # Two operator levers over the tiers. `allow_personal` off makes the agent
-        # shared-only (no per-end-user store at all, for compliance); it forces the
-        # personal key to None everywhere, so the graceful-degradation path already
-        # written for an anonymous run does the work. `allow_agent_shared_writes`
-        # off keeps the shared store operator-curated - the agent reads it but a
-        # `shared` write is refused, because an agent write to shared is
-        # user-influenceable and a curated company memory must not be.
+        # `allow_personal` off forces the personal key to None, so the anonymous-run
+        # path does the work; `allow_agent_shared_writes` guards a user-influenceable write.
         self._allow_personal = allow_personal
         self._allow_agent_shared_writes = allow_agent_shared_writes
-        # Facts route to mem0 exactly when the backend is mem0 and a key is present
-        # (publish requires one for `mem0`, so a missing key here is a broken
-        # binding, not a normal path). Held as the key itself so the `is not None`
-        # check both selects the backend and narrows the key to `str`. Files are
-        # always native.
+        # Held as the key itself, so one `is not None` check both selects the mem0
+        # backend and narrows the key to `str`. Files are always native.
         self._mem0_key = mem0_api_key if backend == "mem0" else None
         self._mem0_base_url = mem0_base_url
         if enable_files:

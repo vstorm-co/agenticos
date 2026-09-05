@@ -78,9 +78,8 @@ export function CreateMemoryFileDialog({
   const [personalKey, setPersonalKey] = useState("");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
-  // A member writes only their own personal store; an operator picking personal
-  // defaults to their own key but may type another person's to seed it. Shared is
-  // the null partition. The backend re-checks all of this.
+  // A member writes only their own personal store; an operator may type another
+  // person's key to seed it. The backend re-checks all of this.
   const scopeKey = tier === "shared" ? null : canEdit ? personalKey.trim() || ownKey : ownKey;
   const scopeReady = tier === "shared" || scopeKey !== null;
 

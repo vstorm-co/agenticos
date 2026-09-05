@@ -78,7 +78,7 @@ def _require_allowlisted_base_url(base_url: str | None) -> None:
     read) a shared key could otherwise point it at their own server and capture the
     key from the `Authorization` header. The managed cloud (`base_url is None`) is
     trusted; a self-hosted URL must be https and its host on `MEM0_ALLOWED_HOSTS`,
-    so an empty allowlist refuses self-hosted mem0 outright (codex P1). SSRF (a
+    so an empty allowlist refuses self-hosted mem0 outright. SSRF (a
     private/link-local/rebinding host) is handled separately, on the wire, by
     `PinnedAsyncClient`.
     """
@@ -121,10 +121,8 @@ async def mem0_remember(
             )
             response.raise_for_status()
     except (httpx.HTTPError, SSRFBlockedError) as exc:
-        # The upstream text goes to the log, never the response: a client error
-        # carries the request and could echo the payload, and the refusal only
-        # needs to name what failed (agenticos#342). `SSRFBlockedError` is the
-        # pinned client refusing a host that resolves somewhere private.
+        # The upstream text goes to the log, never the response: a client error can
+        # echo the request payload, and the refusal only needs to name what failed (#342).
         logger.exception("mem0_remember_failed")
         raise ExternalServiceError(
             message="Could not save to the mem0 memory service",
@@ -159,18 +157,15 @@ async def _mem0_search_namespace(
             response.raise_for_status()
             data = response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        # `ValueError` covers a `JSONDecodeError` from a body that is not JSON at
-        # all - an HTML error page answered `200`, say. A garbled response is a
-        # service failure, not a crash mid-run.
+        # `ValueError` covers a `JSONDecodeError` from a body that is not JSON - an
+        # HTML error page answered 200, say - which is a service failure, not a crash.
         logger.exception("mem0_recall_failed")
         raise ExternalServiceError(
             message="Could not search the mem0 memory service",
             details={"operation": "recall"},
         ) from exc
-    # mem0 has returned both a bare list and a `{"results": [...]}` envelope across
-    # versions, and names the text `memory`, `text` or `content`; be liberal, but
-    # anything that is not a list of objects is treated as no hits rather than
-    # iterated into an `AttributeError`.
+    # mem0 has answered with both a bare list and a `{"results": [...]}` envelope, and
+    # names the text `memory`, `text` or `content`; anything else is no hits, not a crash.
     rows = data.get("results", []) if isinstance(data, dict) else data
     hits: list[FactHit] = []
     for row in rows if isinstance(rows, list) else []:

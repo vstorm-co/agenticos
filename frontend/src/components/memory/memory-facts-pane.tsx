@@ -66,10 +66,8 @@ export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProp
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltering = search.trim() !== "";
 
-  // Forgetting the last fact on a later page empties it and hides the pager,
-  // stranding the operator on a blank page; step back to the last page with rows,
-  // adjusting during render (React's guarded pattern) rather than in an effect
-  // (codex).
+  // Forgetting the last fact of a later page would strand the operator on a blank
+  // page with the pager hidden; adjust during render, not in an effect.
   if (page > 0 && page >= pageCount) setPage(pageCount - 1);
 
   const controls = (

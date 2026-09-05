@@ -72,9 +72,8 @@ class TestWhichRoleAnAnonymousTurnBorrows:
         )
 
         assert ctx.role == OrgRoleName.OWNER.value
-        # `user_id` is the publisher, not whoever is chatting - so the fallback
-        # flag is set, and a personal-memory write is refused rather than
-        # attributing a stranger's note to the owner (#788).
+        # `user_id` is the publisher, not whoever is chatting, so a personal-memory write
+        # is refused rather than attributing a stranger's note to the owner (#788).
         assert ctx.subject_is_publisher_fallback is True
 
     async def test_a_deactivated_publisher_lends_nothing(self, db) -> None:

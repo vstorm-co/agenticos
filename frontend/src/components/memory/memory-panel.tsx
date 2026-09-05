@@ -44,12 +44,8 @@ export function MemoryPanel({
 }: MemoryPanelProps) {
   const t = useTranslations("memory");
 
-  // A viewer cannot list every partition or the per-user store - that is an
-  // editor act the backend refuses - so defaulting them to "all" 404s the whole
-  // tab. They start on the shared store and reach their own notes through a
-  // "mine" chip that filters to their own `user:<id>` key; an operator keeps the
-  // cross-partition filters (codex). The scope is the partition string itself,
-  // so "mine" needs no separate resolution.
+  // A viewer may not list every partition, so starting them on "all" 404s the whole
+  // tab; they start on shared and reach their own notes through the "mine" chip.
   const ownUserId = useAuthStore((state) => state.user?.id);
   const ownKey = ownUserId ? `user:${ownUserId}` : null;
   const [scope, setScope] = useState<string>(canEdit ? "all" : "shared");

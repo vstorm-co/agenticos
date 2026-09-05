@@ -242,11 +242,8 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "knowledgeBaseSearch",
   },
 
-  // memory - the agent's own file store, written and read back across runs. No
-  // dedicated renderer yet (the Memory UI is a later change); an index and a note
-  // read back as text, so the generic renderer, and the humanized display names
-  // ("Write Memory", "Read Memory") read well enough until then. `delete_memory`
-  // is `edit` because `StepKind` has no delete and a removal is a mutation.
+  // memory - the agent's own file store. An index and a note read back as text, so the
+  // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   list_memory: { kind: "list", render: "generic", captionKey: "memoryChecking" },
   read_memory: { kind: "read", render: "generic", captionKey: "memoryReading" },
   write_memory: { kind: "write", render: "generic", captionKey: "memorySaving" },

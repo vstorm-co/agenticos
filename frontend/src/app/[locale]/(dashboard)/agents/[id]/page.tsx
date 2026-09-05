@@ -595,10 +595,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const isPublished = agent.status === "published";
 
-  // The Memory tab exists only when the capability is bound; its config reads the
-  // binding, defaulting to what the builder returns for a bare memory binding
-  // (native, both shapes on). Memory is two-tier for every agent, so there is no
-  // partition to read.
+  // The Memory tab exists only when the capability is bound; a bare binding reads as
+  // what the builder returns for one (native, both shapes on).
   const memoryBinding = spec.capabilities.find((binding) => binding.id === MEMORY_ID);
   const memoryBackend = memoryBinding?.config.backend === "mem0" ? "mem0" : "native";
   const memoryFiles = memoryBinding?.config.enable_files !== false;

@@ -85,10 +85,8 @@ export function MemoryFilesPane({ agentId, canEdit, scope }: MemoryFilesPaneProp
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltering = search.trim() !== "";
 
-  // Deleting the last row of a later page empties it, and the pager is hidden
-  // when the page has no rows - which would strand the operator on a blank page
-  // with no way back. Step to the last page that still has rows, adjusting during
-  // render (React's guarded pattern) rather than in an effect (codex).
+  // Deleting the last row of a later page would strand the operator on a blank page
+  // with the pager hidden; adjust during render, not in an effect.
   if (page > 0 && page >= pageCount) setPage(pageCount - 1);
 
   function setSortReset(next: MemorySort) {

@@ -184,10 +184,8 @@ describe("MemoryFilesPane", () => {
   });
 
   it("promotes an agent file and reflects the new trust in the open editor", async () => {
-    // The consequence, not the call: a promote must flip the file to trusted in
-    // the editor still on screen, so the operator sees it worked and cannot
-    // re-fire it. Without writing the result back over the detail cache, the
-    // editor keeps rendering the agent-authored, un-promotable state.
+    // A promote must flip the file to trusted in the editor still on screen; without
+    // writing the result over the detail cache it keeps rendering un-promotable.
     vi.mocked(apiClient.post).mockResolvedValue({ ...BODY_AGENT, origin: "operator" });
     mount();
 
@@ -281,9 +279,8 @@ describe("MemoryFilesPane", () => {
   });
 
   it("steps back to the filled page after deleting the last row of a later one", async () => {
-    // One more than a page: page 1 fills, page 2 holds a single row. Deleting it
-    // drops the total to one page, and the operator must land back on it, not the
-    // now-empty page 2 whose pager the empty state hides (codex).
+    // One more than a page: deleting page 2's single row must land the operator back
+    // on page 1, not on the now-empty page whose pager the empty state hides.
     let total = PAGE_SIZE + 1;
     const fileAt = (i: number) => ({ ...OPERATOR, id: `f-${i}`, name: `file-${i}` });
     vi.mocked(apiClient.get).mockImplementation((url: string) => {

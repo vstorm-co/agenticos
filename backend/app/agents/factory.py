@@ -237,11 +237,8 @@ def build_agent(
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
 
-    # Derived whenever memory is bound, so a memory run carries the current person's
-    # partition key when the surface can identify them - and stays `None` (inert) for
-    # every agent without memory. `None` under a memory binding means the surface gave
-    # no per-person signal: the run reads shared memory and a personal write is refused
-    # rather than attributed to the publisher (#788).
+    # `None` means the surface gave no per-person signal: the run reads shared memory
+    # and a personal write is refused rather than attributed to the publisher (#788).
     end_user_scope_key = (
         derive_end_user_scope_key(
             channel_identity_id=channel_identity_id,

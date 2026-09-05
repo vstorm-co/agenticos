@@ -460,10 +460,10 @@ class DelegationFrame(BaseModel):
 class AdmittedAs(BaseModel):
     """The terms a run was admitted on, as the request stated them.
 
-    Two facts today, and what they have in common is the whole reason this is one
-    model rather than two fields: neither is derivable from the run row, both are
-    decided by the request, and both are read again when a parked run resumes. A
-    third such fact belongs here rather than beside it.
+    Three facts today, and what they have in common is the whole reason this is one
+    model rather than three fields: none is derivable from the run row, all are
+    decided by the request, and all are read again when a parked run resumes. A
+    fourth such fact belongs here rather than beside it.
 
     Every field defaults to the safe answer, because this is read back out of a
     JSONB column: a run parked before this existed loads as one that asked for
@@ -2196,11 +2196,8 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
-        # The per-user memory identity is the run's own, not the resuming
-        # caller's. On a fresh run they are the same person, so this is `ctx`
-        # unchanged; on a resume an approver is releasing somebody else's run, so
-        # the owner comes off the row (`owner_user_id`, the run's channel) and the
-        # publisher-fallback flag off the parked state (#788).
+        # The memory identity is the run's own, not the resuming caller's: an approver
+        # releasing somebody else's run must not become its memory end-user (#788).
         memory_user_id = owner_user_id or ctx.user_id
         memory_channel_identity_id = (
             existing_run.channel_identity_id
@@ -2218,12 +2215,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
-            # The run's own identity, resolved just above, not the resuming
-            # caller's. Nothing downstream reads `AgentDeps.user_id`: its only use
-            # is the per-user memory key the factory derives from these three, and
-            # keying that on an approver wrote one person's facts under another
-            # (#788). The guard keeps a subject-less context stringifying to None,
-            # never the literal "None".
+            # The guard keeps a subject-less context stringifying to None, never "None".
             user_id=None if memory_user_id is None else str(memory_user_id),
             user_name=user_name,
             channel_identity_id=memory_channel_identity_id,
@@ -3549,9 +3541,7 @@ class AgentRunnerService:
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
-            # speaks through - for personal MCP (`owner_user_id`) or for the
-            # per-user memory partition (`restored_publisher_fallback`, with the
-            # run's own `user_id`/`channel_identity_id` read off the row).
+            # speaks through - for personal MCP or for the per-user memory partition.
             owner_user_id=run.user_id,
             restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
             extra_toolsets=None,

@@ -60,9 +60,8 @@ export function MemoryFileEditor({
   const [kind, setKind] = useState(file.kind);
   const [content, setContent] = useState(file.content);
 
-  // The catalog, plus whatever this file already holds when that is something
-  // else — a `<Select>` whose value matches no option renders empty, which reads
-  // as a file with no format at all.
+  // A `<Select>` whose value matches no option renders empty, which reads as a file
+  // with no format at all, so the file's own format joins the catalog.
   const formats = useMemo(() => {
     const stored = file.format.trim();
     return (FORMATS as readonly string[]).includes(stored) ? FORMATS : [...FORMATS, stored];

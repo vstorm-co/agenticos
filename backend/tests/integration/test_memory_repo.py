@@ -263,7 +263,7 @@ class TestListForAgent:
     async def test_a_repeated_name_orders_by_id_so_paging_is_stable(self, db) -> None:
         """One name across three partitions. Ordering by name alone leaves the tie
         for OFFSET/LIMIT to resolve however it likes, dropping or repeating a row
-        between pages; the id tie-breaker gives it a total order (codex)."""
+        between pages; the id tie-breaker gives it a total order."""
         person = await _user(db)
         agent = await _agent(db, org=await _org(db, owner=person))
         a = await _create(db, agent=agent, scope_key=None, name="prefs")
@@ -433,9 +433,8 @@ class TestFacts:
     async def test_brief_injects_personal_and_operator_shared_never_agent_shared(
         self, db, facts_table
     ) -> None:
-        # The trust filter: what may be spliced into instructions. A person's own
-        # facts (any origin, self-scoped) and operator-authored shared ones; never
-        # an agent-authored shared fact (user-influenced content bound for everyone).
+        # A person's own facts (any origin) and operator-authored shared ones; never an
+        # agent-authored shared fact, which is user-influenced content bound for everyone.
         agent = await _agent(db, org=await _org(db, owner=await _user(db)))
         op = MemoryOrigin.OPERATOR.value
         ag = MemoryOrigin.AGENT.value

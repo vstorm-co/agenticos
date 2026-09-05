@@ -56,13 +56,8 @@ class AgentDeps:
     agent_id: UUID | None = None
     run_id: UUID | None = None
 
-    # The current person's memory partition key for this run, derived server-side in
-    # the factory from the request identity whenever memory is bound, and `None`
-    # otherwise - which includes every agent without memory and every delegate
-    # (`clone_for_subagent` does not carry it, so per-user memory is a root-agent
-    # concern in v1). `None` under a memory binding means the run had no per-person
-    # signal: reads fall back to the shared store and a personal write is refused
-    # rather than written to shared.
+    # The person's memory partition, derived server-side when memory is bound. `None`
+    # means no per-person signal: reads fall back to shared, personal writes are refused.
     end_user_scope_key: str | None = None
 
     # Collection names this agent may search, resolved from its bindings.

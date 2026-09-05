@@ -179,10 +179,8 @@ async def write_file(
                 origin=MemoryOrigin.AGENT.value,
             )
         except IntegrityError:
-            # A concurrent write took the name between the check above and this
-            # insert; the unique index is the real guard. Roll back the failed
-            # flush and report the name taken, like a sequential collision, rather
-            # than let the DataError-shaped crash end the run.
+            # A concurrent write took the name between the check and this insert; the
+            # unique index is the real guard, so report the name taken like a sequential collision.
             await db.rollback()
             return False
         return True

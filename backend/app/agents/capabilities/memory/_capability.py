@@ -33,12 +33,8 @@ from app.services import memory as memory_store
 
 __all__ = ["Memory"]
 
-# The standing brief is a digest, not the store: a run that needs a fact past it
-# reaches for `recall`. It is bounded twice - at most `_BRIEF_LIMIT` facts, and at
-# most `_BRIEF_MAX_CHARS` of them - because a row count alone does not bound the
-# injected context: a fact's content is `Text` and an operator seed runs to 2000
-# characters, so enough large facts could push this per-request preamble past the
-# model's window and fail every later request before `recall` could help (#788).
+# Bounded by count and by size: a fact's content is unbounded Text, so a row cap
+# alone could push this per-request preamble past the model's window (#788).
 _BRIEF_LIMIT = 30
 _BRIEF_MAX_CHARS = 4000
 
@@ -117,24 +113,16 @@ class Memory(AbstractCapability[AgentDepsT]):
 
     enable_files: bool = True
     enable_facts: bool = False
-    # The two tier levers. `allow_personal` off makes the agent shared-only (no
-    # per-end-user store); `allow_agent_shared_writes` off keeps the shared store
-    # operator-curated - the agent reads it but may not write it. Both default on,
-    # which is the plain two-tier model.
     allow_personal: bool = True
     allow_agent_shared_writes: bool = True
-    # Where facts live. `native` is this deployment's pgvector; `mem0` sends them
-    # to a mem0 service, and then `mem0_api_key`/`mem0_base_url` are set from the
-    # binding's secret and config. Files are always native. The key is the
-    # resolved plaintext (never a spec, never logged, never shown to the model);
-    # the toolset uses it for the mem0 HTTP call and nothing else.
+    # `mem0_api_key` is the resolved plaintext, for the mem0 HTTP call and nothing
+    # else: never logged, never shown to the model, never in a spec.
     backend: str = "native"
     mem0_base_url: str | None = None
     mem0_api_key: str | None = field(default=None, repr=False)
 
-    # `AbstractToolset[Any]`, like `knowledge`: the toolset is concrete in
-    # `AgentDeps` (its tools read `AgentDeps` fields), which does not unify with
-    # the capability's own `AgentDepsT`, so the return is widened here.
+    # Widened to `AbstractToolset[Any]` like `knowledge`: the toolset is concrete in
+    # `AgentDeps`, which does not unify with the capability's own `AgentDepsT`.
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
@@ -191,11 +179,8 @@ class Memory(AbstractCapability[AgentDepsT]):
         )
         if not facts:
             return None
-        # Bound the injected text by size, not only by row count: keep the newest
-        # facts until the budget is spent. Every line is bounded, the first
-        # included - a single fact past the whole budget is dropped, never spliced
-        # in unbounded, so a runtime `remember` cannot blow the context window by
-        # writing one enormous fact (#788, codex).
+        # Every line is bounded, the first included: a fact past the whole budget is
+        # dropped rather than spliced in unbounded (#788).
         lines: list[str] = []
         remaining = _BRIEF_MAX_CHARS
         for content in facts:

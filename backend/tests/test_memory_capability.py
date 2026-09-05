@@ -233,9 +233,8 @@ class TestPreamble:
         assert "read-only" in text
 
     def test_every_configuration_leads_with_the_read_before_answering_habit(self):
-        # The store is inert if the agent never looks: a model holding the recall
-        # tool but no standing instruction to use it answers "I have nothing saved"
-        # with the fact one search away, which is exactly what shipped without this.
+        # A model holding the recall tool but no standing instruction to use it answers
+        # "I have nothing saved" with the fact one search away.
         for allow_personal in (True, False):
             for allow_shared in (True, False):
                 text = _preamble(
@@ -302,9 +301,8 @@ class TestMemoryBrief:
         brief.assert_not_awaited()
 
     async def test_the_brief_is_bounded_by_size_not_only_by_count(self, monkeypatch):
-        # A fact's content is unbounded Text (operator seeds run to 2000 chars), so
-        # a row cap alone would not stop the injected preamble from blowing the
-        # window. The newest facts are kept until the byte budget is spent.
+        # A fact's content is unbounded Text, so a row cap alone would not stop the
+        # preamble from blowing the window; the newest facts are kept until the budget is spent.
         big = "x" * 1500
         monkeypatch.setattr(memory_store, "memory_brief", AsyncMock(return_value=[big] * 5))
         text = await Memory(enable_facts=True, backend="native").get_instructions()(
@@ -313,10 +311,8 @@ class TestMemoryBrief:
         assert 1 <= text.count(big) < 5
 
     async def test_a_single_oversized_fact_is_dropped_not_injected(self, monkeypatch):
-        # A fact past the whole budget is not spliced in unbounded: the old "always
-        # show at least one" let a runtime `remember` of one enormous fact blow the
-        # context window (codex). With nothing left that fits, the brief falls back
-        # to the plain preamble rather than an empty-bodied one.
+        # A fact past the whole budget is not spliced in unbounded; with nothing left
+        # that fits, the brief falls back to the plain preamble.
         huge = "y" * 6000
         monkeypatch.setattr(memory_store, "memory_brief", AsyncMock(return_value=[huge]))
         text = await Memory(enable_facts=True, backend="native").get_instructions()(
@@ -326,9 +322,8 @@ class TestMemoryBrief:
         assert text == _preamble(allow_personal=True, allow_agent_shared_writes=True)
 
     async def test_the_newest_fact_survives_when_an_older_one_is_too_big(self, monkeypatch):
-        # Bounding every line does not mean losing the brief to one big fact lower
-        # down: newest-first, the small newest fact is kept and the oversized older
-        # one ends the accumulation.
+        # Newest-first, the small newest fact is kept and the oversized older one ends
+        # the accumulation.
         monkeypatch.setattr(
             memory_store, "memory_brief", AsyncMock(return_value=["fresh", "z" * 6000])
         )
@@ -454,9 +449,8 @@ class TestWriteMemory:
         assert "already exists" in out and "edit_memory" in out
 
     async def test_metadata_past_a_column_width_is_refused_before_the_database(self, monkeypatch):
-        # A name/kind/description past its column width would be an asyncpg
-        # `DataError` that fails the run; the tool refuses it with a note the model
-        # can shorten and retry, and never reaches the store.
+        # Past its column width the write would be an asyncpg `DataError` that fails the
+        # run; the tool refuses it with a note the model can act on.
         write = AsyncMock()
         monkeypatch.setattr(memory_store, "write_file", write)
         toolset = _toolset()
@@ -658,8 +652,7 @@ class TestConfig:
         assert MemoryConfig(mem0_base_url=None).mem0_base_url is None
 
     def test_a_malformed_mem0_base_url_is_refused_at_publish(self):
-        # `https://[` reaches urlsplit on the run path and ends the run with a
-        # ValueError unless its shape is settled here (codex).
+        # `https://[` would otherwise reach urlsplit on the run path and end the run with a ValueError.
         with pytest.raises(ValueError, match="valid URL"):
             MemoryConfig(mem0_base_url="https://[")
 

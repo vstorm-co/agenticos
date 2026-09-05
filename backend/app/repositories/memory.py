@@ -25,10 +25,8 @@ from app.repositories._search import contains_ci
 
 MemorySort = Literal["name", "updated"]
 
-# pgvector's HNSW index takes a `vector` column up to this width; past it the
-# column is indexed and searched as `halfvec`. The same fixed pgvector limit the
-# RAG store and the facts migration use; kept here because the recall query has
-# to cast the same way the index was built or Postgres refuses the operator.
+# pgvector's HNSW index takes a `vector` column up to this width; past it the column
+# is `halfvec`, and the recall query must cast the way the index was built.
 _HNSW_MAX_VECTOR_DIM = 2000
 
 
@@ -110,8 +108,7 @@ async def list_readable(
         .order_by(
             func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
             AgentMemoryFile.name.asc(),
-            # A stable final key, so a tie at the cap boundary is not resolved
-            # arbitrarily (which row makes the limit would otherwise vary).
+            # A stable final key, so a tie at the cap boundary is not resolved arbitrarily.
             AgentMemoryFile.id.asc(),
         )
         .limit(limit)
@@ -188,9 +185,8 @@ async def list_for_agent(
                 contains_ci(AgentMemoryFile.description, search),
             )
         )
-    # `id` is the stable final key. Names repeat across partitions and a shared
-    # `updated_at`/`created_at` is common, so without a unique tie-breaker
-    # OFFSET/LIMIT paging drops or repeats rows between pages (codex).
+    # `id` is the stable final key: names repeat across partitions and timestamps
+    # collide, and OFFSET/LIMIT over a tie drops or repeats rows between pages.
     order_by = (
         (
             func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
@@ -350,7 +346,7 @@ async def recall_facts(
     table the fixed candidate set the index returns can be mostly other agents'
     or partitions' rows, so a scoped recall would return fewer than `limit` - or
     nothing - even when the agent has matching facts. `strict_order` keeps exact
-    distance order while it scans further to fill the limit (codex P2).
+    distance order while it scans further to fill the limit.
     """
     dim = settings.rag.embeddings_config.dim
     wide = dim > _HNSW_MAX_VECTOR_DIM
@@ -418,9 +414,8 @@ async def list_brief_facts(
             AgentMemoryFact.agent_id == agent_id,
             injectable,
         )
-        # `id` breaks a shared `created_at` tie (facts written in one transaction
-        # share it), so the newest-first cap picks a stable set for the brief
-        # rather than a different one each request (codex).
+        # `id` breaks a shared `created_at` tie, so the newest-first cap picks the same
+        # set each request.
         .order_by(AgentMemoryFact.created_at.desc(), AgentMemoryFact.id.asc())
         .limit(limit)
     )
@@ -473,8 +468,7 @@ async def list_facts(
     items = await db.execute(
         select(AgentMemoryFact)
         .where(*where)
-        # `id` is the stable tie-breaker a shared `created_at` needs, or paging
-        # drops or repeats facts across pages (codex).
+        # `id` breaks a shared `created_at` tie, or paging drops or repeats facts.
         .order_by(AgentMemoryFact.created_at.desc(), AgentMemoryFact.id.asc())
         .offset(skip)
         .limit(limit)

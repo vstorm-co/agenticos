@@ -81,9 +81,8 @@ export function useMemoryFiles({
     [queryClient, agentId],
   );
 
-  // Like `useContextFiles.create`: no `onError`, because every way a create
-  // fails — the name is taken in this partition, a field is too long — is fixed
-  // in the dialog still on screen, which owns where to say it.
+  // No `onError`: every way a create fails is fixed in the dialog still on screen,
+  // which owns where to say it.
   const create = useMutation({
     mutationFn: (file: NewMemoryFile) =>
       apiClient.post<MemoryFile>("/memory/files", { agent_id: agentId, ...file }),
@@ -131,10 +130,8 @@ export function useMemoryFile(agentId: string, fileId: string | null) {
     enabled: fileId !== null,
   });
 
-  // Write the result over the open file's cache, then refresh the lists. A bare
-  // list invalidation would leave the editor showing the pre-write body — the
-  // detail query does not refetch on its own, and after a promote that is the
-  // difference between the file reading trusted and reading untrusted.
+  // Written over the open file's cache, not just invalidated: the detail query does
+  // not refetch on its own, so a promoted file would keep reading untrusted.
   const settle = useCallback(
     (updated: MemoryFile) => {
       queryClient.setQueryData(qk.memory.file(agentId, fileId ?? ""), updated);
