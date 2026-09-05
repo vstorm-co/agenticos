@@ -45,8 +45,9 @@ async def get_active(
     Deactivating a user leaves their membership row exactly where it was, so
     anything reading a role off `get` alone answers with the authority of an account
     that is refused everywhere a person signs in. That is only a difference on the
-    paths where nobody is signed in - see `access.publisher_context`, which is the
-    one caller and the reason this exists.
+    paths where nobody is signed in: `access.publisher_context`, the reason this
+    exists, and the channel router's `_membership_context`, which reads a linked
+    sender's own role off a chat account that stays linked after the deactivation.
 
     Joined rather than a second read: it is answered on every turn a public surface
     takes, and two round trips for one decision is one of them that can be true

@@ -554,10 +554,14 @@ class ChannelAgentRouter:
         A linked account that is no longer a member takes the same path as an
         unlinked one rather than a third: there is no membership to read a role
         from, and in a room a former member is no more entitled than the stranger
-        beside them.
+        beside them. A deactivated account is one of those, which is why this is
+        the joined read: the membership row outlives a deactivation, and the link
+        in `channel_identities` outlives it too, so the plain read ran an
+        offboarded Owner's turns at their full authority from a chat account
+        nobody had unlinked - refused everywhere they sign in, except here.
         """
         if user_id is not None:
-            membership = await member_repo.get(
+            membership = await member_repo.get_active(
                 self.db, organization_id=organization_id, user_id=user_id
             )
             if membership is not None:
