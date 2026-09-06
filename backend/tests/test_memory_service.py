@@ -181,6 +181,26 @@ class TestTheHalfMem0Holds:
 
         assert forget.await_args.kwargs["base_url"] == "https://mem0.internal"
 
+    async def test_the_url_is_found_past_the_other_capabilities_an_agent_binds(self):
+        """A real spec lists mem0 among a dozen others, so the search for its
+        `base_url` has to walk past them - a scan that stopped at the first
+        binding would send every self-hosted delete to the cloud."""
+        agent = _agent(base_url="https://mem0.internal")
+        agent.draft_spec = {
+            "capabilities": [
+                {"id": "memory_files", "enabled": True},
+                "not a binding at all",
+                *agent.draft_spec["capabilities"],
+            ]
+        }
+        service = _service([agent])
+
+        _result, forget = await self._forget(
+            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1"))}
+        )
+
+        assert forget.await_args.kwargs["base_url"] == "https://mem0.internal"
+
     async def test_a_binding_with_no_config_sends_no_url(self):
         service = _service([_agent()])
 

@@ -22,6 +22,13 @@ truth lives, and an `UPDATE` that forgets it leaves a row that can never be foun
 again. The column is `STORED`, so writing a message pays the tokenisation once and
 every search reads the index.
 
+**It rewrites the table.** Adding a stored generated column takes an ACCESS
+EXCLUSIVE lock and tokenises every existing row, so on a deployment with a large
+`messages` table this is a maintenance window rather than a rolling upgrade. Worth
+knowing before running it against one; the alternative - a nullable column
+backfilled in batches - is a second mechanism and a half-indexed table in the
+meantime, which is a search that silently misses old conversations.
+
 Revision ID: 0074_message_search_vector
 Revises: 0073_agent_memory_files
 Create Date: 2026-09-06
