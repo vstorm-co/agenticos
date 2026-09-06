@@ -89,9 +89,16 @@ def upgrade() -> None:
         ["agent_id"],
         unique=False,
     )
+    op.create_index(
+        op.f("agent_memory_files_owner_key_idx"),
+        "agent_memory_files",
+        ["owner_key"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("agent_memory_files_owner_key_idx"), table_name="agent_memory_files")
     op.drop_index(op.f("agent_memory_files_agent_id_idx"), table_name="agent_memory_files")
     op.drop_index(op.f("agent_memory_files_organization_id_idx"), table_name="agent_memory_files")
     op.drop_table("agent_memory_files")
