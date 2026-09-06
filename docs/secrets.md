@@ -157,6 +157,7 @@ own key for:
 | Exa | `web_research` |
 | Logfire | Per-agent [observability](reference/spec.md#observability) — traces to a project of its own |
 | LlamaParse | PDF parsing, billed to the organization's own key |
+| mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — the whole capability, which keeps an agent's semantic memories in a mem0 service (cloud or self-hosted) rather than here. Nothing is stored in this deployment, so mem0 bills its own embedding out of band and sending memories to mem0's cloud is a data-residency choice the Builder names. A self-hosted `base_url` must be https and on the `MEM0_ALLOWED_HOSTS` allowlist, so the vault key is never sent to an agent-controlled origin. There is no operator console for these memories: mem0 has its own store, its own listing and its own delete. |
 
 ## What never happens
 

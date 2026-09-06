@@ -14,8 +14,11 @@ import {
 import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
+import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
   IMAGE_GENERATION_ID,
+  MEMORY_FILES_ID,
+  MEMORY_MEM0_ID,
   readSubagentsConfig,
   SANDBOX_ID,
   SUBAGENTS_ID,
@@ -27,6 +30,14 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from 
 import { useTranslations } from "next-intl";
 
 interface CapabilityWorkbenchProps {
+  /**
+   * Which agent's capabilities these are.
+   *
+   * Only one panel needs it - memory, whose notes are cleared from inside the
+   * capability that keeps them, because there is no browsing surface for them
+   * anywhere else (#1470). Everything else here edits a spec and needs no id.
+   */
+  agentId: string;
   catalog: CapabilityCatalogEntry[];
   selected: CapabilityBindingSpec[];
   onToggle: (capabilityId: string) => void;
@@ -90,6 +101,7 @@ interface CapabilityWorkbenchProps {
  * is no longer an abridgement.
  */
 export function CapabilityWorkbench({
+  agentId,
   catalog,
   selected,
   onToggle,
@@ -293,6 +305,21 @@ export function CapabilityWorkbench({
                     disabled={disabled || !isOn}
                   />
                 ))}
+                // The one action on this panel that is not configuration: the
+                // agent's notes are emptied from inside the capability that keeps
+                // them, because nothing anywhere else in the console reads or
+                // writes them.
+                settingsFooter={
+                  focused.id === MEMORY_FILES_ID && isOn ? (
+                    <ClearAgentMemory
+                      agentId={agentId}
+                      usesMem0={selected.some(
+                        (binding) => binding.id === MEMORY_MEM0_ID && binding.enabled !== false,
+                      )}
+                      disabled={disabled}
+                    />
+                  ) : undefined
+                }
                 // A capability nobody granted has nothing to configure yet, so
                 // its controls are shown at their real values and left inert.
                 // The alternative - live controls writing to a binding that does

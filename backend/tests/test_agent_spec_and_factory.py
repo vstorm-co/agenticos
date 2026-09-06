@@ -8,6 +8,8 @@ it never carries a secret.
 
 import uuid
 from decimal import Decimal
+from importlib import import_module
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -21,11 +23,12 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage, RunUsage
 
-from app.agents.capabilities import load_builtins
+from app.agents.audience import RunAudience
+from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
-from app.agents.factory import DEFAULT_MAX_STEPS, BuiltAgent, build_agent
+from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
     AgentSpec,
@@ -129,6 +132,58 @@ class TestFactory:
         )
         assert built.model_label == "GPT-4.1 (prod)"
         assert [type(c).__name__ for c in built.capabilities] == ["Clock", "Knowledge"]
+
+    def _audience_agent(self, *, capability: str | None = "memory_files", **identity):
+        capabilities = (
+            [{"id": "clock"}] if capability is None else [{"id": capability, "config": {}}]
+        )
+        return build_agent(
+            AgentSpec(name="Support", instructions="Remember.", capabilities=capabilities),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            **identity,
+        )
+
+    def test_an_audience_aware_agent_carries_the_audience_it_was_given(self):
+        """The factory no longer derives the audience - the runner does, because
+        only it knows whether this is a fresh request or a resume (#788). What the
+        factory owns is putting it on the deps the tools read."""
+        audience = RunAudience(user_id=uuid.uuid4(), room_key="room:slack:C1")
+        built = self._audience_agent(audience=audience)
+        assert built.deps.audience == audience
+
+    def test_every_capability_that_reads_the_audience_is_listed_as_needing_one(self):
+        """`_AUDIENCE_AWARE` is a hand-kept list and its failure is silent.
+
+        A capability whose toolset reads `deps.audience` and whose id is missing
+        from it is simply handed `None`, which every one of them reads as "nobody
+        is identified here" - so it refuses in a conversation that has a person in
+        it, with a sentence that sounds deliberate. Nothing raises, and no other
+        test sees it, because each capability's own suite constructs the deps it
+        wants.
+
+        So the check is over the source: whichever packages read the field are
+        exactly the ones the factory gives it to.
+        """
+        load_builtins()
+        readers = {
+            definition.id
+            for definition in all_capabilities()
+            if any(
+                "deps.audience" in module.read_text()
+                for module in Path(
+                    import_module(definition.builder.__module__).__file__ or ""
+                ).parent.glob("*.py")
+            )
+        }
+
+        assert readers == set(_AUDIENCE_AWARE)
+
+    def test_an_agent_that_reads_no_audience_carries_none(self):
+        """The binding is the gate: a spec that asked for none of them carries no
+        audience, whatever identity the request arrived with."""
+        built = self._audience_agent(capability=None, audience=RunAudience(user_id=uuid.uuid4()))
+        assert built.deps.audience is None
 
     @pytest.mark.anyio
     async def test_an_agent_that_binds_nothing_still_reports_its_context(self):

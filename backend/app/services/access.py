@@ -280,4 +280,7 @@ async def publisher_context(
         organization_id=organization_id,
         role=role,
         channel_identity_id=channel_identity_id,
+        # `user_id` is the publisher standing in for an asker nobody signed in as, so
+        # per-user memory must refuse rather than attribute their note to the owner (#788).
+        subject_is_publisher_fallback=True,
     )

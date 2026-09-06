@@ -18,6 +18,7 @@ from typing import Any
 from uuid import UUID
 
 from app.agents.approval import ApprovalDecision, ApprovalRequest
+from app.agents.audience import RunAudience
 from app.agents.compaction_events import CompactionEvent
 from app.agents.subagent_events import SubagentEventSink
 
@@ -55,6 +56,13 @@ class AgentDeps:
     user_name: str | None = None
     agent_id: UUID | None = None
     run_id: UUID | None = None
+
+    # Who will hear this run - one person, a whole channel, or nobody
+    # identifiable - derived server-side in `app.agents.audience`. It decides which
+    # memory store the run may touch and whether conversation search has a corpus
+    # at all. `None` where no capability asked for it, and a capability that finds
+    # it missing has no personal reach rather than a default one.
+    audience: RunAudience | None = None
 
     # Collection names this agent may search, resolved from its bindings.
     kb_collection_names: list[str] = field(default_factory=list)

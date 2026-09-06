@@ -71,6 +71,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.audience import RunAudience, derive_audience
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -460,10 +461,10 @@ class DelegationFrame(BaseModel):
 class AdmittedAs(BaseModel):
     """The terms a run was admitted on, as the request stated them.
 
-    Two facts today, and what they have in common is the whole reason this is one
-    model rather than two fields: neither is derivable from the run row, both are
-    decided by the request, and both are read again when a parked run resumes. A
-    third such fact belongs here rather than beside it.
+    Three facts today, and what they have in common is the whole reason this is one
+    model rather than three fields: none is derivable from the run row, all are
+    decided by the request, and all are read again when a parked run resumes. A
+    fourth such fact belongs here rather than beside it.
 
     Every field defaults to the safe answer, because this is read back out of a
     JSONB column: a run parked before this existed loads as one that asked for
@@ -507,6 +508,27 @@ class AdmittedAs(BaseModel):
             "and unrecoverable from the row: `agent_runs` records `user_id`, but on "
             "a channel that is the binding's publisher when the sender is unlinked, "
             "and on an API key it is the key's holder (#1343)."
+        ),
+    )
+    audience_user_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The person this run answers for, already resolved. Stored rather than "
+            "re-derived because re-deriving needs the request that is gone: whether "
+            "`user_id` was a real subject or a publisher standing in for an "
+            "unidentified visitor, and whether the chat account was linked. A "
+            "resume that re-derived it from the approver keyed the memory on their "
+            "identity and wrote one person's notes under another (#788)."
+        ),
+    )
+    audience_room_key: str | None = Field(
+        default=None,
+        description=(
+            "The group chat this run answers in, or `None` for a one-to-one "
+            "conversation. Unrecoverable from the row for the same reason: "
+            "`agent_runs` records no chat type, so a resumed run read a direct "
+            "message and a channel alike and would have lost the room's memory on "
+            "the way back (#788)."
         ),
     )
 
@@ -1759,6 +1781,7 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
         acts_for_sender: bool = False,
@@ -1824,6 +1847,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
@@ -1902,6 +1926,8 @@ class AgentRunnerService:
         user_name: str | None,
         acts_for_sender: bool = False,
         owner_user_id: UUID | None = None,
+        memory_room_key: str | None = None,
+        restored_audience: RunAudience | None = None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -2184,19 +2210,29 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
+        # The audience is the run's own, not the resuming caller's: an approver
+        # releasing somebody else's run must not become the person its memory is kept
+        # for or whose conversations it may search (#788). On a resume it is restored
+        # verbatim rather than re-derived, because the facts it was derived from -
+        # whether the subject was a publisher stand-in, whether the chat account was
+        # linked, whether the chat was a room - are all gone with the request that
+        # carried them.
+        audience_user_id = owner_user_id or ctx.user_id
+        audience = restored_audience or derive_audience(
+            user_id=audience_user_id,
+            subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
+            room_key=memory_room_key,
+        )
         built = build_agent(
             spec,
             model_spec,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
-            # Not `str(ctx.user_id)`: a context with no subject would stringify
-            # to the literal "None" and hand it to every tool as the caller's
-            # id. `AgentDeps.user_id` is already optional precisely so a surface
-            # without a person can say so, and "None" is the one answer that
-            # looks like an answer.
-            user_id=None if ctx.user_id is None else str(ctx.user_id),
+            # The guard keeps a subject-less context stringifying to None, never "None".
+            user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
+            audience=audience,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -2240,7 +2276,12 @@ class AgentRunnerService:
             ctx=ctx,
             plan_store=plan_store,
             finished_plan_withheld=finished_plan_withheld,
-            admitted_as=AdmittedAs(approval_mode=approval_mode, acts_for_sender=acts_for_sender),
+            admitted_as=AdmittedAs(
+                approval_mode=approval_mode,
+                acts_for_sender=acts_for_sender,
+                audience_user_id=audience.user_id,
+                audience_room_key=audience.room_key,
+            ),
         )
 
     async def _delegation_runtime(
@@ -3294,6 +3335,7 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         acts_for_sender: bool = False,
         message_history: list[Any] | None = None,
@@ -3343,6 +3385,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
             acts_for_sender=acts_for_sender,
             exposure=exposure,
@@ -3514,8 +3557,12 @@ class AgentRunnerService:
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
-            # speaks through.
+            # speaks through - for personal MCP or for the run's audience.
             owner_user_id=run.user_id,
+            restored_audience=RunAudience(
+                user_id=state.admitted_as.audience_user_id,
+                room_key=state.admitted_as.audience_room_key,
+            ),
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

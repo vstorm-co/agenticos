@@ -27,6 +27,7 @@ from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities.approval import (
     ApprovalGate,
@@ -46,6 +47,9 @@ from app.agents.capabilities.compaction import (
     ContextGauge,
     build_gauge,
 )
+from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
+from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
@@ -55,6 +59,19 @@ from app.agents.spec import AgentSpec
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
+
+# The capabilities that read `AgentDeps.audience`. Anything not here gets `None`,
+# so an agent that cannot act on who is listening never carries the fact - and a
+# capability added to this list without reading it would be the same defect in
+# reverse. Ids rather than a per-capability predicate: three near-identical
+# `*_requested` helpers said the same thing three times.
+_AUDIENCE_AWARE = frozenset(
+    {
+        MEMORY_FILES_CAPABILITY_ID,
+        MEMORY_MEM0_CAPABILITY_ID,
+        CONVERSATION_SEARCH_CAPABILITY_ID,
+    }
+)
 
 # How many model requests a run may make when its spec does not say. Raised
 # from Pydantic AI's own 50: real agents with skills and MCP tools were hitting
@@ -124,6 +141,7 @@ def build_agent(
     run_id: UUID | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
+    audience: RunAudience | None = None,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
@@ -231,12 +249,23 @@ def build_agent(
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
 
+    # Derived (or restored) by the caller, because only the runner knows whether
+    # this is a fresh request or a resume - and a resume must not re-derive it from
+    # whoever is resuming (#788). Dropped unless a capability that reads it is
+    # bound, so a spec without one carries no audience at all.
+    bound_audience = (
+        audience
+        if any(binding.enabled and binding.capability_id in _AUDIENCE_AWARE for binding in bindings)
+        else None
+    )
+
     deps = AgentDeps(
         organization_id=organization_id,
         agent_id=agent_id,
         run_id=run_id,
         user_id=user_id,
         user_name=user_name,
+        audience=bound_audience,
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),

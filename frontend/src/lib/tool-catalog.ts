@@ -242,6 +242,31 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "knowledgeBaseSearch",
   },
 
+  // memory - the agent's own file store. An index and a note read back as text, so the
+  // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
+  list_memory: { kind: "list", render: "generic", captionKey: "memoryChecking" },
+  read_memory: { kind: "read", render: "generic", captionKey: "memoryReading" },
+  write_memory: { kind: "write", render: "generic", captionKey: "memorySaving" },
+  edit_memory: { kind: "edit", render: "generic", captionKey: "memoryUpdating" },
+  delete_memory: { kind: "edit", render: "generic", captionKey: "memoryForgetting" },
+  remember: { kind: "write", render: "generic", captionKey: "memoryRemembering" },
+  recall: { kind: "search", render: "generic", captionKey: "memoryRecalling" },
+
+  // conversation search - past threads, found and opened. Both answer in Markdown,
+  // which the generic renderer already shows as prose.
+  search_conversations: {
+    kind: "search",
+    render: "generic",
+    captionKey: "searchingConversations",
+    displayNameKey: "conversationSearch",
+  },
+  read_conversation: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingConversation",
+    displayNameKey: "pastConversation",
+  },
+
   // skills
   list_skills: {
     kind: "skill",

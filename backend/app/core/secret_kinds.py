@@ -463,6 +463,17 @@ class SecretRequirement(BaseModel):
 
     kind: SecretKind
     description: str = Field(description="What the secret is for, shown next to the picker")
+    purpose: str | None = Field(
+        default=None,
+        description=(
+            "Which service in the deployment's catalog this key is for - a "
+            "`services.json` id such as `mem0`. It is what narrows the picker from "
+            "every key of the right *kind* to the ones that would actually work, and "
+            "what a key created from the picker is stored under. Null where the "
+            "capability offers several services and `required_when` already names "
+            "the chosen one, which is the case web search covers."
+        ),
+    )
     required_when: SecretCondition | None = Field(
         default=None,
         description=(

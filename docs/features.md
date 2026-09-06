@@ -79,6 +79,7 @@ whatever its instructions say.
 | The agent can… | Switch on |
 |---|---|
 | **Answer from what your company knows** — your documents, your written procedures, and whatever was attached to this conversation | Knowledge search · Skills · Context |
+| **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory files · Memory (mem0) · Conversation search |
 | **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Web fetch · Browser automation |
 | **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Run Python · Files & shell · Charts · Image generation |
 | **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Context management |

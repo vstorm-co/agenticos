@@ -36,6 +36,7 @@ from app.services.channels.base import (
     OutgoingAttachment,
     OutgoingMessage,
     channel_key,
+    memory_room_key,
     split_thread,
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
@@ -431,6 +432,9 @@ class ChannelMessageRouter:
                 admit_unlinked=admit_unlinked,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
+                memory_room_key=memory_room_key(
+                    incoming.platform, incoming.platform_chat_id, incoming.chat_type
+                ),
                 channel_directory=directory,
                 # How many turns this chat has had. `every_n` counts per chat,
                 # because "every tenth message" is a question about this
@@ -552,6 +556,9 @@ class ChannelMessageRouter:
                 admit_unlinked=admit_unlinked,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
+                memory_room_key=memory_room_key(
+                    incoming.platform, incoming.platform_chat_id, incoming.chat_type
+                ),
                 channel_directory=directory,
                 turn=session.turn_count,
                 attachments=files,

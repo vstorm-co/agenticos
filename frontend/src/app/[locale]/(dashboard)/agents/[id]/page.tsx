@@ -593,6 +593,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const isPublished = agent.status === "published";
 
+  // The Memory tab exists only when the capability is bound; a bare binding reads as
+  // what the builder returns for one (native, both shapes on).
+
   const update = (changes: Partial<AgentSpec>) => setSpec({ ...spec, ...changes });
 
   const toggleCapability = (capabilityId: string) => {
@@ -1089,6 +1092,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </CardHeader>
             <CardContent>
               <CapabilityWorkbench
+                agentId={id}
                 catalog={grantable}
                 selected={spec.capabilities}
                 onToggle={toggleCapability}

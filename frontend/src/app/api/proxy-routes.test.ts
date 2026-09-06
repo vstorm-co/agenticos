@@ -16,6 +16,7 @@ import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
+import * as memory from "./memory/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
 import * as dashboardLayout from "./me/dashboard-layout/route";
 import * as dashboardPresets from "./me/dashboard-layout/presets/route";
@@ -60,6 +61,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["conversations", conversations],
   ["kb", kb],
   ["mcp-connections", mcpConnections],
+  ["memory", memory],
   ["providers", providers],
   ["rag", rag],
   ["ratings", ratings],

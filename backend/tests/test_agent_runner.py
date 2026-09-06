@@ -22,6 +22,7 @@ from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 from pydantic_ai_harness.planning import PlanItem
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
@@ -49,6 +50,9 @@ from app.services.agent_runner import (
 from app.services.approvals import ApprovalService
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 from app.services.transcript import RecordedToolCall
+
+_THE_ASKER = uuid.uuid4()
+"""The person a parked run was answering, told apart from whoever approves it."""
 
 
 def _ctx() -> AuthContext:
@@ -1729,9 +1733,14 @@ class TestParking:
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "plan": [],
-            # What the request asked for, so the continuation is the same run
-            # rather than a default-mode one wearing its id (#1326, #1343).
-            "admitted_as": {"approval_mode": "follow_agent", "acts_for_sender": False},
+            # What the request asked for, so the continuation is the same run rather
+            # than a default-mode one wearing its id (#1326, #1343, #788).
+            "admitted_as": {
+                "approval_mode": "follow_agent",
+                "acts_for_sender": False,
+                "audience_user_id": None,
+                "audience_room_key": None,
+            },
         }
 
     @pytest.mark.anyio
@@ -2144,6 +2153,72 @@ class TestResume:
 
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
         assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
+
+    @pytest.mark.anyio
+    async def test_the_audience_is_the_runs_own_not_the_approvers(self):
+        """Resuming used to re-derive the memory identity off the approver, so an
+        admin releasing a member's parked chat injected their own memory and wrote
+        the member's notes under their account (#788) - the same bug the
+        personal-MCP owner test guards, on the store next to it. The audience is
+        now restored verbatim from the parked state instead."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": True,
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": None,
+                },
+            }
+        )
+
+        assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
+        assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
+        assert build.call_args.kwargs["audience"] == RunAudience(user_id=_THE_ASKER, room_key=None)
+
+    @pytest.mark.anyio
+    async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):
+        """A run that stood a publisher in for an anonymous visitor had no person
+        store. The parked state records that as an audience with no user, so the
+        resume keys on nobody rather than on whoever approved it."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": False,
+                    "audience_user_id": None,
+                    "audience_room_key": None,
+                },
+            }
+        )
+
+        assert build.call_args.kwargs["audience"] == RunAudience()
+
+    @pytest.mark.anyio
+    async def test_a_parked_room_run_resumes_still_in_its_room(self):
+        """The room is unrecoverable from the row - `agent_runs` records no chat
+        type - so without it on the parked state a resumed channel run would read
+        a group conversation as a private one and lose the room's memory (#788)."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": True,
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": "room:slack:C1",
+                },
+            }
+        )
+
+        audience = build.call_args.kwargs["audience"]
+        assert audience.room_key == "room:slack:C1"
+        assert not audience.private
 
     @pytest.mark.anyio
     async def test_a_run_parked_with_nobody_at_the_keyboard_resumes_the_same_way(self):

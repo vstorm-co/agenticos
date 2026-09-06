@@ -12,6 +12,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.core.memory_keys import room_owner_key
 from app.services.channels import connection_state
 from app.services.channels.exceptions import ChannelNotConfigured
 
@@ -81,6 +82,29 @@ def channel_key(platform_chat_id: str) -> str:
     how one of them ends up asking Mattermost about a thread id.
     """
     return split_thread(platform_chat_id)[0]
+
+
+def memory_room_key(platform: str, platform_chat_id: str, chat_type: str) -> str | None:
+    """The memory store of the room a message arrived in, or `None` for a DM.
+
+    Here rather than in `mentions`, and taking three *required* strings, because
+    that is the difference between a safe default and an unsafe one. Deciding a
+    chat has more than one listener needs the platform's own channel type, which
+    stops at the router: the runner sees a `channel_key`, and a Slack direct
+    message has one of those exactly like a channel does.
+
+    **Anything that is not explicitly `private` is a room**, including a chat type
+    this code has not seen. That is the conservative reading, and the reverse is a
+    leak rather than a lost feature: a room run reads nobody's private notes,
+    while a group conversation mistaken for a private one reads the speaker's
+    own - and splices them into an answer the whole channel sees (#1470).
+
+    Keyed on `channel_key`, not the raw id, so a room remembers across its threads
+    rather than starting over in each one.
+    """
+    if chat_type == "private":
+        return None
+    return room_owner_key(platform, channel_key(platform_chat_id))
 
 
 def split_thread(platform_chat_id: str) -> tuple[str, str]:

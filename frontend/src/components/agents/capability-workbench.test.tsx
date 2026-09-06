@@ -16,6 +16,12 @@ vi.mock("@/hooks/use-model-providers", () => ({
   useImageProviders: () => imageProviders(),
 }));
 
+// The memory panel's one action, which needs a query client this file does not
+// provide; `clear-agent-memory` covers the dialog and the call it makes.
+vi.mock("@/hooks/use-memory", () => ({
+  useClearAgentMemory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
   // The workspace section reads both: where sandboxes may run, and what the
@@ -79,6 +85,24 @@ const CHARTS: CapabilityCatalogEntry = {
   requires_secret: null,
 };
 
+const MEMORY_FILES: CapabilityCatalogEntry = {
+  ...CHARTS,
+  id: "memory_files",
+  name: "Memory files",
+  category: "knowledge",
+  description: "Notes the agent keeps of its own across conversations.",
+  tools: [{ id: "read_memory", name: "read_memory", description: "Read one note by name." }],
+  contracts: [],
+};
+
+const MEMORY_MEM0: CapabilityCatalogEntry = {
+  ...MEMORY_FILES,
+  id: "memory_mem0",
+  name: "Memory (mem0)",
+  description: "Semantic memory kept in a mem0 service rather than here.",
+  tools: [{ id: "recall", name: "recall", description: "Recall facts by meaning." }],
+};
+
 const SKILLS: CapabilityCatalogEntry = {
   ...CHARTS,
   id: "skills",
@@ -137,6 +161,7 @@ async function openTools() {
 function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0]> = {}) {
   return render(
     <CapabilityWorkbench
+      agentId="agent-1"
       catalog={[CHARTS, SKILLS]}
       selected={[]}
       onToggle={vi.fn()}
@@ -151,6 +176,52 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
 }
 
 describe("the capability workbench", () => {
+  it("offers to clear an agent's notes from inside the capability that keeps them", async () => {
+    // The only thing anybody does to memory from the console: there is no
+    // browsing surface, because what an agent wrote about a named colleague is
+    // not a screen an operator pages through (#1470). A store nobody can clear
+    // is a liability, though, so the action has to live somewhere.
+    renderWorkbench({
+      catalog: [MEMORY_FILES],
+      selected: [binding("memory_files")],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+
+    expect(screen.getByText("Clear this agent's memory")).toBeInTheDocument();
+  });
+
+  it("says the clear does not reach mem0 when the agent also keeps memories there", async () => {
+    // mem0 addresses memories per person, so nothing can empty one agent's
+    // namespace wholesale - and somebody believing it did would stop looking.
+    renderWorkbench({
+      catalog: [MEMORY_FILES, MEMORY_MEM0],
+      selected: [binding("memory_files"), binding("memory_mem0")],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+
+    expect(screen.getByText(/does not reach/)).toBeInTheDocument();
+  });
+
+  it("offers no clear for a capability that keeps nothing", async () => {
+    renderWorkbench({ selected: [binding("charts")] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+
+    expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
+  });
+
+  it("offers no clear until memory is actually granted", async () => {
+    // Reading a capability is not granting it, and an inert panel must not carry
+    // a live destructive button.
+    renderWorkbench({ catalog: [MEMORY_FILES], selected: [] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+
+    expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
+  });
+
   it("says how many tools a capability contributes before you grant it", async () => {
     // The complaint this layout exists for: the old grid showed one sentence per
     // capability and never what it actually gives the model.

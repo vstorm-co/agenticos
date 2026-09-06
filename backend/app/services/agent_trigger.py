@@ -1582,6 +1582,9 @@ class AgentTriggerService:
             user_id=trigger.created_by_user_id,
             organization_id=trigger.organization_id,
             role=membership.role,
+            # The creator is the authority a fire runs under, not a memory end-user: an
+            # unattended run must not read or write their personal store.
+            subject_is_publisher_fallback=True,
         )
 
     async def _run_log(self, trigger: AgentTrigger, *, agent_name: str) -> UUID:

@@ -78,7 +78,7 @@ router = APIRouter()
 )
 async def list_capability_catalog() -> Any:
     """Every capability an agent can be given, with the schema its form is built from."""
-    contracts = tool_contracts()
+    contracts = await tool_contracts()
     items = [
         CapabilityCatalogEntry(
             id=definition.id,

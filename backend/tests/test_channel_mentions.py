@@ -23,7 +23,13 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunSurface
-from app.services.channels.base import ROOM_HANDLES, channel_key, split_thread, thread_key
+from app.services.channels.base import (
+    ROOM_HANDLES,
+    channel_key,
+    memory_room_key,
+    split_thread,
+    thread_key,
+)
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
@@ -44,6 +50,34 @@ _BOT_ID = uuid.uuid4()
 def _bound(*, is_active: bool = True) -> AsyncMock:
     """An exposure lookup that says this agent answers on this bot."""
     return AsyncMock(return_value=MagicMock(is_active=is_active))
+
+
+class TestMemoryRoomKey:
+    """Which memory a channel turn writes to, decided where the platform's own
+    answer is required rather than optional."""
+
+    def test_a_group_chat_names_its_room(self):
+        assert memory_room_key("slack", "C1", "group") == "room:slack:C1"
+
+    def test_a_room_key_strips_the_thread_so_a_room_remembers_across_threads(self):
+        # Slack folds `thread_ts` into the chat id; a room that started over in
+        # each thread would be a room that remembers nothing.
+        assert memory_room_key("slack", "C1:1700000000.1", "group") == "room:slack:C1"
+
+    def test_a_direct_message_names_no_room_and_stays_private(self):
+        """What makes a DM and web chat one audience for the same person."""
+        assert memory_room_key("slack", "D1", "private") is None
+
+    @pytest.mark.parametrize("chat_type", ["supergroup", "channel", "", "something-new"])
+    def test_anything_not_explicitly_private_is_a_room(self, chat_type: str):
+        """The conservative reading, and the reverse is a leak rather than a lost
+        feature: a room run reads nobody's private notes, while a group chat
+        mistaken for a private one reads the speaker's own and splices them into
+        an answer the whole channel sees (#1470)."""
+        assert memory_room_key("telegram", "C1", chat_type) == "room:telegram:C1"
+
+    def test_two_platforms_sharing_a_chat_id_are_two_rooms(self):
+        assert memory_room_key("slack", "C1", "group") != memory_room_key("telegram", "C1", "group")
 
 
 class TestTheChannelAWorkspaceSharesAcross:

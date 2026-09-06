@@ -250,6 +250,7 @@ class ChannelAgentRouter:
         admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
@@ -358,6 +359,7 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
             # The thread this agent was brought into, where the router read one.
             # Without it a named agent answered an existing thread as though it
@@ -400,6 +402,7 @@ class ChannelAgentRouter:
         admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
@@ -462,6 +465,7 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
             # A sender who is a member speaks through their own MCP accounts, in
             # a room as much as in a direct message: the account is this

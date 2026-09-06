@@ -21,9 +21,10 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage
 
-from app.agents.capabilities import load_builtins
-from app.agents.capabilities._registry import CapabilityBinding, build
+from app.agents.capabilities import all_capabilities, load_builtins
+from app.agents.capabilities._registry import CapabilityBinding, build, get
 from app.agents.capabilities._tool_text import ToolText
+from app.services.capability_contracts import tool_contracts
 
 pytestmark = pytest.mark.anyio
 
@@ -219,21 +220,21 @@ class TestEveryToolSaysWhatItReturns:
 class TestTheBuilderReadsWhatTheModelReads:
     """A contract is the whole text; the catalog entry is its first sentence."""
 
-    def test_every_capability_that_builds_reports_its_tools(self) -> None:
+    async def test_every_capability_that_builds_reports_its_tools(self) -> None:
         """An unreadable toolset shows the catalog one-liner and logs, silently."""
         from app.services.capability_contracts import tool_contracts
 
-        contracts = tool_contracts()
+        contracts = await tool_contracts()
 
         for capability_id in ("context", "tool_output_limits", "planning", "sandbox", "charts"):
             assert contracts.get(capability_id), capability_id
 
-    def test_the_contract_opens_with_the_sentence_the_catalog_shows(self) -> None:
+    async def test_the_contract_opens_with_the_sentence_the_catalog_shows(self) -> None:
         """Two copies drift; the Builder must not paraphrase what the model reads."""
         from app.agents.capabilities._registry import all_capabilities
         from app.services.capability_contracts import tool_contracts
 
-        contracts = tool_contracts()
+        contracts = await tool_contracts()
 
         for definition in all_capabilities():
             for tool in definition.tools:
@@ -243,3 +244,48 @@ class TestTheBuilderReadsWhatTheModelReads:
                 assert contract.description.startswith(
                     f"<summary>{tool.description}"
                 ) or contract.description.startswith(tool.description), f"{definition.id}.{tool.id}"
+
+
+class TestEveryCapabilityHasContracts:
+    """A capability the prober cannot build shows the Builder a one-liner.
+
+    `tool_contracts` builds each capability with a stub so the Builder can show
+    what the model actually reads, and falls back to the catalog's summary when a
+    build returns `None`. A capability whose key is required *unconditionally*
+    returns `None` without one - so `memory_mem0` showed one sentence beside a
+    checkbox while the model was reading six, and an author reworded a tool from a
+    value that was never sent (#1473).
+    """
+
+    async def test_a_capability_needing_a_key_still_reports_its_tools(self) -> None:
+        load_builtins()
+        contracts = await tool_contracts()
+
+        assert set(contracts["memory_mem0"]) == {"remember", "recall"}
+
+    async def test_the_contract_is_what_the_model_reads_not_the_catalog_summary(self) -> None:
+        load_builtins()
+        remember = (await tool_contracts())["memory_mem0"]["remember"]
+        declared = next(
+            tool.description for tool in get("memory_mem0").tools if tool.id == "remember"
+        )
+
+        assert remember.description.startswith("<summary>")
+        assert declared in remember.description
+        assert len(remember.description) > len(declared)
+
+    async def test_every_registered_capability_with_tools_has_them(self) -> None:
+        """One assertion for the whole registry, so the next capability that needs a
+        credential to build fails here rather than silently showing a summary."""
+        load_builtins()
+        contracts = await tool_contracts()
+        missing = [
+            definition.id
+            for definition in all_capabilities()
+            if definition.tools and not contracts.get(definition.id)
+        ]
+
+        assert missing == [], (
+            "these capabilities offer tools the Builder cannot describe; give the "
+            "documentation prober whatever their build needs"
+        )

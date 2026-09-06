@@ -265,11 +265,20 @@ class TestToolDeclarations:
     def _built(self, definition_id: str) -> Any:
         definition = get(definition_id)
         blob = self.CONFIGS.get(definition_id, {})
+        config = definition.validate_config(blob)
+        # A capability that cannot build without a credential gets one, the same
+        # way the override test below does. Without this a secret-requiring
+        # capability builds as `None` and falls out of the drift check entirely -
+        # which is the hole this class's first test exists to close.
+        secret_id, secrets = self._secret_binding(definition, blob)
         return definition.builder(
             CapabilityBuildContext(
-                binding=CapabilityBinding(capability_id=definition_id, config=blob),
-                config=definition.validate_config(blob),
+                binding=CapabilityBinding(
+                    capability_id=definition_id, config=blob, secret_id=secret_id
+                ),
+                config=config,
                 resources=self.RESOURCES,
+                secret=secrets.get(secret_id) if secret_id else None,
             )
         )
 

@@ -350,6 +350,25 @@ class AuthContext:
     (#639).
     """
 
+    subject_is_publisher_fallback: bool = False
+    """Whether `user_id` is the publisher standing in for an unidentified asker.
+
+    On a hosted or embedded surface there is no signed-in person, so
+    `publisher_context` runs the turn as the agent's publisher: `user_id` is the
+    owner, not whoever is actually chatting. This is how a consumer tells that
+    apart from a real subject (web chat, API, a linked member), where `user_id`
+    *is* the asker. Like `channel_identity_id` it decides no permission - it
+    exists so a person store can refuse to attribute a stranger's note to the
+    owner rather than leak it into the owner's store (#788).
+
+    Invariant: set `True` in exactly one place - `publisher_context`, the sole
+    constructor that runs a turn as someone other than the asker. Any future
+    stand-in constructor must set it too, or a person-store write silently lands
+    in the owner's store as if it were the visitor's. `test_publisher_standing.py` pins
+    the one assignment site by grep, the way `AuthContext.anonymous` is the one
+    subject-less constructor.
+    """
+
     @classmethod
     def anonymous(cls, organization_id: UUID) -> AuthContext:
         """A context for a visitor nobody can name.

@@ -64,6 +64,10 @@ def include_name(name: str | None, type_: str, parent_names: dict[str, str | Non
     The test is narrow on purpose - `rag_documents` is a model table, and excluding it
     would silence real drift in the one table this project ingests through.
     `app/db/vector_tables.py` explains why both halves of that test are needed.
+
+    `parent_names` is unused and stays because Alembic decides this signature, not
+    us. It carried the `agent_memory_facts.embedding` exclusion until the facts
+    table left the schema with the native semantic store (#1470).
     """
     if type_ == "table" and name is not None:
         return not is_runtime_vector_table(name, metadata=target_metadata)

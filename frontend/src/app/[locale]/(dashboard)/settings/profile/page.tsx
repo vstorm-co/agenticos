@@ -10,6 +10,7 @@ import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
 import { avatarInitials, avatarPalette } from "@/lib/avatar-color";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
+import { ForgetMe } from "@/components/memory/forget-me";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
@@ -211,6 +212,8 @@ export default function ProfileSettingsPage() {
       <ChatAccounts />
 
       <ActiveSessions />
+
+      <ForgetMe userId={user.id} />
     </div>
   );
 }

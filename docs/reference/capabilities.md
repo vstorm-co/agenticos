@@ -25,6 +25,9 @@ tools listed.
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
+| `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
+| `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
@@ -124,6 +127,145 @@ Bound with nothing usable — no files, or only `link` files with the read tool
 turned off — this capability contributes **nothing** and is not attached, the
 same way `knowledge` bound to no collections is not. Files are managed under
 `/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
+
+## Memory files
+
+`list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
+
+Notes an agent keeps of its own across conversations, indexed by one it maintains
+itself. Where `context` is a library a person authors and binds to many agents,
+memory is the agent's own: it writes through tools mid-run, and nobody else writes
+here at all. It is not bound by id — enabling the capability gives the agent its
+notes.
+
+**`MEMORY.md` is the index, and it is shown to the agent every request.** It is an
+ordinary note the agent writes and edits with the same tools as any other, and the
+capability splices it into the instructions the way a bound context file is
+spliced in. So the agent meets what it has saved before it decides anything, and
+opens a listed note with `read_memory` when the line says it is worth reading —
+rather than having to decide to call a listing tool a lighter model rarely calls.
+
+### Whose notes, and who may hear them
+
+A note belongs either to one person or to one group chat, and **a run touches
+exactly one store: the conversation's own.** Which one is derived server-side from
+who will hear the answer, never from the model — so no tool takes a scope and
+there is nothing for the agent to get wrong.
+
+- One to one — web chat, the HTTP API, a direct message — the notes are that
+  person's, and nobody else ever reads them. The same person reaches one store
+  from all three: a linked chat account resolves to their account rather than to
+  the surface they arrived on.
+- In a group chat the notes are the chat's, and everyone in the chat reads them.
+  The speaker's own notes are **not** reachable there: something written down
+  alone with somebody is not read back aloud where a whole channel sees it.
+- On a public widget or an embed there is nobody to attribute anything to, so
+  there is no store, and the tools say so rather than saving somewhere.
+
+There is no organisation-wide store. One existed and was removed: it was a second
+mechanism for what [context files](../context.md) already do — standing knowledge
+a person authors and binds to agents — and one job with two mechanisms is how the
+two disagree. Memory is what the *agent* learned; anything a human writes belongs
+in context.
+
+One switch, **Allow personal memory**, drops the per-person store entirely for
+compliance or privacy; the notes kept in group chats stay.
+
+### What is injected, and what is only fetched
+
+A tool result is something a model weighs; the instructions are what it obeys. So
+the index reaches the prompt only where its content could have steered nobody but
+the reader: in a one-to-one conversation it is injected, and in a group chat it
+stays reachable with `read_memory` and is never injected. A room's notes are
+self-scoped to nobody, so one colleague's sentence would otherwise arrive as
+another colleague's instructions in the same channel.
+
+An index larger than about 6,000 characters is left out rather than cut. Half an
+index — ending mid-line, mid-filename — is worse than none.
+
+### Erasing it
+
+Nothing browses somebody's notes in the console: an operator reading what an agent
+wrote about a colleague is the failure this design refuses, and there is no screen
+for it. What there is, is erasure. A person clears everything an agent remembers
+about them from their own profile, and an administrator holding `members:manage`
+can do it for somebody else; both delete the rows here **and** the matching
+memories in mem0 for every agent that binds it. Clearing one agent's memory
+entirely is in its toolbox, beside the capability.
+
+## Memory (mem0)
+
+`remember`, `recall`
+
+Semantic memory kept in a [mem0](https://mem0.ai) service — cloud, or self-hosted
+via `base_url` — rather than in this deployment. `remember` keeps a short
+self-contained sentence; `recall` finds the ones a question is about by meaning
+rather than by name. It needs an API key from the organisation's vault.
+
+Which memories a run can reach obeys exactly the rule above, because mem0 is
+handed the whole scope as its `user_id`: `{org}:{agent}:{owner}`. One mem0 account
+therefore cannot mix two organisations', two agents', or two people's memories.
+
+Two differences worth knowing before choosing it. **Nothing is stored here**, so
+erasing a person's memory reaches mem0 through its own API rather than through a
+row we delete. And **mem0 bills its own embedding out of band**, so the
+deployment's spend ledger does not see it and a budget cap does not bound it.
+
+A self-hosted `base_url` must be https and on `MEM0_ALLOWED_HOSTS`. An empty
+allowlist refuses self-hosted mem0 outright, which is deliberate: the key travels
+in an `Authorization` header, so a builder who may bind but not read a shared key
+must not be able to point it at a server of their own.
+
+## Conversation search
+
+`search_conversations`, `read_conversation`
+
+Finds a past conversation by what was **said** in it, and opens it in full. Memory
+can only recall what some earlier turn thought worth writing down; everything else
+was said, stored, and until this existed unreachable — so "what did we decide about
+the Q3 pricing" answered "I have no record of that" in a product holding the whole
+exchange.
+
+`search_conversations` returns the best-matching threads, each with its title, when
+it was last active, how many turns matched, and the strongest passage with the
+matched words in bold. `read_conversation` opens one as Markdown, split into
+`USER:` and `AI:` in the order the turns were written, naming who spoke where a
+room has several people in it. A long thread comes a window at a time and the
+answer says how to ask for the next.
+
+### Whose conversations
+
+One person's: the person the run is answering. Three ways in, the same three the
+console allows — conversations they own, conversations shared with them, and
+channel threads they took part in *and are still a member of*, confirmed against
+the chat platform. A trigger's run-log is deliberately not among them: it is a
+transcript of runs made under somebody else's authority, and an agent searching on
+a person's behalf holds no permission of theirs to check it with.
+
+**And only where that person is the only listener.** In a group chat both tools
+refuse, saying why: the corpus is personal, so answering from it in a channel would
+read one person's private conversations out to everyone in the room. It is the
+line the memory index draws, one layer further out.
+
+### How it matches
+
+PostgreSQL full-text search — a `tsvector` maintained by the database over every
+message, a GIN index, `websearch_to_tsquery` for the query and `ts_rank_cd` for
+the order. Quoted `"exact phrases"`, `or`, and a leading `-` to exclude a word all
+work. Not `ILIKE`, which matches inside words and cannot rank; not embeddings,
+which is what [knowledge search](#knowledge-search) already is and answers a
+different question.
+
+Words are matched whole and case-folded but **not stemmed**: `meeting` does not
+find `meetings`. The configuration is fixed in the database and `english` would
+stem one language while mangling every other — PostgreSQL ships no Polish
+dictionary at all — so evenness across languages is bought at the price of word
+forms. The tool description states it, so a model that finds nothing tries another
+form of the word rather than concluding nothing was said.
+
+An operator who does not want agents reading conversations at all withholds the
+`conversations:read` scope, which turns it off across the whole deployment. There
+is no setting that widens the corpus.
 
 ## Web search
 
@@ -1284,6 +1426,7 @@ the agent is assembled:
 | Scope | Declared by |
 |---|---|
 | `knowledge:read` | `knowledge`, `skills` |
+| `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
 | `web:browse` | `browser_use` |
@@ -1291,7 +1434,7 @@ the agent is assembled:
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-!!! note "All seven are granted by default today"
+!!! note "All eight are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
     Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check
@@ -1306,6 +1449,9 @@ the agent is assembled:
 
 An operator who does not want nested runs or fan-out billing removes it, and
 every spec that delegates then says so at publish rather than at 3am.
+`conversations:read` is the same kind of lever for conversation search: one edit
+stops every agent reading past conversations, for a deployment that considers a
+transcript too sensitive to be searchable however narrowly the corpus is scoped.
 
 ## What a tool tells the model
 
