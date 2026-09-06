@@ -17,6 +17,59 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.370] - 2026-09-06
+
+### Added
+
+- **A deployment somebody else can repeat.** `docs/deploy.md` is rewritten around
+  the path that actually works, and the pieces it needs now exist:
+  `scripts/server-init.sh` writes `backend/.env` once - five generated secrets,
+  four answers it cannot invent, and the public URLs and CORS origin derived from
+  them - and `scripts/deploy.sh` fetches a named commit, rebuilds, migrates and
+  fails on a container that does not report healthy. The page it replaces could
+  not be followed to a running deployment: it ran compose without the production
+  file, migrated with a command the image does not have, and pointed at an Nginx
+  config that does not exist.
+- **Traefik, as two overlay files.** `make prod PROXY=traefik` puts the API and
+  the site on an existing Traefik's network with the labels it discovers them by.
+  Nothing else in the stack is labelled, so under `exposedByDefault: false`
+  Postgres, Redis, Prefect and the sandbox daemon are unreachable by construction
+  rather than by omission. For a host with no proxy at all,
+  `docker-compose-traefik.yml` and `traefik/` are a working one, with HSTS on the
+  secure entrypoint - the one header the application deliberately leaves to
+  whatever terminates TLS.
+- **Deploying from GitHub, behind an approval.** A merge to `main` offers itself
+  for deployment and waits for a reviewer on the `production` environment. The ref
+  is resolved in a job holding no secrets, which refuses anything that is not
+  already an ancestor of `main` - so what an approver approves is a commit that
+  has been through the pull-request gate, and moving a tag afterwards changes
+  nothing.
+
+### Fixed
+
+- **The production stack was sized to be killed.** `app` had a 1 GB memory limit
+  for four uvicorn workers, and a worker measures 460 MiB - spawned rather than
+  forked, so nothing is shared. Four of them are 1.9 GB before a request arrives,
+  so the shipped ceiling OOM-killed the API as soon as all four were warm. Worker
+  count is now `UVICORN_WORKERS` and the limit is sized for the default.
+- **Three more from the same measurement pass.** `prefect-server` had no limit at
+  all; Postgres ran on the 128 MB `shared_buffers` it ships with, and with the
+  64 MB of `/dev/shm` Docker gives a container, which a parallel scan over a
+  collection's vectors exhausts; and Redis had no `maxmemory`.
+- **The deployed frontend could not be built from the example.**
+  `docker-compose-prod.frontend.yml` requires `PUBLIC_API_URL`, `PUBLIC_WS_URL`
+  and `PUBLIC_SITE_URL` and refuses to start without them, and none of the three
+  was in `backend/.env.example`.
+- **The Nginx template pointed at names that resolve nowhere.** Its upstreams
+  were Docker network aliases while the compose file publishes on the loopback
+  and the documentation describes a proxy on the host - three sources, each
+  saying something different.
+- **An end-to-end spec reloaded over the write it was testing**, failing four
+  times in nine runs on branches that touched none of it. Clicking a button
+  returns when the click is dispatched, and the reload on the next line aborted
+  the request it started.
+
+
 ## [0.0.369] - 2026-09-06
 
 ### Added
