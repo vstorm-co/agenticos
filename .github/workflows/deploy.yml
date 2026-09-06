@@ -1,0 +1,102 @@
+name: Deploy
+
+# Every merge to `main` offers itself for deployment; **somebody has to approve
+# it before anything reaches the server.** The gate is not in this file and
+# cannot be - it is the `production` environment's *required reviewers* rule,
+# configured in the repository's settings. Without that rule this workflow
+# deploys every merge unattended, which is the one failure mode worth knowing
+# about here: the safety is a setting, not a step.
+#
+# `workflow_dispatch` is the same job with a ref you pick - a rollback, or a
+# redeploy after changing something on the host - and it passes through the same
+# approval.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit or tag to deploy (default: the branch this is run from)"
+        required: false
+        type: string
+
+# One deploy at a time, and **never cancel one in flight**. Half a deploy is a
+# stack whose API has been rebuilt and whose migrations have not - so a second
+# merge landing mid-deploy queues behind the first rather than replacing it.
+#
+# This is the opposite of `ci.yml`'s rule, and for the opposite reason: there a
+# superseded answer is waste, here a superseded run has already changed a server.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    # What makes the approval possible. `url` is what GitHub links to from the
+    # run and from the repository's environment list, so the deployment history
+    # says where it went as well as when.
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The commit being deployed, so `scripts/deploy.sh` is the version that
+          # ships with it. A `workflow_dispatch` with no ref deploys the branch it
+          # was started from, which is `main`.
+          ref: ${{ inputs.ref || github.sha }}
+          # Nothing here pushes, and this job holds a key to a production host -
+          # so the token that checkout would otherwise leave in `.git/config` is
+          # one more credential in the same process for no reason.
+          persist-credentials: false
+
+      - name: Resolve the commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Written out rather than reached through a third-party action: this is the
+      # one workflow holding a key that opens a production host, and the fewer
+      # things that see it, the better. `known_hosts` is a secret rather than an
+      # `ssh-keyscan` at run time - scanning trusts whatever answers, which is the
+      # thing a host key exists to stop.
+      - name: Authorize
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          APP_DIR: ${{ vars.APP_DIR || '/opt/agenticos' }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "APP_DIR='$APP_DIR' bash -s -- '$SHA'" < scripts/deploy.sh
+
+      # The deploy script already waits for both containers to report healthy on
+      # the host. This asks the same question from outside, which is the half it
+      # cannot answer: that DNS, the proxy and the certificate are all still
+      # doing their job. A green deploy and an unreachable site is exactly the
+      # combination nobody goes looking for.
+      - name: Reach it from the internet
+        env:
+          API_URL: ${{ vars.API_URL }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          set -e
+          curl -fsS --max-time 20 "$API_URL/api/v1/health" | tee /dev/stderr | grep -q '"status"'
+          curl -fsS --max-time 20 -o /dev/null -w 'site: %{http_code}\n' "$SITE_URL"

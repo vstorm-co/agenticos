@@ -158,26 +158,36 @@ dev-server-logs:
 stage: dev-server
 stage-down: dev-server-down
 
-# === Production: external Nginx, real secrets in backend/.env ===
+# === Production ===
+#
+# Two ways in, and `PROXY=traefik` is the difference. Without it the stack
+# publishes both ports on the loopback and a reverse proxy on the host reaches
+# them - `nginx/nginx.conf` is that template. With it, the containers join an
+# existing Traefik's network and carry the labels it discovers them by, which is
+# the shorter path where Traefik is already running. See docs/deploy.md.
+PROD_FILES := -f docker-compose-prod.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.traefik.yml)
+PROD_FRONTEND_FILES := -f docker-compose-prod.frontend.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.frontend.traefik.yml)
+PROD_PROXY_NOTE := $(if $(filter traefik,$(PROXY)),Traefik routes it once the certificate is issued,configure your nginx host with nginx/nginx.conf)
+
 prod:
 	@test -f backend/.env || (echo "❌ backend/.env missing — run 'cp backend/.env.example backend/.env' and fill in real secrets" && exit 1)
-	docker compose --env-file backend/.env -f docker-compose-prod.yml up -d --build
+	docker compose --env-file backend/.env $(PROD_FILES) up -d --build
 	@echo "▶ Waiting for DB then running migrations…"
 	@sleep 5
-	docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T app agenticos db upgrade
-	@echo "✅ Production stack up. Configure your nginx host with nginx/nginx.conf"
+	docker compose --env-file backend/.env $(PROD_FILES) exec -T app agenticos db upgrade
+	@echo "✅ Production stack up — $(PROD_PROXY_NOTE)"
 
 prod-frontend:
 	@test -f backend/.env || (echo "❌ backend/.env missing" && exit 1)
-	docker compose --env-file backend/.env -f docker-compose-prod.frontend.yml up -d --build
-	@echo "✅ Production frontend on :3000"
+	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) up -d --build
+	@echo "✅ Production frontend up"
 
 prod-down:
-	docker compose --env-file backend/.env -f docker-compose-prod.frontend.yml down 2>/dev/null || true
-	docker compose --env-file backend/.env -f docker-compose-prod.yml down
+	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) down 2>/dev/null || true
+	docker compose --env-file backend/.env $(PROD_FILES) down
 
 prod-logs:
-	docker compose --env-file backend/.env -f docker-compose-prod.yml logs -f
+	docker compose --env-file backend/.env $(PROD_FILES) logs -f
 
 # Legacy alias
 quickstart: dev

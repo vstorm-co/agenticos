@@ -64,6 +64,17 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/file_upload.py", "docs/file-processing.md"),
     ("backend/app/services/ingestion_config.py", "docs/file-processing.md"),
     ("backend/app/core/config.py", "docs/configuration.md"),
+    # How this gets onto a host: the stack's shape, its sizing, and the two
+    # scripts a deployment is actually performed with.
+    ("docker-compose-prod.yml", "docs/deploy.md"),
+    ("docker-compose-prod.frontend.yml", "docs/deploy.md"),
+    ("docker-compose-prod.traefik.yml", "docs/deploy.md"),
+    ("docker-compose-prod.frontend.traefik.yml", "docs/deploy.md"),
+    ("docker-compose-traefik.yml", "docs/deploy.md"),
+    ("traefik/traefik.yml", "docs/deploy.md"),
+    ("scripts/deploy.sh", "docs/deploy.md"),
+    ("scripts/server-init.sh", "docs/deploy.md"),
+    (".github/workflows/deploy.yml", "docs/deploy.md"),
     ("backend/app/services/deployment_settings.py", "docs/deployment.md"),
     ("backend/app/services/signup_policy.py", "docs/deployment.md"),
     ("backend/app/services/invitation_admission.py", "docs/deployment.md"),

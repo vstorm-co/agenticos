@@ -1,0 +1,51 @@
+# Traefik for a host that does not already have one:
+#
+#   docker network create traefik_webgateway
+#   docker compose --env-file backend/.env -f docker-compose-traefik.yml up -d
+#
+# Skip it where Traefik is already running - point `TRAEFIK_NETWORK` at the
+# network it watches instead, and the overlays find it. See `docs/deploy.md`.
+#
+# The network is created by hand rather than by this file, and declared external
+# here, because the application stack joins it too: a network owned by whichever
+# compose project happened to start first is a network that disappears when that
+# project is brought down.
+
+networks:
+  traefik_webgateway:
+    external: true
+
+services:
+  traefik:
+    image: traefik:v3.7
+    container_name: traefik_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Read by the `${ACME_EMAIL}` in traefik.yml. Where the expiry notices go,
+      # and the only address Let's Encrypt has for whoever runs this.
+      - ACME_EMAIL=${ACME_EMAIL:?ACME_EMAIL is required, e.g. ops@example.com}
+    volumes:
+      # Read-only, and this is the security boundary of the whole arrangement:
+      # the socket is what lets Traefik discover containers, and write access to
+      # it is root on the host.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      # The issued certificates and the account key. A named volume rather than a
+      # bind mount because Traefik requires the file be readable by nobody else,
+      # and a bind-mounted file inherits whatever the host gave it.
+      - traefik_certificates:/certificates
+    networks:
+      - traefik_webgateway
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  traefik_certificates:

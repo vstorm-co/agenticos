@@ -1,0 +1,35 @@
+# Puts the production frontend behind an existing Traefik. An overlay:
+#
+#   docker compose --env-file backend/.env \
+#     -f docker-compose-prod.frontend.yml -f docker-compose-prod.frontend.traefik.yml \
+#     up -d --build
+#
+# The API's half is `docker-compose-prod.traefik.yml`, and the reasoning for
+# every label is there. This file exists separately only because the frontend is
+# a separate compose file: passing one overlay naming both services to either
+# invocation would declare a service the other file has no image or build for.
+#
+# `SITE_DOMAIN` is the browser-facing hostname, and it has to agree with the
+# `PUBLIC_SITE_URL` the image was built with. They are two different mechanisms -
+# one routes the request, the other is inlined into the bundle - so a mismatch is
+# a site that loads and then talks to the wrong host from the browser, which is
+# the failure `docker-compose-prod.frontend.yml` warns about at the top.
+
+services:
+  frontend:
+    networks:
+      # Only the addition: compose merges a service's `networks` mapping across
+      # `-f` files, so `edge` and its alias come from the base file.
+      proxy:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_webgateway}"
+      - "traefik.http.routers.agenticos-web.rule=Host(`${SITE_DOMAIN:?SITE_DOMAIN is required, e.g. app.example.com}`)"
+      - "traefik.http.routers.agenticos-web.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.agenticos-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.services.agenticos-web.loadbalancer.server.port=3000"
+
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:-traefik_webgateway}
+    external: true

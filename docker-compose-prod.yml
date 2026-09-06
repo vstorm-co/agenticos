@@ -63,9 +63,17 @@ services:
     # this supervisor already replaces twice a second. Subclassing it instead
     # would have meant owning four upstream call sites in the one process whose
     # job is to survive whatever killed the worker.
+    #
+    # How many workers is a deployment's decision, not a constant: each one is a
+    # *spawned* process that imports the application on its own - 460 MiB
+    # measured, with no copy-on-write to share - so four of them are 1.9 GB
+    # before a request arrives. Four suits a busy deployment; a team of ten is
+    # better served by two, which still leaves one serving while the watchdog
+    # replaces a wedged sibling. The memory limit below is sized for the
+    # default; lower both together.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers 4 --ws websockets-sansio
+      --workers ${UVICORN_WORKERS:-4} --ws websockets-sansio
     networks:
       data:
       edge:
@@ -95,8 +103,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 1G
+          cpus: "3"
+          # Four workers at the 460 MiB each one measures, plus the supervisor
+          # and room for a request holding a large transcript. It was 1G, which
+          # is under what the default `--workers 4` needs to *start* - so the
+          # shipped limit OOM-killed the container the first time all four were
+          # warm. Lower it with `UVICORN_WORKERS`: about 600M per worker.
+          memory: 2560M
         reservations:
           cpus: "0.5"
           memory: 512M
@@ -108,6 +121,28 @@ services:
     # `extension "vector" is not available`.
     image: pgvector/pgvector:pg16
     container_name: agenticos_db
+    # Postgres ships defaults sized for a machine from 2005 - `shared_buffers`
+    # is 128 MB whatever the host has. These are the standard ratios against the
+    # 2G limit below, so the two move together: a quarter of it resident, and
+    # `effective_cache_size` describing what the host's page cache is likely to
+    # be holding on top. `random_page_cost` and `effective_io_concurrency` say
+    # the storage is an SSD, which every deployment of this now is.
+    command: >-
+      postgres
+      -c shared_buffers=512MB
+      -c effective_cache_size=1536MB
+      -c maintenance_work_mem=128MB
+      -c work_mem=8MB
+      -c wal_buffers=16MB
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c max_parallel_workers_per_gather=2
+    # Parallel query workers pass tuples through POSIX shared memory, which is
+    # `/dev/shm` - and Docker gives a container 64 MB of it. A parallel scan over
+    # a collection's vectors then fails with "could not resize shared memory
+    # segment", which reads as a corrupt index rather than as a container
+    # setting.
+    shm_size: 512mb
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
@@ -132,7 +167,14 @@ services:
   redis:
     image: redis:7-alpine
     container_name: agenticos_redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    # A cache with no ceiling is a cache that grows until the container is
+    # killed, and this one holds rate-limit buckets, channel dedupe claims and
+    # membership answers - all of which are rebuildable, none of which is worth
+    # an OOM. `allkeys-lru` because everything here has a TTL anyway; the policy
+    # only decides what goes first if one is ever forgotten.
+    command: >-
+      redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --maxmemory 384mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
@@ -175,6 +217,14 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
+    # It had none, which on a host without swap makes it the service that takes
+    # the others down: its SQLite state and its API are small, but nothing was
+    # stopping it from growing into whatever the machine had.
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 768M
 
   prefect-runner:
     image: agenticos_backend:prod
@@ -223,7 +273,9 @@ services:
       resources:
         limits:
           cpus: "2"
-          memory: 2G
+          # 241 MiB measured at rest; the headroom is for a parse of a large
+          # document, which is the one thing here that allocates in bursts.
+          memory: 1536M
 
   # The only service holding the Docker socket. See docker-compose.yml for the
   # reasoning; the differences here are that it is not on by default (mounting

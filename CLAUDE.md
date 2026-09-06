@@ -313,6 +313,7 @@ Trigger map — what changed → which page:
 | `app/services/sandbox_*.py`, `app/agents/capabilities/sandbox/**`, `app/core/catalog/sandbox_runtimes.json` | `docs/sandbox.md` |
 | `app/services/deployment_settings.py`, `signup_policy.py`, `invitation_admission.py`, `app/core/maintenance.py`, `otel_compat.py`, `app/api/exception_handlers.py` | `docs/deployment.md` |
 | `app/core/config.py` | `docs/configuration.md` |
+| `docker-compose-prod*.yml`, `docker-compose-traefik.yml`, `traefik/`, `scripts/deploy.sh`, `scripts/server-init.sh`, `.github/workflows/deploy.yml` | `docs/deploy.md` |
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
 | The one-line pitch, what the product is *not*, or a page a reader should meet first | `llms.txt` at the repository root - copied into the site by `scripts/mkdocs_hooks.py`, so there is one copy and it is the one models read |
@@ -404,6 +405,7 @@ say so and move on. Run it yourself any time with
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
+| Getting it onto a host: sizing, TLS, the approved deploy | `docs/deploy.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 | What the platform does, on one page | `docs/features.md` |
