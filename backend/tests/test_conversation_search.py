@@ -183,6 +183,24 @@ class TestSearching:
 
         assert "USER (Anna Kowalska):" in answer
 
+    async def test_a_snippet_that_spans_lines_stays_inside_its_quote(self):
+        """`ts_headline` keeps the message's own newlines, and a second line
+        escapes the `>` it was quoted under - so the result reads as the tool's
+        prose rather than as something somebody said."""
+        toolset = ConversationSearchToolset(max_results=10)
+        with patch(
+            "app.services.conversation_search.search",
+            new=AsyncMock(
+                return_value=[
+                    _hit(title="Notes\nfrom Monday", snippet="the **pricing**\n\nfloor stays")
+                ]
+            ),
+        ):
+            answer = await toolset.search_conversations(_ctx(_deps()), "pricing")
+
+        assert "> AI: the **pricing** floor stays" in answer
+        assert "**Notes from Monday**" in answer
+
     async def test_nothing_found_is_a_result_and_says_what_to_try(self):
         """Not a retry: an empty search is the answer, and inviting the model to
         call again with the same words is how a tool budget is spent. The words

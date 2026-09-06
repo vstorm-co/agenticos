@@ -50,6 +50,17 @@ is not a bounded amount of text. Whichever runs out first ends the window, and t
 answer says where it stopped so the next call resumes there rather than guessing."""
 
 
+def _one_line(text: str) -> str:
+    """Whatever was said, on one line.
+
+    A snippet comes out of `ts_headline` with the message's own newlines in it,
+    and a title is generated from a first turn that may have had them too. Left
+    alone, the second line of either escapes the `>` it was quoted under and the
+    result reads as the tool's own prose rather than as something somebody said.
+    """
+    return " ".join(text.split())
+
+
 def _speaker_label(role: str, name: str | None) -> str:
     """`USER`, `AI`, or the role itself - with who it was, when the row knows.
 
@@ -155,11 +166,12 @@ class ConversationSearchToolset(FunctionToolset[AgentDeps]):
         blocks = [
             "\n".join(
                 [
-                    f"**{hit.title or 'Untitled conversation'}** — "
+                    f"**{_one_line(hit.title) if hit.title else 'Untitled conversation'}** — "
                     f"last active {hit.updated_at:%Y-%m-%d}, "
                     f"{hit.hits} matching turn{'s' if hit.hits != 1 else ''}",
                     f"id: `{hit.conversation_id}`",
-                    f"> {_speaker_label(hit.speaker_role, hit.speaker_name)}: {hit.snippet}",
+                    f"> {_speaker_label(hit.speaker_role, hit.speaker_name)}: "
+                    f"{_one_line(hit.snippet)}",
                 ]
             )
             for hit in found
