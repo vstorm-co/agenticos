@@ -1,28 +1,23 @@
-"""Agent memory files — an agent's own named store, scoped and trust-tiered.
+"""Agent memory files — an agent's own named notes, scoped to who is listening.
 
-The file half of the `memory` capability (#788). Unlike a context file (0030),
-which a person authors and binds to many agents read-only, a memory file is the
-agent's *own*: the agent writes and edits it through a runtime tool, and it is
-addressed by its agent plus the owner it was written for, never
-bound by id.
+The store behind the `memory_files` capability (#788). Unlike a context file
+(0030), which a person authors and binds to many agents read-only, a memory note
+is the agent's *own*: the agent writes and edits it through a runtime tool, and it
+is addressed by its agent plus the owner it was written for, never bound by id.
 
-Two columns are the capability's safety surface rather than plain metadata:
+Nobody else writes here, which is the line between the two features rather than a
+limitation, and it is why there is no `origin` column. An operator-authored store
+existed on the way to this shape and went, along with the trust tier it needed,
+because it was a second mechanism for what `context` already does (#1470).
 
-`origin` is the trust tier — `operator` (written by a person through the
-management API) or `agent` (written by a tool mid-run) — CHECK-constrained
-because only `operator` content is ever injected into instructions; an
-agent-authored row is untrusted input reachable only as a tool result.
+`owner_key` says whose the note is: `person:<user_id>` is one human being's,
+`room:<platform>:<chat_id>` is one group chat's. It is `NOT NULL` — every note
+belongs to somebody — so a name is unique within one owner's store under plain SQL
+uniqueness, with none of the `NULLS NOT DISTINCT` an organization-wide store
+would have needed.
 
-`owner_key` says whose memory the row is: `NULL` is the one store per
-(organization, agent) that belongs to the organization; `person:<user_id>` (or
-`person:chan:<identity_id>`) is one human being's; `room:<platform>:<chat_id>` is
-one group chat's. Because `NULL` means "the organization's store" and not "a
-missing value", the uniqueness of a name within a store has to treat two
-organization rows as colliding — hence `NULLS NOT DISTINCT`, which plain SQL
-uniqueness does not do (two `NULL` owners would read as distinct and let one name
-exist twice).
-This is the first `NULLS NOT DISTINCT` constraint in the schema; it needs
-PostgreSQL 15+, which the deployment already requires (pgvector/pgvector:pg16).
+Who may read a note back is a question about the *run* rather than the row, and it
+is answered in `app.agents.memory_scope`.
 
 Revision ID: 0073_agent_memory_files
 Revises: 0072_impersonation_sessions
@@ -48,13 +43,12 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("agent_id", sa.UUID(), nullable=False),
-        sa.Column("owner_key", sa.String(length=200), nullable=True),
+        sa.Column("owner_key", sa.String(length=200), nullable=False),
         sa.Column("name", sa.String(length=64), nullable=False),
         sa.Column("description", sa.String(length=500), nullable=True),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("format", sa.String(length=16), nullable=False),
         sa.Column("kind", sa.String(length=32), nullable=False),
-        sa.Column("origin", sa.String(length=16), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -62,10 +56,6 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint(
-            "origin IN ('operator', 'agent')",
-            name=op.f("agent_memory_files_ck_agent_memory_file_origin_check"),
-        ),
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
@@ -85,7 +75,6 @@ def upgrade() -> None:
             "owner_key",
             "name",
             name="uq_agent_memory_file_owner_name",
-            postgresql_nulls_not_distinct=True,
         ),
     )
     op.create_index(

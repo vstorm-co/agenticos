@@ -25,7 +25,9 @@ tools listed.
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
-| `memory` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall` | — | — |
+| `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
+| `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
@@ -126,110 +128,144 @@ turned off — this capability contributes **nothing** and is not attached, the
 same way `knowledge` bound to no collections is not. Files are managed under
 `/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
 
-## Memory
+## Memory files
 
-`list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`,
+`list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
+
+Notes an agent keeps of its own across conversations, indexed by one it maintains
+itself. Where `context` is a library a person authors and binds to many agents,
+memory is the agent's own: it writes through tools mid-run, and nobody else writes
+here at all. It is not bound by id — enabling the capability gives the agent its
+notes.
+
+**`MEMORY.md` is the index, and it is shown to the agent every request.** It is an
+ordinary note the agent writes and edits with the same tools as any other, and the
+capability splices it into the instructions the way a bound context file is
+spliced in. So the agent meets what it has saved before it decides anything, and
+opens a listed note with `read_memory` when the line says it is worth reading —
+rather than having to decide to call a listing tool a lighter model rarely calls.
+
+### Whose notes, and who may hear them
+
+A note belongs either to one person or to one group chat, and **a run touches
+exactly one store: the conversation's own.** Which one is derived server-side from
+who will hear the answer, never from the model — so no tool takes a scope and
+there is nothing for the agent to get wrong.
+
+- One to one — web chat, the HTTP API, a direct message — the notes are that
+  person's, and nobody else ever reads them. The same person reaches one store
+  from all three: a linked chat account resolves to their account rather than to
+  the surface they arrived on.
+- In a group chat the notes are the chat's, and everyone in the chat reads them.
+  The speaker's own notes are **not** reachable there: something written down
+  alone with somebody is not read back aloud where a whole channel sees it.
+- On a public widget or an embed there is nobody to attribute anything to, so
+  there is no store, and the tools say so rather than saving somewhere.
+
+There is no organisation-wide store. One existed and was removed: it was a second
+mechanism for what [context files](../context.md) already do — standing knowledge
+a person authors and binds to agents — and one job with two mechanisms is how the
+two disagree. Memory is what the *agent* learned; anything a human writes belongs
+in context.
+
+One switch, **Allow personal memory**, drops the per-person store entirely for
+compliance or privacy; the notes kept in group chats stay.
+
+### What is injected, and what is only fetched
+
+A tool result is something a model weighs; the instructions are what it obeys. So
+the index reaches the prompt only where its content could have steered nobody but
+the reader: in a one-to-one conversation it is injected, and in a group chat it
+stays reachable with `read_memory` and is never injected. A room's notes are
+self-scoped to nobody, so one colleague's sentence would otherwise arrive as
+another colleague's instructions in the same channel.
+
+An index larger than about 6,000 characters is left out rather than cut. Half an
+index — ending mid-line, mid-filename — is worse than none.
+
+### Erasing it
+
+Nothing browses somebody's notes in the console: an operator reading what an agent
+wrote about a colleague is the failure this design refuses, and there is no screen
+for it. What there is, is erasure. A person clears everything an agent remembers
+about them from their own profile, and an administrator holding `members:manage`
+can do it for somebody else; both delete the rows here **and** the matching
+memories in mem0 for every agent that binds it. Clearing one agent's memory
+entirely is in its toolbox, beside the capability.
+
+## Memory (mem0)
+
 `remember`, `recall`
 
-An agent's own store, written during one conversation and read back in a later
-one. Where `context` is a library a person authors and binds to many agents,
-memory is the agent's own: it writes through tools mid-run, and an operator
-inspects, seeds or clears it under `/api/v1/memory`. It is not bound by id —
-enabling the capability gives the agent its store.
+Semantic memory kept in a [mem0](https://mem0.ai) service — cloud, or self-hosted
+via `base_url` — rather than in this deployment. `remember` keeps a short
+self-contained sentence; `recall` finds the ones a question is about by meaning
+rather than by name. It needs an API key from the organisation's vault.
 
-Two independent shapes, each with its own switch. **Files** (`enable_files`) are
-named notes the agent writes, edits and reads back by name — a durable, editable
-record. **Facts** (`enable_facts`) are short things it remembers and recalls by
-*meaning*: `remember` embeds a sentence, `recall` returns the nearest ones by
-vector similarity. An agent can have either or both; with both off the capability
-contributes nothing.
+Which memories a run can reach obeys exactly the rule above, because mem0 is
+handed the whole scope as its `user_id`: `{org}:{agent}:{owner}`. One mem0 account
+therefore cannot mix two organisations', two agents', or two people's memories.
 
-Facts embed on the deployment's embedding model. The agent's
-own `remember` books the embedding to the run's ledger like any other model call;
-an operator seeding a fact books it to the organisation's ingestion spend, the same
-as a RAG document, because a seed is off any run. An operator's *search* stays a
-plain substring match, never a semantic one — a KNN query it typed would embed off a
-run's ledger for nothing — so semantic `recall` remains the agent's runtime tool.
+Two differences worth knowing before choosing it. **Nothing is stored here**, so
+erasing a person's memory reaches mem0 through its own API rather than through a
+row we delete. And **mem0 bills its own embedding out of band**, so the
+deployment's spend ledger does not see it and a budget cap does not bound it.
 
-**The agent reads before it answers.** Its standing instructions tell it to search
-memory before answering anything a past conversation might inform — a preference, or
-a recommendation it could tailor. For a `native` facts agent the facts safe to
-inject are also placed into those instructions each request, as a short brief of what
-it already remembers (newest first, bounded), so it draws on them without first
-having to call `recall` — a lighter model, left to decide, often does not, and answers
-as if the store were empty. The brief carries the reader's own facts and anything an operator wrote;
-agent-authored content in a store somebody else also reads never enters it — that is
-user-influenced text, and injecting it would put a prompt every end-user obeys under
-one user's control — so it stays reachable through `recall` alone. In a group chat
-nobody is the sole listener, so the brief there falls back to operator-authored
-content alone.
-`recall` itself is unchanged: it returns the whole store as a tool result, which is
-untrusted-safe. A `mem0` facts agent keeps the recall tool but no injected brief.
+A self-hosted `base_url` must be https and on `MEM0_ALLOWED_HOSTS`. An empty
+allowlist refuses self-hosted mem0 outright, which is deliberate: the key travels
+in an `Authorization` header, so a builder who may bind but not read a shared key
+must not be able to point it at a server of their own.
 
-**Memory has three owners, and a run reaches them by audience.** A row belongs to
-the organisation (one store per agent), to a group chat, or to one person. Which of
-them a run can reach is decided by who will hear its answer, derived server-side
-from the request and never from the model.
+## Conversation search
 
-The rule is one sentence: a row is readable only when everyone who hears the run
-was already entitled to it. So the organisation's store is read everywhere; a
-group chat's only inside that chat; a person's only where that person is the sole
-listener. A direct message and web chat are the same audience for the same person,
-so they read one store — a member's chat account resolves to their account, not to
-the surface they arrived on. A group channel reads the room and the organisation,
-and **not** the speaker's private store: a note taken alone with somebody is not
-read back aloud where a whole channel sees it.
+`search_conversations`, `read_conversation`
 
-Writes follow from the same rule. Saving to a *narrower* store than the audience is
-always safe — whoever reads it back has already heard the conversation — so the
-default `scope` is the audience's own store and the agent is told to omit it. The
-one direction that reaches further than the conversation is the organisation's
-store, and that is the only one behind a switch.
+Finds a past conversation by what was **said** in it, and opens it in full. Memory
+can only recall what some earlier turn thought worth writing down; everything else
+was said, stored, and until this existed unreachable — so "what did we decide about
+the Q3 pricing" answered "I have no record of that" in a product holding the whole
+exchange.
 
-The model picks a store, never a key: `personal`, `room` and `shared` resolve to
-keys the audience supplies, so a write can only ever land in this person's store,
-this room's, or the organisation's. Asking for a store the run does not have —
-`personal` on an anonymous widget, `room` in a one-to-one chat — is refused rather
-than redirected.
+`search_conversations` returns the best-matching threads, each with its title, when
+it was last active, how many turns matched, and the strongest passage with the
+matched words in bold. `read_conversation` opens one as Markdown, split into
+`USER:` and `AI:` in the order the turns were written, naming who spoke where a
+room has several people in it. A long thread comes a window at a time and the
+answer says how to ask for the next.
 
-Two switches refine this. **Allow personal memory** off drops the per-person store
-entirely, for compliance or privacy; room and organisation memory stay. **Allow
-agent shared writes** off keeps the organisation store operator-curated: the agent
-still reads it, but a `shared` write is refused, so an agent write
-(user-influenceable) can never change the company's memory.
+### Whose conversations
 
-**Backend** decides where facts live. `native` keeps them in this deployment's
-own pgvector store, and the embedding cost is metered as above. `mem0` sends them
-to a [mem0](https://mem0.ai) service instead — cloud, or self-hosted via
-`mem0_base_url` — which needs an API key from the organization's vault; there a
-namespace of `organization:agent:owner` isolates one store from every other,
-and mem0 bills its own embedding out of band, so the deployment's ledger does not
-see it. Files are always native — mem0 has no named-file concept — so `backend`
-moves facts only, and a files-only agent is forced back to `native` so it is
-never asked for a key it cannot use.
+One person's: the person the run is answering. Three ways in, the same three the
+console allows — conversations they own, conversations shared with them, and
+channel threads they took part in *and are still a member of*, confirmed against
+the chat platform. A trigger's run-log is deliberately not among them: it is a
+transcript of runs made under somebody else's authority, and an agent searching on
+a person's behalf holds no permission of theirs to check it with.
 
-Every file records an `origin`: `operator` (written by a person) or `agent`
-(written by a tool mid-run). It is a trust tier. The agent may read an
-operator-authored note but not edit or delete it, so it cannot rewrite content a
-person vouched for; turning an agent note into an operator one is a deliberate
-"promote" action, never a side effect of an edit.
+**And only where that person is the only listener.** In a group chat both tools
+refuse, saying why: the corpus is personal, so answering from it in a channel would
+read one person's private conversations out to everyone in the room. It is the
+line the memory index draws, one layer further out.
 
-A fact carries an `origin` for the same reason: the runtime `remember` writes an
-`agent` fact, an operator seed writes an `operator` one, and only the injectable
-set reaches the standing brief — content whose author could influence nobody but
-the reader (the reader's own store), plus anything an operator vouched for.
-Agent-authored content in a store somebody else also reads — the organisation's, or
-a room's — stays `recall`-only, so one colleague's remembered sentence can never
-become another colleague's instructions.
+### How it matches
 
-Access to the management API rides on the parent agent — whoever may view the
-agent may read its memory, whoever may edit the agent may
-change it — so there is no `memory:*` scope. Creating a file is the one act split
-by owner: writing the organisation's store, a room's, or another person's is an
-editor act, but writing one's *own* (the key the agent derives when that person
-chats) needs only view, so any member can keep their own notes without touching
-anything else. Files are always
-`origin=operator` (human-authored, agent-protected) however they are created.
+PostgreSQL full-text search — a `tsvector` maintained by the database over every
+message, a GIN index, `websearch_to_tsquery` for the query and `ts_rank_cd` for
+the order. Quoted `"exact phrases"`, `or`, and a leading `-` to exclude a word all
+work. Not `ILIKE`, which matches inside words and cannot rank; not embeddings,
+which is what [knowledge search](#knowledge-search) already is and answers a
+different question.
+
+Words are matched whole and case-folded but **not stemmed**: `meeting` does not
+find `meetings`. The configuration is fixed in the database and `english` would
+stem one language while mangling every other — PostgreSQL ships no Polish
+dictionary at all — so evenness across languages is bought at the price of word
+forms. The tool description states it, so a model that finds nothing tries another
+form of the word rather than concluding nothing was said.
+
+An operator who does not want agents reading conversations at all withholds the
+`conversations:read` scope, which turns it off across the whole deployment. There
+is no setting that widens the corpus.
 
 ## Web search
 
@@ -1390,6 +1426,7 @@ the agent is assembled:
 | Scope | Declared by |
 |---|---|
 | `knowledge:read` | `knowledge`, `skills` |
+| `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
 | `web:browse` | `browser_use` |
@@ -1397,7 +1434,7 @@ the agent is assembled:
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-!!! note "All seven are granted by default today"
+!!! note "All eight are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
     Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check
@@ -1412,6 +1449,9 @@ the agent is assembled:
 
 An operator who does not want nested runs or fan-out billing removes it, and
 every spec that delegates then says so at publish rather than at 3am.
+`conversations:read` is the same kind of lever for conversation search: one edit
+stops every agent reading past conversations, for a deployment that considers a
+transcript too sensitive to be searchable however narrowly the corpus is scoped.
 
 ## What a tool tells the model
 

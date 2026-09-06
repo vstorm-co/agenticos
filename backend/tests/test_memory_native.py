@@ -1,9 +1,13 @@
 """Tests for the agent's runtime memory store (`_native`).
 
-The store opens its own session per operation; here that session is faked and
-the repository mocked, so what is under test is the orchestration and - the part
-that carries the poisoning defense - the origin guard: an agent may read an
-operator-authored file but edit or delete only its own.
+Each function opens its own session, because a run must not touch memory on the
+session it runs on; here that session is faked and the repository mocked, so what
+is under test is the orchestration.
+
+Every function takes exactly one `owner_key`. Which store that is, is decided in
+`app.agents.memory_scope` from who is listening, and this layer neither knows nor
+asks - which is the point of the reshape, and why there is no longer a scope
+argument to get wrong (#1470).
 """
 
 from contextlib import asynccontextmanager
@@ -13,22 +17,21 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.core.memory_keys import MemoryOwnerKind
-from app.db.models.memory import MemoryOrigin
-from app.repositories.memory import FactHit
 from app.services.memory import _native
-from app.services.rag.embeddings import EmbeddingService
 
 pytestmark = pytest.mark.anyio
 
 NATIVE = "app.services.memory._native"
 REPO = "app.repositories.memory"
 ORG, AGENT = uuid4(), uuid4()
+OWNER = f"person:{uuid4()}"
 
 
 @asynccontextmanager
 async def _fake_session():
-    yield MagicMock()
+    session = MagicMock()
+    session.rollback = AsyncMock()
+    yield session
 
 
 @pytest.fixture(autouse=True)
@@ -37,249 +40,176 @@ def _own_session(monkeypatch):
     monkeypatch.setattr(f"{NATIVE}.get_db_context", _fake_session)
 
 
-def _row(*, origin=MemoryOrigin.AGENT.value, content="body", owner_key=None):
+def _row(*, content="body", name="prefs"):
     row = MagicMock()
-    row.origin = origin
     row.content = content
-    row.name = "prefs"
+    row.name = name
     row.description = "d"
     row.kind = "note"
-    row.owner_key = owner_key
+    row.owner_key = OWNER
     return row
 
 
 class TestListFiles:
-    async def test_it_returns_detached_index_entries_tagged_by_owner(self):
-        rows = [_row(owner_key=None), _row(owner_key="person:1")]
-        with patch(f"{REPO}.list_readable", new=AsyncMock(return_value=rows)):
-            entries = await _native.list_files(
-                organization_id=ORG, agent_id=AGENT, read_keys=("person:1", None)
+    async def test_it_returns_detached_index_entries(self):
+        """Detached, because the session they were read on is closed by the time
+        the caller has them - an ORM row would raise on its first attribute."""
+        with patch(f"{REPO}.list_for_owner", new=AsyncMock(return_value=[_row()])):
+            entries = await _native.list_files(organization_id=ORG, agent_id=AGENT, owner_key=OWNER)
+
+        assert [(entry.name, entry.kind, entry.description) for entry in entries] == [
+            ("prefs", "note", "d")
+        ]
+
+    async def test_an_empty_store_lists_nothing(self):
+        with patch(f"{REPO}.list_for_owner", new=AsyncMock(return_value=[])):
+            assert (
+                await _native.list_files(organization_id=ORG, agent_id=AGENT, owner_key=OWNER) == []
             )
-        assert entries[0].name == "prefs"
-        assert entries[0].kind == "note"
-        assert entries[0].owner is MemoryOwnerKind.ORG
-        assert entries[1].owner is MemoryOwnerKind.PERSON
+
+    async def test_it_asks_for_one_store_and_only_one(self):
+        """A run reads exactly the store it writes. The union this replaced is what
+        let a note taken alone with somebody be read back in a channel (#788)."""
+        with patch(f"{REPO}.list_for_owner", new=AsyncMock(return_value=[])) as listed:
+            await _native.list_files(organization_id=ORG, agent_id=AGENT, owner_key=OWNER)
+
+        assert listed.await_args.kwargs["owner_key"] == OWNER
 
 
 class TestReadFile:
     async def test_it_returns_the_body(self):
-        with patch(f"{REPO}.get_readable_by_name", new=AsyncMock(return_value=_row(content="tea"))):
-            assert (
-                await _native.read_file(
-                    organization_id=ORG, agent_id=AGENT, read_keys=(None,), name="prefs"
-                )
-                == "tea"
+        with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=_row(content="hello"))):
+            body = await _native.read_file(
+                organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
             )
 
-    async def test_a_missing_file_is_none(self):
-        with patch(f"{REPO}.get_readable_by_name", new=AsyncMock(return_value=None)):
+        assert body == "hello"
+
+    async def test_a_name_this_store_does_not_hold_is_none(self):
+        with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)):
             assert (
                 await _native.read_file(
-                    organization_id=ORG, agent_id=AGENT, read_keys=(None,), name="gone"
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
                 )
                 is None
             )
 
 
 class TestWriteFile:
-    async def test_a_new_name_is_created_as_an_agent_row(self):
+    async def _write(self, **overrides):
+        return await _native.write_file(
+            **{
+                "organization_id": ORG,
+                "agent_id": AGENT,
+                "owner_key": OWNER,
+                "name": "prefs",
+                "content": "body",
+                "description": "d",
+                "kind": "note",
+                **overrides,
+            }
+        )
+
+    async def test_a_new_name_is_created(self):
         with (
             patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)),
             patch(f"{REPO}.create", new=AsyncMock()) as create,
         ):
-            created = await _native.write_file(
-                organization_id=ORG,
-                agent_id=AGENT,
-                owner_key="person:1",
-                name="prefs",
-                content="x",
-                description="d",
-                kind="note",
-            )
-        assert created is True
-        assert create.await_args.kwargs["origin"] == MemoryOrigin.AGENT.value
-        assert create.await_args.kwargs["owner_key"] == "person:1"
+            assert await self._write() is True
 
-    async def test_a_taken_name_is_not_overwritten(self):
+        assert create.await_args.kwargs["owner_key"] == OWNER
+        assert create.await_args.kwargs["content_format"] == "md"
+
+    async def test_a_taken_name_is_reported_rather_than_overwritten(self):
+        """Overwriting is `edit_file`, a deliberately separate act, so the model
+        cannot lose a note by reaching for the wrong verb."""
         with (
             patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=_row())),
             patch(f"{REPO}.create", new=AsyncMock()) as create,
         ):
-            created = await _native.write_file(
-                organization_id=ORG,
-                agent_id=AGENT,
-                owner_key=None,
-                name="prefs",
-                content="x",
-                description=None,
-                kind="note",
-            )
-        assert created is False
-        create.assert_not_awaited()
+            assert await self._write() is False
 
-    async def test_a_racing_create_is_reported_taken_rather_than_crashing(self, monkeypatch):
-        # The second writer loses the unique-index race: rolled back and reported taken,
-        # not left to crash the run.
-        session = MagicMock()
-        session.rollback = AsyncMock()
+        assert not create.await_count
 
-        @asynccontextmanager
-        async def _session():
-            yield session
-
-        monkeypatch.setattr(f"{NATIVE}.get_db_context", _session)
+    async def test_a_name_taken_between_the_check_and_the_insert_is_the_same_answer(self):
+        """The unique index is the real guard, and a concurrent write is not a
+        different outcome to the caller - two turns of one run racing is exactly
+        how this happens."""
         with (
             patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)),
             patch(
                 f"{REPO}.create",
-                new=AsyncMock(side_effect=IntegrityError("insert", {}, Exception("duplicate"))),
+                new=AsyncMock(side_effect=IntegrityError("insert", {}, Exception())),
             ),
         ):
-            created = await _native.write_file(
-                organization_id=ORG,
-                agent_id=AGENT,
-                owner_key=None,
-                name="prefs",
-                content="x",
-                description=None,
-                kind="note",
-            )
-        assert created is False
-        session.rollback.assert_awaited_once()
+            assert await self._write() is False
 
 
 class TestEditFile:
-    async def test_a_missing_file_is_missing(self):
-        with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)):
+    async def test_an_existing_note_is_replaced_whole(self):
+        row = _row()
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=row)),
+            patch(f"{REPO}.update", new=AsyncMock()) as update,
+        ):
             assert (
                 await _native.edit_file(
-                    organization_id=ORG, agent_id=AGENT, owner_key=None, name="gone", content="x"
+                    organization_id=ORG,
+                    agent_id=AGENT,
+                    owner_key=OWNER,
+                    name="prefs",
+                    content="new",
                 )
-                == "missing"
+                is True
             )
 
-    async def test_an_operator_file_is_protected(self):
-        with (
-            patch(
-                f"{REPO}.get_by_name",
-                new=AsyncMock(return_value=_row(origin=MemoryOrigin.OPERATOR.value)),
-            ),
-            patch(f"{REPO}.update", new=AsyncMock()) as update,
-        ):
-            result = await _native.edit_file(
-                organization_id=ORG, agent_id=AGENT, owner_key=None, name="policy", content="x"
-            )
-        assert result == "protected"
-        update.assert_not_awaited()
+        assert update.await_args.kwargs == {"file": row, "update_data": {"content": "new"}}
 
-    async def test_an_agent_file_is_edited(self):
+    async def test_nothing_of_that_name_edits_nothing(self):
         with (
-            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=_row())),
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)),
             patch(f"{REPO}.update", new=AsyncMock()) as update,
         ):
-            result = await _native.edit_file(
-                organization_id=ORG, agent_id=AGENT, owner_key=None, name="prefs", content="new"
+            assert (
+                await _native.edit_file(
+                    organization_id=ORG,
+                    agent_id=AGENT,
+                    owner_key=OWNER,
+                    name="prefs",
+                    content="new",
+                )
+                is False
             )
-        assert result == "ok"
-        assert update.await_args.kwargs["update_data"] == {"content": "new"}
+
+        assert not update.await_count
 
 
 class TestDeleteFile:
-    async def test_a_missing_file_is_missing(self):
-        with patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)):
+    async def test_an_existing_note_is_removed(self):
+        row = _row()
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=row)),
+            patch(f"{REPO}.delete", new=AsyncMock()) as delete,
+        ):
             assert (
                 await _native.delete_file(
-                    organization_id=ORG, agent_id=AGENT, owner_key=None, name="gone"
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
                 )
-                == "missing"
+                is True
             )
 
-    async def test_an_operator_file_is_protected(self):
+        assert delete.await_args.args[1] is row
+
+    async def test_nothing_of_that_name_deletes_nothing(self):
         with (
-            patch(
-                f"{REPO}.get_by_name",
-                new=AsyncMock(return_value=_row(origin=MemoryOrigin.OPERATOR.value)),
-            ),
-            patch(f"{REPO}.delete", new=AsyncMock()) as remove,
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=None)),
+            patch(f"{REPO}.delete", new=AsyncMock()) as delete,
         ):
-            result = await _native.delete_file(
-                organization_id=ORG, agent_id=AGENT, owner_key=None, name="policy"
+            assert (
+                await _native.delete_file(
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
+                )
+                is False
             )
-        assert result == "protected"
-        remove.assert_not_awaited()
 
-    async def test_an_agent_file_is_removed(self):
-        with (
-            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=_row())),
-            patch(f"{REPO}.delete", new=AsyncMock()) as remove,
-        ):
-            result = await _native.delete_file(
-                organization_id=ORG, agent_id=AGENT, owner_key=None, name="prefs"
-            )
-        assert result == "ok"
-        remove.assert_awaited_once()
-
-
-class TestEmbedding:
-    def test_the_embedder_is_built_once(self):
-        first = _native._embedder_service()
-        assert first is _native._embedder_service()
-        assert isinstance(first, EmbeddingService)
-
-    async def test_embed_runs_the_embedder(self, monkeypatch):
-        embedder = MagicMock()
-        embedder.embed_query = MagicMock(return_value=[1.0, 2.0])
-        monkeypatch.setattr(f"{NATIVE}._embedder_service", lambda: embedder)
-        assert await _native._embed("hello") == [1.0, 2.0]
-        embedder.embed_query.assert_called_once_with("hello")
-
-    async def test_embed_operator_fact_runs_the_embedder(self, monkeypatch):
-        embedder = MagicMock()
-        embedder.embed_query = MagicMock(return_value=[3.0])
-        monkeypatch.setattr(f"{NATIVE}._embedder_service", lambda: embedder)
-        assert await _native.embed_operator_fact("a fact") == [3.0]
-        embedder.embed_query.assert_called_once_with("a fact")
-
-
-class TestRemember:
-    async def test_it_embeds_then_stores_scoped(self, monkeypatch):
-        monkeypatch.setattr(f"{NATIVE}._embed", AsyncMock(return_value=[0.1, 0.2]))
-        with patch(f"{REPO}.create_fact", new=AsyncMock()) as create:
-            await _native.remember(
-                organization_id=ORG, agent_id=AGENT, owner_key="person:1", content="likes tea"
-            )
-        assert create.await_args.kwargs["embedding"] == [0.1, 0.2]
-        assert create.await_args.kwargs["owner_key"] == "person:1"
-        assert create.await_args.kwargs["content"] == "likes tea"
-        # An agent's own write is the untrusted tier - it stays out of the shared brief.
-        assert create.await_args.kwargs["origin"] == MemoryOrigin.AGENT.value
-
-
-class TestRecall:
-    async def test_it_embeds_the_query_and_returns_hits(self, monkeypatch):
-        monkeypatch.setattr(f"{NATIVE}._embed", AsyncMock(return_value=[0.3]))
-        hits = [FactHit(content="likes tea", score=0.9)]
-        with patch(f"{REPO}.recall_facts", new=AsyncMock(return_value=hits)) as recall:
-            out = await _native.recall(
-                organization_id=ORG, agent_id=AGENT, read_keys=(None,), query="q", limit=3
-            )
-        assert out == hits
-        assert recall.await_args.kwargs["query_embedding"] == [0.3]
-        assert recall.await_args.kwargs["limit"] == 3
-
-
-class TestMemoryBrief:
-    async def test_it_returns_the_readable_facts_as_strings(self):
-        rows = [_row(content="likes nuts"), _row(content="based in Warsaw")]
-        with patch(f"{REPO}.list_brief_facts", new=AsyncMock(return_value=rows)) as lst:
-            out = await _native.memory_brief(
-                organization_id=ORG,
-                agent_id=AGENT,
-                read_keys=("person:1", None),
-                self_key="person:1",
-                limit=30,
-            )
-        assert out == ["likes nuts", "based in Warsaw"]
-        assert lst.await_args.kwargs["read_keys"] == ("person:1", None)
-        assert lst.await_args.kwargs["self_key"] == "person:1"
-        assert lst.await_args.kwargs["limit"] == 30
+        assert not delete.await_count

@@ -200,14 +200,25 @@ details.map summary::-webkit-details-marker{display:none}
 </head>
 <body>
 <div style="background:#7f1d1d;color:#fff;padding:14px 20px;font:14px/1.5 system-ui,sans-serif">
-  <b>Superseded — pre-implementation mockup, kept for its layout only.</b>
-  It draws the two-tier model (a <code>partition</code> config field, a
-  <code>Shared</code>/<code>Per-user</code> filter, <code>end_user_scope_key</code>)
-  that shipped as three <em>owners</em> instead — the organisation, a group chat, one
-  person — with which of them a run reaches decided by its audience rather than by a
-  partition (#788). No <code>partition</code> config field was ever built. For what the
-  console actually does, read <code>docs/reference/capabilities.md</code> and
-  <code>backend/app/agents/capabilities/memory/README.md</code>.
+  <b>Superseded — the console on this page was removed, not redrawn.</b>
+  There is no memory browser in the product: what an agent wrote down about a named
+  colleague is not a screen an operator pages through, and standing knowledge somebody
+  wants an agent to have belongs in <code>context</code> (#1470). What is left of this
+  surface is erasure — a person clears what agents remember about them from their own
+  settings, an administrator can do it for a colleague, and one agent's notes are
+  cleared from inside its capability panel.
+  <br><br>
+  Three things drawn here are not merely renamed but <b>inverted</b>. The two-tier model
+  (a <code>partition</code> config field, a <code>Shared</code>/<code>Per-user</code>
+  filter, <code>end_user_scope_key</code>) shipped as owners decided by the run's
+  audience (#788), and the organisation-wide owner it centres on no longer exists at
+  all. It states three times that agent-authored memory is <b>never injected</b>; a
+  <code>MEMORY.md</code> the agent writes now <em>is</em> injected, where the reader is
+  the one person who could have influenced it. And the operator-authored
+  <code>origin</code> it is built around is gone with the store that needed it — every
+  note is the agent's own. For what the product actually does, read
+  <code>docs/reference/capabilities.md</code> and
+  <code>backend/app/agents/capabilities/memory_files/README.md</code>.
 </div>
 <div class="app">
 

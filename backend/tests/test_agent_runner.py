@@ -22,13 +22,13 @@ from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 from pydantic_ai_harness.planning import PlanItem
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
-from app.agents.memory_scope import MemoryAudience
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec, OrgMcpServerRef
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -50,6 +50,9 @@ from app.services.agent_runner import (
 from app.services.approvals import ApprovalService
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 from app.services.transcript import RecordedToolCall
+
+_THE_ASKER = uuid.uuid4()
+"""The person a parked run was answering, told apart from whoever approves it."""
 
 
 def _ctx() -> AuthContext:
@@ -1735,8 +1738,8 @@ class TestParking:
             "admitted_as": {
                 "approval_mode": "follow_agent",
                 "acts_for_sender": False,
-                "memory_person_key": None,
-                "memory_room_key": None,
+                "audience_user_id": None,
+                "audience_room_key": None,
             },
         }
 
@@ -2152,7 +2155,7 @@ class TestResume:
         assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
 
     @pytest.mark.anyio
-    async def test_the_memory_audience_is_the_runs_own_not_the_approvers(self):
+    async def test_the_audience_is_the_runs_own_not_the_approvers(self):
         """Resuming used to re-derive the memory identity off the approver, so an
         admin releasing a member's parked chat injected their own memory and wrote
         the member's notes under their account (#788) - the same bug the
@@ -2165,22 +2168,20 @@ class TestResume:
                 "admitted_as": {
                     "approval_mode": "follow_agent",
                     "acts_for_sender": True,
-                    "memory_person_key": "person:the-asker",
-                    "memory_room_key": None,
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": None,
                 },
             }
         )
 
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
         assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
-        assert build.call_args.kwargs["memory_audience"] == MemoryAudience(
-            person_key="person:the-asker", room_key=None
-        )
+        assert build.call_args.kwargs["audience"] == RunAudience(user_id=_THE_ASKER, room_key=None)
 
     @pytest.mark.anyio
     async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):
         """A run that stood a publisher in for an anonymous visitor had no person
-        store. The parked state records that as a person key of `None`, so the
+        store. The parked state records that as an audience with no user, so the
         resume keys on nobody rather than on whoever approved it."""
         build = await self._resumed(
             paused_state={
@@ -2189,13 +2190,13 @@ class TestResume:
                 "admitted_as": {
                     "approval_mode": "follow_agent",
                     "acts_for_sender": False,
-                    "memory_person_key": None,
-                    "memory_room_key": None,
+                    "audience_user_id": None,
+                    "audience_room_key": None,
                 },
             }
         )
 
-        assert build.call_args.kwargs["memory_audience"] == MemoryAudience()
+        assert build.call_args.kwargs["audience"] == RunAudience()
 
     @pytest.mark.anyio
     async def test_a_parked_room_run_resumes_still_in_its_room(self):
@@ -2209,13 +2210,13 @@ class TestResume:
                 "admitted_as": {
                     "approval_mode": "follow_agent",
                     "acts_for_sender": True,
-                    "memory_person_key": "person:the-asker",
-                    "memory_room_key": "room:slack:C1",
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": "room:slack:C1",
                 },
             }
         )
 
-        audience = build.call_args.kwargs["memory_audience"]
+        audience = build.call_args.kwargs["audience"]
         assert audience.room_key == "room:slack:C1"
         assert not audience.private
 

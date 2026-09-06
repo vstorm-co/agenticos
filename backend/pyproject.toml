@@ -136,6 +136,8 @@ dependencies = [
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
+    "mem0ai>=2.0.20",
+    "requests>=2.34.2",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -267,6 +269,10 @@ DEP002 = [
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
     "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does
+    # `mem0/client/main.py` imports `requests` and does not declare it, so the SDK
+    # works only while something else happens to pull it in. Declared here so that
+    # accident becomes a dependency (#1470).
+    "requests",
 ]
 
 [tool.ruff]
@@ -650,10 +656,15 @@ include = [
     "app/services/context.py",
     "app/api/routes/v1/context.py",
     "app/repositories/memory.py",
-    "app/services/memory/_mem0.py",
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
     "app/api/routes/v1/memory.py",
+    # Which past conversations an agent may search, and the full-text query over
+    # them. The predicate is the whole of it - a way in added here is a way in for
+    # every agent at once - so it is held to the same bar as the permission code
+    # (#789).
+    "app/repositories/conversation_search.py",
+    "app/services/conversation_search.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
     # What this deployment calls itself, who may register, and whether it is open
@@ -934,10 +945,15 @@ include = [
     "app/services/context.py",
     "app/api/routes/v1/context.py",
     "app/repositories/memory.py",
-    "app/services/memory/_mem0.py",
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
     "app/api/routes/v1/memory.py",
+    # Which past conversations an agent may search, and the full-text query over
+    # them. The predicate is the whole of it - a way in added here is a way in for
+    # every agent at once - so it is held to the same bar as the permission code
+    # (#789).
+    "app/repositories/conversation_search.py",
+    "app/services/conversation_search.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
     # What this deployment calls itself, who may register, and whether it is open

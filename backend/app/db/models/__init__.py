@@ -40,7 +40,7 @@ from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
-from app.db.models.memory import AgentMemoryFact, AgentMemoryFile, MemoryOrigin
+from app.db.models.memory import AgentMemoryFile
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
@@ -99,8 +99,6 @@ __all__ = [
     "ContextFile",
     "ContextMode",
     "AgentMemoryFile",
-    "AgentMemoryFact",
-    "MemoryOrigin",
     "Skill",
     "SkillProposal",
     "ProposalStatus",

@@ -39,7 +39,6 @@ const BUILDER_STEPS = [
   "agent-skills",
   "agent-limits",
   "agent-availability",
-  "agent-memory",
   "agent-history",
   "agent-publish",
 ];

@@ -252,6 +252,21 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   remember: { kind: "write", render: "generic", captionKey: "memoryRemembering" },
   recall: { kind: "search", render: "generic", captionKey: "memoryRecalling" },
 
+  // conversation search - past threads, found and opened. Both answer in Markdown,
+  // which the generic renderer already shows as prose.
+  search_conversations: {
+    kind: "search",
+    render: "generic",
+    captionKey: "searchingConversations",
+    displayNameKey: "conversationSearch",
+  },
+  read_conversation: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingConversation",
+    displayNameKey: "pastConversation",
+  },
+
   // skills
   list_skills: {
     kind: "skill",

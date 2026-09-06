@@ -71,6 +71,7 @@ from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.audience import RunAudience, derive_audience
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -108,7 +109,6 @@ from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
-from app.agents.memory_scope import MemoryAudience, derive_audience
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -510,26 +510,25 @@ class AdmittedAs(BaseModel):
             "and on an API key it is the key's holder (#1343)."
         ),
     )
-    memory_person_key: str | None = Field(
+    audience_user_id: UUID | None = Field(
         default=None,
         description=(
-            "The memory store of the person this run answers, already derived. "
-            "Stored rather than re-derived because re-deriving needs the request "
-            "that is gone: whether `user_id` was a real subject or a publisher "
-            "standing in for an unidentified visitor, and whether the chat account "
-            "was linked. A resume that re-derived it from the approver keyed the "
-            "memory on their identity and wrote one person's notes under another "
-            "(#788)."
+            "The person this run answers for, already resolved. Stored rather than "
+            "re-derived because re-deriving needs the request that is gone: whether "
+            "`user_id` was a real subject or a publisher standing in for an "
+            "unidentified visitor, and whether the chat account was linked. A "
+            "resume that re-derived it from the approver keyed the memory on their "
+            "identity and wrote one person's notes under another (#788)."
         ),
     )
-    memory_room_key: str | None = Field(
+    audience_room_key: str | None = Field(
         default=None,
         description=(
-            "The memory store of the group chat this run answers in, or `None` for "
-            "a one-to-one conversation. Unrecoverable from the row for the same "
-            "reason: `agent_runs` records no chat type, so a resumed run read a "
-            "direct message and a channel alike and would have lost the room's "
-            "memory on the way back (#788)."
+            "The group chat this run answers in, or `None` for a one-to-one "
+            "conversation. Unrecoverable from the row for the same reason: "
+            "`agent_runs` records no chat type, so a resumed run read a direct "
+            "message and a channel alike and would have lost the room's memory on "
+            "the way back (#788)."
         ),
     )
 
@@ -1928,7 +1927,7 @@ class AgentRunnerService:
         acts_for_sender: bool = False,
         owner_user_id: UUID | None = None,
         memory_room_key: str | None = None,
-        restored_audience: MemoryAudience | None = None,
+        restored_audience: RunAudience | None = None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -2211,21 +2210,16 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
-        # The memory audience is the run's own, not the resuming caller's: an approver
-        # releasing somebody else's run must not become its memory person (#788). On a
-        # resume it is restored verbatim rather than re-derived, because the facts it
-        # was derived from - whether the subject was a publisher stand-in, whether the
-        # chat account was linked, whether the chat was a room - are all gone with the
-        # request that carried them.
-        memory_user_id = owner_user_id or ctx.user_id
-        memory_audience = restored_audience or derive_audience(
-            channel_identity_id=(
-                existing_run.channel_identity_id
-                if existing_run is not None
-                else ctx.channel_identity_id
-            ),
-            # The guard keeps a subject-less context deriving from None, never "None".
-            user_id=None if memory_user_id is None else str(memory_user_id),
+        # The audience is the run's own, not the resuming caller's: an approver
+        # releasing somebody else's run must not become the person its memory is kept
+        # for or whose conversations it may search (#788). On a resume it is restored
+        # verbatim rather than re-derived, because the facts it was derived from -
+        # whether the subject was a publisher stand-in, whether the chat account was
+        # linked, whether the chat was a room - are all gone with the request that
+        # carried them.
+        audience_user_id = owner_user_id or ctx.user_id
+        audience = restored_audience or derive_audience(
+            user_id=audience_user_id,
             subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
             room_key=memory_room_key,
         )
@@ -2236,9 +2230,9 @@ class AgentRunnerService:
             agent_id=agent.id,
             run_id=run.id,
             # The guard keeps a subject-less context stringifying to None, never "None".
-            user_id=None if memory_user_id is None else str(memory_user_id),
+            user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
-            memory_audience=memory_audience,
+            audience=audience,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -2285,8 +2279,8 @@ class AgentRunnerService:
             admitted_as=AdmittedAs(
                 approval_mode=approval_mode,
                 acts_for_sender=acts_for_sender,
-                memory_person_key=memory_audience.person_key,
-                memory_room_key=memory_audience.room_key,
+                audience_user_id=audience.user_id,
+                audience_room_key=audience.room_key,
             ),
         )
 
@@ -3563,11 +3557,11 @@ class AgentRunnerService:
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
-            # speaks through - for personal MCP or for its memory audience.
+            # speaks through - for personal MCP or for the run's audience.
             owner_user_id=run.user_id,
-            restored_audience=MemoryAudience(
-                person_key=state.admitted_as.memory_person_key,
-                room_key=state.admitted_as.memory_room_key,
+            restored_audience=RunAudience(
+                user_id=state.admitted_as.audience_user_id,
+                room_key=state.admitted_as.audience_room_key,
             ),
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to

@@ -120,9 +120,15 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 # all. Removing it here turns delegation off everywhere in one edit, which is
 # what an operator who does not want fan-out billing or nested runs needs, and
 # every spec that delegates then says so at publish instead of at 3am.
+#
+# `conversations:read` is the same kind of lever for `conversation_search`: it is
+# the one switch that stops agents reading past conversations across the whole
+# deployment, for somewhere that considers a transcript too sensitive to be
+# searchable however narrowly the corpus is scoped.
 DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
+        "conversations:read",
         "web:read",
         "web:fetch",
         "web:browse",

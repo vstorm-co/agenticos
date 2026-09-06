@@ -23,6 +23,7 @@ import {
   OrgSpendingLimit,
 } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
 import {
   Badge,
   Button,
@@ -253,17 +254,24 @@ export default function OrgMembersPage({ params }: PageProps) {
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
-          if (isOwner || isSelf) return null;
           return (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={() => removeMember(m.user_id)}
-              aria-label={tc("removeNamed", { name: m.full_name || m.email })}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center justify-end gap-1">
+              {/* Offered for the owner and for yourself too: erasing what agents
+                  wrote about somebody is not a change to their standing in the
+                  organization the way removing them is. */}
+              <ForgetMemberMemory userId={m.user_id} name={m.full_name || m.email} />
+              {!isOwner && !isSelf && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => removeMember(m.user_id)}
+                  aria-label={tc("removeNamed", { name: m.full_name || m.email })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           );
         },
       });

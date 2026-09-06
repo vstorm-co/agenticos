@@ -1,62 +1,42 @@
-"""The value space of `agent_memory_*.owner_key` - whose memory a row is.
+"""The value space of `agent_memory_files.owner_key` - whose memory a note is.
 
-A leaf module on purpose. The same three key shapes are needed by the SQLAlchemy
-models, by the repository that filters on them, by the run-time audience in
-`app.agents.memory_scope` and by the operator service, and every other home for
+A leaf module on purpose. The same key shapes are needed by the SQLAlchemy model,
+by the repository that filters on them, by the run-time audience in
+`app.agents.memory_scope` and by the erasure service, and every other home for
 them creates an import cycle: `app.db.models.memory` cannot be it, because
 importing one model runs `app.db.models.__init__`, which reaches
 `services.channels.base` and from there back into the capability registry and
 `app.agents.deps`. So the vocabulary lives here, where it imports nothing.
 
-Three owners, one column, told apart by prefix:
+Two owners, told apart by prefix:
 
-- `NULL` - the organization. One store per (organization, agent).
-- `person:<user_id>`, or `person:chan:<identity_id>` for a chat account no app
-  user is linked to - one human being.
+- `person:<user_id>` - one human being.
 - `room:<platform>:<chat_id>` - one group chat.
 
-Whose memory a row is, is deliberately not the same question as who may read it
-back; that one belongs to the run and lives in `app.agents.memory_scope`.
+There is no organization-wide owner. That store existed and went: it was a second
+mechanism for what `context` already does, and the console was its only author
+(#1470). Every note now belongs to a person or to a room, which is why the column
+is `NOT NULL`.
+
+Whose memory a note is, is deliberately not the same question as who may read it
+back; that one belongs to the run - `app.agents.audience` says who is listening
+and `app.agents.memory_scope` turns that into the one store this run may touch.
 """
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Literal, get_args
 from uuid import UUID
 
 __all__ = [
     "PERSON_PREFIX",
     "ROOM_PREFIX",
-    "MemoryOwnerKind",
-    "OwnerFilter",
-    "channel_person_owner_key",
-    "owner_kind",
-    "parse_owner_selector",
+    "is_person_key",
     "person_owner_key",
     "room_owner_key",
 ]
 
-OwnerFilter = Literal["all", "org", "person", "room"]
-"""Which owners an operator listing spans. `all` is every store at once."""
-
-_OWNER_FILTERS: frozenset[str] = frozenset(get_args(OwnerFilter))
-
 PERSON_PREFIX = "person:"
 ROOM_PREFIX = "room:"
-
-
-class MemoryOwnerKind(StrEnum):
-    """Whose memory a row is - the three owners `owner_key` encodes."""
-
-    ORG = "org"
-    """The organization. `owner_key IS NULL`; readable in every run."""
-
-    PERSON = "person"
-    """One human being. Readable only where they are the sole listener."""
-
-    ROOM = "room"
-    """One group chat. Readable by anyone in that room."""
 
 
 def person_owner_key(user_id: UUID | str) -> str:
@@ -65,21 +45,10 @@ def person_owner_key(user_id: UUID | str) -> str:
     Keyed on the *user*, not the surface, so the same person reaches one store
     from web chat, the API and a linked chat account - which is the point: a
     memory that does not follow somebody between their browser and their direct
-    messages is a memory they will report as broken.
+    messages is a memory they will report as broken. It is also what makes
+    "forget everything about me" a single key to delete.
     """
     return f"{PERSON_PREFIX}{user_id}"
-
-
-def channel_person_owner_key(channel_identity_id: UUID) -> str:
-    """The store belonging to a chat account no app user is linked to.
-
-    Still a person - just one we can only name by the account they wrote from.
-    Stable and isolated like any other person key; it stops being used the moment
-    the account is linked, at which point that person's web and chat runs converge
-    on :func:`person_owner_key` and this store is left behind rather than merged
-    (merging two stores is an operator's decision, not a login's).
-    """
-    return f"{PERSON_PREFIX}chan:{channel_identity_id}"
 
 
 def room_owner_key(platform: str, chat_id: str) -> str:
@@ -94,33 +63,11 @@ def room_owner_key(platform: str, chat_id: str) -> str:
     return f"{ROOM_PREFIX}{platform}:{chat_id}"
 
 
-def owner_kind(owner_key: str | None) -> MemoryOwnerKind:
-    """Whose store a key names.
+def is_person_key(owner_key: str) -> bool:
+    """Whether a key names a human being rather than a group chat.
 
-    Total by construction: `NULL` is the organization and a `room:` prefix is a
-    room, so anything else is a person - including the `person:chan:` form. A key
-    that matched nothing would have to be reported somewhere, and there is no
-    honest answer for a row whose owner cannot be determined, so the prefixes are
-    written by the three builders above and read only here.
+    The one question anything outside this module asks of a stored key, and it is
+    asked by erasure: "forget everything about this person" must not reach a room
+    a colleague also writes to.
     """
-    if owner_key is None:
-        return MemoryOwnerKind.ORG
-    if owner_key.startswith(ROOM_PREFIX):
-        return MemoryOwnerKind.ROOM
-    return MemoryOwnerKind.PERSON
-
-
-def parse_owner_selector(value: str) -> tuple[str | None, OwnerFilter | None]:
-    """Split the console's one `owner` query parameter into the two the service takes.
-
-    The parameter is one string because a filter strip is one control, but the
-    service takes a *kind* and a *key* separately and they are exclusive: passing
-    a key as a kind would silently list every person's store to somebody auditing
-    one, which is the direction that leaks. So the two shapes are told apart here,
-    once, rather than at each of the two listing routes.
-    """
-    if value in _OWNER_FILTERS:
-        # A runtime `in` does not narrow a `Literal`, and the set is derived from
-        # that very `Literal`, so the check and the type cannot drift apart.
-        return None, value  # ty: ignore[invalid-return-type]
-    return value, None
+    return owner_key.startswith(PERSON_PREFIX)
