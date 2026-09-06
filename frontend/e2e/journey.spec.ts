@@ -266,11 +266,39 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // shortest integration this product has - send somebody a link - impossible to
   // create without inventing a site.
   await expect(availability.getByLabel("Allowed sites")).toHaveCount(0);
-  await availability.getByRole("button", { name: "Publish", exact: true }).click();
 
-  // Reloaded before the link is read. The list's refetch after a write is
-  // sometimes answered with the pre-write list (#230), and this step needs the
-  // row itself - the link is what is under test, so a toast will not do.
+  // **Armed before the click, awaited after it.** `click()` returns when the
+  // click is dispatched, not when the request it starts is answered - and the
+  // `reload()` below navigates, which aborts whatever is still in flight. So the
+  // publish that this whole section is about was sometimes cancelled before the
+  // server saw it, and the 30-second wait for a link then expired on an embed
+  // that had never been created. That is #1474, four failures in nine runs on
+  // branches that touch none of this.
+  const published = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/agents/embeds") && response.request().method() === "POST",
+  );
+  await availability.getByRole("button", { name: "Publish", exact: true }).click();
+  expect((await published).ok(), "publishing the hosted page was refused").toBe(true);
+
+  // And the row is readable before the DOM is asked about it, by polling the API
+  // rather than by reloading and hoping - the shape every fixture step takes
+  // after #335. The refetch after a write is sometimes answered with the
+  // pre-write list (#230), which a reload narrows rather than closes.
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get(`/api/agents/${agentId}/embeds`);
+        if (!response.ok()) return [];
+        const body = (await response.json()) as { items?: { public_key?: string }[] };
+        // `public_key` is what the hosted link is built from, so this polls for
+        // exactly the thing the assertion below reads off the page.
+        return (body.items ?? []).map((embed) => embed.public_key).filter(Boolean);
+      },
+      { message: "the publish was accepted, but the agent lists no embed" },
+    )
+    .not.toHaveLength(0);
+
   await page.reload();
   await page.getByRole("tab", { name: "Availability" }).click();
   const link = page.getByText(new RegExp(`^${origin}/e/`)).first();
