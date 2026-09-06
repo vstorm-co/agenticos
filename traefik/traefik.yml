@@ -19,6 +19,13 @@ api:
 ping: {}
 
 providers:
+  # The middlewares below. Traefik's *static* file is read once and holds no
+  # middlewares, so anything that applies to every route needs a dynamic
+  # provider - which for a fixed rule is a second file rather than a service.
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
   docker:
     endpoint: "unix:///var/run/docker.sock"
     watch: true
@@ -49,6 +56,11 @@ entryPoints:
   websecure:
     address: :443
     http:
+      # Applied to everything behind this proxy rather than to our two routers,
+      # because a header that depends on remembering a label is a header the next
+      # service will not have.
+      middlewares:
+        - security-headers@file
       tls:
         # Set here rather than per router, so a router that forgets to name a
         # resolver still gets a certificate instead of Traefik's self-signed one.
@@ -57,7 +69,11 @@ entryPoints:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: "${ACME_EMAIL}"
+      # **Not set here.** Traefik does not expand shell placeholders in its static
+      # file, and compose does not interpolate a file it only bind-mounts - so
+      # `${ACME_EMAIL}` written here would be registered with Let's Encrypt
+      # literally. It arrives as `TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL`
+      # instead, which is the supported second source for any static setting.
       storage: "/certificates/acme.json"
       # HTTP-01: Let's Encrypt fetches a file from whatever the name resolves to,
       # which is why the DNS records come first. The alternative is DNS-01, which

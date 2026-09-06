@@ -62,6 +62,14 @@ echo "  Every collection embeds through OpenRouter. Chat models are not set here
 echo "  each organization stores its own provider keys in the vault."
 OPENROUTER_API_KEY=$(ask "OPENROUTER_API_KEY" "")
 
+say "Reverse proxy"
+echo "  traefik - the containers carry labels an existing Traefik discovers."
+echo "  nginx   - both ports on the loopback, and a proxy on the host reaches them."
+while :; do
+  PROXY=$(ask "Proxy" "traefik")
+  case "$PROXY" in traefik|nginx) break ;; *) echo "    (traefik or nginx)" >&2 ;; esac
+done
+
 say "Sizing"
 echo "  Each uvicorn worker is a separate process holding about 460 MiB. Two suits"
 echo "  a team; four suits a deployment with real traffic."
@@ -80,7 +88,7 @@ echo "  SECRET_KEY, API_KEY, VAULT_MASTER_KEY, POSTGRES_PASSWORD, REDIS_PASSWORD
 # password reaching a `sed` replacement is one `&` away from being silently
 # mangled, and a corrupted VAULT_MASTER_KEY is a vault nobody can open.
 say "Writing $ENV_FILE"
-SITE_DOMAIN="$SITE_DOMAIN" API_DOMAIN="$API_DOMAIN" ACME_EMAIL="$ACME_EMAIL" \
+SITE_DOMAIN="$SITE_DOMAIN" API_DOMAIN="$API_DOMAIN" ACME_EMAIL="$ACME_EMAIL" PROXY="$PROXY" \
 OPENROUTER_API_KEY="$OPENROUTER_API_KEY" UVICORN_WORKERS="$UVICORN_WORKERS" \
 SECRET_KEY="$SECRET_KEY" API_KEY="$API_KEY" VAULT_MASTER_KEY="$VAULT_MASTER_KEY" \
 POSTGRES_PASSWORD="$POSTGRES_PASSWORD" REDIS_PASSWORD="$REDIS_PASSWORD" \
@@ -113,6 +121,13 @@ settings = {
     "API_DOMAIN": api,
     "ACME_EMAIL": os.environ["ACME_EMAIL"],
     "UVICORN_WORKERS": os.environ["UVICORN_WORKERS"],
+    # Read by `scripts/deploy.sh` so a later deploy uses the proxy this host was
+    # set up with, rather than whichever one the script happened to hard-code.
+    "PROXY": os.environ["PROXY"],
+    # Sent to Logfire verbatim, so without it every production trace arrives
+    # labelled `development` and is filtered out of the view somebody built to
+    # watch production.
+    "LOGFIRE_ENVIRONMENT": "production",
     # Behind a proxy the caller's address arrives in a header, and without this
     # every login attempt is counted against the proxy's own address - so a
     # handful of failures locks the whole deployment out (0.0.368).
@@ -135,10 +150,14 @@ if missing:
     out.append("\n# Set by scripts/server-init.sh; absent from .env.example.\n")
     out.extend(missing)
 
-with open(target, "w") as handle:
+# `os.open` with the mode, rather than `open()` then `chmod`: under the usual
+# 022 umask the second leaves the file world-readable for as long as it takes to
+# write five secrets into it, which on a shared host is long enough. `O_EXCL`
+# also makes the "already exists" check above race-free.
+fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(fd, "w") as handle:
     handle.writelines(out)
 PY
-chmod 600 "$ENV_FILE"
 
 say "Done"
 cat <<EOF

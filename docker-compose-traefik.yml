@@ -24,15 +24,19 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      # Read by the `${ACME_EMAIL}` in traefik.yml. Where the expiry notices go,
-      # and the only address Let's Encrypt has for whoever runs this.
-      - ACME_EMAIL=${ACME_EMAIL:?ACME_EMAIL is required, e.g. ops@example.com}
+      # Every static setting has an environment form, and this one has to use it:
+      # `traefik.yml` is bind-mounted rather than templated, so a `${...}` written
+      # in it would reach Let's Encrypt as those eight characters. The name is
+      # mechanical - the path through the config in capitals, joined by
+      # underscores.
+      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL:?ACME_EMAIL is required, e.g. ops@example.com}
     volumes:
       # Read-only, and this is the security boundary of the whole arrangement:
       # the socket is what lets Traefik discover containers, and write access to
       # it is root on the host.
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
       # The issued certificates and the account key. A named volume rather than a
       # bind mount because Traefik requires the file be readable by nobody else,
       # and a bind-mounted file inherits whatever the host gave it.

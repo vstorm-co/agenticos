@@ -152,6 +152,10 @@ make prod PROXY=traefik
 make prod-frontend PROXY=traefik
 ```
 
+`server-init.sh` has already written `PROXY=traefik` into `backend/.env`, which is
+where `scripts/deploy.sh` reads it from — so later deploys keep the proxy this
+host was set up with rather than the one a script assumed.
+
 !!! info "`exposedByDefault: false` is doing real work"
 
     It is the one setting in `traefik/traefik.yml` worth reading before you run
@@ -171,8 +175,11 @@ make prod
 make prod-frontend
 ```
 
-`nginx/nginx.conf` is the template: `/` to `127.0.0.1:3000`, everything the API
-answers to `127.0.0.1:8000`. Certificates are yours to obtain and renew.
+`nginx/nginx.conf` is the template. Two substitutions before it serves anything:
+the `server_name` in each block is `${DOMAIN:-localhost}`, and Nginx does not
+expand that — put the two hostnames in by hand. Certificates are yours to obtain
+and renew, and so is the `Strict-Transport-Security` header, which the backend
+deliberately leaves to whatever terminates TLS.
 
 !!! warning "`BIND_HOST` is a security setting, not a convenience"
 
@@ -298,8 +305,12 @@ One volume matters, and it is not obvious which:
 
 ```bash
 docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \
-  pg_dump -U postgres -Fc agenticos > "agenticos-$(date +%F).dump"
+  sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' > "agenticos-$(date +%F).dump"
 ```
+
+The identifiers come from the container's own environment rather than being
+written out, because both are settings: a deployment that changed either would
+otherwise get an empty file and an error nobody reads on the way past.
 
 !!! danger "A database backup without `backend/.env` is not a backup"
 
@@ -312,7 +323,7 @@ docker compose --env-file backend/.env -f docker-compose-prod.yml exec -T db \
 | | How |
 |---|---|
 | **Code** | Deploy the previous commit: `workflow_dispatch` with its sha, or `scripts/deploy.sh` |
-| **Schema** | `agenticos db downgrade -1`, then deploy the code that matches |
+| **Schema** | `agenticos db downgrade --revision=-1`, then deploy the code that matches |
 | **Data** | `pg_restore` the dump, then check the migration the code expects |
 
 Rolling code back **across a migration is a decision, not a command**. The old

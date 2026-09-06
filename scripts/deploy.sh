@@ -4,10 +4,11 @@
 #
 #   ssh <host> 'bash -s -- <sha>' < scripts/deploy.sh
 #
-# Piped over stdin rather than run from the server's checkout, deliberately: the
-# script that runs is then the one from the commit being deployed, so a change to
-# the deploy procedure ships with the change that needs it. The checkout on the
-# server is only where the build context lives.
+# Piped over stdin rather than run from the server's checkout: the checkout there
+# is only the build context, and the procedure travels with whoever is running
+# it. Deliberately **not** taken from the commit being deployed - a rollback to a
+# commit older than this file would then have no script to run, which is the one
+# moment it is needed most.
 #
 # It takes a **commit**, not a branch. Two pushes can land while an approval is
 # pending, and `git pull` on the server would then deploy whichever one won the
@@ -27,13 +28,31 @@ SHA="${1:?usage: deploy.sh <commit-sha>}"
 APP_DIR="${APP_DIR:-/opt/agenticos}"
 COMPOSE_ENV="${APP_DIR}/backend/.env"
 
-BACKEND=(-f docker-compose-prod.yml -f docker-compose-prod.traefik.yml)
-FRONTEND=(-f docker-compose-prod.frontend.yml -f docker-compose-prod.frontend.traefik.yml)
-
 say() { printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 
 cd "$APP_DIR"
 test -f "$COMPOSE_ENV" || { echo "missing $COMPOSE_ENV" >&2; exit 1; }
+
+# Which reverse proxy this host was set up with, read from the host rather than
+# assumed. Hard-coding the Traefik overlays meant an Nginx host was silently
+# converted on its next deploy - and since the overlay declares
+# `traefik_webgateway` external, on a host that never created it compose fails
+# outright, which is the better of the two outcomes.
+PROXY="$(sed -n 's/^PROXY=//p' "$COMPOSE_ENV" | tail -1)"
+case "${PROXY:-nginx}" in
+  traefik)
+    BACKEND=(-f docker-compose-prod.yml -f docker-compose-prod.traefik.yml)
+    FRONTEND=(-f docker-compose-prod.frontend.yml -f docker-compose-prod.frontend.traefik.yml)
+    ;;
+  nginx|"")
+    BACKEND=(-f docker-compose-prod.yml)
+    FRONTEND=(-f docker-compose-prod.frontend.yml)
+    ;;
+  *)
+    echo "PROXY=$PROXY in $COMPOSE_ENV is not one of: traefik, nginx" >&2
+    exit 1
+    ;;
+esac
 
 say "Fetching $SHA"
 git fetch --prune --quiet origin

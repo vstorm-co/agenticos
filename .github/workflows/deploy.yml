@@ -34,8 +34,45 @@ permissions:
   contents: read
 
 jobs:
+  # Resolves the ref and proves it is already on `main`. Deliberately *before*
+  # the environment gate and holding no secrets: a `workflow_dispatch` takes a
+  # ref, a ref can be a branch or a tag, and both move - so approving "deploy
+  # this tag" and then moving the tag would put unreviewed code on the server
+  # with one approval spent on something else. What is approved below is a
+  # digest this job has already checked.
+  resolve:
+    name: Resolve the commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.pin.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, or `merge-base` cannot answer.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Pin it
+        id: pin
+        env:
+          REF: ${{ inputs.ref || github.sha }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse --verify "$REF^{commit}")
+          # `main` rather than the default branch by name from the API: this
+          # workflow only ever deploys what merged, and a repository that renamed
+          # its branch would rather fail here than deploy something else.
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$REF ($sha) is not an ancestor of main - only merged commits are deployable" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Deploying $(git --no-pager log --oneline -1 "$sha")"
+
   deploy:
     name: Deploy to production
+    needs: resolve
     runs-on: ubuntu-latest
     # What makes the approval possible. `url` is what GitHub links to from the
     # run and from the repository's environment list, so the deployment history
@@ -46,20 +83,16 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # **This workflow's own ref, not the commit being deployed.** The script is
+      # the deploy *procedure*, and taking it from the deployed commit means a
+      # rollback to anything older than it has no script to run - which is the
+      # one moment a rollback is being attempted.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The commit being deployed, so `scripts/deploy.sh` is the version that
-          # ships with it. A `workflow_dispatch` with no ref deploys the branch it
-          # was started from, which is `main`.
-          ref: ${{ inputs.ref || github.sha }}
           # Nothing here pushes, and this job holds a key to a production host -
           # so the token that checkout would otherwise leave in `.git/config` is
           # one more credential in the same process for no reason.
           persist-credentials: false
-
-      - name: Resolve the commit
-        id: commit
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # Written out rather than reached through a third-party action: this is the
       # one workflow holding a key that opens a production host, and the fewer
@@ -81,7 +114,7 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           APP_DIR: ${{ vars.APP_DIR || '/opt/agenticos' }}
-          SHA: ${{ steps.commit.outputs.sha }}
+          SHA: ${{ needs.resolve.outputs.sha }}
         run: |
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
