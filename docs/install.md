@@ -263,14 +263,18 @@ Three, one compose file each, with a matching frontend file beside it.
 |---|---|---|
 | `make dev` | `docker-compose.yml`<br>`docker-compose.frontend.yml` | Local. Hot reload, bind-mounted source, Postgres and Redis published to the host |
 | `make dev-server` | `docker-compose-dev.yml`<br>`docker-compose-dev.frontend.yml` | A deployed dev environment. Built images, no bind mounts, no database port, verbose logging |
-| `make prod` | `docker-compose-prod.yml`<br>`docker-compose-prod.frontend.yml` | Production. Resource limits, internal data network, 4 workers |
+| `make prod` | `docker-compose-prod.yml`<br>`docker-compose-prod.frontend.yml` | Production. Resource limits, internal data network, tuned Postgres |
 
 Each has matching `-down`, `-logs` and `-frontend` siblings. `make stage` is kept
 as an alias for `make dev-server`, which is what it used to be.
 
-Both deployed environments want a reverse proxy in front of them.
-`nginx/nginx.conf` is the template, and it resolves `backend:8000` and
-`frontend:3000` as network aliases.
+Both deployed environments want a reverse proxy in front of them, and there are
+two ways to give them one. By default the stack publishes both ports on the
+loopback and a proxy on the host reaches them - `nginx/nginx.conf` is that
+template, and it resolves `backend:8000` and `frontend:3000` as network aliases.
+`make prod PROXY=traefik` instead adds two overlay files that put the containers
+on an existing Traefik's network with the labels it discovers them by.
+[Deploy](deploy.md) walks through both.
 
 The proxy reaches them by those aliases, so production publishes both ports on
 `127.0.0.1` and nothing off the host can reach either directly. That is a

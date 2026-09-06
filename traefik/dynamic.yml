@@ -1,0 +1,23 @@
+# Traefik's dynamic configuration: the parts that can change without a restart.
+# One middleware, applied to the `websecure` entrypoint in `traefik.yml`, so it
+# covers every service behind this proxy.
+
+http:
+  middlewares:
+    security-headers:
+      headers:
+        # The one header the application deliberately does not set. Everything
+        # else - CSP, `X-Frame-Options`, `X-Content-Type-Options`,
+        # `Referrer-Policy`, `Permissions-Policy` - is stamped on every response
+        # by the backend, so it holds behind any proxy. HSTS cannot be: it is a
+        # promise about TLS, and TLS terminates here.
+        #
+        # A year, subdomains included. Long enough to matter and short enough to
+        # undo; `preload` is deliberately absent, because getting a domain off
+        # the preload list takes months.
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false
+        # Only over HTTPS, which is the whole point - and this entrypoint is the
+        # only one that serves anything else.
+        forceSTSHeader: true
