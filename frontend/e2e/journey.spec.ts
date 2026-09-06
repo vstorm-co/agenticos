@@ -276,7 +276,14 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // branches that touch none of this.
   const published = page.waitForResponse(
     (response) =>
-      response.url().includes("/api/agents/embeds") && response.request().method() === "POST",
+      new URL(response.url()).pathname === "/api/agents/embeds" &&
+      response.request().method() === "POST" &&
+      // A 401 on this path is not the answer, for the reason `submitDialog` gives
+      // at length: `apiClient.send` recovers from an expired access token by
+      // refreshing and re-issuing the same write, so stopping at the first
+      // response would fail a publish that succeeded on the retry - a new flake
+      // in place of the one being removed.
+      response.status() !== 401,
   );
   await availability.getByRole("button", { name: "Publish", exact: true }).click();
   expect((await published).ok(), "publishing the hosted page was refused").toBe(true);
