@@ -17,6 +17,72 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.369] - 2026-09-06
+
+### Added
+
+- **An agent keeps notes of its own, indexed by a `MEMORY.md` it maintains.** The
+  `memory_files` capability gives it five tools over named notes, and the index is
+  spliced into its instructions every request the way a bound context file is - so
+  it meets what it saved before it decides anything, rather than having to choose
+  to call a listing tool a lighter model rarely calls. A note belongs to a person
+  or to a group chat, and a run touches exactly the conversation's own: alone with
+  somebody it is theirs and nobody else reads it, in a channel it is the chat's.
+  No tool takes a scope, because there is nothing for the model to choose.
+- **Semantic memory in a mem0 service, as its own capability.** `memory_mem0`
+  remembers a fact and recalls it by meaning rather than by name, against mem0's
+  cloud or a self-hosted deployment, through the vendor SDK. The whole scope is
+  the mem0 `user_id` (`{org}:{agent}:{owner}`), so one mem0 account cannot mix two
+  organisations', two agents' or two people's memories. A self-hosted `base_url`
+  must be https and on `MEM0_ALLOWED_HOSTS`; an empty allowlist refuses
+  self-hosted mem0 outright, because the key travels in a request header and a
+  builder who may bind a shared key must not be able to aim it at their own
+  server.
+- **An agent can find a past conversation by what was said in it.**
+  `conversation_search` searches message bodies and opens a thread as a readable
+  transcript, split into `USER:` and `AI:` with the speaker named where a channel
+  has several people in it. Memory could only recall what some earlier turn
+  thought worth writing down; everything else was said, stored, and unreachable -
+  so "what did we decide about the pricing" answered "I have no record of that" in
+  a product holding the whole exchange. PostgreSQL full-text search rather than a
+  `LIKE`, which matches inside words and cannot rank, and rather than embeddings,
+  which is what knowledge search already is. Words are matched whole and
+  case-folded but not stemmed, and the tool says so, because the configuration is
+  fixed in the database and stemming one language would mangle every other.
+- **Erasing what agents remember about you.** A person clears it from their own
+  profile settings, and an administrator holding `members:manage` can do it for a
+  colleague. It spans every agent in the organisation, because "forget everything
+  you know about me" is a fact about a person rather than about one agent they
+  happened to talk to, and it reaches mem0 as well - raising rather than reporting
+  a success it did not achieve. One agent's notes are cleared from inside its
+  capability panel.
+
+### Security
+
+- **A personal corpus is never read out to a room.** Conversation search answers
+  only where the person asking is the only listener; in a group chat both of its
+  tools refuse and say why. What it can reach at all is that one person's - their
+  own conversations, ones shared with them, and channel threads the platform still
+  confirms them a member of. A trigger's run-log is outside it: that is a
+  transcript of runs made under somebody else's authority, and an agent searching
+  on a person's behalf holds no permission of theirs to check it with.
+- **A note is read back only where its writer could have influenced nobody else.**
+  An agent's `MEMORY.md` reaches the *instructions* in a one-to-one conversation
+  and never in a channel, where a sentence one colleague left behind would arrive
+  as another colleague's orders. It stays reachable there with `read_memory`,
+  which is a result the model weighs rather than an order it obeys.
+- **`conversations:read` is the deployment-wide off switch** for agents reading
+  past conversations, for somewhere that considers a transcript too sensitive to
+  be searchable however narrowly the corpus is scoped.
+
+### Changed
+
+- **There is no console for reading somebody's memory.** An operator paging
+  through what an agent wrote about a named colleague is a surveillance
+  affordance rather than a feature, and standing knowledge somebody *wants* an
+  agent to have belongs in context files. What is left on that surface is
+  erasure.
+
 ## [0.0.368] - 2026-09-05
 
 ### Fixed
