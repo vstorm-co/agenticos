@@ -16,7 +16,6 @@ __all__ = [
     "SECRET_MINTED_BY_US",
     "get_adapter",
     "inbound_webhook_url",
-    "list_platforms",
     "register_adapter",
 ]
 
@@ -37,8 +36,3 @@ def get_adapter(platform: str) -> "ChannelAdapter":
     if platform not in _adapters:
         raise KeyError(f"No channel adapter registered for platform '{platform}'")
     return _adapters[platform]
-
-
-def list_platforms() -> list[str]:
-    """Return a list of all registered platform names."""
-    return list(_adapters.keys())

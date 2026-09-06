@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { isImpersonation } from "@/lib/jwt-claims";
-import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import {
+  BackendApiError,
+  backendFetch,
+  bffJson,
+  bffRefusal,
+  forwardedFor,
+  forwardRateLimit,
+} from "@/lib/server-api";
 import type { RefreshTokenResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -32,6 +39,7 @@ export async function POST(request: NextRequest) {
 
     const data = await backendFetch<RefreshTokenResponse>("/api/v1/auth/refresh", {
       method: "POST",
+      headers: { ...forwardedFor(request) },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
 
@@ -61,6 +69,11 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
+      // A rate limit is a wait, not an expired session: forward it with its
+      // Retry-After and leave the cookies alone, so exhausting the refresh
+      // bucket does not sign the caller out (#1047).
+      if (error.status === 429) return forwardRateLimit(error);
+
       const response = bffRefusal("SESSION_EXPIRED", 401);
 
       response.cookies.set("access_token", "", {

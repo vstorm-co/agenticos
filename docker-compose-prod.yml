@@ -72,7 +72,10 @@ services:
         aliases:
           - backend
     ports:
-      - "8000:8000"
+      # Loopback by default, for the reason the frontend's compose file gives:
+      # the reverse proxy is the way in, and an auth rate limit keyed on a
+      # forwarded address is only a limit while nothing can reach past it.
+      - "${BIND_HOST:-127.0.0.1}:8000:8000"
     depends_on:
       db:
         condition: service_healthy

@@ -14,13 +14,16 @@ Redis is not configured.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
 from app.services.channels import connection_state
+from app.services.channels import telegram as telegram_module
+from app.services.channels.telegram import TelegramAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -201,3 +204,51 @@ class TestKeepingAQuietConnectionAlive:
         """Two beats can be missed before the entry expires; one slow round trip
         must not make a healthy bot read `unknown`."""
         assert connection_state.HEARTBEAT_SECONDS * 2 < connection_state.TTL_SECONDS
+
+
+class TestTheTelegramPollIsOneOfThem:
+    """#1351 added the heartbeat to Slack and Mattermost and named Telegram as
+    having the same shape - then left it out. A Telegram bot nobody messaged for
+    fifteen minutes read `unknown` while polling fine.
+    """
+
+    async def test_a_quiet_telegram_bot_still_reads_up(self, monkeypatch):
+        beating = asyncio.Event()
+        released = asyncio.Event()
+        kept_alive_for: list[str] = []
+        stopped_with_the_poll = False
+
+        async def heartbeat(bot_id: str) -> None:
+            nonlocal stopped_with_the_poll
+            kept_alive_for.append(bot_id)
+            beating.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                stopped_with_the_poll = True
+                raise
+
+        async def start_polling(*_: object, **__: object) -> None:
+            await released.wait()
+
+        @contextlib.asynccontextmanager
+        async def fake_bot(*_: object, **__: object):
+            yield MagicMock()
+
+        dispatcher = MagicMock(start_polling=AsyncMock(side_effect=start_polling))
+        monkeypatch.setattr(TelegramAdapter, "_bot", staticmethod(fake_bot))
+        monkeypatch.setattr(telegram_module, "Dispatcher", MagicMock(return_value=dispatcher))
+        monkeypatch.setattr(telegram_module.connection_state, "record_up", AsyncMock())
+        monkeypatch.setattr(telegram_module.connection_state, "heartbeat", heartbeat)
+
+        session = asyncio.create_task(TelegramAdapter()._run_polling_once("bot-1", "123:token"))
+        try:
+            # Bounded, so a poll that starts no heartbeat fails here rather than
+            # hanging the suite.
+            await asyncio.wait_for(beating.wait(), timeout=1)
+        finally:
+            released.set()
+            await session
+
+        assert kept_alive_for == ["bot-1"], "re-stamped for as long as the poll ran"
+        assert stopped_with_the_poll, "and no longer once it ended"

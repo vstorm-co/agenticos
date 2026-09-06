@@ -1,5 +1,12 @@
 import { NextRequest } from "next/server";
-import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import {
+  BackendApiError,
+  backendFetch,
+  bffJson,
+  bffRefusal,
+  forwardedFor,
+  forwardRateLimit,
+} from "@/lib/server-api";
 import type { User } from "@/types";
 
 const ACCESS_MAXAGE = 60 * 15; // 15 min
@@ -14,9 +21,9 @@ const cookieOpts = (maxAge: number) =>
     path: "/",
   }) as const;
 
-function fetchMe(token: string) {
+function fetchMe(token: string, request: NextRequest) {
   return backendFetch<User>("/api/v1/auth/me", {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...forwardedFor(request) },
   });
 }
 
@@ -33,9 +40,12 @@ export async function GET(request: NextRequest) {
 
   if (accessToken) {
     try {
-      const data = await fetchMe(accessToken);
+      const data = await fetchMe(accessToken, request);
       return bffJson({ ...data, access_token: accessToken });
     } catch (error) {
+      if (error instanceof BackendApiError && error.status === 429) {
+        return forwardRateLimit(error);
+      }
       if (!(error instanceof BackendApiError) || error.status !== 401) {
         const status = error instanceof BackendApiError ? error.status : 500;
         return bffRefusal("FAILED_TO_GET_USER", status);
@@ -51,16 +61,27 @@ export async function GET(request: NextRequest) {
   try {
     const refreshed = await backendFetch<{ access_token: string; refresh_token?: string }>(
       "/api/v1/auth/refresh",
-      { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) },
+      {
+        method: "POST",
+        headers: { ...forwardedFor(request) },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      },
     );
-    const data = await fetchMe(refreshed.access_token);
+    const data = await fetchMe(refreshed.access_token, request);
     const response = bffJson({ ...data, access_token: refreshed.access_token });
     response.cookies.set("access_token", refreshed.access_token, cookieOpts(ACCESS_MAXAGE));
     if (refreshed.refresh_token) {
       response.cookies.set("refresh_token", refreshed.refresh_token, cookieOpts(REFRESH_MAXAGE));
     }
     return response;
-  } catch {
+  } catch (error) {
+    // A rate limit is a wait, not an expired session. This is the refresh
+    // nobody asked for - every page load makes it once the 15-minute access
+    // cookie is out - so treating its 429 as "logged out" is what signs a whole
+    // office out at once when they share an address (#1047).
+    if (error instanceof BackendApiError && error.status === 429) {
+      return forwardRateLimit(error);
+    }
     // Refresh failed → truly logged out. Clear cookies.
     const response = bffRefusal("NOT_AUTHENTICATED", 401);
     response.cookies.set("access_token", "", cookieOpts(0));

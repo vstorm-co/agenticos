@@ -1,13 +1,16 @@
 """Channel message router - processes incoming messages end-to-end."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import re
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
@@ -20,11 +23,13 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
 )
+from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
+    ChannelAdapter,
     ChannelDirectoryUnsupported,
     IncomingAttachment,
     IncomingMessage,
@@ -43,20 +48,100 @@ from app.services.channels.mentions import (
     parse_mention,
 )
 from app.services.conversation import ConversationService
+from app.services.rate_limit import Limit
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
-# key format: "{bot_id}:{identity_id}", value = (count, window_start_ts)
-_rate_buckets: dict[str, tuple[int, float]] = {}
+    from app.db.models.channel_bot import ChannelBot
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.db.models.channel_session import ChannelSession
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_RPM = 10
 
-# In group chats multiple users can message simultaneously. Without a lock the router
-# would race: duplicate ChannelSession creation, interleaved agent calls, rate-limit races.
-# Key = (bot_id, platform_chat_id); 1-on-1 chats also acquire it but contention is negligible.
-_chat_locks: dict[str, asyncio.Lock] = {}
+
+class _ChatLocks:
+    """One lock per chat with a message in flight, and none for the rest.
+
+    In a group chat several people message at once, and without the lock the
+    router races: a duplicate `ChannelSession`, interleaved agent calls. The lock
+    is keyed on the bot and the chat the message arrived in - on Slack that is
+    the thread, and a top-level message opens a thread of its own, so a busy
+    workspace mints a new key with nearly every message. An entry lives only
+    while somebody holds or waits for it and is dropped by the last one out, so
+    the map is the size of the chats in flight rather than of every chat this
+    process has ever heard from.
+
+    Per process on purpose: what it serialises is the turns *this* worker runs
+    in one chat. Once-only delivery across workers is the dedupe claim's job,
+    and the rate limit counts in the shared Redis - neither is a job for a lock.
+    """
+
+    def __init__(self) -> None:
+        self._held: dict[str, tuple[asyncio.Lock, int]] = {}
+
+    def __len__(self) -> int:
+        return len(self._held)
+
+    @asynccontextmanager
+    async def hold(self, bot_id: str, chat_id: str) -> AsyncIterator[None]:
+        key = f"{bot_id}:{chat_id}"
+        lock, waiting = self._held.get(key) or (asyncio.Lock(), 0)
+        self._held[key] = (lock, waiting + 1)
+        try:
+            async with lock:
+                yield
+        finally:
+            lock, waiting = self._held[key]
+            if waiting == 1:
+                del self._held[key]
+            else:
+                self._held[key] = (lock, waiting - 1)
+
+
+_chat_locks = _ChatLocks()
+
+
+class _LocalWindows:
+    """A per-process fixed window, for the turns the shared limiter could not count.
+
+    `rate_limit.consume` is the limit that holds across workers, and it fails
+    open when Redis is down or nobody configured one. For a public widget that
+    is the documented trade; for a channel bot the per-sender `rate_limit_rpm`
+    is a production control (`SECURITY.md`), and a limiter that vanishes for
+    the length of a Redis outage lets a permitted participant run the model as
+    fast as they can type until it recovers. So this stands in for exactly that
+    stretch: wrong by the worker count, which is the defect the shared limiter
+    exists to fix, and still a floor where there would have been none.
+
+    Bounded: every write drops the windows that have expired, so the map is the
+    size of the callers seen in the last minute, not of every caller since the
+    process started - which is what the dict this replaces did.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._windows: dict[str, tuple[int, float]] = {}
+        self._clock = clock
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
+        now = self._clock()
+        for key in [
+            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
+        ]:
+            del self._windows[key]
+        count, opened = self._windows.get(caller, (0, now))
+        self._windows[caller] = (count + 1, opened)
+        return count < attempts
+
+
+_fallback_windows = _LocalWindows()
 
 
 _SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
@@ -115,14 +200,6 @@ transcript still short enough to be a prompt.
 """
 
 
-def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
-    """Return (or create) the asyncio.Lock for a bot + chat pair."""
-    key = f"{bot_id}:{chat_id}"
-    if key not in _chat_locks:
-        _chat_locks[key] = asyncio.Lock()
-    return _chat_locks[key]
-
-
 def _needs_approval(run_id: Any) -> str:
     """What to say when the turn parked on a decision instead of answering.
 
@@ -173,7 +250,7 @@ def _kept_back(paths: list[str]) -> list[str]:
 class ChannelMessageRouter:
     """Process an incoming channel message end-to-end."""
 
-    async def route(self, incoming: IncomingMessage, db: Any) -> None:
+    async def route(self, incoming: IncomingMessage, db: AsyncSession) -> None:
         """Claim the delivery, acquire the per-chat lock, then process.
 
         The claim comes first, and before the lock on purpose: a redelivered
@@ -197,15 +274,14 @@ class ChannelMessageRouter:
                 incoming.message_id,
             )
             return
-        lock = _get_chat_lock(incoming.bot_id, incoming.platform_chat_id)
         try:
-            async with lock:
+            async with _chat_locks.hold(incoming.bot_id, incoming.platform_chat_id):
                 await self._route_inner(incoming, db)
         except BaseException:
             await release_delivery(incoming)
             raise
 
-    async def _route_inner(self, incoming: IncomingMessage, db: Any) -> None:
+    async def _route_inner(self, incoming: IncomingMessage, db: AsyncSession) -> None:
         """Process an incoming channel message end-to-end.
 
         Steps:
@@ -258,13 +334,16 @@ class ChannelMessageRouter:
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
         if identity.user_id is None and not admit_unlinked:
-            await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
+            # Through `_refuse_if_named`, not `_send_reply`: a room message that
+            # names a colleague passes the overheard gate on its handle, and the
+            # invitation must not interrupt two people talking to each other.
+            await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
         session = await self._resolve_session(incoming, bot, identity, db)
 
         try:
-            self._check_rate_limit(bot, str(identity.id))
+            await self._check_rate_limit(bot, str(identity.id))
         except BadRequestError as exc:
             await self._send_reply(bot, incoming, exc.message)
             return
@@ -387,7 +466,7 @@ class ChannelMessageRouter:
 
     async def _deliver(
         self,
-        bot: Any,
+        bot: ChannelBot,
         incoming: IncomingMessage,
         answer: str,
         answered: Any,
@@ -406,13 +485,7 @@ class ChannelMessageRouter:
             adapter = get_adapter(incoming.platform)
             try:
                 await adapter.update_reply(
-                    unseal_bot_token(bot),
-                    OutgoingMessage(
-                        platform_chat_id=incoming.platform_chat_id,
-                        text=text,
-                        api_base_url=getattr(bot, "api_base_url", None),
-                    ),
-                    handle,
+                    unseal_bot_token(bot), self._message(bot, incoming, text), handle
                 )
             except Exception:
                 # The edit failed - a rate-limit on the last one, or the
@@ -439,10 +512,10 @@ class ChannelMessageRouter:
     async def _answer_mention(
         self,
         incoming: IncomingMessage,
-        bot: Any,
-        identity: Any,
-        session: Any,
-        db: Any,
+        bot: ChannelBot,
+        identity: ChannelIdentity,
+        session: ChannelSession,
+        db: AsyncSession,
         directory: BoundChannelDirectory | None,
         admit_unlinked: bool,
         *,
@@ -521,7 +594,7 @@ class ChannelMessageRouter:
         return True
 
     def _lazy_reply(
-        self, bot: Any, incoming: IncomingMessage
+        self, bot: ChannelBot, incoming: IncomingMessage
     ) -> tuple[LiveReply, Callable[[], str | None]]:
         """A live reply that posts its placeholder on the first push, not before.
 
@@ -546,35 +619,60 @@ class ChannelMessageRouter:
             nonlocal opened
             if not opened:
                 opened = True
-                placeholder = OutgoingMessage(
-                    platform_chat_id=incoming.platform_chat_id,
-                    text=text or WORKING,
-                    reply_to_message_id=incoming.message_id,
-                    api_base_url=getattr(bot, "api_base_url", None),
+                state["handle"] = await self._post_placeholder(
+                    adapter, token, bot, incoming, text or WORKING
                 )
-                try:
-                    state["handle"] = await adapter.begin_reply(token, placeholder)
-                except Exception:
-                    logger.warning(
-                        "Could not open a live reply on %s", incoming.platform, exc_info=True
-                    )
                 return
             if state["handle"] is None:
                 return
-            await adapter.update_reply(
-                token,
-                OutgoingMessage(
-                    platform_chat_id=incoming.platform_chat_id,
-                    text=text,
-                    api_base_url=getattr(bot, "api_base_url", None),
-                ),
-                state["handle"],
-            )
+            await adapter.update_reply(token, self._message(bot, incoming, text), state["handle"])
 
         return LiveReply(push), lambda: state["handle"]
 
     @staticmethod
-    def _channel_directory(bot: Any, incoming: IncomingMessage) -> BoundChannelDirectory | None:
+    def _message(
+        bot: ChannelBot, incoming: IncomingMessage, text: str, *, in_reply: bool = False
+    ) -> OutgoingMessage:
+        """One outgoing message for the chat this one arrived in.
+
+        Built in one place so the placeholder, each edit of it and the final
+        answer agree on where they go and which server they go to. Only the
+        placeholder replies to the incoming message: an edit addresses the
+        message it rewrites, and a reply marker on it would be ignored or wrong.
+        """
+        return OutgoingMessage(
+            platform_chat_id=incoming.platform_chat_id,
+            text=text,
+            reply_to_message_id=incoming.message_id if in_reply else None,
+            api_base_url=getattr(bot, "api_base_url", None),
+        )
+
+    async def _post_placeholder(
+        self,
+        adapter: ChannelAdapter,
+        token: str,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        text: str,
+    ) -> str | None:
+        """Post the message the answer will be written into, or `None`.
+
+        `None` when the platform cannot edit what it has sent, or when posting
+        failed - logged and swallowed, because both mean the same thing to the
+        caller: answer the way we always did rather than cost somebody the answer.
+        """
+        try:
+            return await adapter.begin_reply(
+                token, self._message(bot, incoming, text, in_reply=True)
+            )
+        except Exception:
+            logger.warning("Could not open a live reply on %s", incoming.platform, exc_info=True)
+            return None
+
+    @staticmethod
+    def _channel_directory(
+        bot: ChannelBot, incoming: IncomingMessage
+    ) -> BoundChannelDirectory | None:
         """This channel, bound so an agent can ask about it - or `None`.
 
         Keyed on `channel_key`, not on `platform_chat_id`: in a thread the raw id
@@ -626,7 +724,7 @@ class ChannelMessageRouter:
         return recordings, rest
 
     async def _transcribe(
-        self, db: Any, bot: Any, recordings: list[IncomingAttachment]
+        self, db: AsyncSession, bot: ChannelBot, recordings: list[IncomingAttachment]
     ) -> tuple[list[str], list[str]]:
         """What the voice notes on this message said, and what could not be read.
 
@@ -711,7 +809,11 @@ class ChannelMessageRouter:
         return f"{text}\n\n{quoted}".strip() if text else quoted
 
     async def _receive_files(
-        self, db: Any, bot: Any, incoming: IncomingMessage, identity: Any
+        self,
+        db: AsyncSession,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
     ) -> tuple[list[Any], list[str]]:
         """Fetch, validate and store what arrived with the message.
 
@@ -737,7 +839,7 @@ class ChannelMessageRouter:
         )
 
     @staticmethod
-    async def _discard_files(db: Any, files: list[Any]) -> None:
+    async def _discard_files(db: AsyncSession, files: list[Any]) -> None:
         """Give back what the turn stored, for a turn that was refused.
 
         The files are fetched and stored before the agent is resolved, so a
@@ -764,7 +866,7 @@ class ChannelMessageRouter:
         return answer + "\n\n" + "\n".join(lines)
 
     @staticmethod
-    def _parse_policy(bot: Any) -> dict[str, Any]:
+    def _parse_policy(bot: ChannelBot) -> dict[str, Any]:
         """Return bot.access_policy as a dict regardless of storage format.
 
         SQLite stores access_policy as a JSON string; PostgreSQL/MongoDB store
@@ -775,7 +877,7 @@ class ChannelMessageRouter:
             return json.loads(raw) if raw else {}
         return raw
 
-    def _check_access(self, incoming: IncomingMessage, bot: Any) -> None:
+    def _check_access(self, incoming: IncomingMessage, bot: ChannelBot) -> None:
         """Enforce access policy. Raises AuthorizationError if denied."""
         policy: dict[str, Any] = self._parse_policy(bot)
         mode: str = policy.get("mode", "open")
@@ -794,9 +896,9 @@ class ChannelMessageRouter:
                         "denied_message", "This bot is only available in specific groups."
                     )
                 )
-        # "open" and "jwt_linked" pass through here; jwt_linked is enforced at identity resolution
+        # "open" and "jwt_linked" pass through here; jwt_linked is `_admits_unlinked`'s to enforce.
 
-    def _admits_unlinked(self, incoming: IncomingMessage, bot: Any) -> bool:
+    def _admits_unlinked(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
         """Whether somebody with no linked account may be answered here.
 
         In a room, yes. Somebody with the rights to invite the bot put it in a
@@ -814,10 +916,18 @@ class ChannelMessageRouter:
         it mean anything: it sat in the default policy, the schema, the CLI and
         the dashboard while the gate it was meant to control refused everybody
         regardless.
+
+        The `jwt_linked` mode refuses both on its own. An operator who picks a
+        mode named for a linked account has asked for one, and the mode used to
+        decide nothing unless `require_link` was also set - a gate that read as
+        applied and was inert, behaviourally the same as `open`.
         """
         if incoming.chat_type == "private":
             return False
-        return not bool(self._parse_policy(bot).get("require_link", False))
+        policy = self._parse_policy(bot)
+        if policy.get("mode") == "jwt_linked":
+            return False
+        return not bool(policy.get("require_link", False))
 
     @staticmethod
     def _is_overheard(incoming: IncomingMessage) -> bool:
@@ -863,7 +973,7 @@ class ChannelMessageRouter:
         """
         return incoming.chat_type == "private" or incoming.addressed is not False
 
-    async def _invite_to_link(self, incoming: IncomingMessage, db: Any) -> str:
+    async def _invite_to_link(self, incoming: IncomingMessage, db: AsyncSession) -> str:
         """What to answer somebody whose chat account is nobody's yet.
 
         A run belongs to a person - their budget, their permissions, their name
@@ -886,7 +996,7 @@ class ChannelMessageRouter:
         )
 
     async def _handle_command(
-        self, text: str, incoming: IncomingMessage, bot: Any, db: Any
+        self, text: str, incoming: IncomingMessage, bot: ChannelBot, db: AsyncSession
     ) -> str | None:
         """Handle bot commands. Returns reply text or None if not a command."""
         text = _as_command(text)
@@ -900,12 +1010,8 @@ class ChannelMessageRouter:
 
         if cmd == "/start":
             return (
-                bot.welcome_message
-                if hasattr(bot, "welcome_message") and bot.welcome_message
-                else (
-                    f"Welcome! I'm {bot.name}. How can I help you today?\n\n"
-                    "Use /help to see available commands."
-                )
+                f"Welcome! I'm {bot.name}. How can I help you today?\n\n"
+                "Use /help to see available commands."
             )
 
         if cmd == "/help":
@@ -960,12 +1066,16 @@ class ChannelMessageRouter:
 
         return None
 
-    async def _resolve_identity(self, incoming: IncomingMessage, bot: Any, db: Any) -> Any:
-        """Get or create ChannelIdentity for this platform user."""
-        policy: dict[str, Any] = self._parse_policy(bot)
-        mode: str = policy.get("mode", "open")
+    async def _resolve_identity(
+        self, incoming: IncomingMessage, bot: ChannelBot, db: AsyncSession
+    ) -> ChannelIdentity:
+        """Get or create ChannelIdentity for this platform user.
 
-        identity = await channel_identity_repo.get_or_create(
+        Whether an unlinked one may be answered is `_admits_unlinked`'s decision,
+        made after this returns, so the refusal can carry the link where it is safe
+        to send. A second refusal here answered a plain sentence and no link.
+        """
+        return await channel_identity_repo.get_or_create(
             db,
             platform=incoming.platform,
             platform_user_id=incoming.platform_user_id,
@@ -974,16 +1084,13 @@ class ChannelMessageRouter:
             user_id=None,
         )
 
-        if mode == "jwt_linked" and policy.get("require_link", False) and not identity.user_id:
-            raise AuthorizationError(
-                message="Please /link your account first before using this bot."
-            )
-
-        return identity
-
     async def _resolve_session(
-        self, incoming: IncomingMessage, bot: Any, identity: Any, db: Any
-    ) -> Any:
+        self,
+        incoming: IncomingMessage,
+        bot: ChannelBot,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+    ) -> ChannelSession:
         """Get or create ChannelSession (+ backing Conversation) for this bot+chat.
 
         Whether the thread above this message still has to be read is *not*
@@ -1020,35 +1127,40 @@ class ChannelMessageRouter:
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
 
-    def _check_rate_limit(self, bot: Any, identity_id: str) -> None:
-        """In-memory token-bucket rate limiter.
+    async def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
+        """Count this message against the chat account's allowance on this bot.
 
-        Uses a module-level dict. Default: 10 req/minute from
-        `bot.access_policy.rate_limit_rpm`.
+        Ten a minute unless `bot.access_policy.rate_limit_rpm` says otherwise.
+        Counted in the deployment's shared Redis through `rate_limit.consume`,
+        for the reason that module gives: production runs several API workers,
+        and a count kept in this process lets through the allowance once per
+        worker while reading as the number that was configured. The window's
+        expiry is also what bounds the keyspace - a per-process dict kept an
+        entry for every chat account the process had ever heard from.
+
+        When that limiter could not count - Redis down, or none configured - the
+        turn is counted in `_fallback_windows` instead, so a permitted sender is
+        still held to the allowance on this worker for as long as the outage
+        lasts. Fail-open here would remove a production control for the length
+        of a cache blip.
 
         Raises:
             BadRequestError: If the rate limit is exceeded.
         """
         policy: dict[str, Any] = self._parse_policy(bot)
-        rpm: int = int(policy.get("rate_limit_rpm", _DEFAULT_RPM))
-        window: float = 60.0
-
-        key = f"{bot.id}:{identity_id}"
-        now = time.monotonic()
-
-        if key in _rate_buckets:
-            count, window_start = _rate_buckets[key]
-            if now - window_start < window:
-                if count >= rpm:
-                    raise BadRequestError(message="Rate limit exceeded. Please slow down.")
-                _rate_buckets[key] = (count + 1, window_start)
-            else:
-                _rate_buckets[key] = (1, now)
-        else:
-            _rate_buckets[key] = (1, now)
+        limit = Limit(attempts=int(policy.get("rate_limit_rpm", _DEFAULT_RPM)))
+        caller = f"bot:{bot.id}:identity:{identity_id}"
+        decision = await rate_limit.consume(surface="channel", caller=caller, limit=limit)
+        allowed = decision.allowed
+        if not decision.metered:
+            allowed = _fallback_windows.consume(
+                caller, attempts=limit.attempts, window_seconds=limit.window_seconds
+            )
+        if not allowed:
+            raise BadRequestError(message="Rate limit exceeded. Please slow down.")
 
     async def _open_reply(
-        self, bot: Any, incoming: IncomingMessage
+        self, bot: ChannelBot, incoming: IncomingMessage
     ) -> tuple[LiveReply | None, str | None]:
         """Put a message on screen now, and return how to keep writing it.
 
@@ -1065,36 +1177,20 @@ class ChannelMessageRouter:
         """
         adapter = get_adapter(incoming.platform)
         token = unseal_bot_token(bot)
-        placeholder = OutgoingMessage(
-            platform_chat_id=incoming.platform_chat_id,
-            text=WORKING,
-            reply_to_message_id=incoming.message_id,
-            api_base_url=getattr(bot, "api_base_url", None),
-        )
-        try:
-            handle = await adapter.begin_reply(token, placeholder)
-        except Exception:
-            logger.warning("Could not open a live reply on %s", incoming.platform, exc_info=True)
-            return None, None
+        handle = await self._post_placeholder(adapter, token, bot, incoming, WORKING)
         if handle is None:
             return None, None
 
-        await adapter.typing(str(bot.id), placeholder)
+        await adapter.typing(str(bot.id), self._message(bot, incoming, WORKING, in_reply=True))
 
         async def push(text: str) -> None:
-            await adapter.update_reply(
-                token,
-                OutgoingMessage(
-                    platform_chat_id=incoming.platform_chat_id,
-                    text=text,
-                    api_base_url=getattr(bot, "api_base_url", None),
-                ),
-                handle,
-            )
+            await adapter.update_reply(token, self._message(bot, incoming, text), handle)
 
         return LiveReply(push), handle
 
-    async def _refuse_if_named(self, bot: Any, incoming: IncomingMessage, message: str) -> None:
+    async def _refuse_if_named(
+        self, bot: ChannelBot, incoming: IncomingMessage, message: str
+    ) -> None:
         """Post a refusal only where the bot was actually addressed.
 
         In a channel the bot is one member of many, so a refusal to a message
@@ -1114,7 +1210,7 @@ class ChannelMessageRouter:
 
     async def _send_reply(
         self,
-        bot: Any,
+        bot: ChannelBot,
         incoming: IncomingMessage,
         text: str,
         attachments: list[OutgoingAttachment] | None = None,
@@ -1149,10 +1245,10 @@ class ChannelMessageRouter:
 
     async def _thread_files(
         self,
-        db: Any,
-        bot: Any,
+        db: AsyncSession,
+        bot: ChannelBot,
         incoming: IncomingMessage,
-        identity: Any,
+        identity: ChannelIdentity,
         handled: Sequence[IncomingAttachment] = (),
     ) -> tuple[list[Any], list[str], bool]:
         """The files posted in this thread before we were brought into it.
@@ -1225,7 +1321,7 @@ class ChannelMessageRouter:
         return received, refusals, True
 
     async def _thread_backfill(
-        self, incoming: IncomingMessage, directory: Any, bot: Any
+        self, incoming: IncomingMessage, directory: Any, bot: ChannelBot
     ) -> tuple[list[ModelMessage], bool]:
         """What was said in this thread before we were brought into it.
 
@@ -1326,7 +1422,7 @@ class ChannelMessageRouter:
             return str(post_id) == str(incoming.message_id)
         return bool(post.text) and post.text == incoming.text
 
-    def _backfill_admits(self, bot: Any) -> Callable[[Any], bool]:
+    def _backfill_admits(self, bot: ChannelBot) -> Callable[[Any], bool]:
         """Which earlier speakers may be quoted into the prompt.
 
         The bot's own access policy, applied to authors rather than only to the
@@ -1355,7 +1451,7 @@ class ChannelMessageRouter:
         return _admits
 
     @staticmethod
-    async def _load_history(db: Any, conversation_id: Any) -> list[ModelMessage]:
+    async def _load_history(db: AsyncSession, conversation_id: Any) -> list[ModelMessage]:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count

@@ -56,6 +56,7 @@ class TestTheAllowanceItself:
         )
 
         assert decision.allowed is True
+        assert decision.metered is True
 
     async def test_the_attempt_after_the_allowance_is_refused(self):
         """Four attempts against a limit of three: the fourth is the one the
@@ -127,10 +128,13 @@ class TestDegradingRatherThanRefusing:
         decision = await rate_limit.consume(surface="s", caller="c", limit=Limit(attempts=1))
 
         assert decision.allowed is True
+        assert decision.metered is False, "allowed by default, not by a count"
 
     async def test_an_unreachable_redis_lets_the_caller_through(self):
         """The same trade-off, and the same reasoning, as the channel dedupe
-        claim: losing the guarantee beats losing the visitor's answer."""
+        claim: losing the guarantee beats losing the visitor's answer. The
+        decision says it was not counted, so a surface that must keep a floor
+        under the caller - the channel router - can count locally meanwhile."""
         client = MagicMock()
         client.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
         rate_limit.configure(client)
@@ -138,6 +142,7 @@ class TestDegradingRatherThanRefusing:
         decision = await rate_limit.consume(surface="s", caller="c", limit=Limit(attempts=1))
 
         assert decision.allowed is True
+        assert decision.metered is False
 
     async def test_degrading_is_logged_rather_than_silent(self, caplog):
         """ "Under the limit" and "not limited at all" are the same response, so

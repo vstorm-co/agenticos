@@ -17,6 +17,165 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.368] - 2026-09-05
+
+### Fixed
+
+- **A handful of logins locked the whole deployment out.** Auth requests reach
+  the API server-side through the frontend's own `/api/auth/*` routes, so the
+  address the per-IP bucket counted was the frontend container's and everyone
+  shared one allowance. Those routes now forward the caller's
+  `X-Forwarded-For`, which the backend reads where
+  `RATE_LIMIT_TRUST_FORWARDED_FOR` is on. Production now publishes both
+  containers on `127.0.0.1` by default, because the frontend's port is the
+  API's port for this setting - anything that can reach past the reverse proxy
+  chooses the address its attempts are counted against. `BIND_HOST=0.0.0.0`
+  reopens them for a proxy that runs elsewhere.
+- **A rate limit read as an expired session and signed people out.** The BFF
+  flattened the backend's 429 to "login failed" or "session expired", clearing
+  both cookies and dropping the `Retry-After`. Worst on `GET /api/auth/me`,
+  which makes the refresh nobody asked for on every page load once the
+  15-minute access cookie is out: its 429 cleared the session outright, which
+  is the deployment-wide sign-out the change exists to prevent. The envelope
+  and its interval now reach the browser, and the cookies are left alone.
+- **Signing out under a rate limit no longer strands a live token.** Every
+  other backend failure means the refresh token is already worthless, so
+  clearing the jar loses nothing; a 429 means the backend never looked at it,
+  and dropping the browser's only copy left a token valid until expiry that
+  nobody could revoke and no way to retry.
+
+## [0.0.367] - 2026-09-05
+
+### Fixed
+
+- **A collection name shared by two organizations resolved the wrong tenant's
+  embedding configuration.** `knowledge_bases.collection_name` is indexed but not
+  unique, and resolution by name alone answered with whichever row the database
+  ordered first - so an embedding call for one organization could read another's
+  model and unseal *their* vault key, billing them and running this
+  organization's text through their credential. Resolution is now scoped to the
+  organization the embedding is for, falling back to an app-scoped collection
+  but never to a third tenant's.
+- **One collection name is one embedding space, and nothing used to enforce it.**
+  A name is one physical vector table, so several knowledge bases can index into
+  the same vectors - at different widths, where pgvector then refuses the
+  comparison outright, or at the same width with different models, where it ranks
+  one embedding space against another and answers with plausible nonsense. The
+  credential had the same shape of problem: whichever sibling was read is the key
+  that got billed. A row created against a name that already exists now adopts
+  that collection's model, width, provider and vault key, and a caller who named
+  a different one is refused rather than silently overridden.
+
+## [0.0.366] - 2026-09-05
+
+### Fixed
+
+- **The channel router's two module-level dicts grew without bound.** One held
+  an asyncio lock per chat, the other a rate-limit window per sender, and
+  neither ever dropped an entry - a long-running API worker kept one of each for
+  every chat and every chat account it had ever heard from. The lock map is now
+  reference-counted and drops a lock when the last waiter leaves it; the window
+  map drops what has expired on every write, so it is the size of the callers
+  seen in the last minute.
+- **The per-sender channel limit survives a Redis outage.** `rate_limit.consume`
+  fails open when Redis is unreachable, which is the documented trade for a
+  public widget - but for a channel bot `rate_limit_rpm` is a production
+  control, and a limiter that vanishes for the length of an outage lets a
+  permitted participant run the model as fast as they can type. `Decision` now
+  says whether it counted at all, and a turn it could not count is counted in a
+  bounded per-process window instead: wrong by the worker count, and still a
+  floor where there had been none.
+
+## [0.0.365] - 2026-09-05
+
+### Fixed
+
+- **Slack's attachment download sent the bot token to whatever host the event
+  named.** The payload is signed, so this is the second lock rather than the
+  first - but a token posted to a host somebody else chose is a token gone. The
+  host is checked against `slack.com` and `slack-files.com` over TLS before
+  anything is sent, and anything else is refused with the client untouched.
+- **Telegram's webhook secret is compared through `encode_untrusted`**, as Slack
+  and Mattermost already did. Safe today, because Starlette decodes headers as
+  latin-1; the same defence in depth regardless.
+
+### Changed
+
+- **`router.py` names its domain objects.** `db`, `bot`, `identity` and `session`
+  were `Any` forty-three times. The first thing the type checker found was a
+  `/start` branch reading a `welcome_message` field no model, schema, page or
+  test has ever had; `list_platforms()` went the same way, defined and exported
+  and called by nothing. The HTTP-client decision is written once on
+  `ChannelAdapter`, and a `prepare_connection` hook replaces `getattr`
+  duck-typing in the supervisor.
+
+## [0.0.364] - 2026-09-05
+
+### Fixed
+
+- **A quiet Telegram bot read `unknown` on the channels listing while polling
+  fine.** `record_up` fires once when the poll opens and the connection entry
+  expires on a fifteen-minute TTL, with nothing re-stamping it - the defect
+  #1351 fixed for Slack Socket Mode and the Mattermost event stream, whose own
+  body named Telegram polling as the same shape. It gets the same heartbeat.
+
+## [0.0.363] - 2026-09-05
+
+### Fixed
+
+- **A Telegram bot with a token Telegram rejects was retried for ever.** Each
+  adapter carried its own reconnect loop and the three disagreed - a fixed five
+  seconds against a 5s-to-60s backoff, the sleep inside the `except` in one and
+  outside it in the others, and a stop-on-misconfiguration branch in two of the
+  three. So that bot logged a traceback and wrote a fresh `down` record every
+  five seconds, where the same bot on Slack or Mattermost recorded `down` once
+  and stopped. One supervised loop serves all three, with the backoff, the stop
+  condition and the accounting written once.
+
+## [0.0.362] - 2026-09-05
+
+### Fixed
+
+- **A bot saved as `jwt_linked` admitted senders with no linked account.** The
+  mode decided nothing on its own: with `require_link` off, which is the default,
+  it admitted an unlinked room sender under the binding's creator exactly as
+  `open` did - the access check enforced only `whitelist` and `group_only`, and
+  the one place that read the mode required both switches. An operator who picks
+  a mode named for a linked account has asked for one, so the mode requires it.
+- **A collection teardown and a claim could deadlock each other.** Every path
+  that drops a collection takes its teardown lock before any row lock now, so a
+  claim - which takes the teardown lock and then the organization FK - cannot
+  cross a teardown into an ABBA deadlock.
+- **A purge could drop a collection without reserving its name, and another
+  organization could then inherit its vectors.** The purge locks the names its
+  snapshot saw, taken before the organization row is; one created between that
+  snapshot and the row lock is found only by the authoritative scan, and was
+  dropped unreserved - so a claim in the commit-to-drop window adopted the name,
+  and the deferred cleanup, finding the table newly referenced, preserved it with
+  the deleted organization's rows still in it. That lock is taken without waiting
+  now: free, and the name reserves like any other; held by a claim already in
+  flight, and the purge refuses rather than dropping unreserved.
+
+## [0.0.361] - 2026-09-05
+
+### Fixed
+
+- **A new chart type would have been drawn as a line chart, silently.** The
+  `charts` capability's `ChartType` and the channel renderer's dispatch are two
+  lists in two packages that have to agree, and nothing checked them against each
+  other: the renderer named three types and sent everything else to the line
+  drawer. There is one renderer per member now, and a test that fails when the
+  two lists drift.
+
+## [0.0.360] - 2026-09-05
+
+### Fixed
+
+- **A chart in a channel reply stalled every other channel turn while it drew.**
+  The PNG was rasterised and encoded by Pillow synchronously on the event loop
+  the worker's pollers and webhooks all share. It is handed to a thread now, like
+  the upload parse and the worker's file hash before it.
+
 ## [0.0.359] - 2026-09-05
 
 ### Changed

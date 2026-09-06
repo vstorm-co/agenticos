@@ -34,7 +34,7 @@ COLLECTION = "handbook"
 TABLE = f"rag_{COLLECTION}"
 
 
-async def _no_resolution(_name: str) -> None:
+async def _no_resolution(_name: str, _organization_id: object = None) -> None:
     """A resolver that defers to the store's default embedder and width.
 
     `_ensure_collection` reads only the width to build the table; the embedder

@@ -41,7 +41,14 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
-      - "3000:3000"
+      # Loopback by default. The reverse proxy in front of this stack runs on
+      # the host and reaches it here; nothing else on the network does. That
+      # matters beyond the usual: the BFF forwards the caller's
+      # `X-Forwarded-For` to the backend's auth rate limiter, and where
+      # `RATE_LIMIT_TRUST_FORWARDED_FOR` is on, anything that can reach this
+      # port directly chooses the address its login attempts are counted
+      # against. `BIND_HOST=0.0.0.0` for a proxy that is genuinely elsewhere.
+      - "${BIND_HOST:-127.0.0.1}:3000:3000"
     networks:
       edge:
         # `nginx/nginx.conf` proxies to `frontend:3000`.

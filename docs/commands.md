@@ -433,9 +433,11 @@ uv run agenticos cmd channel-webhook-delete --bot-id <uuid>
 Registering a bot from the CLI is the only way on a deployment with no browser
 pointed at it, which is what a Mattermost server behind a VPN usually is.
 
-Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`. A mention runs
-as the *sender*, never as the bot, and an unlinked identity is refused rather than
-run with no role — see [Channels](channels.md#what-every-channel-shares).
+Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`; `jwt_linked`
+answers only chat accounts linked to a member, in a channel as much as in a direct
+message. A mention runs as the *sender*, never as the bot, and an unlinked identity
+is refused rather than run with no role — see
+[Channels](channels.md#what-every-channel-shares).
 
 ### RAG commands
 

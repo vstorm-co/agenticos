@@ -80,7 +80,7 @@ async def _resolve(kb, secret_row=None):
     ):
         db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-        kbs.get_by_collection_name = AsyncMock(return_value=kb)
+        kbs.get_for_collection = AsyncMock(return_value=kb)
         secrets.get = AsyncMock(return_value=secret_row)
         return await embeddings_for_collection("handbook"), secrets
 
@@ -127,6 +127,34 @@ class TestResolution:
 
         assert "sk-secret" not in repr(resolved)
         assert "organization" in repr(resolved)
+
+
+class TestOrganizationScoping:
+    """The resolution is scoped to the caller's organization (#913).
+
+    `collection_name` is indexed but not unique, so resolving by name alone can
+    land on another tenant's knowledge base and unseal *their* vault key for
+    *this* embedding call. The resolver passes the organization it embeds for
+    through to the org-scoped repository lookup; that the lookup then refuses a
+    third tenant's row is `knowledge_base_repo.get_for_collection`'s own contract,
+    proven against real rows in the integration suite.
+    """
+
+    async def test_the_caller_organization_is_threaded_to_the_lookup(self):
+        org = uuid.uuid4()
+        with (
+            patch(f"{_MODULE}.get_db_context") as db_ctx,
+            patch(f"{_MODULE}.knowledge_base_repo") as kbs,
+            patch(f"{_MODULE}.organization_secret_repo"),
+        ):
+            db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+            kbs.get_for_collection = AsyncMock(return_value=None)
+
+            await embeddings_for_collection("handbook", org)
+
+            kbs.get_for_collection.assert_awaited_once()
+            assert kbs.get_for_collection.await_args.args[1:] == ("handbook", org)
 
 
 class TestCredentialDegradation:

@@ -201,8 +201,11 @@ async def drop_collection(
     So the route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
-    await rag_doc_svc.delete_by_collection(collection.collection_name)
+    # delete_for_rag_collection takes the collection's teardown lock; it must run
+    # before the document rows are deleted, because a concurrent org purge takes that
+    # lock before touching the same rows and the opposite order deadlocks (#1387).
     await kb_svc.delete_for_rag_collection(collection)
+    await rag_doc_svc.delete_by_collection(collection.collection_name)
 
 
 @router.get(
@@ -218,7 +221,7 @@ async def get_collection_info(
 ) -> Any:
     """Retrieve stats for a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(collection.collection_name)
+    return await vector_store.get_collection_info(collection.collection_name, ctx.organization_id)
 
 
 @router.get(
@@ -262,6 +265,7 @@ async def search_documents(
             collection_names=collections,
             limit=request.limit,
             min_score=request.min_score,
+            organization_id=ctx.organization_id,
         )
     else:
         results = await retrieval_service.retrieve(
@@ -270,6 +274,7 @@ async def search_documents(
             limit=request.limit,
             min_score=request.min_score,
             filter=request.filter or "",
+            organization_id=ctx.organization_id,
         )
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)

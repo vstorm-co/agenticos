@@ -12,10 +12,10 @@ answer in the thread (#167).
 
 The claim is one atomic `SET NX` against the deployment's shared Redis, so
 it holds across API workers and covers the pollers as well as the webhook
-routes - the router's module-level `_chat_locks` and `_rate_buckets` are
-per-process and deliberately no model to follow here. The router takes the
-claim at the top of `route`, the one point all six inbound paths cross, and
-gives it back if the run under it does not finish.
+routes - the router's chat lock is per-process on purpose, serialising the
+turns one worker runs in one chat, and is no model to follow here. The router
+takes the claim at the top of `route`, the one point all six inbound paths
+cross, and gives it back if the run under it does not finish.
 """
 
 from __future__ import annotations

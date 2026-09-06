@@ -18,12 +18,14 @@ misread.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from functools import partial
 from io import BytesIO
 from typing import Any
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
-from app.agents.capabilities.charts._spec import ChartSpec
+from app.agents.capabilities.charts._spec import ChartSpec, ChartType
 
 WIDTH = 1000
 HEIGHT = 600
@@ -396,6 +398,50 @@ def _draw_pie(draw: ImageDraw.ImageDraw, spec: ChartSpec, series, top: int, bott
         angle += sweep
 
 
+Renderer = Callable[[ImageDraw.ImageDraw, ChartSpec, list[tuple[str, str, str]], int, int], None]
+"""Draws one chart type onto `draw` between `top` and `bottom`, given the series."""
+
+
+def _plotted(
+    draw_series: Callable[[_Canvas, ChartSpec, list[tuple[str, str, str]], float, float], None],
+    *,
+    banded: bool = False,
+) -> Renderer:
+    """A renderer for a chart with axes: the frame, then `draw_series` inside it."""
+
+    def render(
+        draw: ImageDraw.ImageDraw,
+        spec: ChartSpec,
+        series: list[tuple[str, str, str]],
+        top: int,
+        bottom: int,
+    ) -> None:
+        canvas = _Canvas(draw, top + 16, bottom - 28)
+        keys = [key for key, _label, _color in series]
+        low, high = _bounds(spec, keys)
+        _draw_axes(canvas, spec, low, high, _x_labels(spec), banded=banded)
+        draw_series(canvas, spec, series, low, high)
+
+    return render
+
+
+RENDERERS: dict[ChartType, Renderer] = {
+    "line": _plotted(partial(_draw_lines, fill=False)),
+    "area": _plotted(partial(_draw_lines, fill=True)),
+    "bar": _plotted(_draw_bars, banded=True),
+    "scatter": _plotted(_draw_scatter),
+    "pie": _draw_pie,
+}
+"""One renderer per `ChartType`, and nothing else decides.
+
+The capability's type list and this table have to agree, and they are two lists
+in two packages: a type the tool accepts and this table lacks used to fall into
+an `else` and come out as a line chart, with no failure and no note - which is
+the same pixels as an answer. `tests/test_channel_charts.py` holds the two lists
+equal, so a sixth type fails there rather than in somebody's Slack.
+"""
+
+
 def render_chart_png(spec: ChartSpec) -> bytes:
     """Draw `spec` and return the PNG bytes."""
     image = Image.new("RGB", (WIDTH, HEIGHT), _BACKGROUND)
@@ -406,19 +452,7 @@ def render_chart_png(spec: ChartSpec) -> bytes:
     legend = spec.style.legend and len(series) > 1
     bottom = HEIGHT - _MARGIN - (_LEGEND_HEIGHT if legend else 0)
 
-    if spec.chart_type == "pie":
-        _draw_pie(draw, spec, series, _TITLE_HEIGHT, bottom)
-    else:
-        canvas = _Canvas(draw, _TITLE_HEIGHT + 16, bottom - 28)
-        keys = [key for key, _label, _color in series]
-        low, high = _bounds(spec, keys)
-        _draw_axes(canvas, spec, low, high, _x_labels(spec), banded=spec.chart_type == "bar")
-        if spec.chart_type == "bar":
-            _draw_bars(canvas, spec, series, low, high)
-        elif spec.chart_type == "scatter":
-            _draw_scatter(canvas, spec, series, low, high)
-        else:
-            _draw_lines(canvas, spec, series, low, high, fill=spec.chart_type == "area")
+    RENDERERS[spec.chart_type](draw, spec, series, _TITLE_HEIGHT, bottom)
 
     if legend:
         _draw_legend(draw, series, HEIGHT - _MARGIN - 6)

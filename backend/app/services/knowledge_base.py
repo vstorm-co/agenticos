@@ -231,9 +231,12 @@ class KnowledgeBaseService:
         onto the name and have this drop destroy its table (#1362, #1364).
         """
         collection = kb.collection_name
+        # The teardown lock comes before the KB row delete, one order across every
+        # path that takes both, so a concurrent purge cannot invert into a deadlock
+        # (#1387).
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         # A default keeps its own row, so filter it out by id: the table is dropped
         # only when no base *other* than the one being cleared still references the
         # name, so a shared name a sibling holds is not dropped from under it (#913).
@@ -310,6 +313,9 @@ class KnowledgeBaseService:
         The credential can be one of the organization's own vault keys, so a
         tenant's embeddings are billed to the tenant rather than the operator.
 
+        Unless the collection already exists, in which case the choice was made
+        by whoever created it: see :meth:`_shared_embedding`.
+
         The collection name is claimed through
         :meth:`app.services.collection_access.CollectionAccessService.claim`,
         which is the same call `POST /rag/collections/{name}` makes and which
@@ -326,14 +332,17 @@ class KnowledgeBaseService:
 
         Raises:
             BadRequestError: If the named model has no known vector width, the
-                named key is not an API key this organization holds, or the
-                collection name could not safely become an identifier.
+                named key is not an API key this organization holds, the
+                collection name could not safely become an identifier, or the
+                named embedding configuration disagrees with the one the
+                collection already indexes with.
             AlreadyExistsError: If the collection name is already held outside
                 this caller's reach.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
         collection_name = data.collection_name or _derive_collection_name(data.name)
         await CollectionAccessService(self.db).claim(ctx, collection_name)
+        shared = await self._shared_embedding(collection_name, data)
         config = await self._usable_config(ctx, data.ingestion_config)
         # The creator owns what they create, org scope included: `own` in the
         # permission matrix is meaningless for a row nobody owns, and sharing
@@ -345,14 +354,22 @@ class KnowledgeBaseService:
             if data.scope in (KBScope.ORG.value, KBScope.PERSONAL.value)
             else None
         )
-        embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
-        provider = embedding_providers.require(
-            data.embedding_provider, model=embedding_model, dim=embedding_dim
-        )
-        if data.embedding_secret_id is not None:
-            await self._check_embedding_secret(
-                data.embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
+        if shared is not None:
+            embedding_model, embedding_dim = shared.embedding_model, shared.embedding_dim
+            provider = embedding_providers.require(
+                shared.embedding_provider, model=embedding_model, dim=embedding_dim
             )
+            embedding_secret_id = shared.embedding_secret_id
+        else:
+            embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
+            provider = embedding_providers.require(
+                data.embedding_provider, model=embedding_model, dim=embedding_dim
+            )
+            embedding_secret_id = data.embedding_secret_id
+            if embedding_secret_id is not None:
+                await self._check_embedding_secret(
+                    embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
+                )
         return await knowledge_base_repo.create(
             self.db,
             name=data.name,
@@ -365,8 +382,53 @@ class KnowledgeBaseService:
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
             embedding_provider=provider.provider,
-            embedding_secret_id=data.embedding_secret_id,
+            embedding_secret_id=embedding_secret_id,
         )
+
+    async def _shared_embedding(
+        self, collection_name: str, data: KnowledgeBaseCreate
+    ) -> KnowledgeBase | None:
+        """The row this one shares a vector table with, if there is one.
+
+        `collection_name` is not unique and one name is one physical table, so
+        several knowledge bases can index into the same vectors. They must then
+        embed the same way: the column's width was fixed by whichever row was
+        created first, and a second row indexing at another width makes pgvector
+        refuse the comparison outright - or, where the widths happen to agree,
+        rank one embedding space's vectors against another's and answer with
+        plausible nonsense. Which row a per-collection lookup happens to pick
+        stops mattering once they all say the same thing, which is what makes
+        resolving one by organization safe (#913).
+
+        So a row joining an occupied name adopts that name's configuration - the
+        credential included, so the key that pays cannot depend on which sibling
+        was read either. An explicit and *different* choice is refused rather
+        than silently overridden: a caller who asked for `text-embedding-3-large`
+        and got the sibling's `-small` has been given something they did not ask
+        for and no way to see it.
+
+        Raises:
+            BadRequestError: If the caller named a model, provider or key the
+                collection's existing rows do not use.
+        """
+        siblings = await knowledge_base_repo.list_by_collection_name(self.db, collection_name)
+        if not siblings:
+            return None
+        held = siblings[0]
+        asked = {
+            "embedding_model": (data.embedding_model, held.embedding_model),
+            "embedding_provider": (data.embedding_provider, held.embedding_provider),
+            "embedding_secret_id": (data.embedding_secret_id, held.embedding_secret_id),
+        }
+        for field, (wanted, existing) in asked.items():
+            if wanted is not None and wanted != existing:
+                raise refused_field(
+                    field,
+                    f"Collection '{collection_name}' already indexes with "
+                    f"{held.embedding_model!r}; every knowledge base on one collection "
+                    f"shares its embedding configuration.",
+                )
+        return held
 
     async def _check_embedding_secret(
         self,
@@ -540,7 +602,9 @@ class KnowledgeBaseService:
         # each saw the other's not-yet-committed row under READ COMMITTED, both
         # took the "still referenced" branch, and the table nobody referenced was
         # left behind (#1273). Held for the transaction, so the second teardown
-        # reads the first one's committed absence.
+        # reads the first one's committed absence. Taken before the row lock so
+        # every path holds teardown then rows, one order, and a concurrent purge
+        # cannot invert it into a deadlock (#1387).
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         # Lock the base before enumerating its documents, so a concurrent upload
         # or sync inserting a row cannot slip in between the enumeration and the
@@ -549,10 +613,6 @@ class KnowledgeBaseService:
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
         collections_to_drop: list[str] = []
-        # Hold the name against a concurrent claim while the last-reference check and
-        # the reservation are made, so a create cannot slip a new base onto the name
-        # between them and have the deferred drop destroy its table (#1362).
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it

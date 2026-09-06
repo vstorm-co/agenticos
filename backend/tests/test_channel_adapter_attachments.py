@@ -415,12 +415,41 @@ class TestSlackReceiving:
                     filename="report.csv",
                     mime_type="text/csv",
                     size=1,
-                    handle="https://files.slack.test/report.csv",
+                    handle="https://files.slack.com/files-pri/T1-F1/download/report.csv",
                 ),
             )
 
         assert data == b"month,total"
         assert client.get.await_args.kwargs["headers"] == {"Authorization": "Bearer xoxb-token"}
+
+    @pytest.mark.parametrize(
+        "handle",
+        [
+            "https://evil.example/report.csv",
+            "http://files.slack.com/report.csv",
+            "https://files.slack.com.evil.example/report.csv",
+            "https://notslack.com/report.csv",
+        ],
+    )
+    async def test_a_slack_download_url_off_slacks_domain_is_refused(self, handle: str):
+        """The URL is the payload's, and this is the one place a payload-supplied
+        address is fetched with the bot token in the header. The payload is
+        signed, so this is a second lock - and a token sent to a host somebody
+        else named is a token gone, so the host is Slack's or nothing is sent."""
+        client = _http_client(MagicMock())
+
+        with (
+            patch("httpx.AsyncClient", return_value=client),
+            pytest.raises(ValueError, match="will not send its token"),
+        ):
+            await SlackAdapter().download_attachment(
+                "xoxb-token",
+                IncomingAttachment(
+                    filename="report.csv", mime_type="text/csv", size=1, handle=handle
+                ),
+            )
+
+        client.get.assert_not_awaited()
 
     async def test_a_sign_in_page_is_refused_rather_than_stored_as_the_file(self):
         """Slack answers 200 with HTML rather than 401 when the token cannot read a
@@ -437,7 +466,10 @@ class TestSlackReceiving:
             await SlackAdapter().download_attachment(
                 "xoxb-token",
                 IncomingAttachment(
-                    filename="report.csv", mime_type="text/csv", size=1, handle="https://x/y"
+                    filename="report.csv",
+                    mime_type="text/csv",
+                    size=1,
+                    handle="https://files.slack.com/files-pri/T1-F1/download/report.csv",
                 ),
             )
 

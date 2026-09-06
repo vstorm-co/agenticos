@@ -82,14 +82,7 @@ async def open_inbound_stream(
         return
 
     adapter = get_adapter(platform)
-
-    remember_server = getattr(adapter, "remember_server", None)
-    if remember_server is not None and api_base_url:
-        remember_server(bot_id, api_base_url)
-
-    remember_app_token = getattr(adapter, "remember_app_token", None)
-    if remember_app_token is not None and app_token:
-        remember_app_token(bot_id, app_token)
+    adapter.prepare_connection(bot_id, api_base_url=api_base_url, app_token=app_token)
 
     await adapter.stop_polling(bot_id)
     if _shutting_down:
