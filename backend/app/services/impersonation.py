@@ -15,10 +15,10 @@ that row in a `sid` claim. Three consequences, each of them the point:
   The auth dependency calls :meth:`verify` on every request carrying `act`, and
   refuses the token the moment the row is gone, deactivated or past
   `expires_at`, or the administrator behind it has been suspended or demoted.
-  So `DELETE /sessions`, a password reset by email, the administrator's own
-  *End impersonation*, a deleted administrator (the column cascades) and a
-  suspended one all end it at once, through the machinery every other session
-  already had. A token minted before this module - `act` with no `sid` - is
+  So `DELETE /sessions`, a password change (from Settings or by email), the
+  administrator's own *End impersonation*, a deleted administrator (the column
+  cascades) and a suspended one all end it at once, through the machinery every
+  other session already had. A token minted before this module - `act` with no `sid` - is
   refused outright, because it is exactly the credential this replaces.
 - **Nothing extends it.** There is no refresh token: the window is the access
   token's own lifetime, and `SessionService.validate_refresh_token` declines an

@@ -336,18 +336,33 @@ class UserService:
             raise AuthenticationError(message="User account is disabled")
         return user
 
-    async def update(self, user_id: UUID, user_in: UserUpdate) -> User:
+    async def update(
+        self, user_id: UUID, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> User:
         user = await self.get_by_id(user_id)
 
         update_data = writable(user_in, over=User)
-        if "password" in update_data:
+        password_changed = "password" in update_data
+        if password_changed:
             update_data["hashed_password"] = await asyncio.to_thread(
                 get_password_hash, update_data.pop("password")
             )
 
-        return await user_repo.update(self.db, db_user=user, update_data=update_data)
+        updated = await user_repo.update(self.db, db_user=user, update_data=update_data)
+        if password_changed:
+            # A changed password revokes the account's other sessions so a stolen
+            # refresh token cannot outlive it (#1439). `current_session_id` spares
+            # the session that made the change; none given - an admin resetting
+            # another account - revokes them all, the safe reading of a change the
+            # holder did not make.
+            await session_repo.deactivate_all_user_sessions(
+                self.db, user_id, except_session_id=current_session_id
+            )
+        return updated
 
-    async def update_current(self, user: User, user_in: UserUpdate) -> User:
+    async def update_current(
+        self, user: User, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> User:
         """A user updating their own row through `/users/me`.
 
         `UserUpdate` carries `is_active`, and this route reaches the same column
@@ -362,7 +377,7 @@ class UserService:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
-        return await self.update(user.id, user_in)
+        return await self.update(user.id, user_in, current_session_id=current_session_id)
 
     async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}

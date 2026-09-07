@@ -284,6 +284,67 @@ class TestUserServicePostgresql:
             assert "hashed_password" in call_args[1]["update_data"]
 
     @pytest.mark.anyio
+    async def test_a_password_change_revokes_the_accounts_other_sessions(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """A changed password must not leave another browser's refresh token valid;
+        the session that made the change is spared, the rest are closed (#1439)."""
+        current = uuid4()
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+        ):
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock(return_value=1)
+
+            await user_service.update(
+                mock_user.id, UserUpdate(password="newpassword123"), current_session_id=current
+            )
+
+            mock_sessions.deactivate_all_user_sessions.assert_awaited_once_with(
+                user_service.db, mock_user.id, except_session_id=current
+            )
+
+    @pytest.mark.anyio
+    async def test_a_profile_update_without_a_password_leaves_sessions_alone(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """Only a password change revokes sessions; renaming yourself does not."""
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+        ):
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock()
+
+            await user_service.update(mock_user.id, UserUpdate(full_name="Renamed"))
+
+            mock_sessions.deactivate_all_user_sessions.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_password_reset_with_no_current_session_spares_none(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """An admin resetting another account names no session to keep, so every
+        one of that account's sessions is closed - the safe reading of a change
+        its holder did not make (#1439)."""
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+        ):
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock(return_value=2)
+
+            await user_service.update(mock_user.id, UserUpdate(password="newpassword123"))
+
+            mock_sessions.deactivate_all_user_sessions.assert_awaited_once_with(
+                user_service.db, mock_user.id, except_session_id=None
+            )
+
+    @pytest.mark.anyio
     async def test_delete_success(self, user_service: UserService, mock_user: MockUser):
         """Test deleting user."""
         with (

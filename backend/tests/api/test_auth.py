@@ -2,6 +2,7 @@
 """Tests for authentication routes."""
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 ServiceMock = AsyncMock
@@ -10,12 +11,14 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.deps import get_current_user, get_user_service
+from app.api.deps import get_current_session_id, get_current_user, get_user_service
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, AuthenticationError
+from app.core.security import create_access_token, verify_token
 from app.main import app
 from app.api.deps import get_redis
 from app.api.deps import get_db_session
+from app.api.deps import get_session_service
 
 
 class MockUser:
@@ -90,6 +93,66 @@ async def test_login_success(client_with_mock_service: AsyncClient):
     assert "access_token" in data
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+
+
+@pytest.mark.anyio
+async def test_login_names_its_session_in_the_access_token(
+    mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
+) -> None:
+    """The access token carries the id of the session login opened, so a later
+    password change can spare this session while revoking the account's rest (#1439)."""
+    session_id = uuid4()
+    session_service = MagicMock()
+    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=session_id))
+
+    app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    app.dependency_overrides[get_session_service] = lambda: session_service
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"{settings.API_V1_STR}/auth/login",
+                data={"username": "test@example.com", "password": "password123"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = verify_token(response.json()["access_token"])
+    assert payload is not None
+    assert payload["sid"] == str(session_id)
+
+
+@pytest.mark.anyio
+async def test_get_current_session_id_reads_the_sid_claim() -> None:
+    session_id = uuid4()
+    token = create_access_token(subject=str(uuid4()), sid=str(session_id))
+    assert await get_current_session_id(token) == session_id
+
+
+@pytest.mark.anyio
+async def test_get_current_session_id_is_none_without_a_token() -> None:
+    assert await get_current_session_id(None) is None
+
+
+@pytest.mark.anyio
+async def test_get_current_session_id_is_none_for_a_token_carrying_no_session() -> None:
+    token = create_access_token(subject=str(uuid4()))
+    assert await get_current_session_id(token) is None
+
+
+@pytest.mark.anyio
+async def test_get_current_session_id_is_none_for_an_unparsable_session_claim() -> None:
+    token = create_access_token(subject=str(uuid4()), sid="not-a-uuid")
+    assert await get_current_session_id(token) is None
+
+
+@pytest.mark.anyio
+async def test_get_current_session_id_is_none_for_an_unverifiable_token() -> None:
+    """A garbled or expired token is no session to spare, not a refusal - the
+    route it serves already authenticated through `CurrentUser`."""
+    assert await get_current_session_id("not-a-real-jwt") is None
 
 
 @pytest.mark.anyio
