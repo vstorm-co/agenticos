@@ -1,8 +1,12 @@
 # Puts the production frontend behind an existing Traefik. An overlay:
 #
-#   docker compose --env-file backend/.env \
+#   docker compose -p agenticos-frontend --env-file backend/.env \
 #     -f docker-compose-prod.frontend.yml -f docker-compose-prod.frontend.traefik.yml \
 #     up -d --build
+#
+# `-p agenticos-frontend` for the reason the file it overlays gives: without it
+# compose calls the backend's containers orphans of this stack and offers to
+# remove them.
 #
 # The API's half is `docker-compose-prod.traefik.yml`, and the reasoning for
 # every label is there. This file exists separately only because the frontend is
