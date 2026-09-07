@@ -343,7 +343,6 @@
     "emailPlaceholder": "kolega@example.com",
     "sending": "Wysyłam...",
     "sendInvite": "Wyślij zaproszenie",
-    "inviteSent": "Zaproszenie wysłane do {email}",
     "failedInvite": "Nie udało się wysłać zaproszenia",
     "roleUpdated": "Rola zaktualizowana",
     "failedRole": "Nie udało się zaktualizować roli",

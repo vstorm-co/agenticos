@@ -97,6 +97,14 @@ export interface NewInviteLink {
 /** The reply to sending an invitation - the only one carrying the token. */
 export interface InvitationCreated extends Invitation {
   invitation_token: string;
+  /**
+   * Whether the email carrying it was accepted for delivery.
+   *
+   * `null` where none was attempted, which is what an invite link is. The
+   * inviter used to be told "invitation sent" in all three cases, including the
+   * one where no mail service is configured and nobody was mailed at all.
+   */
+  email_delivered: boolean | null;
 }
 
 export interface InvitationList {

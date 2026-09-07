@@ -182,6 +182,18 @@ They are one now. The dashboard's `ActiveOrgGuard` adopts the organization a pat
 names, before the page asks anything, so what a caller may do there is what they
 may do *there* (#1032).
 
+**An invitation is a link, and the sender always gets a copy of it.**
+
+The invite dialog shows the link once, after sending, with a copy button — and
+says whether the email carrying it actually left. Those are two facts rather than
+one: a deployment with no `SMTP_*` configured mails nobody, which is every
+deployment on its first day, and the dialog used to say "invitation sent" anyway.
+
+The link is shown once because it is a bearer credential: nothing caches it, no
+listing carries it, and no later request returns it. Closing the dialog is
+therefore the moment it is gone — the invitation stays pending and can be revoked,
+but a fresh link means a fresh invitation.
+
 **The console computes the same relation rather than being told it.**
 
 Every role picker — the two invite dialogs and the members table — offers what

@@ -48,20 +48,25 @@ export function useInvitations(orgId: string) {
   }, [queryClient, orgId]);
 
   const invite = useCallback(
-    async (input: InviteMemberInput): Promise<Invitation | null> => {
+    async (input: InviteMemberInput): Promise<InvitationCreated | null> => {
       try {
         const created = await apiClient.post<InvitationCreated>(
           `/orgs/${orgId}/invitations`,
           input,
         );
-        // The token is stripped before the invitation reaches the cache. It is
-        // a bearer credential, it is already on its way to the invitee by
-        // email, and this cache backs the list rendered on the members page -
-        // nothing here has a use for it, so nothing here keeps it.
+        // The token is still stripped before the invitation reaches the *cache*.
+        // It is a bearer credential and this cache backs the members page, which
+        // has no use for it - but it is returned to the caller, which does: the
+        // dialog shows the link once, in memory, and that is the only copy
+        // anybody gets. The reasoning that used to be here said the token could
+        // go because it was "already on its way to the invitee by email", which
+        // is untrue on a deployment with no mail service (#1484).
         const { invitation_token: _token, ...invitation } = created;
         writeCache((prev) => [invitation, ...prev]);
-        toast.success(t("inviteSent", { email: input.email }));
-        return invitation;
+        // No toast. Whether this was sent is the dialog's to say now, because it
+        // is the thing holding the link to say it beside - and a toast claiming
+        // "sent" is exactly what was wrong.
+        return created;
       } catch {
         toast.error(t("failedInvite"));
         return null;

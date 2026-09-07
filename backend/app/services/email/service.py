@@ -68,6 +68,16 @@ class EmailService:
     def __init__(self, provider: EmailProvider) -> None:
         self.provider = provider
 
+    @property
+    def delivers(self) -> bool:
+        """Whether an accepted message actually leaves this deployment.
+
+        Read beside `SendResult.accepted` rather than instead of it: the pair is
+        "the provider took it" and "the provider is one that sends", and only both
+        together mean an address was mailed. See `EmailProvider.delivers`.
+        """
+        return self.provider.delivers
+
     async def send(
         self,
         *,

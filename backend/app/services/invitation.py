@@ -32,7 +32,20 @@ class InvitationService:
         email: str,
         role: str,
         requester_id: UUID,
-    ):
+    ) -> tuple[Invitation, bool]:
+        """Create the invitation, and say whether the email carrying it went out.
+
+        The second half of that answer used to be thrown away, and the caller then
+        told the inviter their invitation had been sent. On a deployment with no
+        `SMTP_*` configured - which is every deployment on its first day - that
+        sentence was false and there was nothing else on screen: no address had
+        been mailed, and the one copy of the link had just been discarded (#1484).
+
+        So delivery is reported rather than logged. `False` covers a provider that
+        refused the message and one that raised on the way; the difference matters
+        to whoever reads the log line beside it, and not at all to the person
+        looking at the dialog, who needs the link either way.
+        """
         requester = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
         )
@@ -84,12 +97,14 @@ class InvitationService:
             role,
             requester_id,
         )
+        delivered = False
         try:
             org = await organization_repo.get_by_id(self.db, organization_id)
             requester_user = await user_repo.get_by_id(self.db, requester_id)
             frontend = settings.FRONTEND_URL.rstrip("/")
             accept_url = f"{frontend}/invitations/{invite.token}"
-            await get_email_service().send_invitation(
+            email_service = get_email_service()
+            result = await email_service.send_invitation(
                 to=normalized_email,
                 inviter_name=(requester_user.full_name or requester_user.email)
                 if requester_user
@@ -98,9 +113,17 @@ class InvitationService:
                 accept_url=accept_url,
                 app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
+            # Both halves. `accepted` alone is true of the log provider, which
+            # writes to stdout and sends nothing - so a development deployment
+            # would have claimed to email an address it never touched.
+            delivered = result.accepted and email_service.delivers
         except Exception:
+            # Still not raised: the invitation is a row and it exists, so failing
+            # the request would leave a pending invitation nobody was told about.
+            # What changed is that the caller now learns it, rather than only the
+            # log doing.
             logger.exception("email_invitation_failed")
-        return invite
+        return invite, delivered
 
     async def create_link(
         self,
