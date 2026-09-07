@@ -247,6 +247,35 @@ exercises a path nothing else here checks.
     **HSTS is deliberately left to the proxy**, which is where TLS terminates. A
     proxy that sets its own CSP should be at least as strict as this one.
 
+### Turning the sandbox on
+
+The service that runs an agent's code is behind a compose profile, because it is
+the one container holding the Docker socket and mounting that on a shared host
+should be a decision rather than a default. Three things, once:
+
+```bash
+make sandbox-token                       # writes SANDBOXD_TOKEN to backend/.env
+sudo mkdir -p /var/lib/agenticos/sandbox-workspaces
+sudo chown 10001:10001 /var/lib/agenticos/sandbox-workspaces
+```
+
+Then a deploy brings it up: `scripts/deploy.sh` passes `--profile sandbox` when
+`SANDBOXD_TOKEN` in `backend/.env` has a value, so the host itself says whether
+it runs one. It also exports `DOCKER_GID` read off the socket — every compose
+file here interpolates it into the sandbox's `group_add`, and its `0` default is
+the socket's owner on almost no Linux distribution. Nothing else in `.env` is
+needed: the backend reaches the daemon through a sandbox *connection* somebody
+creates in the console, and `http://sandboxd:8080` is recognised as this
+deployment's own.
+
+!!! warning "A profile compose is not told about is a service compose stops"
+
+    `up -d` on the same project without `--profile sandbox` does not leave the
+    sandbox alone — it stops it. So a host that started it by hand had it taken
+    away by its next deploy, with an agent's code execution failing for reasons
+    nowhere near the deploy that caused it (#1506). That is why the script reads the
+    token rather than taking a flag.
+
 ## Deploying a change
 
 ### By hand
