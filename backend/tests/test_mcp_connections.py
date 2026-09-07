@@ -69,6 +69,22 @@ def _allow_any_url(monkeypatch) -> None:
     monkeypatch.setattr(mcp_connection_service, "validate_mcp_url", _passthrough)
 
 
+class _AnyIdMap(dict):
+    """A `get_org_scoped_by_ids` result that answers `value` for any id (#954)."""
+
+    def __init__(self, value):
+        super().__init__()
+        self._value = value
+
+    def get(self, _key, _default=None):
+        return self._value
+
+
+def _batch(value):
+    """An `AsyncMock` for `get_org_scoped_by_ids`, returning `value` for any id."""
+    return AsyncMock(return_value=_AnyIdMap(value))
+
+
 def _connection(**overrides) -> McpConnection:
     defaults: dict = {
         "id": uuid4(),
@@ -329,8 +345,8 @@ class TestToolsetsForAgent:
         bound = _connection(name="linear", url="https://mcp.linear.app/sse")
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=bound),
+            "get_org_scoped_by_ids",
+            _batch(bound),
         )
 
         toolsets = await mcp_connection_service.build_toolsets_for_agent(
@@ -347,9 +363,9 @@ class TestToolsetsForAgent:
         self._capture(monkeypatch)
         organization_id = uuid4()
         connection_id = uuid4()
-        lookup = AsyncMock(return_value=_connection(id=connection_id))
+        lookup = _batch(_connection(id=connection_id))
         monkeypatch.setattr(
-            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_id", lookup
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", lookup
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -359,7 +375,7 @@ class TestToolsetsForAgent:
         )
 
         assert lookup.await_args.kwargs == {
-            "connection_id": connection_id,
+            "connection_ids": [connection_id],
             "organization_id": organization_id,
         }
 
@@ -370,8 +386,8 @@ class TestToolsetsForAgent:
         bound = _connection(name="github", allowed_tools=["search_issues"])
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=bound),
+            "get_org_scoped_by_ids",
+            _batch(bound),
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -397,8 +413,8 @@ class TestToolsetsForAgent:
         seen = self._capture(monkeypatch)
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=connection),
+            "get_org_scoped_by_ids",
+            _batch(connection),
         )
 
         toolsets = await mcp_connection_service.build_toolsets_for_agent(
@@ -419,8 +435,8 @@ class TestToolsetsForAgent:
         healthy = _connection(name="github")
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(side_effect=[broken, healthy]),
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={broken.id: broken, healthy.id: healthy}),
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -461,8 +477,8 @@ class TestWhichToolsABindingMayCall:
         bound = _connection(name="notion", allowed_tools=on_connection)
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=bound),
+            "get_org_scoped_by_ids",
+            _batch(bound),
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -722,8 +738,8 @@ class TestEachPersonsOwnAccount:
         org = _connection(name="linear", url="https://mcp.linear.app/sse", scope="org")
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=org),
+            "get_org_scoped_by_ids",
+            _batch(org),
         )
         self._owns(monkeypatch, [])
 

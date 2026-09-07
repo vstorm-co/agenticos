@@ -9,6 +9,7 @@ put somebody's private token inside a published agent.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -75,6 +76,31 @@ async def get_org_scoped_by_id(
         )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def get_org_scoped_by_ids(
+    db: AsyncSession, *, connection_ids: Sequence[UUID], organization_id: UUID
+) -> dict[UUID, McpConnection]:
+    """Several organization-scoped connections at once, keyed by id.
+
+    The batch form of :func:`get_org_scoped_by_id`, for a caller resolving a
+    whole spec's bindings: one statement rather than a lookup per id. Carries the
+    same two filters - `organization_id` and `scope == "org"` - so a member's
+    personal connection or another tenant's row is absent from the map exactly as
+    it is absent from the single read. A missing or unreachable id is simply not a
+    key, and the caller validates each id against the map as it did per row.
+    """
+    if not connection_ids:
+        return {}
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.purpose == "mcp",
+            McpConnection.id.in_(list(connection_ids)),
+            McpConnection.organization_id == organization_id,
+            McpConnection.scope == "org",
+        )
+    )
+    return {connection.id: connection for connection in result.scalars().all()}
 
 
 async def list_org_scoped(
