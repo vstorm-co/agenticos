@@ -614,18 +614,48 @@ class ChannelMessageRouter:
             return False
         except AppException as exc:
             await self._discard_files(db, files)
-            await self._refuse_if_named(bot, incoming, exc.message)
+            await self._post_failure(bot, incoming, handle(), exc.message)
             return True
         except Exception:
             logger.exception("Agent run failed for bot %s", incoming.bot_id)
-            await self._refuse_if_named(
-                bot, incoming, "Sorry, something went wrong. Please try again."
+            await self._post_failure(
+                bot, incoming, handle(), "Sorry, something went wrong. Please try again."
             )
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
         await self._deliver(bot, incoming, answer, answered, handle())
         return True
+
+    async def _post_failure(
+        self, bot: ChannelBot, incoming: IncomingMessage, handle: str | None, message: str
+    ) -> None:
+        """Show a refusal or apology, replacing an open live reply rather than
+        stranding its placeholder.
+
+        A turn that had already streamed a status or partial answer has a message
+        on screen, so the outcome edits *that* into place - a separate apology
+        would leave the "…" hanging for ever, and `_refuse_if_named`'s
+        stay-silent-when-not-addressed rule would post nothing at all (#1459). The
+        edit falls back to a whole post the way `_deliver` does, because a
+        placeholder that cannot be edited still has to be answered. Where no
+        placeholder was opened - a crash before the first token, a refusal on the
+        default path - it is `_refuse_if_named`, silent in a room it was not named
+        in.
+        """
+        if handle is not None:
+            adapter = get_adapter(incoming.platform)
+            try:
+                await adapter.update_reply(
+                    unseal_bot_token(bot), self._message(bot, incoming, message), handle
+                )
+            except Exception:
+                logger.warning(
+                    "live reply failure edit failed; posting the message whole", exc_info=True
+                )
+                await self._send_reply(bot, incoming, message)
+            return
+        await self._refuse_if_named(bot, incoming, message)
 
     def _lazy_reply(
         self, bot: ChannelBot, incoming: IncomingMessage

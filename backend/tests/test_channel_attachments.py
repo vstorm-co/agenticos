@@ -717,3 +717,53 @@ class TestACrashAnswersTheSameOnEitherPath:
         default_reply = replies_d.await_args.args[2]
         assert "something went wrong" in mention_reply.lower()
         assert mention_reply == default_reply
+
+    async def test_a_failure_after_streaming_edits_the_open_reply(self):
+        """A turn that already streamed a status has a placeholder on screen, so
+        the apology edits *it* into place rather than leaving the "…" hanging and
+        posting a separate message the room may never even be shown (#1459)."""
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()  # type: ignore[method-assign]
+        router._refuse_if_named = AsyncMock()  # type: ignore[method-assign]
+        adapter = MagicMock(update_reply=AsyncMock())
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="xoxb"),
+        ):
+            await router._post_failure(
+                MagicMock(), _incoming("@support help"), "msg-42", "Sorry, something went wrong."
+            )
+
+        adapter.update_reply.assert_awaited_once()
+        assert "something went wrong" in adapter.update_reply.await_args.args[1].text.lower()
+        assert adapter.update_reply.await_args.args[2] == "msg-42"
+        router._refuse_if_named.assert_not_awaited()
+        router._send_reply.assert_not_awaited()
+
+    async def test_a_failure_with_no_open_reply_refuses_if_named(self):
+        """Nothing was streamed, so there is no placeholder to edit and it is
+        `_refuse_if_named` - silent in a room the bot was not named in (#1459)."""
+        router = ChannelMessageRouter()
+        router._refuse_if_named = AsyncMock()  # type: ignore[method-assign]
+        adapter = MagicMock(update_reply=AsyncMock())
+        with patch("app.services.channels.router.get_adapter", return_value=adapter):
+            await router._post_failure(MagicMock(), _incoming("just a question"), None, "Sorry.")
+
+        adapter.update_reply.assert_not_awaited()
+        router._refuse_if_named.assert_awaited_once()
+
+    async def test_a_failed_edit_of_the_open_reply_falls_back_to_a_whole_post(self):
+        """A placeholder that cannot be edited - deleted, rate-limited - still has
+        to be answered, so the message is posted whole rather than left as the
+        "…" it was (#1459)."""
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()  # type: ignore[method-assign]
+        adapter = MagicMock(update_reply=AsyncMock(side_effect=RuntimeError("gone")))
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="xoxb"),
+        ):
+            await router._post_failure(MagicMock(), _incoming("@support help"), "msg-42", "Sorry.")
+
+        router._send_reply.assert_awaited_once()
+        assert router._send_reply.await_args.args[2] == "Sorry."
