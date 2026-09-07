@@ -166,7 +166,13 @@ stage-down: dev-server-down
 # existing Traefik's network and carry the labels it discovers them by, which is
 # the shorter path where Traefik is already running. See docs/deploy.md.
 PROD_FILES := -f docker-compose-prod.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.traefik.yml)
-PROD_FRONTEND_FILES := -f docker-compose-prod.frontend.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.frontend.traefik.yml)
+# A project of its own, and this one is not tidiness. Compose derives the project
+# name from the directory, so both invocations were `agenticos` - and the
+# frontend one then reported the five backend containers as **orphans**, with
+# compose's own suggestion to "run this command with the --remove-orphans flag to
+# clean it up". Following that advice takes the API, the database, Redis and both
+# Prefect services down. The volumes survive; nothing else does.
+PROD_FRONTEND_FILES := -p agenticos-frontend -f docker-compose-prod.frontend.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.frontend.traefik.yml)
 PROD_PROXY_NOTE := $(if $(filter traefik,$(PROXY)),Traefik routes it once the certificate is issued,configure your nginx host with nginx/nginx.conf)
 
 prod:

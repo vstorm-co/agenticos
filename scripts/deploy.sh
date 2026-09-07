@@ -27,6 +27,10 @@ set -euo pipefail
 SHA="${1:?usage: deploy.sh <commit-sha>}"
 APP_DIR="${APP_DIR:-/opt/agenticos}"
 COMPOSE_ENV="${APP_DIR}/backend/.env"
+# The frontend is a project of its own, or compose - which names a project after
+# the directory - reports the backend's containers as orphans of the frontend
+# stack, and suggests the flag that would remove them. Matches the Makefile.
+FRONTEND_PROJECT="agenticos-frontend"
 
 say() { printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 
@@ -42,11 +46,11 @@ PROXY="$(sed -n 's/^PROXY=//p' "$COMPOSE_ENV" | tail -1)"
 case "${PROXY:-nginx}" in
   traefik)
     BACKEND=(-f docker-compose-prod.yml -f docker-compose-prod.traefik.yml)
-    FRONTEND=(-f docker-compose-prod.frontend.yml -f docker-compose-prod.frontend.traefik.yml)
+    FRONTEND=(-p "$FRONTEND_PROJECT" -f docker-compose-prod.frontend.yml -f docker-compose-prod.frontend.traefik.yml)
     ;;
   nginx|"")
     BACKEND=(-f docker-compose-prod.yml)
-    FRONTEND=(-f docker-compose-prod.frontend.yml)
+    FRONTEND=(-p "$FRONTEND_PROJECT" -f docker-compose-prod.frontend.yml)
     ;;
   *)
     echo "PROXY=$PROXY in $COMPOSE_ENV is not one of: traefik, nginx" >&2

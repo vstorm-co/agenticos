@@ -190,6 +190,17 @@ deliberately leaves to whatever terminates TLS.
     `BIND_HOST=0.0.0.0` only for a proxy on a different machine, and firewall the
     port to it.
 
+!!! warning "The frontend is a compose project of its own"
+
+    Compose names a project after the directory, so both stacks were
+    `agenticos` — and bringing the frontend up then reported the five backend
+    containers as **orphans**, with compose's own suggestion to run the command
+    again with `--remove-orphans`. Taking that advice stops the API, the
+    database, Redis and both Prefect services. The `make` targets and
+    `scripts/deploy.sh` pass `-p agenticos-frontend`, so the warning is gone; a
+    deployment that predates this fix needs its frontend container removed once
+    (`docker rm -f agenticos_frontend`) before the renamed project can create it.
+
 ## Start it, and create the first account
 
 `make prod` builds the images, starts the stack and runs the migrations. The
