@@ -252,13 +252,27 @@ exercises a path nothing else here checks.
 ### By hand
 
 ```bash
-ssh you@your-host 'bash -s -- <commit-sha>' < scripts/deploy.sh
+remote=$(ssh you@your-host 'mktemp -t agenticos-deploy.XXXXXX')
+ssh you@your-host "cat > $remote" < scripts/deploy.sh
+ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 ```
 
 `scripts/deploy.sh` fetches that commit, rebuilds, migrates, restarts and waits
 for both containers to report healthy before it returns non-zero or not. It takes
 a **commit** rather than a branch, so what is deployed is what was reviewed, not
 whatever `main` has moved to since.
+
+!!! warning "Copy it to the host, then run it — do not pipe it into `bash -s`"
+
+    Under `bash -s` the script is the shell's own standard input, and the first
+    command in it that reads stdin consumes the rest. `docker compose exec`
+    forwards stdin to the container even with `-T`, so the migration ate
+    everything below itself, bash reached EOF, and the deploy exited **0**
+    having never built the frontend or waited for any container. The site was
+    down and the deploy was green ([#1488](https://github.com/vstorm-co/agenticos/issues/1488)).
+
+    Two connections instead of one is what stops the procedure being able to
+    truncate itself.
 
 It is not zero-downtime. Compose recreates the containers it rebuilt, so the site
 is unavailable for the few seconds that takes.
