@@ -457,7 +457,7 @@ async function ensurePendingInvitation(page: Page, organizationId: string): Prom
   // The link appearing is what says the server accepted it, and it is a better
   // signal than the one this used to wait for: the dialog stays open holding the
   // invitation link now, because it is the only copy anybody gets and a
-  // deployment with no mail service has sent nobody anything (#1479). Closing on
+  // deployment with no mail service has sent nobody anything (#1484). Closing on
   // success was the old confirmation, and it is what this step was reading.
   await expect(dialog.getByLabel("Invitation link")).toBeVisible();
   await dialog.getByRole("button", { name: "Done" }).click();

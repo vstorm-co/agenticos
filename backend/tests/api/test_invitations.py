@@ -61,7 +61,7 @@ def service() -> MagicMock:
     invitation = _invitation()
     stub = MagicMock()
     # `(invite, delivered)`: the second half is what the route puts on the wire
-    # as `email_delivered`, and it used to be discarded by the service (#1479).
+    # as `email_delivered`, and it used to be discarded by the service (#1484).
     stub.invite = AsyncMock(return_value=(invitation, True))
     stub.create_link = AsyncMock(return_value=invitation)
     stub.list_for_org = AsyncMock(return_value=[invitation])
@@ -146,7 +146,7 @@ class TestCreatingReturnsTheTokenOnce:
     ) -> None:
         """Without it a caller has to assume, and the one we shipped assumed yes -
         so a deployment with no mail service told the inviter "invitation sent"
-        while mailing nobody (#1479)."""
+        while mailing nobody (#1484)."""
         service.invite = AsyncMock(return_value=(_invitation(), False))
 
         response = await client.post(

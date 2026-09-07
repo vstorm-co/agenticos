@@ -592,7 +592,7 @@ class TestInvitationService:
     async def test_an_invitation_no_mail_server_accepted_says_so(self, service):
         """The whole point of the pair. The provider answering `accepted=False` -
         which is what a deployment with no `SMTP_*` does - used to be logged and
-        discarded, and the inviter was told their invitation had been sent (#1479).
+        discarded, and the inviter was told their invitation had been sent (#1484).
         """
         refused = AsyncMock(
             return_value=SendResult(provider_message_id="", accepted=False, error="no provider")

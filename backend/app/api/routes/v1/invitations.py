@@ -46,7 +46,7 @@ async def create_invitation(
 
     `email_delivered` says whether it did arrive at a mail server, because a
     caller that assumed it had told the inviter so on a deployment that mails
-    nobody (#1479).
+    nobody (#1484).
     """
     invite, delivered = await service.invite(org_id, data.email, data.role, requester_id=user.id)
     return InvitationCreated(

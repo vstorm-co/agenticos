@@ -40,7 +40,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
   // Held here and nowhere else. The link is a bearer credential, so it is not
   // cached, not refetchable and not in the listing - this is the only copy
   // anybody gets, which is why the dialog stays open holding it rather than
-  // closing on success the way it used to (#1479).
+  // closing on success the way it used to (#1484).
   const [sent, setSent] = useState<InvitationCreated | null>(null);
   // Not `CopyButton`: that one is a hover-reveal affordance for a chat message,
   // `opacity-0` until an ancestor with `group` is hovered - and in a dialog with

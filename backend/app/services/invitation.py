@@ -39,7 +39,7 @@ class InvitationService:
         told the inviter their invitation had been sent. On a deployment with no
         `SMTP_*` configured - which is every deployment on its first day - that
         sentence was false and there was nothing else on screen: no address had
-        been mailed, and the one copy of the link had just been discarded (#1479).
+        been mailed, and the one copy of the link had just been discarded (#1484).
 
         So delivery is reported rather than logged. `False` covers a provider that
         refused the message and one that raised on the way; the difference matters

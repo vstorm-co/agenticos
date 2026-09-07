@@ -60,7 +60,7 @@ export function useInvitations(orgId: string) {
         // dialog shows the link once, in memory, and that is the only copy
         // anybody gets. The reasoning that used to be here said the token could
         // go because it was "already on its way to the invitee by email", which
-        // is untrue on a deployment with no mail service (#1479).
+        // is untrue on a deployment with no mail service (#1484).
         const { invitation_token: _token, ...invitation } = created;
         writeCache((prev) => [invitation, ...prev]);
         // No toast. Whether this was sent is the dialog's to say now, because it

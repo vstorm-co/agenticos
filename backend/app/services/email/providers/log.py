@@ -33,7 +33,7 @@ class LogProvider:
     delivers = False
     """Nothing leaves. Everything here is a message a developer reads locally, so a
     caller must not report it as delivered - which is what made "invitation sent"
-    true of the log and false of the world (#1479)."""
+    true of the log and false of the world (#1484)."""
 
     def __init__(self, write_to_disk: bool = False, output_dir: str | None = None) -> None:
         self._write_to_disk = write_to_disk

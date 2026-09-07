@@ -226,7 +226,7 @@ class InvitationCreated(InvitationRead):
     It exists because the inviter was being told "invitation sent" either way. A
     deployment with no `SMTP_*` configured mails nobody, and on its first day that
     is every deployment - so the one sentence on screen was false and the link
-    beside it was being discarded unread (#1479)."""
+    beside it was being discarded unread (#1484)."""
 
 
 class InvitationList(BaseSchema):

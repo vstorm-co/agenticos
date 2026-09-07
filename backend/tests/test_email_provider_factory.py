@@ -57,7 +57,7 @@ async def test_only_a_provider_that_sends_reports_that_it_delivers(monkeypatch):
     """`accepted` says the provider took the message; `delivers` says accepting it
     means the message leaves the deployment. The log provider accepts everything,
     which is how a deployment with no `SMTP_*` told an inviter their invitation had
-    been emailed (#1479)."""
+    been emailed (#1484)."""
     monkeypatch.setattr("app.services.email.settings.EMAIL_PROVIDER", "log")
     assert EmailService(get_email_provider()).delivers is False
 

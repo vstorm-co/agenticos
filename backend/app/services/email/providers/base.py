@@ -33,7 +33,7 @@ class EmailProvider(Protocol):
     stdout and answers `accepted=True`, which is right - it did what it does - so a
     caller reading only that told the inviter their invitation had been emailed by
     a deployment that emails nothing. This is the other half of the question, and
-    it belongs to the provider because nothing else knows (#1479).
+    it belongs to the provider because nothing else knows (#1484).
     """
 
     async def send(self, message: EmailMessage) -> SendResult: ...

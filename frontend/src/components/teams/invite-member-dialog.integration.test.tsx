@@ -155,7 +155,7 @@ describe("InviteMemberDialog", () => {
     // The whole point. The token is returned once, is not cached and is in no
     // listing, so a dialog that closed on success threw away the only copy - and
     // on a deployment with no mail service, nobody had been sent anything
-    // either (#1479).
+    // either (#1484).
     created(false);
     mount();
     await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
