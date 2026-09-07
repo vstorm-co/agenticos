@@ -1,6 +1,13 @@
 # The frontend in production. `make prod-frontend`.
 #
-#   docker compose --env-file backend/.env -f docker-compose-prod.frontend.yml up -d --build
+#   docker compose -p agenticos-frontend --env-file backend/.env \
+#     -f docker-compose-prod.frontend.yml up -d --build
+#
+# `-p` is not optional and not tidiness. Compose names a project after the
+# directory, so without it this shares one with `docker-compose-prod.yml` - and
+# reports that stack's five containers as **orphans** of this one, suggesting the
+# `--remove-orphans` flag that would stop the API, the database, Redis and both
+# Prefect services.
 #
 # Start `docker-compose-prod.yml` first: this joins the `edge` network it creates
 # and declares it `external: true`, so bringing the frontend up without a backend
