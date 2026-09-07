@@ -60,6 +60,26 @@ truth in thirty seconds.
 
 _PGVECTOR_VERSION = text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
 
+# What the *image* ships and what this *role* may do with it - both different
+# questions from whether the extension has been created here, and between them
+# the ones that decide what the first ingestion does. `pg_extension` alone
+# cannot tell a fresh deployment apart from a stock-postgres one, and reporting
+# the second's consequence for the first is how a working deployment read as
+# broken (#1504).
+#
+# `CREATE EXTENSION` is a superuser action unless the extension is trusted, in
+# which case CREATE on the database is enough. Asked rather than assumed: an
+# application connecting as a restricted role sees `vector` listed here and
+# still cannot create it, so availability alone is one more consequence claimed
+# without evidence.
+_PGVECTOR_CAPABILITY = text(
+    "SELECT "
+    "(SELECT default_version FROM pg_available_extensions WHERE name = 'vector'), "
+    "(SELECT bool_or(trusted) FROM pg_available_extension_versions WHERE name = 'vector'), "
+    "current_setting('is_superuser') = 'on', "
+    "has_database_privilege(current_database(), 'CREATE')"
+)
+
 # Tables carrying an embedding column, which is what the RAG store creates per
 # collection. Counted, never named: the count answers "is anything ingested
 # here", the names are the organizations' business.
@@ -185,22 +205,72 @@ async def probe_vector_store(db: AsyncSession) -> SystemCheck:
     installed and how many collection tables exist. Both are catalog reads,
     which is what makes this cheap enough for a page that refreshes itself.
 
-    A missing extension is `unconfigured`, not `unhealthy`: a deployment
-    that never ingests a document is working exactly as installed. The detail
-    says what happens if it does, which is the part worth knowing before the
-    first upload rather than after.
+    A missing extension is usually `unconfigured`, not `unhealthy`: the RAG store
+    runs `CREATE EXTENSION IF NOT EXISTS vector` the first time a collection is
+    written to, so a deployment that never ingests a document is working exactly
+    as installed - and it will keep working when somebody uploads one.
+
+    Usually, because "absent" covers four situations with two different outcomes,
+    and the row in `pg_extension` distinguishes none of them. What decides is
+    whether the image ships pgvector and whether this role may create it, so both
+    are asked before any consequence is claimed - the whole defect here was
+    claiming one (#1504):
+
+    | Ships it | Created | This role may create it | |
+    |---|---|---|---|
+    | yes | yes | - | `healthy` |
+    | yes | no | yes | `unconfigured`, and the first ingestion creates it |
+    | yes | no | no | `unhealthy` - a restricted role, and it fails at the upload |
+    | no | no | - | `unhealthy` - stock Postgres, the gotcha CLAUDE.md opens with |
+    | no | yes | - | `unhealthy` - a volume that outlived its image |
+
+    That last row is why availability is read whether or not the extension exists.
+    A data directory carrying the `pg_extension` row, started on an image without
+    the library, keeps the row and loses `$libdir/vector`: the catalog says
+    installed, the collection tables are still countable, and every vector
+    operation fails.
     """
     start = perf_counter()
     try:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+            available, trusted, superuser, may_create = (
+                await db.execute(_PGVECTOR_CAPABILITY)
+            ).one()
             version = (await db.execute(_PGVECTOR_VERSION)).scalar_one_or_none()
+            if available is None:
+                return SystemCheck(
+                    key="vector_store",
+                    status="unhealthy",
+                    detail=(
+                        "this Postgres image does not ship pgvector, so vector "
+                        "operations fail loading $libdir/vector; the database must be "
+                        "pgvector/pgvector:pg16"
+                        if version is not None
+                        else "this Postgres image does not ship pgvector, so the first "
+                        "document ingestion will fail after accepting the upload; "
+                        "the database must be pgvector/pgvector:pg16"
+                    ),
+                    latency_ms=_elapsed_ms(start),
+                )
             if version is None:
+                if not (superuser or (trusted and may_create)):
+                    return SystemCheck(
+                        key="vector_store",
+                        status="unhealthy",
+                        detail=(
+                            f"pgvector {available} is available but this database role "
+                            "cannot create it, so the first document ingestion will fail "
+                            "after accepting the upload; create the extension as a "
+                            "superuser, once"
+                        ),
+                        latency_ms=_elapsed_ms(start),
+                    )
                 return SystemCheck(
                     key="vector_store",
                     status="unconfigured",
                     detail=(
-                        "the pgvector extension is not installed in this database; the "
-                        "first document ingestion will fail trying to create it"
+                        f"pgvector {available} is available and this role may create it; "
+                        "the first document ingestion does"
                     ),
                     latency_ms=_elapsed_ms(start),
                 )
