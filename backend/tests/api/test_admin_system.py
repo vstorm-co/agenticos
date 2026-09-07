@@ -62,9 +62,12 @@ class _User:
 def _client(user: _User, mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_redis] = lambda: mock_redis
-    # SELECT 1, the pgvector version, the embedding table count, then the
+    # SELECT 1, the pgvector capability row (what the image ships, what this role
+    # may do with it), the pgvector version, the embedding table count, then the
     # (profiles, organizations) pair.
-    app.dependency_overrides[get_db_session] = lambda: _Session(1, "0.8.0", 2, (3, 2))
+    app.dependency_overrides[get_db_session] = lambda: _Session(
+        1, ("0.8.0", True, True, True), "0.8.0", 2, (3, 2)
+    )
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 

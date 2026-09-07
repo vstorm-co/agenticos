@@ -265,9 +265,12 @@ compose file here pins.
     and `agenticos cmd doctor` both say so. It resolves itself on the first
     ingestion.
 
-    What is a fault is `unhealthy` there — the image does not ship pgvector at
-    all, and an upload will 500 after the bytes have been accepted. The two used
-    to read the same ([#1504](https://github.com/vstorm-co/agenticos/issues/1504)).
+    What is a fault is `unhealthy` there, and it names which of three: the image
+    does not ship pgvector; the connecting role may not create it; or the data
+    directory carries the extension row while the image it now runs on has lost
+    the library. All three fail an upload after the bytes have been accepted, and
+    all three used to read the same as a healthy first day
+    ([#1504](https://github.com/vstorm-co/agenticos/issues/1504)).
 
 ### Embeddings
 
