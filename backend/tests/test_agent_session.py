@@ -499,12 +499,14 @@ class TestReauthorizingEachFrame:
 
     async def test_a_live_session_serves_the_frame(self):
         """A still-valid credential is waved through: the turn runs and the socket
-        stays open."""
+        stays open. The re-check tolerates a merely-expired token
+        (`allow_expired`) so a long-lived socket is not torn down for routine
+        token aging (#1437)."""
         session = self._socket_session()
 
         with (
             _chat(AsyncMock(return_value=_finished_turn())),
-            patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()),
+            patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as auth,
         ):
             await session.handle_frame(_message())
             task = session._turn_task
@@ -513,6 +515,7 @@ class TestReauthorizingEachFrame:
 
         assert "user_prompt" in _frame_types(session)
         session.websocket.close.assert_not_called()
+        assert auth.await_args.kwargs["allow_expired"] is True
 
     async def test_a_socket_already_gone_is_not_a_second_error(self):
         """Closing a socket the client already closed raises RuntimeError from

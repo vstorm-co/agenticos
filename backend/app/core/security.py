@@ -67,13 +67,24 @@ def create_refresh_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_token(token: str) -> dict[str, Any] | None:
-    """Verify a JWT token and return payload."""
+def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | None:
+    """Verify a JWT token and return payload.
+
+    `verify_exp=False` decodes a signature-valid token whose `exp` has passed. It
+    is set only by an already-open chat WebSocket re-checking its handshake
+    credential: the socket is authenticated once, when the token is valid, and
+    then outlives the access token's own 30-minute lifetime, so tearing it down
+    for routine token aging would cancel a turn a still-signed-in person is
+    running (#1437). Revocation is judged from the session and account state
+    instead. The signature is still verified; every other caller keeps expiry
+    enforced.
+    """
     try:
         return jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
+            options={"verify_exp": verify_exp},
         )
     except jwt.PyJWTError:
         return None

@@ -194,6 +194,13 @@ class AgentSession:
         the client sends - which is what stops a legitimate long turn being cut
         off by it.
 
+        `allow_expired=True`: the socket is authenticated once, at the handshake,
+        and then held open past its access token's 30-minute lifetime - the
+        connection outlives the token, and the client re-credentials by
+        reconnecting, not per frame. So a token that has merely aged out is not a
+        revocation and must not close a live socket; what closes it is a session
+        or account state that says the access is gone, which this still reads.
+
         A session opened without a token has nothing to re-check (the handshake
         refuses a tokenless socket, so this is a test-only construction) and is
         left to run.
@@ -202,7 +209,7 @@ class AgentSession:
             return True
         async with get_db_context() as db:
             try:
-                await authenticate_socket_token(db, self._auth_token)
+                await authenticate_socket_token(db, self._auth_token, allow_expired=True)
             except AuthenticationError:
                 await self._cancel_turn()
                 with contextlib.suppress(RuntimeError):

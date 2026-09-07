@@ -115,6 +115,22 @@ class TestAccessToken:
 
         assert payload is None
 
+    def test_an_expired_token_still_decodes_when_expiry_is_not_verified(self):
+        """`verify_exp=False` decodes a signature-valid but expired token - the
+        one thing an open chat socket needs, since it outlives its access token's
+        lifetime and must judge revocation from state, not `exp` (#1437)."""
+        token = create_access_token("user123", expires_delta=timedelta(seconds=-1))
+
+        payload = verify_token(token, verify_exp=False)
+
+        assert payload is not None
+        assert payload["sub"] == "user123"
+
+    def test_a_forged_token_is_refused_even_when_expiry_is_not_verified(self):
+        """`verify_exp=False` relaxes expiry alone; the signature is still
+        checked, so a token this deployment did not sign is still refused."""
+        assert verify_token("not.a.real.token", verify_exp=False) is None
+
 
 class TestRefreshToken:
     """Tests for refresh token functions."""

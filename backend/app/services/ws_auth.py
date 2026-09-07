@@ -29,28 +29,40 @@ if TYPE_CHECKING:
     from app.db.models.user import User
 
 
-async def authenticate_socket_token(db: AsyncSession, token: str) -> User:
+async def authenticate_socket_token(
+    db: AsyncSession, token: str, *, allow_expired: bool = False
+) -> User:
     """The user a chat socket's access token still resolves to, or a refusal.
 
-    The same validation `get_current_user` runs on every HTTP request, so the
-    socket is no more permissive than a request bearing the same token: an
-    expired token, an ended impersonation (its `sid` row deactivated, its
-    administrator suspended or demoted), and a suspended target account each
-    refuse the token here as they do there. Calling :meth:`ImpersonationService.verify`
-    also refreshes the request's audit impersonator, so a re-check on the
-    receive loop keeps a turn started afterwards attributed to whoever is really
-    acting.
+    Much of the validation `get_current_user` runs on every HTTP request, so the
+    socket is not more permissive than a request bearing the same token: an ended
+    impersonation (its `sid` row deactivated, its administrator suspended or
+    demoted) and a suspended target account each refuse the token here as they do
+    there. Calling :meth:`ImpersonationService.verify` also refreshes the
+    request's audit impersonator, so a re-check on the receive loop keeps a turn
+    started afterwards attributed to whoever is really acting.
+
+    `allow_expired` is set only by the per-frame re-check on an already-open
+    socket. That socket was authenticated when its token was valid and then held
+    open past the access token's 30-minute lifetime, so it is not torn down for
+    routine token aging - which would cancel a turn a still-signed-in person is
+    running (#1437) - and revocation is judged from the impersonation row and the
+    account's `is_active` instead. Expiry that *is* a revocation is still caught:
+    an impersonation's window is its row's `expires_at`, which `verify` enforces
+    regardless. The handshake leaves it False, so a socket cannot be *opened*
+    with an already-expired token.
 
     The returned user is still bound to `db`; the caller detaches it (the
     handshake does, so it can outlive the connection; the per-frame check
     discards it).
 
     Raises:
-        AuthenticationError: The token is invalid or expired, is not an access
-            token, carries no subject, names an impersonation that has ended, or
-            resolves to a user who is unknown or suspended.
+        AuthenticationError: The token is invalid (or, unless `allow_expired`,
+            expired), is not an access token, carries no subject, names an
+            impersonation that has ended, or resolves to a user who is unknown or
+            suspended.
     """
-    payload = verify_token(token)
+    payload = verify_token(token, verify_exp=not allow_expired)
     if payload is None:
         raise AuthenticationError(message="Invalid or expired token")
 

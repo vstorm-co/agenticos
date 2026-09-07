@@ -10,12 +10,14 @@ door here, and the door is the same one the next frame knocks on.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
 from app.core.exceptions import AuthenticationError, NotFoundError
+from app.core.security import create_access_token
 from app.services.ws_auth import authenticate_socket_token
 
 pytestmark = pytest.mark.anyio
@@ -140,3 +142,44 @@ class TestAuthenticateSocketToken:
             impersonation.return_value.verify = AsyncMock(return_value=None)
             user_service.return_value.get_by_id = AsyncMock(return_value=user)
             await authenticate_socket_token(MagicMock(), "token")
+
+    async def test_the_handshake_refuses_an_already_expired_token(self) -> None:
+        """A socket cannot be *opened* with a dead credential: the default
+        enforces the token's own `exp`."""
+        token = create_access_token(str(uuid4()), expires_delta=timedelta(seconds=-1))
+
+        with pytest.raises(AuthenticationError, match="Invalid or expired token"):
+            await authenticate_socket_token(MagicMock(), token)
+
+    async def test_the_per_frame_check_tolerates_an_expired_token(self) -> None:
+        """The socket outlives its 30-minute token, so `allow_expired` keeps a
+        still-signed-in person's live session from being torn down for routine
+        token aging - only revocation (checked below) closes it (#1437)."""
+        user = _user()
+        token = create_access_token(str(user.id), expires_delta=timedelta(seconds=-1))
+        with (
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.ws_auth.UserService") as user_service,
+        ):
+            impersonation.return_value.verify = AsyncMock(return_value=None)
+            user_service.return_value.get_by_id = AsyncMock(return_value=user)
+            resolved = await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+        assert resolved is user
+
+    async def test_an_expired_impersonation_is_still_refused_on_the_socket(self) -> None:
+        """`allow_expired` relaxes the token's `exp` only - an impersonation's own
+        window is its row's `expires_at`, which `verify` enforces regardless, so
+        an hour-old impersonation still closes even though token expiry is not
+        checked."""
+        token = create_access_token(
+            str(uuid4()), act=str(uuid4()), expires_delta=timedelta(seconds=-1)
+        )
+        with (
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            pytest.raises(AuthenticationError, match="Impersonation has ended"),
+        ):
+            impersonation.return_value.verify = AsyncMock(
+                side_effect=AuthenticationError(message="Impersonation has ended")
+            )
+            await authenticate_socket_token(MagicMock(), token, allow_expired=True)
