@@ -209,12 +209,24 @@ class InvitationRead(BaseSchema):
 class InvitationCreated(InvitationRead):
     """The one response that carries the token, returned to the inviter once.
 
-    The invitation is delivered by email; this is the copy of the link for the
-    person who just sent it, for when the mail does not arrive. Nothing reads it
-    back afterwards - there is no endpoint that returns a stored token.
+    This is the copy of the link for the person who just sent it, for when the
+    mail does not arrive. Nothing reads it back afterwards - there is no endpoint
+    that returns a stored token.
     """
 
     invitation_token: str
+
+    email_delivered: bool | None = None
+    """Whether the email carrying this invitation was accepted for delivery.
+
+    Three states, and the third is why this is not a plain `bool`. `True` and
+    `False` are the outcome of an email that was attempted; `None` means none was
+    - which is what an invite *link* is, since it has no address to send to.
+
+    It exists because the inviter was being told "invitation sent" either way. A
+    deployment with no `SMTP_*` configured mails nobody, and on its first day that
+    is every deployment - so the one sentence on screen was false and the link
+    beside it was being discarded unread (#1479)."""
 
 
 class InvitationList(BaseSchema):

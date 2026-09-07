@@ -60,7 +60,10 @@ def _invitation() -> SimpleNamespace:
 def service() -> MagicMock:
     invitation = _invitation()
     stub = MagicMock()
-    stub.invite = AsyncMock(return_value=invitation)
+    # `(invite, delivered)`: the second half is what the route puts on the wire
+    # as `email_delivered`, and it used to be discarded by the service (#1479).
+    stub.invite = AsyncMock(return_value=(invitation, True))
+    stub.create_link = AsyncMock(return_value=invitation)
     stub.list_for_org = AsyncMock(return_value=[invitation])
     stub.revoke_by_id = AsyncMock(return_value=invitation)
     stub.revoke = AsyncMock(return_value=invitation)
@@ -137,6 +140,30 @@ class TestCreatingReturnsTheTokenOnce:
 
         assert response.status_code == 201
         assert response.json()["invitation_token"] == _TOKEN
+
+    async def test_the_reply_says_whether_the_email_actually_went(
+        self, client: AsyncClient, service: MagicMock
+    ) -> None:
+        """Without it a caller has to assume, and the one we shipped assumed yes -
+        so a deployment with no mail service told the inviter "invitation sent"
+        while mailing nobody (#1479)."""
+        service.invite = AsyncMock(return_value=(_invitation(), False))
+
+        response = await client.post(
+            _org_url("/invitations"), json={"email": "invitee@example.com", "role": "member"}
+        )
+
+        assert response.json()["email_delivered"] is False
+
+    async def test_a_link_reports_no_delivery_rather_than_a_failed_one(
+        self, client: AsyncClient
+    ) -> None:
+        """A link has no address, so no email is attempted - which is a third state
+        and not a failure. `null` is what says so."""
+        response = await client.post(_org_url("/invitations/link"), json={"role": "member"})
+
+        assert response.status_code == 201
+        assert response.json()["email_delivered"] is None
 
 
 class TestRevokingAsAnAdministrator:

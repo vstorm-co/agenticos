@@ -43,8 +43,12 @@ async def create_invitation(
     The token is shown once, here. It is emailed to the invitee as well; this
     copy is for the inviter, whose mail may not arrive. No later request returns
     it.
+
+    `email_delivered` says whether it did arrive at a mail server, because a
+    caller that assumed it had told the inviter so on a deployment that mails
+    nobody (#1479).
     """
-    invite = await service.invite(org_id, data.email, data.role, requester_id=user.id)
+    invite, delivered = await service.invite(org_id, data.email, data.role, requester_id=user.id)
     return InvitationCreated(
         id=invite.id,
         organization_id=invite.organization_id,
@@ -52,6 +56,7 @@ async def create_invitation(
         role=invite.role,
         status=invite.status,
         invitation_token=invite.token,
+        email_delivered=delivered,
         expires_at=invite.expires_at,
         created_at=invite.created_at,
     )

@@ -53,10 +53,34 @@ describe("InviteMemberDialog", () => {
       used_count: 0,
       email_domain: null,
       invitation_token: "tok-abc",
+      email_delivered: true,
       expires_at: null,
       created_at: "2026-07-28T00:00:00Z",
     });
   });
+
+  /** The reply to a successful invite, with delivery as the server reported it. */
+  function created(emailDelivered: boolean | null) {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "inv-1",
+      organization_id: "org-1",
+      email: "colleague@acme.test",
+      role: "operator",
+      status: "pending",
+      max_uses: null,
+      used_count: 0,
+      email_domain: null,
+      invitation_token: "tok-abc",
+      email_delivered: emailDelivered,
+      expires_at: null,
+      created_at: "2026-07-28T00:00:00Z",
+    });
+  }
+
+  async function send() {
+    await userEvent.type(screen.getByLabelText("Email address"), "colleague@acme.test");
+    await userEvent.click(screen.getByRole("button", { name: "Send invite" }));
+  }
 
   it("offers every role the deployment has, not just admin and member", async () => {
     // The regression: this platform seeds six roles and the picker offered two,
@@ -127,6 +151,71 @@ describe("InviteMemberDialog", () => {
       }),
     );
   });
+  it("hands over the link, because nothing else will", async () => {
+    // The whole point. The token is returned once, is not cached and is in no
+    // listing, so a dialog that closed on success threw away the only copy - and
+    // on a deployment with no mail service, nobody had been sent anything
+    // either (#1479).
+    created(false);
+    mount();
+    await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
+
+    await send();
+
+    const link = await screen.findByLabelText("Invitation link");
+    expect(link).toHaveValue(`${window.location.origin}/invitations/tok-abc`);
+    expect(link).toHaveAttribute("readonly");
+  });
+
+  it("does not claim to have emailed anything when it did not", async () => {
+    created(false);
+    mount();
+    await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
+
+    await send();
+
+    expect(await screen.findByText(/no mail service configured/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Emailed to/)).not.toBeInTheDocument();
+  });
+
+  it("says it was emailed when the server says it was", async () => {
+    created(true);
+    mount();
+    await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
+
+    await send();
+
+    expect(await screen.findByText(/Emailed to colleague@acme.test/)).toBeInTheDocument();
+    // And still offers the link: the copy for the sender is the point of it
+    // being returned at all, whether or not the mail went.
+    expect(screen.getByLabelText("Invitation link")).toBeInTheDocument();
+  });
+
+  it("stays open holding the link rather than closing on success", async () => {
+    const onOpenChange = vi.fn();
+    created(false);
+    render(<InviteMemberDialog open onOpenChange={onOpenChange} orgId="org-1" />, { wrapper });
+    await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
+
+    await send();
+    await screen.findByLabelText("Invitation link");
+
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("closes when the sender is done with the link", async () => {
+    const onOpenChange = vi.fn();
+    created(false);
+    render(<InviteMemberDialog open onOpenChange={onOpenChange} orgId="org-1" />, { wrapper });
+    await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
+    await send();
+    await screen.findByLabelText("Invitation link");
+
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("says the role list could not be read, rather than offering an empty picker", async () => {
     // A catalog that failed and a caller who may assign nothing render the same
     // way, and only one of them is worth reloading the page over (#1028).
