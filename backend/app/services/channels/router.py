@@ -22,6 +22,7 @@ from app.repositories import (
     channel_identity_repo,
     channel_session_repo,
     conversation_repo,
+    member_repo,
 )
 from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
@@ -333,10 +334,14 @@ class ChannelMessageRouter:
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
-        if identity.user_id is None and not admit_unlinked:
+        if not admit_unlinked and not await self._sender_is_active_member(db, bot, identity):
             # Through `_refuse_if_named`, not `_send_reply`: a room message that
             # names a colleague passes the overheard gate on its handle, and the
-            # invitation must not interrupt two people talking to each other.
+            # invitation must not interrupt two people talking to each other. A
+            # linked sender whose member is gone is refused here too, before any
+            # attachment is fetched, stored or transcribed for a turn
+            # `_membership_context` refuses anyway - which is now the second lock
+            # rather than the first (#1456).
             await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
@@ -897,6 +902,24 @@ class ChannelMessageRouter:
                     )
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is `_admits_unlinked`'s to enforce.
+
+    async def _sender_is_active_member(
+        self, db: AsyncSession, bot: ChannelBot, identity: ChannelIdentity
+    ) -> bool:
+        """Whether the sender's linked account is still an active member of this org.
+
+        A link in `channel_identities` outlives the deactivation of the account
+        behind it, so a linked-but-departed sender must be treated as unlinked
+        before any attachment is fetched or transcribed - the joined read
+        `member_repo.get_active` is what tells the two apart, and the same read
+        `_membership_context` makes at the run (#1456).
+        """
+        if identity.user_id is None:
+            return False
+        membership = await member_repo.get_active(
+            db, organization_id=bot.organization_id, user_id=identity.user_id
+        )
+        return membership is not None
 
     def _admits_unlinked(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
         """Whether somebody with no linked account may be answered here.
