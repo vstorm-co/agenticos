@@ -17,11 +17,22 @@ import * as conversations from "./conversations/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
 import * as dashboardLayout from "./me/dashboard-layout/route";
 import * as dashboardPresets from "./me/dashboard-layout/presets/route";
 import * as dashboardPreset from "./me/dashboard-layout/presets/[presetId]/route";
-import * as builtinCommands from "./me/slash-commands/builtin/route";
+import * as myMcpConnections from "./me/mcp-connections/route";
+import * as myMcpConnection from "./me/mcp-connections/[id]/route";
+import * as myMcpConnectionTest from "./me/mcp-connections/[id]/test/route";
+import * as mcpOauthStart from "./me/mcp-connections/oauth/start/route";
+import * as slashCommands from "./me/slash-commands/[[...path]]/route";
+import * as orgs from "./orgs/route";
+import * as org from "./orgs/[id]/route";
+import * as orgInvitations from "./orgs/[id]/invitations/route";
+import * as orgInvitation from "./orgs/[id]/invitations/[invitationId]/route";
+import * as orgMembers from "./orgs/[id]/members/route";
+import * as orgMember from "./orgs/[id]/members/[userId]/route";
 import * as providers from "./providers/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
@@ -62,6 +73,18 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["kb", kb],
   ["mcp-connections", mcpConnections],
   ["memory", memory],
+  ["me/channel-link", channelLink],
+  ["me/mcp-connections", myMcpConnections],
+  ["me/mcp-connections/[id]", myMcpConnection],
+  ["me/mcp-connections/[id]/test", myMcpConnectionTest],
+  ["me/mcp-connections/oauth/start", mcpOauthStart],
+  ["me/slash-commands", slashCommands],
+  ["orgs", orgs],
+  ["orgs/[id]", org],
+  ["orgs/[id]/invitations", orgInvitations],
+  ["orgs/[id]/invitations/[invitationId]", orgInvitation],
+  ["orgs/[id]/members", orgMembers],
+  ["orgs/[id]/members/[userId]", orgMember],
   ["providers", providers],
   ["rag", rag],
   ["ratings", ratings],
@@ -112,11 +135,5 @@ describe("the proxied route mounts", () => {
 
       expect(response.status, name).toBe(401);
     }
-  });
-
-  it("mounts the one route that is not a catch-all with the same forwarder", async () => {
-    // `me/slash-commands/builtin` is hand-rolled because it needs a PUT the
-    // template's generator does not emit; it still has to answer one.
-    expect(typeof builtinCommands.PUT).toBe("function");
   });
 });
