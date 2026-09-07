@@ -1312,6 +1312,11 @@ Both are refused with a 403 while impersonating, because an administrator
 repairing a member's connection is not a flow this platform has. The member
 links their own accounts, as themselves.
 
+The line is the administrator's *own* identity: the refusal covers a binding
+that captures whoever is acting — a chat account, an OAuth grant — not ordinary
+configuration an administrator legitimately performs on the member's behalf,
+such as typing a server's bearer token.
+
 ## What none of this covers
 
 Worth stating, because a governance page implies otherwise:
