@@ -2,13 +2,21 @@
 #
 # Deploy one commit onto a server that already runs this stack.
 #
-#   ssh <host> 'bash -s -- <sha>' < scripts/deploy.sh
+#   ssh <host> 'cat > ~/.agenticos-deploy.sh' < scripts/deploy.sh
+#   ssh <host> 'bash ~/.agenticos-deploy.sh <sha>'
 #
-# Piped over stdin rather than run from the server's checkout: the checkout there
-# is only the build context, and the procedure travels with whoever is running
-# it. Deliberately **not** taken from the commit being deployed - a rollback to a
+# Copied to the server rather than run from its checkout: the checkout there is
+# only the build context, and the procedure travels with whoever is running it.
+# Deliberately **not** taken from the commit being deployed - a rollback to a
 # commit older than this file would then have no script to run, which is the one
 # moment it is needed most.
+#
+# Copied and *then* run, rather than piped into `bash -s`, and that is not a
+# style preference. Under `bash -s` the script is its own standard input, so the
+# first command that reads stdin consumes the rest of it: `docker compose exec`
+# forwards stdin to the container even with `-T`, so the migration swallowed
+# everything below it, bash reached EOF, and the script exited 0 having never
+# built the frontend or waited for anything (#1488).
 #
 # It takes a **commit**, not a branch. Two pushes can land while an approval is
 # pending, and `git pull` on the server would then deploy whichever one won the
@@ -63,7 +71,10 @@ git fetch --prune --quiet origin
 git checkout --quiet --detach "$SHA"
 git --no-pager log --oneline -1
 
-compose() { docker compose --env-file "$COMPOSE_ENV" "$@"; }
+# `< /dev/null` on every compose call, so this stays correct even when somebody
+# pipes the script into `bash -s` anyway: nothing in here has any business
+# reading standard input, and one that does silently truncates the deploy (#1488).
+compose() { docker compose --env-file "$COMPOSE_ENV" "$@" < /dev/null; }
 
 # The API first, and its migrations before the frontend: a frontend serving a
 # schema the backend has not migrated to yet is the window this ordering closes.

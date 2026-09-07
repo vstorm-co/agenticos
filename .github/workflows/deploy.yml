@@ -109,6 +109,13 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
 
+      # **Copied, then run - not piped into `bash -s`.** Under `bash -s` the
+      # script is the shell's own standard input, so the first command in it
+      # that reads stdin eats the rest: `docker compose exec` forwards stdin
+      # even with `-T`, so the migration consumed everything after itself, bash
+      # hit EOF, and the deploy reported success having never built the frontend
+      # nor waited for a single container. Two connections is the price of the
+      # script not being able to truncate itself (#1488).
       - name: Deploy
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -116,9 +123,10 @@ jobs:
           APP_DIR: ${{ vars.APP_DIR || '/opt/agenticos' }}
           SHA: ${{ needs.resolve.outputs.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes \
-            "$DEPLOY_USER@$DEPLOY_HOST" \
-            "APP_DIR='$APP_DIR' bash -s -- '$SHA'" < scripts/deploy.sh
+          set -euo pipefail
+          ssh() { command ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "$@"; }
+          ssh 'cat > ~/.agenticos-deploy.sh' < scripts/deploy.sh
+          ssh "APP_DIR='$APP_DIR' bash ~/.agenticos-deploy.sh '$SHA'"
 
       # The deploy script already waits for both containers to report healthy on
       # the host. This asks the same question from outside, which is the half it
