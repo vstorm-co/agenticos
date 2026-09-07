@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, case, func, or_, select, tuple_
@@ -1140,40 +1140,109 @@ async def window_totals(
     return int(total or 0), Decimal(cost or 0)
 
 
-async def runs_by_day(
+@dataclass(frozen=True)
+class WindowBreakdown:
+    """The window's five keyed slices, read from one scan.
+
+    A day's runs, completed and cost; run counts by surface, status and model;
+    and spend by provider - the same window's same rows grouped five ways, which
+    used to be five scans for one dashboard. One `GROUPING SETS` scan computes
+    them together, and a `GROUPING` flag per set says which slice each row
+    belongs to, so a genuine `NULL` surface is told apart from a row that is not
+    a surface row at all.
+
+    Each slice keeps the order its own query gave it: the days ascending, so the
+    caller zero-fills straight through them; the dimension counts largest first;
+    the provider bill biggest first.
+    """
+
+    by_day: list[tuple[date, int, int, Decimal]]
+    by_surface: list[tuple[str | None, int]]
+    by_status: list[tuple[str | None, int]]
+    by_model: list[tuple[str | None, int]]
+    by_provider: list[tuple[str | None, Decimal]]
+
+
+async def window_breakdown(
     db: AsyncSession,
     *,
     organization_id: UUID,
     start: datetime,
     end: datetime,
     where: RunFilter | None = None,
-) -> list[tuple[date, int, int, Decimal]]:
-    """Sparse (day, runs, completed, cost) buckets; the caller zero-fills.
+) -> WindowBreakdown:
+    """The window's day, surface, status, model and provider slices, in one query.
 
-    Three measures from the one scan rather than three scans: a day's runs, how
-    many of them completed, and what they cost. They are what the dashboard's
-    figures draw their sparklines from, and asking separately would be three
-    round trips for one set of rows.
-
-    Bucketed in UTC explicitly rather than in the session's timezone, so the
-    same row lands on the same day whatever the connection is configured to.
+    Every grouping set carries every measure - runs, completed and cost - and the
+    caller reads the ones its slice needs. Days are bucketed in UTC explicitly
+    rather than in the session's timezone, so the same row lands on the same day
+    whatever the connection is configured to.
     """
     day = func.date(func.timezone("UTC", AgentRun.started_at))
     conditions = _window_conditions(
         organization_id=organization_id, start=start, end=end, where=where
     )
+    runs = func.count(AgentRun.id)
+    completed = func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value)
+    cost = func.coalesce(func.sum(AgentRun.cost_usd), 0)
     result = await db.execute(
         select(
+            func.grouping(day),
+            func.grouping(AgentRun.surface),
+            func.grouping(AgentRun.status),
+            func.grouping(AgentRun.model_label),
+            func.grouping(AgentRun.provider),
             day,
-            func.count(AgentRun.id),
-            func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value),
-            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            AgentRun.surface,
+            AgentRun.status,
+            AgentRun.model_label,
+            AgentRun.provider,
+            runs,
+            completed,
+            cost,
         )
         .where(*conditions)
-        .group_by(day)
-        .order_by(day)
+        .group_by(
+            func.grouping_sets(
+                tuple_(day),
+                tuple_(AgentRun.surface),
+                tuple_(AgentRun.status),
+                tuple_(AgentRun.model_label),
+                tuple_(AgentRun.provider),
+            )
+        )
     )
-    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+    by_day: list[tuple[date, int, int, Decimal]] = []
+    by_surface: list[tuple[str | None, int]] = []
+    by_status: list[tuple[str | None, int]] = []
+    by_model: list[tuple[str | None, int]] = []
+    by_provider: list[tuple[str | None, Decimal]] = []
+    for row in result.all():
+        g_day, g_surface, g_status, g_model, g_provider = row[0], row[1], row[2], row[3], row[4]
+        day_value, surface, status, model_label, provider = row[5], row[6], row[7], row[8], row[9]
+        run_count, completed_count, cost_usd = row[10], row[11], row[12]
+        if g_day == 0:
+            by_day.append((day_value, run_count, completed_count, Decimal(cost_usd)))
+        elif g_surface == 0:
+            by_surface.append((surface, run_count))
+        elif g_status == 0:
+            by_status.append((status, run_count))
+        elif g_model == 0:
+            by_model.append((model_label, run_count))
+        elif g_provider == 0:
+            by_provider.append((provider, Decimal(cost_usd)))
+    by_day.sort(key=lambda entry: entry[0])
+    by_surface.sort(key=lambda entry: entry[1], reverse=True)
+    by_status.sort(key=lambda entry: entry[1], reverse=True)
+    by_model.sort(key=lambda entry: entry[1], reverse=True)
+    by_provider.sort(key=lambda entry: entry[1], reverse=True)
+    return WindowBreakdown(
+        by_day=by_day,
+        by_surface=by_surface,
+        by_status=by_status,
+        by_model=by_model,
+        by_provider=by_provider,
+    )
 
 
 async def runs_by_hour(
@@ -1207,33 +1276,6 @@ async def runs_by_hour(
         .order_by(weekday, hour)
     )
     return [(int(row[0]), int(row[1]), row[2]) for row in result.all()]
-
-
-async def runs_by_dimension(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    start: datetime,
-    end: datetime,
-    dimension: Literal["surface", "status", "model"],
-    where: RunFilter | None = None,
-) -> list[tuple[str | None, int]]:
-    """Run counts grouped by one whitelisted column, largest group first."""
-    column = {
-        "surface": AgentRun.surface,
-        "status": AgentRun.status,
-        "model": AgentRun.model_label,
-    }[dimension]
-    conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
-    )
-    result = await db.execute(
-        select(column, func.count(AgentRun.id))
-        .where(*conditions)
-        .group_by(column)
-        .order_by(func.count(AgentRun.id).desc())
-    )
-    return [(row[0], row[1]) for row in result.all()]
 
 
 async def runs_by_agent(
@@ -1297,27 +1339,6 @@ async def sum_cost_window(
         select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(*conditions)
     )
     return Decimal(result or 0)
-
-
-async def cost_by_provider_window(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    start: datetime,
-    end: datetime,
-    where: RunFilter | None = None,
-) -> list[tuple[str | None, Decimal]]:
-    """Window spend per provider, as recorded on each run, biggest bill first."""
-    conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
-    )
-    result = await db.execute(
-        select(AgentRun.provider, func.coalesce(func.sum(AgentRun.cost_usd), 0))
-        .where(*conditions)
-        .group_by(AgentRun.provider)
-        .order_by(func.coalesce(func.sum(AgentRun.cost_usd), 0).desc())
-    )
-    return [(row[0], Decimal(row[1])) for row in result.all()]
 
 
 async def usage_by_version(

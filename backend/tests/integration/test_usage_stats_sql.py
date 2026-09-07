@@ -14,6 +14,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import event
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
@@ -94,6 +95,7 @@ async def _run(
     status: str = RunStatus.COMPLETED.value,
     surface: str = RunSurface.WEB.value,
     provider: str | None = None,
+    model_label: str | None = None,
     cost: Decimal = Decimal("0"),
 ) -> AgentRunModel:
     run = AgentRunModel(
@@ -104,6 +106,7 @@ async def _run(
         status=status,
         surface=surface,
         provider=provider,
+        model_label=model_label,
         cost_usd=cost,
         started_at=started_at,
         ended_at=(
@@ -189,9 +192,11 @@ class TestDayBuckets:
             started_at=datetime(2026, 7, 2, 0, 30, tzinfo=UTC),
         )
 
-        buckets = await agent_run_repo.runs_by_day(
-            db, organization_id=organization.id, start=START, end=END
-        )
+        buckets = (
+            await agent_run_repo.window_breakdown(
+                db, organization_id=organization.id, start=START, end=END
+            )
+        ).by_day
 
         assert [(day.isoformat(), count) for day, count, _completed, _cost in buckets] == [
             ("2026-07-01", 1),
@@ -288,9 +293,11 @@ class TestDayMeasures:
             cost=Decimal("0.10"),
         )
 
-        buckets = await agent_run_repo.runs_by_day(
-            db, organization_id=organization.id, start=START, end=END
-        )
+        buckets = (
+            await agent_run_repo.window_breakdown(
+                db, organization_id=organization.id, start=START, end=END
+            )
+        ).by_day
 
         # A failed run cost money and counts as a run; it is not completed.
         assert buckets == [(date(2026, 7, 3), 2, 1, Decimal("0.50"))]
@@ -446,13 +453,11 @@ class TestSurfacesAndCost:
             )
 
         rows = dict(
-            await agent_run_repo.runs_by_dimension(
-                db,
-                organization_id=organization.id,
-                start=START,
-                end=END,
-                dimension="surface",
-            )
+            (
+                await agent_run_repo.window_breakdown(
+                    db, organization_id=organization.id, start=START, end=END
+                )
+            ).by_surface
         )
 
         assert rows == {"embed": 1, "mattermost": 1, "web": 1}
@@ -489,13 +494,95 @@ class TestSurfacesAndCost:
             db, organization_id=organization.id, start=START, end=END
         )
         by_provider = dict(
-            await agent_run_repo.cost_by_provider_window(
-                db, organization_id=organization.id, start=START, end=END
-            )
+            (
+                await agent_run_repo.window_breakdown(
+                    db, organization_id=organization.id, start=START, end=END
+                )
+            ).by_provider
         )
 
         assert total == Decimal("2")
         assert by_provider == {"anthropic": Decimal("1.5"), "openai": Decimal("0.5")}
+
+
+class TestTheGroupingSetsBreakdown:
+    """`window_breakdown` reads five slices from one scan (#949).
+
+    The day bucket, the surface/status/model splits and the provider sum used to
+    be five queries over the same window's same rows. One `GROUPING SETS` scan
+    returns them together, and the risk that move introduces is the one these
+    tests hold shut: a row's `NULL` in a column it is not grouped by must not be
+    read as a slice of its own.
+    """
+
+    async def test_a_real_null_lands_in_its_own_slice_not_another(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Grouping")
+        agent = await _agent(db, organization, owner)
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            surface=RunSurface.WEB.value,
+            model_label=None,
+            provider=None,
+            cost=Decimal("0.30"),
+        )
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            surface=RunSurface.EMBED.value,
+            model_label="claude-sonnet-5",
+            provider="anthropic",
+            cost=Decimal("0.70"),
+        )
+
+        breakdown = await agent_run_repo.window_breakdown(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        # The run with a NULL model label is a model row, not a surface row that
+        # happens to be missing its surface: GROUPING tells the two apart.
+        assert dict(breakdown.by_surface) == {"web": 1, "embed": 1}
+        assert dict(breakdown.by_status) == {RunStatus.COMPLETED.value: 2}
+        assert dict(breakdown.by_model) == {None: 1, "claude-sonnet-5": 1}
+        assert dict(breakdown.by_provider) == {None: Decimal("0.30"), "anthropic": Decimal("0.70")}
+        assert breakdown.by_day == [(START.date(), 2, 2, Decimal("1.00"))]
+
+    async def test_the_composed_response_reads_no_more_than_four_run_queries(
+        self, db, engine
+    ) -> None:
+        """The acceptance criterion, and a guard on the next dimension added: the
+        composed answer is window_aggregates, window_totals, window_breakdown and
+        runs_by_agent - four scans of `agent_runs`, not one per card."""
+        organization, owner = await _org_with_owner(db, "Budget")
+        agent = await _agent(db, organization, owner)
+        await _run(
+            db, organization=organization, agent=agent, started_at=START, provider="anthropic"
+        )
+
+        run_queries: list[str] = []
+
+        def record(conn, cursor, statement, parameters, context, executemany) -> None:
+            if "agent_runs" in statement.lower():
+                run_queries.append(statement)
+
+        event.listen(engine.sync_engine, "before_cursor_execute", record)
+        try:
+            await StatsService(db).usage(
+                AuthContext(
+                    user_id=owner.id,
+                    organization_id=organization.id,
+                    role=OrgRoleName.OWNER.value,
+                ),
+                scope="org",
+            )
+        finally:
+            event.remove(engine.sync_engine, "before_cursor_execute", record)
+
+        assert len(run_queries) == 4, run_queries
 
 
 class TestScopedRatings:
@@ -932,9 +1019,11 @@ class TestDelegationsAndDoubleCounting:
         total = await agent_run_repo.sum_cost_window(
             db, organization_id=organization.id, start=START, end=END
         )
-        by_provider = await agent_run_repo.cost_by_provider_window(
-            db, organization_id=organization.id, start=START, end=END
-        )
+        by_provider = (
+            await agent_run_repo.window_breakdown(
+                db, organization_id=organization.id, start=START, end=END
+            )
+        ).by_provider
 
         # The parent's 1.00 already contains the child's 0.40.
         assert total == Decimal("1.00")
@@ -966,9 +1055,11 @@ class TestDelegationsAndDoubleCounting:
                 db, organization_id=organization.id, start=START, end=END
             )
         ) == 1
-        surfaces = await agent_run_repo.runs_by_dimension(
-            db, organization_id=organization.id, start=START, end=END, dimension="surface"
-        )
+        surfaces = (
+            await agent_run_repo.window_breakdown(
+                db, organization_id=organization.id, start=START, end=END
+            )
+        ).by_surface
         assert surfaces == [(RunSurface.WEB.value, 1)]
         people = await agent_run_repo.usage_by_user(
             db, organization_id=organization.id, start=START, end=END, limit=10
@@ -993,9 +1084,11 @@ class TestDelegationsAndDoubleCounting:
         total = await agent_run_repo.count_runs(
             db, organization_id=organization.id, start=START, end=END
         )
-        statuses = await agent_run_repo.runs_by_dimension(
-            db, organization_id=organization.id, start=START, end=END, dimension="status"
-        )
+        statuses = (
+            await agent_run_repo.window_breakdown(
+                db, organization_id=organization.id, start=START, end=END
+            )
+        ).by_status
 
         assert sum(count for _, count in statuses) == total
 
