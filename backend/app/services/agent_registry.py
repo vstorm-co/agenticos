@@ -54,6 +54,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
@@ -1185,6 +1186,7 @@ class AgentRegistryService:
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
+        problems.add(await self._observability_problems(ctx, spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1461,6 +1463,38 @@ class AgentRegistryService:
         if secret.kind != requirement.kind.value:
             return [
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
+                f"'{secret.name}' holds a {secret.kind}"
+            ]
+        return []
+
+    async def _observability_problems(self, ctx: AuthContext, spec: AgentSpec) -> list[str]:
+        """Whether the token an agent redirects its traces with is publishable.
+
+        `factory._instrument` says publishing is where a missing tracing secret
+        is refused because a run is far too late: an unusable token there logs
+        `agent_logfire_token_unavailable` and the agent runs untraced. So the
+        token reference gets the same existence, tenant and kind checks a
+        capability's secret does - it is an `api_key` the factory instantiates
+        as an `ApiKeySecret`, and a wrong-kind or cross-tenant id must fail here
+        rather than silently at run time. Miss and refusal read alike, so an id
+        cannot enumerate the vault.
+        """
+        observability = spec.observability
+        if observability is None or observability.token_secret_id is None:
+            return []
+        secret = await organization_secret_repo.get(
+            self.db, observability.token_secret_id, organization_id=ctx.organization_id
+        )
+        if secret is None or not await resolve_access(
+            self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            return [
+                "The tracing token points at a secret this organization does not have: "
+                f"{observability.token_secret_id}"
+            ]
+        if secret.kind != SecretKind.API_KEY.value:
+            return [
+                "The tracing token must be an api_key secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
             ]
         return []
