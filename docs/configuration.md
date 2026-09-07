@@ -255,7 +255,19 @@ see RAG below.
 ### Vector database
 
 pgvector uses the existing PostgreSQL connection. No additional configuration
-is needed.
+is needed — but the **image** must be `pgvector/pgvector:pg16`, which every
+compose file here pins.
+
+!!! note "\"Vector store: unconfigured\" on a fresh deployment is not a fault"
+
+    The extension is created the first time a collection is written to, so
+    before the first document it is genuinely absent and the admin System page
+    and `agenticos cmd doctor` both say so. It resolves itself on the first
+    ingestion.
+
+    What is a fault is `unhealthy` there — the image does not ship pgvector at
+    all, and an upload will 500 after the bytes have been accepted. The two used
+    to read the same ([#1504](https://github.com/vstorm-co/agenticos/issues/1504)).
 
 ### Embeddings
 

@@ -220,19 +220,39 @@ class TestVectorStoreProbe:
         assert "pgvector 0.8.0" in check.detail
         assert "3 collection table(s)" in check.detail
 
-    async def test_a_missing_extension_is_unconfigured_not_broken(self) -> None:
+    async def test_an_extension_not_created_yet_is_unconfigured_not_broken(self) -> None:
         """A deployment that never ingests a document is not having an incident.
 
-        It does need to know before the first upload that the upload will fail,
-        which is what the detail is for.
+        The RAG store creates the extension the first time a collection is
+        written to, so on the image every compose file here pins this is a state
+        that resolves itself - and the detail says so rather than predicting a
+        failure that will not happen (#1504).
         """
-        session = _Session(None)
+        session = _Session(None, "0.8.0")
         check = await health.probe_vector_store(session)  # type: ignore[arg-type]
 
         assert check.status == "unconfigured"
-        assert "not installed" in check.detail
-        # No point counting embedding tables when the type they use is absent.
-        assert session.queries == 1
+        assert "available but not yet created" in check.detail
+        assert "0.8.0" in check.detail
+        # Two catalog reads, and no point counting embedding tables when the type
+        # they use does not exist yet.
+        assert session.queries == 2
+
+    async def test_an_image_without_pgvector_is_unhealthy_and_says_which_image(self) -> None:
+        """The other half, and the opposite consequence.
+
+        On stock Postgres the extension cannot be created at all, so the first
+        upload 500s *after* the bytes have been accepted. Reported as unhealthy,
+        because nothing about it resolves itself, and naming the image because
+        that is the fix.
+        """
+        session = _Session(None, None)
+        check = await health.probe_vector_store(session)  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert "does not ship pgvector" in check.detail
+        assert "pgvector/pgvector:pg16" in check.detail
+        assert session.queries == 2
 
     async def test_a_catalog_read_that_fails_is_unhealthy(self) -> None:
         check = await health.probe_vector_store(

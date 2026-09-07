@@ -60,6 +60,15 @@ truth in thirty seconds.
 
 _PGVECTOR_VERSION = text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
 
+# Whether the *image* ships pgvector, which is a different question from whether
+# this database has created it - and the one that decides what the first
+# ingestion does. `pg_extension` alone cannot tell a fresh deployment apart from
+# a stock-postgres one, and reporting the second's consequence for the first is
+# how a working deployment read as broken (#1504).
+_PGVECTOR_AVAILABLE = text(
+    "SELECT default_version FROM pg_available_extensions WHERE name = 'vector'"
+)
+
 # Tables carrying an embedding column, which is what the RAG store creates per
 # collection. Counted, never named: the count answers "is anything ingested
 # here", the names are the organizations' business.
@@ -185,22 +194,43 @@ async def probe_vector_store(db: AsyncSession) -> SystemCheck:
     installed and how many collection tables exist. Both are catalog reads,
     which is what makes this cheap enough for a page that refreshes itself.
 
-    A missing extension is `unconfigured`, not `unhealthy`: a deployment
-    that never ingests a document is working exactly as installed. The detail
-    says what happens if it does, which is the part worth knowing before the
-    first upload rather than after.
+    A missing extension is usually `unconfigured`, not `unhealthy`: the RAG store
+    runs `CREATE EXTENSION IF NOT EXISTS vector` the first time a collection is
+    written to, so a deployment that never ingests a document is working exactly
+    as installed.
+
+    Usually, because there are two ways for it to be absent and they have opposite
+    consequences. On the `pgvector/pgvector` image every compose file here pins,
+    it is merely not created yet and the first upload creates it. On stock
+    Postgres it cannot be created at all, and the first upload 500s after the
+    bytes have been accepted - the environment gotcha CLAUDE.md opens with. So
+    `pg_available_extensions` is read before any consequence is claimed: saying
+    the first ingestion will fail, on a deployment where it will succeed, is what
+    made a healthy production read as broken (#1504).
     """
     start = perf_counter()
     try:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
             version = (await db.execute(_PGVECTOR_VERSION)).scalar_one_or_none()
             if version is None:
+                available = (await db.execute(_PGVECTOR_AVAILABLE)).scalar_one_or_none()
+                if available is None:
+                    return SystemCheck(
+                        key="vector_store",
+                        status="unhealthy",
+                        detail=(
+                            "this Postgres image does not ship pgvector, so the first "
+                            "document ingestion will fail after accepting the upload; "
+                            "the database must be pgvector/pgvector:pg16"
+                        ),
+                        latency_ms=_elapsed_ms(start),
+                    )
                 return SystemCheck(
                     key="vector_store",
                     status="unconfigured",
                     detail=(
-                        "the pgvector extension is not installed in this database; the "
-                        "first document ingestion will fail trying to create it"
+                        f"pgvector {available} is available but not yet created in this "
+                        "database; the first document ingestion creates it"
                     ),
                     latency_ms=_elapsed_ms(start),
                 )
