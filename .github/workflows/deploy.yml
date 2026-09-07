@@ -125,8 +125,15 @@ jobs:
         run: |
           set -euo pipefail
           ssh() { command ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "$@"; }
-          ssh 'cat > ~/.agenticos-deploy.sh' < scripts/deploy.sh
-          ssh "APP_DIR='$APP_DIR' bash ~/.agenticos-deploy.sh '$SHA'"
+          # Named for this run, and removed by a trap in the remote shell so the
+          # exit status is the deploy's. A fixed name is a file two callers share:
+          # `concurrency` above serializes workflow runs and says nothing about
+          # the by-hand form in `docs/deploy.md`, so an operator's upload could
+          # land between this job's copy and its run - and the deploy would then
+          # execute somebody else's procedure against this job's approved sha.
+          REMOTE=".agenticos-deploy.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}.sh"
+          ssh "cat > '$REMOTE'" < scripts/deploy.sh
+          ssh "trap 'rm -f \"\$HOME/$REMOTE\"' EXIT; APP_DIR='$APP_DIR' bash \"\$HOME/$REMOTE\" '$SHA'"
 
       # The deploy script already waits for both containers to report healthy on
       # the host. This asks the same question from outside, which is the half it

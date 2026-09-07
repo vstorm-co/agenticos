@@ -2,8 +2,9 @@
 #
 # Deploy one commit onto a server that already runs this stack.
 #
-#   ssh <host> 'cat > ~/.agenticos-deploy.sh' < scripts/deploy.sh
-#   ssh <host> 'bash ~/.agenticos-deploy.sh <sha>'
+#   remote=$(ssh <host> 'mktemp -t agenticos-deploy.XXXXXX')
+#   ssh <host> "cat > $remote" < scripts/deploy.sh
+#   ssh <host> "trap 'rm -f $remote' EXIT; bash $remote <sha>"
 #
 # Copied to the server rather than run from its checkout: the checkout there is
 # only the build context, and the procedure travels with whoever is running it.

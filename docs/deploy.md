@@ -252,8 +252,9 @@ exercises a path nothing else here checks.
 ### By hand
 
 ```bash
-ssh you@your-host 'cat > ~/.agenticos-deploy.sh' < scripts/deploy.sh
-ssh you@your-host 'bash ~/.agenticos-deploy.sh <commit-sha>'
+remote=$(ssh you@your-host 'mktemp -t agenticos-deploy.XXXXXX')
+ssh you@your-host "cat > $remote" < scripts/deploy.sh
+ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 ```
 
 `scripts/deploy.sh` fetches that commit, rebuilds, migrates, restarts and waits
