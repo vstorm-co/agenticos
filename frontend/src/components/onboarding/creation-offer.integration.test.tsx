@@ -90,17 +90,26 @@ describe("CreationOffer", () => {
   });
 
   it("does not offer a first agent to an organization that already has one", () => {
-    // This is what the first-run tour ends with, having just walked the reader
-    // through an existing agent's builder in detail — so to an organization with
-    // six agents it answers a question nobody asked.
-    useOnboardingStore.setState({ offer: "create-agent" });
+    // This is what the first-run tour (`mode: "tour"`) ends with, having just
+    // walked the reader through an existing agent's builder in detail — so to an
+    // organization with six agents it answers a question nobody asked.
+    useOnboardingStore.setState({ offer: "create-agent", mode: "tour" });
     renderOffer(<CreationOffer />, { agents: 6 });
     expect(screen.queryByText("Create your first agent?")).toBeNull();
   });
 
   it("offers it where the organization has none", () => {
-    useOnboardingStore.setState({ offer: "create-agent" });
+    useOnboardingStore.setState({ offer: "create-agent", mode: "tour" });
     renderOffer(<CreationOffer />, { agents: 0 });
+    expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
+  });
+
+  it("still offers create-agent from the Agents ? walk when the org has agents", () => {
+    // The explicit help walk (`mode: "page"`) ends on the same offer, and asking
+    // to build one is the whole point of it — so unlike the first-run tour
+    // ending, it is not gated on the agent count (#910).
+    useOnboardingStore.setState({ offer: "create-agent", mode: "page" });
+    renderOffer(<CreationOffer />, { agents: 6 });
     expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
   });
 
