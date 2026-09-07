@@ -287,8 +287,9 @@ class ChannelMessageRouter:
         Steps:
             1. Load bot config from DB.
             2. Check access policy.
-            3. Handle commands (/start, /new, /help, /link, /project, /unlink).
-            4. Resolve or create ChannelIdentity.
+            3. Resolve or create ChannelIdentity.
+            4. Handle commands (/start, /new, /help, /link, /unlink), the
+               state-changing ones gated on the same link admission as a turn.
             5. Resolve or create ChannelSession (+ Conversation).
             6. Rate-limit check.
             7. Hand an `@handle` message to that agent and stop.
@@ -321,11 +322,6 @@ class ChannelMessageRouter:
             await self._refuse_if_named(bot, incoming, exc.message)
             return
 
-        command_reply = await self._handle_command(incoming.text, incoming, bot, db)
-        if command_reply is not None:
-            await self._send_reply(bot, incoming, command_reply)
-            return
-
         try:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
@@ -333,6 +329,16 @@ class ChannelMessageRouter:
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
+
+        # Commands are handled after the identity is known, so the state-changing
+        # ones can be gated on the same admission the turn takes (#1455).
+        command_reply = await self._handle_command(
+            incoming.text, incoming, bot, db, identity, admit_unlinked
+        )
+        if command_reply is not None:
+            await self._send_reply(bot, incoming, command_reply)
+            return
+
         if identity.user_id is None and not admit_unlinked:
             # Through `_refuse_if_named`, not `_send_reply`: a room message that
             # names a colleague passes the overheard gate on its handle, and the
@@ -996,12 +1002,28 @@ class ChannelMessageRouter:
         )
 
     async def _handle_command(
-        self, text: str, incoming: IncomingMessage, bot: ChannelBot, db: AsyncSession
+        self,
+        text: str,
+        incoming: IncomingMessage,
+        bot: ChannelBot,
+        db: AsyncSession,
+        identity: ChannelIdentity,
+        admit_unlinked: bool,
     ) -> str | None:
-        """Handle bot commands. Returns reply text or None if not a command."""
+        """Handle bot commands. Returns reply text or None if not a command.
+
+        `/new` and `/unlink` change shared state, so they are gated on the same
+        admission the turn takes: a sender a link-required room would refuse
+        cannot reset its session or unlink from it either (#1455). `/start`,
+        `/help` and `/link` stay open to an unlinked sender - `/link` is the way
+        back.
+        """
         text = _as_command(text)
         if not text.startswith("/"):
             return None
+
+        def _admitted() -> bool:
+            return identity.user_id is not None or admit_unlinked
 
         # Only the first word: no command takes an argument any more. `/link`
         # was the one that did, and it took a code somebody copied out of the
@@ -1025,15 +1047,19 @@ class ChannelMessageRouter:
             )
 
         if cmd == "/new":
+            if not _admitted():
+                return await self._invite_to_link(incoming, db)
             session = await channel_session_repo.get_by_bot_and_chat(
                 db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
             )
             if session:
-                identity = await channel_identity_repo.get_by_id(db, session.identity_id)
+                # The issuer, not `session.identity_id`: the new conversation
+                # belongs to whoever reset the thread, not to the person who
+                # opened it (#1455).
                 new_conv = await conversation_repo.create_conversation(
                     db,
                     title=f"{incoming.platform.capitalize()} Chat",
-                    user_id=identity.user_id if identity else None,
+                    user_id=identity.user_id,
                     organization_id=bot.organization_id,
                 )
                 await channel_session_repo.update(
@@ -1053,15 +1079,11 @@ class ChannelMessageRouter:
                 return "A system error occurred. Please try again later."
 
         if cmd == "/unlink":
-            identity = await channel_identity_repo.get_by_platform_user(
-                db,
-                platform=incoming.platform,
-                platform_user_id=incoming.platform_user_id,
+            if not _admitted():
+                return await self._invite_to_link(incoming, db)
+            await channel_identity_repo.update(
+                db, db_identity=identity, update_data={"user_id": None}
             )
-            if identity:
-                await channel_identity_repo.update(
-                    db, db_identity=identity, update_data={"user_id": None}
-                )
             return "Your account has been unlinked."
 
         return None
