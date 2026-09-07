@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.372] - 2026-09-07
+
+### Fixed
+
+- **Inviting a teammate said "sent" on a deployment that emails nobody.** With no
+  `SMTP_*` configured - which is every deployment on its first day - the dialog
+  reported the invitation as sent and closed, and the accept link went with it:
+  the token comes back exactly once, is in no cache and is not refetchable, so
+  the invitation existed, pending, reachable by nobody. The backend had been
+  returning that link all along, and the hook discarded it on the way past.
+  Delivery is now reported rather than logged - `email_delivered` on the wire,
+  read beside a new `EmailProvider.delivers` so the development log provider
+  accepting a message is not mistaken for a message that left the deployment -
+  and the dialog stays open holding the link with a copy control, saying plainly
+  which of the two happened. Found on the first real deployment.
+
 ## [0.0.371] - 2026-09-07
 
 ### Fixed
