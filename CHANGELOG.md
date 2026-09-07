@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.376] - 2026-09-07
+
+### Fixed
+
+- **The vector-store check predicted a failure it had never checked, and hid the
+  one that would really happen.** It read whether pgvector had been *created* in
+  this database and then reported what the first ingestion would do — but that
+  row cannot tell a fresh deployment from a stock-Postgres one, a restricted
+  role, or a data directory that outlived the image holding the library. A
+  healthy production said document ingestion would fail; a deployment where it
+  really will fail said the same thing. What the image ships and what the
+  connecting role may do with it are now both asked before any consequence is
+  claimed, and each of the four outcomes says which it is.
+- **The sandbox could not be turned on as documented, and a deploy stopped one
+  that was.** `install -d -o 10001` — in two compose files and the configuration
+  page — fails on Ubuntu, because `install` resolves the owner through the passwd
+  database and 10001 is the service's uid, not an account. And the service sits
+  behind a compose profile, which `up -d` without that profile does not ignore:
+  it stops it. So starting the sandbox by hand held until the next merge to
+  `main`, after which an agent's code execution failed for reasons nowhere near
+  the deploy that caused it — with the deploy green throughout. `scripts/deploy.sh`
+  now reads the host the way it already reads the proxy.
+- **The sandbox never had the group that owns the Docker socket.** Every compose
+  file interpolates `${DOCKER_GID:-0}` into its `group_add` and nothing set it, so
+  the service ran in group 0 — the socket's owner on almost no Linux distribution
+  — and could not open the socket at all. Read off the socket now, in the deploy
+  and in `make dev`.
+
 ## [0.0.375] - 2026-09-07
 
 ### Added
