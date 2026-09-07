@@ -1231,11 +1231,15 @@ async def window_breakdown(
             by_model.append((model_label, run_count))
         elif g_provider == 0:
             by_provider.append((provider, Decimal(cost_usd)))
+    # Largest group first, ties broken by the label so the order is the same
+    # every run: the old per-dimension ORDER BY had no tiebreaker and left tied
+    # rows in whatever order the scan produced, which a byte-identical caller
+    # cannot depend on.
     by_day.sort(key=lambda entry: entry[0])
-    by_surface.sort(key=lambda entry: entry[1], reverse=True)
-    by_status.sort(key=lambda entry: entry[1], reverse=True)
-    by_model.sort(key=lambda entry: entry[1], reverse=True)
-    by_provider.sort(key=lambda entry: entry[1], reverse=True)
+    by_surface.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_status.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_model.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_provider.sort(key=lambda entry: (-entry[1], entry[0] or ""))
     return WindowBreakdown(
         by_day=by_day,
         by_surface=by_surface,

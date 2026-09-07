@@ -551,6 +551,32 @@ class TestTheGroupingSetsBreakdown:
         assert dict(breakdown.by_provider) == {None: Decimal("0.30"), "anthropic": Decimal("0.70")}
         assert breakdown.by_day == [(START.date(), 2, 2, Decimal("1.00"))]
 
+    async def test_tied_counts_come_back_in_a_stable_label_order(self, db) -> None:
+        """Two surfaces with the same run count are ordered by label, every run.
+
+        The old per-dimension query broke ties in whatever order the scan
+        produced; the one scan now sorts them by name, so a byte-identical caller
+        reads the same order twice.
+        """
+        organization, owner = await _org_with_owner(db, "Ties")
+        agent = await _agent(db, organization, owner)
+        for surface in (RunSurface.WEB.value, RunSurface.EMBED.value, RunSurface.MATTERMOST.value):
+            await _run(
+                db, organization=organization, agent=agent, started_at=START, surface=surface
+            )
+
+        breakdown = await agent_run_repo.window_breakdown(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        # All three tie at one run, so the count leaves the order undecided and
+        # the label decides it: embed, mattermost, web.
+        assert breakdown.by_surface == [
+            (RunSurface.EMBED.value, 1),
+            (RunSurface.MATTERMOST.value, 1),
+            (RunSurface.WEB.value, 1),
+        ]
+
     async def test_the_composed_response_reads_no_more_than_four_run_queries(
         self, db, engine
     ) -> None:
