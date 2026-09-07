@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.374] - 2026-09-07
+
+### Fixed
+
+- **A deploy reported success having never built the frontend.** The workflow
+  piped `scripts/deploy.sh` into `bash -s` over ssh, so the script was the
+  shell's own standard input - and `docker compose exec` forwards stdin to the
+  container even with `-T`. The migration consumed every line below itself, bash
+  reached EOF, and the run exited 0 without building the frontend, waiting for a
+  container or pruning an image; the site answered the proxy's own 404 because no
+  frontend container existed, while the deployment history said the deploy had
+  worked. The script is now copied to the host under a name unique to the run and
+  executed from a file, and every `docker compose` call in it reads from
+  `/dev/null` - so it stays correct for anyone who pipes it anyway. Caught by the
+  one step that could catch it: the external `curl` at the URL a person visits.
+
 ## [0.0.373] - 2026-09-07
 
 ### Changed
