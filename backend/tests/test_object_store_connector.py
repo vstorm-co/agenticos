@@ -25,16 +25,19 @@ from typing import Any, ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, StorableSecret
-from app.schemas.sync_source import ConnectorConfigField
 from app.services.rag.connectors import ConnectorConfig, RemoteFile
 from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
 from app.services.rag.connectors.s3 import S3Connector
 
 pytestmark = pytest.mark.anyio
+
+
+class BlobConfig(BaseModel):
+    container: str = Field(title="Container")
 
 
 class BlobConnector(ObjectStoreConnector):
@@ -43,9 +46,7 @@ class BlobConnector(ObjectStoreConnector):
     CONNECTOR_TYPE: ClassVar[str] = "blob"
     SCHEME: ClassVar[str] = "azblob"
     CONTAINER_FIELD: ClassVar[str] = "container"
-    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
-        "container": ConnectorConfigField(type="string", label="Container", required=True),
-    }
+    CONFIG_MODEL: ClassVar[type[BaseModel]] = BlobConfig
 
     def __init__(self, objects: list[StoredObject] | None = None) -> None:
         self.objects = objects or []

@@ -67,7 +67,7 @@ class ObjectStoreConnector(BaseSyncConnector):
     """What a `source_path` from this store starts with - `s3`, `gs`, `azblob`."""
 
     CONTAINER_FIELD: ClassVar[str] = "bucket"
-    """Which `CONFIG_SCHEMA` field names the container. S3 and GCS call it a
+    """Which `CONFIG_MODEL` field names the container. S3 and GCS call it a
     bucket; Azure calls it a container, and the form should say what the store's
     own console says."""
 

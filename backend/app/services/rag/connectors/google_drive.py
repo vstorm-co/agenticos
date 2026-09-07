@@ -28,10 +28,10 @@ from typing import ClassVar
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaIoBaseDownload
+from pydantic import BaseModel, Field
 
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind, StorableSecret
-from app.schemas.sync_source import ConnectorConfigField
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
@@ -43,6 +43,23 @@ from app.services.rag.remote_names import checked_drive_folder_id
 logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+
+
+class GoogleDriveConfig(BaseModel):
+    """What a Drive source needs to *find* its documents.
+
+    The credential is not here - it is a `GcpServiceAccountSecret` the source
+    names in `secret_id` (#937). `include_subfolders` defaults to True, which is
+    what the connector applies when the key is omitted; `folder_id` has no
+    default, so it is the one required field.
+    """
+
+    folder_id: str = Field(
+        title="Google Drive Folder ID",
+        description="The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
+    )
+    include_subfolders: bool = Field(default=True, title="Include subfolders")
+
 
 GOOGLE_DOCS_EXPORT: dict[str, tuple[str, str]] = {
     "application/vnd.google-apps.document": ("application/pdf", ".pdf"),
@@ -68,17 +85,7 @@ class GoogleDriveConnector(BaseSyncConnector):
     CONNECTOR_TYPE: ClassVar[str] = "gdrive"
     DISPLAY_NAME: ClassVar[str] = "Google Drive"
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.GCP_SERVICE_ACCOUNT
-    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
-        "folder_id": ConnectorConfigField(
-            type="string",
-            label="Google Drive Folder ID",
-            help="The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
-            required=True,
-        ),
-        "include_subfolders": ConnectorConfigField(
-            type="boolean", label="Include subfolders", default=True
-        ),
-    }
+    CONFIG_MODEL: ClassVar[type[BaseModel]] = GoogleDriveConfig
 
     def _get_drive_service(self, credential: StorableSecret | None) -> Resource:
         """Build an authenticated Drive client from the vault secret the source names.
