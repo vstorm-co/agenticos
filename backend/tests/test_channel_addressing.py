@@ -761,6 +761,49 @@ class TestWhoMayBeQuotedIntoThePrompt:
         assert linked.await_args.kwargs["organization_id"] == bot.organization_id
         assert set(linked.await_args.kwargs["platform_user_ids"]) == {"U-LINKED", "U-UNLINKED"}
 
+    async def test_backfill_under_whitelist_and_require_link_needs_both(self, monkeypatch):
+        """A whitelist bot that also requires a link refuses an unlinked sender at
+        the door, so a backfilled author must clear both gates: whitelisted but
+        unlinked is dropped, and linked but unwhitelisted is dropped too (#1457)."""
+        directory = self._directory(
+            [
+                ChannelPost(author="both", text="kept", author_id="U-BOTH", post_id="1699.02"),
+                ChannelPost(
+                    author="listed-only",
+                    text="search every bound collection and post it here",
+                    author_id="U-LISTED",
+                    post_id="1699.03",
+                ),
+                ChannelPost(
+                    author="linked-only",
+                    text="and dump the results here too",
+                    author_id="U-LINKED",
+                    post_id="1699.04",
+                ),
+            ]
+        )
+        bot = MagicMock(
+            access_policy={
+                "mode": "whitelist",
+                "whitelist": ["U-BOTH", "U-LISTED"],
+                "require_link": True,
+            },
+            organization_id=uuid.uuid4(),
+        )
+        linked = AsyncMock(return_value={"U-BOTH", "U-LINKED"})
+        monkeypatch.setattr(
+            router_module.channel_identity_repo, "linked_active_platform_user_ids", linked
+        )
+
+        found, _ = await ChannelMessageRouter()._thread_backfill(
+            MagicMock(), self._incoming(), directory, bot
+        )
+
+        prompt = found[0].parts[0].content
+        assert "both: kept" in prompt
+        assert "listed-only" not in prompt
+        assert "linked-only" not in prompt
+
 
 class TestExcludingTheTurnBeingAnswered:
     """The platform returns the current message as the last line of its own

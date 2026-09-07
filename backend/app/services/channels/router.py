@@ -1445,31 +1445,44 @@ class ChannelMessageRouter:
         and any author the platform did not identify, are dropped - unattributable
         text is exactly what must not be quoted where only linked people may speak.
 
+        The two gates compose: a `whitelist` bot that *also* sets `require_link`
+        refuses an unlinked sender at the door (`_admits_unlinked`), so a
+        whitelisted-but-unlinked author's earlier posts must not be quoted either -
+        the author has to clear both filters, not just the whitelist.
+
         `group_only` and `open` need no author filter - the first gated the room,
         and the second admits everybody in it.
         """
         policy = self._parse_policy(bot)
         mode = policy.get("mode")
+        requires_link = mode == "jwt_linked" or bool(policy.get("require_link", False))
+
+        filters: list[Callable[[Any], bool]] = []
         if mode == "whitelist":
             allowed = {str(entry) for entry in policy.get("whitelist", [])}
-            return lambda post: (
-                (aid := getattr(post, "author_id", None)) is not None and str(aid) in allowed
+            filters.append(
+                lambda post: (
+                    (aid := getattr(post, "author_id", None)) is not None and str(aid) in allowed
+                )
             )
-        if mode != "jwt_linked" and not policy.get("require_link", False):
+        if requires_link:
+            author_ids = {
+                str(aid) for post in posts if (aid := getattr(post, "author_id", None)) is not None
+            }
+            linked = await channel_identity_repo.linked_active_platform_user_ids(
+                db,
+                platform=incoming.platform,
+                platform_user_ids=author_ids,
+                organization_id=bot.organization_id,
+            )
+            filters.append(
+                lambda post: (
+                    (aid := getattr(post, "author_id", None)) is not None and str(aid) in linked
+                )
+            )
+        if not filters:
             return lambda _post: True
-
-        author_ids = {
-            str(aid) for post in posts if (aid := getattr(post, "author_id", None)) is not None
-        }
-        linked = await channel_identity_repo.linked_active_platform_user_ids(
-            db,
-            platform=incoming.platform,
-            platform_user_ids=author_ids,
-            organization_id=bot.organization_id,
-        )
-        return lambda post: (
-            (aid := getattr(post, "author_id", None)) is not None and str(aid) in linked
-        )
+        return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
     async def _load_history(db: AsyncSession, conversation_id: Any) -> list[ModelMessage]:
