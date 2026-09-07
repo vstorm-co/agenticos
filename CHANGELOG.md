@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.373] - 2026-09-07
+
+### Changed
+
+- Backend dependency floors: `authlib` 1.3.0 to 1.8.0, `anyio` 4.14.2 to 4.15.0,
+  `pydantic-ai-harness` 0.27.0 to 0.29.0, `prefect` 3.8.4 to 3.8.5, `liteparse`
+  2.14.2 to 2.14.3, `google-api-python-client` 2.199.0 to 2.200.0.
+
 ## [0.0.372] - 2026-09-07
 
 ### Fixed
