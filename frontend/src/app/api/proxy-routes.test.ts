@@ -5,7 +5,15 @@
  */
 import { describe, expect, it } from "vitest";
 
+import * as adminConversations from "./admin/conversations/route";
+import * as adminOrganizations from "./admin/organizations/route";
+import * as adminRatingsSummary from "./admin/ratings/summary/route";
 import * as adminSettings from "./admin/settings/[[...path]]/route";
+import * as adminStats from "./admin/stats/route";
+import * as adminSystem from "./admin/system/route";
+import * as adminUserDetail from "./admin/users/[userId]/detail/route";
+import * as adminUser from "./admin/users/[userId]/route";
+import * as adminUsers from "./admin/users/route";
 import * as agent from "./agent/[[...path]]/route";
 import * as agents from "./agents/[[...path]]/route";
 import * as approvals from "./approvals/[[...path]]/route";
@@ -61,7 +69,15 @@ import * as users from "./users/[userId]/route";
  * nothing, on one page only.
  */
 const MOUNTED: [string, Record<string, unknown>][] = [
+  ["admin/conversations", adminConversations],
+  ["admin/organizations", adminOrganizations],
+  ["admin/ratings/summary", adminRatingsSummary],
   ["admin/settings", adminSettings],
+  ["admin/stats", adminStats],
+  ["admin/system", adminSystem],
+  ["admin/users", adminUsers],
+  ["admin/users/[userId]", adminUser],
+  ["admin/users/[userId]/detail", adminUserDetail],
   ["agent", agent],
   ["agents", agents],
   ["approvals", approvals],
