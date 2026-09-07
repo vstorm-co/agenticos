@@ -14,6 +14,7 @@ from app.services.email import get_email_provider
 from app.services.email.exceptions import EmailProviderError
 from app.services.email.providers.base import EmailMessage
 from app.services.email.providers.smtp import SMTPProvider
+from app.services.email.service import EmailService
 
 pytestmark = pytest.mark.anyio
 
@@ -50,3 +51,15 @@ async def test_an_unknown_provider_is_refused_rather_than_logged(monkeypatch):
         get_email_provider()
 
     assert excinfo.value.details == {"provider": "resend", "supported": ["smtp", "log"]}
+
+
+async def test_only_a_provider_that_sends_reports_that_it_delivers(monkeypatch):
+    """`accepted` says the provider took the message; `delivers` says accepting it
+    means the message leaves the deployment. The log provider accepts everything,
+    which is how a deployment with no `SMTP_*` told an inviter their invitation had
+    been emailed (#1479)."""
+    monkeypatch.setattr("app.services.email.settings.EMAIL_PROVIDER", "log")
+    assert EmailService(get_email_provider()).delivers is False
+
+    monkeypatch.setattr("app.services.email.settings.EMAIL_PROVIDER", "smtp")
+    assert EmailService(get_email_provider()).delivers is True

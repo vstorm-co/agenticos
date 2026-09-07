@@ -11,6 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class SMTPProvider:
+    delivers = True
+    """It hands the message to a mail server. Whether that server then delivers it
+    is beyond anything this process can observe - `accepted` is as far as the
+    answer goes, and it is the honest end of it."""
+
     def __init__(
         self,
         host: str,

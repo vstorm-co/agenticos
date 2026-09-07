@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CopyButton } from "@/components/chat/copy-button";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { useAssignableRoles, useInvitations, useRoleCatalog } from "@/hooks";
 import { defaultAssignable } from "@/lib/assignable-roles";
 import type { InvitationCreated, OrgRole } from "@/types";
@@ -42,6 +42,11 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
   // anybody gets, which is why the dialog stays open holding it rather than
   // closing on success the way it used to (#1479).
   const [sent, setSent] = useState<InvitationCreated | null>(null);
+  // Not `CopyButton`: that one is a hover-reveal affordance for a chat message,
+  // `opacity-0` until an ancestor with `group` is hovered - and in a dialog with
+  // no such ancestor it is permanently invisible, including to the keyboard. Here
+  // copying is the primary action, so it is a button with a word on it.
+  const { copy, copied } = useCopyToClipboard();
   const { invite } = useInvitations(orgId);
   const assignable = useAssignableRoles();
   // Said rather than left to an empty picker: a catalog that failed to load and
@@ -73,7 +78,17 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
   const acceptUrl = sent ? `${window.location.origin}/invitations/${sent.invitation_token}` : "";
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+    <Dialog
+      open={open}
+      // A dismissal in flight loses the link. Escape, the backdrop and the close
+      // icon all reach this, and between the submit and its answer the request
+      // carries the only copy of the token anybody gets - so the invitation would
+      // be created into an empty screen.
+      onOpenChange={(next) => {
+        if (isSubmitting) return;
+        return next ? onOpenChange(true) : close();
+      }}
+    >
       <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{sent ? t("inviteReady") : t("inviteMember")}</DialogTitle>
@@ -95,7 +110,9 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
                   onFocus={(e) => e.currentTarget.select()}
                   className="font-mono text-xs"
                 />
-                <CopyButton text={acceptUrl} />
+                <Button type="button" variant="outline" onClick={() => copy(acceptUrl)}>
+                  {copied ? t("copied") : t("copy")}
+                </Button>
               </div>
               <p className="text-muted-foreground text-xs">{t("inviteLinkOnce")}</p>
             </div>
@@ -137,7 +154,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
               )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={close}>
+              <Button type="button" variant="outline" onClick={close} disabled={isSubmitting}>
                 {t("cancel3")}
               </Button>
               <Button type="submit" disabled={!email.trim() || role === "" || isSubmitting}>

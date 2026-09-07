@@ -513,17 +513,20 @@ class TestInvitationService:
                 uuid.uuid4(), "user@example.com", "member", requester_id=uuid.uuid4()
             )
 
-    def _invited(self, *, send):
+    def _invited(self, *, send, delivers: bool = True):
         """Every patch `invite` needs to reach the email, with `send` as the outcome.
 
         The repository, the organization and the requester are all mocked: what
-        these three tests are about is the one boolean the caller gets back, which
-        nothing was reporting.
+        these four tests are about is the one boolean the caller gets back, which
+        nothing was reporting. `delivers` is the provider's own answer to whether
+        accepting a message means it leaves the deployment - false for the log
+        provider a deployment with no `SMTP_*` falls back to.
         """
         requester = MagicMock()
         requester.role = "owner"
         email_service = MagicMock()
         email_service.send_invitation = send
+        email_service.delivers = delivers
         return (
             patch(
                 "app.services.invitation.member_repo.get",
@@ -569,6 +572,21 @@ class TestInvitationService:
             )
 
         assert delivered is True
+
+    @pytest.mark.anyio
+    async def test_a_provider_that_only_logs_has_not_delivered_anything(self, service):
+        """`accepted=True` from `LogProvider` means the message was written to the
+        application log, which is not a delivery. Reading only `accepted` told a
+        developer with no `SMTP_*` that their invitation had been emailed."""
+        logged = AsyncMock(return_value=SendResult(provider_message_id="log", accepted=True))
+        with contextlib.ExitStack() as stack:
+            for context in self._invited(send=logged, delivers=False):
+                stack.enter_context(context)
+            _invite, delivered = await service.invite(
+                uuid.uuid4(), "user@example.com", "member", requester_id=uuid.uuid4()
+            )
+
+        assert delivered is False
 
     @pytest.mark.anyio
     async def test_an_invitation_no_mail_server_accepted_says_so(self, service):

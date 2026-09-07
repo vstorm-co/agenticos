@@ -174,7 +174,7 @@ describe("InviteMemberDialog", () => {
 
     await send();
 
-    expect(await screen.findByText(/no mail service configured/)).toBeInTheDocument();
+    expect(await screen.findByText(/did not send one/)).toBeInTheDocument();
     expect(screen.queryByText(/^Emailed to/)).not.toBeInTheDocument();
   });
 
@@ -214,6 +214,41 @@ describe("InviteMemberDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("offers a copy control somebody can actually see", async () => {
+    // Not `CopyButton`, which is `opacity-0` outside a hovered `group` - in a
+    // dialog that makes the primary action permanently invisible, including to
+    // the keyboard, and a test asserting on the field would not notice.
+    created(false);
+    mount();
+    await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
+
+    await send();
+    await screen.findByLabelText("Invitation link");
+
+    expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
+  });
+
+  it("cannot be dismissed while the request carrying the link is out", async () => {
+    // Escape, the backdrop and the close icon all reach the same handler, and
+    // between the submit and its answer the request holds the only copy of the
+    // token - so a dismissal there creates a pending invitation into an empty
+    // screen.
+    const onOpenChange = vi.fn();
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    render(<InviteMemberDialog open onOpenChange={onOpenChange} orgId="org-1" />, { wrapper });
+    await waitFor(() => expect(screen.getByLabelText("Role")).toBeInTheDocument());
+
+    await send();
+    await userEvent.keyboard("{Escape}");
+
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    answer({});
   });
 
   it("says the role list could not be read, rather than offering an empty picker", async () => {

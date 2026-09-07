@@ -103,7 +103,8 @@ class InvitationService:
             requester_user = await user_repo.get_by_id(self.db, requester_id)
             frontend = settings.FRONTEND_URL.rstrip("/")
             accept_url = f"{frontend}/invitations/{invite.token}"
-            result = await get_email_service().send_invitation(
+            email_service = get_email_service()
+            result = await email_service.send_invitation(
                 to=normalized_email,
                 inviter_name=(requester_user.full_name or requester_user.email)
                 if requester_user
@@ -112,7 +113,10 @@ class InvitationService:
                 accept_url=accept_url,
                 app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
-            delivered = result.accepted
+            # Both halves. `accepted` alone is true of the log provider, which
+            # writes to stdout and sends nothing - so a development deployment
+            # would have claimed to email an address it never touched.
+            delivered = result.accepted and email_service.delivers
         except Exception:
             # Still not raised: the invitation is a row and it exists, so failing
             # the request would leave a pending invitation nobody was told about.
