@@ -268,6 +268,13 @@ up, or when the administrator is suspended, demoted or deleted, whichever is
 first. It cannot be refreshed: the window is the access token's own, and the hour
 is the ceiling rather than a renewable lease.
 
+!!! note "An open chat conversation ends with it"
+
+    A chat conversation runs over a WebSocket that authenticates once, at the
+    handshake. It now re-runs that check on every message, so ending an
+    impersonation — or suspending the account — closes an open chat too, rather
+    than only refusing the next HTTP request while the socket keeps answering.
+
 !!! note "The person's own devices list does not show it"
 
     An impersonation is a row under their id that an administrator holds, not a
