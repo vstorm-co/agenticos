@@ -347,6 +347,30 @@ uv run agenticos cmd seed-skills --org <org-id> --dry-run
 uv run agenticos cmd seed --count 10 --clear
 ```
 
+### Inviting a team, and getting the links out
+
+```bash
+# Invitations for several addresses at once, printed as `address  link`.
+uv run agenticos cmd invite-members <org-id> ada@example.com grace@example.com
+
+# One role for the batch; `member` unless you say otherwise.
+uv run agenticos cmd invite-members <org-id> ada@example.com --role admin
+
+# Whose authority they are created under. Defaults to the organization's first
+# owner, and a role gate needs a role to weigh the offered one against.
+uv run agenticos cmd invite-members <org-id> ada@example.com --as owner@example.com
+```
+
+This exists because of the two halves of an invitation. **Nothing is emailed on a
+deployment with no `SMTP_*`**, and the accept token is returned once and stored
+nowhere a second read can reach — so the link has to be printed to be passed on at
+all. The command says which of the two happened, and one refused address (already
+a member, already invited) is reported and skipped rather than costing the rest.
+
+It goes through the same service the UI does, so the role ceiling, the seat cap
+and the duplicate checks apply exactly as they do to somebody clicking the button
+— including that nobody hands out a role their own does not strictly outrank.
+
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` wraps `bootstrap` with the
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
