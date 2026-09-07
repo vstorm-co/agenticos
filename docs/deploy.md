@@ -291,6 +291,18 @@ Set it up once:
    checkout is not at `/opt/agenticos`.
 4. Add the secrets below.
 
+!!! warning "Cancel a deploy you do not intend to approve"
+
+    Every run shares the `deploy-production` concurrency group, and a run sitting
+    at the approval gate holds it. It does not expire on its own — GitHub cancels
+    an unactioned one after 30 days — so until somebody approves or cancels it,
+    later merges queue behind a decision nobody is going to make, and the server
+    keeps running whatever was deployed last.
+
+    So a deploy you have decided against is cancelled, not left. One left waiting
+    on a superseded commit blocked three later runs here before anybody noticed
+    the queue rather than the runs.
+
 | Secret | What |
 |---|---|
 | `DEPLOY_HOST` | The host's address |

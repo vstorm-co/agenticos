@@ -26,6 +26,11 @@ on:
 #
 # This is the opposite of `ci.yml`'s rule, and for the opposite reason: there a
 # superseded answer is waste, here a superseded run has already changed a server.
+#
+# The sharp edge is a run that has not started: one sitting at the approval gate
+# holds this group too, and holds it until somebody approves or cancels it. So a
+# deploy decided against is cancelled rather than left - `docs/deploy.md` says so
+# where an operator will read it.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
