@@ -71,6 +71,7 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionUpdate,
 )
 from app.services import portal_catalog, portals
+from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import github_oauth, google_oauth
@@ -694,7 +695,14 @@ class McpConnectionService:
         reason it is a parameter: a personal connection without one can never be
         substituted for the organization's, so an OAuth account authorised here
         would be invisible to every binding that asked to speak as its owner.
+
+        Raises:
+            AuthorizationError: When the request runs under an impersonation. The
+                grant that comes back is the administrator's own, and it would be
+                stored as the target's personal connection (#1438); refused, not
+                audited.
         """
+        refuse_binding_while_impersonating("Connecting an integration")
         if catalog_key is not None and not await self._known_catalog_key(catalog_key):
             raise BadRequestError(
                 message=f"Unknown catalog server: {catalog_key}",

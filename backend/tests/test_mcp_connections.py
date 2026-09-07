@@ -27,7 +27,12 @@ from app.agents.mcp import (
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.agents.spec import OrgMcpServerRef, PersonalMcpServerRef
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.secret_kinds import GithubOAuthAppSecret
@@ -40,7 +45,9 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
+from app.services import impersonation as impersonation_service
 from app.services import mcp_connection as mcp_connection_service
+from app.services.impersonation import ActiveImpersonation
 from app.services.mcp_connection import (
     McpConnectionService,
     UnavailablePersonalService,
@@ -57,6 +64,23 @@ from app.services.portals import github_oauth
 async def _acm(value):
     """Minimal async context manager yielding *value* (fakes a transport client)."""
     yield value
+
+
+@contextlib.contextmanager
+def _impersonating():
+    """Run the block as an administrator acting as another account (#1438)."""
+    token = impersonation_service._active.set(
+        ActiveImpersonation(
+            session_id=uuid4(),
+            user_id=uuid4(),
+            impersonator_id=uuid4(),
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+    )
+    try:
+        yield
+    finally:
+        impersonation_service._active.reset(token)
 
 
 def _allow_any_url(monkeypatch) -> None:
@@ -1712,6 +1736,14 @@ class TestMcpConnectionService:
             )
 
         assert refusal.value.details == {"catalog_key": "no-such"}
+        repo.create.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """An administrator acting as B must not fasten their own OAuth grant to
+        B's account. Refused before any registration, so no pending row (#1438)."""
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start(user_id=uuid4(), name="linear", url="https://srv/mcp")
         repo.create.assert_not_called()
 
     @pytest.mark.anyio

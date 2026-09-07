@@ -21,10 +21,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.exceptions import AuthorizationError
 from app.schemas.channel_bot import LinkedPlace
+from app.services import impersonation as impersonation_service
 from app.services.channel_link import REQUEST_TTL, ChannelLinkService
 from app.services.channels.base import IncomingMessage
 from app.services.channels.router import ChannelMessageRouter, _as_command
+from app.services.impersonation import ActiveImpersonation
 
 pytestmark = pytest.mark.anyio
 
@@ -260,6 +263,36 @@ class TestConfirming:
         assert await self._confirm(_request(), MagicMock(user_id=None), claimed=False) is None
         assert self.resolved.call_count == 0
         assert self.updated.call_count == 0
+
+    async def test_confirm_is_refused_under_an_impersonation(self):
+        """An administrator acting as B must not attach their own chat account to
+        B's. Refused before the request is even read, so the token is neither read
+        nor spent and nothing is linked (#1438)."""
+        with (
+            patch(
+                "app.services.channel_link.channel_link_request_repo.get_valid",
+                new=AsyncMock(),
+            ) as read,
+            patch(
+                "app.services.channel_link.channel_link_request_repo.delete_by_id",
+                new=AsyncMock(),
+            ) as spent,
+        ):
+            active = impersonation_service._active.set(
+                ActiveImpersonation(
+                    session_id=uuid.uuid4(),
+                    user_id=uuid.uuid4(),
+                    impersonator_id=uuid.uuid4(),
+                    expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+                )
+            )
+            try:
+                with pytest.raises(AuthorizationError):
+                    await ChannelLinkService(MagicMock()).confirm("tok", self.user_id)
+            finally:
+                impersonation_service._active.reset(active)
+        read.assert_not_awaited()
+        spent.assert_not_awaited()
 
 
 class TestWhatTheBotSaysToAStranger:

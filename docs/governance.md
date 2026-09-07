@@ -1303,6 +1303,15 @@ Whether the person is *told* is the deployment's `notify_impersonated_users`
 setting ([The deployment](deployment.md#acting-as-another-account)); off, which
 is the default, this trail is the only record.
 
+An impersonation cannot **bind an external identity** to the account it acts as.
+Confirming a chat-account link and completing an integration's OAuth both fasten
+an identity to whoever the request is, and under an impersonation that is the
+target — so the administrator's own Telegram account or OAuth grant would attach
+to somebody else's account and outlive the hour the impersonation is bounded to.
+Both are refused with a 403 while impersonating, because an administrator
+repairing a member's connection is not a flow this platform has. The member
+links their own accounts, as themselves.
+
 ## What none of this covers
 
 Worth stating, because a governance page implies otherwise:

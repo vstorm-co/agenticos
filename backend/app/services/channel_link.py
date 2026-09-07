@@ -41,6 +41,7 @@ from app.repositories import (
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
 from app.services.access import AGENT, resolve_access
 from app.services.channels.base import IncomingMessage
+from app.services.impersonation import refuse_binding_while_impersonating
 
 REQUEST_TTL = timedelta(minutes=15)
 """How long a link URL lives.
@@ -130,7 +131,13 @@ class ChannelLinkService:
         Returns the request that was spent, or None if the token is unknown or
         expired - the two answer the same way, because the difference is not
         something the person clicking can act on differently.
+
+        Raises:
+            AuthorizationError: When the request runs under an impersonation. The
+                link would bind the administrator's own chat account to the
+                target's (#1438); refused, not audited.
         """
+        refuse_binding_while_impersonating("Linking a chat account")
         request = await self.pending(token)
         if request is None:
             return None
