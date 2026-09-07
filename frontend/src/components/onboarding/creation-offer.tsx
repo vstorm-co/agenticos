@@ -32,7 +32,7 @@ import { useOnboardingStore } from "@/stores/onboarding-store";
 export function CreationOffer() {
   const t = useTranslations("onboarding");
   const offer = useOnboardingStore((state) => state.offer);
-  const mode = useOnboardingStore((state) => state.mode);
+  const offerFromTour = useOnboardingStore((state) => state.offerFromTour);
   const openFlow = useOnboardingStore((state) => state.openFlow);
   const dismissOffer = useOnboardingStore((state) => state.dismissOffer);
   const { can } = usePermissions();
@@ -65,11 +65,13 @@ export function CreationOffer() {
   // builder in detail. So the *tour's* agent offer is for an organization with no
   // agent yet. The Agents "?" walk ends on the same offer, but there asking to
   // build one is the whole point of the walk, so it is not gated on the count —
-  // only `mode === "tour"` is (#910). Read from the cache the walk itself filled,
-  // not a fetch of this always-mounted component's own.
+  // only the tour's is (#910). Read the origin the offer was made with rather than
+  // live `mode`, which a later walk mutates: a suppressed tour offer must stay
+  // suppressed, not resurface when the next "?" walk flips the mode. Read the
+  // count from the cache the walk itself filled, not a fetch of our own.
   if (
     offer === "create-agent" &&
-    mode === "tour" &&
+    offerFromTour &&
     (queryClient.getQueryData<AgentList>(qk.agents.list())?.total ?? 0) > 0
   ) {
     return null;

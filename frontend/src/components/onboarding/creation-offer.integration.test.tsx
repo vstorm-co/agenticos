@@ -34,7 +34,14 @@ function renderOffer(
 
 beforeEach(() => {
   rig.can = () => true;
-  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour", flowId: null, offer: null });
+  useOnboardingStore.setState({
+    isOpen: false,
+    index: 0,
+    mode: "tour",
+    flowId: null,
+    offer: null,
+    offerFromTour: false,
+  });
 });
 
 describe("CreationOffer", () => {
@@ -90,27 +97,49 @@ describe("CreationOffer", () => {
   });
 
   it("does not offer a first agent to an organization that already has one", () => {
-    // This is what the first-run tour (`mode: "tour"`) ends with, having just
-    // walked the reader through an existing agent's builder in detail — so to an
-    // organization with six agents it answers a question nobody asked.
-    useOnboardingStore.setState({ offer: "create-agent", mode: "tour" });
+    // This is what the first-run tour ends with (`offerFromTour: true`), having
+    // just walked the reader through an existing agent's builder in detail — so to
+    // an organization with six agents it answers a question nobody asked.
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: true });
     renderOffer(<CreationOffer />, { agents: 6 });
     expect(screen.queryByText("Create your first agent?")).toBeNull();
   });
 
   it("offers it where the organization has none", () => {
-    useOnboardingStore.setState({ offer: "create-agent", mode: "tour" });
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: true });
     renderOffer(<CreationOffer />, { agents: 0 });
     expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
   });
 
   it("still offers create-agent from the Agents ? walk when the org has agents", () => {
-    // The explicit help walk (`mode: "page"`) ends on the same offer, and asking
-    // to build one is the whole point of it — so unlike the first-run tour
+    // The explicit help walk ends on the same offer (`offerFromTour: false`), and
+    // asking to build one is the whole point of it — so unlike the first-run tour
     // ending, it is not gated on the agent count (#910).
-    useOnboardingStore.setState({ offer: "create-agent", mode: "page" });
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: false });
     renderOffer(<CreationOffer />, { agents: 6 });
     expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
+  });
+
+  it("keeps a suppressed tour offer suppressed once a later walk flips the mode", () => {
+    // A tour offer suppressed for an org with agents lingers in the store; opening
+    // a "?" walk sets `mode: "page"` without clearing it. Reading live `mode`
+    // would resurface the stale dialog over the new walk, so the origin is
+    // snapshotted at offer time and the suppression holds regardless of `mode`.
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: true, mode: "page" });
+    renderOffer(<CreationOffer />, { agents: 6 });
+    expect(screen.queryByText("Create your first agent?")).toBeNull();
+  });
+
+  it("snapshots the tour as the offer's origin when the walk ends there", () => {
+    useOnboardingStore.getState().openTour();
+    useOnboardingStore.getState().openOffer("create-agent");
+    expect(useOnboardingStore.getState().offerFromTour).toBe(true);
+  });
+
+  it("snapshots a page walk as the offer's origin", () => {
+    useOnboardingStore.getState().openPage();
+    useOnboardingStore.getState().openOffer("create-agent");
+    expect(useOnboardingStore.getState().offerFromTour).toBe(false);
   });
 
   it("renders nothing when there is no offer", () => {
