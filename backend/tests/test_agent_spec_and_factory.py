@@ -31,6 +31,7 @@ from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     AlertAudience,
     AlertSpec,
@@ -95,6 +96,21 @@ class TestSpecContract:
     def test_yaml_must_be_a_mapping(self):
         with pytest.raises(ValueError, match="mapping"):
             AgentSpec.from_yaml("- just\n- a list\n")
+
+    def test_a_spec_from_a_newer_deployment_is_refused(self):
+        """A `spec_version` past this code's is refused, not accepted because its
+        fields happen to parse: the whole failure the number exists to catch is a
+        later deployment's constructs read as an older shape."""
+        with pytest.raises(ValueError, match="newer than this deployment"):
+            AgentSpec.from_yaml(f"name: x\nspec_version: {SPEC_VERSION + 1}\n")
+
+    def test_a_spec_at_or_below_this_version_loads(self):
+        """This deployment's own version, and an older one, both parse - the
+        refusal is one-sided."""
+        assert AgentSpec.from_yaml(f"name: x\nspec_version: {SPEC_VERSION}\n").spec_version == (
+            SPEC_VERSION
+        )
+        assert AgentSpec.from_yaml("name: x\nspec_version: 2\n").spec_version == 2
 
     def test_spec_carries_references_not_values(self):
         """What makes a spec safe to commit to a client's git repository."""

@@ -834,7 +834,14 @@ class AgentSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    spec_version: int = Field(default=SPEC_VERSION)
+    spec_version: int = Field(
+        default=SPEC_VERSION,
+        description=(
+            "Which spec format this document targets. Stamped to the "
+            "deployment's own version on publish, and refused by `from_yaml` "
+            "when it is newer than the deployment understands."
+        ),
+    )
 
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=1000)
@@ -1086,12 +1093,28 @@ class AgentSpec(BaseModel):
     def from_yaml(cls, text: str) -> AgentSpec:
         """Parse a spec written or edited by hand.
 
+        A `spec_version` newer than this deployment understands is refused here
+        rather than accepted because its fields happen to parse: a document from
+        a later deployment can carry constructs a `>`-guarded field cannot see
+        (a binding kind, a capability id) that this code would misread as an
+        older shape. Only imported text is checked - a stored spec is loaded
+        through `model_validate` and is never newer than the code that wrote it,
+        so this refusal cannot make an existing row unreadable.
+
         Raises:
-            ValueError: If the document is not a mapping. Pydantic reports field
+            ValueError: If the document is not a mapping, or targets a spec
+                version newer than `SPEC_VERSION`. Pydantic reports field
                 problems itself, but a list or a bare string reaches it as an
                 unhelpful type error.
         """
         loaded = yaml.safe_load(text)
         if not isinstance(loaded, dict):
             raise ValueError("An agent spec must be a YAML mapping")  # noqa: TRY004
-        return cls.model_validate(loaded)
+        spec = cls.model_validate(loaded)
+        if spec.spec_version > SPEC_VERSION:
+            raise ValueError(
+                f"This spec targets version {spec.spec_version}, newer than this "
+                f"deployment understands (spec version {SPEC_VERSION}). Export it "
+                "from a matching deployment, or upgrade this one."
+            )
+        return spec

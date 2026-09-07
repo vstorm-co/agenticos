@@ -37,6 +37,7 @@ from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import tool_prefix
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     BudgetSpec,
     CapabilityBindingSpec,
@@ -1733,6 +1734,13 @@ class AgentRegistryService:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
+
+        # Publish is where the spec is confirmed against this deployment's own
+        # registry and models, so the frozen copy carries this deployment's spec
+        # version - not whatever an imported draft claimed. Otherwise the number
+        # is write-only: a `spec_version: 3` YAML publishes carrying constructs
+        # this code understands and stays labelled 3.
+        spec.spec_version = SPEC_VERSION
 
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
         version = await agent_repo.create_version(
