@@ -22,6 +22,7 @@ from app.repositories import (
     channel_identity_repo,
     channel_session_repo,
     conversation_repo,
+    member_repo,
 )
 from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
@@ -53,6 +54,8 @@ from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models.channel_bot import ChannelBot
@@ -1017,13 +1020,30 @@ class ChannelMessageRouter:
         cannot reset its session or unlink from it either (#1455). `/start`,
         `/help` and `/link` stay open to an unlinked sender - `/link` is the way
         back.
+
+        The admission is active membership, not the bare link: a `channel_identity`
+        keeps its `user_id` after that member is deactivated or removed, and the
+        turn reads through that with `member_repo.get_active` in
+        `_membership_context`. So an offboarded account - refused a turn - must not
+        reset the shared session or own the conversation it opens either.
         """
         text = _as_command(text)
         if not text.startswith("/"):
             return None
 
-        def _admitted() -> bool:
-            return identity.user_id is not None or admit_unlinked
+        async def _admission() -> tuple[bool, UUID | None]:
+            """Whether this sender may change shared state, and the active member
+            behind the chat account - `None` when the link outlived the
+            membership, so the issuer is resolved the same way the turn is."""
+            member = (
+                await member_repo.get_active(
+                    db, organization_id=bot.organization_id, user_id=identity.user_id
+                )
+                if identity.user_id is not None
+                else None
+            )
+            issuer = identity.user_id if member is not None else None
+            return issuer is not None or admit_unlinked, issuer
 
         # Only the first word: no command takes an argument any more. `/link`
         # was the one that did, and it took a code somebody copied out of the
@@ -1047,7 +1067,8 @@ class ChannelMessageRouter:
             )
 
         if cmd == "/new":
-            if not _admitted():
+            admitted, issuer = await _admission()
+            if not admitted:
                 return await self._invite_to_link(incoming, db)
             session = await channel_session_repo.get_by_bot_and_chat(
                 db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
@@ -1055,11 +1076,13 @@ class ChannelMessageRouter:
             if session:
                 # The issuer, not `session.identity_id`: the new conversation
                 # belongs to whoever reset the thread, not to the person who
-                # opened it (#1455).
+                # opened it (#1455). `None` for an admitted-but-unnamed sender - a
+                # former member in an open room - so a stale link does not deed
+                # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
                     title=f"{incoming.platform.capitalize()} Chat",
-                    user_id=identity.user_id,
+                    user_id=issuer,
                     organization_id=bot.organization_id,
                 )
                 await channel_session_repo.update(
@@ -1079,7 +1102,8 @@ class ChannelMessageRouter:
                 return "A system error occurred. Please try again later."
 
         if cmd == "/unlink":
-            if not _admitted():
+            admitted, _issuer = await _admission()
+            if not admitted:
                 return await self._invite_to_link(incoming, db)
             await channel_identity_repo.update(
                 db, db_identity=identity, update_data={"user_id": None}

@@ -680,12 +680,28 @@ class TestCommandsGateOnLinkAdmission:
     """
 
     @staticmethod
-    def _run(cmd: str, *, identity: MagicMock, admit_unlinked: bool, chat_type: str = "group"):
+    async def _run(
+        cmd: str,
+        *,
+        identity: MagicMock,
+        admit_unlinked: bool,
+        chat_type: str = "group",
+        active_member: bool = True,
+    ):
         router = ChannelMessageRouter()
         bot = MagicMock(organization_id=uuid.uuid4())
         bot.name = "Support"
         incoming = _incoming(chat_type)
-        return router._handle_command(cmd, incoming, bot, MagicMock(), identity, admit_unlinked)
+        # The admission reads the link's membership, not the bare link: a linked
+        # account whose member was deactivated is `active_member=False`.
+        membership = MagicMock() if active_member else None
+        with patch(
+            "app.services.channels.router.member_repo.get_active",
+            AsyncMock(return_value=membership),
+        ):
+            return await router._handle_command(
+                cmd, incoming, bot, MagicMock(), identity, admit_unlinked
+            )
 
     async def test_an_unlinked_sender_cannot_reset_a_room_that_requires_a_link(self):
         with (
@@ -778,3 +794,47 @@ class TestCommandsGateOnLinkAdmission:
 
         assert "unlinked" in reply.lower()
         assert update_identity.await_args.kwargs["update_data"] == {"user_id": None}
+
+    async def test_a_deactivated_member_cannot_reset_a_link_required_room(self):
+        """The link outlives the membership, so a still-linked but deactivated
+        account is refused `/new` exactly as a turn refuses it - admission is the
+        active membership, not the bare `user_id` (#1455)."""
+        with patch(
+            "app.services.channels.router.channel_session_repo.get_by_bot_and_chat",
+            AsyncMock(),
+        ) as get_session:
+            reply = await self._run(
+                "/new",
+                identity=MagicMock(user_id=uuid.uuid4()),
+                admit_unlinked=False,
+                active_member=False,
+            )
+
+        assert "connect your account" in reply.lower()
+        get_session.assert_not_awaited()
+
+    async def test_new_in_an_open_room_does_not_deed_the_room_to_a_former_member(self):
+        """An open room admits the sender, but a stale link must not make an
+        offboarded account the conversation's owner - the new conversation is
+        anonymous, so participant management can still reach it (#1455)."""
+        session = MagicMock(identity_id=uuid.uuid4())
+        with (
+            patch(
+                "app.services.channels.router.channel_session_repo.get_by_bot_and_chat",
+                AsyncMock(return_value=session),
+            ),
+            patch(
+                "app.services.channels.router.conversation_repo.create_conversation",
+                AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_conv,
+            patch("app.services.channels.router.channel_session_repo.update", AsyncMock()),
+        ):
+            reply = await self._run(
+                "/new",
+                identity=MagicMock(user_id=uuid.uuid4()),
+                admit_unlinked=True,
+                active_member=False,
+            )
+
+        assert "New conversation started" in reply
+        assert create_conv.await_args.kwargs["user_id"] is None
