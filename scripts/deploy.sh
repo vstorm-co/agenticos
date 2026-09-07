@@ -67,6 +67,22 @@ case "${PROXY:-nginx}" in
     ;;
 esac
 
+# The sandbox service is behind a compose profile, so it is opt-in - and a
+# profile compose is not told about is a service compose treats as nothing to do
+# with this project. It does not merely leave it alone: `up -d` on the same
+# project without the profile stops it. So a host that started the sandbox by
+# hand had it taken away by its next deploy, silently, and an agent's code
+# execution stopped working for reasons nowhere near the deploy that
+# caused it (#1506).
+#
+# Read from the host, the same way `PROXY` is: `SANDBOXD_TOKEN` is what the
+# service refuses to start without, so its presence in `backend/.env` is this
+# host saying it runs one.
+PROFILES=()
+if grep -qE '^SANDBOXD_TOKEN=.' "$COMPOSE_ENV"; then
+  PROFILES=(--profile sandbox)
+fi
+
 say "Fetching $SHA"
 git fetch --prune --quiet origin
 git checkout --quiet --detach "$SHA"
@@ -80,7 +96,7 @@ compose() { docker compose --env-file "$COMPOSE_ENV" "$@" < /dev/null; }
 # The API first, and its migrations before the frontend: a frontend serving a
 # schema the backend has not migrated to yet is the window this ordering closes.
 say "Building and starting the API"
-compose "${BACKEND[@]}" up -d --build
+compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" up -d --build
 
 say "Migrating"
 compose "${BACKEND[@]}" exec -T app agenticos db upgrade

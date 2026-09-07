@@ -596,7 +596,7 @@ service's container, is refused with `mounts denied`.
 | | Default | |
 |---|---|---|
 | Local dev | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop shares it and anybody can write to it, so a laptop needs no setup |
-| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 (`install -d -o 10001`, once), and belongs on storage somebody backs up |
+| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, once. Not `install -d -o 10001`: `install` resolves the owner through the passwd database and refuses a uid no account owns. It belongs on storage somebody backs up |
 
 A reboot sweeps `/tmp`, which is the one reason not to point a real deployment
 there.
