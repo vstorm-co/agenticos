@@ -38,18 +38,18 @@ dependencies = [
     "greenlet>=3.5.5",
     "pyjwt>=2.9.0",
     "bcrypt>=4.0.0",
-    "authlib>=1.3.0",
+    "authlib>=1.8.0",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
-    "anyio>=4.14.2",
+    "anyio>=4.15.0",
     "redis>=8.1.0",
     "aiosmtplib>=3.0.0",
     # Starlette's requirement for `SessionMiddleware`, which `main.py` adds for
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.4",
+    "prefect>=3.8.5",
     # The floor is `pydantic-ai-harness`'s, not ours - nothing here needs a
     # feature of any particular release, and stating it is what keeps a resolver
     # from picking a slim the harness cannot run on. Dependabot raises it to
@@ -66,7 +66,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.27.0",
+    "pydantic-ai-harness>=0.29.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -80,10 +80,10 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "llama-cloud>=2.15.0",
-    "liteparse>=2.14.2",
-    "google-api-python-client>=2.199.0",
-    "google-auth>=2.57.0",
-    "boto3>=1.43.83",
+    "liteparse>=2.14.3",
+    "google-api-python-client>=2.200.0",
+    "google-auth>=2.57.1",
+    "boto3>=1.43.88",
     "httpx>=0.28.0",
     "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
@@ -91,7 +91,7 @@ dependencies = [
     # `deptry` step reads `cli/` as well for exactly that reason.
     "tabulate>=0.9.0",
     "tqdm>=4.70.0",
-    "tavily-python>=0.8.0",
+    "tavily-python>=0.8.1",
     "pydantic-monty>=0.0.21",
     "pydantic-ai-skills>=1.4.0",
     # `console` for the toolset, `remote` for the sandboxd client. Deliberately
@@ -118,7 +118,7 @@ dependencies = [
     "subagents-pydantic-ai>=0.2.21",
     "cryptography>=50.0.1",
     "aiogram>=3.31.0,<4.0",
-    "slack-sdk>=3.44.0",
+    "slack-sdk>=3.44.1",
     # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
     # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
     # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
@@ -156,11 +156,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
-    "anyio[trio]>=4.14.2",
+    "anyio[trio]>=4.15.0",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.5",
-    "ty>=0.0.75",
+    "ruff>=0.16.6",
+    "ty>=0.0.78",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -168,7 +168,7 @@ dev = [
     # It carries its own xdist support (the controller's seed is handed to each
     # worker through `workerinput`), without which the workers would collect in
     # four different orders and `-n auto` would abort on the mismatch.
-    "pytest-randomly>=4.1.0",
+    "pytest-randomly>=5.0.0",
     "vulture>=2.14",
     # vulture reads the code and finds what is written but unused; deptry reads
     # the manifest and finds what is declared but unimported. Nothing noticed
