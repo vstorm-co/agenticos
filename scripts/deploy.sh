@@ -46,12 +46,21 @@ say() { printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 cd "$APP_DIR"
 test -f "$COMPOSE_ENV" || { echo "missing $COMPOSE_ENV" >&2; exit 1; }
 
+# The effective value of a variable in the env file: the *last* assignment wins,
+# the way dotenv and compose read it, and surrounding quotes are not part of the
+# value. `grep -q` on the name answers a different question - whether the file
+# mentions it - so `NAME=""`, or a real value later disabled by a bare `NAME=`,
+# both read as set (#1506).
+env_value() {
+  sed -n "s/^$1=//p" "$COMPOSE_ENV" | tail -1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
+
 # Which reverse proxy this host was set up with, read from the host rather than
 # assumed. Hard-coding the Traefik overlays meant an Nginx host was silently
 # converted on its next deploy - and since the overlay declares
 # `traefik_webgateway` external, on a host that never created it compose fails
 # outright, which is the better of the two outcomes.
-PROXY="$(sed -n 's/^PROXY=//p' "$COMPOSE_ENV" | tail -1)"
+PROXY="$(env_value PROXY)"
 case "${PROXY:-nginx}" in
   traefik)
     BACKEND=(-f docker-compose-prod.yml -f docker-compose-prod.traefik.yml)
@@ -76,11 +85,24 @@ esac
 # caused it (#1506).
 #
 # Read from the host, the same way `PROXY` is: `SANDBOXD_TOKEN` is what the
-# service refuses to start without, so its presence in `backend/.env` is this
-# host saying it runs one.
+# service refuses to start without, so a non-empty one in `backend/.env` is this
+# host saying it runs a sandbox.
 PROFILES=()
-if grep -qE '^SANDBOXD_TOKEN=.' "$COMPOSE_ENV"; then
+if [ -n "$(env_value SANDBOXD_TOKEN)" ]; then
   PROFILES=(--profile sandbox)
+  # The group that owns the Docker socket, which the sandbox needs as a
+  # supplementary group to reach it. `docker-compose-prod.yml` interpolates
+  # `${DOCKER_GID:-0}` and nothing anywhere set it, so the service came up in
+  # group 0 - root on this host, and not the socket's owner on any Linux
+  # distribution that ships a `docker` group. Read from the socket rather than
+  # configured, because the socket is the only thing that knows (#1506).
+  if [ -S /var/run/docker.sock ]; then
+    DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
+    export DOCKER_GID
+  else
+    echo "no /var/run/docker.sock, but SANDBOXD_TOKEN is set - the sandbox cannot start" >&2
+    exit 1
+  fi
 fi
 
 say "Fetching $SHA"
