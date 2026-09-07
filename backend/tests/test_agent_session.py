@@ -95,7 +95,7 @@ from app.agents.subagent_runtime import (
     ResolvedSubagent,
     SubagentRuntime,
 )
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
@@ -423,6 +423,108 @@ class TestControlFrames:
             "first",
             "second",
         ]
+
+
+class TestReauthorizingEachFrame:
+    """A socket is authenticated once, at the handshake; a session revoked while
+    it is open must not keep being served (#1437).
+
+    The single check is `ws_auth.authenticate_socket_token`, whose own refusals -
+    an ended impersonation, a suspended account, a signed-out administrator - are
+    pinned in `test_ws_auth.py`. Here it is enough that *a* refusal from it closes
+    the socket and serves no frame, and that a live credential is waved through.
+    """
+
+    def _socket_session(self, token: str = "live-token") -> AgentSession:
+        websocket = MagicMock()
+        websocket.send_json = AsyncMock()
+        websocket.close = AsyncMock()
+        return AgentSession(websocket, MagicMock(), MagicMock(), auth_token=token)
+
+    @contextmanager
+    def _revoked(self) -> Iterator[None]:
+        with (
+            patch("app.services.agent_session.get_db_context") as db_context,
+            patch(
+                "app.services.agent_session.authenticate_socket_token",
+                new=AsyncMock(side_effect=AuthenticationError(message="Impersonation has ended")),
+            ),
+        ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+            yield
+
+    async def test_a_revoked_session_refuses_the_next_message(self):
+        """The core of the bug: once the session is revoked, a message frame is
+        answered by nothing - no turn persisted, no turn task started - and the
+        socket is closed with the no-retry auth code. Without the re-check the
+        turn runs, which is exactly what #1437 reports."""
+        session = self._socket_session()
+
+        with self._revoked(), patch("app.services.agent_session.persist_user_turn") as persist:
+            await session.handle_frame(_message())
+
+        persist.assert_not_called()
+        assert session._turn_task is None
+        session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
+
+    async def test_a_revoked_session_cancels_a_turn_already_running(self):
+        """A turn in flight when the next frame lands on a revoked session is
+        cancelled, rather than left running as the revoked identity."""
+        session = self._socket_session()
+        running = asyncio.Event()
+        release = asyncio.Event()
+
+        async def blocks_until_released(**_kwargs: Any) -> ChatTurn:
+            running.set()
+            await release.wait()
+            return _finished_turn()
+
+        with (
+            _chat(AsyncMock(side_effect=blocks_until_released)),
+            patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as auth,
+        ):
+            await session.handle_frame(_message("first"))
+            turn_task = session._turn_task
+            assert turn_task is not None
+            await _wait(running)
+
+            # Revoked before the next frame arrives.
+            auth.side_effect = AuthenticationError(message="Impersonation has ended")
+            await session.handle_frame({"type": "stop"})
+
+            assert turn_task.cancelled()
+
+        session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
+
+    async def test_a_live_session_serves_the_frame(self):
+        """A still-valid credential is waved through: the turn runs and the socket
+        stays open."""
+        session = self._socket_session()
+
+        with (
+            _chat(AsyncMock(return_value=_finished_turn())),
+            patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()),
+        ):
+            await session.handle_frame(_message())
+            task = session._turn_task
+            assert task is not None
+            await task
+
+        assert "user_prompt" in _frame_types(session)
+        session.websocket.close.assert_not_called()
+
+    async def test_a_socket_already_gone_is_not_a_second_error(self):
+        """Closing a socket the client already closed raises RuntimeError from
+        Starlette; the refusal swallows it rather than crashing the receive
+        loop."""
+        session = self._socket_session()
+        session.websocket.close = AsyncMock(side_effect=RuntimeError("already closed"))
+
+        with self._revoked():
+            await session.handle_frame(_message())
+
+        assert session._turn_task is None
 
 
 class TestATurnThatFinished:
