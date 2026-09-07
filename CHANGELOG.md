@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.371] - 2026-09-07
+
+### Fixed
+
+- **Bringing the frontend up called the backend an orphan, and offered to remove
+  it.** Docker Compose names a project after the directory it runs in, so the two
+  production stacks shared one - and starting the frontend reported the API, the
+  database, Redis and both Prefect services as orphans of it, with compose's own
+  suggestion to run the command again with `--remove-orphans`. Taking that advice
+  stops all five; the volumes survive and nothing else does. The frontend is its
+  own compose project now, in the `make` targets, in `scripts/deploy.sh` and in
+  the commands the compose files themselves advertise. Seen on the first real
+  deployment.
+
+
 ## [0.0.370] - 2026-09-06
 
 ### Added
