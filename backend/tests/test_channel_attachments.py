@@ -691,3 +691,29 @@ class TestOneMessageOneStoredFile:
         assert adapter.download_attachment.await_count == 1
         assert agents.answer.await_args.kwargs["attachments"] == [upload.return_value]
         agents.answer_default.assert_not_awaited()
+
+
+class TestACrashAnswersTheSameOnEitherPath:
+    """The mention path let a crash propagate - releasing the dedupe claim and
+    answering nothing - where the default path apologised once. One `_run_turn`
+    now, so a crash on either apologises and consumes the claim (#1459).
+    """
+
+    async def test_a_crash_on_the_mention_path_answers_like_one_on_the_default_path(self):
+        router_m, replies_m, rows_m = _router()
+        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
+            # Without the fix this would raise out of `_route_inner` and answer
+            # nothing; with it the crash is caught and apologised for.
+            await router_m._route_inner(_incoming("@support help"), MagicMock())
+
+        router_d, replies_d, rows_d = _router()
+        router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
+            await router_d._route_inner(_incoming("just a question"), MagicMock())
+
+        mention_reply = replies_m.await_args.args[2]
+        default_reply = replies_d.await_args.args[2]
+        assert "something went wrong" in mention_reply.lower()
+        assert mention_reply == default_reply
