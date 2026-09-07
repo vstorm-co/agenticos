@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.375] - 2026-09-07
+
+### Added
+
+- **`invite-members`, for onboarding a team rather than a person.**
+  `agenticos cmd invite-members <org-id> a@example.com b@example.com --role admin`
+  creates one invitation per address and prints them as `address  link`, one per
+  line and nothing between them, because that output is meant to be copied. It
+  exists for the same reason the fix below does: nothing is emailed on a
+  deployment with no `SMTP_*`, and the accept token is returned once and stored
+  nowhere a second read can reach. It goes through the same service the console
+  does, so the role ceiling, the seat cap and the duplicate checks apply exactly
+  as they do to somebody clicking the button - which is why it invites *as*
+  somebody, defaulting to the organization's first owner. One refused address is
+  reported and skipped rather than costing the rest.
+
+### Fixed
+
+- **An invitee with no account lost the invitation on the way to the sign-up
+  form.** They opened the link, were sent to sign in, clicked "create an
+  account", registered - and arrived in no organization at all, with the token
+  gone and nowhere to read it from again. The chain that carries it is built and
+  tested: the auth guard bounces them to `/login?returnTo=<the invitation>`, and
+  everything downstream reads the token back out of that one parameter. The
+  invitation page then overrode it with a redirect of its own writing
+  `?redirect=`, a name nothing reads - and since the page renders only once the
+  guard has decided, that push reliably replaced the guard's. On an `invite_only`
+  deployment the bare sign-up form it produced refuses them as well.
+
 ## [0.0.374] - 2026-09-07
 
 ### Fixed
