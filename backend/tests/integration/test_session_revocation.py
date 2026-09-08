@@ -90,13 +90,25 @@ async def test_a_sid_less_token_survives_sign_out_everywhere(db, api: AsyncClien
 
 async def test_rotate_keeps_the_id_and_re_keys_the_refresh_hash(db):
     """Refresh in place: the row's id (the token's `sid`) survives, the old
-    refresh token stops validating, and the new one takes over - on real SQL."""
+    refresh token stops validating, and the new one takes over - on real SQL.
+
+    The security-sensitive properties of a refresh rotation, asserted explicitly
+    because in-place rotation replaces deactivate-old-then-create-new: the spent
+    token is refused (its hash no longer names a row), there is no window in which
+    both tokens validate (one row holds exactly one hash), and no second row is
+    left behind (the count stays one). The codebase has no rotation-chain reuse
+    detection for in-place to break - `validate_refresh_token` keys on the hash,
+    `is_active` and `expires_at` alone, and the session row carries no token
+    lineage - so the guarantee is exactly this hash swap.
+    """
     user = await _user(db, "rotate-e2e@example.com")
+    user_id = user.id  # bound before expire_all, which would make a later read reload
     service = SessionService(db)
     session = await session_repo.create(
-        db, user_id=user.id, refresh_token_hash=hash_token("old-refresh"), expires_at=_in_a_day()
+        db, user_id=user_id, refresh_token_hash=hash_token("old-refresh"), expires_at=_in_a_day()
     )
     original_id = session.id
+    assert await session_repo.count_user_sessions(db, user_id, open_only=True) == 1
 
     rotated = await service.rotate_session(session, "new-refresh")
 
@@ -104,7 +116,10 @@ async def test_rotate_keeps_the_id_and_re_keys_the_refresh_hash(db):
     assert rotated.refresh_token_hash == hash_token("new-refresh")
 
     db.expire_all()
+    # The spent token is refused, the new one works, and there is exactly one
+    # active row - no parallel window, no orphaned second session.
     assert await service.validate_refresh_token("old-refresh") is None
     revalidated = await service.validate_refresh_token("new-refresh")
     assert revalidated is not None
     assert revalidated.id == original_id
+    assert await session_repo.count_user_sessions(db, user_id, open_only=True) == 1
