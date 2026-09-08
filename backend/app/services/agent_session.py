@@ -60,6 +60,26 @@ This is a count of messages, not of tokens, and nothing here compacts it: the
 is replayed as text.
 """
 
+DETACHED_TURN_GRACE_S = 600.0
+"""How long a turn may go on after the socket watching it has gone.
+
+A dropped socket is not a decision to abandon the answer. `send_event` already
+answers a closed socket with `False` rather than raising, which is the contract
+`run_stream.FrameSink` states - *a visitor who closed the tab must not take the
+run with them* - and `process_message`'s own `finally` writes down whatever the
+model produced either way. So a turn allowed to reach its end is a `COMPLETED`
+run with its answer in the transcript, which is what the reader finds when they
+come back. Cancelling on the disconnect instead wrote `CANCELLED` against a
+half-finished reply and labelled it *stopped*, for a browser that had done
+nothing but refresh its access token.
+
+Bounded, because nobody is watching any more: an agent left iterating spends the
+organization's budget on an answer no one will read. Ten minutes is above the
+longest turn measured on a small deployment (416 s) with room to spare, and far
+below the cost of an afternoon. The budget capability is the real ceiling; this
+is the one that applies when the reason to stop is that the reader has gone.
+"""
+
 
 def _turn_failed(exc: Exception) -> str:
     """What a crashed turn is allowed to tell the client.
@@ -192,8 +212,45 @@ class AgentSession:
             await task
 
     async def shutdown(self) -> None:
-        """Cancel any in-flight turn."""
-        await self._cancel_turn()
+        """Let the in-flight turn finish without its socket, then stop it.
+
+        Called when the socket has gone - a closed tab, a dropped connection, a
+        refreshed credential - and deliberately not the same act as `stop`.
+        Nobody is waiting on the frames any more, but the answer is still worth
+        having: it is written to the transcript by `process_message`, not to the
+        socket, so the reader who comes back finds a finished turn rather than a
+        half-written one marked *stopped*. See `DETACHED_TURN_GRACE_S`.
+
+        `stop` is untouched. `handle_frame` still cancels immediately there,
+        because somebody asked.
+        """
+        task = self._turn_task
+        if task is None or task.done():
+            return
+        # Released before the wait. A run paused on `ask_user` is waiting for an
+        # answer from somebody who is no longer there and cannot reach its own
+        # end while it waits, so the grace would be spent doing nothing and the
+        # turn cancelled anyway. Answered as nothing, which `_ask_one` already
+        # renders and which its docstring already names as one of the ways the
+        # wait ends.
+        fut = self._ask_user_future
+        if fut is not None and not fut.done():
+            fut.set_result([])
+        # `shield` is what makes the two endings distinguishable: without it
+        # `wait_for`'s timeout cancels the turn *through* the wait, and the
+        # explicit cancellation below - the path every existing test covers, and
+        # the one that unwinds delegations - would never run.
+        try:
+            await asyncio.wait_for(asyncio.shield(task), DETACHED_TURN_GRACE_S)
+        except TimeoutError:
+            logger.info("Turn ran past its detached grace with nobody watching; stopping it")
+            await self._cancel_turn()
+        except asyncio.CancelledError:
+            # This session's own task tree is being torn down - a redeploy, or
+            # uvicorn draining. Stop the turn, then let the cancellation carry on
+            # unwinding rather than swallowing it here.
+            await self._cancel_turn()
+            raise
 
     async def process_message(self, data: dict[str, Any]) -> None:
         """Process one user turn: persist input, run the agent, stream events, persist output."""
