@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.377] - 2026-09-07
+
+### Fixed
+
+- **Connecting an MCP server through OAuth authorized, then sent the browser
+  nowhere.** The provider returned somebody to
+  `http://0.0.0.0:3000/mcp-servers?mcp_oauth=success` — the connection made, the
+  person on a page nothing can reach. `NextResponse.redirect` requires an
+  absolute URL, and the only origin a standalone Next process knows is the
+  address it binds to, so behind any reverse proxy the `Location` header carried
+  it. The callback emits a relative one now, which the browser resolves against
+  the URL it actually asked for. Local development never showed it, because there
+  the bind address is the address the browser used.
+
 ## [0.0.376] - 2026-09-07
 
 ### Fixed
