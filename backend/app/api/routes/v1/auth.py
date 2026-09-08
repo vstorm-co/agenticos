@@ -148,7 +148,12 @@ async def change_password(
     the new version and returned, keeping the one who made the change signed in
     while every other device, an impersonation among them, is logged out (#1439).
     """
-    await enforce_auth_limit(request, surface="auth_password_change")
+    # Identified by the account, not only the caller's address: a stolen access
+    # token spread across source IPs would otherwise get a fresh guess budget per
+    # address against the same account's current password (#1517).
+    await enforce_auth_limit(
+        request, surface="auth_password_change", identifier=str(current_user.id)
+    )
     updated = await user_service.change_password(
         current_user,
         current_password=body.current_password,

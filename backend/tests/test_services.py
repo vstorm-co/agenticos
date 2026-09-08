@@ -11,6 +11,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthenticationError,
     AuthorizationError,
+    BadRequestError,
     NotFoundError,
 )
 from app.schemas.user import UserCreate, UserUpdate
@@ -395,6 +396,7 @@ class TestUserServicePostgresql:
             patch("app.services.user.session_repo") as mock_sessions,
             patch("app.services.user.verify_password", return_value=True),
         ):
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.get_by_id = AsyncMock(return_value=mock_user)
             mock_repo.update = AsyncMock(return_value=mock_user)
             mock_sessions.deactivate_all_user_sessions = AsyncMock(return_value=2)
@@ -403,9 +405,35 @@ class TestUserServicePostgresql:
                 mock_user, current_password="old-password", new_password="newpassword123"
             )
 
+            mock_repo.get_by_id_for_update.assert_awaited_once()
             mock_sessions.deactivate_all_user_sessions.assert_awaited_once_with(
                 user_service.db, mock_user.id, except_session_id=None
             )
+
+    @pytest.mark.anyio
+    async def test_change_password_verifies_the_locked_row_not_the_passed_user(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The proof is checked against the row locked for the change, not the
+        request's own user object - so an overlapping change cannot slip a stale
+        hash past it (#1517)."""
+        locked = MockUser()
+        locked.hashed_password = "the-locked-hash"
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+            patch("app.services.user.verify_password", return_value=True) as verify,
+        ):
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=locked)
+            mock_repo.get_by_id = AsyncMock(return_value=locked)
+            mock_repo.update = AsyncMock(return_value=locked)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock()
+
+            await user_service.change_password(
+                mock_user, current_password="old", new_password="newpassword123"
+            )
+
+            assert verify.call_args.args == ("old", "the-locked-hash")
 
     @pytest.mark.anyio
     async def test_change_password_refuses_a_wrong_current_password(
@@ -414,9 +442,11 @@ class TestUserServicePostgresql:
         """The proof is the whole point: a wrong current password changes nothing
         and revokes no session (#1517)."""
         with (
+            patch("app.services.user.user_repo") as mock_repo,
             patch("app.services.user.session_repo") as mock_sessions,
             patch("app.services.user.verify_password", return_value=False),
         ):
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_sessions.deactivate_all_user_sessions = AsyncMock()
             with pytest.raises(AuthenticationError):
                 await user_service.change_password(
@@ -426,20 +456,22 @@ class TestUserServicePostgresql:
 
     @pytest.mark.anyio
     async def test_change_password_refuses_an_account_with_no_password(
-        self, user_service: UserService
+        self, user_service: UserService, mock_user: MockUser
     ):
         """An OAuth-only account has no password to prove, so there is nothing to
         change here - and bcrypt is never run against a null hash (#1517)."""
         oauth_user = MockUser()
         oauth_user.hashed_password = None
         with (
+            patch("app.services.user.user_repo") as mock_repo,
             patch("app.services.user.session_repo") as mock_sessions,
             patch("app.services.user.verify_password") as verify,
         ):
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=oauth_user)
             mock_sessions.deactivate_all_user_sessions = AsyncMock()
             with pytest.raises(AuthenticationError):
                 await user_service.change_password(
-                    oauth_user, current_password="anything", new_password="newpassword123"
+                    mock_user, current_password="anything", new_password="newpassword123"
                 )
             verify.assert_not_called()
             mock_sessions.deactivate_all_user_sessions.assert_not_awaited()
@@ -516,6 +548,19 @@ class TestUserServicePostgresql:
             await user_service.update_current(mock_user, UserUpdate(is_active=False))
 
             mock_repo.update.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_self_update_refuses_a_password(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """`/users/me` proves no current password, so honouring one would be the
+        bypass `/auth/password/change` exists to close - it is refused, and the
+        hash is never touched (#1517)."""
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.update = AsyncMock()
+            with pytest.raises(BadRequestError):
+                await user_service.update_current(mock_user, UserUpdate(password="newpassword123"))
+            mock_repo.update.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_an_admin_may_suspend_another_user(

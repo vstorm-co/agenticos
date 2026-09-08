@@ -376,7 +376,16 @@ class UserService:
         terminal). A non-admin deactivating their own account only affects
         themselves and an admin can restore it, so the guard is the app admin's
         alone.
+
+        A password is refused here rather than applied: this route proves nothing
+        about the current one, and honouring it would be the bypass the dedicated
+        `/auth/password/change` endpoint exists to close - a stolen access token
+        changing a password without the old one (#1517).
         """
+        if user_in.password is not None:
+            raise BadRequestError(
+                message="Change your password through /auth/password/change, which proves the current one."
+            )
         if user.is_app_admin and user_in.is_active is False:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
@@ -400,17 +409,26 @@ class UserService:
         Returns the updated user so the route can mint that session at the new
         `credential_version`.
 
+        The user row is locked for the whole change, so two overlapping requests
+        cannot both prove the same old hash and then have the later one overwrite
+        the first, nor both read the same version and lose one of the two bumps -
+        either would leave a session refreshable past a password change (#1517).
+
         Raises:
             AuthenticationError: the current password is wrong, or the account
                 signs in through OAuth alone and has no password to change.
+            NotFoundError: the account no longer exists.
         """
-        stored = user.hashed_password
+        locked = await user_repo.get_by_id_for_update(self.db, user.id)
+        if locked is None:
+            raise NotFoundError(message="User not found", details={"user_id": user.id})
+        stored = locked.hashed_password
         ok = stored is not None and await asyncio.to_thread(
             verify_password, current_password, stored
         )
         if not ok:
             raise AuthenticationError(message="Current password is incorrect")
-        return await self.update(user.id, UserUpdate(password=new_password))
+        return await self.update(locked.id, UserUpdate(password=new_password))
 
     async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
