@@ -1,11 +1,13 @@
 """Tests for security module."""
 
 from datetime import timedelta
+from uuid import uuid4
 
 from app.core.security import (
     create_access_token,
     create_refresh_token,
     get_password_hash,
+    read_uuid_claim,
     verify_password,
     verify_token,
 )
@@ -130,6 +132,25 @@ class TestAccessToken:
         """`verify_exp=False` relaxes expiry alone; the signature is still
         checked, so a token this deployment did not sign is still refused."""
         assert verify_token("not.a.real.token", verify_exp=False) is None
+
+
+class TestReadUuidClaim:
+    """The one lenient reader both impersonation and ordinary-session binding use."""
+
+    def test_a_present_uuid_claim_is_parsed(self):
+        session_id = uuid4()
+        assert read_uuid_claim({"sid": str(session_id)}, "sid") == session_id
+
+    def test_an_absent_claim_is_none(self):
+        assert read_uuid_claim({"sub": "u"}, "sid") is None
+
+    def test_an_empty_claim_is_none(self):
+        assert read_uuid_claim({"sid": ""}, "sid") is None
+
+    def test_a_malformed_claim_is_none_not_a_refusal(self):
+        """The token is signed, so a value it cannot parse is one this code never
+        wrote - read as no claim rather than raising (#943)."""
+        assert read_uuid_claim({"sid": "not-a-uuid"}, "sid") is None
 
 
 class TestRefreshToken:

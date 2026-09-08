@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 import bcrypt
 import jwt
@@ -87,6 +88,23 @@ def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | Non
             options={"verify_exp": verify_exp},
         )
     except jwt.PyJWTError:
+        return None
+
+
+def read_uuid_claim(payload: dict[str, Any], name: str) -> UUID | None:
+    """A token claim read as a uuid, or None when it is absent or not one.
+
+    A malformed claim is no claim rather than a refusal: the token is signed by
+    this deployment, so a value it cannot parse is one this code never wrote. Both
+    the impersonation `sid`/`act` (#943) and the ordinary-session `sid` (#1501)
+    read their row id through here, so the leniency is decided in one place.
+    """
+    value = payload.get(name)
+    if not value:
+        return None
+    try:
+        return UUID(str(value))
+    except ValueError:
         return None
 
 
