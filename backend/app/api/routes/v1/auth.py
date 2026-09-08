@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import (
-    CurrentSessionId,
     CurrentUser,
     DeploymentSettingsSvc,
     ImpersonationSvc,
@@ -132,27 +131,40 @@ async def logout(
     await session_service.logout_by_refresh_token(body.refresh_token)
 
 
-@router.post("/password/change", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.post("/password/change", response_model=Token)
 async def change_password(
     request: Request,
     body: PasswordChangeRequest,
     current_user: CurrentUser,
     user_service: UserSvc,
-    current_session_id: CurrentSessionId,
-) -> None:
-    """Change the signed-in user's password and revoke the account's other sessions.
+    session_service: SessionSvc,
+) -> Any:
+    """Change the signed-in user's password and open this device a fresh session.
 
     The current password is proved here, which `PATCH /users/me` cannot ask for -
-    the flow the Settings form posts to (#1517). The session that made the change
-    is spared; every other one, an impersonation among them, is revoked (#1439).
+    the flow the Settings form posts to (#1517). The change bumps the credential
+    version and revokes every session, the caller's own included - so its stale
+    refresh token cannot rotate past the change - and a fresh session is minted at
+    the new version and returned, keeping the one who made the change signed in
+    while every other device, an impersonation among them, is logged out (#1439).
     """
     await enforce_auth_limit(request, surface="auth_password_change")
-    await user_service.change_password(
+    updated = await user_service.change_password(
         current_user,
         current_password=body.current_password,
         new_password=body.new_password,
-        current_session_id=current_session_id,
     )
+    refresh_token = create_refresh_token(
+        subject=str(updated.id), credential_version=updated.credential_version
+    )
+    session = await session_service.create_session(
+        user_id=updated.id,
+        refresh_token=refresh_token,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
+    access_token = create_access_token(subject=str(updated.id), sid=str(session.id))
+    return Token(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.get("/me", response_model=MeRead)

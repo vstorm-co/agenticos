@@ -384,12 +384,12 @@ class TestUserServicePostgresql:
             )
 
     @pytest.mark.anyio
-    async def test_change_password_proves_the_current_one_then_revokes_others(
+    async def test_change_password_proves_the_current_one_then_revokes_every_session(
         self, user_service: UserService, mock_user: MockUser
     ):
-        """A signed-in change proves the old password, then revokes the account's
-        other sessions and spares the one that made it (#1517)."""
-        current = uuid4()
+        """A signed-in change proves the old password, then revokes every session -
+        the caller's own included, since the cv gate would refuse its stale token
+        anyway; the route re-establishes this device at the new version (#1517)."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
             patch("app.services.user.session_repo") as mock_sessions,
@@ -397,17 +397,14 @@ class TestUserServicePostgresql:
         ):
             mock_repo.get_by_id = AsyncMock(return_value=mock_user)
             mock_repo.update = AsyncMock(return_value=mock_user)
-            mock_sessions.deactivate_all_user_sessions = AsyncMock(return_value=1)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock(return_value=2)
 
             await user_service.change_password(
-                mock_user,
-                current_password="old-password",
-                new_password="newpassword123",
-                current_session_id=current,
+                mock_user, current_password="old-password", new_password="newpassword123"
             )
 
             mock_sessions.deactivate_all_user_sessions.assert_awaited_once_with(
-                user_service.db, mock_user.id, except_session_id=current
+                user_service.db, mock_user.id, except_session_id=None
             )
 
     @pytest.mark.anyio

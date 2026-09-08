@@ -1,9 +1,9 @@
 /**
  * @vitest-environment node
  *
- * A server route: it reads the access-token cookie and forwards the change to
- * the backend. The token lives in an HttpOnly cookie, so what this proves is that
- * the proxy carries it as a bearer and passes the backend's answer straight back.
+ * A server route: it reads the access-token cookie, forwards the change as a
+ * bearer, and swaps the token cookies to the fresh pair the change returns - the
+ * old ones are on a credential version the backend has just moved past.
  */
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -30,21 +30,23 @@ function request(cookies: Record<string, string> = {}, body: unknown = {}): Next
 beforeEach(() => vi.clearAllMocks());
 
 describe("changing a password", () => {
-  it("forwards the access-token cookie as a bearer and answers 204", async () => {
-    vi.mocked(backendFetch).mockResolvedValue(null);
+  it("forwards the cookie as a bearer and swaps in the fresh token pair", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({ access_token: "new-a", refresh_token: "new-r" });
 
     const response = await changePassword(
       request({ access_token: "tok-123" }, { current_password: "old", new_password: "newpass12" }),
     );
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
     const [endpoint, options] = vi.mocked(backendFetch).mock.calls[0]!;
     expect(endpoint).toBe("/api/v1/auth/password/change");
     expect((options?.headers as Record<string, string>).Authorization).toBe("Bearer tok-123");
+    expect(response.cookies.get("access_token")?.value).toBe("new-a");
+    expect(response.cookies.get("refresh_token")?.value).toBe("new-r");
   });
 
   it("sends no bearer when the browser carries no token, so the backend refuses it", async () => {
-    vi.mocked(backendFetch).mockResolvedValue(null);
+    vi.mocked(backendFetch).mockResolvedValue({ access_token: "a", refresh_token: "r" });
 
     await changePassword(request({}, { current_password: "old", new_password: "newpass12" }));
 

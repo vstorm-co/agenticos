@@ -18,12 +18,33 @@ export async function POST(request: NextRequest) {
     : {};
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    await backendFetch<unknown>("/api/v1/auth/password/change", {
-      method: "POST",
-      headers: { ...authHeaders, ...forwardedFor(request) },
-      body: JSON.stringify(body),
+    const data = await backendFetch<{ access_token: string; refresh_token: string }>(
+      "/api/v1/auth/password/change",
+      {
+        method: "POST",
+        headers: { ...authHeaders, ...forwardedFor(request) },
+        body: JSON.stringify(body),
+      },
+    );
+    // The change revoked every session including this device's, so the backend
+    // returns a fresh pair at the new credential version; the cookies are swapped
+    // to it, or the next refresh - now on the old version - would 401 (#1517).
+    const response = bffJson({ access_token: data.access_token });
+    response.cookies.set("access_token", data.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 15,
+      path: "/",
     });
-    return new Response(null, { status: 204 });
+    response.cookies.set("refresh_token", data.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    });
+    return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
       if (error.status === 429) return forwardRateLimit(error);

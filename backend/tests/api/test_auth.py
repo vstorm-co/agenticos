@@ -246,18 +246,21 @@ async def test_a_password_change_needs_a_signed_in_caller(
 
 
 @pytest.mark.anyio
-async def test_a_password_change_hands_the_service_the_session_to_spare(
+async def test_a_password_change_returns_a_fresh_session_at_the_new_version(
     mock_user: MockUser, mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
 ) -> None:
-    """The route proves nothing itself; it hands the service the caller, the two
-    passwords and the session to keep, and answers 204 (#1517)."""
-    session_id = uuid4()
+    """The change revokes every session, the caller's own included, so the route
+    opens a fresh one and hands back its tokens - keeping the one who made the
+    change signed in, on a refresh token carrying the new version (#1517)."""
+    mock_user.credential_version = 3
     mock_user_service.change_password = AsyncMock(return_value=mock_user)
+    session_service = MagicMock()
+    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_session_service] = lambda: session_service
     app.dependency_overrides[get_redis] = lambda: mock_redis
     app.dependency_overrides[get_db_session] = lambda: mock_db_session
     app.dependency_overrides[get_current_user] = lambda: mock_user
-    app.dependency_overrides[get_current_session_id] = lambda: session_id
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
@@ -267,26 +270,34 @@ async def test_a_password_change_hands_the_service_the_session_to_spare(
     finally:
         app.dependency_overrides.clear()
 
-    assert resp.status_code == 204
+    assert resp.status_code == 200
+    body = resp.json()
+    minted = verify_token(body["refresh_token"])
+    assert minted is not None
+    assert minted["cv"] == 3
+    session_service.create_session.assert_awaited_once()
     kwargs = mock_user_service.change_password.await_args.kwargs
     assert kwargs["current_password"] == "old-password"
     assert kwargs["new_password"] == "newpassword123"
-    assert kwargs["current_session_id"] == session_id
+    assert "current_session_id" not in kwargs
 
 
 @pytest.mark.anyio
 async def test_a_wrong_current_password_is_refused_with_a_401(
     mock_user: MockUser, mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
 ) -> None:
-    """The service's refusal reaches the caller as a 401, not a 500 (#1517)."""
+    """The service's refusal reaches the caller as a 401, not a 500, and mints no
+    session (#1517)."""
     mock_user_service.change_password = AsyncMock(
         side_effect=AuthenticationError(message="Current password is incorrect")
     )
+    session_service = MagicMock()
+    session_service.create_session = AsyncMock()
     app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_session_service] = lambda: session_service
     app.dependency_overrides[get_redis] = lambda: mock_redis
     app.dependency_overrides[get_db_session] = lambda: mock_db_session
     app.dependency_overrides[get_current_user] = lambda: mock_user
-    app.dependency_overrides[get_current_session_id] = lambda: None
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
@@ -296,6 +307,7 @@ async def test_a_wrong_current_password_is_refused_with_a_401(
     finally:
         app.dependency_overrides.clear()
     assert resp.status_code == 401
+    session_service.create_session.assert_not_called()
 
 
 @pytest.mark.anyio
