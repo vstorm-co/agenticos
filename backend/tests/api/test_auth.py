@@ -14,7 +14,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api.deps import get_current_session_id, get_current_user, get_user_service
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, AuthenticationError
-from app.core.security import create_access_token, verify_token
+from app.core.security import create_access_token, create_refresh_token, verify_token
 from app.main import app
 from app.api.deps import get_redis
 from app.api.deps import get_db_session
@@ -38,6 +38,7 @@ class MockUser:
         self.is_active = is_active
         self.role = role
         self.hashed_password = "hashed"
+        self.credential_version = 0
         self.avatar_url = None
         self.oauth_provider = None
         self.created_at = datetime.now(UTC)
@@ -153,6 +154,76 @@ async def test_get_current_session_id_is_none_for_an_unverifiable_token() -> Non
     """A garbled or expired token is no session to spare, not a refusal - the
     route it serves already authenticated through `CurrentUser`."""
     assert await get_current_session_id("not-a-real-jwt") is None
+
+
+@pytest.mark.anyio
+async def test_refresh_refuses_a_token_behind_the_credential_version(
+    mock_redis: MagicMock, mock_db_session
+) -> None:
+    """A refresh token minted before a password change carries the old credential
+    version, so it cannot rotate past the change even if its session row is still
+    active - the close on the revocation race (#1517)."""
+    user = MockUser()
+    user.credential_version = 5
+    user_service = MagicMock()
+    user_service.get_by_id = AsyncMock(return_value=user)
+    session_service = MagicMock()
+    session_service.validate_refresh_token = AsyncMock(
+        return_value=SimpleNamespace(id=uuid4(), user_id=user.id)
+    )
+    session_service.create_session = AsyncMock()
+    stale = create_refresh_token(subject=str(user.id), credential_version=4)
+
+    app.dependency_overrides[get_user_service] = lambda: user_service
+    app.dependency_overrides[get_session_service] = lambda: session_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": stale}
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 401
+    session_service.create_session.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_refresh_at_the_current_version_mints_a_token_carrying_it(
+    mock_redis: MagicMock, mock_db_session
+) -> None:
+    """A token at the account's current version rotates, and the token it mints
+    carries that version so the chain stays valid until the next change (#1517)."""
+    user = MockUser()
+    user.credential_version = 5
+    user_service = MagicMock()
+    user_service.get_by_id = AsyncMock(return_value=user)
+    session_service = MagicMock()
+    session_service.validate_refresh_token = AsyncMock(
+        return_value=SimpleNamespace(id=uuid4(), user_id=user.id)
+    )
+    session_service.logout_by_refresh_token = AsyncMock()
+    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    current = create_refresh_token(subject=str(user.id), credential_version=5)
+
+    app.dependency_overrides[get_user_service] = lambda: user_service
+    app.dependency_overrides[get_session_service] = lambda: session_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": current}
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    minted = verify_token(resp.json()["refresh_token"])
+    assert minted is not None
+    assert minted["cv"] == 5
 
 
 @pytest.mark.anyio

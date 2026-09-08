@@ -28,6 +28,7 @@ class MockUser:
         hashed_password="$2b$12$hashedpassword",
         is_active=True,
         role="user",
+        credential_version=0,
     ):
         self.id = id or uuid4()
         self.email = email
@@ -35,6 +36,7 @@ class MockUser:
         self.hashed_password = hashed_password
         self.is_active = is_active
         self.role = role
+        self.credential_version = credential_version
 
 
 class TestUserServicePostgresql:
@@ -305,6 +307,43 @@ class TestUserServicePostgresql:
             mock_sessions.deactivate_all_user_sessions.assert_awaited_once_with(
                 user_service.db, mock_user.id, except_session_id=current
             )
+
+    @pytest.mark.anyio
+    async def test_a_password_change_bumps_the_credential_version(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The bump is what a refresh racing the revocation is caught by: the token
+        it would rotate carries the version from before the change (#1517)."""
+        mock_user.credential_version = 3
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+        ):
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock()
+
+            await user_service.update(mock_user.id, UserUpdate(password="newpassword123"))
+
+            assert mock_repo.update.call_args.kwargs["update_data"]["credential_version"] == 4
+
+    @pytest.mark.anyio
+    async def test_a_profile_update_without_a_password_leaves_the_version_alone(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """Only a password change moves the version; renaming yourself does not."""
+        mock_user.credential_version = 3
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+        ):
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock()
+
+            await user_service.update(mock_user.id, UserUpdate(full_name="Renamed"))
+
+            assert "credential_version" not in mock_repo.update.call_args.kwargs["update_data"]
 
     @pytest.mark.anyio
     async def test_a_profile_update_without_a_password_leaves_sessions_alone(

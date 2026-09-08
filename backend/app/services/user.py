@@ -347,6 +347,10 @@ class UserService:
             update_data["hashed_password"] = await asyncio.to_thread(
                 get_password_hash, update_data.pop("password")
             )
+            # Bump the credential version alongside the hash, so a refresh token
+            # minted before this change is refused even if it raced the session
+            # revocation below and its session row survived (#1517).
+            update_data["credential_version"] = user.credential_version + 1
 
         updated = await user_repo.update(self.db, db_user=user, update_data=update_data)
         if password_changed:
@@ -717,7 +721,11 @@ class UserService:
             self.db,
             db_user=user,
             update_data={
-                "hashed_password": await asyncio.to_thread(get_password_hash, new_password)
+                "hashed_password": await asyncio.to_thread(get_password_hash, new_password),
+                # Bumped for the same reason the self-service change bumps it: a
+                # refresh racing the revocation below must not rotate a token
+                # minted before the reset (#1517).
+                "credential_version": user.credential_version + 1,
             },
         )
         # Revoke any active sessions so a previously-issued refresh token cannot

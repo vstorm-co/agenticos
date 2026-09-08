@@ -20,6 +20,7 @@ from app.core.exceptions import AuthenticationError
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    verify_token,
 )
 from app.schemas.password_reset import (
     MagicLinkRequest,
@@ -49,7 +50,9 @@ async def login(
     """OAuth2 password login, returns access and refresh tokens."""
     await enforce_auth_limit(request, surface="auth_login", identifier=form_data.username)
     user = await user_service.authenticate(form_data.username, form_data.password)
-    refresh_token = create_refresh_token(subject=str(user.id))
+    refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
 
     # Track this login as a server-side session (enables remote logout).
     session = await session_service.create_session(
@@ -91,7 +94,18 @@ async def refresh_token(
     if not user.is_active:
         raise AuthenticationError(message="User account is disabled")
 
-    new_refresh_token = create_refresh_token(subject=str(user.id))
+    # The presented token must be at the account's current credential version. A
+    # password change bumps it, so a token minted before the change - even one
+    # whose session row a concurrent revocation had not yet closed - cannot rotate
+    # past it (#1517). A token minted before the claim existed carries no `cv` and
+    # reads as 0, which matches an account that has never changed its password.
+    payload = verify_token(body.refresh_token)
+    if payload is None or payload.get("cv", 0) != user.credential_version:
+        raise AuthenticationError(message="Invalid or expired refresh token")
+
+    new_refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
 
     await session_service.logout_by_refresh_token(body.refresh_token)
     session = await session_service.create_session(
@@ -247,7 +261,9 @@ async def verify_magic_link(
     """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
     user, return_to = await user_service.consume_magic_link_token(body.token)
-    refresh_token = create_refresh_token(subject=str(user.id))
+    refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
     session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
