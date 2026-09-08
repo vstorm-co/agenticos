@@ -113,12 +113,19 @@ Bindings are stored beside the server address.
     tap that watches every key press, and asking every user to grant that. Not this
     version.
 
-The first press asks macOS whether AgenticOS may record the screen; refused, the
-capture comes back as the desktop picture rather than an error, so grant it in
-System Settings → Privacy & Security → Screen Recording. The picture reaches the
-composer the way a chosen file does: the shell runs a script in the console page
-that hands the PNG to the composer's file input, so the upload, the size limit and
-the preview are the console's own. Windows and Linux have no capture wired yet.
+The first press asks macOS whether AgenticOS may record the screen. Until it may,
+nothing can be captured - the system's own tool exits quietly with no crosshair -
+so the shell checks first, opens System Settings → Privacy & Security → Screen
+Recording, and the pet says "Allow screen recording, then restart me." The grant
+goes to the *responsible* application: the AgenticOS bundle once it is packaged,
+but under `make desktop-dev` the terminal the binary was launched from, or the IDE
+hosting it - which is the one to tick in that list. A grant takes effect
+after a restart.
+
+The picture reaches the composer the way a chosen file does: the shell runs a
+script in the console page that hands the PNG to the composer's file input, so the
+upload, the size limit and the preview are the console's own. Windows and Linux
+have no capture wired yet.
 
 ## What it deliberately does not do
 

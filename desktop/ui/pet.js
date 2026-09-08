@@ -205,6 +205,7 @@ async function start() {
     quip();
     if (reduceMotion) render(performance.now());
   });
+  await listen("pet-say", (event) => say(event.payload));
   await win.onMoved(async ({ payload }) => {
     pos = { x: payload.x / scale, y: payload.y / scale };
     scheduleSave();

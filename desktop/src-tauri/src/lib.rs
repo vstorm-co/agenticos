@@ -38,7 +38,8 @@ const SHOW_PET: &str = "show-pet";
 const NEW_CHAT: &str = "new-chat";
 const OPEN_CONSOLE: &str = "open-console";
 const PET_KIND_EVENT: &str = "pet-kind";
-const PET_SIZE: (f64, f64) = (144.0, 184.0);
+const PET_SAY_EVENT: &str = "pet-say";
+const PET_SIZE: (f64, f64) = (144.0, 200.0);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Serialize, Deserialize, Default)]
@@ -489,13 +490,46 @@ fn start_chat(app: &AppHandle) -> Result<(), String> {
     }
 }
 
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
+
+/// Whether this process may record the screen, asking the system to prompt when it may not.
+///
+/// Without the permission `screencapture -i` exits 0, writes no file and shows no
+/// crosshair - indistinguishable from Escape - so the check has to come first. The
+/// system prompts once; after that the request is silent, so the Screen Recording
+/// pane is opened as well. Both are attributed to the responsible process: the
+/// bundle in production, the terminal the binary was launched from under
+/// `make desktop-dev`. A grant takes effect after the app is restarted.
+#[cfg(target_os = "macos")]
+fn screen_capture_allowed() -> bool {
+    // SAFETY: both functions take no arguments and return a BOOL; CoreGraphics is linked above.
+    if unsafe { CGPreflightScreenCaptureAccess() } {
+        return true;
+    }
+    unsafe { CGRequestScreenCaptureAccess() };
+    if let Err(e) = std::process::Command::new("open").arg(SCREEN_RECORDING_PANE).status() {
+        eprintln!("screenshot: could not open the Screen Recording pane: {e}");
+    }
+    false
+}
+
+const SCREEN_RECORDING_REFUSED: &str = "Allow screen recording, then restart me.";
+const SCREEN_RECORDING_PANE: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
+
 /// Let the person pick a region, and hand back the PNG - or nothing, if they pressed Escape.
 ///
-/// `screencapture -i` is the same crosshair Cmd+Shift+4 gives, silent, into a
-/// file of ours. The first time, macOS asks whether AgenticOS may record the
-/// screen; refused, it hands back the desktop picture rather than an error.
+/// `screencapture -i` is the same crosshair Cmd+Shift+4 gives, silent, into a file
+/// of ours.
 #[cfg(target_os = "macos")]
 fn capture_screen() -> Result<Option<Vec<u8>>, String> {
+    if !screen_capture_allowed() {
+        return Err(SCREEN_RECORDING_REFUSED.to_owned());
+    }
     let path = std::env::temp_dir().join(format!("agenticos-screenshot-{}.png", std::process::id()));
     let status = std::process::Command::new("screencapture")
         .args(["-i", "-x", "-t", "png"])
@@ -568,6 +602,9 @@ fn screenshot_to_chat(app: &AppHandle) {
             Ok(None) => return,
             Err(e) => {
                 eprintln!("screenshot: {e}");
+                if let Err(e) = app.emit_to(PET, PET_SAY_EVENT, e) {
+                    eprintln!("screenshot: {e}");
+                }
                 return;
             }
         };
