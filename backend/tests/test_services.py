@@ -385,6 +385,32 @@ class TestUserServicePostgresql:
             )
 
     @pytest.mark.anyio
+    async def test_an_explicit_null_password_is_a_no_op_not_a_crash(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """`PATCH /users/{id}` (and /users/me) with `{"password": null}` reaches
+        here as an explicit None that `writable` keeps - there is no `password`
+        column. It must be a no-op: nothing hashed, no version bump, no session
+        revoked - not `get_password_hash(None)` reaching bcrypt as a 500 (#1497)."""
+        mock_user.credential_version = 3
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+        ):
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock()
+
+            await user_service.update(mock_user.id, UserUpdate(password=None, full_name="Renamed"))
+
+            update_data = mock_repo.update.call_args.kwargs["update_data"]
+            assert "password" not in update_data
+            assert "hashed_password" not in update_data
+            assert "credential_version" not in update_data
+            assert update_data["full_name"] == "Renamed"
+            mock_sessions.deactivate_all_user_sessions.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_change_password_proves_the_current_one_then_revokes_every_session(
         self, user_service: UserService, mock_user: MockUser
     ):

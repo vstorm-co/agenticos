@@ -342,10 +342,14 @@ class UserService:
         user = await self.get_by_id(user_id)
 
         update_data = writable(user_in, over=User)
-        password_changed = "password" in update_data
+        # `password` has no column (the row stores `hashed_password`), so writable
+        # keeps an explicit null rather than dropping it. Popped unconditionally so
+        # a null is a no-op, not a hash of None that reaches bcrypt as a 500 (#1497).
+        new_password = update_data.pop("password", None)
+        password_changed = new_password is not None
         if password_changed:
             update_data["hashed_password"] = await asyncio.to_thread(
-                get_password_hash, update_data.pop("password")
+                get_password_hash, new_password
             )
             # Bump the credential version alongside the hash, so a refresh token
             # minted before this change is refused even if it raced the session
