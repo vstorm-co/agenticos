@@ -1747,6 +1747,72 @@ class TestMcpConnectionService:
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_create_with_a_token_is_refused_under_an_impersonation(
+        self, service, repo, monkeypatch
+    ):
+        """An administrator acting as B must not store their own bearer token as
+        B's personal connection - B's agents would then call the server as the
+        administrator's account after the hour-bounded impersonation ends, and
+        the credential would stand recorded against B (#1492)."""
+        _allow_any_url(monkeypatch)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.create(
+                user_id=uuid4(),
+                data=McpConnectionCreate(
+                    name="linear", url="https://srv/mcp", auth_token="admin-token"
+                ),
+            )
+        repo.create.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_create_without_a_token_is_allowed_under_an_impersonation(
+        self, service, repo, monkeypatch
+    ):
+        """Only a manually entered credential is refused - a tokenless connection
+        captures no identity, and configuring one as B is much of what
+        impersonation is for (#1492)."""
+        _allow_any_url(monkeypatch)
+        with _impersonating():
+            await service.create(
+                user_id=uuid4(),
+                data=McpConnectionCreate(name="linear", url="https://srv/mcp"),
+            )
+        repo.create.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_update_with_a_replacement_token_is_refused_under_an_impersonation(
+        self, service, repo
+    ):
+        """The same refusal as create, for a token pasted over an existing
+        connection. Refused before the write, so nothing is resealed (#1492)."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        repo.get_by_id.return_value = conn
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.update(
+                user_id=user_id,
+                connection_id=conn.id,
+                data=McpConnectionUpdate(auth_token="admin-token"),
+            )
+        repo.update.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_update_clearing_the_token_is_allowed_under_an_impersonation(self, service, repo):
+        """Removing a token stores no credential, so it is left alone - only a
+        non-empty replacement is refused (#1492)."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        conn.auth_token = _seal_into(conn, "old")
+        repo.get_by_id.return_value = conn
+        with _impersonating():
+            await service.update(
+                user_id=user_id,
+                connection_id=conn.id,
+                data=McpConnectionUpdate(auth_token=""),
+            )
+        assert repo.update.call_args.kwargs["update_data"]["auth_token"] is None
+
+    @pytest.mark.anyio
     async def test_oauth_start_registers_and_persists_pending(self, service, repo, monkeypatch):
         _allow_any_url(monkeypatch)
         discovered = mcp_oauth.DiscoveredServer(

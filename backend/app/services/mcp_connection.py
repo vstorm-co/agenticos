@@ -474,6 +474,12 @@ class McpConnectionService:
                 silently never substitutes rather than an obvious mistake.
             AlreadyExistsError: If this member already has a connection by that
                 name.
+            AuthorizationError: When the request runs under an impersonation and a
+                non-empty `auth_token` is supplied. The token is the administrator's
+                own, sealed under the target's vault scope, and it would speak as
+                the administrator's account, outlive the hour the impersonation is
+                bounded to, and stand recorded against the target (#1492); refused,
+                not audited.
         """
         if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
             raise BadRequestError(
@@ -488,6 +494,8 @@ class McpConnectionService:
                 details={"name": data.name},
             )
         token = data.auth_token.strip() if data.auth_token else None
+        if token:
+            refuse_binding_while_impersonating("Adding an integration token")
         sealed = seal(token, scope=VaultScope.user(user_id)) if token else None
         try:
             return await mcp_connection_repo.create(
@@ -511,6 +519,16 @@ class McpConnectionService:
     async def update(
         self, *, user_id: UUID, connection_id: UUID, data: McpConnectionUpdate
     ) -> McpConnection:
+        """Change one member's own connection.
+
+        Raises:
+            AlreadyExistsError: If the new name is taken by another of this
+                member's connections.
+            AuthorizationError: When the request runs under an impersonation and a
+                non-empty `auth_token` replacement is supplied - the same refusal
+                as `create`, for the same reason (#1492). Clearing the token is
+                left alone; it stores no credential.
+        """
         # Locked from the read: the token below is sealed at the row's recorded
         # key version, and a rotation committing between an unlocked read and
         # this write would tag the new envelope with a version it was not
@@ -540,6 +558,8 @@ class McpConnectionService:
             # "" clears the stored token; a non-empty value replaces it, sealed at
             # the row's version - one version column covers every envelope in the
             # row, so bumping it would orphan the OAuth siblings (#552).
+            if token:
+                refuse_binding_while_impersonating("Adding an integration token")
             sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
 
