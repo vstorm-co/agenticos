@@ -667,7 +667,14 @@ class McpConnectionService:
         connection stops working, and the fix is for somebody to authorize it
         again. An organization that wants this should consent with an account it
         controls, not with a member's personal one.
+
+        Raises:
+            AuthorizationError: When the request runs under an impersonation. The
+                grant that comes back is the administrator's own, and the org
+                connection would record it as the member's - the org half of the
+                refusal #1438 made for personal connections (#1490).
         """
+        refuse_binding_while_impersonating("Connecting an integration")
         return await self._oauth_start(
             name=name,
             url=url,
@@ -866,7 +873,10 @@ class McpConnectionService:
                 connect through GitHub (no `mcp_catalog_key`).
             NotFoundError: If the organization has stored no `github_oauth_app`
                 secret - a 4xx the connect UI shows, never a 500.
+            AuthorizationError: When the request runs under an impersonation - the
+                administrator's own grant would be bound as the member's (#1490).
         """
+        refuse_binding_while_impersonating("Connecting an integration")
         portal = portal_catalog.get_portal(portal_key)
         if portal is None or portal.mcp_catalog_key is None:
             raise BadRequestError(
@@ -1059,7 +1069,10 @@ class McpConnectionService:
                 the same way a missing GitHub OAuth App is, never a 500.
             BadRequestError: If more than one is stored, or `portal_key` names no
                 polled portal.
+            AuthorizationError: When the request runs under an impersonation - the
+                administrator's own grant would be bound as the member's (#1490).
         """
+        refuse_binding_while_impersonating("Connecting an integration")
         portal = portal_catalog.get_portal(portal_key)
         if portal is None or portal.delivery is not portal_catalog.DeliveryMode.POLLING:
             raise BadRequestError(
