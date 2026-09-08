@@ -108,9 +108,8 @@ async def test_the_oauth_login_binds_its_access_token_to_a_session(
     so signing out everywhere can revoke it, as for any other login (#1501)."""
     fake = _FakeRedis()
     app.dependency_overrides[get_redis] = lambda: fake
-    session_id = uuid4()
     session_service = MagicMock()
-    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=session_id))
+    session_service.create_session = AsyncMock()
     app.dependency_overrides[get_session_service] = lambda: session_service
     monkeypatch.setattr(
         oauth.google,
@@ -129,4 +128,36 @@ async def test_the_oauth_login_binds_its_access_token_to_a_session(
 
     payload = verify_token(exchanged.json()["access_token"])
     assert payload is not None
-    assert payload["sid"] == str(session_id)
+    # The row is created with exactly the id the token names.
+    session_service.create_session.assert_awaited_once()
+    assert str(session_service.create_session.await_args.kwargs["session_id"]) == payload["sid"]
+
+
+async def test_a_failed_code_issue_leaves_no_session_row(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The row is written only after the single-use code is issued, so a failure
+    handing out the code leaves no phantom session behind (#1501 review)."""
+    app.dependency_overrides[get_redis] = _FakeRedis
+    session_service = MagicMock()
+    session_service.create_session = AsyncMock()
+    app.dependency_overrides[get_session_service] = lambda: session_service
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        OAuthExchangeService, "issue", AsyncMock(side_effect=RuntimeError("exchange store down"))
+    )
+
+    redirect = await client.get(_CALLBACK)
+
+    assert redirect.status_code == 307
+    assert "error=" in redirect.headers["location"]
+    session_service.create_session.assert_not_awaited()

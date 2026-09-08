@@ -57,7 +57,18 @@ class SessionService:
         refresh_token: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        *,
+        session_id: UUID | None = None,
     ) -> Session:
+        """The row a sign-in is tracked by, whose id the access token names in `sid`.
+
+        `session_id` lets the caller choose the id up front, for a flow that has to
+        mint the token before the row exists: the OAuth callback names the id in the
+        token, hands out a single-use code, and only then writes the row - so a
+        failure issuing the code leaves no phantom session behind. Left `None`, the
+        row's own default assigns the id (login and magic-link read it back off the
+        returned row).
+        """
         device_name, device_type = _parse_user_agent(user_agent)
         expires_at = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
@@ -70,6 +81,7 @@ class SessionService:
             device_type=device_type,
             ip_address=ip_address,
             user_agent=user_agent,
+            session_id=session_id,
         )
 
     async def rotate_session(self, session: Session, new_refresh_token: str) -> Session:
