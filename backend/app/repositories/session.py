@@ -154,6 +154,28 @@ async def update_last_used(db: AsyncSession, session_id: UUID) -> None:
     await db.flush()
 
 
+async def rotate(
+    db: AsyncSession,
+    *,
+    session: Session,
+    refresh_token_hash: str,
+    expires_at: datetime,
+) -> Session:
+    """Re-key a session row to a rotated refresh token, keeping its id.
+
+    The id is what a live access token names in `sid`, so it has to survive a
+    refresh (#1501); only the hash and the window move, and `last_used_at` gets
+    the same touch a plain use gives it.
+    """
+    session.refresh_token_hash = refresh_token_hash
+    session.expires_at = expires_at
+    session.last_used_at = datetime.now(UTC)
+    db.add(session)
+    await db.flush()
+    await db.refresh(session)
+    return session
+
+
 async def deactivate(db: AsyncSession, session_id: UUID) -> Session | None:
     """Deactivate a session (logout)."""
     session = await get_by_id(db, session_id)

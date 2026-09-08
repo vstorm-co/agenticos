@@ -16,7 +16,7 @@ from uuid import uuid4
 import pytest
 
 from app.repositories import session as session_repo
-from app.services.session import SessionService
+from app.services.session import SessionService, hash_token
 
 pytestmark = pytest.mark.anyio
 
@@ -110,3 +110,39 @@ class TestRepositoryQuery:
         statement = await self._statement()
 
         assert statement._limit_clause is None
+
+
+class TestRotate:
+    """In-place refresh rotation - the row keeps its id so a live token's `sid`
+    stays valid across a refresh (#1501)."""
+
+    async def test_rotate_session_rekeys_in_place_and_delegates(self) -> None:
+        row = MagicMock()
+        with patch.object(session_repo, "rotate", AsyncMock(return_value=row)) as rotate:
+            result = await SessionService(MagicMock()).rotate_session(row, "a-new-refresh-token")
+
+        assert result is row
+        rotate.assert_awaited_once()
+        kwargs = rotate.await_args.kwargs
+        assert kwargs["session"] is row
+        assert kwargs["refresh_token_hash"] == hash_token("a-new-refresh-token")
+        assert kwargs["expires_at"] > datetime.now(UTC)
+
+    async def test_the_repo_moves_the_hash_and_window_but_not_the_id(self) -> None:
+        db = MagicMock()
+        db.flush = AsyncMock()
+        db.refresh = AsyncMock()
+        session_id = uuid4()
+        row = MagicMock(id=session_id)
+        new_expiry = datetime.now(UTC)
+
+        returned = await session_repo.rotate(
+            db, session=row, refresh_token_hash="deadbeef", expires_at=new_expiry
+        )
+
+        assert returned is row
+        assert row.id == session_id
+        assert row.refresh_token_hash == "deadbeef"
+        assert row.expires_at == new_expiry
+        db.flush.assert_awaited_once()
+        db.refresh.assert_awaited_once_with(row)

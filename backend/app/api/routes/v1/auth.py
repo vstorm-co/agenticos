@@ -91,16 +91,14 @@ async def refresh_token(
     if not user.is_active:
         raise AuthenticationError(message="User account is disabled")
 
-    access_token = create_access_token(subject=str(user.id))
     new_refresh_token = create_refresh_token(subject=str(user.id))
 
-    await session_service.logout_by_refresh_token(body.refresh_token)
-    await session_service.create_session(
-        user_id=user.id,
-        refresh_token=new_refresh_token,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("User-Agent"),
-    )
+    # Rotate the refresh token in place, keeping the row's id: the new access
+    # token names the same `sid`, so a live socket or a second tab holding the
+    # old access token is not cut off by a routine refresh (#1437, #1501). The
+    # old refresh token's hash is replaced, which is what makes it unusable.
+    await session_service.rotate_session(session, new_refresh_token)
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 
 

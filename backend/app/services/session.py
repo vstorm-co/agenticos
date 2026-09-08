@@ -72,6 +72,23 @@ class SessionService:
             user_agent=user_agent,
         )
 
+    async def rotate_session(self, session: Session, new_refresh_token: str) -> Session:
+        """Rotate a login's refresh token in place, keeping the session row's id.
+
+        Refresh mints a new refresh token and a new access token; the row keeps
+        its id so the access token's `sid` is stable across the refresh - a live
+        socket, or a second tab, holding the old access token is not cut off by a
+        routine rotation (#1437, #1501) - while the new token's hash replaces the
+        old, which is what stops the spent refresh token being replayed.
+        """
+        expires_at = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        return await session_repo.rotate(
+            self.db,
+            session=session,
+            refresh_token_hash=hash_token(new_refresh_token),
+            expires_at=expires_at,
+        )
+
     async def get_user_sessions(self, user_id: UUID) -> list[Session]:
         return await session_repo.get_user_sessions(self.db, user_id, open_only=True)
 
