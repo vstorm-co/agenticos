@@ -1,9 +1,17 @@
 # The desktop app
 
-The console in a window of its own: a dock icon, its own place in the app switcher,
-and nothing else changed. The application inside the window is the same Next.js
-console the server already serves, loaded from the server, so it carries the same
-sign-in, the same permissions and the same tenant checks a browser tab would.
+AgenticOS runs in a browser, and that is how most people use it. The desktop app is
+an add-on for whoever wants it on the dock: the console in a window of its own, plus
+a pet and a screenshot shortcut. Nothing about the platform needs it.
+
+<figure markdown>
+  ![Amigo, the desktop pet, saying: No more caramba.](assets/desktop_no_more_caramba_pet.png){ width="270" }
+  <figcaption>Amigo, one of five pets. No more caramba in your AI.</figcaption>
+</figure>
+
+The application inside the window is the same Next.js console the server already
+serves, loaded from the server, so it carries the same sign-in, the same
+permissions and the same tenant checks a browser tab would.
 
 It is a [Tauri](https://tauri.app) shell in `desktop/`, and it holds exactly one
 setting: the address of the server. The first launch asks for it, "Shell → Change

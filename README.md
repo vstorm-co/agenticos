@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/mark.svg" alt="" width="76" height="76">
+<img src="docs/assets/amigo.svg" alt="Amigo, the AgenticOS pet" width="96">
 
 <h1>AgenticOS</h1>
 
@@ -157,6 +157,10 @@ only question that matters — can this deployment actually run an agent — and
   summary. Same limits and same record as anything a person asked for.
 - 📡 **One runner, eight surfaces.** Web chat, a hosted page, a widget, the HTTP
   API, a raw WebSocket, Slack, Telegram, Mattermost. Published once.
+- 🖥️ **A browser is all it needs; a desktop app if you want one.** The console is
+  a web app. The [desktop app](docs/desktop.md) is the same console in a window of
+  its own - plus a pet on the desktop and a shortcut that screenshots straight into
+  a new chat. An add-on, never a requirement.
 - 🛡️ **Governed.** Budgets that stop a run before the model request, approval on
   anything side-effecting, an audit trail, tenant isolation in the schema.
 - 📊 **A dashboard each person arranges.** 35 cards — runs, spend, service
@@ -401,12 +405,32 @@ on where the question came from.
 | | |
 |---|---|
 | **Web chat** | In the console, with attachments and slash commands |
+| **The desktop app** | The same console in a window of its own, with a pet and a screenshot shortcut - an [optional shell](docs/desktop.md), not a second product |
 | **A hosted page** | `/e/{key}` - send somebody a link, no account needed |
 | **An embeddable widget** | On your own site, with variables from the address bar |
 | **The HTTP API** | [One POST and you have an answer](docs/api.md) |
 | **A raw WebSocket** | Stream tokens into a frontend you built yourself |
 | **Slack, Telegram, Mattermost** | Where an `@mention` runs as **the person who sent it**, not as the bot |
 | **Schedules and triggers** | A clock, a webhook, or a mailbox we poll - [routines](docs/triggers.md) |
+
+## On the desktop, if you like
+
+Everything above runs in a browser, and that is how most people use it. For those
+who want it on the dock there is a [desktop app](docs/desktop.md): a thin shell
+around the same console - same sign-in, same permissions, nothing bundled - with
+two things a browser tab cannot do. A pet that lives on the desktop while you work,
+and a global shortcut (`⌘⇧A`) that takes a screenshot of any region and opens a new
+chat with it attached.
+
+<div align="center">
+
+<video src="https://github.com/user-attachments/assets/b82867ae-3543-406e-a552-e3a8b61f1d10" controls muted loop playsinline width="100%">
+  <img src="docs/assets/desktop_no_more_caramba_pet.png" alt="Amigo, the desktop pet, in a sombrero, saying: No more caramba." width="270">
+</video>
+
+<sub>Amigo, one of five pets. Drag it, click it, stroke it; right-click for its menu. <b>No more caramba in your AI.</b></sub>
+
+</div>
 
 ## Compared with the alternatives
 
@@ -460,6 +484,7 @@ returns one.
 | [Models](docs/models.md) · [Secrets](docs/secrets.md) | Providers, profiles, cost; the vault |
 | [Knowledge](docs/file-processing.md) · [Skills](docs/skills.md) | Parsers, chunking, OCR; written know-how |
 | [Channels](docs/channels.md) · [API](docs/api.md) | Slack, Telegram, widget, WebSocket, HTTP |
+| [Desktop app](docs/desktop.md) | The optional shell: the console in a window, the pet, the screenshot shortcut |
 | [Architecture](docs/architecture.md) · [Testing](docs/testing.md) | How it is built, and how it is verified |
 
 Built with MkDocs: `make docs` serves them on :8001. Stack, in one line: FastAPI
