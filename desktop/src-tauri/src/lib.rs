@@ -836,6 +836,24 @@ fn unregister_shortcut(app: &AppHandle, accelerator: &str) {
     }
 }
 
+/// The console window's title: the product's name on its own pages and the
+/// configured server, and the host it is showing anywhere else.
+///
+/// The window has no address bar, and navigation off the server is allowed so
+/// that sign-in and MCP consent can come back to it. A page an MCP server sent
+/// the console to could draw a convincing sign-in form; the title bar is the one
+/// piece of chrome the page cannot draw, so it names where the person is.
+/// (#1532 moves those flows to the system browser, which is the full answer.)
+fn window_title(loaded: &Url, server: Option<&Url>) -> String {
+    let ours = matches!(loaded.scheme(), "tauri")
+        || loaded.host_str().is_some_and(|host| host == "tauri.localhost")
+        || server.is_some_and(|server| server.origin() == loaded.origin());
+    match loaded.host_str() {
+        Some(host) if !ours => format!("{host} — AgenticOS"),
+        _ => "AgenticOS".to_owned(),
+    }
+}
+
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let mut builder = WebviewWindowBuilder::new(app, WINDOW, url)
         .title("AgenticOS")
@@ -846,6 +864,10 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
     }
     builder
         .on_page_load(|window, payload| {
+            let server = settings(window.app_handle()).server_url;
+            if let Err(e) = window.set_title(&window_title(payload.url(), server.as_ref())) {
+                eprintln!("title: {e}");
+            }
             if !matches!(payload.event(), PageLoadEvent::Finished) {
                 return;
             }
@@ -1115,6 +1137,23 @@ mod tests {
         };
         assert!(!pending.expired(taken + Duration::from_secs(60)));
         assert!(pending.expired(taken + super::PENDING_SCREENSHOT_TTL + Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn the_title_names_the_host_only_away_from_home() {
+        let server = Url::parse("https://agenticos.acme.com/").unwrap();
+        let at = |s: &str| super::window_title(&Url::parse(s).unwrap(), Some(&server));
+        assert_eq!(at("https://agenticos.acme.com/pl/chat"), "AgenticOS");
+        assert_eq!(at("tauri://localhost/settings.html"), "AgenticOS");
+        assert_eq!(at("http://tauri.localhost/index.html"), "AgenticOS");
+        assert_eq!(
+            at("https://accounts.google.com/o/oauth2/auth"),
+            "accounts.google.com — AgenticOS"
+        );
+        assert_eq!(
+            super::window_title(&Url::parse("https://x.example/").unwrap(), None),
+            "x.example — AgenticOS"
+        );
     }
 
     #[test]

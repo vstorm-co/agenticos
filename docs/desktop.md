@@ -168,8 +168,11 @@ went nowhere is dropped. Windows and Linux have no capture wired yet.
 - **No navigation guard.** A link that leaves the server's origin opens inside the
   window rather than in the system browser, because an OAuth flow - signing in,
   connecting an MCP server - leaves the origin and has to come back to the same
-  webview for its cookie to land. `⌘,` or "Shell → Change server…" is the way back
-  if a page has no link home.
+  webview for its cookie to land. While the window shows any other site, its title
+  names that host - the one piece of chrome a page cannot draw, since there is no
+  address bar - and `⌘,` or "Shell → Change server…" is the way back if a page has
+  no link home. Moving those flows to the system browser is
+  [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
 - **Sign-in stays in the window, and the window says it is Safari.** WebKit's
   bare user agent is what Google refuses as an embedded browser
   (`disallowed_useragent`); the console window carries Safari's version tokens on
