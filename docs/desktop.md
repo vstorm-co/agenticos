@@ -59,8 +59,13 @@ window.
 The answer is stored as `server.json` in the platform's configuration directory for
 the app - `~/Library/Application Support/co.vstorm.agenticos/` on macOS,
 `%APPDATA%\\co.vstorm.agenticos\\` on Windows, `~/.config/co.vstorm.agenticos/` on
-Linux - and read again on every launch. A wrong address is fixed from **Shell →
-Change server…**, or by editing that file.
+Linux - and read again on every launch.
+
+A wrong address is fixed in four ways, whichever is nearest: **Settings…** (`⌘,`,
+also on the tray icon and in the pet's right-click menu, so it is reachable even
+when the window shows the wrong site), **Shell → Change server…**, editing that
+file, or launching with `--server http://localhost:3000` from a terminal, which
+also saves it.
 
 ## The pet
 
@@ -116,8 +121,8 @@ Cmd+Shift+4 appears. Pick a region and the console comes to the front on a fresh
 chat with the picture already attached, ready for the question. Escape cancels.
 The same action is in the pet's menu and on the tray icon.
 
-**Shell → Shortcuts…** rebinds it: click the field, hold the modifiers and press a
-key. A combination needs at least one modifier - a global shortcut on a bare letter
+**Settings…** (`⌘,`, under Shell, on the tray icon and in the pet's right-click
+menu) rebinds it: click the field, hold the modifiers and press a key. A combination needs at least one modifier - a global shortcut on a bare letter
 would swallow typing in every application - and one that another application
 already holds is refused with the old binding kept. **Clear** switches it off.
 Bindings are stored beside the server address.
@@ -156,8 +161,8 @@ have no capture wired yet.
 - **No navigation guard.** A link that leaves the server's origin opens inside the
   window rather than in the system browser, because an OAuth flow - signing in,
   connecting an MCP server - leaves the origin and has to come back to the same
-  webview for its cookie to land. "Shell → Change server…" is the way back if a
-  page has no link home.
+  webview for its cookie to land. `⌘,` or "Shell → Change server…" is the way back
+  if a page has no link home.
 - **Sign-in stays in the window, and the window says it is Safari.** WebKit's
   bare user agent is what Google refuses as an embedded browser
   (`disallowed_useragent`); the console window carries Safari's version tokens on
@@ -180,6 +185,6 @@ not. Run it before pushing a change under `desktop/`.
 - **One file of settings.** The server address, asked once, and where the pet was
   left, both changeable from the menu.
 - **A screenshot is a shortcut away.** `⌘⇧A`, a region, a fresh chat with it
-  attached; rebound under Shell → Shortcuts…
+  attached; rebound under Settings (`⌘,`).
 - **Nothing local yet.** Local execution is a sandbox connection kind to design,
   not a flag on this shell.

@@ -31,7 +31,7 @@ const WINDOW: &str = "main";
 const PET: &str = "pet";
 const CHANGE_SERVER: &str = "change-server";
 const RELOAD: &str = "reload";
-const SHORTCUTS: &str = "shortcuts";
+const SETTINGS: &str = "settings";
 const SCREENSHOT_CHAT: &str = "screenshot-chat";
 const DEFAULT_SCREENSHOT_SHORTCUT: &str = "CmdOrCtrl+Shift+A";
 const SHOW_PET: &str = "show-pet";
@@ -160,6 +160,7 @@ struct PetMenu {
     new_chat: MenuItem<Wry>,
     screenshot: MenuItem<Wry>,
     open_console: MenuItem<Wry>,
+    settings: MenuItem<Wry>,
 }
 
 impl PetMenu {
@@ -176,12 +177,14 @@ impl PetMenu {
         let new_chat = MenuItem::with_id(app, NEW_CHAT, "New chat", true, None::<&str>)?;
         let screenshot = MenuItem::with_id(app, SCREENSHOT_CHAT, "Screenshot to new chat", true, None::<&str>)?;
         let open_console = MenuItem::with_id(app, OPEN_CONSOLE, "Open console", true, None::<&str>)?;
+        let settings = MenuItem::with_id(app, SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?;
         Ok(Self {
             show,
             kinds,
             new_chat,
             screenshot,
             open_console,
+            settings,
         })
     }
 
@@ -198,6 +201,7 @@ impl PetMenu {
         }
         items.push(Box::new(PredefinedMenuItem::separator(app)?));
         items.push(Box::new(self.show.clone()));
+        items.push(Box::new(self.settings.clone()));
         Ok(items)
     }
 
@@ -310,6 +314,23 @@ const CONSOLE_USER_AGENT: Option<&str> = Some(
 );
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 const CONSOLE_USER_AGENT: Option<&str> = None;
+
+/// `--server <address>` on the command line: the address to use and remember.
+///
+/// The way out when the window shows the wrong site and the menu is not found:
+/// `agenticos-desktop --server http://localhost:3000` from a terminal.
+fn server_argument<I: IntoIterator<Item = String>>(args: I) -> Option<String> {
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        if arg == "--server" {
+            return args.next();
+        }
+        if let Some(value) = arg.strip_prefix("--server=") {
+            return Some(value.to_owned());
+        }
+    }
+    None
+}
 
 /// Where one of the shell's own pages lives inside the webview.
 ///
@@ -764,11 +785,10 @@ fn set_pet_kind(app: &AppHandle, kind: Kind) -> Result<(), String> {
 
 fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
     let change_server = MenuItem::with_id(app, CHANGE_SERVER, "Change server…", true, None::<&str>)?;
-    let shortcuts = MenuItem::with_id(app, SHORTCUTS, "Shortcuts…", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, RELOAD, "Reload", true, Some("CmdOrCtrl+R"))?;
-    let server = Submenu::with_items(app, "Shell", true, &[&change_server, &shortcuts, &reload])?;
-
     let pet_menu = PetMenu::build(app, pet)?;
+    let server = Submenu::with_items(app, "Shell", true, &[&pet_menu.settings, &change_server, &reload])?;
+
     let menu = Menu::default(app)?;
     menu.insert(&server, 1)?;
     menu.insert(&pet_menu.submenu(app)?, 2)?;
@@ -791,7 +811,7 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
             SHOW_PET => toggle_pet(app),
             NEW_CHAT => start_chat(app),
             OPEN_CONSOLE => bring_console(app),
-            SHORTCUTS => show_local_page(app, "shortcuts.html"),
+            SETTINGS => show_local_page(app, "settings.html"),
             SCREENSHOT_CHAT => {
                 screenshot_to_chat(app);
                 Ok(())
@@ -833,10 +853,21 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle();
-            let settings = load_settings(handle).unwrap_or_else(|e| {
+            let mut settings = load_settings(handle).unwrap_or_else(|e| {
                 eprintln!("{e}");
                 Settings::default()
             });
+            if let Some(typed) = server_argument(std::env::args().skip(1)) {
+                match parse_server_url(&typed) {
+                    Ok(server) => {
+                        settings.server_url = Some(server);
+                        if let Err(e) = save_settings(handle, &settings) {
+                            eprintln!("{e}");
+                        }
+                    }
+                    Err(e) => eprintln!("--server: {e}"),
+                }
+            }
             install_menu(handle, &settings.pet)?;
             let (start, notice) = console_start(settings.server_url);
             app.manage(StartupNotice(Mutex::new(notice)));
@@ -895,6 +926,21 @@ mod tests {
     #[test]
     fn a_scheme_with_no_host_is_refused() {
         assert!(parse_server_url("https://").is_err());
+    }
+
+    #[test]
+    fn the_server_argument_is_read_in_both_spellings_and_ignored_when_absent() {
+        let words = |s: &str| s.split(' ').map(str::to_owned).collect::<Vec<_>>();
+        assert_eq!(
+            super::server_argument(words("--server http://localhost:3000")).as_deref(),
+            Some("http://localhost:3000")
+        );
+        assert_eq!(
+            super::server_argument(words("--server=agenticos.acme.com")).as_deref(),
+            Some("agenticos.acme.com")
+        );
+        assert_eq!(super::server_argument(words("--verbose")), None);
+        assert_eq!(super::server_argument(words("--server")), None);
     }
 
     #[test]

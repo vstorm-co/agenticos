@@ -3,13 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AgenticOS shortcuts</title>
+    <title>AgenticOS settings</title>
     <link rel="stylesheet" href="connect.css" />
-    <link rel="stylesheet" href="shortcuts.css" />
+    <link rel="stylesheet" href="settings.css" />
   </head>
   <body>
     <main>
-      <h1>Shortcuts</h1>
+      <h1>Settings</h1>
+      <form id="server-form">
+        <label for="server">Server address</label>
+        <p class="hint">The address you open in a browser. A <code>make dev</code> stack answers on <code>http://localhost:3000</code>.</p>
+        <div class="row">
+          <input id="server" name="server" type="text" autocomplete="url" spellcheck="false" placeholder="http://localhost:3000" />
+          <button type="submit" id="connect">Connect</button>
+        </div>
+        <p id="server-error" role="alert" hidden></p>
+      </form>
+      <h2>Shortcuts</h2>
       <p>Global: they work whichever application is in front.</p>
       <form id="shortcuts">
         <label for="screenshot">Screenshot to a new chat</label>
@@ -26,6 +36,6 @@
       </form>
       <p><a href="#" id="back">Back to the console</a></p>
     </main>
-    <script type="module" src="shortcuts.js"></script>
+    <script type="module" src="settings.js"></script>
   </body>
 </html>

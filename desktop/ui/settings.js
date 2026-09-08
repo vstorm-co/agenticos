@@ -3,6 +3,10 @@ import { acceleratorOf, describe } from "./shortcut-recorder.js";
 const { invoke } = window.__TAURI__.core;
 
 const mac = navigator.platform.startsWith("Mac");
+const serverForm = document.getElementById("server-form");
+const serverField = document.getElementById("server");
+const connect = document.getElementById("connect");
+const serverError = document.getElementById("server-error");
 const form = document.getElementById("shortcuts");
 const field = document.getElementById("screenshot");
 const save = document.getElementById("save");
@@ -74,6 +78,25 @@ back.addEventListener("click", (event) => {
   event.preventDefault();
   void invoke("back_to_console").catch(showError);
 });
+
+serverForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  serverError.hidden = true;
+  connect.disabled = true;
+  try {
+    await invoke("connect", { url: serverField.value });
+  } catch (message) {
+    serverError.textContent = String(message);
+    serverError.hidden = false;
+    connect.disabled = false;
+  }
+});
+
+invoke("server_url")
+  .then((url) => {
+    if (url) serverField.value = url;
+  })
+  .catch(showError);
 
 invoke("shortcuts")
   .then((shortcuts) => {
