@@ -1322,6 +1322,14 @@ administrator still does on the member's behalf is configuration that stores no
 secret — a name, a URL, a tool allowlist — and clearing a stored token, which
 keeps nothing.
 
+An **organization's** shared connection is the same, though it is meant to be
+admin-entered: a bearer token typed onto one under an impersonation is refused
+too, because sealed under the organization's vault scope it speaks as the
+administrator's own account for every agent the organization binds, past the
+hour the impersonation ends. Creating an org connection already recorded the
+administrator behind it; updating one recorded nothing at all, so a token
+rotated onto an existing connection now leaves the same trail (#1521).
+
 ## What none of this covers
 
 Worth stating, because a governance page implies otherwise:
