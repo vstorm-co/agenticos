@@ -1,5 +1,7 @@
 const { invoke } = window.__TAURI__.core;
 
+const DEFAULT_SERVER = "http://localhost:3000";
+
 const form = document.getElementById("connect");
 const input = document.getElementById("server");
 const error = document.getElementById("error");
@@ -12,7 +14,7 @@ function showError(message) {
 
 invoke("server_url")
   .then((url) => {
-    if (url) input.value = url;
+    input.value = url ?? DEFAULT_SERVER;
   })
   .catch(showError);
 

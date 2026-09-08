@@ -31,14 +31,16 @@ make desktop-build   # a .app / .dmg, .msi or .deb/.AppImage for this machine
 make desktop-check   # rustfmt, clippy with warnings denied, and the tests
 ```
 
-The first time, the window shows a form asking where the server is. A bare host
-(`agenticos.acme.com`) is opened over HTTPS; `http://localhost:3000` reaches a
-`make dev` stack. Anything that is not a web address is refused on the form, never
+The first time, the window shows a form asking where the server is, filled in with
+`http://localhost:3000` - a `make dev` stack. A bare host (`agenticos.acme.com`) is
+opened over HTTPS. Anything that is not a web address is refused on the form, never
 handed to the webview.
 
 The answer is stored as `server.json` in the platform's configuration directory for
-the app (`~/Library/Application Support/co.vstorm.agenticos/` on macOS), and read
-again on every launch.
+the app - `~/Library/Application Support/co.vstorm.agenticos/` on macOS,
+`%APPDATA%\\co.vstorm.agenticos\\` on Windows, `~/.config/co.vstorm.agenticos/` on
+Linux - and read again on every launch. A wrong address is fixed from **Server →
+Change server…**, or by editing that file.
 
 ## The pet
 
