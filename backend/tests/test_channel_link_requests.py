@@ -466,6 +466,33 @@ class TestARefusedSenderCannotChurnTheInvitation:
         invite.assert_not_awaited()
         assert "slow down" in sent.await_args.args[2]
 
+    async def test_the_link_command_consumes_the_allowance_too(self):
+        """`/link` is the other door onto the invite, handled before the
+        admission gate consults the allowance - so a refused sender could churn
+        link requests through the command where the plain message is throttled.
+        It consumes the same per-sender allowance in a direct message."""
+        router = ChannelMessageRouter()
+        bot = MagicMock(access_policy={})
+        invite = AsyncMock(return_value="link first")
+        check = AsyncMock(
+            side_effect=[None, BadRequestError(message="Rate limit exceeded. Please slow down.")]
+        )
+        with (
+            patch.object(
+                ChannelMessageRouter,
+                "_resolve_identity",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4(), user_id=None)),
+            ),
+            patch.object(ChannelMessageRouter, "_check_rate_limit", new=check),
+            patch.object(ChannelMessageRouter, "_invite_to_link", new=invite),
+        ):
+            first = await router._handle_command("/link", _incoming(), bot, _db())
+            second = await router._handle_command("/link", _incoming(), bot, _db())
+
+        assert first == "link first"
+        assert invite.await_count == 1
+        assert "slow down" in second
+
 
 class TestASlashAPlatformAte:
     """Mattermost parses a leading `/` itself.
