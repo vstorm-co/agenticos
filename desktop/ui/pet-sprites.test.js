@@ -1,48 +1,64 @@
 import { expect, test } from "bun:test";
 
-import { FPS, HEIGHT, VARIANTS, WIDTH, compose, frames } from "./pet-sprites.js";
+import { FPS, HEIGHT, KINDS, PETS, WIDTH, compose, frames } from "./pet-sprites.js";
 
 const STATES = Object.keys(FPS);
 
-test("every frame of every animation is a full grid of palette keys", () => {
-  for (const state of STATES) {
-    for (const dir of [-1, 1]) {
-      for (const grid of frames(state, dir)) {
-        expect(grid).toHaveLength(HEIGHT);
-        for (const row of grid) {
-          expect(row).toHaveLength(WIDTH);
-          for (const key of row) expect(key === "." || key in VARIANTS.orbit).toBe(true);
+test("every frame of every pet's every animation is a full grid of palette keys", () => {
+  for (const kind of KINDS) {
+    for (const state of STATES) {
+      for (const dir of [-1, 1]) {
+        for (const grid of frames(kind, state, dir)) {
+          expect(grid).toHaveLength(HEIGHT);
+          for (const row of grid) {
+            expect(row).toHaveLength(WIDTH);
+            for (const key of row) expect(key === "." || key in PETS[kind].palette).toBe(true);
+          }
         }
       }
     }
   }
 });
 
-test("every variant colours every key a frame can use", () => {
-  const used = new Set(STATES.flatMap((state) => frames(state).flatMap((grid) => [...grid.join("")])));
-  used.delete(".");
-  for (const palette of Object.values(VARIANTS)) {
-    for (const key of used) expect(palette[key]).toMatch(/^#[0-9a-f]{6}$/);
+test("every pet's body rows are the grid's width, so a typo in the art fails here", () => {
+  for (const kind of KINDS) {
+    for (const row of PETS[kind].body) expect(row).toHaveLength(WIDTH);
   }
 });
 
 test("a stroll looks the way it is walking", () => {
-  const [left] = frames("stroll", -1);
-  const [right] = frames("stroll", 1);
-  expect(left).not.toEqual(right);
+  for (const kind of KINDS) {
+    const [left] = frames(kind, "stroll", -1);
+    const [right] = frames(kind, "stroll", 1);
+    expect(left).not.toEqual(right);
+  }
 });
 
 test("a blink closes the eyes without moving anything else", () => {
-  const [open, , , , blink] = frames("idle");
-  const changed = open.map((row, y) => [...row].filter((key, x) => key !== blink[y][x]).length);
-  expect(changed.reduce((a, b) => a + b)).toBeGreaterThan(0);
-  expect(changed.reduce((a, b) => a + b)).toBeLessThanOrEqual(8);
+  for (const kind of KINDS) {
+    const [open, , , , blink] = frames(kind, "idle");
+    const changed = open.map((row, y) => [...row].filter((key, x) => key !== blink[y][x]).length);
+    const total = changed.reduce((a, b) => a + b);
+    expect(total).toBeGreaterThan(0);
+    expect(total).toBeLessThanOrEqual(8);
+  }
 });
 
-test("a hop lifts the whole sprite and drops nothing off the top", () => {
-  const [, , peak] = frames("hop");
-  expect(peak[0]).toContain("A");
-  expect(peak[HEIGHT - 1]).toBe(".".repeat(WIDTH));
+test("a hop lifts the whole pet and drops nothing off the top", () => {
+  for (const kind of KINDS) {
+    const [rest, , peak] = frames(kind, "hop");
+    const painted = (grid) => grid.reduce((n, row) => n + [...row].filter((key) => key !== ".").length, 0);
+    expect(painted(peak)).toBe(painted(rest));
+    expect(peak[HEIGHT - 1]).toBe(".".repeat(WIDTH));
+  }
+});
+
+test("a wave puts an arm where there was none", () => {
+  for (const kind of KINDS) {
+    const [idle] = frames(kind, "idle");
+    const [up] = frames(kind, "wave");
+    expect(up).not.toEqual(idle);
+  }
 });
 
 test("a later layer paints over an earlier one and off-grid cells are dropped", () => {

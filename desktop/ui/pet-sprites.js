@@ -1,54 +1,151 @@
 /**
- * The pet's pixel art: a 16 × 24 grid of palette keys, composed frame by frame.
+ * The pets' pixel art: a 16 × 24 grid of palette keys, composed frame by frame.
  *
- * One body, drawn once, and a handful of parts placed on it - eyes, feet, an arm,
- * the antenna, a Z. A frame is a placement of those parts, so an animation is a few
- * lines of positions rather than a sprite sheet nobody can edit by hand.
+ * Each pet is one body and a description of where its parts go - eyes, feet, an
+ * arm, whatever it wears on its head. A frame is a placement of those parts, so an
+ * animation is a few lines of positions shared by every pet rather than a sprite
+ * sheet per pet nobody can edit by hand.
  */
 
 export const WIDTH = 16;
 export const HEIGHT = 24;
 
-/** Palette keys → colours. `B` body, `D` outline, `L` highlight, `A` antenna, `W`/`K` eye. */
-export const VARIANTS = {
-  orbit: { B: "#5a8cda", D: "#2f4f86", L: "#9dbcf0", A: "#f2c14e", W: "#ffffff", K: "#1a1f2e" },
-  mint: { B: "#5cc9a5", D: "#2e6e5a", L: "#a8e8d2", A: "#f28c5c", W: "#ffffff", K: "#1a2e26" },
-  ember: { B: "#e0845a", D: "#7d3a22", L: "#f4bfa3", A: "#5a8cda", W: "#ffffff", K: "#2e1a14" },
-};
-
 export const FPS = { idle: 3, look: 2, stroll: 6, doze: 1, wave: 5, hop: 8 };
 
 const BASE_Y = 8;
 
-const BODY = [
-  ".....DDDDDD.....",
-  "...DDBBBBBBDD...",
-  "..DBBLLBBBBBBD..",
-  ".DBBLBBBBBBBBBD.",
-  ".DBBBBBBBBBBBBD.",
-  "DBBBBBBBBBBBBBBD",
-  "DBBBBBBBBBBBBBBD",
-  "DBBBBBBBBBBBBBBD",
-  "DBBBBBBBBBBBBBBD",
-  ".DBBBBBBBBBBBBD.",
-  ".DBBBBBBBBBBBBD.",
-  "..DBBBBBBBBBBD..",
-  "...DDBBBBBBDD...",
-  ".....DDDDDD.....",
-];
-const ANTENNA_DOT = ["AAA", "AAA"];
-const STALK = ["D", "D"];
 const FOOT = ["DDD", "DDD"];
 const Z = ["DDD", ".D.", "DDD"];
 const EYES = {
   open: ["WK", "KK", "KK"],
   closed: ["..", "KK", ".."],
 };
-const ARM = {
-  up: { x: 13, y: 3, rows: [".DD", "DBD", "DD."] },
-  down: { x: 13, y: 5, rows: ["DD.", "DBD", ".DD"] },
+
+/**
+ * Palette keys → colours. `B` body, `D` outline, `L` highlight, `A` accent, `W`/`K` eye.
+ *
+ * `body` rows sit with their top at `top` (relative to the pet's baseline, which
+ * is `BASE_Y`). Everything else is placed relative to that same baseline. `feet`
+ * is `null` for a pet that floats.
+ */
+export const PETS = {
+  orbit: {
+    palette: { B: "#5a8cda", D: "#2f4f86", L: "#9dbcf0", A: "#f2c14e", W: "#ffffff", K: "#1a1f2e" },
+    top: 0,
+    body: [
+      ".....DDDDDD.....",
+      "...DDBBBBBBDD...",
+      "..DBBLLBBBBBBD..",
+      ".DBBLBBBBBBBBBD.",
+      ".DBBBBBBBBBBBBD.",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBBBBBBBBBBBD.",
+      "..DBBBBBBBBBBD..",
+      "...DDBBBBBBDD...",
+      ".....DDDDDD.....",
+    ],
+    eyes: { x: [4, 10], y: 4 },
+    feet: { y: 14, x: { stand: [4, 9], a: [3, 10], b: [5, 8] } },
+    arm: {
+      up: { x: 13, y: -1, rows: [".DD", "DBD", "DD."] },
+      down: { x: 13, y: 1, rows: ["DD.", "DBD", ".DD"] },
+    },
+    crown: [
+      { x: 7, y: -2, rows: ["D", "D"], rides: "body" },
+      { x: 6, y: -4, rows: ["AAA", "AAA"], rides: "air" },
+    ],
+  },
+  boxy: {
+    palette: { B: "#6b7a90", D: "#2b323f", L: "#a3b1c6", A: "#5cc9a5", W: "#d9fff1", K: "#1a2e26" },
+    top: 2,
+    body: [
+      "..DDDDDDDDDDDD..",
+      "..DBLLBBBBBBBD..",
+      "..DBLBBBBBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBAAAAAABBD..",
+      "..DBBBBBBBBBBD..",
+      "..DDDDDDDDDDDD..",
+    ],
+    eyes: { x: [4, 10], y: 5 },
+    feet: { y: 14, x: { stand: [3, 10], a: [2, 11], b: [4, 9] } },
+    arm: {
+      up: { x: 13, y: 0, rows: [".DD", "DBD", "DD."] },
+      down: { x: 13, y: 3, rows: ["DD.", "DBD", ".DD"] },
+    },
+    crown: [
+      { x: 7, y: 0, rows: ["D", "D"], rides: "body" },
+      { x: 6, y: -2, rows: ["AAA", "AAA"], rides: "air" },
+    ],
+  },
+  ghost: {
+    palette: { B: "#a78bfa", D: "#5b3fa6", L: "#d6c8fd", A: "#f2c14e", W: "#ffffff", K: "#2a1d4d" },
+    top: 1,
+    body: [
+      ".....DDDDDD.....",
+      "...DDBBBBBBDD...",
+      "..DBBLLBBBBBBD..",
+      ".DBBLBBBBBBBBBD.",
+      ".DBBBBBBBBBBBBD.",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBBBBBBBBBBBBBD",
+      "DBBDBBBDDBBBDBBD",
+      "DBD.DBD..DBD.DBD",
+      ".D...D....D...D.",
+    ],
+    eyes: { x: [4, 10], y: 5 },
+    feet: null,
+    arm: {
+      up: { x: 13, y: 0, rows: [".DD", "DBD", "DD."] },
+      down: { x: 13, y: 2, rows: ["DD.", "DBD", ".DD"] },
+    },
+    crown: [],
+  },
+  sprout: {
+    palette: { B: "#7bc96f", D: "#3d6b34", L: "#b9e6a8", A: "#4aa564", W: "#ffffff", K: "#1e2e1a" },
+    top: 3,
+    body: [
+      ".......DD.......",
+      "......DBBD......",
+      ".....DBLBBD.....",
+      "....DBBLBBBD....",
+      "...DBBBBBBBBD...",
+      "..DBBBBBBBBBBD..",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBBBBBBBBBBBD.",
+      "..DBBBBBBBBBBD..",
+      "...DDBBBBBBDD...",
+      ".....DDDDDD.....",
+    ],
+    eyes: { x: [4, 10], y: 6 },
+    feet: { y: 14, x: { stand: [4, 9], a: [3, 10], b: [5, 8] } },
+    arm: {
+      up: { x: 13, y: 2, rows: [".DD", "DBD", "DD."] },
+      down: { x: 13, y: 4, rows: ["DD.", "DBD", ".DD"] },
+    },
+    crown: [
+      { x: 8, y: 1, rows: ["D", "D"], rides: "body" },
+      { x: 9, y: -1, rows: [".AA", "AAA", "AA."], rides: "body" },
+    ],
+  },
 };
-const FEET = { stand: [4, 9], a: [3, 10], b: [5, 8] };
+
+export const KINDS = Object.keys(PETS);
 
 /** Paint layers onto a blank grid, later layers over earlier; `.` is transparent. */
 export function compose(layers) {
@@ -66,17 +163,21 @@ export function compose(layers) {
   return grid.map((row) => row.join(""));
 }
 
-function frame({ bob = 0, lift = 0, eyes = "open", gaze = 0, feet = "stand", arm = null, z = null }) {
-  const body = BASE_Y + bob - lift;
+function frame(pet, { bob = 0, lift = 0, eyes = "open", gaze = 0, feet = "stand", arm = null, z = null }) {
+  const base = BASE_Y - lift;
+  const body = base + pet.top + bob;
   const layers = [];
-  if (z !== null) layers.push({ x: 12 + z, y: BASE_Y - 4 + z - lift, rows: Z });
-  layers.push({ x: 6, y: BASE_Y - 4 - lift, rows: ANTENNA_DOT });
-  layers.push({ x: 7, y: body - 2, rows: STALK });
-  layers.push({ x: 0, y: body, rows: BODY });
-  layers.push({ x: 4 + gaze, y: body + 4, rows: EYES[eyes] }, { x: 10 + gaze, y: body + 4, rows: EYES[eyes] });
-  if (arm) layers.push({ x: ARM[arm].x, y: BASE_Y + ARM[arm].y - lift, rows: ARM[arm].rows });
-  const [left, right] = FEET[feet];
-  layers.push({ x: left, y: BASE_Y + 14 - lift, rows: FOOT }, { x: right, y: BASE_Y + 14 - lift, rows: FOOT });
+  if (z !== null) layers.push({ x: 12 + z, y: base - 4 + z, rows: Z });
+  for (const piece of pet.crown) {
+    const y = piece.rides === "air" ? base + piece.y : body - pet.top + piece.y;
+    layers.push({ x: piece.x, y, rows: piece.rows });
+  }
+  layers.push({ x: 0, y: body, rows: pet.body });
+  for (const x of pet.eyes.x) layers.push({ x: x + gaze, y: body + pet.eyes.y, rows: EYES[eyes] });
+  if (arm) layers.push({ x: pet.arm[arm].x, y: body - pet.top + pet.arm[arm].y, rows: pet.arm[arm].rows });
+  if (pet.feet) {
+    for (const x of pet.feet.x[feet]) layers.push({ x, y: base + pet.feet.y, rows: FOOT });
+  }
   return compose(layers);
 }
 
@@ -99,10 +200,10 @@ const ANIMATIONS = {
 
 const cache = new Map();
 
-/** The composed frames of one animation; `dir` is -1 or 1 and only `stroll` reads it. */
-export function frames(state, dir = 1) {
-  const key = `${state}:${dir}`;
-  if (!cache.has(key)) cache.set(key, ANIMATIONS[state](dir).map(frame));
+/** The composed frames of one pet's animation; `dir` is -1 or 1 and only `stroll` reads it. */
+export function frames(kind, state, dir = 1) {
+  const key = `${kind}:${state}:${dir}`;
+  if (!cache.has(key)) cache.set(key, ANIMATIONS[state](dir).map((spec) => frame(PETS[kind], spec)));
   return cache.get(key);
 }
 

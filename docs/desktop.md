@@ -54,18 +54,23 @@ hops and brings the console forward, reopening it if you had closed the window.
 Left alone it idles, looks around, strolls a little way along the screen and turns
 back at the edge, and now and then dozes.
 
-**Pet → Show pet** (Cmd/Ctrl+Shift+P) tucks it away and brings it back; the same
-menu offers three looks - Orbit, Mint and Ember. Where it was left, whether it is
-shown and which look it wears are stored beside the server address, so the pet is
-where you put it on the next launch. Under the operating system's reduce-motion
-setting it stands still, and stays draggable.
+Hover over it and a **+ New chat** button appears above its head; it puts the
+console on a fresh conversation, opening the window if it was closed.
 
-The art is composed at runtime in `desktop/ui/pet-sprites.js`: one body and a
-handful of parts placed per frame, so an animation is a few lines of positions
-rather than a sprite sheet. Its own window is what makes it a pet rather than a
-widget, and what it costs: `macOSPrivateApi` in `tauri.conf.json`, because a
-transparent window on macOS needs it, which rules out the Mac App Store - not a
-place a self-hosted console was going.
+**Pet → Show pet** (Cmd/Ctrl+Shift+P) tucks it away and brings it back; the same
+menu picks which pet it is - Orbit, a round one with an antenna; Boxy, a terminal
+on legs; Ghost, which floats; Sprout, a seed with a leaf. Where it was left,
+whether it is shown and which pet it is are stored beside the server address, so
+the pet is where you put it on the next launch. Under the operating system's
+reduce-motion setting it stands still, and stays draggable.
+
+The art is composed at runtime in `desktop/ui/pet-sprites.js`: each pet is one
+body and a description of where its eyes, feet and arm go, and every animation is
+a few lines of positions shared by all four rather than a sprite sheet per pet.
+Its own window is what makes it a pet rather than a widget, and what it costs:
+`macOSPrivateApi` in `tauri.conf.json`, because a transparent window on macOS
+needs it, which rules out the Mac App Store - not a place a self-hosted console
+was going.
 
 !!! note "It does not yet know what the agents are doing"
 

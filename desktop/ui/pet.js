@@ -1,4 +1,4 @@
-import { VARIANTS, WIDTH, HEIGHT, frames, draw } from "./pet-sprites.js";
+import { HEIGHT, PETS, WIDTH, draw, frames } from "./pet-sprites.js";
 import { HOP_MS, WAVE_MS, clampToArea, frameIndex, logicalArea, nextBehaviour, strollStep } from "./pet-engine.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -18,12 +18,13 @@ const SAVE_DELAY_MS = 400;
 
 const win = getCurrentWindow();
 const canvas = document.getElementById("pet");
+const newChat = document.getElementById("new-chat");
 canvas.width = WIDTH * SCALE;
 canvas.height = HEIGHT * SCALE;
 const ctx = canvas.getContext("2d");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-let palette = VARIANTS.orbit;
+let kind = "orbit";
 let behaviour = { state: "idle", ms: 5000, dir: 1 };
 let behaviourStart = performance.now();
 let reaction = null;
@@ -46,8 +47,8 @@ function react(state, ms) {
 function render(now) {
   const { state, dir } = current();
   const start = reaction ? reaction.until - reaction.ms : behaviourStart;
-  const all = frames(state, dir);
-  draw(ctx, all[frameIndex(state, now - start, all.length)], palette, SCALE);
+  const all = frames(kind, state, dir);
+  draw(ctx, all[frameIndex(state, now - start, all.length)], PETS[kind].palette, SCALE);
 }
 
 async function stroll(dtMs) {
@@ -125,11 +126,16 @@ canvas.addEventListener("pointercancel", () => {
   pressed = null;
 });
 
+newChat.addEventListener("click", () => {
+  react("hop", HOP_MS);
+  void invoke("open_chat").catch(report);
+});
+
 async function start() {
   const settings = await invoke("pet_settings");
-  palette = VARIANTS[settings.variant];
-  await listen("pet-variant", (event) => {
-    palette = VARIANTS[event.payload];
+  kind = settings.kind;
+  await listen("pet-kind", (event) => {
+    kind = event.payload;
     if (reduceMotion) render(performance.now());
   });
   await win.onMoved(async ({ payload }) => {
@@ -140,7 +146,7 @@ async function start() {
   await measure();
   if (reduceMotion) {
     behaviour = { state: "idle", ms: Infinity, dir: 1 };
-    draw(ctx, frames("idle")[0], palette, SCALE);
+    render(performance.now());
     return;
   }
   requestAnimationFrame(tick);

@@ -10,9 +10,41 @@ body {
 
 body {
   display: grid;
-  place-items: end center;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  align-items: end;
   padding-bottom: 8px;
   box-sizing: border-box;
+  font: 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+#new-chat {
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #171717;
+  color: #fafafa;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  pointer-events: none;
+}
+
+body:hover #new-chat {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+#new-chat:hover {
+  background: #2f4f86;
 }
 
 #pet {

@@ -26,8 +26,8 @@ const PET: &str = "pet";
 const CHANGE_SERVER: &str = "change-server";
 const RELOAD: &str = "reload";
 const SHOW_PET: &str = "show-pet";
-const PET_VARIANT_EVENT: &str = "pet-variant";
-const PET_SIZE: (f64, f64) = (112.0, 152.0);
+const PET_KIND_EVENT: &str = "pet-kind";
+const PET_SIZE: (f64, f64) = (144.0, 184.0);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Serialize, Deserialize, Default)]
@@ -43,7 +43,7 @@ struct PetSettings {
     #[serde(default = "shown_by_default")]
     enabled: bool,
     #[serde(default)]
-    variant: Variant,
+    kind: Kind,
     #[serde(default)]
     position: Option<Position>,
 }
@@ -56,7 +56,7 @@ impl Default for PetSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            variant: Variant::default(),
+            kind: Kind::default(),
             position: None,
         }
     }
@@ -68,37 +68,40 @@ struct Position {
     y: f64,
 }
 
-/// The pet's colouring. Each is a palette in `ui/pet-sprites.js` under the same name.
+/// Which pet it is. Each is an entry in `PETS` in `ui/pet-sprites.js` under the same name.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, Debug)]
 #[serde(rename_all = "lowercase")]
-enum Variant {
+enum Kind {
     #[default]
     Orbit,
-    Mint,
-    Ember,
+    Boxy,
+    Ghost,
+    Sprout,
 }
 
-impl Variant {
-    const ALL: [Variant; 3] = [Variant::Orbit, Variant::Mint, Variant::Ember];
+impl Kind {
+    const ALL: [Kind; 4] = [Kind::Orbit, Kind::Boxy, Kind::Ghost, Kind::Sprout];
 
     fn label(self) -> &'static str {
         match self {
-            Variant::Orbit => "Orbit",
-            Variant::Mint => "Mint",
-            Variant::Ember => "Ember",
+            Kind::Orbit => "Orbit",
+            Kind::Boxy => "Boxy",
+            Kind::Ghost => "Ghost",
+            Kind::Sprout => "Sprout",
         }
     }
 
     fn menu_id(self) -> &'static str {
         match self {
-            Variant::Orbit => "pet-orbit",
-            Variant::Mint => "pet-mint",
-            Variant::Ember => "pet-ember",
+            Kind::Orbit => "pet-orbit",
+            Kind::Boxy => "pet-boxy",
+            Kind::Ghost => "pet-ghost",
+            Kind::Sprout => "pet-sprout",
         }
     }
 
-    fn from_menu_id(id: &str) -> Option<Variant> {
-        Variant::ALL.into_iter().find(|variant| variant.menu_id() == id)
+    fn from_menu_id(id: &str) -> Option<Kind> {
+        Kind::ALL.into_iter().find(|kind| kind.menu_id() == id)
     }
 }
 
@@ -111,14 +114,14 @@ struct StartupNotice(Mutex<Option<String>>);
 /// The menu items whose checkmarks mirror the pet's settings.
 struct PetMenu {
     show: CheckMenuItem<Wry>,
-    looks: Vec<(Variant, CheckMenuItem<Wry>)>,
+    kinds: Vec<(Kind, CheckMenuItem<Wry>)>,
 }
 
 impl PetMenu {
     fn reflect(&self, pet: &PetSettings) -> tauri::Result<()> {
         self.show.set_checked(pet.enabled)?;
-        for (variant, item) in &self.looks {
-            item.set_checked(*variant == pet.variant)?;
+        for (kind, item) in &self.kinds {
+            item.set_checked(*kind == pet.kind)?;
         }
         Ok(())
     }
@@ -252,7 +255,7 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
 ///
 /// Neither page has a devtools pane a user would open, and the pet's window has no
 /// chrome at all: a script that throws there leaves a transparent window that
-/// draws nothing, which looks like no pet rather than like a bug.
+/// draws nothing, which kinds like no pet rather than like a bug.
 #[tauri::command]
 fn page_error(window: WebviewWindow, message: String) {
     eprintln!("{}: {message}", window.label());
@@ -282,6 +285,30 @@ fn show_console(app: AppHandle) -> Result<(), String> {
         *slot = notice;
     }
     open_window(&app, start).map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Put the console on a fresh chat, opening it if it was closed.
+///
+/// `/chat` with no conversation id is how the console starts a new one, so the
+/// pet's button is a navigation, not a request: whether the person may chat, and
+/// with which agent, is the console's to decide once it is there.
+#[tauri::command]
+fn open_chat(app: AppHandle) -> Result<(), String> {
+    let settings = load_settings(&app)?;
+    let server = settings
+        .server_url
+        .ok_or("No server yet - connect the console to one first.")?;
+    reachable(&server)?;
+    let chat = server.join("chat").map_err(|e| e.to_string())?;
+    match app.get_webview_window(WINDOW) {
+        Some(console) => {
+            console.navigate(chat).map_err(|e| e.to_string())?;
+            console.set_focus().map_err(|e| e.to_string())
+        }
+        None => open_window(&app, WebviewUrl::External(chat))
+            .map(|_| ())
+            .map_err(|e| e.to_string()),
+    }
 }
 
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
@@ -340,14 +367,14 @@ fn toggle_pet(app: &AppHandle) -> Result<(), String> {
     app.state::<PetMenu>().reflect(&settings.pet).map_err(|e| e.to_string())
 }
 
-fn set_pet_variant(app: &AppHandle, variant: Variant) -> Result<(), String> {
+fn set_pet_kind(app: &AppHandle, kind: Kind) -> Result<(), String> {
     let mut settings = load_settings(app)?;
-    settings.pet.variant = variant;
+    settings.pet.kind = kind;
     save_settings(app, &settings)?;
     app.state::<PetMenu>()
         .reflect(&settings.pet)
         .map_err(|e| e.to_string())?;
-    app.emit_to(PET, PET_VARIANT_EVENT, variant).map_err(|e| e.to_string())
+    app.emit_to(PET, PET_KIND_EVENT, kind).map_err(|e| e.to_string())
 }
 
 fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
@@ -356,24 +383,17 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
     let server = Submenu::with_items(app, "Server", true, &[&change_server, &reload])?;
 
     let show = CheckMenuItem::with_id(app, SHOW_PET, "Show pet", true, pet.enabled, Some("CmdOrCtrl+Shift+P"))?;
-    let looks = Variant::ALL
+    let kinds = Kind::ALL
         .into_iter()
-        .map(|variant| {
-            let item = CheckMenuItem::with_id(
-                app,
-                variant.menu_id(),
-                variant.label(),
-                true,
-                variant == pet.variant,
-                None::<&str>,
-            )?;
-            Ok((variant, item))
+        .map(|kind| {
+            let item = CheckMenuItem::with_id(app, kind.menu_id(), kind.label(), true, kind == pet.kind, None::<&str>)?;
+            Ok((kind, item))
         })
         .collect::<tauri::Result<Vec<_>>>()?;
     let mut pet_items: Vec<&dyn tauri::menu::IsMenuItem<Wry>> = vec![&show];
     let separator = PredefinedMenuItem::separator(app)?;
     pet_items.push(&separator);
-    for (_, item) in &looks {
+    for (_, item) in &kinds {
         pet_items.push(item);
     }
     let pet_menu = Submenu::with_items(app, "Pet", true, &pet_items)?;
@@ -382,7 +402,7 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
     menu.insert(&server, 1)?;
     menu.insert(&pet_menu, 2)?;
     app.set_menu(menu)?;
-    app.manage(PetMenu { show, looks });
+    app.manage(PetMenu { show, kinds });
 
     app.on_menu_event(|app, event| {
         let id = event.id().as_ref();
@@ -393,8 +413,8 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
                 Some(console) => console.navigate(connect_page()).map_err(|e| e.to_string()),
                 None => Ok(()),
             },
-            other => match Variant::from_menu_id(other) {
-                Some(variant) => set_pet_variant(app, variant),
+            other => match Kind::from_menu_id(other) {
+                Some(kind) => set_pet_kind(app, kind),
                 None => Ok(()),
             },
         };
@@ -415,7 +435,8 @@ pub fn run() {
             page_error,
             pet_settings,
             save_pet_position,
-            show_console
+            show_console,
+            open_chat
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -440,7 +461,7 @@ pub fn run() {
 mod tests {
     use std::net::TcpListener;
 
-    use super::{parse_server_url, reachable, PetSettings, Settings, Url, Variant};
+    use super::{parse_server_url, reachable, Kind, PetSettings, Settings, Url};
 
     #[test]
     fn a_bare_host_is_opened_over_https() {
@@ -497,7 +518,7 @@ mod tests {
         let settings: Settings = serde_json::from_str(r#"{"server_url":"https://agenticos.acme.com/"}"#).unwrap();
         assert_eq!(settings.server_url.unwrap().as_str(), "https://agenticos.acme.com/");
         assert!(settings.pet.enabled);
-        assert_eq!(settings.pet.variant, Variant::Orbit);
+        assert_eq!(settings.pet.kind, Kind::Orbit);
         assert!(settings.pet.position.is_none());
     }
 
@@ -505,22 +526,22 @@ mod tests {
     fn a_tucked_away_pet_with_a_look_and_a_place_round_trips() {
         let pet = PetSettings {
             enabled: false,
-            variant: Variant::Ember,
+            kind: Kind::Ghost,
             position: Some(super::Position { x: 12.5, y: 700.0 }),
         };
         let raw = serde_json::to_string(&Settings { server_url: None, pet }).unwrap();
         let back: Settings = serde_json::from_str(&raw).unwrap();
         assert!(!back.pet.enabled);
-        assert_eq!(back.pet.variant, Variant::Ember);
+        assert_eq!(back.pet.kind, Kind::Ghost);
         assert_eq!(back.pet.position.unwrap().y, 700.0);
-        assert!(raw.contains(r#""variant":"ember""#));
+        assert!(raw.contains(r#""kind":"ghost""#));
     }
 
     #[test]
-    fn every_look_has_a_menu_entry_that_resolves_back_to_it() {
-        for variant in Variant::ALL {
-            assert_eq!(Variant::from_menu_id(variant.menu_id()), Some(variant));
+    fn every_pet_has_a_menu_entry_that_resolves_back_to_it() {
+        for kind in Kind::ALL {
+            assert_eq!(Kind::from_menu_id(kind.menu_id()), Some(kind));
         }
-        assert_eq!(Variant::from_menu_id("show-pet"), None);
+        assert_eq!(Kind::from_menu_id("show-pet"), None);
     }
 }
