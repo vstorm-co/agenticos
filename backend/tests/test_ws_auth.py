@@ -10,7 +10,7 @@ door here, and the door is the same one the next frame knocks on.
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -183,3 +183,39 @@ class TestAuthenticateSocketToken:
                 side_effect=AuthenticationError(message="Impersonation has ended")
             )
             await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+    async def test_a_revoked_ordinary_session_closes_the_socket(self) -> None:
+        """The #1501 door: an ordinary token whose `sid` names a deactivated row -
+        signed out everywhere - is refused on the next frame, so the socket closes
+        even though the account itself is untouched."""
+        user = _user()
+        row = MagicMock(
+            user_id=user.id,
+            is_active=False,
+            impersonator_user_id=None,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+        token = create_access_token(str(user.id), sid=str(uuid4()))
+        with (
+            patch("app.services.session.session_repo.get_by_id", AsyncMock(return_value=row)),
+            pytest.raises(AuthenticationError, match="Session has ended"),
+        ):
+            await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+    async def test_a_live_ordinary_session_resolves_to_its_user(self) -> None:
+        user = _user()
+        row = MagicMock(
+            user_id=user.id,
+            is_active=True,
+            impersonator_user_id=None,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+        token = create_access_token(str(user.id), sid=str(uuid4()))
+        with (
+            patch("app.services.session.session_repo.get_by_id", AsyncMock(return_value=row)),
+            patch("app.services.ws_auth.UserService") as user_service,
+        ):
+            user_service.return_value.get_by_id = AsyncMock(return_value=user)
+            resolved = await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+        assert resolved is user

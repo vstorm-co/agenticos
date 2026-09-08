@@ -21,6 +21,7 @@ from uuid import UUID
 from app.core.exceptions import AuthenticationError, NotFoundError
 from app.core.security import verify_token
 from app.services.impersonation import ImpersonationService
+from app.services.session import SessionService
 from app.services.user import UserService
 
 if TYPE_CHECKING:
@@ -37,20 +38,21 @@ async def authenticate_socket_token(
     Much of the validation `get_current_user` runs on every HTTP request, so the
     socket is not more permissive than a request bearing the same token: an ended
     impersonation (its `sid` row deactivated, its administrator suspended or
-    demoted) and a suspended target account each refuse the token here as they do
-    there. Calling :meth:`ImpersonationService.verify` also refreshes the
-    request's audit impersonator, so a re-check on the receive loop keeps a turn
-    started afterwards attributed to whoever is really acting.
+    demoted), a revoked ordinary session (its own `sid` row deactivated by signing
+    out everywhere, #1501) and a suspended target account each refuse the token
+    here as they do there. Calling :meth:`ImpersonationService.verify` also
+    refreshes the request's audit impersonator, so a re-check on the receive loop
+    keeps a turn started afterwards attributed to whoever is really acting.
 
     `allow_expired` is set only by the per-frame re-check on an already-open
     socket. That socket was authenticated when its token was valid and then held
     open past the access token's 30-minute lifetime, so it is not torn down for
     routine token aging - which would cancel a turn a still-signed-in person is
-    running (#1437) - and revocation is judged from the impersonation row and the
-    account's `is_active` instead. Expiry that *is* a revocation is still caught:
-    an impersonation's window is its row's `expires_at`, which `verify` enforces
-    regardless. The handshake leaves it False, so a socket cannot be *opened*
-    with an already-expired token.
+    running (#1437) - and revocation is judged from the session and impersonation
+    rows and the account's `is_active` instead. Expiry that *is* a revocation is
+    still caught: a session's and an impersonation's window is its row's
+    `expires_at`, which the two `verify` calls enforce regardless. The handshake
+    leaves it False, so a socket cannot be *opened* with an already-expired token.
 
     The returned user is still bound to `db`; the caller detaches it (the
     handshake does, so it can outlive the connection; the per-frame check
@@ -58,8 +60,8 @@ async def authenticate_socket_token(
 
     Raises:
         AuthenticationError: The token is invalid (or, unless `allow_expired`,
-            expired), is not an access token, carries no subject, names an
-            impersonation that has ended, or resolves to a user who is unknown or
+            expired), is not an access token, carries no subject, names a session
+            or an impersonation that has ended, or resolves to a user who is unknown or
             suspended.
     """
     payload = verify_token(token, verify_exp=not allow_expired)
@@ -74,6 +76,7 @@ async def authenticate_socket_token(
         raise AuthenticationError(message="Invalid token payload")
 
     await ImpersonationService(db).verify(payload=payload, token=token, subject=user_id)
+    await SessionService(db).verify_access_session(payload=payload, subject=user_id)
 
     try:
         user = await UserService(db).get_by_id(UUID(user_id))

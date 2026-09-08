@@ -2,12 +2,14 @@
 
 import hashlib
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthenticationError, NotFoundError
+from app.core.security import read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import session_repo
 from app.schemas.session import SessionListResponse, SessionRead
@@ -75,6 +77,49 @@ class SessionService:
 
     async def count_user_sessions(self, user_id: UUID, *, now: datetime | None = None) -> int:
         return await session_repo.count_user_sessions(self.db, user_id, open_only=True, now=now)
+
+    async def verify_access_session(self, *, payload: dict[str, Any], subject: str) -> None:
+        """Refuse an ordinary access token whose login session has been revoked.
+
+        A token minted since #1501 carries `sid`, the id of the `sessions` row its
+        login owns, so `DELETE /sessions` and the password-reset revoke-all - both
+        of which flip the row's `is_active` - refuse the token here on its next use,
+        an HTTP request or a WebSocket frame, instead of letting it live to its
+        `exp`. The row is also the login's own lifetime: an `expires_at` in the past
+        is a login that is over however fresh the access token looks, which is why
+        this still bites under the socket's `allow_expired` recheck (#1437).
+
+        A token with no `sid` predates the binding: it cannot be tied to a row and
+        is left to expire, the pre-#1501 behaviour, so an existing sign-in is not
+        logged out the moment this deploys - within one access-token lifetime every
+        live token has refreshed into a bound one.
+
+        An impersonation token carries `act` and its own `sid`, both already
+        verified by :meth:`ImpersonationService.verify` before this runs, so it
+        returns early here - looking its row up again would refuse it, an
+        impersonation row being exactly what an *ordinary* `sid` may not name. An
+        ordinary `sid` must therefore name an ordinary row (no impersonator), the
+        subject's own, still active and unexpired - the id alone is the binding,
+        since a signed token cannot carry a `sid` this deployment did not mint.
+
+        Raises:
+            AuthenticationError: The token names a session that is gone, deactivated,
+                expired, an impersonation, or another user's.
+        """
+        if read_uuid_claim(payload, "act") is not None:
+            return
+        session_id = read_uuid_claim(payload, "sid")
+        if session_id is None:
+            return
+        row = await session_repo.get_by_id(self.db, session_id)
+        if (
+            row is None
+            or not row.is_active
+            or row.expires_at <= datetime.now(UTC)
+            or row.impersonator_user_id is not None
+            or str(row.user_id) != subject
+        ):
+            raise AuthenticationError(message="Session has ended")
 
     async def validate_refresh_token(self, refresh_token: str) -> Session | None:
         """The session a refresh token belongs to, or None for one that cannot refresh.
