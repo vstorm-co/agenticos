@@ -596,12 +596,11 @@ class ChannelMessageRouter:
           but on a crash may be an agent-slug the platform did not report. This is
           the mention copy's own rule, now the default's too.
 
-        A refused turn's already-stored files are discarded: a turn that produced
-        no run leaves rows nothing points at, and `chat_files` carries no
-        organization, so an unlinked row is scoped by `user_id` alone (#690).
-        Nothing streamed on a refusal, so the lazy placeholder was never opened.
-        A crash leaves the files as the default path always has - #1503 tracks
-        that orphan.
+        A refused or crashed turn's already-stored files are discarded: a turn
+        that produced no run leaves rows nothing points at, and `chat_files`
+        carries no organization, so an unlinked row is scoped by `user_id` alone
+        (#690, #1503). Nothing streamed on a refusal, so the lazy placeholder was
+        never opened.
 
         Returns True when the turn was handled - answered, refused or apologised.
         False is the mention path's `UnaddressedMessage`: the handle named nobody
@@ -618,6 +617,7 @@ class ChannelMessageRouter:
             return True
         except Exception:
             logger.exception("Agent run failed for bot %s", incoming.bot_id)
+            await self._discard_files(db, files)
             await self._post_failure(
                 bot, incoming, handle(), "Sorry, something went wrong. Please try again."
             )

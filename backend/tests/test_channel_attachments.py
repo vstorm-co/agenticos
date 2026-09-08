@@ -718,6 +718,24 @@ class TestACrashAnswersTheSameOnEitherPath:
         assert "something went wrong" in mention_reply.lower()
         assert mention_reply == default_reply
 
+    async def test_a_crashed_turn_leaves_no_stored_file(self):
+        """A crash produces no run, so the turn's already-stored attachments are
+        as orphaned as a refused turn's - discarded on either path, the same way
+        the refusal branch does (#1503)."""
+        router_m, _replies_m, rows_m = _router()
+        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
+            await router_m._route_inner(_incoming("@support here is the report"), MagicMock())
+
+        router_d, _replies_d, rows_d = _router()
+        router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
+            await router_d._route_inner(_incoming("here is the report"), MagicMock())
+
+        assert rows_m == []
+        assert rows_d == []
+
     async def test_a_failure_after_streaming_edits_the_open_reply(self):
         """A turn that already streamed a status has a placeholder on screen, so
         the apology edits *it* into place rather than leaving the "…" hanging and
