@@ -342,6 +342,16 @@ class ChannelMessageRouter:
             # attachment is fetched, stored or transcribed for a turn
             # `_membership_context` refuses anyway - which is now the second lock
             # rather than the first (#1456).
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                # Consumed on the refusal path too, not only before a turn:
+                # otherwise a refused sender mints a link request and an
+                # invitation on every message with no allowance ever spent
+                # (#1516). Rides the invite's own channel - shown where the
+                # invite would show, silent where it would stay silent.
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
             await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
