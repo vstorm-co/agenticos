@@ -531,6 +531,17 @@ class AdmittedAs(BaseModel):
             "the way back (#788)."
         ),
     )
+    subject_is_publisher_fallback: bool = Field(
+        default=False,
+        description=(
+            "Whether `user_id` is a publisher standing in for an unidentified "
+            "visitor rather than a real subject. Kept so a resume does not lend "
+            "the publisher's own MCP credentials to an anonymous guest, which the "
+            "approver's context cannot tell it (#1469): `agent_runs.user_id` is the "
+            "publisher either way. Defaults false, so a run parked before this was "
+            "recorded resumes as it always did."
+        ),
+    )
 
 
 class PausedRunState(BaseModel):
@@ -1928,6 +1939,7 @@ class AgentRunnerService:
         owner_user_id: UUID | None = None,
         memory_room_key: str | None = None,
         restored_audience: RunAudience | None = None,
+        restored_publisher_fallback: bool | None = None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -2042,7 +2054,26 @@ class AgentRunnerService:
         # so deriving this from `ctx` alone read *their* personal account inside
         # somebody else's conversation - the resume path passes the recorded
         # owner and this falls back to the caller only for a run being started.
-        personal_mcp_user_id = (owner_user_id or ctx.user_id) if acts_for_sender else None
+        #
+        # But a publisher standing in for an unidentified visitor is not a person
+        # whose own account may be reached for, even though `acts_for_sender` is
+        # set on that surface too: resolving one here would speak to a third-party
+        # MCP server with the owner/publisher's own connected-account credentials
+        # on behalf of an anonymous guest (#1469). Read from the request on a fresh
+        # run and from the parked terms on a resume, where the approver's context
+        # is not the run's - the same reason `owner_user_id` is passed rather than
+        # taken from `ctx` (#788). It defaults false, so a run parked before this
+        # was recorded resolves as it always did rather than losing its tools.
+        subject_is_publisher_fallback = (
+            restored_publisher_fallback
+            if restored_publisher_fallback is not None
+            else ctx.subject_is_publisher_fallback
+        )
+        personal_mcp_user_id = (
+            (owner_user_id or ctx.user_id)
+            if acts_for_sender and not subject_is_publisher_fallback
+            else None
+        )
 
         # The MCP servers the spec binds, resolved here rather than by each
         # surface. A surface that forgot would produce an agent missing half its
@@ -2281,6 +2312,7 @@ class AgentRunnerService:
                 acts_for_sender=acts_for_sender,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
+                subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
 
@@ -3563,6 +3595,10 @@ class AgentRunnerService:
                 user_id=state.admitted_as.audience_user_id,
                 room_key=state.admitted_as.audience_room_key,
             ),
+            # The run's own terms, not the approver's context: whether user_id was
+            # a publisher stand-in is gone with the request that carried it, so a
+            # resume would otherwise lend the publisher's MCP to a guest (#1469).
+            restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to
