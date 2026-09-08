@@ -6,7 +6,7 @@ console the server already serves, loaded from the server, so it carries the sam
 sign-in, the same permissions and the same tenant checks a browser tab would.
 
 It is a [Tauri](https://tauri.app) shell in `desktop/`, and it holds exactly one
-setting: the address of the server. The first launch asks for it, "Server → Change
+setting: the address of the server. The first launch asks for it, "Shell → Change
 server…" asks again, and everything in between is the console.
 
 !!! note "It is a shell, not a build of the frontend"
@@ -42,7 +42,7 @@ back on the form with the reason rather than in front of an empty window.
 The answer is stored as `server.json` in the platform's configuration directory for
 the app - `~/Library/Application Support/co.vstorm.agenticos/` on macOS,
 `%APPDATA%\\co.vstorm.agenticos\\` on Windows, `~/.config/co.vstorm.agenticos/` on
-Linux - and read again on every launch. A wrong address is fixed from **Server →
+Linux - and read again on every launch. A wrong address is fixed from **Shell →
 Change server…**, or by editing that file.
 
 ## The pet
@@ -92,6 +92,34 @@ was going.
     the frontend that reports activity. That is the follow-up; the pet here is
     company, not a status light.
 
+## Screenshot to a new chat
+
+Press the shortcut - `⌘⇧A` by default, wherever you are - and the crosshair from
+Cmd+Shift+4 appears. Pick a region and the console comes to the front on a fresh
+chat with the picture already attached, ready for the question. Escape cancels.
+The same action is in the pet's menu and on the tray icon.
+
+**Shell → Shortcuts…** rebinds it: click the field, hold the modifiers and press a
+key. A combination needs at least one modifier - a global shortcut on a bare letter
+would swallow typing in every application - and one that another application
+already holds is refused with the old binding kept. **Clear** switches it off.
+Bindings are stored beside the server address.
+
+!!! note "Two modifiers on their own cannot be a shortcut"
+
+    Left-Command plus Right-Command is a chord, not a key: the operating system's
+    hotkey registration, which is what the shell uses, needs a non-modifier key in
+    the combination. Detecting a modifier-only chord means an accessibility event
+    tap that watches every key press, and asking every user to grant that. Not this
+    version.
+
+The first press asks macOS whether AgenticOS may record the screen; refused, the
+capture comes back as the desktop picture rather than an error, so grant it in
+System Settings → Privacy & Security → Screen Recording. The picture reaches the
+composer the way a chosen file does: the shell runs a script in the console page
+that hands the PNG to the composer's file input, so the upload, the size limit and
+the preview are the console's own. Windows and Linux have no capture wired yet.
+
 ## What it deliberately does not do
 
 - **No local execution.** The shell has no access to the machine beyond one JSON
@@ -100,11 +128,11 @@ was going.
   to Docker and Daytona, bound to one person's machine rather than to the
   organization - and it is not this one.
 - **No offline mode.** With the server unreachable the window shows the webview's
-  own error page; "Server → Reload" retries.
+  own error page; "Shell → Reload" retries.
 - **No navigation guard.** A link that leaves the server's origin opens inside the
   window rather than in the system browser, because an OAuth flow - signing in,
   connecting an MCP server - leaves the origin and has to come back to the same
-  webview for its cookie to land. "Server → Change server…" is the way back if a
+  webview for its cookie to land. "Shell → Change server…" is the way back if a
   page has no link home.
 
 ## Where it sits in the tree
@@ -121,5 +149,7 @@ not. Run it before pushing a change under `desktop/`.
 - **The console stays on the server.** The shell opens it; nothing is bundled.
 - **One file of settings.** The server address, asked once, and where the pet was
   left, both changeable from the menu.
+- **A screenshot is a shortcut away.** `⌘⇧A`, a region, a fresh chat with it
+  attached; rebound under Shell → Shortcuts…
 - **Nothing local yet.** Local execution is a sandbox connection kind to design,
   not a flag on this shell.

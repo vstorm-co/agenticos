@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgenticOS shortcuts</title>
+    <link rel="stylesheet" href="connect.css" />
+    <link rel="stylesheet" href="shortcuts.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Shortcuts</h1>
+      <p>Global: they work whichever application is in front.</p>
+      <form id="shortcuts">
+        <label for="screenshot">Screenshot to a new chat</label>
+        <p class="hint">
+          Pick a region of the screen; it lands attached to a fresh chat in the console. Click the field, then hold the
+          modifiers and press a key. Escape cancels; a combination needs at least one modifier.
+        </p>
+        <div class="row">
+          <input id="screenshot" name="screenshot" type="text" readonly spellcheck="false" placeholder="Not bound" />
+          <button type="submit" id="save" disabled>Save</button>
+          <button type="button" id="clear" class="secondary">Clear</button>
+        </div>
+        <p id="error" role="alert" hidden></p>
+      </form>
+      <p><a href="#" id="back">Back to the console</a></p>
+    </main>
+    <script type="module" src="shortcuts.js"></script>
+  </body>
+</html>

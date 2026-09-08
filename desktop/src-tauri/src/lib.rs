@@ -14,18 +14,26 @@ use std::fs;
 use std::io::ErrorKind;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use base64::Engine;
 
 use serde::{Deserialize, Serialize};
 use tauri::menu::{CheckMenuItem, ContextMenu, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 const WINDOW: &str = "main";
 const PET: &str = "pet";
 const CHANGE_SERVER: &str = "change-server";
 const RELOAD: &str = "reload";
+const SHORTCUTS: &str = "shortcuts";
+const SCREENSHOT_CHAT: &str = "screenshot-chat";
+const DEFAULT_SCREENSHOT_SHORTCUT: &str = "CmdOrCtrl+Shift+A";
 const SHOW_PET: &str = "show-pet";
 const NEW_CHAT: &str = "new-chat";
 const OPEN_CONSOLE: &str = "open-console";
@@ -39,7 +47,33 @@ struct Settings {
     server_url: Option<Url>,
     #[serde(default)]
     pet: PetSettings,
+    #[serde(default)]
+    shortcuts: Shortcuts,
 }
+
+/// Global shortcuts, as accelerators the shortcut plugin parses (`CmdOrCtrl+Shift+A`).
+/// `None` is a shortcut somebody switched off.
+#[derive(Serialize, Deserialize, Clone)]
+struct Shortcuts {
+    #[serde(default = "default_screenshot_shortcut")]
+    screenshot_chat: Option<String>,
+}
+
+fn default_screenshot_shortcut() -> Option<String> {
+    Some(DEFAULT_SCREENSHOT_SHORTCUT.to_owned())
+}
+
+impl Default for Shortcuts {
+    fn default() -> Self {
+        Self {
+            screenshot_chat: default_screenshot_shortcut(),
+        }
+    }
+}
+
+/// A screenshot taken for a chat that is still loading; the console's page-load
+/// hook takes it once `/chat` has finished loading.
+struct PendingScreenshot(Mutex<Option<Vec<u8>>>);
 
 #[derive(Serialize, Deserialize, Clone)]
 struct PetSettings {
@@ -123,6 +157,7 @@ struct PetMenu {
     show: CheckMenuItem<Wry>,
     kinds: Vec<(Kind, CheckMenuItem<Wry>)>,
     new_chat: MenuItem<Wry>,
+    screenshot: MenuItem<Wry>,
     open_console: MenuItem<Wry>,
 }
 
@@ -138,19 +173,24 @@ impl PetMenu {
             })
             .collect::<tauri::Result<Vec<_>>>()?;
         let new_chat = MenuItem::with_id(app, NEW_CHAT, "New chat", true, None::<&str>)?;
+        let screenshot = MenuItem::with_id(app, SCREENSHOT_CHAT, "Screenshot to new chat", true, None::<&str>)?;
         let open_console = MenuItem::with_id(app, OPEN_CONSOLE, "Open console", true, None::<&str>)?;
         Ok(Self {
             show,
             kinds,
             new_chat,
+            screenshot,
             open_console,
         })
     }
 
     /// The items in menu order; a fresh `Menu` or `Submenu` is built from them each time.
     fn items(&self, app: &AppHandle) -> tauri::Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
-        let mut items: Vec<Box<dyn IsMenuItem<Wry>>> =
-            vec![Box::new(self.new_chat.clone()), Box::new(self.open_console.clone())];
+        let mut items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
+            Box::new(self.new_chat.clone()),
+            Box::new(self.screenshot.clone()),
+            Box::new(self.open_console.clone()),
+        ];
         items.push(Box::new(PredefinedMenuItem::separator(app)?));
         for (_, item) in &self.kinds {
             items.push(Box::new(item.clone()));
@@ -239,17 +279,34 @@ fn parse_server_url(typed: &str) -> Result<Url, String> {
     Ok(url)
 }
 
-/// Where the shell's own page lives inside the webview.
+/// Where one of the shell's own pages lives inside the webview.
 ///
 /// Tauri serves the local `frontendDist` from a custom scheme on macOS and Linux
 /// and from a loopback name on Windows, where WebView2 has no custom schemes.
-fn connect_page() -> Url {
+fn local_page(name: &str) -> Url {
     let origin = if cfg!(windows) {
         "http://tauri.localhost"
     } else {
         "tauri://localhost"
     };
-    Url::parse(&format!("{origin}/index.html")).expect("a literal origin parses")
+    Url::parse(&format!("{origin}/{name}")).expect("a literal origin and a file name parse")
+}
+
+fn connect_page() -> Url {
+    local_page("index.html")
+}
+
+/// Show one of the shell's pages in the console window, opening the window if it is closed.
+fn show_local_page(app: &AppHandle, name: &str) -> Result<(), String> {
+    match app.get_webview_window(WINDOW) {
+        Some(console) => {
+            console.navigate(local_page(name)).map_err(|e| e.to_string())?;
+            console.set_focus().map_err(|e| e.to_string())
+        }
+        None => open_window(app, WebviewUrl::App(name.into()))
+            .map(|_| ())
+            .map_err(|e| e.to_string()),
+    }
 }
 
 /// Whether something is listening where the address points.
@@ -306,6 +363,53 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
     settings.server_url = Some(server.clone());
     save_settings(&app, &settings)?;
     window.navigate(server).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn shortcuts(app: AppHandle) -> Result<Shortcuts, String> {
+    Ok(load_settings(&app)?.shortcuts)
+}
+
+/// Rebind, or switch off, the screenshot shortcut. Answers with what is now bound.
+///
+/// The old binding is released first and put back if the new one cannot be taken,
+/// so a combination another application holds leaves the shell where it was.
+#[tauri::command]
+fn set_screenshot_shortcut(app: AppHandle, accelerator: Option<String>) -> Result<Option<String>, String> {
+    let mut settings = load_settings(&app)?;
+    let wanted = accelerator.map(|a| a.trim().to_owned()).filter(|a| !a.is_empty());
+    let current = settings.shortcuts.screenshot_chat.clone();
+    if let Some(old) = &current {
+        unregister_shortcut(&app, old);
+    }
+    if let Some(new) = &wanted {
+        if let Err(refusal) = register_screenshot_shortcut(&app, new) {
+            if let Some(old) = &current {
+                if let Err(e) = register_screenshot_shortcut(&app, old) {
+                    eprintln!("could not put {old} back: {e}");
+                }
+            }
+            return Err(refusal);
+        }
+    }
+    settings.shortcuts.screenshot_chat = wanted.clone();
+    save_settings(&app, &settings)?;
+    Ok(wanted)
+}
+
+/// Leave a shell page for the console - the stored server, or the connect form.
+#[tauri::command]
+fn back_to_console(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let settings = load_settings(&app)?;
+    let (start, notice) = console_start(settings.server_url);
+    if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
+        *slot = notice;
+    }
+    let url = match start {
+        WebviewUrl::External(url) => url,
+        _ => connect_page(),
+    };
+    window.navigate(url).map_err(|e| e.to_string())
 }
 
 /// A failure inside one of the shell's own pages, reported where somebody can read it.
@@ -385,11 +489,146 @@ fn start_chat(app: &AppHandle) -> Result<(), String> {
     }
 }
 
+/// Let the person pick a region, and hand back the PNG - or nothing, if they pressed Escape.
+///
+/// `screencapture -i` is the same crosshair Cmd+Shift+4 gives, silent, into a
+/// file of ours. The first time, macOS asks whether AgenticOS may record the
+/// screen; refused, it hands back the desktop picture rather than an error.
+#[cfg(target_os = "macos")]
+fn capture_screen() -> Result<Option<Vec<u8>>, String> {
+    let path = std::env::temp_dir().join(format!("agenticos-screenshot-{}.png", std::process::id()));
+    let status = std::process::Command::new("screencapture")
+        .args(["-i", "-x", "-t", "png"])
+        .arg(&path)
+        .status()
+        .map_err(|e| format!("Cannot run screencapture: {e}"))?;
+    match fs::read(&path) {
+        Ok(bytes) => {
+            if let Err(e) = fs::remove_file(&path) {
+                eprintln!("screenshot: could not remove {}: {e}", path.display());
+            }
+            Ok(Some(bytes))
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            if !status.success() {
+                eprintln!("screenshot: screencapture exited with {status} and wrote no file");
+            }
+            Ok(None)
+        }
+        Err(e) => Err(format!("Cannot read {}: {e}", path.display())),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn capture_screen() -> Result<Option<Vec<u8>>, String> {
+    Err("Screenshots are wired up on macOS only so far.".to_owned())
+}
+
+/// The script that attaches a PNG to the console's composer.
+///
+/// The composer takes files from its hidden `<input type="file">`, so the bytes
+/// become a `File`, land in that input through a `DataTransfer`, and a `change`
+/// event tells React. The input mounts after the page has loaded, hence the
+/// retry, bounded so a page that never grows a composer does not spin forever.
+fn attach_script(png: &[u8]) -> String {
+    let encoded = base64::engine::general_purpose::STANDARD.encode(png);
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    format!(
+        r#"(() => {{
+  const bytes = Uint8Array.from(atob("{encoded}"), (c) => c.charCodeAt(0));
+  const file = new File([bytes], "screenshot-{stamp}.png", {{ type: "image/png" }});
+  const deadline = Date.now() + 8000;
+  const attach = () => {{
+    const input = document.querySelector('input[type="file"][accept*="image/png"]');
+    if (input && !input.disabled) {{
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", {{ bubbles: true }}));
+      return;
+    }}
+    if (Date.now() < deadline) setTimeout(attach, 200);
+  }};
+  attach();
+}})();"#
+    )
+}
+
+/// Take a screenshot and put it on a new chat: the capture off the main thread,
+/// since it waits for a person, then the console to `/chat`, whose page-load hook
+/// attaches what was captured.
+fn screenshot_to_chat(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = match capture_screen() {
+            Ok(Some(bytes)) => bytes,
+            Ok(None) => return,
+            Err(e) => {
+                eprintln!("screenshot: {e}");
+                return;
+            }
+        };
+        if let Ok(mut slot) = app.state::<PendingScreenshot>().0.lock() {
+            *slot = Some(bytes);
+        }
+        let handle = app.clone();
+        let dispatched = app.run_on_main_thread(move || {
+            #[cfg(target_os = "macos")]
+            if let Err(e) = handle.show() {
+                eprintln!("screenshot: {e}");
+            }
+            if let Err(e) = start_chat(&handle) {
+                eprintln!("screenshot: {e}");
+            }
+        });
+        if let Err(e) = dispatched {
+            eprintln!("screenshot: {e}");
+        }
+    });
+}
+
+fn register_screenshot_shortcut(app: &AppHandle, accelerator: &str) -> Result<(), String> {
+    let shortcut = Shortcut::from_str(accelerator).map_err(|e| format!("{accelerator} is not a shortcut: {e}"))?;
+    app.global_shortcut()
+        .on_shortcut(shortcut, |app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                screenshot_to_chat(app);
+            }
+        })
+        .map_err(|e| format!("Cannot bind {accelerator}: {e}"))
+}
+
+fn unregister_shortcut(app: &AppHandle, accelerator: &str) {
+    if let Err(e) = app.global_shortcut().unregister(accelerator) {
+        eprintln!("could not release {accelerator}: {e}");
+    }
+}
+
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     WebviewWindowBuilder::new(app, WINDOW, url)
         .title("AgenticOS")
         .inner_size(1280.0, 800.0)
         .min_inner_size(900.0, 600.0)
+        .on_page_load(|window, payload| {
+            if !matches!(payload.event(), PageLoadEvent::Finished) || !payload.url().path().ends_with("/chat") {
+                return;
+            }
+            let pending = window
+                .app_handle()
+                .state::<PendingScreenshot>()
+                .0
+                .lock()
+                .ok()
+                .and_then(|mut slot| slot.take());
+            if let Some(png) = pending {
+                if let Err(e) = window.eval(attach_script(&png)) {
+                    eprintln!("screenshot: could not attach: {e}");
+                }
+            }
+        })
         .build()
 }
 
@@ -453,8 +692,9 @@ fn set_pet_kind(app: &AppHandle, kind: Kind) -> Result<(), String> {
 
 fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
     let change_server = MenuItem::with_id(app, CHANGE_SERVER, "Change server…", true, None::<&str>)?;
+    let shortcuts = MenuItem::with_id(app, SHORTCUTS, "Shortcuts…", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, RELOAD, "Reload", true, Some("CmdOrCtrl+R"))?;
-    let server = Submenu::with_items(app, "Server", true, &[&change_server, &reload])?;
+    let server = Submenu::with_items(app, "Shell", true, &[&change_server, &shortcuts, &reload])?;
 
     let pet_menu = PetMenu::build(app, pet)?;
     let menu = Menu::default(app)?;
@@ -479,6 +719,11 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
             SHOW_PET => toggle_pet(app),
             NEW_CHAT => start_chat(app),
             OPEN_CONSOLE => bring_console(app),
+            SHORTCUTS => show_local_page(app, "shortcuts.html"),
+            SCREENSHOT_CHAT => {
+                screenshot_to_chat(app);
+                Ok(())
+            }
             CHANGE_SERVER | RELOAD => match app.get_webview_window(WINDOW) {
                 Some(console) if id == RELOAD => console.eval("location.reload()").map_err(|e| e.to_string()),
                 Some(console) => console.navigate(connect_page()).map_err(|e| e.to_string()),
@@ -499,6 +744,7 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             server_url,
             startup_notice,
@@ -508,7 +754,10 @@ pub fn run() {
             save_pet_position,
             show_console,
             open_chat,
-            pet_menu
+            pet_menu,
+            shortcuts,
+            set_screenshot_shortcut,
+            back_to_console
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -519,7 +768,13 @@ pub fn run() {
             install_menu(handle, &settings.pet)?;
             let (start, notice) = console_start(settings.server_url);
             app.manage(StartupNotice(Mutex::new(notice)));
+            app.manage(PendingScreenshot(Mutex::new(None)));
             open_window(handle, start)?;
+            if let Some(accelerator) = &settings.shortcuts.screenshot_chat {
+                if let Err(e) = register_screenshot_shortcut(handle, accelerator) {
+                    eprintln!("{e}");
+                }
+            }
             if settings.pet.enabled {
                 open_pet(handle, &settings.pet)?;
             }
@@ -532,8 +787,12 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use std::net::TcpListener;
+    use std::str::FromStr;
 
-    use super::{parse_server_url, reachable, Kind, PetSettings, Settings, Url};
+    use super::{
+        attach_script, parse_server_url, reachable, Kind, PetSettings, Settings, Shortcuts, Url,
+        DEFAULT_SCREENSHOT_SHORTCUT,
+    };
 
     #[test]
     fn a_bare_host_is_opened_over_https() {
@@ -586,6 +845,35 @@ mod tests {
     }
 
     #[test]
+    fn a_configuration_saved_before_shortcuts_existed_gets_the_default_binding() {
+        let settings: Settings = serde_json::from_str(r#"{"server_url":"https://agenticos.acme.com/"}"#).unwrap();
+        assert_eq!(
+            settings.shortcuts.screenshot_chat.as_deref(),
+            Some(DEFAULT_SCREENSHOT_SHORTCUT)
+        );
+    }
+
+    #[test]
+    fn a_shortcut_switched_off_stays_off() {
+        let raw = serde_json::to_string(&Shortcuts { screenshot_chat: None }).unwrap();
+        let back: Shortcuts = serde_json::from_str(&raw).unwrap();
+        assert!(back.screenshot_chat.is_none());
+    }
+
+    #[test]
+    fn the_default_binding_parses_as_a_shortcut() {
+        assert!(super::Shortcut::from_str(DEFAULT_SCREENSHOT_SHORTCUT).is_ok());
+    }
+
+    #[test]
+    fn the_attach_script_carries_the_png_and_targets_the_composers_input() {
+        let script = attach_script(&[0x89, b'P', b'N', b'G']);
+        assert!(script.contains("iVBORw=="));
+        assert!(script.contains(r#"input[type="file"][accept*="image/png"]"#));
+        assert!(script.contains(r#"type: "image/png""#));
+    }
+
+    #[test]
     fn a_configuration_saved_before_the_pet_existed_still_loads_with_the_pet_shown() {
         let settings: Settings = serde_json::from_str(r#"{"server_url":"https://agenticos.acme.com/"}"#).unwrap();
         assert_eq!(settings.server_url.unwrap().as_str(), "https://agenticos.acme.com/");
@@ -601,7 +889,12 @@ mod tests {
             kind: Kind::Ghost,
             position: Some(super::Position { x: 12.5, y: 700.0 }),
         };
-        let raw = serde_json::to_string(&Settings { server_url: None, pet }).unwrap();
+        let raw = serde_json::to_string(&Settings {
+            server_url: None,
+            pet,
+            shortcuts: Shortcuts::default(),
+        })
+        .unwrap();
         let back: Settings = serde_json::from_str(&raw).unwrap();
         assert!(!back.pet.enabled);
         assert_eq!(back.pet.kind, Kind::Ghost);

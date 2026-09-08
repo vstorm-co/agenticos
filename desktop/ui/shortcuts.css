@@ -1,0 +1,29 @@
+.hint {
+  margin: -0.25rem 0 0.25rem;
+  font-size: 0.875rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.row input {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}
+
+.row input:focus {
+  cursor: text;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+a {
+  color: var(--muted);
+}
