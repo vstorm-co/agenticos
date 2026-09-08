@@ -17,6 +17,51 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.378] - 2026-09-08
+
+### Added
+
+- **A desktop app, as an add-on.** `desktop/` is a Tauri shell around the same
+  console the server serves — same sign-in, same permissions, nothing bundled —
+  for whoever wants it on the dock. The console stays a web app and that is how
+  it is used; the shell asks for the server's address once, probes it before
+  pointing the webview anywhere, and puts you back on the form with the reason
+  when nothing answers. `make desktop-dev`, `make desktop-build`,
+  `make desktop-check`; the page is `docs/desktop.md`. (#1531)
+- **A pet.** Five to choose from — Orbit, Boxy, Ghost, Sprout and Amigo, in a
+  sombrero — in a transparent always-on-top window, drawn from pixel data
+  composed at runtime. Drag it, click it to wave and hear a line, stroke it for a
+  heart, double-click for the console; it idles, looks at the cursor, strolls and
+  turns back at the screen's edge, dozes after dark. Its right-click menu, the
+  tray icon and the menu bar share one set of items. (#1531)
+- **A screenshot into a new chat.** `⌘⇧A` anywhere gives the Cmd+Shift+4
+  crosshair; the region lands attached to a fresh chat, handed to the composer's
+  own file input on the configured server's origin only, within two minutes.
+  Rebound under Settings (`⌘,`); a binding another application holds is named
+  there rather than shown as bound. macOS asks for Screen Recording the first
+  time, and the pet says so when it was refused. (#1531)
+
+### Fixed
+
+- **A production build served over plain HTTP set session cookies WebKit
+  discards.** `secure` followed `NODE_ENV`, so `make dev-frontend` at
+  `http://localhost:3000` marked both tokens `Secure` — which Safari, and every
+  WKWebView, drops on localhost. Login answered 200 and every request after it
+  was "Not authenticated", with nothing in any log. The flag now follows the
+  scheme the visitor is on, `X-Forwarded-Proto` first, in every route that sets
+  or clears a session cookie. (#1531)
+
+### Security
+
+- **httpx2 and httpcore2 to 2.12.0.** Five advisories against the locked 2.9.1
+  (CVE-2026-84378 through -84382), both transitive through `pydantic-ai-slim`;
+  the lock alone moves. (#1531)
+- **The desktop shell refuses cleartext `http://` to any host but this machine**,
+  and names the host in its title whenever the window shows a site other than the
+  server, since it has no address bar. Google sign-in works through Safari's
+  version tokens on the same engine; the system-browser handoff Google prefers is
+  #1532. (#1531)
+
 ## [0.0.377] - 2026-09-07
 
 ### Fixed
