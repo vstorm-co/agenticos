@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import (
+    CurrentSessionId,
     CurrentUser,
     DeploymentSettingsSvc,
     ImpersonationSvc,
@@ -23,6 +24,7 @@ from app.core.security import (
 from app.schemas.password_reset import (
     MagicLinkRequest,
     MagicLinkVerifyRequest,
+    PasswordChangeRequest,
     PasswordResetConfirm,
     PasswordResetConfirmResponse,
     PasswordResetRequest,
@@ -114,6 +116,29 @@ async def logout(
     """
     await enforce_auth_limit(request, surface="auth_logout")
     await session_service.logout_by_refresh_token(body.refresh_token)
+
+
+@router.post("/password/change", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def change_password(
+    request: Request,
+    body: PasswordChangeRequest,
+    current_user: CurrentUser,
+    user_service: UserSvc,
+    current_session_id: CurrentSessionId,
+) -> None:
+    """Change the signed-in user's password and revoke the account's other sessions.
+
+    The current password is proved here, which `PATCH /users/me` cannot ask for -
+    the flow the Settings form posts to (#1517). The session that made the change
+    is spared; every other one, an impersonation among them, is revoked (#1439).
+    """
+    await enforce_auth_limit(request, surface="auth_password_change")
+    await user_service.change_password(
+        current_user,
+        current_password=body.current_password,
+        new_password=body.new_password,
+        current_session_id=current_session_id,
+    )
 
 
 @router.get("/me", response_model=MeRead)

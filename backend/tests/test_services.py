@@ -345,6 +345,70 @@ class TestUserServicePostgresql:
             )
 
     @pytest.mark.anyio
+    async def test_change_password_proves_the_current_one_then_revokes_others(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """A signed-in change proves the old password, then revokes the account's
+        other sessions and spares the one that made it (#1517)."""
+        current = uuid4()
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.session_repo") as mock_sessions,
+            patch("app.services.user.verify_password", return_value=True),
+        ):
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+            mock_sessions.deactivate_all_user_sessions = AsyncMock(return_value=1)
+
+            await user_service.change_password(
+                mock_user,
+                current_password="old-password",
+                new_password="newpassword123",
+                current_session_id=current,
+            )
+
+            mock_sessions.deactivate_all_user_sessions.assert_awaited_once_with(
+                user_service.db, mock_user.id, except_session_id=current
+            )
+
+    @pytest.mark.anyio
+    async def test_change_password_refuses_a_wrong_current_password(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The proof is the whole point: a wrong current password changes nothing
+        and revokes no session (#1517)."""
+        with (
+            patch("app.services.user.session_repo") as mock_sessions,
+            patch("app.services.user.verify_password", return_value=False),
+        ):
+            mock_sessions.deactivate_all_user_sessions = AsyncMock()
+            with pytest.raises(AuthenticationError):
+                await user_service.change_password(
+                    mock_user, current_password="wrong", new_password="newpassword123"
+                )
+            mock_sessions.deactivate_all_user_sessions.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_change_password_refuses_an_account_with_no_password(
+        self, user_service: UserService
+    ):
+        """An OAuth-only account has no password to prove, so there is nothing to
+        change here - and bcrypt is never run against a null hash (#1517)."""
+        oauth_user = MockUser()
+        oauth_user.hashed_password = None
+        with (
+            patch("app.services.user.session_repo") as mock_sessions,
+            patch("app.services.user.verify_password") as verify,
+        ):
+            mock_sessions.deactivate_all_user_sessions = AsyncMock()
+            with pytest.raises(AuthenticationError):
+                await user_service.change_password(
+                    oauth_user, current_password="anything", new_password="newpassword123"
+                )
+            verify.assert_not_called()
+            mock_sessions.deactivate_all_user_sessions.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_delete_success(self, user_service: UserService, mock_user: MockUser):
         """Test deleting user."""
         with (

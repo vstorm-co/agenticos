@@ -379,6 +379,39 @@ class UserService:
             )
         return await self.update(user.id, user_in, current_session_id=current_session_id)
 
+    async def change_password(
+        self,
+        user: User,
+        *,
+        current_password: str,
+        new_password: str,
+        current_session_id: UUID | None = None,
+    ) -> User:
+        """Change a signed-in user's own password, proving they know the current one.
+
+        The proof is what `PATCH /users/me` cannot ask for, and the reason
+        self-service password change is its own endpoint rather than that route: a
+        stolen access token must not be able to change a password without the old
+        one (#1517). The change runs through `update`, so it revokes the account's
+        other sessions - sparing the one that made it - exactly as an admin reset
+        does (#1439).
+
+        Raises:
+            AuthenticationError: the current password is wrong, or the account
+                signs in through OAuth alone and has no password to change.
+        """
+        stored = user.hashed_password
+        ok = stored is not None and await asyncio.to_thread(
+            verify_password, current_password, stored
+        )
+        if not ok:
+            raise AuthenticationError(message="Current password is incorrect")
+        return await self.update(
+            user.id,
+            UserUpdate(password=new_password),
+            current_session_id=current_session_id,
+        )
+
     async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
         if content_type not in ALLOWED_AVATAR_TYPES:

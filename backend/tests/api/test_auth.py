@@ -156,6 +156,78 @@ async def test_get_current_session_id_is_none_for_an_unverifiable_token() -> Non
 
 
 @pytest.mark.anyio
+async def test_a_password_change_needs_a_signed_in_caller(
+    mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
+) -> None:
+    """The endpoint is authenticated: no token, no change (#1517)."""
+    app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                f"{settings.API_V1_STR}/auth/password/change",
+                json={"current_password": "old", "new_password": "newpassword123"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_a_password_change_hands_the_service_the_session_to_spare(
+    mock_user: MockUser, mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
+) -> None:
+    """The route proves nothing itself; it hands the service the caller, the two
+    passwords and the session to keep, and answers 204 (#1517)."""
+    session_id = uuid4()
+    mock_user_service.change_password = AsyncMock(return_value=mock_user)
+    app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_current_session_id] = lambda: session_id
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                f"{settings.API_V1_STR}/auth/password/change",
+                json={"current_password": "old-password", "new_password": "newpassword123"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 204
+    kwargs = mock_user_service.change_password.await_args.kwargs
+    assert kwargs["current_password"] == "old-password"
+    assert kwargs["new_password"] == "newpassword123"
+    assert kwargs["current_session_id"] == session_id
+
+
+@pytest.mark.anyio
+async def test_a_wrong_current_password_is_refused_with_a_401(
+    mock_user: MockUser, mock_user_service: MagicMock, mock_redis: MagicMock, mock_db_session
+) -> None:
+    """The service's refusal reaches the caller as a 401, not a 500 (#1517)."""
+    mock_user_service.change_password = AsyncMock(
+        side_effect=AuthenticationError(message="Current password is incorrect")
+    )
+    app.dependency_overrides[get_user_service] = lambda: mock_user_service
+    app.dependency_overrides[get_redis] = lambda: mock_redis
+    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_current_session_id] = lambda: None
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                f"{settings.API_V1_STR}/auth/password/change",
+                json={"current_password": "wrong", "new_password": "newpassword123"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
 async def test_login_invalid_credentials(
     client_with_mock_service: AsyncClient,
     mock_user_service: MagicMock,
