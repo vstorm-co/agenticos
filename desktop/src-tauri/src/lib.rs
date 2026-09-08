@@ -257,7 +257,9 @@ fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
 /// A bare host is the common spelling (`agenticos.acme.com`), so a missing scheme
 /// means `https`. Anything that is not a web address is refused here rather than
 /// handed to the webview, which would show a platform error page with no way back
-/// except the menu.
+/// except the menu. So is plain `http` to anything but this machine: the console
+/// posts the password and gets the token back on that connection, and a LAN is
+/// exactly where somebody else can read it.
 fn parse_server_url(typed: &str) -> Result<Url, String> {
     let typed = typed.trim();
     if typed.is_empty() {
@@ -274,11 +276,40 @@ fn parse_server_url(typed: &str) -> Result<Url, String> {
             "{typed} is not a web address: the shell opens http and https servers."
         ));
     }
-    if url.host_str().is_none() {
+    let Some(host) = url.host_str() else {
         return Err(format!("{typed} names no host."));
+    };
+    if url.scheme() == "http" && !is_loopback(host) {
+        return Err(format!(
+            "{typed} would send your sign-in in the clear. Use https for a server that is not on this machine."
+        ));
     }
     Ok(url)
 }
+
+/// Whether a host is this machine, where plain http cannot be read off a network.
+fn is_loopback(host: &str) -> bool {
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    bare == "localhost"
+        || bare.ends_with(".localhost")
+        || bare.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
+}
+
+/// What the console window says it is.
+///
+/// WKWebView on macOS and WebKitGTK on Linux announce themselves as bare
+/// AppleWebKit, which Google's authorization endpoint refuses as an embedded
+/// user-agent (`disallowed_useragent`), so a deployment with Google sign-in could
+/// not sign in from the shell at all. The engine is Safari's; the string names
+/// the version tokens Safari adds. The handoff Google prefers - the system browser
+/// and a deep link back - needs a one-time exchange the backend does not have yet
+/// (#1532). WebView2 already carries a browser's user agent.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+const CONSOLE_USER_AGENT: Option<&str> = Some(
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+);
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+const CONSOLE_USER_AGENT: Option<&str> = None;
 
 /// Where one of the shell's own pages lives inside the webview.
 ///
@@ -645,10 +676,14 @@ fn unregister_shortcut(app: &AppHandle, accelerator: &str) {
 }
 
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
-    WebviewWindowBuilder::new(app, WINDOW, url)
+    let mut builder = WebviewWindowBuilder::new(app, WINDOW, url)
         .title("AgenticOS")
         .inner_size(1280.0, 800.0)
-        .min_inner_size(900.0, 600.0)
+        .min_inner_size(900.0, 600.0);
+    if let Some(user_agent) = CONSOLE_USER_AGENT {
+        builder = builder.user_agent(user_agent);
+    }
+    builder
         .on_page_load(|window, payload| {
             if !matches!(payload.event(), PageLoadEvent::Finished) || !payload.url().path().ends_with("/chat") {
                 return;
@@ -860,6 +895,21 @@ mod tests {
     #[test]
     fn a_scheme_with_no_host_is_refused() {
         assert!(parse_server_url("https://").is_err());
+    }
+
+    #[test]
+    fn plain_http_is_allowed_on_this_machine_only() {
+        for local in [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://[::1]:3000",
+            "http://app.localhost",
+        ] {
+            assert!(parse_server_url(local).is_ok(), "{local}");
+        }
+        let refusal = parse_server_url("http://agenticos.acme.com").unwrap_err();
+        assert!(refusal.contains("https"));
+        assert!(parse_server_url("http://192.168.1.20:3000").is_err());
     }
 
     #[test]

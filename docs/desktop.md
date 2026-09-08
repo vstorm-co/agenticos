@@ -41,11 +41,20 @@ make desktop-check   # rustfmt, clippy with warnings denied, and the tests
 
 The first time, the window shows a form asking where the server is, filled in with
 `http://localhost:3000` - a `make dev` stack. A bare host (`agenticos.acme.com`) is
-opened over HTTPS. Anything that is not a web address is refused on the form, and
-so is an address nothing answers on: the shell opens a TCP connection before it
-points the webview anywhere, because WebKit paints a refused connection as a blank
-white window. The same probe runs on every launch, so a stack that is down puts you
-back on the form with the reason rather than in front of an empty window.
+opened over HTTPS. Anything that is not a web address is refused on the form.
+
+!!! warning "Plain `http://` is for this machine only"
+
+    `localhost`, `127.0.0.1` and `::1` may be reached in the clear; any other host
+    is refused until it is `https://`. The console posts the password and gets the
+    token back on that connection, and a LAN is exactly where somebody else can
+    read it.
+
+An address nothing answers on is refused too: the shell opens a TCP connection
+before it points the webview anywhere, because WebKit paints a refused connection
+as a blank white window. The same probe runs on every launch, so a stack that is
+down puts you back on the form with the reason rather than in front of an empty
+window.
 
 The answer is stored as `server.json` in the platform's configuration directory for
 the app - `~/Library/Application Support/co.vstorm.agenticos/` on macOS,
@@ -149,6 +158,12 @@ have no capture wired yet.
   connecting an MCP server - leaves the origin and has to come back to the same
   webview for its cookie to land. "Shell → Change server…" is the way back if a
   page has no link home.
+- **Sign-in stays in the window, and the window says it is Safari.** WebKit's
+  bare user agent is what Google refuses as an embedded browser
+  (`disallowed_useragent`); the console window carries Safari's version tokens on
+  the same engine, so Google sign-in works. The handoff Google prefers - the
+  system browser and a deep link back - needs a one-time exchange the backend does
+  not have yet, and is [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
 
 ## Where it sits in the tree
 
