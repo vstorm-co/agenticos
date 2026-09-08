@@ -40,6 +40,36 @@ The answer is stored as `server.json` in the platform's configuration directory 
 the app (`~/Library/Application Support/co.vstorm.agenticos/` on macOS), and read
 again on every launch.
 
+## The pet
+
+A small pixel-art creature in a transparent, always-on-top window of its own: it
+sits on the desktop while the console is open, minimised or closed, the way
+Codex's pets do. Drag it anywhere; click it and it waves; double-click it and it
+hops and brings the console forward, reopening it if you had closed the window.
+Left alone it idles, looks around, strolls a little way along the screen and turns
+back at the edge, and now and then dozes.
+
+**Pet → Show pet** (Cmd/Ctrl+Shift+P) tucks it away and brings it back; the same
+menu offers three looks - Orbit, Mint and Ember. Where it was left, whether it is
+shown and which look it wears are stored beside the server address, so the pet is
+where you put it on the next launch. Under the operating system's reduce-motion
+setting it stands still, and stays draggable.
+
+The art is composed at runtime in `desktop/ui/pet-sprites.js`: one body and a
+handful of parts placed per frame, so an animation is a few lines of positions
+rather than a sprite sheet. Its own window is what makes it a pet rather than a
+widget, and what it costs: `macOSPrivateApi` in `tauri.conf.json`, because a
+transparent window on macOS needs it, which rules out the Mac App Store - not a
+place a self-hosted console was going.
+
+!!! note "It does not yet know what the agents are doing"
+
+    Codex's pet carries a bubble that says a run is in progress or an approval is
+    waiting. Ours cannot yet: the console is a remote page with no IPC into the
+    shell, and giving it one means a capability with `remote` URLs plus a hook in
+    the frontend that reports activity. That is the follow-up; the pet here is
+    company, not a status light.
+
 ## What it deliberately does not do
 
 - **No local execution.** The shell has no access to the machine beyond one JSON
@@ -57,9 +87,9 @@ again on every launch.
 
 ## Where it sits in the tree
 
-`desktop/ui/` is the connect form, three static files with no build step.
-`desktop/src-tauri/` is the Rust side: one command that reads the stored address,
-one that validates and stores a new one and points the webview at it, and a menu.
+`desktop/ui/` is the connect form and the pet, static files with no build step;
+`bun test` runs the pet's sprite and behaviour tests there. `desktop/src-tauri/` is
+the Rust side: the commands the two pages call, the two windows, and the menu.
 `desktop-check` is not part of `make lint` or `make check`: CI has no Rust toolchain
 yet, and `tests/test_ci_parity.py` would refuse a `check` that ran a step CI does
 not. Run it before pushing a change under `desktop/`.
@@ -67,7 +97,7 @@ not. Run it before pushing a change under `desktop/`.
 ## Recap
 
 - **The console stays on the server.** The shell opens it; nothing is bundled.
-- **One setting, one file.** The server address, asked once, changeable from the
-  menu.
+- **One file of settings.** The server address, asked once, and where the pet was
+  left, both changeable from the menu.
 - **Nothing local yet.** Local execution is a sandbox connection kind to design,
   not a flag on this shell.

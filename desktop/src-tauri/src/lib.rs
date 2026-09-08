@@ -1,26 +1,117 @@
-//! A window around a deployment's console.
+//! A window around a deployment's console, and a pet that keeps it company.
 //!
 //! The console itself stays on the server: this shell holds one setting, the
 //! address of that server, and points its webview at it. The first launch, and
 //! "Change server…" afterwards, show a local page asking for the address;
 //! everything after that is the same Next.js application a browser would load,
 //! with the same cookies, the same permissions and the same tenant checks.
+//!
+//! The pet is a second, transparent, always-on-top window drawing a pixel-art
+//! sprite. It can be dragged anywhere, clicked, and tucked away from the menu;
+//! where it was left and which look it wears are remembered beside the server.
 
 use std::fs;
 use std::io::ErrorKind;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use tauri::menu::{Menu, MenuItem, Submenu};
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
 
 const WINDOW: &str = "main";
+const PET: &str = "pet";
 const CHANGE_SERVER: &str = "change-server";
 const RELOAD: &str = "reload";
+const SHOW_PET: &str = "show-pet";
+const PET_VARIANT_EVENT: &str = "pet-variant";
+const PET_SIZE: (f64, f64) = (112.0, 152.0);
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Settings {
-    server_url: Url,
+    #[serde(default)]
+    server_url: Option<Url>,
+    #[serde(default)]
+    pet: PetSettings,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct PetSettings {
+    #[serde(default = "shown_by_default")]
+    enabled: bool,
+    #[serde(default)]
+    variant: Variant,
+    #[serde(default)]
+    position: Option<Position>,
+}
+
+fn shown_by_default() -> bool {
+    true
+}
+
+impl Default for PetSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            variant: Variant::default(),
+            position: None,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+struct Position {
+    x: f64,
+    y: f64,
+}
+
+/// The pet's colouring. Each is a palette in `ui/pet-sprites.js` under the same name.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[serde(rename_all = "lowercase")]
+enum Variant {
+    #[default]
+    Orbit,
+    Mint,
+    Ember,
+}
+
+impl Variant {
+    const ALL: [Variant; 3] = [Variant::Orbit, Variant::Mint, Variant::Ember];
+
+    fn label(self) -> &'static str {
+        match self {
+            Variant::Orbit => "Orbit",
+            Variant::Mint => "Mint",
+            Variant::Ember => "Ember",
+        }
+    }
+
+    fn menu_id(self) -> &'static str {
+        match self {
+            Variant::Orbit => "pet-orbit",
+            Variant::Mint => "pet-mint",
+            Variant::Ember => "pet-ember",
+        }
+    }
+
+    fn from_menu_id(id: &str) -> Option<Variant> {
+        Variant::ALL.into_iter().find(|variant| variant.menu_id() == id)
+    }
+}
+
+/// The menu items whose checkmarks mirror the pet's settings.
+struct PetMenu {
+    show: CheckMenuItem<Wry>,
+    looks: Vec<(Variant, CheckMenuItem<Wry>)>,
+}
+
+impl PetMenu {
+    fn reflect(&self, pet: &PetSettings) -> tauri::Result<()> {
+        self.show.set_checked(pet.enabled)?;
+        for (variant, item) in &self.looks {
+            item.set_checked(*variant == pet.variant)?;
+        }
+        Ok(())
+    }
 }
 
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -31,24 +122,22 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("server.json"))
 }
 
-fn stored_server(app: &AppHandle) -> Result<Option<Url>, String> {
+fn load_settings(app: &AppHandle) -> Result<Settings, String> {
     let path = settings_path(app)?;
     let raw = match fs::read_to_string(&path) {
         Ok(raw) => raw,
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Settings::default()),
         Err(e) => return Err(format!("Cannot read {}: {e}", path.display())),
     };
-    let settings: Settings =
-        serde_json::from_str(&raw).map_err(|e| format!("{} is not a saved server address: {e}", path.display()))?;
-    Ok(Some(settings.server_url))
+    serde_json::from_str(&raw).map_err(|e| format!("{} is not a saved shell configuration: {e}", path.display()))
 }
 
-fn store_server(app: &AppHandle, server_url: Url) -> Result<(), String> {
+fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = settings_path(app)?;
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("Cannot create {}: {e}", dir.display()))?;
     }
-    let raw = serde_json::to_string_pretty(&Settings { server_url }).map_err(|e| e.to_string())?;
+    let raw = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     fs::write(&path, raw).map_err(|e| format!("Cannot write {}: {e}", path.display()))
 }
 
@@ -93,16 +182,49 @@ fn connect_page() -> Url {
     Url::parse(&format!("{origin}/index.html")).expect("a literal origin parses")
 }
 
+fn start_page(server: Option<Url>) -> WebviewUrl {
+    match server {
+        Some(server) => WebviewUrl::External(server),
+        None => WebviewUrl::App("index.html".into()),
+    }
+}
+
 #[tauri::command]
 fn server_url(app: AppHandle) -> Result<Option<Url>, String> {
-    stored_server(&app)
+    Ok(load_settings(&app)?.server_url)
 }
 
 #[tauri::command]
 fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
     let server = parse_server_url(&url)?;
-    store_server(&app, server.clone())?;
+    let mut settings = load_settings(&app)?;
+    settings.server_url = Some(server.clone());
+    save_settings(&app, &settings)?;
     window.navigate(server).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn pet_settings(app: AppHandle) -> Result<PetSettings, String> {
+    Ok(load_settings(&app)?.pet)
+}
+
+#[tauri::command]
+fn save_pet_position(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
+    let mut settings = load_settings(&app)?;
+    settings.pet.position = Some(Position { x, y });
+    save_settings(&app, &settings)
+}
+
+/// Bring the console forward, opening it again if it was closed while the pet stayed.
+#[tauri::command]
+fn show_console(app: AppHandle) -> Result<(), String> {
+    if let Some(console) = app.get_webview_window(WINDOW) {
+        return console.set_focus().map_err(|e| e.to_string());
+    }
+    let settings = load_settings(&app)?;
+    open_window(&app, start_page(settings.server_url))
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
@@ -113,24 +235,114 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
         .build()
 }
 
-fn install_menu(app: &AppHandle) -> tauri::Result<()> {
+/// Bottom-right of the primary monitor, clear of a dock or taskbar, for a pet never placed yet.
+fn default_pet_position(app: &AppHandle) -> Option<(f64, f64)> {
+    let monitor = app.primary_monitor().ok()??;
+    let scale = monitor.scale_factor();
+    let size = monitor.size().to_logical::<f64>(scale);
+    let origin = monitor.position().to_logical::<f64>(scale);
+    Some((
+        origin.x + size.width - PET_SIZE.0 - 48.0,
+        origin.y + size.height - PET_SIZE.1 - 96.0,
+    ))
+}
+
+fn open_pet(app: &AppHandle, pet: &PetSettings) -> tauri::Result<WebviewWindow> {
+    let mut builder = WebviewWindowBuilder::new(app, PET, WebviewUrl::App("pet.html".into()))
+        .title("AgenticOS pet")
+        .inner_size(PET_SIZE.0, PET_SIZE.1)
+        .transparent(true)
+        .decorations(false)
+        .shadow(false)
+        .always_on_top(true)
+        .visible_on_all_workspaces(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .accept_first_mouse(true);
+    if let Some((x, y)) = pet.position.map(|p| (p.x, p.y)).or_else(|| default_pet_position(app)) {
+        builder = builder.position(x, y);
+    }
+    builder.build()
+}
+
+fn toggle_pet(app: &AppHandle) -> Result<(), String> {
+    let mut settings = load_settings(app)?;
+    match app.get_webview_window(PET) {
+        Some(pet) => {
+            pet.close().map_err(|e| e.to_string())?;
+            settings.pet.enabled = false;
+        }
+        None => {
+            open_pet(app, &settings.pet).map_err(|e| e.to_string())?;
+            settings.pet.enabled = true;
+        }
+    }
+    save_settings(app, &settings)?;
+    app.state::<PetMenu>().reflect(&settings.pet).map_err(|e| e.to_string())
+}
+
+fn set_pet_variant(app: &AppHandle, variant: Variant) -> Result<(), String> {
+    let mut settings = load_settings(app)?;
+    settings.pet.variant = variant;
+    save_settings(app, &settings)?;
+    app.state::<PetMenu>()
+        .reflect(&settings.pet)
+        .map_err(|e| e.to_string())?;
+    app.emit_to(PET, PET_VARIANT_EVENT, variant).map_err(|e| e.to_string())
+}
+
+fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
     let change_server = MenuItem::with_id(app, CHANGE_SERVER, "Change server…", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, RELOAD, "Reload", true, Some("CmdOrCtrl+R"))?;
     let server = Submenu::with_items(app, "Server", true, &[&change_server, &reload])?;
+
+    let show = CheckMenuItem::with_id(app, SHOW_PET, "Show pet", true, pet.enabled, Some("CmdOrCtrl+Shift+P"))?;
+    let looks = Variant::ALL
+        .into_iter()
+        .map(|variant| {
+            let item = CheckMenuItem::with_id(
+                app,
+                variant.menu_id(),
+                variant.label(),
+                true,
+                variant == pet.variant,
+                None::<&str>,
+            )?;
+            Ok((variant, item))
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let mut pet_items: Vec<&dyn tauri::menu::IsMenuItem<Wry>> = vec![&show];
+    let separator = PredefinedMenuItem::separator(app)?;
+    pet_items.push(&separator);
+    for (_, item) in &looks {
+        pet_items.push(item);
+    }
+    let pet_menu = Submenu::with_items(app, "Pet", true, &pet_items)?;
+
     let menu = Menu::default(app)?;
     menu.insert(&server, 1)?;
+    menu.insert(&pet_menu, 2)?;
     app.set_menu(menu)?;
+    app.manage(PetMenu { show, looks });
+
     app.on_menu_event(|app, event| {
-        let Some(window) = app.get_webview_window(WINDOW) else {
-            return;
-        };
-        let outcome = match event.id().as_ref() {
-            CHANGE_SERVER => window.navigate(connect_page()),
-            RELOAD => window.eval("location.reload()"),
-            _ => Ok(()),
+        let id = event.id().as_ref();
+        let outcome = match id {
+            SHOW_PET => toggle_pet(app),
+            CHANGE_SERVER | RELOAD => match app.get_webview_window(WINDOW) {
+                Some(console) if id == RELOAD => console.eval("location.reload()").map_err(|e| e.to_string()),
+                Some(console) => console.navigate(connect_page()).map_err(|e| e.to_string()),
+                None => Ok(()),
+            },
+            other => match Variant::from_menu_id(other) {
+                Some(variant) => set_pet_variant(app, variant),
+                None => Ok(()),
+            },
         };
         if let Err(e) = outcome {
-            eprintln!("menu action {} failed: {e}", event.id().as_ref());
+            eprintln!("menu action {id} failed: {e}");
         }
     });
     Ok(())
@@ -139,19 +351,24 @@ fn install_menu(app: &AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![server_url, connect])
+        .invoke_handler(tauri::generate_handler![
+            server_url,
+            connect,
+            pet_settings,
+            save_pet_position,
+            show_console
+        ])
         .setup(|app| {
             let handle = app.handle();
-            install_menu(handle)?;
-            let start = match stored_server(handle) {
-                Ok(Some(server)) => WebviewUrl::External(server),
-                Ok(None) => WebviewUrl::App("index.html".into()),
-                Err(e) => {
-                    eprintln!("{e}");
-                    WebviewUrl::App("index.html".into())
-                }
-            };
-            open_window(handle, start)?;
+            let settings = load_settings(handle).unwrap_or_else(|e| {
+                eprintln!("{e}");
+                Settings::default()
+            });
+            install_menu(handle, &settings.pet)?;
+            open_window(handle, start_page(settings.server_url))?;
+            if settings.pet.enabled {
+                open_pet(handle, &settings.pet)?;
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -160,7 +377,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_server_url;
+    use super::{parse_server_url, PetSettings, Settings, Variant};
 
     #[test]
     fn a_bare_host_is_opened_over_https() {
@@ -191,5 +408,37 @@ mod tests {
     #[test]
     fn a_scheme_with_no_host_is_refused() {
         assert!(parse_server_url("https://").is_err());
+    }
+
+    #[test]
+    fn a_configuration_saved_before_the_pet_existed_still_loads_with_the_pet_shown() {
+        let settings: Settings = serde_json::from_str(r#"{"server_url":"https://agenticos.acme.com/"}"#).unwrap();
+        assert_eq!(settings.server_url.unwrap().as_str(), "https://agenticos.acme.com/");
+        assert!(settings.pet.enabled);
+        assert_eq!(settings.pet.variant, Variant::Orbit);
+        assert!(settings.pet.position.is_none());
+    }
+
+    #[test]
+    fn a_tucked_away_pet_with_a_look_and_a_place_round_trips() {
+        let pet = PetSettings {
+            enabled: false,
+            variant: Variant::Ember,
+            position: Some(super::Position { x: 12.5, y: 700.0 }),
+        };
+        let raw = serde_json::to_string(&Settings { server_url: None, pet }).unwrap();
+        let back: Settings = serde_json::from_str(&raw).unwrap();
+        assert!(!back.pet.enabled);
+        assert_eq!(back.pet.variant, Variant::Ember);
+        assert_eq!(back.pet.position.unwrap().y, 700.0);
+        assert!(raw.contains(r#""variant":"ember""#));
+    }
+
+    #[test]
+    fn every_look_has_a_menu_entry_that_resolves_back_to_it() {
+        for variant in Variant::ALL {
+            assert_eq!(Variant::from_menu_id(variant.menu_id()), Some(variant));
+        }
+        assert_eq!(Variant::from_menu_id("show-pet"), None);
     }
 }

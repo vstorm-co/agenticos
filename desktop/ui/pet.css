@@ -1,0 +1,27 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  display: grid;
+  place-items: end center;
+  padding-bottom: 8px;
+  box-sizing: border-box;
+}
+
+#pet {
+  display: block;
+  image-rendering: pixelated;
+  cursor: grab;
+  touch-action: none;
+}
+
+#pet:active {
+  cursor: grabbing;
+}

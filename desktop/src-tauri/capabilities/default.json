@@ -1,11 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
-  "windows": [
-    "main"
-  ],
-  "permissions": [
-    "core:default"
-  ]
+  "description": "The connect page: the IPC it needs is the two commands the shell defines.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
 }

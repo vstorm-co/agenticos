@@ -473,6 +473,7 @@ desktop-build:
 	cd desktop && bun run build
 
 desktop-check:
+	cd desktop && bun test
 	cd desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 
 # CI's `security` job. Audits what the lockfile resolves to - which is what a
@@ -805,7 +806,7 @@ help:
 	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
 	@echo "  make desktop-dev   Open the desktop shell against a console you name"
 	@echo "  make desktop-build Package the desktop shell for this machine"
-	@echo "  make desktop-check rustfmt, clippy and the shell's tests"
+	@echo "  make desktop-check bun test, rustfmt, clippy and the shell's Rust tests"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"

@@ -8,6 +8,7 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [],
     "security": {
       "csp": "default-src 'self'; style-src 'self'; script-src 'self'"
