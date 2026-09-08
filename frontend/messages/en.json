@@ -1034,6 +1034,8 @@
       "running": "Running"
     },
     "streamError": "❌ Error: {message}",
+    "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",
+    "turnInterruptedRecheck": "Check for it",
     "thankYouFeedback": "Thanks for your feedback!",
     "thinking": "Thinking...",
     "thoughtAboutIt": "Thought about it",

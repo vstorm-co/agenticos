@@ -16,6 +16,7 @@ import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
+import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
@@ -93,7 +94,8 @@ export function ChatContainer() {
   // search box, and reading the two facts below off *that* would flip the
   // composer to writable the moment somebody typed a search that excluded the
   // thread they have open.
-  const { conversations, fetchConversations, refreshConversations } = useConversations();
+  const { conversations, fetchConversations, refreshConversations, selectConversation } =
+    useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
   // An archived conversation is read-only: the backend refuses new messages on
@@ -121,12 +123,21 @@ export function ChatContainer() {
     void refreshConversations();
   }, [refreshConversations]);
 
+  // The socket went away mid-answer. The turn is still being written server-side
+  // and the transcript is where it lands, so re-read it - once now, and again
+  // whenever the reader presses the notice, because the turn finishes when it
+  // finishes and there is nothing to be told about it.
+  const handleTurnInterrupted = useCallback(() => {
+    if (currentConversationId) void selectConversation(currentConversationId);
+  }, [currentConversationId, selectConversation]);
+
   const {
     messages,
     isConnected,
     isProcessing,
     compacting,
     compactionImpossible,
+    interrupted,
     personalGaps,
     lastUsage,
     delegations,
@@ -146,6 +157,7 @@ export function ChatContainer() {
     conversationId: currentConversationId,
     onConversationCreated: handleConversationCreated,
     onTurnSaved: handleTurnSaved,
+    onTurnInterrupted: handleTurnInterrupted,
   });
 
   // What the file panel watches, rather than a timer. Counted from the transcript
@@ -287,6 +299,8 @@ export function ChatContainer() {
       isProcessing={isProcessing}
       compacting={compacting}
       compactionImpossible={compactionImpossible}
+      interrupted={interrupted}
+      onRecheck={handleTurnInterrupted}
       personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in
       // the transcript otherwise - which is what makes the strip appear on a
@@ -343,6 +357,10 @@ interface ChatUIProps {
   compacting: Compaction | null;
   /** A window with no room for a summary, drawn in its place. Null when there is. */
   compactionImpossible: Compaction | null;
+  /** True while a turn whose socket went away is unresolved. See `InterruptedNotice`. */
+  interrupted?: boolean;
+  /** Read the transcript again, for the notice above. */
+  onRecheck?: () => void;
   /** The agent's personal MCP services this person cannot reach, drawn as a card with the button that connects one. */
   personalGaps: PersonalServiceGap[];
   /** What the last turn cost, drawn under the input. Null until one has run. */
@@ -401,6 +419,8 @@ function ChatUI({
   isProcessing,
   compacting,
   compactionImpossible,
+  interrupted = false,
+  onRecheck,
   personalGaps,
   lastUsage,
   conversationCost,
@@ -518,6 +538,7 @@ function ChatUI({
             </div>
           )}
           <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
+            <InterruptedNotice interrupted={interrupted} onRecheck={onRecheck} />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />

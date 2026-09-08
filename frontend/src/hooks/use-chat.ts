@@ -63,12 +63,22 @@ interface UseChatOptions {
    * before the answer can be told who gave it.
    */
   onTurnSaved?: () => void;
+  /**
+   * The socket came back after dropping mid-answer.
+   *
+   * Every frame that ends a turn arrives on the socket, so a socket that went
+   * away ends nothing: without this the composer spun for ever and the only way
+   * out was a page reload. The turn itself is still being written server-side,
+   * so what this asks for is a re-read of the transcript - the place a finished
+   * turn actually lands.
+   */
+  onTurnInterrupted?: () => void;
 }
 
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
-  const { conversationId, onConversationCreated, onTurnSaved } = options;
+  const { conversationId, onConversationCreated, onTurnSaved, onTurnInterrupted } = options;
   // `chat.unknownError` was in the catalog and read by nothing, while this hook
   // wrote the words out (#425). The `❌ Error:` in front of it is still English:
   // no catalog message holds it, so it belongs to the copy the guard has never
@@ -168,6 +178,16 @@ export function useChat(options: UseChatOptions = {}) {
   // screen. Cleared when the next question is sent: the card belongs beside the
   // answer that says the agent could not reach them.
   const [personalGaps, setPersonalGaps] = useState<PersonalServiceGap[]>([]);
+  // A turn whose socket went away, until something resolves it. Two jobs: it is
+  // the notice the composer draws instead of a spinner nothing will ever stop,
+  // and it holds the outbound queue - the turn is still being written under a
+  // socket this client no longer has, and a queued message sent now would run a
+  // second turn against a history missing the first one's answer.
+  const [interrupted, setInterrupted] = useState(false);
+  // Whether the drop happened *while* a turn was in flight. Read on the way back
+  // up, in a ref because the flip to disconnected and the flip to connected are
+  // two runs of one effect and `isProcessing` has been cleared in between.
+  const interruptedRef = useRef(false);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -663,6 +683,10 @@ export function useChat(options: UseChatOptions = {}) {
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
       setPersonalGaps([]);
+      // Asking something new is the reader deciding not to wait for the turn
+      // whose socket went away. Their call to make, and it is the only other
+      // thing that releases the queue.
+      setInterrupted(false);
       // A new question ends whatever the agent was saying, and it is the only
       // boundary that always holds. `complete` clears this on every ordinary
       // ending, but a socket that dropped mid-answer sends no `complete` at all -
@@ -1105,8 +1129,16 @@ export function useChat(options: UseChatOptions = {}) {
     [isConnected, sendMessage],
   );
 
-  const stopGeneration = useCallback(() => {
-    sendMessage({ type: "stop" });
+  /** Take the turn off screen without telling the server anything.
+   *
+   *  What `stopGeneration` does after it has sent its frame, and what a
+   *  reconnect needs on its own - so it is one function rather than two answers
+   *  to "what does the end of a turn look like on this client". Optimistic, and
+   *  it has to be: the server's own `complete` carries `stopped`, but nothing
+   *  guarantees it arrives, because the socket may be what went away. Closing
+   *  here means the panels never outlive the run that fed them.
+   */
+  const endTurnLocally = useCallback(() => {
     if (currentMessageIdRef.current) {
       updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
     }
@@ -1115,17 +1147,45 @@ export function useChat(options: UseChatOptions = {}) {
     setIsProcessing(false);
     setPendingApproval(null);
     setPendingQuestions(null);
-    // Optimistic, and it has to be: the `stop` frame cancels the turn task and the
-    // server's own `complete` carries `stopped`, but nothing guarantees it arrives -
-    // the socket may be what went away. Closing here means the panels never outlive
-    // the run that fed them.
     setDelegations(closeOpenDelegations);
-  }, [sendMessage, updateMessage, setCurrentMessageId]);
+  }, [updateMessage, setCurrentMessageId]);
+
+  const stopGeneration = useCallback(() => {
+    sendMessage({ type: "stop" });
+    endTurnLocally();
+  }, [sendMessage, endTurnLocally]);
+
+  // A socket that dropped mid-answer, and came back.
+  //
+  // Nothing else notices. Every frame that ends a turn arrives on the socket, so
+  // a drop ends nothing at all: `isProcessing` stayed true and the composer spun
+  // until somebody reloaded the page - which used to be the same act that
+  // destroyed the answer they were reaching for, because the server cancelled
+  // the turn when the socket went. It no longer does, so the turn is still being
+  // written and the transcript is where it lands: stop narrating a stream that is
+  // not arriving, and ask for a re-read.
+  //
+  // Deliberately does NOT hand the composer straight back - `interrupted` holds
+  // the queue - because the turn is still running under a socket this client no
+  // longer has.
+  const wasConnected = useRef(isConnected);
+  useEffect(() => {
+    const dropped = wasConnected.current && !isConnected;
+    const returned = !wasConnected.current && isConnected;
+    wasConnected.current = isConnected;
+    if (dropped && isProcessing) interruptedRef.current = true;
+    if (!returned || !interruptedRef.current) return;
+    interruptedRef.current = false;
+    endTurnLocally();
+    setInterrupted(true);
+    onTurnInterrupted?.();
+  }, [isConnected, isProcessing, endTurnLocally, onTurnInterrupted]);
 
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn
   // ending → drains the next one.
   useEffect(() => {
+    if (interrupted) return;
     if (isConnected && !isProcessing && messageQueueRef.current.length > 0) {
       const next = messageQueueRef.current.shift();
       setQueuedMessages([...messageQueueRef.current]);
@@ -1135,7 +1195,7 @@ export function useChat(options: UseChatOptions = {}) {
         setTimeout(() => doSend(next.content, next.fileIds, next.files), 100);
       }
     }
-  }, [isProcessing, isConnected, doSend]);
+  }, [isProcessing, isConnected, interrupted, doSend]);
 
   // The live turn's cost, and only while it still belongs to the conversation on
   // screen. A value from the thread somebody just left is not a value about this one.
@@ -1148,6 +1208,8 @@ export function useChat(options: UseChatOptions = {}) {
     isProcessing,
     compacting,
     compactionImpossible,
+    /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
+    interrupted,
     /** The agent's personal MCP services this person cannot reach, for the turn on screen. */
     personalGaps,
     lastUsage: onThisConversation ? liveUsage.usage : null,

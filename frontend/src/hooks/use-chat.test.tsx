@@ -1977,6 +1977,87 @@ describe("useChat - what goes out with a turn", () => {
   });
 });
 
+describe("useChat - a socket that went away mid-answer", () => {
+  it("ends the turn on screen and asks for the transcript to be re-read", () => {
+    // Every frame that ends a turn arrives on the socket, so a drop ends nothing:
+    // `isProcessing` stayed true and the composer spun until somebody reloaded
+    // the page - which used to be the act that destroyed the answer, because the
+    // server cancelled the turn when the socket went.
+    const onTurnInterrupted = vi.fn();
+    const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+    expect(result.current.isProcessing).toBe(true);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.interrupted).toBe(true);
+    expect(streaming()?.isStreaming).toBe(false);
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing about a socket that came back with no turn in flight", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.interrupted).toBe(false);
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("holds the queue while the turn it lost is still being written", async () => {
+    // The turn runs on under a socket this client no longer has. A queued
+    // message sent now would run a second turn against a history missing the
+    // first one's answer.
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(sent).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("releases the queue when the reader asks something else instead", async () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    act(() => result.current.sendMessage("never mind, this instead"));
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.interrupted).toBe(false);
+    expect(result.current.queuedMessages).toEqual([]);
+    vi.useRealTimers();
+  });
+});
+
 describe("useChat - the outbound queue", () => {
   it("queues what is typed while the agent is busy, and drains it when it is idle", async () => {
     vi.useFakeTimers();
