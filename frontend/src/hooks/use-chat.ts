@@ -571,10 +571,24 @@ export function useChat(options: UseChatOptions = {}) {
     ],
   );
 
-  // Access token lives in memory only (populated by login/refresh responses).
-  // It is sent to the WS via Sec-WebSocket-Protocol rather than a URL query
-  // string so it does not end up in access logs or Referer headers.
-  const accessToken = useAuthStore((state) => state.accessToken);
+  // Whether there is an access token, not which one it is.
+  //
+  // It lives in memory only (populated by login/refresh responses) and is sent
+  // to the WS via Sec-WebSocket-Protocol rather than a URL query string, so it
+  // does not end up in access logs or Referer headers. The socket authenticates
+  // with the token it shook hands with and the server never re-checks it, so
+  // the *value* is not this hook's business - and subscribing to it made it so.
+  // `ensureTokenRefresh` mints a new one about every twenty minutes per open tab
+  // (it polls every ten, and the BFF's access cookie expires after fifteen, so
+  // every second poll refreshes), and each new value closed the socket a turn
+  // was streaming on: the server read the close as the reader leaving, cancelled
+  // the run, and the `complete` frame that would have ended the turn on screen
+  // went to the socket that had just gone. Turns run for minutes here, so a
+  // large share of them were caught.
+  //
+  // A boolean, so this re-renders when a token appears or goes away - a login, a
+  // logout - and not when one is replaced.
+  const hasAccessToken = useAuthStore((state) => state.accessToken !== null);
 
   // The active org travels in the query string because a browser cannot set
   // headers on a WebSocket handshake (the HTTP API uses X-Organization-Id).
@@ -587,10 +601,13 @@ export function useChat(options: UseChatOptions = {}) {
     const base = `${WS_URL}/api/v1/ws/agent`;
     return activeOrgId ? `${base}?organization_id=${encodeURIComponent(activeOrgId)}` : base;
   }, [activeOrgId]);
-  const wsProtocols = useMemo(
-    () => (accessToken ? [`access_token.${accessToken}`, "chat"] : undefined),
-    [accessToken],
-  );
+  // Read from the store when a socket is actually opened, so a reconnect
+  // authenticates with the freshest token without a refresh being able to
+  // provoke one. Stable, so `connect` keeps its identity.
+  const wsProtocols = useCallback(() => {
+    const token = useAuthStore.getState().accessToken;
+    return token ? [`access_token.${token}`, "chat"] : undefined;
+  }, []);
 
   // Guards against firing a token refresh on every backoff attempt - one
   // in-flight /me at a time is enough to recover a stale access token.
@@ -627,12 +644,16 @@ export function useChat(options: UseChatOptions = {}) {
   // available (the WS authenticates via Sec-WebSocket-Protocol). Connecting
   // before the token loads used to open a token-less socket that the server
   // rejects, triggering a reconnect storm + console errors on every page load.
-  // When the token refreshes, `connect` changes identity → reconnect with it.
+  //
+  // Gated on whether there is a token, not on which one it is: a refresh landing
+  // mid-answer used to run this cleanup and take the turn with it. A genuine
+  // drop still reconnects through the hook's own backoff, and reads the newest
+  // token when it does.
   useEffect(() => {
-    if (!accessToken) return;
+    if (!hasAccessToken) return;
     connect();
     return () => disconnect();
-  }, [accessToken, connect, disconnect]);
+  }, [hasAccessToken, connect, disconnect]);
 
   const doSend = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
