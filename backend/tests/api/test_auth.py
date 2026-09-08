@@ -10,9 +10,10 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.deps import get_current_user, get_user_service
+from app.api.deps import get_current_user, get_session_service, get_user_service
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, AuthenticationError
+from app.core.security import verify_token
 from app.main import app
 from app.api.deps import get_redis
 from app.api.deps import get_db_session
@@ -90,6 +91,52 @@ async def test_login_success(client_with_mock_service: AsyncClient):
     assert "access_token" in data
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+
+
+@pytest.mark.anyio
+async def test_login_binds_the_access_token_to_its_session(
+    client_with_mock_service: AsyncClient,
+):
+    """The token names its session row in `sid`, so signing out everywhere can
+    revoke it rather than only stop the next refresh (#1501)."""
+    session_id = uuid4()
+    session_service = MagicMock()
+    session_service.create_session = ServiceMock(return_value=MagicMock(id=session_id))
+    app.dependency_overrides[get_session_service] = lambda: session_service
+
+    response = await client_with_mock_service.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": "test@example.com", "password": "password123"},
+    )
+
+    assert response.status_code == 200
+    payload = verify_token(response.json()["access_token"])
+    assert payload is not None
+    assert payload["sid"] == str(session_id)
+
+
+@pytest.mark.anyio
+async def test_magic_link_binds_the_access_token_to_its_session(
+    client_with_mock_service: AsyncClient,
+    mock_user_service: MagicMock,
+    mock_user: MockUser,
+):
+    """A magic-link sign-in is a session like any other, bound to its row."""
+    mock_user_service.consume_magic_link_token = ServiceMock(return_value=(mock_user, None))
+    session_id = uuid4()
+    session_service = MagicMock()
+    session_service.create_session = ServiceMock(return_value=MagicMock(id=session_id))
+    app.dependency_overrides[get_session_service] = lambda: session_service
+
+    response = await client_with_mock_service.post(
+        f"{settings.API_V1_STR}/auth/magic-link/verify",
+        json={"token": "a-magic-token"},
+    )
+
+    assert response.status_code == 200
+    payload = verify_token(response.json()["access_token"])
+    assert payload is not None
+    assert payload["sid"] == str(session_id)
 
 
 @pytest.mark.anyio

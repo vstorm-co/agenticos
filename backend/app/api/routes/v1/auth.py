@@ -47,16 +47,18 @@ async def login(
     """OAuth2 password login, returns access and refresh tokens."""
     await enforce_auth_limit(request, surface="auth_login", identifier=form_data.username)
     user = await user_service.authenticate(form_data.username, form_data.password)
-    access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
 
-    # Track this login as a server-side session (enables remote logout).
-    await session_service.create_session(
+    # The session row is created before the access token is minted, so the token
+    # can name it in `sid` - which is what lets signing out everywhere revoke the
+    # access token, not only stop the next refresh (#1501).
+    session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -222,14 +224,14 @@ async def verify_magic_link(
     """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
     user, return_to = await user_service.consume_magic_link_token(body.token)
-    access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
-    await session_service.create_session(
+    session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return MagicLinkToken(
         access_token=access_token, refresh_token=refresh_token, return_to=return_to
     )
