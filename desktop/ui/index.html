@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgenticOS</title>
+    <link rel="stylesheet" href="connect.css" />
+  </head>
+  <body>
+    <main>
+      <h1>AgenticOS</h1>
+      <p>Where is your server? The address you open in a browser, for example <code>agenticos.acme.com</code>.</p>
+      <form id="connect">
+        <label for="server">Server address</label>
+        <input id="server" name="server" type="text" autocomplete="url" autofocus spellcheck="false" placeholder="https://" />
+        <p id="error" role="alert" hidden></p>
+        <button type="submit">Connect</button>
+      </form>
+    </main>
+    <script src="connect.js"></script>
+  </body>
+</html>

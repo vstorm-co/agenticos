@@ -1,4 +1,4 @@
-.PHONY: install format lint lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build presentation
+.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build presentation
 
 # === Environments ===========================================================
 # Three, one compose file each, with a matching frontend file beside it:
@@ -244,7 +244,7 @@ install:
 		echo "   Run 'git init && make install' to set up pre-commit hooks"; \
 	fi
 	cd frontend && bun install --frozen-lockfile
-	cd frontend && bun install --frozen-lockfile
+	cd desktop && bun install --frozen-lockfile
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""
@@ -459,6 +459,21 @@ test-frontend-cov:
 # every pull request and why `check` has to.
 build-frontend:
 	cd frontend && bun run build
+
+# The desktop shell is a window around a deployment's console, not a build of
+# the frontend: `desktop/ui` is the one page it carries itself, so none of these
+# needs `frontend/`. Rust comes from rustup; the Tauri CLI is pinned in
+# `desktop/package.json`. `desktop-check` is not in `lint` or `check`, because CI
+# has no Rust toolchain yet and `tests/test_ci_parity.py` would refuse the
+# difference (docs/desktop.md).
+desktop-dev:
+	cd desktop && bun run dev
+
+desktop-build:
+	cd desktop && bun run build
+
+desktop-check:
+	cd desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 
 # CI's `security` job. Audits what the lockfile resolves to - which is what a
 # deployment installs - rather than whatever this machine happens to have in its
@@ -788,6 +803,9 @@ help:
 	@echo "  make run           Start dev server (with hot reload)"
 	@echo "  make test          Run tests"
 	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
+	@echo "  make desktop-dev   Open the desktop shell against a console you name"
+	@echo "  make desktop-build Package the desktop shell for this machine"
+	@echo "  make desktop-check rustfmt, clippy and the shell's tests"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"
