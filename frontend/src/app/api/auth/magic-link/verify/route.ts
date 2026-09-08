@@ -8,6 +8,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
+import { secureCookies } from "@/lib/session-cookie";
 
 interface TokenResponse {
   access_token: string;
@@ -37,18 +38,16 @@ export async function POST(request: NextRequest) {
       access_token: data.access_token,
       return_to: data.return_to ?? null,
     });
-
-    const isProd = process.env.NODE_ENV === "production";
     response.cookies.set("access_token", data.access_token, {
       httpOnly: true,
-      secure: isProd,
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 15,
       path: "/",
     });
     response.cookies.set("refresh_token", data.refresh_token, {
       httpOnly: true,
-      secure: isProd,
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
