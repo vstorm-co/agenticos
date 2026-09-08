@@ -2,8 +2,14 @@ import { VARIANTS, WIDTH, HEIGHT, frames, draw } from "./pet-sprites.js";
 import { HOP_MS, WAVE_MS, clampToArea, frameIndex, logicalArea, nextBehaviour, strollStep } from "./pet-engine.js";
 
 const { invoke } = window.__TAURI__.core;
-const { getCurrentWindow, LogicalPosition } = window.__TAURI__.window;
+const { getCurrentWindow, currentMonitor, LogicalPosition } = window.__TAURI__.window;
 const { listen } = window.__TAURI__.event;
+
+function report(message) {
+  void invoke("page_error", { message: String(message) });
+}
+window.addEventListener("error", (event) => report(event.message));
+window.addEventListener("unhandledrejection", (event) => report(event.reason));
 
 const SCALE = 6;
 const DRAG_THRESHOLD = 4;
@@ -68,7 +74,7 @@ function tick(now) {
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    if (pos) void invoke("save_pet_position", { x: pos.x, y: pos.y }).catch(console.error);
+    if (pos) void invoke("save_pet_position", { x: pos.x, y: pos.y }).catch(report);
   }, SAVE_DELAY_MS);
 }
 
@@ -76,7 +82,7 @@ async function measure() {
   const scale = await win.scaleFactor();
   const outer = await win.outerPosition();
   const outerSize = await win.outerSize();
-  const monitor = await win.currentMonitor();
+  const monitor = await currentMonitor();
   pos = { x: outer.x / scale, y: outer.y / scale };
   size = { width: outerSize.width / scale, height: outerSize.height / scale };
   if (monitor) {
@@ -108,7 +114,7 @@ canvas.addEventListener("pointerup", () => {
   if (now - lastClickAt < DOUBLE_CLICK_MS) {
     lastClickAt = 0;
     react("hop", HOP_MS);
-    void invoke("show_console").catch(console.error);
+    void invoke("show_console").catch(report);
     return;
   }
   lastClickAt = now;
@@ -140,4 +146,4 @@ async function start() {
   requestAnimationFrame(tick);
 }
 
-start().catch(console.error);
+start().catch(report);

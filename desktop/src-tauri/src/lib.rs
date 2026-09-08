@@ -248,6 +248,16 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
     window.navigate(server).map_err(|e| e.to_string())
 }
 
+/// A failure inside one of the shell's own pages, reported where somebody can read it.
+///
+/// Neither page has a devtools pane a user would open, and the pet's window has no
+/// chrome at all: a script that throws there leaves a transparent window that
+/// draws nothing, which looks like no pet rather than like a bug.
+#[tauri::command]
+fn page_error(window: WebviewWindow, message: String) {
+    eprintln!("{}: {message}", window.label());
+}
+
 #[tauri::command]
 fn pet_settings(app: AppHandle) -> Result<PetSettings, String> {
     Ok(load_settings(&app)?.pet)
@@ -402,6 +412,7 @@ pub fn run() {
             server_url,
             startup_notice,
             connect,
+            page_error,
             pet_settings,
             save_pet_position,
             show_console
