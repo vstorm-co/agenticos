@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from app.api.deps import OAuthExchangeSvc, UserSvc
+from app.api.deps import OAuthExchangeSvc, SessionSvc, UserSvc
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.oauth import oauth
@@ -48,7 +48,10 @@ async def google_login(request: Request, invitation: str | None = None):
 
 @router.get("/google/callback", response_model=None)
 async def google_callback(
-    request: Request, user_service: UserSvc, exchange_service: OAuthExchangeSvc
+    request: Request,
+    user_service: UserSvc,
+    exchange_service: OAuthExchangeSvc,
+    session_service: SessionSvc,
 ):
     """Handle Google OAuth2 callback."""
     frontend = settings.FRONTEND_URL.rstrip("/")
@@ -71,8 +74,18 @@ async def google_callback(
             invitation_token=request.session.pop(_INVITATION_KEY, None),
         )
 
-        access_token = create_access_token(subject=str(user.id))
         refresh_token = create_refresh_token(subject=str(user.id))
+
+        # An OAuth sign-in is an ordinary session, so it gets its own row and the
+        # access token names it in `sid` - otherwise signing out everywhere could
+        # not revoke it, the way it could not for any login before #1501.
+        session = await session_service.create_session(
+            user_id=user.id,
+            refresh_token=refresh_token,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("User-Agent"),
+        )
+        access_token = create_access_token(subject=str(user.id), sid=str(session.id))
 
         # A single-use code, not the tokens: a token in the redirect URL reaches
         # the address bar, the server access log, and the `Referer` of the next
