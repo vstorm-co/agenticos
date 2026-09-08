@@ -21,6 +21,7 @@ from app.repositories import (
     channel_bot_repo,
     channel_identity_repo,
     channel_session_repo,
+    chat_file_repo,
     conversation_repo,
 )
 from app.services import rate_limit
@@ -904,17 +905,24 @@ class ChannelMessageRouter:
 
     @staticmethod
     async def _discard_files(db: AsyncSession, files: list[Any]) -> None:
-        """Give back what the turn stored, for a turn that was refused.
+        """Give back what a turn stored, but only the rows still unlinked.
 
-        The files are fetched and stored before the agent is resolved, so a
-        refusal raised in its place - nothing exposed on this bot, a sender whose
-        account is nobody's - leaves rows nothing will ever link to a message and
-        bytes nothing will ever read (#661). The refusal is still what the sender
-        gets: nothing here is allowed to raise in its way.
+        The files are fetched and stored before the agent is resolved, so a turn
+        that ends without ever linking them - a refusal raised in the agent's
+        place, or a crash before a run was created - leaves rows nothing will link
+        to a message and bytes nothing will read (#661). A crash *during* the run
+        is different: the runner records the failed turn's user message and links
+        these files to it, and commits, before re-raising - so discarding them
+        would strip a persisted transcript of what the sender sent. Only the files
+        the database still shows as unlinked are given back (#1503); nothing here
+        is allowed to raise in the refusal's way.
         """
         if not files:
             return
-        await ChannelAttachmentService(db).discard(files)
+        orphan_ids = await chat_file_repo.unlinked_ids(db, [file.id for file in files])
+        orphaned = [file for file in files if file.id in orphan_ids]
+        if orphaned:
+            await ChannelAttachmentService(db).discard(orphaned)
 
     @staticmethod
     def _with_notes(answer: str, *notes: list[str]) -> str:
