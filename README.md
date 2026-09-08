@@ -52,6 +52,18 @@ agent writes the code, runs it in a locked box, and answers.
 
 </div>
 
+And the same console on the desktop, with company: the optional
+[desktop app](#on-the-desktop-if-you-like), its pet, and a shortcut that screenshots
+straight into a new chat.
+
+<div align="center">
+
+<video src="https://github.com/user-attachments/assets/b82867ae-3543-406e-a552-e3a8b61f1d10" controls muted loop playsinline width="100%">
+  <img src="docs/assets/desktop_no_more_caramba_pet.png" alt="Amigo, the desktop pet, in a sombrero, saying: No more caramba." width="270">
+</video>
+
+</div>
+
 <div align="center">
 <sub>
 Not a reader? <a href="https://vstorm-co.github.io/agenticos/presentation/"><b>The whole thing in twenty slides</b></a> — what the problem is, what a spec holds, where it answers, and what it refuses.
@@ -424,9 +436,7 @@ chat with it attached.
 
 <div align="center">
 
-<video src="https://github.com/user-attachments/assets/b82867ae-3543-406e-a552-e3a8b61f1d10" controls muted loop playsinline width="100%">
-  <img src="docs/assets/desktop_no_more_caramba_pet.png" alt="Amigo, the desktop pet, in a sombrero, saying: No more caramba." width="270">
-</video>
+<img src="docs/assets/desktop_no_more_caramba_pet.png" alt="Amigo, the desktop pet, in a sombrero, saying: No more caramba." width="270">
 
 <sub>Amigo, one of five pets. Drag it, click it, stroke it; right-click for its menu. <b>No more caramba in your AI.</b></sub>
 
