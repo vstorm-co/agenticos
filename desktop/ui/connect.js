@@ -18,6 +18,12 @@ invoke("server_url")
   })
   .catch(showError);
 
+invoke("startup_notice")
+  .then((notice) => {
+    if (notice) showError(notice);
+  })
+  .catch(showError);
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   error.hidden = true;

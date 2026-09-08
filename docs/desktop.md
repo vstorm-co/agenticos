@@ -33,8 +33,11 @@ make desktop-check   # rustfmt, clippy with warnings denied, and the tests
 
 The first time, the window shows a form asking where the server is, filled in with
 `http://localhost:3000` - a `make dev` stack. A bare host (`agenticos.acme.com`) is
-opened over HTTPS. Anything that is not a web address is refused on the form, never
-handed to the webview.
+opened over HTTPS. Anything that is not a web address is refused on the form, and
+so is an address nothing answers on: the shell opens a TCP connection before it
+points the webview anywhere, because WebKit paints a refused connection as a blank
+white window. The same probe runs on every launch, so a stack that is down puts you
+back on the form with the reason rather than in front of an empty window.
 
 The answer is stored as `server.json` in the platform's configuration directory for
 the app - `~/Library/Application Support/co.vstorm.agenticos/` on macOS,

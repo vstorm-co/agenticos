@@ -12,7 +12,10 @@
 
 use std::fs;
 use std::io::ErrorKind;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -25,6 +28,7 @@ const RELOAD: &str = "reload";
 const SHOW_PET: &str = "show-pet";
 const PET_VARIANT_EVENT: &str = "pet-variant";
 const PET_SIZE: (f64, f64) = (112.0, 152.0);
+const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Serialize, Deserialize, Default)]
 struct Settings {
@@ -97,6 +101,12 @@ impl Variant {
         Variant::ALL.into_iter().find(|variant| variant.menu_id() == id)
     }
 }
+
+/// Why the console opened on the connect page although a server was stored.
+///
+/// Read once by that page, which shows it above the form; a blank webview is what
+/// an unreachable server looks like otherwise, and it says nothing.
+struct StartupNotice(Mutex<Option<String>>);
 
 /// The menu items whose checkmarks mirror the pet's settings.
 struct PetMenu {
@@ -182,10 +192,36 @@ fn connect_page() -> Url {
     Url::parse(&format!("{origin}/index.html")).expect("a literal origin parses")
 }
 
-fn start_page(server: Option<Url>) -> WebviewUrl {
+/// Whether something is listening where the address points.
+///
+/// A TCP connect, not an HTTP request: the question is "is the stack up", and the
+/// answer has to come back before the window shows anything. WebKit renders a
+/// refused connection as a blank white page, which is indistinguishable from a
+/// console that has not painted yet.
+fn reachable(server: &Url) -> Result<(), String> {
+    let host = server.host_str().ok_or_else(|| format!("{server} names no host."))?;
+    let port = server
+        .port_or_known_default()
+        .ok_or_else(|| format!("{server} names no port."))?;
+    let nothing_answers =
+        || format!("Nothing answers at {server}. Start the stack (`make dev`) or change the address.");
+    let addrs = (host, port).to_socket_addrs().map_err(|_| nothing_answers())?;
+    for addr in addrs {
+        if TcpStream::connect_timeout(&addr, PROBE_TIMEOUT).is_ok() {
+            return Ok(());
+        }
+    }
+    Err(nothing_answers())
+}
+
+/// The stored server when it answers; otherwise the connect page, with the reason.
+fn console_start(server: Option<Url>) -> (WebviewUrl, Option<String>) {
     match server {
-        Some(server) => WebviewUrl::External(server),
-        None => WebviewUrl::App("index.html".into()),
+        Some(server) => match reachable(&server) {
+            Ok(()) => (WebviewUrl::External(server), None),
+            Err(notice) => (WebviewUrl::App("index.html".into()), Some(notice)),
+        },
+        None => (WebviewUrl::App("index.html".into()), None),
     }
 }
 
@@ -195,8 +231,17 @@ fn server_url(app: AppHandle) -> Result<Option<Url>, String> {
 }
 
 #[tauri::command]
-fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
+fn startup_notice(notice: tauri::State<'_, StartupNotice>) -> Option<String> {
+    notice.0.lock().map(|mut slot| slot.take()).unwrap_or(None)
+}
+
+#[tauri::command]
+async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
     let server = parse_server_url(&url)?;
+    let probed = server.clone();
+    tauri::async_runtime::spawn_blocking(move || reachable(&probed))
+        .await
+        .map_err(|e| e.to_string())??;
     let mut settings = load_settings(&app)?;
     settings.server_url = Some(server.clone());
     save_settings(&app, &settings)?;
@@ -222,9 +267,11 @@ fn show_console(app: AppHandle) -> Result<(), String> {
         return console.set_focus().map_err(|e| e.to_string());
     }
     let settings = load_settings(&app)?;
-    open_window(&app, start_page(settings.server_url))
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    let (start, notice) = console_start(settings.server_url);
+    if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
+        *slot = notice;
+    }
+    open_window(&app, start).map(|_| ()).map_err(|e| e.to_string())
 }
 
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
@@ -353,6 +400,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             server_url,
+            startup_notice,
             connect,
             pet_settings,
             save_pet_position,
@@ -365,7 +413,9 @@ pub fn run() {
                 Settings::default()
             });
             install_menu(handle, &settings.pet)?;
-            open_window(handle, start_page(settings.server_url))?;
+            let (start, notice) = console_start(settings.server_url);
+            app.manage(StartupNotice(Mutex::new(notice)));
+            open_window(handle, start)?;
             if settings.pet.enabled {
                 open_pet(handle, &settings.pet)?;
             }
@@ -377,7 +427,9 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_server_url, PetSettings, Settings, Variant};
+    use std::net::TcpListener;
+
+    use super::{parse_server_url, reachable, PetSettings, Settings, Url, Variant};
 
     #[test]
     fn a_bare_host_is_opened_over_https() {
@@ -408,6 +460,25 @@ mod tests {
     #[test]
     fn a_scheme_with_no_host_is_refused() {
         assert!(parse_server_url("https://").is_err());
+    }
+
+    #[test]
+    fn a_port_something_listens_on_is_reachable() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert_eq!(
+            reachable(&Url::parse(&format!("http://127.0.0.1:{port}/")).unwrap()),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn a_port_nothing_listens_on_says_so_and_names_the_address() {
+        let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let server = Url::parse(&format!("http://127.0.0.1:{port}/")).unwrap();
+        let refusal = reachable(&server).unwrap_err();
+        assert!(refusal.contains(server.as_str()));
+        assert!(refusal.contains("make dev"));
     }
 
     #[test]
