@@ -18,7 +18,8 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, ContextMenu, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
 
 const WINDOW: &str = "main";
@@ -26,6 +27,8 @@ const PET: &str = "pet";
 const CHANGE_SERVER: &str = "change-server";
 const RELOAD: &str = "reload";
 const SHOW_PET: &str = "show-pet";
+const NEW_CHAT: &str = "new-chat";
+const OPEN_CONSOLE: &str = "open-console";
 const PET_KIND_EVENT: &str = "pet-kind";
 const PET_SIZE: (f64, f64) = (144.0, 184.0);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
@@ -114,13 +117,64 @@ impl Kind {
 /// an unreachable server looks like otherwise, and it says nothing.
 struct StartupNotice(Mutex<Option<String>>);
 
-/// The menu items whose checkmarks mirror the pet's settings.
+/// The pet's menu items, shared by the menu bar, the tray icon and the pet's own
+/// right-click menu, so one `set_checked` reaches all three.
 struct PetMenu {
     show: CheckMenuItem<Wry>,
     kinds: Vec<(Kind, CheckMenuItem<Wry>)>,
+    new_chat: MenuItem<Wry>,
+    open_console: MenuItem<Wry>,
 }
 
 impl PetMenu {
+    fn build(app: &AppHandle, pet: &PetSettings) -> tauri::Result<Self> {
+        let show = CheckMenuItem::with_id(app, SHOW_PET, "Show pet", true, pet.enabled, Some("CmdOrCtrl+Shift+P"))?;
+        let kinds = Kind::ALL
+            .into_iter()
+            .map(|kind| {
+                let item =
+                    CheckMenuItem::with_id(app, kind.menu_id(), kind.label(), true, kind == pet.kind, None::<&str>)?;
+                Ok((kind, item))
+            })
+            .collect::<tauri::Result<Vec<_>>>()?;
+        let new_chat = MenuItem::with_id(app, NEW_CHAT, "New chat", true, None::<&str>)?;
+        let open_console = MenuItem::with_id(app, OPEN_CONSOLE, "Open console", true, None::<&str>)?;
+        Ok(Self {
+            show,
+            kinds,
+            new_chat,
+            open_console,
+        })
+    }
+
+    /// The items in menu order; a fresh `Menu` or `Submenu` is built from them each time.
+    fn items(&self, app: &AppHandle) -> tauri::Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
+        let mut items: Vec<Box<dyn IsMenuItem<Wry>>> =
+            vec![Box::new(self.new_chat.clone()), Box::new(self.open_console.clone())];
+        items.push(Box::new(PredefinedMenuItem::separator(app)?));
+        for (_, item) in &self.kinds {
+            items.push(Box::new(item.clone()));
+        }
+        items.push(Box::new(PredefinedMenuItem::separator(app)?));
+        items.push(Box::new(self.show.clone()));
+        Ok(items)
+    }
+
+    fn menu(&self, app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+        let items = self.items(app)?;
+        Menu::with_items(app, &items.iter().map(|item| item.as_ref()).collect::<Vec<_>>())
+    }
+
+    fn submenu(&self, app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
+        let items = self.items(app)?;
+        Submenu::with_items(
+            app,
+            "Pet",
+            true,
+            &items.iter().map(|item| item.as_ref()).collect::<Vec<_>>(),
+        )
+    }
+
     fn reflect(&self, pet: &PetSettings) -> tauri::Result<()> {
         self.show.set_checked(pet.enabled)?;
         for (kind, item) in &self.kinds {
@@ -276,18 +330,31 @@ fn save_pet_position(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
     save_settings(&app, &settings)
 }
 
+/// The pet's own menu, under the right mouse button - the menu bar is far from a
+/// pet in the corner of the screen, and on Windows and Linux there is no app menu
+/// while the console window is closed.
+#[tauri::command]
+fn pet_menu(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let menu = app.state::<PetMenu>().menu(&app).map_err(|e| e.to_string())?;
+    menu.popup(window.as_ref().window()).map_err(|e| e.to_string())
+}
+
 /// Bring the console forward, opening it again if it was closed while the pet stayed.
 #[tauri::command]
 fn show_console(app: AppHandle) -> Result<(), String> {
+    bring_console(&app)
+}
+
+fn bring_console(app: &AppHandle) -> Result<(), String> {
     if let Some(console) = app.get_webview_window(WINDOW) {
         return console.set_focus().map_err(|e| e.to_string());
     }
-    let settings = load_settings(&app)?;
+    let settings = load_settings(app)?;
     let (start, notice) = console_start(settings.server_url);
     if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
         *slot = notice;
     }
-    open_window(&app, start).map(|_| ()).map_err(|e| e.to_string())
+    open_window(app, start).map(|_| ()).map_err(|e| e.to_string())
 }
 
 /// Put the console on a fresh chat, opening it if it was closed.
@@ -297,7 +364,11 @@ fn show_console(app: AppHandle) -> Result<(), String> {
 /// with which agent, is the console's to decide once it is there.
 #[tauri::command]
 fn open_chat(app: AppHandle) -> Result<(), String> {
-    let settings = load_settings(&app)?;
+    start_chat(&app)
+}
+
+fn start_chat(app: &AppHandle) -> Result<(), String> {
+    let settings = load_settings(app)?;
     let server = settings
         .server_url
         .ok_or("No server yet - connect the console to one first.")?;
@@ -308,7 +379,7 @@ fn open_chat(app: AppHandle) -> Result<(), String> {
             console.navigate(chat).map_err(|e| e.to_string())?;
             console.set_focus().map_err(|e| e.to_string())
         }
-        None => open_window(&app, WebviewUrl::External(chat))
+        None => open_window(app, WebviewUrl::External(chat))
             .map(|_| ())
             .map_err(|e| e.to_string()),
     }
@@ -385,32 +456,29 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
     let reload = MenuItem::with_id(app, RELOAD, "Reload", true, Some("CmdOrCtrl+R"))?;
     let server = Submenu::with_items(app, "Server", true, &[&change_server, &reload])?;
 
-    let show = CheckMenuItem::with_id(app, SHOW_PET, "Show pet", true, pet.enabled, Some("CmdOrCtrl+Shift+P"))?;
-    let kinds = Kind::ALL
-        .into_iter()
-        .map(|kind| {
-            let item = CheckMenuItem::with_id(app, kind.menu_id(), kind.label(), true, kind == pet.kind, None::<&str>)?;
-            Ok((kind, item))
-        })
-        .collect::<tauri::Result<Vec<_>>>()?;
-    let mut pet_items: Vec<&dyn tauri::menu::IsMenuItem<Wry>> = vec![&show];
-    let separator = PredefinedMenuItem::separator(app)?;
-    pet_items.push(&separator);
-    for (_, item) in &kinds {
-        pet_items.push(item);
-    }
-    let pet_menu = Submenu::with_items(app, "Pet", true, &pet_items)?;
-
+    let pet_menu = PetMenu::build(app, pet)?;
     let menu = Menu::default(app)?;
     menu.insert(&server, 1)?;
-    menu.insert(&pet_menu, 2)?;
+    menu.insert(&pet_menu.submenu(app)?, 2)?;
     app.set_menu(menu)?;
-    app.manage(PetMenu { show, kinds });
+
+    let tray_menu = pet_menu.menu(app)?;
+    let mut tray = TrayIconBuilder::new()
+        .menu(&tray_menu)
+        .show_menu_on_left_click(true)
+        .tooltip("AgenticOS");
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    app.manage(pet_menu);
 
     app.on_menu_event(|app, event| {
         let id = event.id().as_ref();
         let outcome = match id {
             SHOW_PET => toggle_pet(app),
+            NEW_CHAT => start_chat(app),
+            OPEN_CONSOLE => bring_console(app),
             CHANGE_SERVER | RELOAD => match app.get_webview_window(WINDOW) {
                 Some(console) if id == RELOAD => console.eval("location.reload()").map_err(|e| e.to_string()),
                 Some(console) => console.navigate(connect_page()).map_err(|e| e.to_string()),
@@ -439,7 +507,8 @@ pub fn run() {
             pet_settings,
             save_pet_position,
             show_console,
-            open_chat
+            open_chat,
+            pet_menu
         ])
         .setup(|app| {
             let handle = app.handle();

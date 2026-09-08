@@ -10,19 +10,20 @@
 export const WIDTH = 16;
 export const HEIGHT = 24;
 
-export const FPS = { idle: 3, look: 2, stroll: 6, doze: 1, wave: 5, hop: 8 };
+export const FPS = { idle: 3, look: 2, stroll: 6, doze: 1, wave: 5, hop: 8, happy: 4 };
 
 const BASE_Y = 8;
 
 const FOOT = ["DDD", "DDD"];
 const Z = ["DDD", ".D.", "DDD"];
+const HEART = [".H.H.", "HHHHH", ".HHH.", "..H.."];
 const EYES = {
   open: ["WK", "KK", "KK"],
   closed: ["..", "KK", ".."],
 };
 
 /**
- * Palette keys → colours. `B` body, `D` outline, `L` highlight, `A` accent, `W`/`K` eye.
+ * Palette keys → colours. `B` body, `D` outline, `L` highlight, `A` accent, `W`/`K` eye, `H` heart.
  *
  * `body` rows sit with their top at `top` (relative to the pet's baseline, which
  * is `BASE_Y`). Everything else is placed relative to that same baseline. `feet`
@@ -30,7 +31,7 @@ const EYES = {
  */
 export const PETS = {
   orbit: {
-    palette: { B: "#5a8cda", D: "#2f4f86", L: "#9dbcf0", A: "#f2c14e", W: "#ffffff", K: "#1a1f2e" },
+    palette: { B: "#5a8cda", D: "#2f4f86", L: "#9dbcf0", A: "#f2c14e", W: "#ffffff", K: "#1a1f2e", H: "#ef5b8a" },
     top: 0,
     body: [
       ".....DDDDDD.....",
@@ -60,7 +61,7 @@ export const PETS = {
     ],
   },
   boxy: {
-    palette: { B: "#6b7a90", D: "#2b323f", L: "#a3b1c6", A: "#5cc9a5", W: "#d9fff1", K: "#1a2e26" },
+    palette: { B: "#6b7a90", D: "#2b323f", L: "#a3b1c6", A: "#5cc9a5", W: "#d9fff1", K: "#1a2e26", H: "#ef5b8a" },
     top: 2,
     body: [
       "..DDDDDDDDDDDD..",
@@ -88,7 +89,7 @@ export const PETS = {
     ],
   },
   ghost: {
-    palette: { B: "#a78bfa", D: "#5b3fa6", L: "#d6c8fd", A: "#f2c14e", W: "#ffffff", K: "#2a1d4d" },
+    palette: { B: "#a78bfa", D: "#5b3fa6", L: "#d6c8fd", A: "#f2c14e", W: "#ffffff", K: "#2a1d4d", H: "#ef5b8a" },
     top: 1,
     body: [
       ".....DDDDDD.....",
@@ -127,6 +128,7 @@ export const PETS = {
       G: "#2e8b57",
       W: "#ffffff",
       K: "#1a1f2e",
+      H: "#ef5b8a",
     },
     top: 0,
     body: [
@@ -154,7 +156,7 @@ export const PETS = {
     crown: [{ x: 4, y: -3, rows: ["..DDDD..", ".DAAAAD.", "DAAAAAAD"], rides: "body" }],
   },
   sprout: {
-    palette: { B: "#7bc96f", D: "#3d6b34", L: "#b9e6a8", A: "#4aa564", W: "#ffffff", K: "#1e2e1a" },
+    palette: { B: "#7bc96f", D: "#3d6b34", L: "#b9e6a8", A: "#4aa564", W: "#ffffff", K: "#1e2e1a", H: "#ef5b8a" },
     top: 3,
     body: [
       ".......DD.......",
@@ -201,11 +203,12 @@ export function compose(layers) {
   return grid.map((row) => row.join(""));
 }
 
-function frame(pet, { bob = 0, lift = 0, eyes = "open", gaze = 0, feet = "stand", arm = null, z = null }) {
+function frame(pet, { bob = 0, lift = 0, eyes = "open", gaze = 0, feet = "stand", arm = null, z = null, heart = null }) {
   const base = BASE_Y - lift;
   const body = base + pet.top + bob;
   const layers = [];
   if (z !== null) layers.push({ x: 12 + z, y: base - 4 + z, rows: Z });
+  if (heart !== null) layers.push({ x: 11 + heart, y: base - 4 - heart, rows: HEART });
   for (const piece of pet.crown) {
     const y = piece.rides === "air" ? base + piece.y : body - pet.top + piece.y;
     layers.push({ x: piece.x, y, rows: piece.rows });
@@ -233,15 +236,27 @@ const ANIMATIONS = {
     { eyes: "closed", bob: 1, z: 1 },
   ],
   wave: () => [{ arm: "up" }, { arm: "down" }],
+  happy: () => [
+    { eyes: "closed", bob: 1, heart: 0 },
+    { eyes: "closed", bob: 0, heart: 1 },
+  ],
   hop: () => [{ lift: 1 }, { lift: 3 }, { lift: 4 }, { lift: 3 }, { lift: 1 }, { bob: 1 }],
 };
 
 const cache = new Map();
 
-/** The composed frames of one pet's animation; `dir` is -1 or 1 and only `stroll` reads it. */
-export function frames(kind, state, dir = 1) {
-  const key = `${kind}:${state}:${dir}`;
-  if (!cache.has(key)) cache.set(key, ANIMATIONS[state](dir).map((spec) => frame(PETS[kind], spec)));
+/**
+ * The composed frames of one pet's animation.
+ *
+ * `dir` is -1 or 1 and only `stroll` reads it. `gaze` (-1, 0, 1) is where the eyes
+ * point when the animation itself does not say - how a pet watches the cursor.
+ */
+export function frames(kind, state, dir = 1, gaze = 0) {
+  const key = `${kind}:${state}:${dir}:${gaze}`;
+  if (!cache.has(key)) {
+    const composed = ANIMATIONS[state](dir).map((spec) => frame(PETS[kind], { gaze, ...spec }));
+    cache.set(key, composed);
+  }
   return cache.get(key);
 }
 

@@ -70,3 +70,15 @@ test("a later layer paints over an earlier one and off-grid cells are dropped", 
   expect(grid[0].slice(0, 2)).toBe("BD");
   expect(grid[HEIGHT - 1].at(-1)).toBe("K");
 });
+
+test("a pleased pet shows a heart, and a gaze moves only the eyes", () => {
+  for (const kind of KINDS) {
+    const [first] = frames(kind, "happy");
+    expect(first.join("")).toContain("H");
+    const [straight] = frames(kind, "idle", 1, 0);
+    const [aside] = frames(kind, "idle", 1, 1);
+    const changed = straight.reduce((n, row, y) => n + [...row].filter((key, x) => key !== aside[y][x]).length, 0);
+    expect(changed).toBeGreaterThan(0);
+    expect(changed).toBeLessThanOrEqual(16);
+  }
+});

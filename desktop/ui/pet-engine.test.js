@@ -1,6 +1,18 @@
 import { expect, test } from "bun:test";
 
-import { STROLL_SPEED, clampToArea, frameIndex, logicalArea, nextBehaviour, strollStep } from "./pet-engine.js";
+import {
+  GAZE_DEADZONE,
+  NO_STROKE,
+  STROLL_SPEED,
+  clampToArea,
+  frameIndex,
+  gazeToward,
+  isNight,
+  logicalArea,
+  nextBehaviour,
+  stroke,
+  strollStep,
+} from "./pet-engine.js";
 
 function rolls(...values) {
   const queue = [...values];
@@ -52,4 +64,37 @@ test("a pet outside the screen is brought back to its edge", () => {
   const size = { width: 112, height: 152 };
   expect(clampToArea({ x: -30, y: 2000 }, size, area)).toEqual({ x: 0, y: 748 });
   expect(clampToArea({ x: 300, y: 300 }, size, area)).toEqual({ x: 300, y: 300 });
+});
+
+test("at night the stroll's share goes to the doze", () => {
+  expect(isNight(23)).toBe(true);
+  expect(isNight(6)).toBe(true);
+  expect(isNight(9)).toBe(false);
+  expect(nextBehaviour(rolls(0.8, 0.5, 0.2), 14).state).toBe("stroll");
+  expect(nextBehaviour(rolls(0.8, 0.5, 0.2), 23).state).toBe("doze");
+  expect(nextBehaviour(rolls(0.1, 0.5), 23).state).toBe("idle");
+});
+
+test("the eyes follow a cursor clear of the face and rest when it is in front", () => {
+  expect(gazeToward(100, 400)).toBe(-1);
+  expect(gazeToward(700, 400)).toBe(1);
+  expect(gazeToward(400 + GAZE_DEADZONE - 1, 400)).toBe(0);
+});
+
+test("four reversals inside the window please the pet; a pass-through does not", () => {
+  let t = NO_STROKE;
+  for (const [x, now] of [[10, 0], [20, 100], [30, 200], [40, 300]]) t = stroke(t, x, now);
+  expect(t.pleased).toBe(false);
+  t = NO_STROKE;
+  const path = [[10, 0], [30, 100], [10, 200], [30, 300], [10, 400], [30, 500]];
+  for (const [x, now] of path) t = stroke(t, x, now);
+  expect(t.pleased).toBe(true);
+});
+
+test("reversals spread over more than the window start over", () => {
+  let t = NO_STROKE;
+  const slow = [[10, 0], [30, 100], [10, 200], [30, 2000], [10, 2100], [30, 2200]];
+  for (const [x, now] of slow) t = stroke(t, x, now);
+  expect(t.pleased).toBe(false);
+  expect(t.reversals).toBeLessThan(4);
 });

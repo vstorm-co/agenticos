@@ -55,10 +55,19 @@ Left alone it idles, looks around, strolls a little way along the screen and tur
 back at the edge, and now and then dozes.
 
 Hover over it and a **+ New chat** button appears above its head; it puts the
-console on a fresh conversation, opening the window if it was closed.
+console on a fresh conversation, opening the window if it was closed. Click it and
+it says something, in a bubble, in its own voice. Stroke it - the cursor back and
+forth over it a few times - and it closes its eyes and a heart comes up. While it
+stands about, its eyes follow the cursor. After dark it dozes where it would have
+strolled. Dropped after a drag, it lands with a little hop.
 
-**Pet → Show pet** (Cmd/Ctrl+Shift+P) tucks it away and brings it back; the same
-menu picks which pet it is - Orbit, a round one with an antenna; Boxy, a terminal
+Right-click the pet for its menu: a new chat, the console, which pet it is, and
+whether it is shown. The same menu is on the tray icon (the menu bar extra on
+macOS) and under **Pet** in the menu bar, and all three are one set of items, so a
+checkmark changed in one is changed in the others.
+
+**Show pet** (Cmd/Ctrl+Shift+P) tucks it away and brings it back; the same menu
+picks which pet it is - Orbit, a round one with an antenna; Boxy, a terminal
 on legs; Ghost, which floats; Sprout, a seed with a leaf; Amigo, in a sombrero
 and a moustache, for no more caramba in your AI. Where it was left,
 whether it is shown and which pet it is are stored beside the server address, so
@@ -67,7 +76,9 @@ reduce-motion setting it stands still, and stays draggable.
 
 The art is composed at runtime in `desktop/ui/pet-sprites.js`: each pet is one
 body and a description of where its eyes, feet and arm go, and every animation is
-a few lines of positions shared by all four rather than a sprite sheet per pet.
+a few lines of positions shared by all five rather than a sprite sheet per pet.
+What each says is in `pet-lines.js`; the behaviour, and every rule about when a
+stroke counts or where the eyes point, is in `pet-engine.js`, pure and tested.
 Its own window is what makes it a pet rather than a widget, and what it costs:
 `macOSPrivateApi` in `tauri.conf.json`, because a transparent window on macOS
 needs it, which rules out the Mac App Store - not a place a self-hosted console

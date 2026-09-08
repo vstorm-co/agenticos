@@ -7,8 +7,14 @@
     <link rel="stylesheet" href="pet.css" />
   </head>
   <body>
-    <button id="new-chat" type="button" title="Open the console on a new chat">+ New chat</button>
-    <canvas id="pet" aria-label="Your AgenticOS pet. Drag to move, click to wave, double-click to open the console."></canvas>
+    <div id="head">
+      <button id="new-chat" type="button" title="Open the console on a new chat">+ New chat</button>
+      <div id="bubble" role="status"></div>
+    </div>
+    <canvas
+      id="pet"
+      aria-label="Your AgenticOS pet. Drag to move, click to wave, double-click to open the console, right-click for its menu."
+    ></canvas>
     <script type="module" src="pet.js"></script>
   </body>
 </html>
