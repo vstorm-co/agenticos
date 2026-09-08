@@ -119,10 +119,16 @@ async function watchCursor() {
   gaze = gazeToward(cursor.x / scale, pos.x + size.width / 2);
 }
 
+/** Once the window has come to rest: re-measure - it may be on another monitor now - then save. */
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    if (pos) void invoke("save_pet_position", { x: pos.x, y: pos.y }).catch(report);
+  saveTimer = setTimeout(async () => {
+    try {
+      await measure();
+      if (pos) await invoke("save_pet_position", { x: pos.x, y: pos.y });
+    } catch (e) {
+      report(e);
+    }
     if (dragging) {
       dragging = false;
       react("hop", HOP_MS);

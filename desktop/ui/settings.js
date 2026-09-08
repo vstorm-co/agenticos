@@ -102,5 +102,6 @@ invoke("shortcuts")
   .then((shortcuts) => {
     bound = shortcuts.screenshot_chat;
     show(bound);
+    if (shortcuts.problem) showError(shortcuts.problem);
   })
   .catch(showError);

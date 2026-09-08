@@ -15,8 +15,8 @@ use std::io::ErrorKind;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::{mpsc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 
@@ -41,6 +41,8 @@ const PET_KIND_EVENT: &str = "pet-kind";
 const PET_SAY_EVENT: &str = "pet-say";
 const PET_SIZE: (f64, f64) = (144.0, 200.0);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
+const PROBE_DEADLINE: Duration = Duration::from_secs(2);
+const PENDING_SCREENSHOT_TTL: Duration = Duration::from_secs(120);
 
 #[derive(Serialize, Deserialize, Default)]
 struct Settings {
@@ -74,7 +76,34 @@ impl Default for Shortcuts {
 
 /// A screenshot taken for a chat that is still loading; the console's page-load
 /// hook takes it once `/chat` has finished loading.
-struct PendingScreenshot(Mutex<Option<Vec<u8>>>);
+struct PendingScreenshot(Mutex<Option<Pending>>);
+
+/// The capture, the exact page it is for, and when it was taken.
+///
+/// Navigation off the server is not restricted, so a page that merely ends in
+/// `/chat` is not enough to hand a screenshot to: only the chat page on the
+/// configured server's origin gets it, and only within two minutes of the press -
+/// long enough to sign in on the way, short enough that a capture nobody attached
+/// does not surface on an unrelated visit weeks later.
+struct Pending {
+    png: Vec<u8>,
+    chat: Url,
+    taken: Instant,
+}
+
+impl Pending {
+    fn is_for(&self, loaded: &Url) -> bool {
+        loaded.origin() == self.chat.origin() && loaded.path().ends_with("/chat")
+    }
+
+    fn expired(&self, now: Instant) -> bool {
+        now.duration_since(self.taken) > PENDING_SCREENSHOT_TTL
+    }
+}
+
+/// The accelerator actually registered with the system, if any - which is not the
+/// one in the settings when another application held it at start-up.
+struct ShortcutBinding(Mutex<Option<String>>);
 
 #[derive(Serialize, Deserialize, Clone)]
 struct PetSettings {
@@ -247,6 +276,35 @@ fn load_settings(app: &AppHandle) -> Result<Settings, String> {
     serde_json::from_str(&raw).map_err(|e| format!("{} is not a saved shell configuration: {e}", path.display()))
 }
 
+/// The stored settings, or the defaults when the file cannot be read as settings.
+///
+/// A file that does not parse - a typo while hand-editing it, a partial write - is
+/// set aside as `server.json.invalid` so that the connect form can save over it,
+/// rather than fail on every submission with the very problem it is showing. The
+/// second value says so, for the form.
+fn load_or_quarantine(app: &AppHandle) -> (Settings, Option<String>) {
+    let problem = match load_settings(app) {
+        Ok(settings) => return (settings, None),
+        Err(problem) => problem,
+    };
+    eprintln!("{problem}");
+    let notice = match settings_path(app) {
+        Ok(path) => {
+            let aside = path.with_extension("json.invalid");
+            match fs::rename(&path, &aside) {
+                Ok(()) => format!("{problem} It was set aside as {}.", aside.display()),
+                Err(e) => format!("{problem} It could not be set aside: {e}"),
+            }
+        }
+        Err(e) => format!("{problem} {e}"),
+    };
+    (Settings::default(), Some(notice))
+}
+
+fn settings(app: &AppHandle) -> Settings {
+    load_or_quarantine(app).0
+}
+
 fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = settings_path(app)?;
     if let Some(dir) = path.parent() {
@@ -354,7 +412,7 @@ fn show_local_page(app: &AppHandle, name: &str) -> Result<(), String> {
     match app.get_webview_window(WINDOW) {
         Some(console) => {
             console.navigate(local_page(name)).map_err(|e| e.to_string())?;
-            console.set_focus().map_err(|e| e.to_string())
+            raise(&console)
         }
         None => open_window(app, WebviewUrl::App(name.into()))
             .map(|_| ())
@@ -368,20 +426,35 @@ fn show_local_page(app: &AppHandle, name: &str) -> Result<(), String> {
 /// answer has to come back before the window shows anything. WebKit renders a
 /// refused connection as a blank white page, which is indistinguishable from a
 /// console that has not painted yet.
+///
+/// Resolution and connect run on a thread of their own under one deadline, because
+/// `connect_timeout` bounds the connect and nothing bounds the resolver - a laptop
+/// opened offline can sit in DNS for its full timeout, and this runs before the
+/// window exists. The thread is left to finish on its own.
 fn reachable(server: &Url) -> Result<(), String> {
     let host = server.host_str().ok_or_else(|| format!("{server} names no host."))?;
     let port = server
         .port_or_known_default()
         .ok_or_else(|| format!("{server} names no port."))?;
-    let nothing_answers =
-        || format!("Nothing answers at {server}. Start the stack (`make dev`) or change the address.");
-    let addrs = (host, port).to_socket_addrs().map_err(|_| nothing_answers())?;
-    for addr in addrs {
-        if TcpStream::connect_timeout(&addr, PROBE_TIMEOUT).is_ok() {
-            return Ok(());
-        }
+    let target = (host.to_owned(), port);
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let answered = target
+            .to_socket_addrs()
+            .map(|addrs| {
+                addrs
+                    .into_iter()
+                    .any(|addr| TcpStream::connect_timeout(&addr, PROBE_TIMEOUT).is_ok())
+            })
+            .unwrap_or(false);
+        let _ = tx.send(answered);
+    });
+    match rx.recv_timeout(PROBE_DEADLINE) {
+        Ok(true) => Ok(()),
+        _ => Err(format!(
+            "Nothing answers at {server}. Start the stack (`make dev`) or change the address."
+        )),
     }
-    Err(nothing_answers())
 }
 
 /// The stored server when it answers; otherwise the connect page, with the reason.
@@ -397,7 +470,7 @@ fn console_start(server: Option<Url>) -> (WebviewUrl, Option<String>) {
 
 #[tauri::command]
 fn server_url(app: AppHandle) -> Result<Option<Url>, String> {
-    Ok(load_settings(&app)?.server_url)
+    Ok(settings(&app).server_url)
 }
 
 #[tauri::command]
@@ -412,15 +485,39 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    let mut settings = load_settings(&app)?;
+    let mut settings = settings(&app);
     settings.server_url = Some(server.clone());
     save_settings(&app, &settings)?;
     window.navigate(server).map_err(|e| e.to_string())
 }
 
+/// The shortcuts as configured, and what is wrong with them if anything is.
+#[derive(Serialize)]
+struct ShortcutsView {
+    screenshot_chat: Option<String>,
+    problem: Option<String>,
+}
+
 #[tauri::command]
-fn shortcuts(app: AppHandle) -> Result<Shortcuts, String> {
-    Ok(load_settings(&app)?.shortcuts)
+fn shortcuts(app: AppHandle) -> ShortcutsView {
+    let configured = settings(&app).shortcuts.screenshot_chat;
+    let bound = app
+        .state::<ShortcutBinding>()
+        .0
+        .lock()
+        .map(|b| b.clone())
+        .unwrap_or(None);
+    let problem = match (&configured, &bound) {
+        (Some(wanted), Some(held)) if wanted == held => None,
+        (Some(wanted), _) => Some(format!(
+            "{wanted} could not be bound - another application holds it. Pick another combination."
+        )),
+        (None, _) => None,
+    };
+    ShortcutsView {
+        screenshot_chat: configured,
+        problem,
+    }
 }
 
 /// Rebind, or switch off, the screenshot shortcut. Answers with what is now bound.
@@ -429,7 +526,7 @@ fn shortcuts(app: AppHandle) -> Result<Shortcuts, String> {
 /// so a combination another application holds leaves the shell where it was.
 #[tauri::command]
 fn set_screenshot_shortcut(app: AppHandle, accelerator: Option<String>) -> Result<Option<String>, String> {
-    let mut settings = load_settings(&app)?;
+    let mut settings = settings(&app);
     let wanted = accelerator.map(|a| a.trim().to_owned()).filter(|a| !a.is_empty());
     let current = settings.shortcuts.screenshot_chat.clone();
     if let Some(old) = &current {
@@ -453,7 +550,7 @@ fn set_screenshot_shortcut(app: AppHandle, accelerator: Option<String>) -> Resul
 /// Leave a shell page for the console - the stored server, or the connect form.
 #[tauri::command]
 fn back_to_console(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    let settings = load_settings(&app)?;
+    let settings = settings(&app);
     let (start, notice) = console_start(settings.server_url);
     if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
         *slot = notice;
@@ -477,12 +574,12 @@ fn page_error(window: WebviewWindow, message: String) {
 
 #[tauri::command]
 fn pet_settings(app: AppHandle) -> Result<PetSettings, String> {
-    Ok(load_settings(&app)?.pet)
+    Ok(settings(&app).pet)
 }
 
 #[tauri::command]
 fn save_pet_position(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
-    let mut settings = load_settings(&app)?;
+    let mut settings = settings(&app);
     settings.pet.position = Some(Position { x, y });
     save_settings(&app, &settings)
 }
@@ -502,11 +599,19 @@ fn show_console(app: AppHandle) -> Result<(), String> {
     bring_console(&app)
 }
 
+/// Put a window in front of the person - out of the Dock or taskbar if it was
+/// minimised, which a focus request alone does not do.
+fn raise(window: &WebviewWindow) -> Result<(), String> {
+    window.unminimize().map_err(|e| e.to_string())?;
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+
 fn bring_console(app: &AppHandle) -> Result<(), String> {
     if let Some(console) = app.get_webview_window(WINDOW) {
-        return console.set_focus().map_err(|e| e.to_string());
+        return raise(&console);
     }
-    let settings = load_settings(app)?;
+    let settings = settings(app);
     let (start, notice) = console_start(settings.server_url);
     if let Ok(mut slot) = app.state::<StartupNotice>().0.lock() {
         *slot = notice;
@@ -524,19 +629,26 @@ fn open_chat(app: AppHandle) -> Result<(), String> {
     start_chat(&app)
 }
 
-fn start_chat(app: &AppHandle) -> Result<(), String> {
-    let settings = load_settings(app)?;
-    let server = settings
+/// The address of a fresh chat on the configured server, once it answers.
+fn chat_url(app: &AppHandle) -> Result<Url, String> {
+    let server = settings(app)
         .server_url
         .ok_or("No server yet - connect the console to one first.")?;
     reachable(&server)?;
-    let chat = server.join("chat").map_err(|e| e.to_string())?;
+    server.join("chat").map_err(|e| e.to_string())
+}
+
+fn start_chat(app: &AppHandle) -> Result<(), String> {
+    open_console_at(app, chat_url(app)?)
+}
+
+fn open_console_at(app: &AppHandle, url: Url) -> Result<(), String> {
     match app.get_webview_window(WINDOW) {
         Some(console) => {
-            console.navigate(chat).map_err(|e| e.to_string())?;
-            console.set_focus().map_err(|e| e.to_string())
+            console.navigate(url).map_err(|e| e.to_string())?;
+            raise(&console)
         }
-        None => open_window(app, WebviewUrl::External(chat))
+        None => open_window(app, WebviewUrl::External(url))
             .map(|_| ())
             .map_err(|e| e.to_string()),
     }
@@ -645,38 +757,59 @@ fn attach_script(png: &[u8]) -> String {
 
 /// Take a screenshot and put it on a new chat: the capture off the main thread,
 /// since it waits for a person, then the console to `/chat`, whose page-load hook
-/// attaches what was captured.
+/// attaches what was captured. Nothing is held for that hook until the chat's
+/// address is known and answering, and it is dropped again if the console could
+/// not be pointed there - a capture that went nowhere must not turn up later.
 fn screenshot_to_chat(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = match capture_screen() {
-            Ok(Some(bytes)) => bytes,
+        let png = match capture_screen() {
+            Ok(Some(png)) => png,
             Ok(None) => return,
             Err(e) => {
-                eprintln!("screenshot: {e}");
-                if let Err(e) = app.emit_to(PET, PET_SAY_EVENT, e) {
-                    eprintln!("screenshot: {e}");
-                }
+                complain(&app, &e);
                 return;
             }
         };
-        if let Ok(mut slot) = app.state::<PendingScreenshot>().0.lock() {
-            *slot = Some(bytes);
-        }
         let handle = app.clone();
         let dispatched = app.run_on_main_thread(move || {
+            let chat = match chat_url(&handle) {
+                Ok(chat) => chat,
+                Err(e) => {
+                    complain(&handle, &e);
+                    return;
+                }
+            };
+            if let Ok(mut slot) = handle.state::<PendingScreenshot>().0.lock() {
+                *slot = Some(Pending {
+                    png,
+                    chat: chat.clone(),
+                    taken: Instant::now(),
+                });
+            }
             #[cfg(target_os = "macos")]
             if let Err(e) = handle.show() {
                 eprintln!("screenshot: {e}");
             }
-            if let Err(e) = start_chat(&handle) {
-                eprintln!("screenshot: {e}");
+            if let Err(e) = open_console_at(&handle, chat) {
+                if let Ok(mut slot) = handle.state::<PendingScreenshot>().0.lock() {
+                    *slot = None;
+                }
+                complain(&handle, &e);
             }
         });
         if let Err(e) = dispatched {
             eprintln!("screenshot: {e}");
         }
     });
+}
+
+/// A screenshot that went nowhere, said on stderr and by the pet.
+fn complain(app: &AppHandle, problem: &str) {
+    eprintln!("screenshot: {problem}");
+    if let Err(e) = app.emit_to(PET, PET_SAY_EVENT, problem) {
+        eprintln!("screenshot: {e}");
+    }
 }
 
 fn register_screenshot_shortcut(app: &AppHandle, accelerator: &str) -> Result<(), String> {
@@ -687,12 +820,19 @@ fn register_screenshot_shortcut(app: &AppHandle, accelerator: &str) -> Result<()
                 screenshot_to_chat(app);
             }
         })
-        .map_err(|e| format!("Cannot bind {accelerator}: {e}"))
+        .map_err(|e| format!("Cannot bind {accelerator}: {e}"))?;
+    if let Ok(mut bound) = app.state::<ShortcutBinding>().0.lock() {
+        *bound = Some(accelerator.to_owned());
+    }
+    Ok(())
 }
 
 fn unregister_shortcut(app: &AppHandle, accelerator: &str) {
     if let Err(e) = app.global_shortcut().unregister(accelerator) {
         eprintln!("could not release {accelerator}: {e}");
+    }
+    if let Ok(mut bound) = app.state::<ShortcutBinding>().0.lock() {
+        *bound = None;
     }
 }
 
@@ -706,18 +846,25 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
     }
     builder
         .on_page_load(|window, payload| {
-            if !matches!(payload.event(), PageLoadEvent::Finished) || !payload.url().path().ends_with("/chat") {
+            if !matches!(payload.event(), PageLoadEvent::Finished) {
                 return;
             }
-            let pending = window
-                .app_handle()
-                .state::<PendingScreenshot>()
-                .0
-                .lock()
-                .ok()
-                .and_then(|mut slot| slot.take());
-            if let Some(png) = pending {
-                if let Err(e) = window.eval(attach_script(&png)) {
+            let pending_state = window.app_handle().state::<PendingScreenshot>();
+            let Ok(mut slot) = pending_state.0.lock() else {
+                return;
+            };
+            let Some(pending) = slot.as_ref() else {
+                return;
+            };
+            if pending.expired(Instant::now()) {
+                *slot = None;
+                return;
+            }
+            if !pending.is_for(payload.url()) {
+                return;
+            }
+            if let Some(pending) = slot.take() {
+                if let Err(e) = window.eval(attach_script(&pending.png)) {
                     eprintln!("screenshot: could not attach: {e}");
                 }
             }
@@ -758,7 +905,7 @@ fn open_pet(app: &AppHandle, pet: &PetSettings) -> tauri::Result<WebviewWindow> 
 }
 
 fn toggle_pet(app: &AppHandle) -> Result<(), String> {
-    let mut settings = load_settings(app)?;
+    let mut settings = settings(app);
     match app.get_webview_window(PET) {
         Some(pet) => {
             pet.close().map_err(|e| e.to_string())?;
@@ -774,7 +921,7 @@ fn toggle_pet(app: &AppHandle) -> Result<(), String> {
 }
 
 fn set_pet_kind(app: &AppHandle, kind: Kind) -> Result<(), String> {
-    let mut settings = load_settings(app)?;
+    let mut settings = settings(app);
     settings.pet.kind = kind;
     save_settings(app, &settings)?;
     app.state::<PetMenu>()
@@ -853,10 +1000,7 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle();
-            let mut settings = load_settings(handle).unwrap_or_else(|e| {
-                eprintln!("{e}");
-                Settings::default()
-            });
+            let (mut settings, unreadable) = load_or_quarantine(handle);
             if let Some(typed) = server_argument(std::env::args().skip(1)) {
                 match parse_server_url(&typed) {
                     Ok(server) => {
@@ -870,8 +1014,9 @@ pub fn run() {
             }
             install_menu(handle, &settings.pet)?;
             let (start, notice) = console_start(settings.server_url);
-            app.manage(StartupNotice(Mutex::new(notice)));
+            app.manage(StartupNotice(Mutex::new(notice.or(unreadable))));
             app.manage(PendingScreenshot(Mutex::new(None)));
+            app.manage(ShortcutBinding(Mutex::new(None)));
             open_window(handle, start)?;
             if let Some(accelerator) = &settings.shortcuts.screenshot_chat {
                 if let Err(e) = register_screenshot_shortcut(handle, accelerator) {
@@ -891,6 +1036,7 @@ pub fn run() {
 mod tests {
     use std::net::TcpListener;
     use std::str::FromStr;
+    use std::time::{Duration, Instant};
 
     use super::{
         attach_script, parse_server_url, reachable, Kind, PetSettings, Settings, Shortcuts, Url,
@@ -941,6 +1087,34 @@ mod tests {
         );
         assert_eq!(super::server_argument(words("--verbose")), None);
         assert_eq!(super::server_argument(words("--server")), None);
+    }
+
+    #[test]
+    fn a_pending_screenshot_is_only_for_the_chat_page_on_its_own_server() {
+        let chat = Url::parse("http://localhost:3000/chat").unwrap();
+        let pending = super::Pending {
+            png: vec![],
+            chat,
+            taken: Instant::now(),
+        };
+        assert!(pending.is_for(&Url::parse("http://localhost:3000/chat").unwrap()));
+        assert!(pending.is_for(&Url::parse("http://localhost:3000/pl/chat").unwrap()));
+        assert!(!pending.is_for(&Url::parse("https://evil.example/chat").unwrap()));
+        assert!(!pending.is_for(&Url::parse("http://localhost:3001/chat").unwrap()));
+        assert!(!pending.is_for(&Url::parse("http://localhost:3000/agents").unwrap()));
+    }
+
+    #[test]
+    fn a_pending_screenshot_goes_stale_after_its_ttl() {
+        let chat = Url::parse("http://localhost:3000/chat").unwrap();
+        let taken = Instant::now();
+        let pending = super::Pending {
+            png: vec![],
+            chat,
+            taken,
+        };
+        assert!(!pending.expired(taken + Duration::from_secs(60)));
+        assert!(pending.expired(taken + super::PENDING_SCREENSHOT_TTL + Duration::from_secs(1)));
     }
 
     #[test]

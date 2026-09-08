@@ -61,6 +61,9 @@ the app - `~/Library/Application Support/co.vstorm.agenticos/` on macOS,
 `%APPDATA%\\co.vstorm.agenticos\\` on Windows, `~/.config/co.vstorm.agenticos/` on
 Linux - and read again on every launch.
 
+A file that no longer parses - a typo while editing it by hand - is set aside as
+`server.json.invalid` at the next launch, and the connect form saves a fresh one.
+
 A wrong address is fixed in four ways, whichever is nearest: **Settings…** (`⌘,`,
 also on the tray icon and in the pet's right-click menu, so it is reachable even
 when the window shows the wrong site), **Shell → Change server…**, editing that
@@ -125,7 +128,9 @@ The same action is in the pet's menu and on the tray icon.
 menu) rebinds it: click the field, hold the modifiers and press a key. A combination needs at least one modifier - a global shortcut on a bare letter
 would swallow typing in every application - and one that another application
 already holds is refused with the old binding kept. **Clear** switches it off.
-Bindings are stored beside the server address.
+Bindings are stored beside the server address. A binding that could not be taken
+at launch, because another application got there first, is named on the same page
+so it can be replaced rather than sit there looking bound.
 
 !!! note "Two modifiers on their own cannot be a shortcut"
 
@@ -146,8 +151,10 @@ after a restart.
 
 The picture reaches the composer the way a chosen file does: the shell runs a
 script in the console page that hands the PNG to the composer's file input, so the
-upload, the size limit and the preview are the console's own. Windows and Linux
-have no capture wired yet.
+upload, the size limit and the preview are the console's own. It is handed only to
+the chat page on the configured server's origin - never to another site the window
+may have wandered to - and only within two minutes of the press; a capture that
+went nowhere is dropped. Windows and Linux have no capture wired yet.
 
 ## What it deliberately does not do
 
