@@ -59,7 +59,8 @@ console on a fresh conversation, opening the window if it was closed.
 
 **Pet → Show pet** (Cmd/Ctrl+Shift+P) tucks it away and brings it back; the same
 menu picks which pet it is - Orbit, a round one with an antenna; Boxy, a terminal
-on legs; Ghost, which floats; Sprout, a seed with a leaf. Where it was left,
+on legs; Ghost, which floats; Sprout, a seed with a leaf; Amigo, in a sombrero
+and a moustache, for no more caramba in your AI. Where it was left,
 whether it is shown and which pet it is are stored beside the server address, so
 the pet is where you put it on the next launch. Under the operating system's
 reduce-motion setting it stands still, and stays draggable.

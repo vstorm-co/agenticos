@@ -77,10 +77,11 @@ enum Kind {
     Boxy,
     Ghost,
     Sprout,
+    Amigo,
 }
 
 impl Kind {
-    const ALL: [Kind; 4] = [Kind::Orbit, Kind::Boxy, Kind::Ghost, Kind::Sprout];
+    const ALL: [Kind; 5] = [Kind::Orbit, Kind::Boxy, Kind::Ghost, Kind::Sprout, Kind::Amigo];
 
     fn label(self) -> &'static str {
         match self {
@@ -88,6 +89,7 @@ impl Kind {
             Kind::Boxy => "Boxy",
             Kind::Ghost => "Ghost",
             Kind::Sprout => "Sprout",
+            Kind::Amigo => "Amigo",
         }
     }
 
@@ -97,6 +99,7 @@ impl Kind {
             Kind::Boxy => "pet-boxy",
             Kind::Ghost => "pet-ghost",
             Kind::Sprout => "pet-sprout",
+            Kind::Amigo => "pet-amigo",
         }
     }
 
