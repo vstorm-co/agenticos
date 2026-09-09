@@ -247,18 +247,61 @@ exercises a path nothing else here checks.
     **HSTS is deliberately left to the proxy**, which is where TLS terminates. A
     proxy that sets its own CSP should be at least as strict as this one.
 
+### Turning the sandbox on
+
+The service that runs an agent's code is behind a compose profile, because it is
+the one container holding the Docker socket and mounting that on a shared host
+should be a decision rather than a default. Three things, once:
+
+```bash
+make sandbox-token                       # writes SANDBOXD_TOKEN to backend/.env
+sudo mkdir -p /var/lib/agenticos/sandbox-workspaces
+sudo chown 10001:10001 /var/lib/agenticos/sandbox-workspaces
+```
+
+Then a deploy brings it up: `scripts/deploy.sh` passes `--profile sandbox` when
+`SANDBOXD_TOKEN` in `backend/.env` has a value, so the host itself says whether
+it runs one. It also exports `DOCKER_GID` read off the socket — every compose
+file here interpolates it into the sandbox's `group_add`, and its `0` default is
+the socket's owner on almost no Linux distribution. Nothing else in `.env` is
+needed: the backend reaches the daemon through a sandbox *connection* somebody
+creates in the console, and `http://sandboxd:8080` is recognised as this
+deployment's own.
+
+!!! warning "A profile compose is not told about is a service compose stops"
+
+    `up -d` on the same project without `--profile sandbox` does not leave the
+    sandbox alone — it stops it. So a host that started it by hand had it taken
+    away by its next deploy, with an agent's code execution failing for reasons
+    nowhere near the deploy that caused it (#1506). That is why the script reads the
+    token rather than taking a flag.
+
 ## Deploying a change
 
 ### By hand
 
 ```bash
-ssh you@your-host 'bash -s -- <commit-sha>' < scripts/deploy.sh
+remote=$(ssh you@your-host 'mktemp -t agenticos-deploy.XXXXXX')
+ssh you@your-host "cat > $remote" < scripts/deploy.sh
+ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 ```
 
 `scripts/deploy.sh` fetches that commit, rebuilds, migrates, restarts and waits
 for both containers to report healthy before it returns non-zero or not. It takes
 a **commit** rather than a branch, so what is deployed is what was reviewed, not
 whatever `main` has moved to since.
+
+!!! warning "Copy it to the host, then run it — do not pipe it into `bash -s`"
+
+    Under `bash -s` the script is the shell's own standard input, and the first
+    command in it that reads stdin consumes the rest. `docker compose exec`
+    forwards stdin to the container even with `-T`, so the migration ate
+    everything below itself, bash reached EOF, and the deploy exited **0**
+    having never built the frontend or waited for any container. The site was
+    down and the deploy was green ([#1488](https://github.com/vstorm-co/agenticos/issues/1488)).
+
+    Two connections instead of one is what stops the procedure being able to
+    truncate itself.
 
 It is not zero-downtime. Compose recreates the containers it rebuilt, so the site
 is unavailable for the few seconds that takes.
@@ -276,6 +319,18 @@ Set it up once:
 3. Add the environment's variables: `SITE_URL`, `API_URL`, and `APP_DIR` if the
    checkout is not at `/opt/agenticos`.
 4. Add the secrets below.
+
+!!! warning "Cancel a deploy you do not intend to approve"
+
+    Every run shares the `deploy-production` concurrency group, and a run sitting
+    at the approval gate holds it. It does not expire on its own — GitHub cancels
+    an unactioned one after 30 days — so until somebody approves or cancels it,
+    later merges queue behind a decision nobody is going to make, and the server
+    keeps running whatever was deployed last.
+
+    So a deploy you have decided against is cancelled, not left. One left waiting
+    on a superseded commit blocked three later runs here before anybody noticed
+    the queue rather than the runs.
 
 | Secret | What |
 |---|---|

@@ -26,6 +26,11 @@ on:
 #
 # This is the opposite of `ci.yml`'s rule, and for the opposite reason: there a
 # superseded answer is waste, here a superseded run has already changed a server.
+#
+# The sharp edge is a run that has not started: one sitting at the approval gate
+# holds this group too, and holds it until somebody approves or cancels it. So a
+# deploy decided against is cancelled rather than left - `docs/deploy.md` says so
+# where an operator will read it.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -109,6 +114,13 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
 
+      # **Copied, then run - not piped into `bash -s`.** Under `bash -s` the
+      # script is the shell's own standard input, so the first command in it
+      # that reads stdin eats the rest: `docker compose exec` forwards stdin
+      # even with `-T`, so the migration consumed everything after itself, bash
+      # hit EOF, and the deploy reported success having never built the frontend
+      # nor waited for a single container. Two connections is the price of the
+      # script not being able to truncate itself (#1488).
       - name: Deploy
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -116,9 +128,17 @@ jobs:
           APP_DIR: ${{ vars.APP_DIR || '/opt/agenticos' }}
           SHA: ${{ needs.resolve.outputs.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes \
-            "$DEPLOY_USER@$DEPLOY_HOST" \
-            "APP_DIR='$APP_DIR' bash -s -- '$SHA'" < scripts/deploy.sh
+          set -euo pipefail
+          ssh() { command ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "$@"; }
+          # Named for this run, and removed by a trap in the remote shell so the
+          # exit status is the deploy's. A fixed name is a file two callers share:
+          # `concurrency` above serializes workflow runs and says nothing about
+          # the by-hand form in `docs/deploy.md`, so an operator's upload could
+          # land between this job's copy and its run - and the deploy would then
+          # execute somebody else's procedure against this job's approved sha.
+          REMOTE=".agenticos-deploy.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}.sh"
+          ssh "cat > '$REMOTE'" < scripts/deploy.sh
+          ssh "trap 'rm -f \"\$HOME/$REMOTE\"' EXIT; APP_DIR='$APP_DIR' bash \"\$HOME/$REMOTE\" '$SHA'"
 
       # The deploy script already waits for both containers to report healthy on
       # the host. This asks the same question from outside, which is the half it

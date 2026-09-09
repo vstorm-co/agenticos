@@ -2,13 +2,22 @@
 #
 # Deploy one commit onto a server that already runs this stack.
 #
-#   ssh <host> 'bash -s -- <sha>' < scripts/deploy.sh
+#   remote=$(ssh <host> 'mktemp -t agenticos-deploy.XXXXXX')
+#   ssh <host> "cat > $remote" < scripts/deploy.sh
+#   ssh <host> "trap 'rm -f $remote' EXIT; bash $remote <sha>"
 #
-# Piped over stdin rather than run from the server's checkout: the checkout there
-# is only the build context, and the procedure travels with whoever is running
-# it. Deliberately **not** taken from the commit being deployed - a rollback to a
+# Copied to the server rather than run from its checkout: the checkout there is
+# only the build context, and the procedure travels with whoever is running it.
+# Deliberately **not** taken from the commit being deployed - a rollback to a
 # commit older than this file would then have no script to run, which is the one
 # moment it is needed most.
+#
+# Copied and *then* run, rather than piped into `bash -s`, and that is not a
+# style preference. Under `bash -s` the script is its own standard input, so the
+# first command that reads stdin consumes the rest of it: `docker compose exec`
+# forwards stdin to the container even with `-T`, so the migration swallowed
+# everything below it, bash reached EOF, and the script exited 0 having never
+# built the frontend or waited for anything (#1488).
 #
 # It takes a **commit**, not a branch. Two pushes can land while an approval is
 # pending, and `git pull` on the server would then deploy whichever one won the
@@ -37,12 +46,21 @@ say() { printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 cd "$APP_DIR"
 test -f "$COMPOSE_ENV" || { echo "missing $COMPOSE_ENV" >&2; exit 1; }
 
+# The effective value of a variable in the env file: the *last* assignment wins,
+# the way dotenv and compose read it, and surrounding quotes are not part of the
+# value. `grep -q` on the name answers a different question - whether the file
+# mentions it - so `NAME=""`, or a real value later disabled by a bare `NAME=`,
+# both read as set (#1506).
+env_value() {
+  sed -n "s/^$1=//p" "$COMPOSE_ENV" | tail -1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
+
 # Which reverse proxy this host was set up with, read from the host rather than
 # assumed. Hard-coding the Traefik overlays meant an Nginx host was silently
 # converted on its next deploy - and since the overlay declares
 # `traefik_webgateway` external, on a host that never created it compose fails
 # outright, which is the better of the two outcomes.
-PROXY="$(sed -n 's/^PROXY=//p' "$COMPOSE_ENV" | tail -1)"
+PROXY="$(env_value PROXY)"
 case "${PROXY:-nginx}" in
   traefik)
     BACKEND=(-f docker-compose-prod.yml -f docker-compose-prod.traefik.yml)
@@ -58,17 +76,49 @@ case "${PROXY:-nginx}" in
     ;;
 esac
 
+# The sandbox service is behind a compose profile, so it is opt-in - and a
+# profile compose is not told about is a service compose treats as nothing to do
+# with this project. It does not merely leave it alone: `up -d` on the same
+# project without the profile stops it. So a host that started the sandbox by
+# hand had it taken away by its next deploy, silently, and an agent's code
+# execution stopped working for reasons nowhere near the deploy that
+# caused it (#1506).
+#
+# Read from the host, the same way `PROXY` is: `SANDBOXD_TOKEN` is what the
+# service refuses to start without, so a non-empty one in `backend/.env` is this
+# host saying it runs a sandbox.
+PROFILES=()
+if [ -n "$(env_value SANDBOXD_TOKEN)" ]; then
+  PROFILES=(--profile sandbox)
+  # The group that owns the Docker socket, which the sandbox needs as a
+  # supplementary group to reach it. `docker-compose-prod.yml` interpolates
+  # `${DOCKER_GID:-0}` and nothing anywhere set it, so the service came up in
+  # group 0 - root on this host, and not the socket's owner on any Linux
+  # distribution that ships a `docker` group. Read from the socket rather than
+  # configured, because the socket is the only thing that knows (#1506).
+  if [ -S /var/run/docker.sock ]; then
+    DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
+    export DOCKER_GID
+  else
+    echo "no /var/run/docker.sock, but SANDBOXD_TOKEN is set - the sandbox cannot start" >&2
+    exit 1
+  fi
+fi
+
 say "Fetching $SHA"
 git fetch --prune --quiet origin
 git checkout --quiet --detach "$SHA"
 git --no-pager log --oneline -1
 
-compose() { docker compose --env-file "$COMPOSE_ENV" "$@"; }
+# `< /dev/null` on every compose call, so this stays correct even when somebody
+# pipes the script into `bash -s` anyway: nothing in here has any business
+# reading standard input, and one that does silently truncates the deploy (#1488).
+compose() { docker compose --env-file "$COMPOSE_ENV" "$@" < /dev/null; }
 
 # The API first, and its migrations before the frontend: a frontend serving a
 # schema the backend has not migrated to yet is the window this ordering closes.
 say "Building and starting the API"
-compose "${BACKEND[@]}" up -d --build
+compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" up -d --build
 
 say "Migrating"
 compose "${BACKEND[@]}" exec -T app agenticos db upgrade
