@@ -291,6 +291,7 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     user_service: UserSvc,
     impersonation: ImpersonationSvc,
+    session: SessionSvc,
 ) -> User:
     """Get current authenticated user from JWT token.
 
@@ -299,9 +300,14 @@ async def get_current_user(
     is refused here rather than served for the rest of its hour (#1044). The
     check also puts who is really acting on the request's audit context (#943).
 
+    An ordinary token carrying a `sid` is bound to its login's session row the
+    same way, so signing out everywhere refuses it here rather than letting it
+    live to its `exp` (#1501); a token minted before that binding has no `sid`
+    and is left to expire.
+
     Raises:
-        AuthenticationError: If token is invalid, its impersonation has ended, or
-            the user is not found.
+        AuthenticationError: If token is invalid, its session or impersonation has
+            ended, or the user is not found.
     """
 
     payload = verify_token(token)
@@ -316,6 +322,7 @@ async def get_current_user(
         raise AuthenticationError(message="Invalid token payload")
 
     await impersonation.verify(payload=payload, token=token, subject=user_id)
+    await session.verify_access_session(payload=payload, subject=user_id)
 
     user = await user_service.get_by_id(UUID(user_id))
     if not user.is_active:

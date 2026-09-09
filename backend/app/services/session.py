@@ -2,12 +2,14 @@
 
 import hashlib
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthenticationError, NotFoundError
+from app.core.security import read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import session_repo
 from app.schemas.session import SessionListResponse, SessionRead
@@ -55,7 +57,18 @@ class SessionService:
         refresh_token: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        *,
+        session_id: UUID | None = None,
     ) -> Session:
+        """The row a sign-in is tracked by, whose id the access token names in `sid`.
+
+        `session_id` lets the caller choose the id up front, for a flow that has to
+        mint the token before the row exists: the OAuth callback names the id in the
+        token, hands out a single-use code, and only then writes the row - so a
+        failure issuing the code leaves no phantom session behind. Left `None`, the
+        row's own default assigns the id (login and magic-link read it back off the
+        returned row).
+        """
         device_name, device_type = _parse_user_agent(user_agent)
         expires_at = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
@@ -63,6 +76,41 @@ class SessionService:
             self.db,
             user_id=user_id,
             refresh_token_hash=hash_token(refresh_token),
+            expires_at=expires_at,
+            device_name=device_name,
+            device_type=device_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            session_id=session_id,
+        )
+
+    async def rotate_session(
+        self,
+        session: Session,
+        new_refresh_token: str,
+        *,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Session:
+        """Rotate a login's refresh token in place, keeping the session row's id.
+
+        Refresh mints a new refresh token and a new access token; the row keeps
+        its id so the access token's `sid` is stable across the refresh - a live
+        socket, or a second tab, holding the old access token is not cut off by a
+        routine rotation (#1437, #1501) - while the new token's hash replaces the
+        old, which is what stops the spent refresh token being replayed.
+
+        The device and address are moved to wherever the refresh came from, the way
+        recreating the row used to: the sessions list is what a person revokes an
+        unfamiliar device from, so it has to show where the credential is being used
+        now, not only where the login began (#1501 review).
+        """
+        expires_at = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        device_name, device_type = _parse_user_agent(user_agent)
+        return await session_repo.rotate(
+            self.db,
+            session=session,
+            refresh_token_hash=hash_token(new_refresh_token),
             expires_at=expires_at,
             device_name=device_name,
             device_type=device_type,
@@ -76,6 +124,49 @@ class SessionService:
     async def count_user_sessions(self, user_id: UUID, *, now: datetime | None = None) -> int:
         return await session_repo.count_user_sessions(self.db, user_id, open_only=True, now=now)
 
+    async def verify_access_session(self, *, payload: dict[str, Any], subject: str) -> None:
+        """Refuse an ordinary access token whose login session has been revoked.
+
+        A token minted since #1501 carries `sid`, the id of the `sessions` row its
+        login owns, so `DELETE /sessions` and the password-reset revoke-all - both
+        of which flip the row's `is_active` - refuse the token here on its next use,
+        an HTTP request or a WebSocket frame, instead of letting it live to its
+        `exp`. The row is also the login's own lifetime: an `expires_at` in the past
+        is a login that is over however fresh the access token looks, which is why
+        this still bites under the socket's `allow_expired` recheck (#1437).
+
+        A token with no `sid` predates the binding: it cannot be tied to a row and
+        is left to expire, the pre-#1501 behaviour, so an existing sign-in is not
+        logged out the moment this deploys - within one access-token lifetime every
+        live token has refreshed into a bound one.
+
+        An impersonation token carries `act` and its own `sid`, both already
+        verified by :meth:`ImpersonationService.verify` before this runs, so it
+        returns early here - looking its row up again would refuse it, an
+        impersonation row being exactly what an *ordinary* `sid` may not name. An
+        ordinary `sid` must therefore name an ordinary row (no impersonator), the
+        subject's own, still active and unexpired - the id alone is the binding,
+        since a signed token cannot carry a `sid` this deployment did not mint.
+
+        Raises:
+            AuthenticationError: The token names a session that is gone, deactivated,
+                expired, an impersonation, or another user's.
+        """
+        if read_uuid_claim(payload, "act") is not None:
+            return
+        session_id = read_uuid_claim(payload, "sid")
+        if session_id is None:
+            return
+        row = await session_repo.get_by_id(self.db, session_id)
+        if (
+            row is None
+            or not row.is_active
+            or row.expires_at <= datetime.now(UTC)
+            or row.impersonator_user_id is not None
+            or str(row.user_id) != subject
+        ):
+            raise AuthenticationError(message="Session has ended")
+
     async def validate_refresh_token(self, refresh_token: str) -> Session | None:
         """The session a refresh token belongs to, or None for one that cannot refresh.
 
@@ -87,7 +178,10 @@ class SessionService:
         it: its window is the access token's own, and nothing extends it.
         """
         token_hash = hash_token(refresh_token)
-        session = await session_repo.get_by_refresh_token_hash(self.db, token_hash)
+        # Locked: a refresh and a concurrent one bearing the same token serialize
+        # here, so the second finds the hash already rotated away and refuses,
+        # rather than both rotating the row (#1501 review).
+        session = await session_repo.get_by_refresh_token_hash(self.db, token_hash, for_update=True)
 
         if (
             session

@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID, uuid4
 
 import bcrypt
 import jwt
@@ -57,13 +58,21 @@ def create_refresh_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
 ) -> str:
-    """Create a JWT refresh token."""
+    """Create a JWT refresh token.
+
+    Carries a random `jti` so two tokens minted for the same subject in the same
+    second are not byte-identical. A session row stores the SHA-256 of its refresh
+    token, and `exp` is second-resolution, so without this two sign-ins a moment
+    apart would hash to the same value - two active rows under one hash, and the
+    next refresh's `scalar_one_or_none` lookup raises rather than resolving (#1501
+    review).
+    """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh", "jti": uuid4().hex}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -87,6 +96,23 @@ def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | Non
             options={"verify_exp": verify_exp},
         )
     except jwt.PyJWTError:
+        return None
+
+
+def read_uuid_claim(payload: dict[str, Any], name: str) -> UUID | None:
+    """A token claim read as a uuid, or None when it is absent or not one.
+
+    A malformed claim is no claim rather than a refusal: the token is signed by
+    this deployment, so a value it cannot parse is one this code never wrote. Both
+    the impersonation `sid`/`act` (#943) and the ordinary-session `sid` (#1501)
+    read their row id through here, so the leniency is decided in one place.
+    """
+    value = payload.get(name)
+    if not value:
+        return None
+    try:
+        return UUID(str(value))
+    except ValueError:
         return None
 
 

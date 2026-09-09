@@ -3,11 +3,12 @@
 import logging
 from typing import Any
 from urllib.parse import urlencode
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from app.api.deps import OAuthExchangeSvc, UserSvc
+from app.api.deps import OAuthExchangeSvc, SessionSvc, UserSvc
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.oauth import oauth
@@ -48,7 +49,10 @@ async def google_login(request: Request, invitation: str | None = None):
 
 @router.get("/google/callback", response_model=None)
 async def google_callback(
-    request: Request, user_service: UserSvc, exchange_service: OAuthExchangeSvc
+    request: Request,
+    user_service: UserSvc,
+    exchange_service: OAuthExchangeSvc,
+    session_service: SessionSvc,
 ):
     """Handle Google OAuth2 callback."""
     frontend = settings.FRONTEND_URL.rstrip("/")
@@ -71,13 +75,27 @@ async def google_callback(
             invitation_token=request.session.pop(_INVITATION_KEY, None),
         )
 
-        access_token = create_access_token(subject=str(user.id))
         refresh_token = create_refresh_token(subject=str(user.id))
+
+        # An OAuth sign-in is an ordinary session, so the access token names its
+        # session row in `sid` - otherwise signing out everywhere could not revoke
+        # it, the way it could not for any login before #1501. The id is chosen up
+        # front so the row can be written *after* the code is issued: a failure
+        # handing out the code then leaves no phantom session behind.
+        session_id = uuid4()
+        access_token = create_access_token(subject=str(user.id), sid=str(session_id))
 
         # A single-use code, not the tokens: a token in the redirect URL reaches
         # the address bar, the server access log, and the `Referer` of the next
         # same-origin request, and the refresh token is good for a week (#14).
         code = await exchange_service.issue(access_token=access_token, refresh_token=refresh_token)
+        await session_service.create_session(
+            user_id=user.id,
+            refresh_token=refresh_token,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("User-Agent"),
+            session_id=session_id,
+        )
         params = urlencode({"code": code})
         return RedirectResponse(url=f"{frontend}/auth/callback?{params}")
 
