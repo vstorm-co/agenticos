@@ -7,6 +7,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
+import { secureCookies } from "@/lib/session-cookie";
 import type { LoginResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set("access_token", data.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 15, // 15 minutes
       path: "/",
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set("refresh_token", data.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: "/",
