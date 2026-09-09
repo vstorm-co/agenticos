@@ -56,14 +56,26 @@ def create_access_token(
 def create_refresh_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    *,
+    credential_version: int = 0,
 ) -> str:
-    """Create a JWT refresh token."""
+    """Create a JWT refresh token.
+
+    Carries the account's `credential_version` as `cv`: a password change bumps
+    the user's version, and the refresh path refuses a token whose `cv` is behind
+    it, so a token minted before the change cannot be rotated past it (#1517).
+    """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "refresh",
+        "cv": credential_version,
+    }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

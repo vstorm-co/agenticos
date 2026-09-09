@@ -342,11 +342,19 @@ class UserService:
         user = await self.get_by_id(user_id)
 
         update_data = writable(user_in, over=User)
-        password_changed = "password" in update_data
+        # `password` has no column (the row stores `hashed_password`), so writable
+        # keeps an explicit null rather than dropping it. Popped unconditionally so
+        # a null is a no-op, not a hash of None that reaches bcrypt as a 500 (#1497).
+        new_password = update_data.pop("password", None)
+        password_changed = new_password is not None
         if password_changed:
             update_data["hashed_password"] = await asyncio.to_thread(
-                get_password_hash, update_data.pop("password")
+                get_password_hash, new_password
             )
+            # Bump the credential version alongside the hash, so a refresh token
+            # minted before this change is refused even if it raced the session
+            # revocation below and its session row survived (#1517).
+            update_data["credential_version"] = user.credential_version + 1
 
         updated = await user_repo.update(self.db, db_user=user, update_data=update_data)
         if password_changed:
@@ -372,12 +380,59 @@ class UserService:
         terminal). A non-admin deactivating their own account only affects
         themselves and an admin can restore it, so the guard is the app admin's
         alone.
+
+        A password is refused here rather than applied: this route proves nothing
+        about the current one, and honouring it would be the bypass the dedicated
+        `/auth/password/change` endpoint exists to close - a stolen access token
+        changing a password without the old one (#1517).
         """
+        if user_in.password is not None:
+            raise BadRequestError(
+                message="Change your password through /auth/password/change, which proves the current one."
+            )
         if user.is_app_admin and user_in.is_active is False:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
         return await self.update(user.id, user_in, current_session_id=current_session_id)
+
+    async def change_password(
+        self, user: User, *, current_password: str, new_password: str
+    ) -> User:
+        """Change a signed-in user's own password, proving they know the current one.
+
+        The proof is what `PATCH /users/me` cannot ask for, and the reason
+        self-service password change is its own endpoint rather than that route: a
+        stolen access token must not be able to change a password without the old
+        one (#1517). The change bumps the credential version and revokes *every*
+        session - the caller's own included, because the `cv` gate would refuse a
+        spared session's stale-version token at its next refresh anyway. The caller
+        keeps their access through the fresh session the route opens at the new
+        version, while every other device is logged out (#1439).
+
+        Returns the updated user so the route can mint that session at the new
+        `credential_version`.
+
+        The user row is locked for the whole change, so two overlapping requests
+        cannot both prove the same old hash and then have the later one overwrite
+        the first, nor both read the same version and lose one of the two bumps -
+        either would leave a session refreshable past a password change (#1517).
+
+        Raises:
+            AuthenticationError: the current password is wrong, or the account
+                signs in through OAuth alone and has no password to change.
+            NotFoundError: the account no longer exists.
+        """
+        locked = await user_repo.get_by_id_for_update(self.db, user.id)
+        if locked is None:
+            raise NotFoundError(message="User not found", details={"user_id": user.id})
+        stored = locked.hashed_password
+        ok = stored is not None and await asyncio.to_thread(
+            verify_password, current_password, stored
+        )
+        if not ok:
+            raise AuthenticationError(message="Current password is incorrect")
+        return await self.update(locked.id, UserUpdate(password=new_password))
 
     async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -684,7 +739,11 @@ class UserService:
             self.db,
             db_user=user,
             update_data={
-                "hashed_password": await asyncio.to_thread(get_password_hash, new_password)
+                "hashed_password": await asyncio.to_thread(get_password_hash, new_password),
+                # Bumped for the same reason the self-service change bumps it: a
+                # refresh racing the revocation below must not rotate a token
+                # minted before the reset (#1517).
+                "credential_version": user.credential_version + 1,
             },
         )
         # Revoke any active sessions so a previously-issued refresh token cannot
