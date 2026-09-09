@@ -342,6 +342,16 @@ class ChannelMessageRouter:
             # attachment is fetched, stored or transcribed for a turn
             # `_membership_context` refuses anyway - which is now the second lock
             # rather than the first (#1456).
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                # Consumed on the refusal path too, not only before a turn:
+                # otherwise a refused sender mints a link request and an
+                # invitation on every message with no allowance ever spent
+                # (#1516). Rides the invite's own channel - shown where the
+                # invite would show, silent where it would stay silent.
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
             await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
@@ -1069,6 +1079,17 @@ class ChannelMessageRouter:
             # carrying a code somebody copied. Kept because "how do I connect
             # this?" is a question people ask in words, and because a URL that
             # expired needs a way to ask for another.
+            if incoming.chat_type == "private":
+                # The other door onto `_invite_to_link`, and it runs before the
+                # admission gate's allowance is consulted, so a refused sender
+                # could churn link requests through `/link` where the plain
+                # message is now throttled (#1516). Only in a direct message,
+                # where the invite actually mints a request.
+                identity = await self._resolve_identity(incoming, bot, db)
+                try:
+                    await self._check_rate_limit(bot, str(identity.id))
+                except BadRequestError as exc:
+                    return exc.message
             try:
                 return await self._invite_to_link(incoming, db)
             except Exception:
