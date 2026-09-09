@@ -165,6 +165,27 @@ Computed properties:
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
 
+## Email (SMTP)
+
+The deployment sends mail through an SMTP server, and a deployment with none
+configured does not fail — it runs, and three things silently stop working, none
+of which announces itself:
+
+- **invitations** — an invited address is never mailed (the console now says so
+  rather than claiming it sent one, #1479);
+- **password resets** — the only self-service way back into a locked-out account;
+- **notifications** — a budget breach, an approval request, a usage report.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SMTP_HOST` | `localhost` | SMTP server host |
+| `SMTP_PORT` | `587` | SMTP server port (`587` is the STARTTLS submission port) |
+| `SMTP_USER` | (empty) | SMTP username. Empty uses the server unauthenticated |
+| `SMTP_PASSWORD` | (empty) | SMTP password |
+| `SMTP_TLS` | `true` | Open the connection with STARTTLS |
+| `EMAIL_FROM` | `noreply@agenticos.com` | The `From` address on every message |
+| `EMAIL_FROM_NAME` | `agenticos` | The display name shown beside that address |
+
 ## Background work (Prefect)
 
 | Variable | Default | Description |
@@ -911,3 +932,8 @@ stale and production's pipe ping goes unanswered.
 - [ ] `REDIS_PASSWORD` — a strong password
 - [ ] `CORS_ORIGINS` — only your actual frontend domain(s)
 - [ ] `OPENROUTER_API_KEY` — your production API key
+
+Email is deliberately **not** on this list: a deployment runs without it. But
+invitations, password resets and notifications all go silently unsent until
+`SMTP_HOST` and the rest of [Email (SMTP)](#email-smtp) point at a real server —
+so a deployment that skips it should be skipping it knowingly.
