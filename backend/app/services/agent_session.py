@@ -137,34 +137,43 @@ class AgentSession:
         paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
 
-        Every frame is refused first if the session behind the socket has been
-        revoked (#1437), so nothing - not a new turn, not the answer that
-        resumes a parked one - is served on a dead credential.
+        A frame that will *act* on the session is refused first if that session
+        has been revoked (#1437), so nothing - not a new turn, not the answer
+        that resumes a parked one, not cancelling a turn that is still running -
+        happens on a dead credential. A frame that would do nothing - an unknown
+        control type, or a message arriving while a turn is already in progress -
+        is dropped before that check, so it costs no credential query: an
+        authenticated client cannot turn a stream of no-op frames into a stream
+        of database reads (found reviewing #1437).
         """
-        if not await self._reauthorize():
-            return
-
         msg_type = data.get("type")
 
         if msg_type == "stop":
+            if self._turn_task is None or self._turn_task.done():
+                return
+            if not await self._reauthorize():
+                return
             await self._cancel_turn()
             return
 
         if msg_type == "ask_user_response":
             fut = self._ask_user_future
-            if fut is not None and not fut.done():
-                raw = data.get("answers")
-                answers = raw if isinstance(raw, list) else []
-                fut.set_result(answers)
-                # Recorded here, in the receive loop, rather than after the run
-                # resumes past its await: a `stop` sent right behind the answer is
-                # the next frame, so completing the pair now is what keeps a turn
-                # cancelled a microtask later from losing the answered question
-                # (#502).
-                if self._pending_question is not None and self._current_timeline is not None:
-                    self._current_timeline.add_ask_user(
-                        self._pending_question, render_answer(answers[0] if answers else None)
-                    )
+            if fut is None or fut.done():
+                return
+            if not await self._reauthorize():
+                return
+            raw = data.get("answers")
+            answers = raw if isinstance(raw, list) else []
+            fut.set_result(answers)
+            # Recorded here, in the receive loop, rather than after the run
+            # resumes past its await: a `stop` sent right behind the answer is
+            # the next frame, so completing the pair now is what keeps a turn
+            # cancelled a microtask later from losing the answered question
+            # (#502).
+            if self._pending_question is not None and self._current_timeline is not None:
+                self._current_timeline.add_ask_user(
+                    self._pending_question, render_answer(answers[0] if answers else None)
+                )
             return
 
         if msg_type is not None:
@@ -172,6 +181,9 @@ class AgentSession:
 
         if self._turn_task is not None and not self._turn_task.done():
             logger.warning("Ignoring message received while a turn is already in progress")
+            return
+
+        if not await self._reauthorize():
             return
         task = asyncio.create_task(self._run_turn(data))
         self._turn_task = task

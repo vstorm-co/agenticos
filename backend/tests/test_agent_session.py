@@ -517,6 +517,71 @@ class TestReauthorizingEachFrame:
         session.websocket.close.assert_not_called()
         assert auth.await_args.kwargs["allow_expired"] is True
 
+    async def test_an_unknown_control_frame_costs_no_credential_query(self):
+        """A frame that does nothing must not re-check the credential: otherwise
+        an authenticated client turns a stream of no-op frames into a stream of
+        database reads (found reviewing #1437)."""
+        session = self._socket_session()
+
+        with patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as auth:
+            await session.handle_frame({"type": "not-a-real-control-frame"})
+
+        auth.assert_not_awaited()
+        session.websocket.close.assert_not_called()
+        assert session._turn_task is None
+
+    async def test_a_message_arriving_mid_turn_costs_no_credential_query(self):
+        """A message dropped because a turn is already running re-checks nothing;
+        only the frame that started the turn paid for a credential query."""
+        session = self._socket_session()
+        running = asyncio.Event()
+        release = asyncio.Event()
+
+        async def blocks_until_released(**_kwargs: Any) -> ChatTurn:
+            running.set()
+            await release.wait()
+            return _finished_turn()
+
+        with (
+            _chat(AsyncMock(side_effect=blocks_until_released)),
+            patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as auth,
+        ):
+            await session.handle_frame(_message("first"))
+            await _wait(running)
+
+            await session.handle_frame(_message("second, while the first is still running"))
+            assert auth.await_count == 1
+
+            release.set()
+            await session._turn_task
+
+        session.websocket.close.assert_not_called()
+
+    async def test_a_revoked_session_cannot_answer_a_parked_question(self):
+        """Resuming a parked `ask_user` is serving the turn, so a revoked session
+        is refused: the answer is never applied and the socket closes, rather than
+        the run continuing on a dead credential (#1437)."""
+        session = self._socket_session()
+        future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+        session._ask_user_future = future
+
+        with self._revoked():
+            await session.handle_frame({"type": "ask_user_response", "answers": ["yes"]})
+
+        assert not future.done()
+        session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
+
+    async def test_an_answer_with_no_question_waiting_costs_no_credential_query(self):
+        """An `ask_user_response` arriving with nothing parked does nothing, and
+        does it without re-checking the credential."""
+        session = self._socket_session()
+
+        with patch("app.services.agent_session.authenticate_socket_token", new=AsyncMock()) as auth:
+            await session.handle_frame({"type": "ask_user_response", "answers": ["yes"]})
+
+        auth.assert_not_awaited()
+        session.websocket.close.assert_not_called()
+
     async def test_a_socket_already_gone_is_not_a_second_error(self):
         """Closing a socket the client already closed raises RuntimeError from
         Starlette; the refusal swallows it rather than crashing the receive
