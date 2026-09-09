@@ -1312,10 +1312,23 @@ Both are refused with a 403 while impersonating, because an administrator
 repairing a member's connection is not a flow this platform has. The member
 links their own accounts, as themselves.
 
-The line is the administrator's *own* identity: the refusal covers a binding
-that captures whoever is acting — a chat account, an OAuth grant — not ordinary
-configuration an administrator legitimately performs on the member's behalf,
-such as typing a server's bearer token.
+The line is any credential fastened to the member, not only an identity: beyond
+the chat account and the OAuth grant above, a bearer token typed onto the
+member's connection is refused too. Such a token is not the administrator's own
+identity, but sealed under the member's vault scope it speaks as whoever's
+account it belongs to for every one of the member's agents, outlives the hour
+the impersonation is bounded to, and stands recorded against the member. What an
+administrator still does on the member's behalf is configuration that stores no
+secret — a name, a URL, a tool allowlist — and clearing a stored token, which
+keeps nothing.
+
+An **organization's** shared connection is the same, though it is meant to be
+admin-entered: a bearer token typed onto one under an impersonation is refused
+too, because sealed under the organization's vault scope it speaks as the
+administrator's own account for every agent the organization binds, past the
+hour the impersonation ends. Creating an org connection already recorded the
+administrator behind it; updating one recorded nothing at all, so a token
+rotated onto an existing connection now leaves the same trail (#1521).
 
 ## What none of this covers
 
