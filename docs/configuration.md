@@ -167,24 +167,33 @@ Computed properties:
 
 ## Email (SMTP)
 
-The deployment sends mail through an SMTP server, and a deployment with none
-configured does not fail — it runs, and three things silently stop working, none
-of which announces itself:
+The deployment sends mail through an SMTP server, and one with none configured
+does not fail — it runs, and every mail-dependent flow silently stops, none of
+them announcing itself:
 
+- **passwordless sign-in and password resets** — the magic-link and reset emails
+  are the self-service ways into an account;
 - **invitations** — an invited address is never mailed (the console now says so
-  rather than claiming it sent one, #1479);
-- **password resets** — the only self-service way back into a locked-out account;
-- **notifications** — a budget breach, an approval request, a usage report.
+  rather than claiming it sent one, #1484);
+- **notifications** — a budget breach, an approval request, a usage report, the
+  notice sent when an administrator acts as another account.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SMTP_HOST` | `localhost` | SMTP server host |
-| `SMTP_PORT` | `587` | SMTP server port (`587` is the STARTTLS submission port) |
-| `SMTP_USER` | (empty) | SMTP username. Empty uses the server unauthenticated |
-| `SMTP_PASSWORD` | (empty) | SMTP password |
-| `SMTP_TLS` | `true` | Open the connection with STARTTLS |
+| `SMTP_PORT` | `587` | SMTP server port. Pair it with `SMTP_TLS` — `465` for TLS from the start, `587` for STARTTLS |
+| `SMTP_USER` | (empty) | Username the relay authenticates with, alongside `SMTP_PASSWORD` |
+| `SMTP_PASSWORD` | (empty) | Password for that username |
+| `SMTP_TLS` | `true` | Open the connection with TLS from the start (`aiosmtplib`'s `use_tls`) — for an implicit-TLS port like `465`. A STARTTLS submission server on `587` wants this `false`, and the client then negotiates STARTTLS when the server offers it |
 | `EMAIL_FROM` | `noreply@agenticos.com` | The `From` address on every message |
 | `EMAIL_FROM_NAME` | `agenticos` | The display name shown beside that address |
+
+!!! warning "The shipped defaults do not send mail"
+
+    `SMTP_TLS=true` opens TLS immediately, but the default `SMTP_PORT=587` is the
+    STARTTLS submission port, where implicit TLS is rejected. Match the pair —
+    `465` with `SMTP_TLS=true`, or `587` with `SMTP_TLS=false` — until the default
+    itself is fixed (#1543).
 
 ## Background work (Prefect)
 
