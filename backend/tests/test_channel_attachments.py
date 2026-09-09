@@ -168,6 +168,12 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         patch(f"{router}.unseal_bot_token", return_value="xoxb-token"),
         patch(f"{router}.ChannelAttachmentService", _Attachments),
         patch(f"{router}.ChannelAgentRouter", agent_router),
+        # These turns never link a file (the run is mocked), so every stored row
+        # is an orphan the discard should give back.
+        patch(
+            f"{router}.chat_file_repo.unlinked_ids",
+            AsyncMock(side_effect=lambda _db, ids: set(ids)),
+        ),
     ):
         yield
 
@@ -717,6 +723,49 @@ class TestACrashAnswersTheSameOnEitherPath:
         default_reply = replies_d.await_args.args[2]
         assert "something went wrong" in mention_reply.lower()
         assert mention_reply == default_reply
+
+    async def test_a_crashed_turn_leaves_no_stored_file(self):
+        """A crash before the run links anything leaves the turn's stored
+        attachments as orphaned as a refused turn's, so they are given back on
+        either path. A crash that had already linked them keeps them - covered
+        below (#1503)."""
+        router_m, _replies_m, rows_m = _router()
+        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
+            await router_m._route_inner(_incoming("@support here is the report"), MagicMock())
+
+        router_d, _replies_d, rows_d = _router()
+        router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
+            await router_d._route_inner(_incoming("here is the report"), MagicMock())
+
+        assert rows_m == []
+        assert rows_d == []
+
+    async def test_a_crash_that_already_linked_the_files_keeps_them(self):
+        """A provider error inside the run records the failed turn and links its
+        attachments before re-raising, so the discard gives back only the rows the
+        database still shows as unlinked - never the ones a persisted failed-turn
+        transcript now points at (#1503)."""
+        linked = SimpleNamespace(id=uuid.uuid4())
+        orphan = SimpleNamespace(id=uuid.uuid4())
+        discarded: list[Any] = []
+
+        class _Attachments:
+            def __init__(self, _db: Any) -> None: ...
+
+            async def discard(self, files: list[Any]) -> None:
+                discarded.extend(files)
+
+        router_mod = "app.services.channels.router"
+        with (
+            patch(f"{router_mod}.chat_file_repo.unlinked_ids", AsyncMock(return_value={orphan.id})),
+            patch(f"{router_mod}.ChannelAttachmentService", _Attachments),
+        ):
+            await ChannelMessageRouter._discard_files(AsyncMock(), [linked, orphan])
+
+        assert discarded == [orphan]
 
     async def test_a_failure_after_streaming_edits_the_open_reply(self):
         """A turn that already streamed a status has a placeholder on screen, so
