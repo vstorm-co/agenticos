@@ -309,6 +309,7 @@ Trigger map — what changed → which page:
 | `app/services/skills.py`, `skill_library.py`, `app/core/catalog/skills/**`, `skill_gallery/**` | `docs/skills.md` |
 | `app/services/spend.py`, `approvals.py`, `notifications.py` | `docs/governance.md` |
 | `app/services/channels/**`, `agent_exposure.py`, `agent_embed.py` | `docs/channels.md` |
+| `desktop/**` | `docs/desktop.md` |
 | `app/services/rag/**`, `file_upload.py`, `ingestion_config.py` | `docs/file-processing.md` |
 | `app/services/sandbox_*.py`, `app/agents/capabilities/sandbox/**`, `app/core/catalog/sandbox_runtimes.json` | `docs/sandbox.md` |
 | `app/services/deployment_settings.py`, `signup_policy.py`, `invitation_admission.py`, `app/core/maintenance.py`, `otel_compat.py`, `app/api/exception_handlers.py` | `docs/deployment.md` |
@@ -393,6 +394,7 @@ say so and move on. Run it yourself any time with
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
+| The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
 | Every module, screenshotted in both themes | `docs/screens.md` |

@@ -119,6 +119,25 @@ describe("signing in", () => {
     expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=604800");
   });
 
+  it("marks the cookies Secure only where the visitor is on https", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValue({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
+    const credentials = { email: "a@example.com", password: "s" };
+
+    const plain = await login(request({}, credentials));
+    expect(cookie(plain, "access_token")?.attributes).not.toContain("Secure");
+    expect(cookie(plain, "refresh_token")?.attributes).not.toContain("Secure");
+
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
+    const behindTls = await login(request({}, credentials, { "x-forwarded-proto": "https" }));
+    expect(cookie(behindTls, "access_token")?.attributes).toContain("Secure");
+    expect(cookie(behindTls, "refresh_token")?.attributes).toContain("Secure");
+  });
+
   it("passes the backend's refusal through, status and sentence", async () => {
     vi.mocked(backendFetch).mockRejectedValue(
       new BackendApiError(401, "Unauthorized", { detail: "Incorrect email or password" }),
