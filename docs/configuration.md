@@ -255,7 +255,22 @@ see RAG below.
 ### Vector database
 
 pgvector uses the existing PostgreSQL connection. No additional configuration
-is needed.
+is needed — but the **image** must be `pgvector/pgvector:pg16`, which every
+compose file here pins.
+
+!!! note "\"Vector store: unconfigured\" on a fresh deployment is not a fault"
+
+    The extension is created the first time a collection is written to, so
+    before the first document it is genuinely absent and the admin System page
+    and `agenticos cmd doctor` both say so. It resolves itself on the first
+    ingestion.
+
+    What is a fault is `unhealthy` there, and it names which of three: the image
+    does not ship pgvector; the connecting role may not create it; or the data
+    directory carries the extension row while the image it now runs on has lost
+    the library. All three fail an upload after the bytes have been accepted, and
+    all three used to read the same as a healthy first day
+    ([#1504](https://github.com/vstorm-co/agenticos/issues/1504)).
 
 ### Embeddings
 
@@ -584,7 +599,7 @@ service's container, is refused with `mounts denied`.
 | | Default | |
 |---|---|---|
 | Local dev | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop shares it and anybody can write to it, so a laptop needs no setup |
-| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 (`install -d -o 10001`, once), and belongs on storage somebody backs up |
+| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, once. Not `install -d -o 10001`: `install` resolves the owner through the passwd database and refuses a uid no account owns. It belongs on storage somebody backs up |
 
 A reboot sweeps `/tmp`, which is the one reason not to point a real deployment
 there.

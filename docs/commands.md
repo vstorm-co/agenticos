@@ -30,6 +30,8 @@ Run these from the project root directory.
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
 | `make lint-precommit` | yamlfmt, zizmor and the `pre-commit-hooks` basics over every tracked file. Same reason as `lint-spelling` — those hooks are per-file, so a `rev:` bump that brings a new rule breaks the tree with nothing noticing. `SKIP` drops the hooks `lint-backend`/`lint-frontend`/`lint-spelling` already gate, so it neither doubles their time nor lets a fixer rewrite a file mid-check |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
+| `make desktop-dev` / `make desktop-build` | Open, or package, the desktop shell - a Tauri window around a console you name by address. Needs Rust and the platform webview; `docs/desktop.md` has the rest |
+| `make desktop-check` | `bun test` over the pet, then rustfmt, clippy with warnings denied and the shell's Rust tests. Not in `lint` or `check`, because CI has no Rust toolchain yet |
 | `make audit` | Audit the locked dependency set for known vulnerabilities. Needs the network — one request per locked distribution — so its last line says which of four states it ended in rather than leaving a red run ambiguous. See below |
 | `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
@@ -346,6 +348,30 @@ uv run agenticos cmd seed-skills --org <org-id> --dry-run
 # Sample data for development
 uv run agenticos cmd seed --count 10 --clear
 ```
+
+### Inviting a team, and getting the links out
+
+```bash
+# Invitations for several addresses at once, printed as `address  link`.
+uv run agenticos cmd invite-members <org-id> ada@example.com grace@example.com
+
+# One role for the batch; `member` unless you say otherwise.
+uv run agenticos cmd invite-members <org-id> ada@example.com --role admin
+
+# Whose authority they are created under. Defaults to the organization's first
+# owner, and a role gate needs a role to weigh the offered one against.
+uv run agenticos cmd invite-members <org-id> ada@example.com --as owner@example.com
+```
+
+This exists because of the two halves of an invitation. **Nothing is emailed on a
+deployment with no `SMTP_*`**, and the accept token is returned once and stored
+nowhere a second read can reach — so the link has to be printed to be passed on at
+all. The command says which of the two happened, and one refused address (already
+a member, already invited) is reported and skipped rather than costing the rest.
+
+It goes through the same service the UI does, so the role ceiling, the seat cap
+and the duplicate checks apply exactly as they do to somebody clicking the button
+— including that nobody hands out a role their own does not strictly outrank.
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` wraps `bootstrap` with the
 migrations it needs. Run `doctor` first when something works locally and not on a

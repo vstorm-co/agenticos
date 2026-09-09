@@ -35,7 +35,9 @@ The key point is this:
 
     A business team composes agents in a browser — instructions, a model, a set
     of capabilities, a budget — and the result runs the same way everywhere:
-    web chat, HTTP API, Slack, Telegram, an embedded widget.
+    web chat, HTTP API, Slack, Telegram, an embedded widget. The console itself
+    is a web app; the [desktop app](desktop.md) is the same console in a window
+    of its own, an add-on for those who want it on the dock.
 
     Engineers extend what there is to compose, in typed Python. Configuration
     can only ever reach what code registered, which is what makes a no-code

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.374"
+version = "0.0.378"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -489,6 +489,7 @@ include = [
     "app/commands/audit_skill_bindings.py",
     "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
+    "app/commands/invite_members.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -748,6 +749,7 @@ include = [
     "app/commands/audit_skill_bindings.py",
     "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
+    "app/commands/invite_members.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",

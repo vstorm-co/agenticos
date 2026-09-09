@@ -17,6 +17,122 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.378] - 2026-09-08
+
+### Added
+
+- **A desktop app, as an add-on.** `desktop/` is a Tauri shell around the same
+  console the server serves — same sign-in, same permissions, nothing bundled —
+  for whoever wants it on the dock. The console stays a web app and that is how
+  it is used; the shell asks for the server's address once, probes it before
+  pointing the webview anywhere, and puts you back on the form with the reason
+  when nothing answers. `make desktop-dev`, `make desktop-build`,
+  `make desktop-check`; the page is `docs/desktop.md`. (#1531)
+- **A pet.** Five to choose from — Orbit, Boxy, Ghost, Sprout and Amigo, in a
+  sombrero — in a transparent always-on-top window, drawn from pixel data
+  composed at runtime. Drag it, click it to wave and hear a line, stroke it for a
+  heart, double-click for the console; it idles, looks at the cursor, strolls and
+  turns back at the screen's edge, dozes after dark. Its right-click menu, the
+  tray icon and the menu bar share one set of items. (#1531)
+- **A screenshot into a new chat.** `⌘⇧A` anywhere gives the Cmd+Shift+4
+  crosshair; the region lands attached to a fresh chat, handed to the composer's
+  own file input on the configured server's origin only, within two minutes.
+  Rebound under Settings (`⌘,`); a binding another application holds is named
+  there rather than shown as bound. macOS asks for Screen Recording the first
+  time, and the pet says so when it was refused. (#1531)
+
+### Fixed
+
+- **A production build served over plain HTTP set session cookies WebKit
+  discards.** `secure` followed `NODE_ENV`, so `make dev-frontend` at
+  `http://localhost:3000` marked both tokens `Secure` — which Safari, and every
+  WKWebView, drops on localhost. Login answered 200 and every request after it
+  was "Not authenticated", with nothing in any log. The flag now follows the
+  scheme the visitor is on, `X-Forwarded-Proto` first, in every route that sets
+  or clears a session cookie. (#1531)
+
+### Security
+
+- **httpx2 and httpcore2 to 2.12.0.** Five advisories against the locked 2.9.1
+  (CVE-2026-84378 through -84382), both transitive through `pydantic-ai-slim`;
+  the lock alone moves. (#1531)
+- **The desktop shell refuses cleartext `http://` to any host but this machine**,
+  and names the host in its title whenever the window shows a site other than the
+  server, since it has no address bar. Google sign-in works through Safari's
+  version tokens on the same engine; the system-browser handoff Google prefers is
+  #1532. (#1531)
+
+## [0.0.377] - 2026-09-07
+
+### Fixed
+
+- **Connecting an MCP server through OAuth authorized, then sent the browser
+  nowhere.** The provider returned somebody to
+  `http://0.0.0.0:3000/mcp-servers?mcp_oauth=success` — the connection made, the
+  person on a page nothing can reach. `NextResponse.redirect` requires an
+  absolute URL, and the only origin a standalone Next process knows is the
+  address it binds to, so behind any reverse proxy the `Location` header carried
+  it. The callback emits a relative one now, which the browser resolves against
+  the URL it actually asked for. Local development never showed it, because there
+  the bind address is the address the browser used.
+
+## [0.0.376] - 2026-09-07
+
+### Fixed
+
+- **The vector-store check predicted a failure it had never checked, and hid the
+  one that would really happen.** It read whether pgvector had been *created* in
+  this database and then reported what the first ingestion would do — but that
+  row cannot tell a fresh deployment from a stock-Postgres one, a restricted
+  role, or a data directory that outlived the image holding the library. A
+  healthy production said document ingestion would fail; a deployment where it
+  really will fail said the same thing. What the image ships and what the
+  connecting role may do with it are now both asked before any consequence is
+  claimed, and each of the four outcomes says which it is.
+- **The sandbox could not be turned on as documented, and a deploy stopped one
+  that was.** `install -d -o 10001` — in two compose files and the configuration
+  page — fails on Ubuntu, because `install` resolves the owner through the passwd
+  database and 10001 is the service's uid, not an account. And the service sits
+  behind a compose profile, which `up -d` without that profile does not ignore:
+  it stops it. So starting the sandbox by hand held until the next merge to
+  `main`, after which an agent's code execution failed for reasons nowhere near
+  the deploy that caused it — with the deploy green throughout. `scripts/deploy.sh`
+  now reads the host the way it already reads the proxy.
+- **The sandbox never had the group that owns the Docker socket.** Every compose
+  file interpolates `${DOCKER_GID:-0}` into its `group_add` and nothing set it, so
+  the service ran in group 0 — the socket's owner on almost no Linux distribution
+  — and could not open the socket at all. Read off the socket now, in the deploy
+  and in `make dev`.
+
+## [0.0.375] - 2026-09-07
+
+### Added
+
+- **`invite-members`, for onboarding a team rather than a person.**
+  `agenticos cmd invite-members <org-id> a@example.com b@example.com --role admin`
+  creates one invitation per address and prints them as `address  link`, one per
+  line and nothing between them, because that output is meant to be copied. It
+  exists for the same reason the fix below does: nothing is emailed on a
+  deployment with no `SMTP_*`, and the accept token is returned once and stored
+  nowhere a second read can reach. It goes through the same service the console
+  does, so the role ceiling, the seat cap and the duplicate checks apply exactly
+  as they do to somebody clicking the button - which is why it invites *as*
+  somebody, defaulting to the organization's first owner. One refused address is
+  reported and skipped rather than costing the rest.
+
+### Fixed
+
+- **An invitee with no account lost the invitation on the way to the sign-up
+  form.** They opened the link, were sent to sign in, clicked "create an
+  account", registered - and arrived in no organization at all, with the token
+  gone and nowhere to read it from again. The chain that carries it is built and
+  tested: the auth guard bounces them to `/login?returnTo=<the invitation>`, and
+  everything downstream reads the token back out of that one parameter. The
+  invitation page then overrode it with a redirect of its own writing
+  `?redirect=`, a name nothing reads - and since the page renders only once the
+  guard has decided, that push reliably replaced the guard's. On an `invite_only`
+  deployment the bare sign-up form it produced refuses them as well.
+
 ## [0.0.374] - 2026-09-07
 
 ### Fixed
