@@ -1747,6 +1747,33 @@ class TestMcpConnectionService:
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_org_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """The organization start binds a grant the same way, so it takes the same
+        refusal - before any discovery or row - the org half of #1438 (#1490)."""
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start_for_org(ctx, name="shared", url="https://srv/mcp")
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_org_github_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """The GitHub org start skips `_oauth_start`, so it carries its own guard -
+        refused before the org's OAuth-app credentials are even read (#1490)."""
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start_for_org_github(ctx, portal_key="any-portal")
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_polled_portal_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """The polled-portal start skips `_oauth_start` too, so it carries its own
+        guard - the third org route #1438's single guard would have missed (#1490)."""
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start_for_polled_portal(ctx, portal_key="any-portal")
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_create_with_a_token_is_refused_under_an_impersonation(
         self, service, repo, monkeypatch
     ):
