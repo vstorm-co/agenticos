@@ -186,6 +186,7 @@ nav:
       - Put it in front of people:
           - environments.md
           - channels.md
+          - desktop.md
           - rollout.md
           - deployment.md
           - deploy.md

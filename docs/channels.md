@@ -16,6 +16,9 @@ checks — the surface changes, the agent does not.
 | **Telegram** | a bot token | a Telegram account, optionally linked |
 | **Mattermost** | a bot token and your server URL | a Mattermost account, optionally linked |
 
+The dashboard also opens as a [desktop app](desktop.md): a window around the same
+console, loaded from the same server, with nothing bundled.
+
 !!! abstract "Three rules hold on every surface, enforced in the runner"
 
     - **A run always belongs to exactly one organization.**
