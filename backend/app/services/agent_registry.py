@@ -55,7 +55,6 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
-from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
@@ -1474,10 +1473,13 @@ class AgentRegistryService:
         `factory._instrument` says publishing is where a missing tracing secret
         is refused because a run is far too late: an unusable token there logs
         `agent_logfire_token_unavailable` and the agent runs untraced. So the
-        token reference gets the same existence, tenant and kind checks a
-        capability's secret does - it is an `api_key` the factory instantiates
-        as an `ApiKeySecret`, and a wrong-kind or cross-tenant id must fail here
-        rather than silently at run time. Miss and refusal read alike, so an id
+        token reference gets the same existence and tenant checks a capability's
+        secret does, plus the `logfire` purpose gate `_check_logfire_secret`
+        already applies on the environment path - a Tavily or OpenAI key passes
+        a kind-only check (all three are `api_key`) and is then handed to Logfire
+        as its token, exposing the credential to the wrong service. The purpose
+        subsumes the kind: `_check_purpose` refuses a `logfire` secret that is
+        not an `api_key` at creation. Miss and refusal read alike, so an id
         cannot enumerate the vault.
         """
         observability = spec.observability
@@ -1493,10 +1495,10 @@ class AgentRegistryService:
                 "The tracing token points at a secret this organization does not have: "
                 f"{observability.token_secret_id}"
             ]
-        if secret.kind != SecretKind.API_KEY.value:
+        if secret.purpose != "logfire":
             return [
-                "The tracing token must be an api_key secret, but "
-                f"'{secret.name}' holds a {secret.kind}"
+                "The tracing token must be a Logfire key, but "
+                f"'{secret.name}' is for {secret.purpose}"
             ]
         return []
 

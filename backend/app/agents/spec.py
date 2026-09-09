@@ -344,9 +344,10 @@ class ObservabilitySpec(BaseModel):
     The token is a reference, never a value - like every other credential a spec
     names. A spec is exported as YAML into somebody's repository, and a write
     token in a checked-in file is a token that has to be rotated. The reference
-    is checked at publish for existence, tenant and `api_key` kind the same way
-    a capability's secret is: an unusable token there runs the agent untraced,
-    which is far too late to learn it was never reachable.
+    is checked at publish for existence, tenant and the `logfire` purpose the
+    same way `_check_logfire_secret` gates the environment path: an unusable or
+    wrong-service token there runs the agent untraced, which is far too late to
+    learn it was never reachable.
 
     `organization` and `project` are the other half of that redirection, and they
     are here rather than in deployment settings for the same reason the token is:

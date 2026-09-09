@@ -379,20 +379,25 @@ class TestObservabilityPublishValidation:
         assert lookup.call_args.kwargs["organization_id"] == ctx.organization_id
 
     @pytest.mark.anyio
-    async def test_publishing_refuses_a_tracing_token_of_the_wrong_kind(self, secret_row):
-        secret_row.kind = SecretKind.AWS_CREDENTIALS.value
-        secret_row.name = "Bedrock"
+    async def test_publishing_refuses_a_tracing_token_for_another_service(self, secret_row):
+        """The gap a kind-only check missed: a Tavily or OpenAI key is also an
+        `api_key`, so it passes on kind and is then handed to Logfire as its
+        token. The `logfire` purpose gate - the same one the environment path
+        applies - refuses it."""
+        secret_row.purpose = "tavily"
+        secret_row.name = "Tavily search"
 
         problems, _, _ = await _observability_publish_problems(
             ObservabilitySpec(token_secret_id=secret_row.id), secret=secret_row
         )
 
         assert problems == [
-            "The tracing token must be an api_key secret, but 'Bedrock' holds a aws_credentials"
+            "The tracing token must be a Logfire key, but 'Tavily search' is for tavily"
         ]
 
     @pytest.mark.anyio
     async def test_a_matching_tracing_token_publishes(self, secret_row):
+        secret_row.purpose = "logfire"
         problems, _, _ = await _observability_publish_problems(
             ObservabilitySpec(token_secret_id=secret_row.id), secret=secret_row
         )
@@ -409,6 +414,7 @@ class TestObservabilityPublishValidation:
         secret_row.organization_id = ctx.organization_id
         secret_row.owner_user_id = uuid.uuid4()
         secret_row.visibility = Visibility.PRIVATE.value
+        secret_row.purpose = "logfire"
         spec = AgentSpec(
             name="Traced",
             model_profile_id=uuid.uuid4(),
