@@ -13,6 +13,7 @@ describe("isSafeReturnPath", () => {
     ["nothing remembered", null],
     ["nothing at all", undefined],
     ["a scheme", "https://evil.example"],
+    ["a javascript: url", "javascript:alert(document.domain)"],
     ["a protocol-relative path", "//evil.example/x"],
     ["a backslash variant browsers normalise to //", "/\\evil.example"],
     ["a relative path, which resolves against wherever the visitor stands", "agents"],

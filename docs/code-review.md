@@ -349,13 +349,27 @@ the ones titled `Code Quality: …`.
 
 | Analysis | Languages | Where a finding lands | What a false positive costs |
 |---|---|---|---|
-| Code scanning | `actions`, `javascript-typescript`, `python` | The Security tab, and an annotation on the diff | Dismiss it once, with a reason. Three are dismissed today, all `py/clear-text-logging-sensitive-data` in `mcp_tasks.py` |
+| Code scanning | `actions`, `javascript-typescript`, `python` | The Security tab, and an annotation on the diff | Dismiss it once, with a reason. Four are dismissed today: three `py/clear-text-logging-sensitive-data` in `mcp_tasks.py`, and one `js/clear-text-storage-of-sensitive-data` in `oauth-return.ts` (below) |
 | Code Quality | `javascript-typescript`, `python` | A **review thread** from `github-code-quality[bot]` | The merge is blocked until somebody resolves the thread |
 
 The second row is the expensive one, for exactly the reason the reviewer's inline
 findings are: the ruleset requires every review thread resolved, so a finding
 nobody agrees with still has to be handled by hand. #196 paid eight threads for
 one alert, all of them the same false positive.
+
+### The stored `returnTo` path is not a credential
+
+Code scanning flags `rememberReturnTo` in `frontend/src/lib/oauth-return.ts`
+writing to `sessionStorage` (`js/clear-text-storage-of-sensitive-data`). What it
+stores is the relative path the visitor was on before sign-in, carried across the
+OAuth round trip (#135) — not a credential. The open-redirect risk a stored path
+*could* carry is closed on the read side: every consumer resolves it through
+`postSignInDestination`, which honours it only when `isSafeReturnPath` agrees it is
+one of this app's own paths, so a scheme (`https://evil`), a protocol-relative path
+(`//evil`) or a `javascript:` value is refused there rather than followed.
+Validating again at the write is the second copy `oauth-return.ts` deliberately
+does not keep. Dismissed with this reason (#1414); reopening it re-asks a settled
+question.
 
 ### There is no filter to reach for (checked 2026-08-05)
 
