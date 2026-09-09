@@ -84,7 +84,14 @@ class SessionService:
             session_id=session_id,
         )
 
-    async def rotate_session(self, session: Session, new_refresh_token: str) -> Session:
+    async def rotate_session(
+        self,
+        session: Session,
+        new_refresh_token: str,
+        *,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Session:
         """Rotate a login's refresh token in place, keeping the session row's id.
 
         Refresh mints a new refresh token and a new access token; the row keeps
@@ -92,13 +99,23 @@ class SessionService:
         socket, or a second tab, holding the old access token is not cut off by a
         routine rotation (#1437, #1501) - while the new token's hash replaces the
         old, which is what stops the spent refresh token being replayed.
+
+        The device and address are moved to wherever the refresh came from, the way
+        recreating the row used to: the sessions list is what a person revokes an
+        unfamiliar device from, so it has to show where the credential is being used
+        now, not only where the login began (#1501 review).
         """
         expires_at = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        device_name, device_type = _parse_user_agent(user_agent)
         return await session_repo.rotate(
             self.db,
             session=session,
             refresh_token_hash=hash_token(new_refresh_token),
             expires_at=expires_at,
+            device_name=device_name,
+            device_type=device_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
 
     async def get_user_sessions(self, user_id: UUID) -> list[Session]:
@@ -161,7 +178,10 @@ class SessionService:
         it: its window is the access token's own, and nothing extends it.
         """
         token_hash = hash_token(refresh_token)
-        session = await session_repo.get_by_refresh_token_hash(self.db, token_hash)
+        # Locked: a refresh and a concurrent one bearing the same token serialize
+        # here, so the second finds the hash already rotated away and refuses,
+        # rather than both rotating the row (#1501 review).
+        session = await session_repo.get_by_refresh_token_hash(self.db, token_hash, for_update=True)
 
         if (
             session

@@ -97,7 +97,12 @@ async def refresh_token(
     # token names the same `sid`, so a live socket or a second tab holding the
     # old access token is not cut off by a routine refresh (#1437, #1501). The
     # old refresh token's hash is replaced, which is what makes it unusable.
-    await session_service.rotate_session(session, new_refresh_token)
+    await session_service.rotate_session(
+        session,
+        new_refresh_token,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
     access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 

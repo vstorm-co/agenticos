@@ -185,3 +185,16 @@ class TestRefreshToken:
         assert payload is not None
         assert payload["sub"] == subject
         assert payload["type"] == "refresh"
+
+    def test_two_refresh_tokens_for_one_subject_are_unique(self):
+        """A random `jti` keeps two tokens minted for one subject in the same
+        second from being byte-identical: their hashes would otherwise collide
+        into two session rows under one hash, and the next refresh's lookup raises
+        instead of resolving (#1501)."""
+        first = create_refresh_token("user123")
+        second = create_refresh_token("user123")
+
+        assert first != second
+        payload = verify_token(first)
+        assert payload is not None
+        assert payload["jti"]

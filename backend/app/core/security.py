@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import bcrypt
 import jwt
@@ -58,13 +58,21 @@ def create_refresh_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
 ) -> str:
-    """Create a JWT refresh token."""
+    """Create a JWT refresh token.
+
+    Carries a random `jti` so two tokens minted for the same subject in the same
+    second are not byte-identical. A session row stores the SHA-256 of its refresh
+    token, and `exp` is second-resolution, so without this two sign-ins a moment
+    apart would hash to the same value - two active rows under one hash, and the
+    next refresh's `scalar_one_or_none` lookup raises rather than resolving (#1501
+    review).
+    """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh", "jti": uuid4().hex}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
