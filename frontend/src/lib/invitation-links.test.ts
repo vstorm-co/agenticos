@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { invitationTokenFrom, registerHref } from "./invitation-links";
+import {
+  invitationFlowFrom,
+  invitationTokenFrom,
+  isInvitationFlow,
+  pendingLandingFor,
+  registerHref,
+  stageCookieName,
+} from "./invitation-links";
 import { ROUTES } from "./constants";
 
 /**
@@ -52,6 +59,45 @@ describe("reading a token out of a path", () => {
     expect(invitationTokenFrom("/invitations/abc?x=1")).toBeNull();
     expect(invitationTokenFrom("https://evil.example/invitations/abc")).toBeNull();
     expect(invitationTokenFrom("/invitations/../../etc/passwd")).toBeNull();
+  });
+});
+
+describe("the flow a staging is bound to", () => {
+  const flow = "0123456789abcdef0123456789abcdef";
+
+  it("is carried on the pending landing and names the cookie holding its handle", () => {
+    expect(pendingLandingFor(flow)).toBe(`/invitations/pending?flow=${flow}`);
+    expect(stageCookieName(flow)).toBe(`invitation_stage_${flow}`);
+  });
+
+  it("is read back off the landing, behind a locale prefix too", () => {
+    expect(invitationFlowFrom(pendingLandingFor(flow))).toBe(flow);
+    expect(invitationFlowFrom(`/pl/invitations/pending?flow=${flow}`)).toBe(flow);
+    expect(invitationFlowFrom(`/invitations/pending/?flow=${flow}&registered=true`)).toBe(flow);
+  });
+
+  it("is only ever 32 hex digits, because a cookie name is built from it", () => {
+    expect(isInvitationFlow(flow)).toBe(true);
+    expect(isInvitationFlow("../access_token")).toBe(false);
+    expect(isInvitationFlow(flow.toUpperCase())).toBe(false);
+    expect(isInvitationFlow(flow.slice(1))).toBe(false);
+    expect(isInvitationFlow(null)).toBe(false);
+    expect(isInvitationFlow(undefined)).toBe(false);
+  });
+
+  it("is absent from anything that is not the landing for one", () => {
+    expect(invitationFlowFrom(null)).toBeNull();
+    expect(invitationFlowFrom("")).toBeNull();
+    expect(invitationFlowFrom("/invitations/pending")).toBeNull();
+    expect(invitationFlowFrom("/invitations/pending?flow=not-a-flow")).toBeNull();
+    expect(invitationFlowFrom(`/agents?flow=${flow}`)).toBeNull();
+    expect(invitationFlowFrom(`/invitations/${flow}`)).toBeNull();
+    expect(invitationFlowFrom(`https://evil.example/invitations/pending?flow=${flow}`)).toBeNull();
+    expect(invitationFlowFrom(`//evil.example/invitations/pending?flow=${flow}`)).toBeNull();
+  });
+
+  it("is not read as a token, so the landing is never staged", () => {
+    expect(invitationTokenFrom(pendingLandingFor(flow))).toBeNull();
   });
 });
 

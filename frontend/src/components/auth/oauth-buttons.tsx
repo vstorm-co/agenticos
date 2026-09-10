@@ -1,5 +1,6 @@
 "use client";
 
+import { INVITATION_FLOW_PARAM, invitationFlowFrom } from "@/lib/invitation-links";
 import { rememberReturnTo } from "@/lib/oauth-return";
 
 import { GlyphIcon } from "@/components/icons/glyph";
@@ -39,14 +40,18 @@ function OAuthButtons({ variant = "signin", returnTo }: OAuthButtonsProps) {
   const t = useTranslations("auth");
   const providers = readProviders();
   if (providers.length === 0) return null;
+  // A same-origin start, so a staged invitation's httpOnly handle is attached
+  // server-side before the cross-origin hop to the provider (#1414): the token is
+  // never in this URL, only the flow naming which staging's cookie to attach, and
+  // an `invite_only` link still admits its holder.
+  const flow = invitationFlowFrom(returnTo);
 
   return (
     <div className="space-y-2.5">
       {providers.map((provider) => {
-        // A same-origin start, so a staged invitation's httpOnly handle is attached
-        // server-side before the cross-origin hop to the provider (#1414): the token
-        // is never in this URL, and an `invite_only` link still admits its holder.
-        const url = `/api/oauth/${provider}/login`;
+        const url = flow
+          ? `/api/oauth/${provider}/login?${INVITATION_FLOW_PARAM}=${flow}`
+          : `/api/oauth/${provider}/login`;
         const label =
           variant === "signup"
             ? t(`signUpWith${PROVIDER_WORDS[provider]}`)

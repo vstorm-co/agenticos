@@ -37,6 +37,14 @@ describe("carrying a return path across the provider round trip", () => {
     expect(takeReturnTo()).toBe("/invitations/pending");
   });
 
+  it("keeps a pending landing's flow, which is no credential", () => {
+    // The flow names which staging's httpOnly cookie to redeem; without the cookie it
+    // names nothing, and dropping it would leave the tab unable to find its own.
+    rememberReturnTo("/invitations/pending?flow=0123456789abcdef0123456789abcdef");
+
+    expect(takeReturnTo()).toBe("/invitations/pending?flow=0123456789abcdef0123456789abcdef");
+  });
+
   it("forgets an earlier path when there is nothing to remember", () => {
     // A visitor who arrives at /login with a deep link, gives up, and comes
     // back plainly should land on the dashboard rather than where they were

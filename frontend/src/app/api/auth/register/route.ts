@@ -7,6 +7,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
+import { INVITATION_FLOW_PARAM, isInvitationFlow, stageCookieName } from "@/lib/invitation-links";
 import type { RegisterResponse } from "@/types";
 
 /**
@@ -17,7 +18,9 @@ import type { RegisterResponse } from "@/types";
  * `httpOnly` handle before the invitee reached the form - so the handle rides that
  * cookie into a header here, where the backend peeks it for the sign-up admission
  * check. Peeked, not consumed: the same handle still closes the acceptance after
- * sign-in.
+ * sign-in. Which cookie is the form's to say, through the `flow` it read off its
+ * `returnTo`: two invitations staged side by side hold two cookies, and admitting
+ * one address against the other's invitation would refuse the person it was for.
  *
  * A refusal is forwarded whole too, and that is the part worth saying. This used to
  * read `detail` off the backend's body and fall back to a generic
@@ -31,7 +34,10 @@ import type { RegisterResponse } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const stageHandle = request.cookies.get("invitation_stage")?.value;
+    const flow = request.nextUrl.searchParams.get(INVITATION_FLOW_PARAM);
+    const stageHandle = isInvitationFlow(flow)
+      ? request.cookies.get(stageCookieName(flow))?.value
+      : undefined;
 
     const data = await backendFetch<RegisterResponse>("/api/v1/auth/register", {
       method: "POST",

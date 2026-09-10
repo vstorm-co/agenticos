@@ -369,6 +369,23 @@ describe("signing in", () => {
     // `/auth/me` answered with on mount.
     expect(useAuthStore.getState().user?.email).toBe("kacper@example.com");
   });
+
+  it("names the staged invitation's flow on a registration reached through one (#1414)", async () => {
+    // The register proxy forwards that flow's httpOnly handle for the sign-up
+    // admission; the body itself carries no token and no handle.
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "u-3", email: "invited@example.com" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await result.current.register(
+      { email: "invited@example.com", password: "secret123" },
+      "0123456789abcdef0123456789abcdef",
+    );
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/auth/register?flow=0123456789abcdef0123456789abcdef",
+      { email: "invited@example.com", password: "secret123" },
+    );
+  });
 });
 
 describe("signing out", () => {

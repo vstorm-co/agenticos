@@ -46,6 +46,25 @@ describe("the OAuth buttons", () => {
     expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/google/login");
   });
 
+  it("names the staged invitation's flow on the start, and nothing else about it", () => {
+    // The flow is which staging's cookie the proxy attaches - two staged side by side
+    // hold two - and is no credential on its own; the token and handle stay off the URL.
+    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
+
+    render(
+      <OAuthBlock
+        label="or"
+        variant="signup"
+        returnTo="/invitations/pending?flow=0123456789abcdef0123456789abcdef"
+      />,
+    );
+
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/api/oauth/google/login?flow=0123456789abcdef0123456789abcdef",
+    );
+  });
+
   it("remembers the deep link the visitor was headed to", async () => {
     // Not sent to the provider and not in the OAuth `state`: the trip starts
     // and ends in this tab, and `/auth/callback` reads it back (#135).

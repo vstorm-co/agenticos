@@ -9,6 +9,14 @@
  * the token. `invitationTokenFrom` is what reads the token off the path for that
  * exchange; `registerHref` carries the landing on to the sign-up form, so an invitee
  * who needs an account still returns to close the invitation afterwards.
+ *
+ * The landing names a **flow**: a random id the exchange mints, carried as
+ * `?flow=<id>` on the pending URL and in the name of the cookie holding the handle.
+ * One fixed cookie name meant two invitation links opened side by side while signed
+ * out overwrote each other, and both pending tabs then redeemed the second - the
+ * flow id binds each tab to the handle staged for it. The id is not a credential:
+ * without the `httpOnly` cookie it names nothing, which is why it may ride the URL
+ * and `sessionStorage` where the token never could.
  */
 
 import { ROUTES } from "@/lib/constants";
@@ -47,4 +55,44 @@ export function registerHref(search: string): string {
   const returnTo = new URLSearchParams(search).get("returnTo");
   if (!returnTo) return ROUTES.REGISTER;
   return `${ROUTES.REGISTER}?${new URLSearchParams({ returnTo }).toString()}`;
+}
+
+/** The query parameter the pending landing carries its flow id under. */
+export const INVITATION_FLOW_PARAM = "flow";
+
+/** A flow id is 32 lower-case hex digits - a UUID with the dashes dropped. */
+const FLOW_ID = /^[0-9a-f]{32}$/;
+
+/** Matches the pending landing's path, with or without a locale prefix. */
+const PENDING_PATH = /^\/(?:[a-z]{2}\/)?invitations\/pending\/?$/;
+
+/** Whether a value has the shape of a flow id; a cookie name is built from it. */
+export function isInvitationFlow(value: string | null | undefined): value is string {
+  return typeof value === "string" && FLOW_ID.test(value);
+}
+
+/** The `httpOnly` cookie holding one flow's staged handle. */
+export function stageCookieName(flow: string): string {
+  return `invitation_stage_${flow}`;
+}
+
+/** The credential-free landing that redeems one flow after sign-in. */
+export function pendingLandingFor(flow: string): string {
+  return `${ROUTES.INVITATION_PENDING}?${INVITATION_FLOW_PARAM}=${flow}`;
+}
+
+/**
+ * The flow id a `returnTo` is bound to, if it is the pending landing for one.
+ *
+ * Reads only the shape {@link pendingLandingFor} produces - a same-origin path to
+ * the landing with a well-formed `flow` - and answers nothing for anything else, an
+ * absolute URL included. The register form reads the invited signal off it and hands
+ * the id on to the register proxy; the provider buttons hand it to the OAuth start.
+ */
+export function invitationFlowFrom(returnTo: string | null | undefined): string | null {
+  if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) return null;
+  const url = new URL(returnTo, "http://placeholder.invalid");
+  if (!PENDING_PATH.test(url.pathname)) return null;
+  const flow = url.searchParams.get(INVITATION_FLOW_PARAM);
+  return isInvitationFlow(flow) ? flow : null;
 }

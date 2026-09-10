@@ -647,14 +647,21 @@ describe("registering, and resetting a password", () => {
     // The invitee reached the form through a staged invitation (#1414): the token is
     // in an httpOnly cookie, not the body, and the backend reads the handle from a
     // header to admit an address the sign-up policy would otherwise refuse.
+    // Which staged invitation is the form's to say, through the flow its landing
+    // named: two staged side by side hold two cookies, and the other one's would
+    // admit the wrong address.
     vi.mocked(backendFetch).mockResolvedValue({ id: "u-3", email: "invited@example.com" });
+    const flow = "0123456789abcdef0123456789abcdef";
+    const other = "fedcba9876543210fedcba9876543210";
+    const staged = new NextRequest(`http://localhost:3000/api/auth/register?flow=${flow}`, {
+      method: "POST",
+      headers: {
+        cookie: `invitation_stage_${flow}=an-opaque-handle; invitation_stage_${other}=another`,
+      },
+      body: JSON.stringify({ email: "invited@example.com", password: "secret" }),
+    });
 
-    await register(
-      request(
-        { invitation_stage: "an-opaque-handle" },
-        { email: "invited@example.com", password: "secret" },
-      ),
-    );
+    await register(staged);
 
     expect(backendFetch).toHaveBeenCalledWith(
       "/api/v1/auth/register",
@@ -662,6 +669,21 @@ describe("registering, and resetting a password", () => {
         headers: expect.objectContaining({ "X-Invitation-Handle": "an-opaque-handle" }),
       }),
     );
+  });
+
+  it("forwards no handle for a registration that names no flow", async () => {
+    // A staging cookie left in the browser is not a claim this registration made.
+    vi.mocked(backendFetch).mockResolvedValue({ id: "u-4", email: "plain@example.com" });
+
+    await register(
+      request(
+        { ["invitation_stage_0123456789abcdef0123456789abcdef"]: "an-opaque-handle" },
+        { email: "plain@example.com", password: "secret" },
+      ),
+    );
+
+    const [, options] = vi.mocked(backendFetch).mock.calls.at(-1) ?? [];
+    expect(options?.headers).not.toHaveProperty("X-Invitation-Handle");
   });
 
   it("puts the backend's reason on a refused registration", async () => {

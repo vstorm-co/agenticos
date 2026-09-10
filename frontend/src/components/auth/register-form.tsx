@@ -17,6 +17,7 @@ import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { invitationFlowFrom } from "@/lib/invitation-links";
 import { privacyLink, termsLink } from "@/lib/legal-links";
 import { EMAIL_RE, getPasswordStrength } from "@/lib/utils";
 
@@ -29,11 +30,12 @@ export function RegisterForm() {
   const search = useSearchParams();
   const returnTo = search.get("returnTo");
   // Reached from an invitation when the landing it carries is the staged pending
-  // page. The token itself is no longer here - it was exchanged for an httpOnly
-  // handle before login (#1414) - so the cookie, forwarded by the register proxy,
-  // is what admits an address the sign-up policy would otherwise refuse, and what
-  // admits a shareable link constraining no address at all (#916).
-  const invited = returnTo === ROUTES.INVITATION_PENDING;
+  // page for a flow. The token itself is no longer here - it was exchanged for an
+  // httpOnly handle before login (#1414) - so that flow's cookie, forwarded by the
+  // register proxy, is what admits an address the sign-up policy would otherwise
+  // refuse, and what admits a shareable link constraining no address at all (#916).
+  const invitationFlow = invitationFlowFrom(returnTo);
+  const invited = invitationFlow !== null;
   const branding = useBranding();
   const terms = termsLink(branding);
   const privacy = privacyLink(branding);
@@ -70,11 +72,14 @@ export function RegisterForm() {
 
     setIsLoading(true);
     try {
-      await register({
-        email,
-        password,
-        full_name: name || undefined,
-      });
+      await register(
+        {
+          email,
+          password,
+          full_name: name || undefined,
+        },
+        invitationFlow,
+      );
       toast.success(t("registerSuccess"));
       // The invitation is not accepted by registering - that needs a session - so a
       // person who arrived through one is sent back to it after signing in.

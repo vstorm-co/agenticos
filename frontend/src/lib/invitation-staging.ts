@@ -10,24 +10,38 @@
  */
 
 import { apiClient } from "@/lib/api-client";
+import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
 
 /**
  * Exchange an invitation token for the server-set handle cookie.
  *
- * Returns whether it named a live invitation: a forged or expired token is refused,
- * and the caller sends the invitee on to sign in either way - the pending page is
- * where an invalid one is finally reported, once there is a session to report it to.
+ * Answers the flow id the exchange minted - what the pending landing carries so the
+ * accept can find this staging's cookie among any others - or `null` when the token
+ * was not staged. A forged or expired token is refused, but so is a transient
+ * failure or a rate limit, and the caller cannot tell them apart from here; it keeps
+ * the invitee on the link they hold and offers to try again, rather than sending
+ * them to sign in with nothing staged to come back to.
  */
-export async function stageInvitation(token: string): Promise<boolean> {
+export async function stageInvitation(token: string): Promise<string | null> {
   try {
-    await apiClient.post("/invitations/stage", { token });
-    return true;
+    const { flow } = await apiClient.post<{ staged: boolean; flow: string }>("/invitations/stage", {
+      token,
+    });
+    return flow;
   } catch {
-    return false;
+    return null;
   }
 }
 
-/** Redeem the staged handle and accept the invitation as the signed-in user. */
-export async function acceptStagedInvitation(): Promise<void> {
-  await apiClient.post("/invitations/pending/accept");
+/**
+ * Redeem the flow's staged handle and accept the invitation as the signed-in user.
+ *
+ * A landing reached with no flow still asks, and is refused as a miss: there is no
+ * cookie to redeem, and the card reports it the same way it reports a lapsed one.
+ */
+export async function acceptStagedInvitation(flow: string | null): Promise<void> {
+  const path = flow
+    ? `/invitations/pending/accept?${INVITATION_FLOW_PARAM}=${encodeURIComponent(flow)}`
+    : "/invitations/pending/accept";
+  await apiClient.post(path);
 }
