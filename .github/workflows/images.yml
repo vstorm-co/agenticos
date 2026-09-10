@@ -16,6 +16,14 @@
 # job that used to build the backend on `main` with `push: false` for Trivy to
 # scan; the scan is the last job here, over the image that was actually pushed.
 #
+# **Only a commit already on `main` is published.** `resolve` refuses anything
+# else, so a `v*` tag pushed from a branch cannot move `latest` past the
+# pull-request boundary, and a dispatch on a branch publishes nothing. A release
+# tag on a commit `main` already built is not built again: `sha-<short>` is in
+# the registry, and `publish` gives that manifest list its version and `latest`
+# - seconds rather than minutes, and the digests a deployment pinned to are the
+# ones the release names.
+#
 # **The first publish creates each package private.** GHCR makes a new package
 # private until somebody opens its settings and changes that, and nobody inside
 # the organization can tell from inside it - every pull they try is
@@ -28,9 +36,17 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-  # For publishing `edge` before `main` has moved, and for re-running a publish
-  # whose runner died. It reads the ref it is dispatched on and nothing else.
+  # For publishing `edge` before `main` has moved, for re-running a publish whose
+  # runner died, and - with `sha` - for a commit that has no images: one whose
+  # run was lost, or one older than this workflow, which a rollback through
+  # `scripts/deploy.sh` needs. A backfill gets its `sha-<short>` tag and nothing
+  # that moves.
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to publish (default: the ref this is run from). It has to be on main already."
+        required: false
+        type: string
 
 # Read-only by default; the two jobs that push declare `packages: write` on
 # themselves. There is no `pull_request` trigger, deliberately: a fork's pull
@@ -38,22 +54,105 @@ on:
 permissions:
   contents: read
 
-# One publish per ref at a time, queued rather than cancelled: a manifest list
-# is assembled from four digests pushed by four jobs, and cancelling the run
-# between them leaves digests nothing references and a tag still pointing at the
-# previous build - which is harmless, but a queued run is simpler to reason about
-# than a half-finished one.
+# One group per *commit*, never per ref. A group per ref with
+# `cancel-in-progress: false` is one running and one pending run: merge A
+# running, B pending, C landing cancels B - GitHub's rule, the one `ci.yml`
+# quotes and keys `main` on `run_id` to avoid - and B's commit then has no
+# `sha-` images for `scripts/deploy.sh` to pull, which closes both its deploy
+# and the rollback to it. Runs for different commits share nothing but the
+# moving tags, and `publish` checks `main` before it moves `edge`. The group
+# still serialises two runs of the *same* commit - a push and a dispatch re-run
+# - which is the one collision worth preventing.
 concurrency:
-  group: images-${{ github.ref }}
+  group: images-${{ inputs.sha || github.sha }}
   cancel-in-progress: false
 
 env:
   IMAGE_PREFIX: ghcr.io/vstorm-co/agenticos
 
 jobs:
+  # Which commit, which tags, and whether anything needs building. Deliberately
+  # before any job holding `packages: write`, and the only one that reads git:
+  # what `build` checks out and `publish` names is a commit this job has
+  # already proved is on `main`.
+  resolve:
+    name: Resolve the commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      sha: ${{ steps.pin.outputs.sha }}
+      short: ${{ steps.pin.outputs.short }}
+      tags: ${{ steps.pin.outputs.tags }}
+      edge: ${{ steps.pin.outputs.edge }}
+      build: ${{ steps.pin.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, or `merge-base` cannot answer.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Sign in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `sha-<short>` on every event. `edge` for `main`, decided finally in
+      # `publish` against where `main` is by then. The version and `latest` for a
+      # `v*` tag - `latest` only for a plain `x.y.z`, the way metadata-action's
+      # `latest=auto` would have it, so a pre-release never becomes the default
+      # pull. A backfill (`sha` given) gets the `sha-` tag alone: a tag that moves
+      # belongs to the event that would have moved it.
+      - name: Pin it
+        id: pin
+        env:
+          REF: ${{ inputs.sha || github.sha }}
+          BACKFILL: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse --verify "$REF^{commit}")
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$REF ($sha) is not on main - only merged commits are published" >&2
+            exit 1
+          fi
+          short=${sha:0:7}
+          tags="sha-$short"
+          edge=false
+          if [ -z "$BACKFILL" ]; then
+            case "$GITHUB_REF" in
+              refs/heads/main) edge=true ;;
+              refs/tags/v*)
+                version=${GITHUB_REF#refs/tags/v}
+                tags="$tags $version"
+                if [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then tags="$tags latest"; fi
+                ;;
+            esac
+          fi
+          build=false
+          for image in backend frontend; do
+            if ! docker buildx imagetools inspect "$IMAGE_PREFIX-$image:sha-$short" >/dev/null 2>&1; then
+              build=true
+            fi
+          done
+          {
+            echo "sha=$sha"
+            echo "short=$short"
+            echo "tags=$tags"
+            echo "edge=$edge"
+            echo "build=$build"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing $(git --no-pager log --oneline -1 "$sha") as: $tags (edge: $edge, build: $build)"
+
   build:
     name: build ${{ matrix.image }} for ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
     # The backend's arm64 build installs LibreOffice and Tesseract from Debian's
     # mirrors on a cold cache; measured well under this, but a bound is for the
     # stall, not the median (#364).
@@ -82,6 +181,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
 
       - name: Set up Docker Buildx
@@ -94,8 +194,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Labels only. The tags are decided once, in `publish`, where the four
-      # digests are joined; here each build pushes by digest and nothing else.
+      # Labels only. The tags are `resolve`'s, applied once in `publish` where the
+      # four digests are joined; here each build pushes by digest and nothing else.
       - name: Read the image's labels
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -138,7 +238,11 @@ jobs:
     name: publish ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: build
+    needs: [resolve, build]
+    # Runs when `build` succeeded *or was skipped* because the commit's images
+    # already exist; never when it failed, so a tag is never given half a
+    # manifest list.
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     permissions:
       contents: read
       packages: write
@@ -148,6 +252,7 @@ jobs:
         image: [backend, frontend]
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: needs.build.result == 'success'
         with:
           path: ${{ runner.temp }}/digests
           pattern: digest-${{ matrix.image }}-*
@@ -163,41 +268,49 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # `semver` gives `0.0.379` on a `v0.0.379` tag and, through the default
-      # `latest=auto` flavour, `latest` beside it. `edge` follows `main`. `sha` is
-      # on every event and is the one a deployment pins to.
-      - name: Decide the tags
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=edge,branch=main
-            type=sha,format=short
-
+      # The sources are the four digests when this run built them, and the
+      # commit's existing `sha-` manifest list when it did not. `edge` is decided
+      # here, against `main` as it is *now*: runs are one per commit and do not
+      # queue, so a run for an older commit that finishes last must not move
+      # `edge` back onto it.
       - name: Join the digests into one manifest list per tag
         env:
           IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
-        working-directory: ${{ runner.temp }}/digests
+          SHA: ${{ needs.resolve.outputs.sha }}
+          SHORT: ${{ needs.resolve.outputs.short }}
+          TAGS: ${{ needs.resolve.outputs.tags }}
+          EDGE: ${{ needs.resolve.outputs.edge }}
+          BUILT: ${{ needs.build.result == 'success' }}
         run: |
+          set -euo pipefail
           tags=()
-          while IFS= read -r tag; do tags+=(-t "$tag"); done \
-            < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          for tag in $TAGS; do tags+=(-t "$IMAGE:$tag"); done
+          if [ "$EDGE" = true ]; then
+            head=$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/main | cut -f1)
+            if [ "$head" = "$SHA" ]; then
+              tags+=(-t "$IMAGE:edge")
+            else
+              echo "main has moved on to $head; leaving edge where it is"
+            fi
+          fi
           refs=()
-          for digest in *; do refs+=("$IMAGE@sha256:$digest"); done
+          if [ "$BUILT" = true ]; then
+            for digest in "$RUNNER_TEMP"/digests/*; do refs+=("$IMAGE@sha256:$(basename "$digest")"); done
+          else
+            refs+=("$IMAGE:sha-$SHORT")
+          fi
           docker buildx imagetools create "${tags[@]}" "${refs[@]}"
 
       - name: Show what was published
         env:
-          REF: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:${{ steps.meta.outputs.version }}
+          REF: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:sha-${{ needs.resolve.outputs.short }}
         run: docker buildx imagetools inspect "$REF"
 
   scan:
     name: scan ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: publish
+    needs: [resolve, publish]
     permissions:
       contents: read
       packages: read
@@ -213,21 +326,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The `sha-` tag, because it is the one name every event publishes. Seven
-      # characters is metadata-action's default short form.
-      - name: Name the image this run published
-        id: ref
-        env:
-          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
-        run: echo "ref=$IMAGE:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
       # Informational, as it was in `ci.yml`: `exit-code: 0` reports and does not
       # fail. Gating a publish on the base image's CVE count is a decision for
       # #1415, which owns the SBOM and the rest of what a release attests to.
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ steps.ref.outputs.ref }}
+          # The `sha-` tag, because it is the one name every event publishes.
+          image-ref: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:sha-${{ needs.resolve.outputs.short }}
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH

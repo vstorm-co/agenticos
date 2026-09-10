@@ -10,6 +10,12 @@ laptop, where the override file builds the image locally under another name.
   - No `pull_request` trigger. The jobs hold `packages: write`, and a workflow
     with that permission that ran on a fork's pull request would let the fork
     publish under this organization's name.
+  - Only a commit already on `main` is published, whatever ref the run was
+    started from - a `v*` tag pushed from a branch must not move `latest`.
+  - One concurrency group per commit. A group per ref with
+    `cancel-in-progress: false` is one running and one *pending* run, so a
+    third merge cancels the second's publish and that commit has no `sha-`
+    images for `scripts/deploy.sh` to pull (the rule `ci.yml` documents).
   - Every job bounds its own runtime, for the reason `test_ci_workflow.py` gives
     (#364): the default is six hours.
   - Every compose file that pulls an image pulls one of the two the workflow
@@ -86,6 +92,64 @@ class TestOnlyThisRepositoryCanPublish:
         }
         assert writers == {"build", "publish"}
 
+    def test_only_a_commit_already_on_main_is_published(self, workflow: dict[str, Any]) -> None:
+        """A `v*` tag can be pushed from any branch; the ruleset only forbids moving one.
+
+        So the workflow, not the tag, is what keeps `latest` behind the pull-request
+        boundary: `resolve` refuses a commit that is not an ancestor of `main`, and
+        every job that pushes runs after it and on the commit it resolved.
+        """
+        resolve = workflow["jobs"]["resolve"]
+        script = "\n".join(step.get("run", "") for step in resolve["steps"])
+        assert "git merge-base --is-ancestor" in script and "origin/main" in script
+        for name in ("build", "publish"):
+            needs = workflow["jobs"][name]["needs"]
+            assert "resolve" in ([needs] if isinstance(needs, str) else needs), (
+                f"{name} pushes without waiting for the commit to be checked"
+            )
+        checkout = next(
+            step for step in workflow["jobs"]["build"]["steps"] if "checkout" in step["uses"]
+        )
+        assert checkout["with"]["ref"] == "${{ needs.resolve.outputs.sha }}"
+
+    def test_a_dispatch_can_backfill_a_commit_that_has_no_images(
+        self, triggers: dict[str, Any]
+    ) -> None:
+        """A rollback through `scripts/deploy.sh` pulls `sha-<short>` and builds nothing.
+
+        A commit older than this workflow, or one whose run was lost, has no such
+        tag - so the dispatch takes the commit to publish, and the resolve step
+        holds it to the same on-`main` rule as everything else.
+        """
+        assert "sha" in triggers["workflow_dispatch"]["inputs"]
+
+
+class TestOnePublishPerCommit:
+    def test_the_concurrency_group_is_the_commit_and_never_cancels(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        """A group per ref queues one pending run and cancels the one before it.
+
+        Three merges in a row would leave the middle commit with no images, and
+        `scripts/deploy.sh` waiting twenty minutes for a tag that will never
+        exist. Keyed on the commit, runs neither queue nor cancel each other;
+        the group still serialises a push and a dispatch re-run of one commit.
+        """
+        concurrency = workflow["concurrency"]
+        assert "github.sha" in concurrency["group"]
+        assert "github.ref" not in concurrency["group"]
+        assert concurrency["cancel-in-progress"] is False
+
+    def test_a_release_on_a_built_commit_retags_rather_than_rebuilds(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        """`build` is skipped when the commit's `sha-` manifest exists, and `publish` still runs."""
+        assert workflow["jobs"]["build"]["if"] == "needs.resolve.outputs.build == 'true'"
+        publish_if = workflow["jobs"]["publish"]["if"]
+        assert "needs.build.result == 'skipped'" in publish_if
+        assert "needs.build.result == 'success'" in publish_if
+        assert "cancelled()" in publish_if
+
 
 class TestEveryJobBoundsItsOwnRuntime:
     def test_every_job_declares_a_timeout(self, workflow: dict[str, Any]) -> None:
@@ -129,6 +193,7 @@ class TestTheComposeFilesPullWhatTheWorkflowPublishes:
         services = override["services"]
         assert "build" in services["app"] and "build" in services["frontend"]
         for name, service in services.items():
-            assert not str(service.get("image", "")).startswith("ghcr.io/"), (
+            registry = str(service.get("image", "")).partition("/")[0]
+            assert registry != "ghcr.io", (
                 f"the override pins {name} to a registry image; it exists to build from the tree"
             )

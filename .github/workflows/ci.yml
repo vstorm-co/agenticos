@@ -429,9 +429,10 @@ jobs:
       REDIS_PORT: 6379
       # The browser talks to Next, Next proxies to FastAPI, and the chat
       # websocket goes to FastAPI directly — so the backend port has to match
-      # what the client bundle was built with. 8000 is the default for both.
+      # what the console tells the browser (read at runtime, #1544). 8000 is
+      # the default for both.
       BACKEND_URL: http://localhost:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+      PUBLIC_WS_URL: ws://localhost:8000
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

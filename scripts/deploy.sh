@@ -131,6 +131,11 @@ export AGENTICOS_VERSION
 # workflow does, and finishes some minutes later - so an approval given at once
 # would pull a tag that does not exist yet. Wait for the manifest rather than
 # fail on it; twenty minutes is a stalled publish, not a slow one.
+#
+# A commit that never had a run - older than `images.yml`, or its run lost -
+# is not a wait, and the message says what publishes it: the same workflow,
+# dispatched with the commit, which gives it its `sha-` tag and nothing that
+# moves.
 say "Waiting for the images tagged $AGENTICOS_VERSION"
 for image in agenticos-backend agenticos-frontend; do
   ref="ghcr.io/vstorm-co/$image:$AGENTICOS_VERSION"
@@ -140,7 +145,12 @@ for image in agenticos-backend agenticos-frontend; do
       break
     fi
     if [ "$attempt" -eq 80 ]; then
-      echo "  $ref is not in the registry after 20 minutes - did the Images workflow run for $SHA?" >&2
+      {
+        echo "  $ref is not in the registry after 20 minutes."
+        echo "  If the Images workflow never ran for $SHA - a commit older than it, or a run that was lost -"
+        echo "  publish it first, then deploy again:"
+        echo "    gh workflow run images.yml --repo vstorm-co/agenticos --ref main -f sha=$SHA"
+      } >&2
       exit 1
     fi
     sleep 15

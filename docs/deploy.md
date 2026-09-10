@@ -123,6 +123,19 @@ A release (`v0.0.380`) publishes `0.0.380` and moves `latest`; every commit on
 `main` publishes `edge` and `sha-<short>`. The compose files read the tag from
 `AGENTICOS_VERSION` in `backend/.env` and default to `latest`.
 
+Three rules the workflow keeps, each worth knowing before relying on a tag:
+
+- **Only a commit on `main` is ever published.** A `v*` tag pushed from a branch,
+  or a run dispatched on one, is refused before anything is built - so `latest`
+  cannot get past the pull-request boundary.
+- **A release on a commit `main` already built is not rebuilt.** Its `sha-<short>`
+  manifest gets the version and `latest` as extra names, so the digests a host
+  pinned to are exactly the ones the release names.
+- **A commit with no images can be given them.** Run the workflow by hand with
+  its `sha` input - `gh workflow run images.yml --ref main -f sha=<commit>` - and
+  it publishes that commit's `sha-<short>` tag and nothing that moves. That is
+  the path for a commit older than the workflow, and for one whose run was lost.
+
 !!! warning "Pin a release on a host you care about"
 
     `AGENTICOS_VERSION=0.0.380` in `backend/.env`, so that `make prod` on a bad
@@ -417,7 +430,7 @@ otherwise get an empty file and an error nobody reads on the way past.
 
 | | How |
 |---|---|
-| **Code** | Deploy the previous commit: `workflow_dispatch` with its sha, or `scripts/deploy.sh`. The images are still in the registry, so this is a pull, not a build |
+| **Code** | Deploy the previous commit: `workflow_dispatch` with its sha, or `scripts/deploy.sh`. The images are still in the registry, so this is a pull, not a build. A commit with no `sha-<short>` images - older than `images.yml`, or its run lost - is published first with `gh workflow run images.yml --ref main -f sha=<commit>`; the deploy names that command when it gives up waiting |
 | **Schema** | `agenticos db downgrade --revision=-1`, then deploy the code that matches |
 | **Data** | `pg_restore` the dump, then check the migration the code expects |
 
