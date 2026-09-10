@@ -270,6 +270,7 @@
     "forbidden": "Brak dostępu",
     "impersonationEnded": "Impersonacja została zakończona",
     "internalServerError": "Wewnętrzny błąd serwera",
+    "invitationNotFound": "To zaproszenie nie jest już dostępne",
     "loginFailed": "Logowanie nie powiodło się",
     "missingAuthorizationCode": "Brak kodu autoryzacji",
     "missingTokens": "Brak tokenów sesji",

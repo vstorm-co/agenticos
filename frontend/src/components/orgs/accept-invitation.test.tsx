@@ -41,19 +41,17 @@ describe("somebody who is not signed in", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("is left on a login URL the register link can read the token out of", () => {
-    // The other half, asserted beside it: what AuthGuard writes is exactly what
-    // `registerHref` needs, and a page pushing its own query breaks the pair
-    // without breaking either piece alone.
-    const search = new URL(
-      `/login?returnTo=${encodeURIComponent(`/invitations/${TOKEN}`)}`,
-      "https://example.test",
-    ).search;
+  it("is left on a login URL whose landing carries no token (#1414)", () => {
+    // AuthGuard exchanges the token for an httpOnly handle and returns the invitee
+    // to the credential-free `/invitations/pending`; the register link carries only
+    // that landing on, never the token.
+    const search = new URL("/login?returnTo=%2Finvitations%2Fpending", "https://example.test")
+      .search;
 
     const href = registerHref(search);
 
-    expect(href).toContain(`invitation=${TOKEN}`);
     expect(href).toContain("returnTo=");
+    expect(href).not.toContain(TOKEN);
   });
 });
 

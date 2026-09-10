@@ -643,6 +643,27 @@ describe("registering, and resetting a password", () => {
     expect(response.headers.getSetCookie()).toEqual([]);
   });
 
+  it("forwards a staged invitation's handle so the sign-up admission can peek it", async () => {
+    // The invitee reached the form through a staged invitation (#1414): the token is
+    // in an httpOnly cookie, not the body, and the backend reads the handle from a
+    // header to admit an address the sign-up policy would otherwise refuse.
+    vi.mocked(backendFetch).mockResolvedValue({ id: "u-3", email: "invited@example.com" });
+
+    await register(
+      request(
+        { invitation_stage: "an-opaque-handle" },
+        { email: "invited@example.com", password: "secret" },
+      ),
+    );
+
+    expect(backendFetch).toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Invitation-Handle": "an-opaque-handle" }),
+      }),
+    );
+  });
+
   it("puts the backend's reason on a refused registration", async () => {
     vi.mocked(backendFetch).mockRejectedValue(
       new BackendApiError(409, "Conflict", { detail: "That email is already registered" }),

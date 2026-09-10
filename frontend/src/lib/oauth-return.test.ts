@@ -28,6 +28,15 @@ describe("carrying a return path across the provider round trip", () => {
     expect(takeReturnTo()).toBeNull();
   });
 
+  it("never stores a raw invitation token, only its staged landing (#1414)", () => {
+    // The token is exchanged for an httpOnly handle before sign-in; a path still
+    // carrying one is replaced with the credential-free pending landing rather than
+    // written to a store a script can read.
+    rememberReturnTo("/invitations/a-live-bearer-token");
+
+    expect(takeReturnTo()).toBe("/invitations/pending");
+  });
+
   it("forgets an earlier path when there is nothing to remember", () => {
     // A visitor who arrives at /login with a deep link, gives up, and comes
     // back plainly should land on the dashboard rather than where they were

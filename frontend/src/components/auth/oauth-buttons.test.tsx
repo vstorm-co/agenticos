@@ -32,19 +32,18 @@ describe("the OAuth buttons", () => {
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(3);
-    expect(links[0]).toHaveAttribute("href", expect.stringContaining("/oauth/google/login"));
+    expect(links[0]).toHaveAttribute("href", "/api/oauth/google/login");
     expect(document.querySelectorAll("svg")).toHaveLength(3);
   });
 
-  it("carries the invitation token to the provider on a sign-up", () => {
+  it("starts the sign-in same-origin and carries no token in the URL (#1414)", () => {
+    // A staged invitation rides an httpOnly cookie the same-origin proxy reads and
+    // attaches to the cross-origin hop; the provider link itself is credential-free.
     process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
 
-    render(<OAuthBlock label="or" variant="signup" invitation="tok" />);
+    render(<OAuthBlock label="or" variant="signup" />);
 
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
-      expect.stringContaining("invitation=tok"),
-    );
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/google/login");
   });
 
   it("remembers the deep link the visitor was headed to", async () => {

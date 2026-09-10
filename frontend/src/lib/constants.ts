@@ -4,6 +4,9 @@ export const ROUTES = {
   HOME: "/",
   LOGIN: "/login",
   REGISTER: "/register",
+  // Where a staged invitation lands after sign-in: the token was exchanged for an
+  // httpOnly-cookie handle before login, so this path carries no credential (#1414).
+  INVITATION_PENDING: "/invitations/pending",
   FORGOT_PASSWORD: "/forgot-password",
   DASHBOARD: "/dashboard",
   CHAT: "/chat",

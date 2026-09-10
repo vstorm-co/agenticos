@@ -27,11 +27,13 @@ export function RegisterForm() {
   const router = useRouter();
   const { register } = useAuth();
   const search = useSearchParams();
-  // Present when this form was reached from an invitation. It admits an address the
-  // deployment's sign-up policy would otherwise refuse, and it is the only proof
-  // that can admit a shareable link constraining no address at all (#916).
-  const invitationToken = search.get("invitation");
   const returnTo = search.get("returnTo");
+  // Reached from an invitation when the landing it carries is the staged pending
+  // page. The token itself is no longer here - it was exchanged for an httpOnly
+  // handle before login (#1414) - so the cookie, forwarded by the register proxy,
+  // is what admits an address the sign-up policy would otherwise refuse, and what
+  // admits a shareable link constraining no address at all (#916).
+  const invited = returnTo === ROUTES.INVITATION_PENDING;
   const branding = useBranding();
   const terms = termsLink(branding);
   const privacy = privacyLink(branding);
@@ -72,7 +74,6 @@ export function RegisterForm() {
         email,
         password,
         full_name: name || undefined,
-        invitation_token: invitationToken ?? undefined,
       });
       toast.success(t("registerSuccess"));
       // The invitation is not accepted by registering - that needs a session - so a
@@ -114,7 +115,7 @@ export function RegisterForm() {
         </p>
       </div>
 
-      <SignupPolicyNotice invited={invitationToken !== null} />
+      <SignupPolicyNotice invited={invited} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-1.5">
@@ -267,14 +268,10 @@ export function RegisterForm() {
         </p>
       </form>
 
-      {/* The token travels with the provider too: an `invite_only` deployment
-          otherwise refuses the button beside a form that accepts the same person. */}
-      <OAuthBlock
-        label={t("orSignUpWith")}
-        variant="signup"
-        invitation={invitationToken}
-        returnTo={returnTo}
-      />
+      {/* The staged invitation travels with the provider too, as its httpOnly
+          handle attached same-origin (#1414): an `invite_only` deployment otherwise
+          refuses the button beside a form that accepts the same person. */}
+      <OAuthBlock label={t("orSignUpWith")} variant="signup" returnTo={returnTo} />
     </div>
   );
 }

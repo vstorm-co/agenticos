@@ -6,6 +6,8 @@ import { useAuthStore } from "@/stores";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
+import { invitationTokenFrom } from "@/lib/invitation-links";
+import { stageInvitation } from "@/lib/invitation-staging";
 import type { User } from "@/types";
 import { Spinner } from "@/components/ui";
 import { useTranslations } from "next-intl";
@@ -35,7 +37,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         // Off `window.location`, not the navigation hooks: a hook here would
         // tie the verify effect to every navigation this guard sits above.
         const { pathname, search, hash } = window.location;
-        router.replace(`${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`);
+        const invitationToken = invitationTokenFrom(pathname);
+        if (invitationToken) {
+          // Exchange the token for an httpOnly-cookie handle before the sign-in
+          // detour, so it never rides `returnTo`, browser history or
+          // `sessionStorage` (#1414). The landing carries no credential; an
+          // invalid token is reported there, once there is a session to report to.
+          await stageInvitation(invitationToken);
+          router.replace(
+            `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(ROUTES.INVITATION_PENDING)}`,
+          );
+        } else {
+          router.replace(
+            `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`,
+          );
+        }
       } finally {
         setChecking(false);
       }

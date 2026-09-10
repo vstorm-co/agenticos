@@ -1906,6 +1906,7 @@
     "forbidden": "Forbidden",
     "impersonationEnded": "The impersonation has ended",
     "internalServerError": "Internal server error",
+    "invitationNotFound": "This invitation is no longer available",
     "loginFailed": "Login failed",
     "missingAuthorizationCode": "Missing authorization code",
     "missingTokens": "Missing tokens",

@@ -22,6 +22,9 @@
  * of that rule is a second answer to it.
  */
 
+import { ROUTES } from "@/lib/constants";
+import { invitationTokenFrom } from "@/lib/invitation-links";
+
 const KEY = "oauthReturnTo";
 
 /**
@@ -29,11 +32,19 @@ const KEY = "oauthReturnTo";
  *
  * Always one or the other. Leaving a stale value in place is how a second
  * sign-in with no deep link resumes the first one's.
+ *
+ * A credential-bearing invitation deep link is never what gets stored: the token
+ * is exchanged for an `httpOnly` handle before sign-in (#1414), so a path still
+ * carrying one is replaced with its credential-free landing rather than written to
+ * a store a script can read. This is the belt to the exchange's braces - by the
+ * time a value reaches here it should already be `/invitations/pending`, and this
+ * guarantees a raw token cannot land in `sessionStorage` even if one does not.
  */
 export function rememberReturnTo(path: string | null | undefined): void {
   try {
-    if (path) {
-      window.sessionStorage.setItem(KEY, path);
+    const safe = path && invitationTokenFrom(path) ? ROUTES.INVITATION_PENDING : path;
+    if (safe) {
+      window.sessionStorage.setItem(KEY, safe);
     } else {
       window.sessionStorage.removeItem(KEY);
     }

@@ -46,4 +46,26 @@ describe("the dashboard guard, refusing", () => {
       ),
     );
   });
+
+  it("exchanges an invitation token before login and returns a credential-free landing (#1414)", async () => {
+    // A signed-out invitee's token must not ride the round trip. The guard stages it
+    // - into an httpOnly cookie the exchange sets - and sends them to the pending
+    // landing, so `returnTo` carries no credential into history or session storage.
+    window.history.replaceState(null, "", "/invitations/a-live-token");
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("401"));
+    vi.mocked(apiClient.post).mockResolvedValue(undefined);
+
+    render(
+      <AuthGuard>
+        <p>the dashboard</p>
+      </AuthGuard>,
+    );
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/invitations/stage", { token: "a-live-token" }),
+    );
+    expect(replace).toHaveBeenCalledWith(
+      `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(ROUTES.INVITATION_PENDING)}`,
+    );
+  });
 });

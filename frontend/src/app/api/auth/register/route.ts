@@ -12,8 +12,12 @@ import type { RegisterResponse } from "@/types";
 /**
  * Create an account.
  *
- * The body is forwarded whole, which is how `invitation_token` reaches the sign-up
- * policy without this route knowing about it.
+ * The body is forwarded whole. When the registration arrives through a staged
+ * invitation (#1414) the token is not in the body - it was exchanged for an
+ * `httpOnly` handle before the invitee reached the form - so the handle rides that
+ * cookie into a header here, where the backend peeks it for the sign-up admission
+ * check. Peeked, not consumed: the same handle still closes the acceptance after
+ * sign-in.
  *
  * A refusal is forwarded whole too, and that is the part worth saying. This used to
  * read `detail` off the backend's body and fall back to a generic
@@ -27,10 +31,14 @@ import type { RegisterResponse } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const stageHandle = request.cookies.get("invitation_stage")?.value;
 
     const data = await backendFetch<RegisterResponse>("/api/v1/auth/register", {
       method: "POST",
-      headers: { ...forwardedFor(request) },
+      headers: {
+        ...forwardedFor(request),
+        ...(stageHandle ? { "X-Invitation-Handle": stageHandle } : {}),
+      },
       body: JSON.stringify(body),
     });
 
