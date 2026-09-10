@@ -401,7 +401,9 @@ class ChannelMessageRouter:
         # message to it skipped the backfill too.
         thread_history: list[ModelMessage] = []
         if session.thread_backfilled_at is None:
-            thread_history, read_transcript = await self._thread_backfill(incoming, directory, bot)
+            thread_history, read_transcript = await self._thread_backfill(
+                db, incoming, directory, bot
+            )
             earlier, earlier_refusals, read_files = await self._thread_files(
                 db, bot, incoming, identity, handled=recordings
             )
@@ -1481,7 +1483,7 @@ class ChannelMessageRouter:
         return received, refusals, True
 
     async def _thread_backfill(
-        self, incoming: IncomingMessage, directory: Any, bot: ChannelBot
+        self, db: AsyncSession, incoming: IncomingMessage, directory: Any, bot: ChannelBot
     ) -> tuple[list[ModelMessage], bool]:
         """What was said in this thread before we were brought into it.
 
@@ -1541,7 +1543,7 @@ class ChannelMessageRouter:
             )
             return [], False
 
-        admitted = self._backfill_admits(bot)
+        admitted = await self._backfill_admits(db, bot, incoming, posts)
         lines = [
             f"{post.author}: {post.text}"
             for post in posts
@@ -1582,7 +1584,9 @@ class ChannelMessageRouter:
             return str(post_id) == str(incoming.message_id)
         return bool(post.text) and post.text == incoming.text
 
-    def _backfill_admits(self, bot: ChannelBot) -> Callable[[Any], bool]:
+    async def _backfill_admits(
+        self, db: AsyncSession, bot: ChannelBot, incoming: IncomingMessage, posts: list[Any]
+    ) -> Callable[[Any], bool]:
         """Which earlier speakers may be quoted into the prompt.
 
         The bot's own access policy, applied to authors rather than only to the
@@ -1594,21 +1598,51 @@ class ChannelMessageRouter:
         reading. "Context, not instructions" is a sentence in a prompt, not a
         boundary.
 
-        An author the platform did not identify is dropped under a whitelist:
-        unattributable text is exactly what must not be quoted where only named
-        people may speak. `group_only` and `open` need no author filter - the
-        first gated the room, and the second admits everybody in it.
+        A mode that requires a link takes the same rule for the same reason: an
+        `unlinked` participant cannot invoke the bot, so their earlier posts must
+        not enter the prompt the first time a linked member does (#1457). One
+        query resolves which authors are linked to an *active* member; the rest,
+        and any author the platform did not identify, are dropped - unattributable
+        text is exactly what must not be quoted where only linked people may speak.
+
+        The two gates compose: a `whitelist` bot that *also* sets `require_link`
+        refuses an unlinked sender at the door (`_admits_unlinked`), so a
+        whitelisted-but-unlinked author's earlier posts must not be quoted either -
+        the author has to clear both filters, not just the whitelist.
+
+        `group_only` and `open` need no author filter - the first gated the room,
+        and the second admits everybody in it.
         """
         policy = self._parse_policy(bot)
-        if policy.get("mode") != "whitelist":
+        mode = policy.get("mode")
+        requires_link = mode == "jwt_linked" or bool(policy.get("require_link", False))
+
+        filters: list[Callable[[Any], bool]] = []
+        if mode == "whitelist":
+            allowed = {str(entry) for entry in policy.get("whitelist", [])}
+            filters.append(
+                lambda post: (
+                    (aid := getattr(post, "author_id", None)) is not None and str(aid) in allowed
+                )
+            )
+        if requires_link:
+            author_ids = {
+                str(aid) for post in posts if (aid := getattr(post, "author_id", None)) is not None
+            }
+            linked = await channel_identity_repo.linked_active_platform_user_ids(
+                db,
+                platform=incoming.platform,
+                platform_user_ids=author_ids,
+                organization_id=bot.organization_id,
+            )
+            filters.append(
+                lambda post: (
+                    (aid := getattr(post, "author_id", None)) is not None and str(aid) in linked
+                )
+            )
+        if not filters:
             return lambda _post: True
-        allowed = {str(entry) for entry in policy.get("whitelist", [])}
-
-        def _admits(post: Any) -> bool:
-            author_id = getattr(post, "author_id", None)
-            return author_id is not None and str(author_id) in allowed
-
-        return _admits
+        return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
     async def _load_history(db: AsyncSession, conversation_id: Any) -> list[ModelMessage]:
