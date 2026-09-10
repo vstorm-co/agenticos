@@ -3,11 +3,11 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import false, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.db.models.resource_grant import Visibility
+from app.repositories._visibility import shared_with_caller, visible_to_caller
 
 
 async def get_by_id(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
@@ -75,12 +75,13 @@ async def get_accessible(
         shared_cond = (
             (KnowledgeBase.scope == KBScope.ORG.value)
             & (KnowledgeBase.organization_id == organization_id)
-            & or_(
-                KnowledgeBase.visibility == Visibility.ORG.value,
-                KnowledgeBase.id.in_(shared_org_ids) if shared_org_ids else false(),
+            & shared_with_caller(
+                KnowledgeBase.owner_user_id,
+                KnowledgeBase.visibility,
+                KnowledgeBase.id,
+                user_id=user_id,
+                shared_ids=shared_org_ids,
             )
-            # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
-            & KnowledgeBase.owner_user_id.is_distinct_from(user_id)
         )
         result = await db.execute(
             select(KnowledgeBase).where(shared_cond).order_by(KnowledgeBase.created_at)
@@ -96,10 +97,12 @@ async def get_accessible(
             KnowledgeBase.organization_id == organization_id
         )
         if not see_all_org:
-            org_cond = org_cond & or_(
-                KnowledgeBase.owner_user_id == user_id,
-                KnowledgeBase.visibility == Visibility.ORG.value,
-                KnowledgeBase.id.in_(shared_org_ids) if shared_org_ids else False,
+            org_cond = org_cond & visible_to_caller(
+                KnowledgeBase.owner_user_id,
+                KnowledgeBase.visibility,
+                KnowledgeBase.id,
+                user_id=user_id,
+                shared_ids=shared_org_ids,
             )
         conditions.append(org_cond)
     result = await db.execute(
