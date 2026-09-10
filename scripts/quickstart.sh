@@ -9,11 +9,13 @@
 #   ./scripts/quickstart.sh --yes --provider openai --api-key sk-...
 #
 # It needs Docker and nothing else. Outside a clone it downloads one file -
-# `docker-compose.yml` - into a directory of its own and pulls the published
-# images (`ghcr.io/vstorm-co/agenticos-backend`, `-frontend`); inside a clone it
-# uses the clone's compose files, which build the same images from the tree.
-# Either way the stack, the migrations and the console are containers, so there
-# is no git, make, python, uv or bun to install first (#1545).
+# `docker-compose.yml`, at the latest release so the file and the `latest`
+# images it pulls are the same release - into a directory of its own and pulls
+# the published images (`ghcr.io/vstorm-co/agenticos-backend`, `-frontend`);
+# inside a clone it uses the clone's compose files, which build the same images
+# from the tree. Either way the stack, the migrations and the console are
+# containers, so there is no git, make, python, uv or bun to install first
+# (#1545).
 #
 # Written for bash 3.2, because that is what ships with macOS: no associative
 # arrays, no `${var,,}`, no `mapfile`. Prompts read from /dev/tty rather than
@@ -21,8 +23,13 @@
 
 set -euo pipefail
 
-COMPOSE_URL="https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-compose.yml"
+REPO="vstorm-co/agenticos"
 INSTALL_DIR_DEFAULT="agenticos"
+# `env_file: { path, required: false }` and `condition: service_completed_successfully`
+# in the compose file; older plugins refuse the schema with a message that names
+# neither the version nor the fix.
+COMPOSE_MIN_MAJOR=2
+COMPOSE_MIN_MINOR=24
 
 # --- how this run was asked for -----------------------------------------------
 
@@ -147,6 +154,31 @@ hint_for() {
 }
 
 MISSING=0
+
+# `docker compose version --short` is `2.29.1` or `v2.29.1` depending on the
+# build; anything that does not parse is reported rather than assumed fine.
+check_compose_version() {
+  local raw major minor
+  raw="$(docker compose version --short 2>/dev/null || true)"
+  raw="${raw#v}"
+  major="${raw%%.*}"
+  minor="${raw#*.}"; minor="${minor%%.*}"
+  case "$major$minor" in
+    *[!0-9]*|"")
+      warn "docker compose reports '$raw' - could not read its version; ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR} or later is needed"
+      return 0
+      ;;
+  esac
+  if [ "$major" -gt "$COMPOSE_MIN_MAJOR" ] || { [ "$major" -eq "$COMPOSE_MIN_MAJOR" ] && [ "$minor" -ge "$COMPOSE_MIN_MINOR" ]; }; then
+    ok "docker compose $raw"
+  else
+    fail "docker compose $raw is too old - ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR} or later is needed"
+    note "The compose file uses env_file options that older plugins refuse. Update Docker Desktop / OrbStack,"
+    note "or on Linux install the plugin from Docker's own repository: https://docs.docker.com/compose/install/linux/"
+    MISSING=$((MISSING + 1))
+  fi
+}
+
 need() {
   if command -v "$1" >/dev/null 2>&1; then
     ok "$1"
@@ -178,7 +210,7 @@ check_prerequisites() {
 
   if command -v docker >/dev/null 2>&1; then
     if docker compose version >/dev/null 2>&1; then
-      ok "docker compose"
+      check_compose_version
     else
       fail "docker compose is missing (the v2 plugin, not docker-compose)"
       note "Docker Desktop and OrbStack both ship it; on Linux: sudo apt install docker-compose-plugin"
@@ -297,6 +329,34 @@ in_clone() { [ -f docker-compose.yml ] && [ -f docker-compose.override.yml ] && 
 # is also the file Compose reads for `${...}` in it.
 ENV_FILE=""
 IN_CLONE=0
+ENV_FILE_CREATED=0
+
+# Only a compose file that is *ours* is adopted. This runs from wherever the
+# reader is, and a developer's current directory often has a `docker-compose.yml`
+# of some other project in it - adopting that would `up` a stranger's stack,
+# append a token to its `.env`, and `exec` into a service that is not ours. The
+# old script died here (`does not look like an AgenticOS clone`); this one moves
+# on to `$INSTALL_DIR` instead.
+ours() { grep -q 'ghcr.io/vstorm-co/agenticos-' "${1:-.}/docker-compose.yml" 2>/dev/null; }
+
+# The compose file at the latest release, so that the file and the `latest`
+# images it pulls by default are the same release - the one on `main` can be
+# ahead of the last release by a rename the image does not know yet. The
+# GitHub API answers without a token at a rate a person never reaches; when it
+# does not answer at all (offline, a proxy), `main` is the fallback and says so.
+compose_url() {
+  local tag
+  tag="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+  # Progress goes to stderr: stdout is the URL, and this runs inside `$(...)`.
+  if [ -z "$tag" ]; then
+    warn "could not read the latest release from GitHub - taking docker-compose.yml from main" >&2
+    tag="main"
+  else
+    note "latest release: $tag" >&2
+  fi
+  printf 'https://raw.githubusercontent.com/%s/%s/docker-compose.yml' "$REPO" "$tag"
+}
 
 obtain_compose() {
   if in_clone; then
@@ -308,23 +368,59 @@ obtain_compose() {
   step "Getting docker-compose.yml"
   # A directory this script already set up is used in place - re-running it from
   # there must not nest another install under it.
-  if [ -f docker-compose.yml ]; then
+  if ours; then
     note "docker-compose.yml already here — keeping it"
   else
-    run mkdir -p "$INSTALL_DIR"
+    if [ -f docker-compose.yml ]; then
+      note "the docker-compose.yml here is another project's - installing into $INSTALL_DIR instead"
+    fi
+    # Decided against `$INSTALL_DIR` by path rather than after a `cd`, so that
+    # --dry-run, which never changes directory, still answers for the right one.
+    if ours "$INSTALL_DIR"; then
+      note "docker-compose.yml already in $INSTALL_DIR — keeping it"
+    elif [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+      die "$INSTALL_DIR has a docker-compose.yml that is not AgenticOS's - pick another directory with --dir"
+    else
+      run mkdir -p "$INSTALL_DIR"
+      run curl -fsSL -o "$INSTALL_DIR/docker-compose.yml" "$(compose_url)"
+    fi
     if [ "$DRY_RUN" != "1" ]; then
       cd "$INSTALL_DIR"
-    fi
-    if [ -f docker-compose.yml ]; then
-      note "docker-compose.yml already in $INSTALL_DIR — keeping it"
-    else
-      run curl -fsSL -o docker-compose.yml "$COMPOSE_URL"
     fi
   fi
   ENV_FILE=".env"
   ok "compose file in $(pwd)"
   note "The images come from ghcr.io/vstorm-co - pin a release with AGENTICOS_VERSION=x.y.z in .env."
 }
+
+# The env file is created by this script when there is none, mode 0600 from the
+# first byte: it is about to hold the sandbox token, which is worth the Docker
+# socket, and the vault key, which unwraps every provider key an organization
+# stores. A file that already exists keeps its mode and its contents - this
+# script appends, and only what is missing.
+ensure_env_file() {
+  if [ -f "$ENV_FILE" ] || [ "$ENV_FILE_CREATED" = "1" ]; then
+    return 0
+  fi
+  ENV_FILE_CREATED=1
+  run_sh "(umask 077 && : >> '$ENV_FILE')"
+}
+
+# Append `NAME=value` with a comment above it. Real argv into `printf`, so the
+# value never passes through `sh -c`; under --dry-run the value is masked, since
+# the plan is printed to a terminal and these are secrets.
+append_env() {
+  local name="$1" value="$2" comment="$3"
+  if [ "$DRY_RUN" = "1" ]; then
+    printf '  %s$ printf ... %s=<generated> >> %s%s\n' "$DIM" "$name" "$ENV_FILE" "$RESET"
+    return 0
+  fi
+  printf '\n%s\n%s=%s\n' "$comment" "$name" "$value" >> "$ENV_FILE"
+}
+
+# 64 hex characters from the kernel, the same shape `scripts/server-init.sh`
+# writes with `openssl rand -hex 32` - without assuming openssl is installed.
+random_hex() { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 
 # The one secret the stack cannot default. The sandbox service can run commands on
 # this host, so an empty token would be a shared secret of "" - it refuses to
@@ -336,12 +432,35 @@ ensure_sandbox_token() {
     note "SANDBOXD_TOKEN already in $ENV_FILE"
     return 0
   fi
+  ensure_env_file
   # Every stage reads its whole input: a `head` at the end of a pipe kills `tr`
   # with SIGPIPE, which `set -o pipefail` turns into this script exiting.
   local token
   token="$(head -c 64 /dev/urandom | base64 | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-43)"
-  run_sh "printf '\n# Authorises opening a sandbox session, and a session runs commands\n# on this host. Treat it like the Docker socket it sits in front of.\nSANDBOXD_TOKEN=%s\n' '$token' >> '$ENV_FILE'"
+  append_env SANDBOXD_TOKEN "$token" \
+    "# Authorises opening a sandbox session, and a session runs commands
+# on this host. Treat it like the Docker socket it sits in front of."
   ok "generated SANDBOXD_TOKEN in $ENV_FILE"
+}
+
+# The two keys the application would otherwise take from its own defaults: a
+# `SECRET_KEY` that is a constant in the repository, and no `VAULT_MASTER_KEY`,
+# which makes the vault seal every provider key under that constant. Generated
+# only into an env file this run created. An existing file is somebody's
+# configuration - and a database may already hold secrets sealed under whatever
+# key it names or implies, which a new key would make unreadable - so it is
+# left exactly as found.
+ensure_secrets() {
+  ensure_env_file
+  if [ "$ENV_FILE_CREATED" != "1" ]; then
+    return 0
+  fi
+  append_env SECRET_KEY "$(random_hex)" \
+    "# Signs sessions. Generated by scripts/quickstart.sh; changing it signs everyone out."
+  append_env VAULT_MASTER_KEY "$(random_hex)" \
+    "# Seals every credential the vault stores. Generated by scripts/quickstart.sh.
+# Back it up with the database: a dump restored beside a different key is unreadable."
+  ok "generated SECRET_KEY and VAULT_MASTER_KEY in $ENV_FILE"
 }
 
 # Which optional services this run brings up. The sandbox is on wherever the
@@ -474,6 +593,7 @@ main() {
   [ "$CHECK_ONLY" = "1" ] && { say ""; ok "Everything this needs is here."; exit 0; }
 
   obtain_compose
+  ensure_secrets
   decide_sandbox
   wizard
   start_stack

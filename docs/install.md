@@ -13,11 +13,15 @@ Every step is idempotent — re-run any of them whenever you are not sure it too
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-`scripts/quickstart.sh` needs Docker and nothing else. It downloads
-`docker-compose.yml` into `./agenticos`, asks four questions, pulls the published
-images and brings the stack up - console included - creates an organization with
-an owner and a published agent, and optionally mirrors the MCP registry. Run from
-inside a clone, it builds the same images from the tree instead.
+`scripts/quickstart.sh` needs Docker and nothing else - the Compose plugin at
+2.24 or later, which it checks. It downloads `docker-compose.yml` at the latest
+release into `./agenticos`, writes a `.env` beside it (mode 0600) with a
+generated `SECRET_KEY`, `VAULT_MASTER_KEY` and sandbox token, asks four
+questions, pulls the published images and brings the stack up - console
+included - creates an organization with an owner and a published agent, and
+optionally mirrors the MCP registry. Run from inside a clone, it builds the same
+images from the tree instead. A `docker-compose.yml` that belongs to another
+project is left alone: the install goes into `./agenticos` beside it.
 
 It takes `--check` to only report what is missing, `--dry-run` to print every
 command it would run without running one, and `--yes` with `--provider`,
@@ -78,6 +82,7 @@ flowchart LR
     | `AGENTICOS_VERSION` | Which release to run. `latest` when unset; a version such as `0.0.380` to pin one, `edge` for whatever `main` last published |
     | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | What the *browser* is told to call, when the host is reached by a name other than `localhost`. The backend's `FRONTEND_URL` and `CORS_ORIGINS` are the same fact from its side |
     | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | The sign-in buttons the console offers, and what the composer refuses before uploading |
+    | `SECRET_KEY`, `VAULT_MASTER_KEY` | Optional on a laptop, where the defaults are a constant from the repository and a vault sealed under it. `scripts/quickstart.sh` generates both; by hand, `openssl rand -hex 32` each - and back the vault key up with the database, because a dump restored beside a different key is unreadable |
     | Anything from `backend/.env.example` | A provider key, SMTP, a Logfire token - the containers read the same file |
 
     The images read that `.env`, and `backend/.env` when there is one, so a clone
