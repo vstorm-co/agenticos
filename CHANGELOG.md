@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.385] - 2026-09-10
+
+### Performance
+
+- **A spec's references resolve in one query, not one each.** Publish validation
+  of collections, MCP connections and delegates, the MCP toolset build and the
+  environment listing each read their list of ids a row at a time. Each now reads
+  the whole list in one query with the same tenant and scope filters, so the
+  refusals are unchanged and preparing a run with five bound collections awaits
+  the collection read once. (#1510)
+
 ## [0.0.384] - 2026-09-10
 
 ### Fixed
