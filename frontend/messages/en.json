@@ -1906,6 +1906,7 @@
     "forbidden": "Forbidden",
     "impersonationEnded": "The impersonation has ended",
     "internalServerError": "Internal server error",
+    "invitationNotFound": "This invitation is no longer available",
     "loginFailed": "Login failed",
     "missingAuthorizationCode": "Missing authorization code",
     "missingTokens": "Missing tokens",
@@ -2183,11 +2184,14 @@
     "impersonationEndFailed": "Could not end the impersonation. Try again.",
     "impersonationEnded": "Impersonation ended. You are yourself again.",
     "impersonationEndsAt": "Ends at {time}",
+    "invitationNotStaged": "Your invitation could not be prepared",
+    "invitationNotStagedHint": "The server could not be reached, or asked you to wait a moment. Your invitation link is still valid.",
     "navigate": "Navigate",
     "noMatches": "No matches.",
     "open": "Open",
     "primary": "Primary",
     "quickActions": "Quick actions",
+    "retryInvitation": "Try again",
     "searchJump": "Search or jump to…"
   },
   "legal": {

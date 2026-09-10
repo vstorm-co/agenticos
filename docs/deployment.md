@@ -115,7 +115,7 @@ token**, and the two answers cover different shapes:
 
 | Arrives with | Recognised by | Which shapes it admits |
 |---|---|---|
-| A token (`invitation_token` on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
+| A token (resolved from the staged invitation, never on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
 | No token | `invitation_repo.first_pending_admitting` | An email invitation for that address, or a link scoped to its domain |
 
 The token is the only proof available for a shareable link with neither an address
@@ -133,12 +133,29 @@ and nothing else; joining the organization is still `InvitationService.accept`, 
 the client calls once it has a session. A token in an unauthenticated sign-up body
 that also granted membership would be a membership grant on a public route.
 
-The console carries it across the redirect that used to lose it. An invitee with no
-account opens `/invitations/<token>`, `AuthGuard` bounces them to
-`/login?returnTo=/invitations/<token>`, and `src/lib/invitation-links.ts` reads the
-token back out of that `returnTo` so "create an account" points at
-`/register?invitation=<token>`. Before that, the only route onward was a plain link
-to `/register`, and the form then refused somebody holding a valid invitation.
+The console never carries the token across the sign-in round trip. An invitee with
+no account opens `/invitations/<token>`; `AuthGuard` exchanges the token server-side
+for an opaque handle it keeps in an `httpOnly` cookie the browser cannot read, then
+sends them to `/login?returnTo=/invitations/pending?flow=…` — a landing with no
+credential in it, so the token is not in the `returnTo`, in browser history, or in
+session storage. If the exchange fails — the server unreachable, a rate limit — the
+guard stays on the invitation link and offers to try again rather than leaving with
+nothing staged, because the link is the only credential the invitee holds.
+
+The `flow` is a random id the exchange mints per staging, and the cookie is named
+for it. It is not a credential: without the cookie it names nothing. It is there
+because one fixed cookie name is one slot — two invitation links opened side by side
+while signed out overwrote each other, and both pending tabs then redeemed the second.
+Each tab now redeems exactly the cookie its own flow names.
+
+"Create an account" carries that credential-free landing on, and the register proxy
+forwards the named flow's staged handle as a header, so the sign-up admission still
+has the token it needs without the token ever being in a URL or the body. After
+sign-in the pending page redeems the handle and accepts — the same shape as the OAuth
+code exchange, an opaque single-use expiring stand-in for a credential so the
+credential never rides a URL. The cookie is cleared once the redeem has run; a 401, a
+429 or a server failure leaves it, because the handle may still be unspent and a
+retry needs it.
 
 **A link with a `max_uses` bounds accounts, not only joins.**
 
@@ -159,12 +176,14 @@ A reservation nobody accepts stays spent (`max_uses` is how many people a link
 admits, and an account created with it was admitted), and it dies with the
 invitation.
 
-**Signing in with a provider carries the invitation too.** The token is put on
-`/oauth/google/login?invitation=…` and held in the session across the round trip,
-because the provider redirect is not ours to add a parameter to. Without it,
-`invite_only` refused the Google button for exactly the links that need a token —
-one constraining neither an address nor a domain — while the password form beside it
-accepted the same person.
+**Signing in with a provider carries the invitation too, as its handle.** The
+provider login starts same-origin, at `/api/oauth/<provider>/login`, so the staged
+`httpOnly` handle can be attached to the cross-origin hop the browser then makes —
+`/oauth/google/login?invitation_handle=…`, which the backend peeks into the token it
+holds in the session across the round trip. The token is never in that URL. Without
+this, `invite_only` refused the Google button for exactly the links that need a
+token — one constraining neither an address nor a domain — while the password form
+beside it accepted the same person.
 
 **Signing in with a provider is a registration too.** `get_or_create_oauth_user`
 is the second path that creates an account, and nothing about a Google callback

@@ -18,6 +18,7 @@ from app.db.models.organization import Invitation, InvitationStatus
 from app.repositories import invitation_repo, member_repo, organization_repo, user_repo
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
+from app.services.invitation_admission import admits_anyone
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +198,24 @@ class InvitationService:
         return await invitation_repo.list_for_org(
             self.db, organization_id, status=status, skip=skip, limit=limit
         )
+
+    async def ensure_stageable(self, token: str) -> None:
+        """Refuse unless `token` names a live invitation worth staging.
+
+        The gate in front of the server-side exchange (#1414): an invitee follows
+        a deep link while signed out, and this is where a forged or dead token is
+        turned away before the handle is minted, so the sign-in detour is spent
+        only on an invitation that can still be accepted at the end of it.
+
+        One refusal for every failure - unknown, revoked, expired, used up - and
+        it names nothing. The caller is unauthenticated and the endpoint is
+        public, so distinguishing "expired" from "never existed" would let a
+        stranger probe which tokens are real; `admits` answers the same question
+        the acceptance will, without the reasons it would otherwise give.
+        """
+        invite = await invitation_repo.get_by_token(self.db, token)
+        if invite is None or not admits_anyone(invite):
+            raise NotFoundError(message="Invitation not found or no longer valid")
 
     async def accept(self, token: str, accepting_user_id: UUID):
         # Locked for the rest of the request: the `used_count`/`max_uses` guard

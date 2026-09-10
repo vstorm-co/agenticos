@@ -270,6 +270,7 @@
     "forbidden": "Brak dostępu",
     "impersonationEnded": "Impersonacja została zakończona",
     "internalServerError": "Wewnętrzny błąd serwera",
+    "invitationNotFound": "To zaproszenie nie jest już dostępne",
     "loginFailed": "Logowanie nie powiodło się",
     "missingAuthorizationCode": "Brak kodu autoryzacji",
     "missingTokens": "Brak tokenów sesji",
@@ -1220,11 +1221,14 @@
     "impersonationEndFailed": "Nie udało się zakończyć impersonacji. Spróbuj ponownie.",
     "impersonationEnded": "Impersonacja zakończona. Znów działasz jako Ty.",
     "impersonationEndsAt": "Kończy się o {time}",
+    "invitationNotStaged": "Nie udało się przygotować Twojego zaproszenia",
+    "invitationNotStagedHint": "Serwer był niedostępny albo poprosił o chwilę przerwy. Twój link z zaproszeniem nadal jest ważny.",
     "navigate": "Nawigacja",
     "noMatches": "Brak dopasowań.",
     "open": "Otwórz",
     "primary": "Główne",
     "quickActions": "Szybkie akcje",
+    "retryInvitation": "Spróbuj ponownie",
     "searchJump": "Szukaj lub przejdź do…"
   },
   "theme": {

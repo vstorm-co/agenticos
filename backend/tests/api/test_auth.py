@@ -419,6 +419,46 @@ async def test_register_duplicate_email(
 
 
 @pytest.mark.anyio
+async def test_register_through_a_staged_invitation_resolves_the_handle(
+    client_with_mock_service: AsyncClient,
+    mock_user_service: MagicMock,
+    mock_redis: MagicMock,
+):
+    """A first-time invitee registers with no token in the body - it was exchanged
+    for an httpOnly handle before they reached the form (#1414). The route peeks
+    the handle and feeds the sign-up admission the token it resolves to, leaving
+    the handle intact for the acceptance that follows sign-in."""
+    mock_redis.get = AsyncMock(return_value="staged-token")
+
+    response = await client_with_mock_service.post(
+        f"{settings.API_V1_STR}/auth/register",
+        json={"email": "new@example.com", "password": "password123"},
+        headers={"X-Invitation-Handle": "an-opaque-handle"},
+    )
+
+    assert response.status_code == 201
+    submitted = mock_user_service.register.call_args.args[0]
+    assert submitted.invitation_token == "staged-token"
+
+
+@pytest.mark.anyio
+async def test_register_without_a_handle_carries_no_invitation(
+    client_with_mock_service: AsyncClient,
+    mock_user_service: MagicMock,
+):
+    """The header is optional: an open deployment's registration never sends one,
+    and the token stays whatever the body carried (here, nothing)."""
+    response = await client_with_mock_service.post(
+        f"{settings.API_V1_STR}/auth/register",
+        json={"email": "new@example.com", "password": "password123"},
+    )
+
+    assert response.status_code == 201
+    submitted = mock_user_service.register.call_args.args[0]
+    assert submitted.invitation_token is None
+
+
+@pytest.mark.anyio
 async def test_get_current_user(
     client_with_mock_service: AsyncClient,
     mock_user: MockUser,
