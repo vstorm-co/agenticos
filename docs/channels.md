@@ -16,6 +16,9 @@ checks — the surface changes, the agent does not.
 | **Telegram** | a bot token | a Telegram account, optionally linked |
 | **Mattermost** | a bot token and your server URL | a Mattermost account, optionally linked |
 
+The dashboard also opens as a [desktop app](desktop.md): a window around the same
+console, loaded from the same server, with nothing bundled.
+
 !!! abstract "Three rules hold on every surface, enforced in the runner"
 
     - **A run always belongs to exactly one organization.**
@@ -1263,10 +1266,13 @@ serves all three platforms, so the policy cannot drift between them.
   acknowledged and dropped, whichever API worker receives it. A claim lasts
   fifteen minutes, which outlives every platform's retry window.
 
-    The claim is taken on receipt, so a run that does not finish gives it back:
-    a redelivery after a failed or cancelled run is answered rather than
-    mistaken for a duplicate. That matters most for the polling streams, which
-    re-read a message the process died on.
+    The claim is taken on receipt, so a run the process could not finish gives
+    it back: a redelivery after a cancelled run, or one a restarting pod
+    dropped, is answered rather than mistaken for a duplicate. That matters most
+    for the polling streams, which re-read a message the process died on. An
+    error the router itself catches is not that: it apologises to the sender
+    once and keeps the claim, so the platform's redelivery does not re-run a
+    failure that would only fail again.
 
     The guarantee degrades open, never shut. A message that arrives with no
     platform message id, and a Redis that cannot be reached, are both processed

@@ -69,6 +69,7 @@ from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserCon
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
+from pydantic_ai.toolsets import AbstractToolset
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience, derive_audience
@@ -1542,7 +1543,7 @@ def _delegate_builder(
     agent_id: UUID,
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
-    extra_toolsets: list[Any],
+    extra_toolsets: list[AbstractToolset[Any]],
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -1796,7 +1797,7 @@ class AgentRunnerService:
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
         acts_for_sender: bool = False,
-        extra_toolsets: list[Any] | None = None,
+        extra_toolsets: list[AbstractToolset[Any]] | None = None,
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -1940,7 +1941,7 @@ class AgentRunnerService:
         memory_room_key: str | None = None,
         restored_audience: RunAudience | None = None,
         restored_publisher_fallback: bool | None = None,
-        extra_toolsets: list[Any] | None,
+        extra_toolsets: list[AbstractToolset[Any]] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
         resuming: dict[str, ResumedDelegation],
@@ -3370,7 +3371,7 @@ class AgentRunnerService:
         memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         acts_for_sender: bool = False,
-        message_history: list[Any] | None = None,
+        message_history: Sequence[ModelMessage] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
         attachments: list[ChatFile] | None = None,
@@ -3791,7 +3792,7 @@ class AgentRunnerService:
         prepared: PreparedRun,
         *,
         user_prompt: str | list[Any] | None,
-        message_history: list[Any] | None,
+        message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None,
     ) -> AgentRunResult[Any]:
@@ -3825,7 +3826,7 @@ class AgentRunnerService:
         user_prompt: str | list[Any] | None,
         said: str | None,
         attachments: Sequence[ChatFile] = (),
-        message_history: list[Any] | None,
+        message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
     ) -> RunSegment:

@@ -143,7 +143,8 @@ async def list_collections(access: CollectionAccessSvc, ctx: Auth) -> Any:
     after the first document is ingested) still appears here, and dropping a
     collection here removes the KB too.
     """
-    return RAGCollectionList(items=await access.readable_names(ctx))
+    names = await access.readable_names(ctx)
+    return RAGCollectionList(items=names, total=len(names))
 
 
 @router.post(

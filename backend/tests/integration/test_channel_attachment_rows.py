@@ -25,6 +25,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization
 from app.db.models.user import User
+from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 from app.services.transcript import TranscriptService
 
@@ -159,3 +160,26 @@ class TestAFileThatArrivedWithATurn:
         asked = written[0]
         assert (asked.role, asked.content) == ("user", "Attached image: report.png")
         assert [file.filename for file in asked.files] == ["report.png"]
+
+
+class TestUnlinkedIds:
+    """What the channel router's crash/refusal discard leans on to avoid deleting
+    a file a failed run already linked to its transcript. Against a real database
+    because the whole point is a link the loaded row does not reflect: it is a bulk
+    UPDATE and `expire_on_commit` is off, so a column read is the only truthful one
+    (#1503)."""
+
+    async def test_it_excludes_a_file_a_recorded_turn_linked(self, db) -> None:
+        conversation = await _conversation(db)
+        run = await _run(db, conversation)
+        linked = await _uploaded(db, conversation, filename="linked.png")
+        orphan = await _uploaded(db, conversation, filename="orphan.png")
+
+        await TranscriptService(db).record(run, prompt="look", answer="seen", attachments=[linked])
+
+        result = await chat_file_repo.unlinked_ids(db, [linked.id, orphan.id])
+
+        assert result == {orphan.id}
+
+    async def test_no_ids_is_no_query(self, db) -> None:
+        assert await chat_file_repo.unlinked_ids(db, []) == set()

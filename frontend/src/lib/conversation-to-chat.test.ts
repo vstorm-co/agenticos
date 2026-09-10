@@ -212,7 +212,7 @@ describe("what a stored message says it cost", () => {
     expect(message.usage).toMatchObject({
       input_tokens: 4055,
       output_tokens: 24,
-      cost_usd: 0.0012,
+      cost_usd: "0.001200",
     });
   });
 

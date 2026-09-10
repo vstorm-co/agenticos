@@ -438,6 +438,26 @@ async def get_version(
     return result.scalar_one_or_none()
 
 
+async def get_versions_by_ids(
+    db: AsyncSession, version_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, AgentVersion]:
+    """Several versions at once, by id, inside one organization.
+
+    One statement rather than a lookup per id, for a listing that needs the
+    number behind each of a page of pins. A missing id is absent from the map,
+    the same answer the per-id read gave.
+    """
+    if not version_ids:
+        return {}
+    result = await db.execute(
+        select(AgentVersion).where(
+            AgentVersion.id.in_(list(version_ids)),
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return {version.id: version for version in result.scalars().all()}
+
+
 async def list_versions(
     db: AsyncSession, *, agent_id: UUID, organization_id: UUID, skip: int = 0, limit: int = 25
 ) -> list[AgentVersion]:
