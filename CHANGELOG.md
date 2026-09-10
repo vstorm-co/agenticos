@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.386] - 2026-09-10
+
+### Changed
+
+- **The 2026-08-10 backend duplication audit is closed.** `InvitationCreate.email`
+  carries the `max_length` its siblings do, `RAGCollectionList` and
+  `ConnectorList` carry `total`, `doctor` and the agent runner drop their `Any`
+  parameters, the owner-or-org-or-shared visibility predicate is one helper
+  shared by skills and knowledge bases, the MCP tool-prefix normaliser has a
+  parity fixture between backend and frontend, `get_agent` and `get_version`
+  validate the Read schema rather than hand-mapping fields, and
+  `parent_doc_id` reaches the vector store as a typed argument. The chat socket
+  now sends `cost_usd` as the same Decimal string every REST surface does.
+  (#1511)
+
 ## [0.0.385] - 2026-09-10
 
 ### Performance
