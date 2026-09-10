@@ -691,3 +691,75 @@ class TestOneMessageOneStoredFile:
         assert adapter.download_attachment.await_count == 1
         assert agents.answer.await_args.kwargs["attachments"] == [upload.return_value]
         agents.answer_default.assert_not_awaited()
+
+
+class TestADeactivatedLinkedSenderIsRefusedEarly:
+    """A link in `channel_identities` outlives the deactivation of the account
+    behind it, so a departed member's chat account stays linked. That turn is now
+    refused at admission - before any attachment is fetched, stored or sent to the
+    paid transcription - and `_membership_context` refuses it again at the run, the
+    second lock rather than the first (#1456).
+    """
+
+    async def test_a_deactivated_linked_sender_costs_no_transcription(self):
+        router, replies, rows = _router()
+        router._receive_files = AsyncMock()  # type: ignore[method-assign]
+        router._transcribe = AsyncMock()  # type: ignore[method-assign]
+        router._invite_to_link = AsyncMock(return_value="Connect your account")  # type: ignore[method-assign]
+
+        incoming = IncomingMessage(
+            platform="slack",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="private",
+            text="please handle this",
+            attachments=[_attachment(mime_type="audio/ogg", filename="voice.ogg")],
+        )
+
+        with (
+            _channel(_agent_router(), rows),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=None),
+            ) as get_active,
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        get_active.assert_awaited_once()
+        router._transcribe.assert_not_awaited()
+        router._receive_files.assert_not_awaited()
+        assert rows == []
+        assert "Connect your account" in replies.await_args.args[2]
+
+    async def test_an_active_linked_sender_in_a_dm_is_admitted(self):
+        """The gate refuses only a departed member, not an active one - a linked
+        member's own DM still reaches the file and transcription work."""
+        router, _replies, rows = _router()
+        router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._deliver = AsyncMock()  # type: ignore[method-assign]
+
+        incoming = IncomingMessage(
+            platform="slack",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="private",
+            text="please handle this",
+            attachments=[_attachment(mime_type="audio/ogg", filename="voice.ogg")],
+        )
+
+        with (
+            _channel(_agent_router(answer_default=None), rows),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=MagicMock()),
+            ),
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        router._receive_files.assert_awaited_once()
+        router._transcribe.assert_awaited_once()
