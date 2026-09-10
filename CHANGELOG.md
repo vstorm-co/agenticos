@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.380] - 2026-09-10
+
+### Documentation
+
+- **The SMTP settings are documented.** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASSWORD`, `SMTP_TLS`, `EMAIL_FROM` and `EMAIL_FROM_NAME` appeared
+  nowhere in `docs/configuration.md`. A new section lists each with its default
+  and what depends on mail - invitations, password resets, notifications - all
+  of which go silently unsent without it, and the production checklist says why
+  email is deliberately not on it. (#1542)
+
+### Changed
+
+- **The frontend's `package.json` version literal is caught up.** The 0.0.379 cut
+  moved the backend's version and the lock but left `frontend/package.json` at
+  0.0.378; it reads 0.0.380 from this release on. (#1549)
+
 ## [0.0.379] - 2026-09-10
 
 ### Security
