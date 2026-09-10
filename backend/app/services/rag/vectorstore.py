@@ -1,5 +1,4 @@
 import logging
-import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -67,7 +66,7 @@ class BaseVectorStore(ABC):
         collection_name: str,
         query: str,
         limit: int = 4,
-        filter_expr: str = "",
+        parent_doc_id: str | None = None,
         organization_id: UUID | None = None,
     ) -> list[SearchResult]:
         pass
@@ -508,7 +507,7 @@ class PgVectorStore(BaseVectorStore):
         collection_name: str,
         query: str,
         limit: int = 4,
-        filter_expr: str = "",
+        parent_doc_id: str | None = None,
         organization_id: UUID | None = None,
     ) -> list[SearchResult]:
         """Nearest chunks in a collection, reporting an absent one as empty.
@@ -520,6 +519,10 @@ class PgVectorStore(BaseVectorStore):
         `UndefinedTableError` into a 500, and it is checked before embedding so
         an empty collection costs no embedding call either.
 
+        `parent_doc_id` restricts the search to one document's chunks, as a
+        parameterised `WHERE`; the retrieval service parses it out of the public
+        filter grammar before it reaches here.
+
         `organization_id` scopes which tenant's knowledge base the query embeds
         through, so a name shared across organizations does not embed on another
         tenant's credential (#913).
@@ -530,22 +533,13 @@ class PgVectorStore(BaseVectorStore):
         embedder, dim = await self._for_collection(collection_name, organization_id)
         query_vector = embedder.embed_query(query)
 
-        # Parse the shared `parent_doc_id == "<value>"` filter format and apply
-        # it as a parameterised WHERE clause to avoid returning results from
-        # unrelated documents (same behaviour as Qdrant/Chroma implementations).
-        doc_id_filter: str | None = None
-        if filter_expr and "parent_doc_id" in filter_expr:
-            m = re.search(r'parent_doc_id\s*==\s*"([^"]+)"', filter_expr)
-            if m:
-                doc_id_filter = m.group(1)
-
-        where_clause = "WHERE parent_doc_id = :doc_id" if doc_id_filter else ""
+        where_clause = "WHERE parent_doc_id = :doc_id" if parent_doc_id else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
         query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
         params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit}
-        if doc_id_filter:
-            params["doc_id"] = doc_id_filter
+        if parent_doc_id:
+            params["doc_id"] = parent_doc_id
 
         distance = self._distance_expr(dim)
         async with self.async_session() as session:
