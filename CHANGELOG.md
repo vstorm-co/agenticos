@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.384] - 2026-09-10
+
+### Fixed
+
+- **A crash on a mention answers the same apology a crash on a direct message
+  does.** The mention path and the default path ran the same turn as two copies
+  that had drifted: a crash on a mention propagated, released the dedupe claim
+  and answered nothing while the platform redelivered it. Both paths now run
+  through one `_run_turn`, which apologises once and keeps the claim, posts a
+  refusal wherever the bot was addressed, and discards a crashed turn's files
+  instead of orphaning them. (#1508)
+
 ## [0.0.383] - 2026-09-10
 
 ### Fixed
