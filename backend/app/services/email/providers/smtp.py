@@ -5,9 +5,14 @@ import uuid
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from app.core.config import SmtpTlsMode
 from app.services.email.providers.base import EmailMessage, SendResult
 
 logger = logging.getLogger(__name__)
+
+# 465 is the implicit-TLS submission port; 587 and 25 speak plaintext first and
+# upgrade with STARTTLS, so opening TLS from the start there is refused.
+_IMPLICIT_TLS_PORT = 465
 
 
 class SMTPProvider:
@@ -23,12 +28,25 @@ class SMTPProvider:
         username: str,
         password: str,
         use_tls: bool = True,
+        tls_mode: SmtpTlsMode = "auto",
     ) -> None:
         self.host = host
         self.port = port
         self.username = username
         self.password = password
         self.use_tls = use_tls
+        self.tls_mode = tls_mode
+
+    def _implicit_tls(self) -> bool:
+        """Whether TLS is opened from the first byte rather than negotiated.
+
+        `auto` reads the port, which is right for the standard ones and wrong for
+        a server speaking implicit TLS somewhere else - there the deployment says
+        `implicit`, or the provider offers a plaintext handshake to a TLS socket.
+        """
+        if self.tls_mode == "auto":
+            return self.port == _IMPLICIT_TLS_PORT
+        return self.tls_mode == "implicit"
 
     async def send(self, message: EmailMessage) -> SendResult:
         import aiosmtplib
@@ -50,14 +68,16 @@ class SMTPProvider:
         msg.attach(MIMEText(message.text, "plain"))
         msg.attach(MIMEText(message.html, "html"))
 
+        implicit_tls = self.use_tls and self._implicit_tls()
         try:
             await aiosmtplib.send(
                 msg,
                 hostname=self.host,
                 port=self.port,
-                username=self.username,
-                password=self.password,
-                use_tls=self.use_tls,
+                username=self.username or None,
+                password=self.password or None,
+                use_tls=implicit_tls,
+                start_tls=self.use_tls and not implicit_tls,
             )
             msg_id = f"smtp_{uuid.uuid4()}"
             logger.info(

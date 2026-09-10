@@ -8,6 +8,9 @@ from typing import Literal
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+SmtpTlsMode = Literal["auto", "implicit", "starttls"]
+"""How an encrypted SMTP connection is opened: chosen by the port, or forced."""
+
 
 def find_env_file() -> Path | None:
     """Find .env file in current or parent directories."""
@@ -350,6 +353,11 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_TLS: bool = True
+    # `auto` lets the port choose: 465 opens TLS from the first byte, anything
+    # else upgrades with STARTTLS. A server speaking implicit TLS on a port other
+    # than 465 (8465, 2465) needs `implicit` spelled out, or the provider offers a
+    # plaintext handshake to a TLS socket and every send fails.
+    SMTP_TLS_MODE: SmtpTlsMode = "auto"
     LOG_PROVIDER_WRITE_TO_DISK: bool = False
 
     CORS_ORIGINS: list[str] = [
