@@ -13,7 +13,8 @@ Sync connectors are pluggable adapters that fetch files from external systems
 | `remote_names` | `app/services/rag/remote_names.py` | Where a remote name may be written, and what may reach a query |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic model describing a remote file |
 | `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Why a config is not acceptable, and which field of it |
-| `ConnectorConfigField` | `app/schemas/sync_source.py` | One declared field: its type, whether it is required, its label |
+| `CONFIG_MODEL` | the connector's own module | A Pydantic model of its config fields; the listing publishes its JSON Schema and the wizard draws it |
+| `EmptyConfig` | `app/services/rag/connectors/__init__.py` | The base class's default `CONFIG_MODEL`, for a connector with nothing to configure |
 | `ConnectorConfig` | `app/services/rag/connectors/__init__.py` | The source's own config document, as the wizard posted it |
 | `CONNECTOR_REGISTRY` | `app/services/rag/connectors/__init__.py` | Dict mapping connector type strings to classes |
 | `SyncSource` | `app/db/models/sync_source.py` | Database model storing source configurations |
@@ -61,13 +62,13 @@ issue. `app/services/rag/remote_names.py` holds both answers.
 
 ### A connector does not hold its own credential either
 
-`CONFIG_SCHEMA` says how to **find** the documents and nothing more. The
+`CONFIG_MODEL` says how to **find** the documents and nothing more. The
 credential is a vault secret the source references by id, unsealed by whoever
 runs the sync and handed in as `credential` — so a connector declares what kind
 of secret it needs (`SECRET_KIND`) and reads nothing from `config` to
 authenticate with.
 
-!!! danger "A field for a token in `CONFIG_SCHEMA` is a credential in a JSONB column"
+!!! danger "A field for a token in `CONFIG_MODEL` is a credential in a JSONB column"
 
     That is what `0042_sync_source_secret_id` and
     [#937](https://github.com/vstorm-co/agenticos/issues/937) removed. There is
@@ -89,9 +90,10 @@ import logging
 from pathlib import Path
 from typing import ClassVar
 
+from pydantic import BaseModel, Field
+
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
-from app.schemas.sync_source import ConnectorConfigField
 from app.services.rag.connectors import (
     BaseSyncConnector,
     ConfigRefusal,
@@ -100,6 +102,21 @@ from app.services.rag.connectors import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class NotionConfig(BaseModel):
+    """What a Notion source needs to *find* its pages.
+
+    The credential is not here - it is an `ApiKeySecret` the source names in
+    `secret_id`. Both fields have a default, so neither is required.
+    """
+
+    database_id: str | None = Field(
+        default=None,
+        title="Database ID",
+        description="Limit sync to a specific Notion database (optional)",
+    )
+    include_subpages: bool = Field(default=True, title="Include sub-pages")
 
 
 class NotionConnector(BaseSyncConnector):
@@ -111,22 +128,10 @@ class NotionConnector(BaseSyncConnector):
     # organization's matching secrets and nothing else.
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.API_KEY
 
-    # CONFIG_SCHEMA is used for:
-    #   - API validation when creating/updating sync sources
-    #   - Dynamic form generation in the frontend UI
-    # It holds no credential - see "A connector does not hold its own
-    # credential either" above.
-    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
-        "database_id": ConnectorConfigField(
-            type="string",
-            default="",
-            label="Database ID",
-            help="Limit sync to a specific Notion database (optional)",
-        ),
-        "include_subpages": ConnectorConfigField(
-            type="boolean", default=True, label="Include sub-pages"
-        ),
-    }
+    # The listing publishes this model's JSON Schema and the wizard draws it;
+    # validate_config derives its required-field check from it. It holds no
+    # credential - see "A connector does not hold its own credential either".
+    CONFIG_MODEL: ClassVar[type[BaseModel]] = NotionConfig
 
     def _client(self, credential: StorableSecret | None):
         """The Notion client this source's own credential opens.
@@ -231,7 +236,7 @@ class NotionConnector(BaseSyncConnector):
         database_id = config.get("database_id", "")
         if database_id and not database_id.replace("-", "").isalnum():
             # `field=` names one input, and the sync-source wizard marks it.
-            # Name it as `CONFIG_SCHEMA` does; where it sits in the request body
+            # Name it as `CONFIG_MODEL` does; where it sits in the request body
             # is not a connector's to know.
             return ConfigRefusal(
                 message="A Notion database id is letters, digits and dashes",
@@ -244,7 +249,7 @@ class NotionConnector(BaseSyncConnector):
 `ConfigRefusal(message="…", field="database_id")` names one: `SyncSourceService`
 roots it against the payload (`config.database_id`), raises it with
 `refused_field`, and the wizard marks that input. Name the field as
-`CONFIG_SCHEMA` does — where it sits in the request body is not a connector's to
+`CONFIG_MODEL` does — where it sits in the request body is not a connector's to
 know.
 
 If a connector does check connectivity somewhere, never put the client's own
@@ -313,70 +318,76 @@ curl http://localhost:8000/api/v1/rag/sync/logs \
     -H "Authorization: Bearer $TOKEN"
 ```
 
-## CONFIG_SCHEMA reference
+## CONFIG_MODEL reference
 
-The `CONFIG_SCHEMA` class variable defines how to **find** a source's documents.
-The frontend reads it from the `GET /api/v1/rag/sync/connectors` endpoint to
-render the form fields, and `validate_config` reads it to refuse a config that
-is missing one.
+The `CONFIG_MODEL` class variable is a Pydantic model of how to **find** a
+source's documents. `GET /api/v1/rag/sync/connectors` publishes its
+`model_json_schema()` as `config_schema` — the same shape a capability's
+`config_schema` carries — and the wizard hands that to `SchemaForm` unadapted.
+`validate_config` reads the model too: a field with no default is required, and
+the refusal names the field's `title`.
 
-Each entry is a `ConnectorConfigField`, not a bare mapping. That is what makes a
-misspelled key a type error where it is written: `CONFIG_SCHEMA` used to be
-`dict[str, dict[str, Any]]`, so a declaration that said `"require": True`
-disabled that field's check silently and the wizard drew a required field as
-optional (#562).
+A required field is one with no default, so there is no flag to misspell. The
+mapping this replaced was `dict[str, dict[str, Any]]` for a while, and a
+declaration that said `"require": True` disabled that field's check silently —
+the wizard drew a required field as optional (#562).
 
-### Supported field types
+### Field kinds the wizard draws
 
-`type` is one of four, because those are the four the wizard draws — a fifth
-would fall through to a text input and collect the value wrongly, so
-`ConnectorFieldType` refuses it.
+`SchemaForm` draws a deliberately small subset of JSON Schema — strings, numbers,
+booleans, enums and a list of strings. A connector needing a richer editor ships
+its own component rather than pushing the form towards a general renderer.
 
-| Type | UI Widget | Python type |
-|------|-----------|-------------|
-| `"string"` | Text input | `str` |
-| `"boolean"` | Switch | `bool` |
-| `"integer"` | Number input | `int` |
-| `"textarea"` | Multi-line text | `str` |
+| Python type | UI widget |
+|-------------|-----------|
+| `str` | Text input |
+| `str` with `json_schema_extra={"x-textarea": True}` | Multi-line text |
+| `bool` | Switch |
+| `int` / `float` | Number input |
+| `Literal["a", "b"]` | Select |
+| `list[str]` | Comma-separated list |
+
+An optional field is `T | None = None`. Pydantic emits that as
+`anyOf: [{type: "x"}, {type: "null"}]`, and the form looks past the null branch
+rather than falling through to a text box.
 
 ### Field properties
 
-| Property | Required | Description |
-|----------|----------|-------------|
-| `type` | Yes | One of the four above |
-| `label` | Yes | What the form draws above the input, and what a refusal names |
-| `required` | No | Whether the field must be provided. Defaults to `False` |
-| `help` | No | Tooltip/description text |
-| `default` | No | Placeholder the form shows for an optional field |
+| `Field(...)` argument | What it does |
+|-----------------------|--------------|
+| `title` | The label above the input, and what a required-field refusal names |
+| `description` | Help text under the input |
+| `default` | The value the connector applies when the key is omitted. Nothing is stored until the field is edited |
+| `json_schema_extra={"x-placeholder": "…"}` | A grey hint shown while the field is empty, never stored — for a default resolved server-side, such as an S3 `region` falling back to `S3_RAG_*` |
 
-There is no `secret` property, and there is nowhere to add one: a credential is
+There is no secret property, and there is nowhere to add one: a credential is
 a vault secret the source references by id, so `SECRET_KIND` is how a connector
 says what it needs.
 
 ### Example
 
 ```python
-CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
-    "workspace": ConnectorConfigField(
-        type="string",
-        required=True,
-        label="Workspace",
-        help="Which workspace to read",
-    ),
-    "max_files": ConnectorConfigField(
-        type="integer", label="Max files to sync", default=100
-    ),
-    "recursive": ConnectorConfigField(
-        type="boolean", label="Include nested items", default=True
-    ),
-}
+from pydantic import BaseModel, Field
+
+
+class WorkspaceConfig(BaseModel):
+    workspace: str = Field(title="Workspace", description="Which workspace to read")
+    max_files: int = Field(default=100, title="Max files to sync")
+    recursive: bool = Field(default=True, title="Include nested items")
+
+
+class WorkspaceConnector(BaseSyncConnector):
+    CONFIG_MODEL: ClassVar[type[BaseModel]] = WorkspaceConfig
 ```
+
+`workspace` has no default, so it is the one required field; the two shipped
+connectors (`GoogleDriveConfig`, `S3Config`) are the models to copy.
 
 ## Tips
 
 - Set `RemoteFile.source_path` to a unique URI (e.g., `notion://page_id`) — this is used for deduplication across syncs
 - Use `asyncio.to_thread()` to wrap blocking SDK calls so they don't block the event loop
 - Implement `validate_config()` to refuse a config the wizard can still fix — a `ConfigRefusal` naming a `field` is what makes it mark that input rather than show a sentence over four of them. It sees the config and not the credential, so "can this key reach the service" is a question for the first sync, not for this method
-- Declare `SECRET_KIND` and read the credential from the `credential` argument. A credential never goes in `CONFIG_SCHEMA`, and there is no deployment-wide fallback to fall back to
+- Declare `SECRET_KIND` and read the credential from the `credential` argument. A credential never goes in `CONFIG_MODEL`, and there is no deployment-wide fallback to fall back to
 - Settings in `app/core/config.py` and `.env` are for values that name no principal — where a store is, not who is asking (`S3_RAG_ENDPOINT` is the shape)
 - `_fetch()` writes to the `dest_path` it is handed and returns nothing — the base class answers where that is, and the ingestion pipeline handles everything from there
