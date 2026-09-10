@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.387] - 2026-09-10
+
+### Fixed
+
+- **A thread backfill under a link-required policy quotes linked members
+  only.** Under `jwt_linked` and `require_link` the backfill filtered earlier
+  authors only in whitelist mode, so an unlinked participant's earlier posts
+  reached the prompt the first time a linked member spoke. Authors are now
+  resolved in one query to accounts linked to an active member of the bot's
+  organization; everyone else is dropped, as the whitelist branch already did.
+  (#1513)
+
 ## [0.0.386] - 2026-09-10
 
 ### Changed
