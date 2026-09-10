@@ -7,7 +7,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -21,6 +21,7 @@ from app.repositories import (
     channel_bot_repo,
     channel_identity_repo,
     channel_session_repo,
+    chat_file_repo,
     conversation_repo,
     member_repo,
 )
@@ -44,6 +45,7 @@ from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
 from app.services.channels.mentions import (
+    AnsweredTurn,
     ChannelAgentRouter,
     UnaddressedMessage,
     parse_mention,
@@ -444,8 +446,11 @@ class ChannelMessageRouter:
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
         history = thread_history + await self._load_history(db, session.conversation_id)
-        try:
-            answered = await ChannelAgentRouter(db).answer_default(
+        await self._run_turn(
+            bot,
+            incoming,
+            db,
+            run=ChannelAgentRouter(db).answer_default(
                 incoming.text,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
@@ -468,24 +473,11 @@ class ChannelMessageRouter:
                 attachments=files,
                 message_history=history,
                 stream=None if live is None else channel_stream(live),
-            )
-        except AppException as exc:
-            # A refusal - no agent exposed, several to choose from, an unlinked
-            # sender - is the platform answering, not a crash. The message says
-            # what to do next.
-            await self._discard_files(db, files)
-            await self._send_reply(bot, incoming, exc.message)
-            return
-        except Exception:
-            logger.exception("Agent run failed for bot %s", incoming.bot_id)
-            await self._send_reply(bot, incoming, "Sorry, something went wrong. Please try again.")
-            return
-
-        # The notes are about what this reply could not carry - a file too large
-        # for Slack - so they belong to the delivery and not to the transcript,
-        # which holds what the agent actually said.
-        answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle)
+            ),
+            handle=lambda: handle,
+            files=files,
+            file_refusals=file_refusals,
+        )
 
     async def _deliver(
         self,
@@ -568,8 +560,11 @@ class ChannelMessageRouter:
         was ever linked to the turn (#683).
         """
         live, handle_of = self._lazy_reply(bot, incoming)
-        try:
-            answered = await ChannelAgentRouter(db).answer(
+        return await self._run_turn(
+            bot,
+            incoming,
+            db,
+            run=ChannelAgentRouter(db).answer(
                 incoming.text,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
@@ -587,34 +582,104 @@ class ChannelMessageRouter:
                 attachments=files,
                 stream=channel_stream(live),
                 message_history=thread_history or None,
-            )
+            ),
+            handle=handle_of,
+            files=files,
+            file_refusals=file_refusals,
+        )
+
+    async def _run_turn(
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        db: AsyncSession,
+        *,
+        run: Awaitable[AnsweredTurn],
+        handle: Callable[[], str | None],
+        files: list[Any],
+        file_refusals: list[str],
+    ) -> bool:
+        """Run one turn's answering coroutine and answer, refuse or apologise once.
+
+        The mention path and the default path run the same shape - try the agent,
+        discard the turn's files and post the refusal on an `AppException`,
+        apologise on any other crash, otherwise stitch the file notes and deliver
+        - and they had drifted into two hand-written copies that disagreed (#1459).
+        One copy now, with the two differences decided once:
+
+        - **A crash apologises and consumes the claim, on either path.** The
+          mention copy let a crash propagate, which released the dedupe claim and
+          answered nothing, so the platform's redelivery ran it again; the default
+          copy apologised once. Redelivering a persistent crash only re-runs it -
+          and re-bills - for the same failure, and a transient one the sender
+          re-sends, so the apology-and-consume is the behaviour both take.
+        - **Every refusal or apology is posted through `_refuse_if_named`.** It
+          posts wherever the platform reported the bot as addressed - always, on
+          the default path - and stays silent where it did not: a channel mention
+          the platform did not flag as ours, which is usually a colleague's handle
+          but on a crash may be an agent-slug the platform did not report. This is
+          the mention copy's own rule, now the default's too.
+
+        A refused or crashed turn's already-stored files are discarded: a turn
+        that produced no run leaves rows nothing points at, and `chat_files`
+        carries no organization, so an unlinked row is scoped by `user_id` alone
+        (#690, #1503). Nothing streamed on a refusal, so the lazy placeholder was
+        never opened.
+
+        Returns True when the turn was handled - answered, refused or apologised.
+        False is the mention path's `UnaddressedMessage`: the handle named nobody
+        of ours, so the message goes on to the default agent. The default path
+        never raises it and ignores the result.
+        """
+        try:
+            answered = await run
         except UnaddressedMessage:
             return False
         except AppException as exc:
-            # Whether or not the refusal is worth posting, the files this turn
-            # already stored are not: a turn that produced no run leaves rows
-            # nothing points at, and `chat_files` carries no organization, so an
-            # unlinked row is scoped by `user_id` alone (#690).
             await self._discard_files(db, files)
-            # A handle that names no agent of ours. In a channel where the bot was
-            # not among the mentioned accounts, that handle was somebody's
-            # colleague - so the refusal is logged rather than posted, because a bot
-            # that answers "@ada is not available on this bot" every time two people
-            # talk to each other is the interruption this gate exists to stop. It
-            # still counts as handled: nothing else should answer it either. Nothing
-            # streamed, so the lazy placeholder was never opened.
-            if self._names_the_bot(incoming):
-                await self._send_reply(bot, incoming, exc.message)
-            else:
-                logger.info(
-                    "channel_mention_not_ours",
-                    extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
-                )
+            await self._post_failure(bot, incoming, handle(), exc.message)
+            return True
+        except Exception:
+            logger.exception("Agent run failed for bot %s", incoming.bot_id)
+            await self._discard_files(db, files)
+            await self._post_failure(
+                bot, incoming, handle(), "Sorry, something went wrong. Please try again."
+            )
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle_of())
+        await self._deliver(bot, incoming, answer, answered, handle())
         return True
+
+    async def _post_failure(
+        self, bot: ChannelBot, incoming: IncomingMessage, handle: str | None, message: str
+    ) -> None:
+        """Show a refusal or apology, replacing an open live reply rather than
+        stranding its placeholder.
+
+        A turn that had already streamed a status or partial answer has a message
+        on screen, so the outcome edits *that* into place - a separate apology
+        would leave the "…" hanging for ever, and `_refuse_if_named`'s
+        stay-silent-when-not-addressed rule would post nothing at all (#1459). The
+        edit falls back to a whole post the way `_deliver` does, because a
+        placeholder that cannot be edited still has to be answered. Where no
+        placeholder was opened - a crash before the first token, a refusal on the
+        default path - it is `_refuse_if_named`, silent in a room it was not named
+        in.
+        """
+        if handle is not None:
+            adapter = get_adapter(incoming.platform)
+            try:
+                await adapter.update_reply(
+                    unseal_bot_token(bot), self._message(bot, incoming, message), handle
+                )
+            except Exception:
+                logger.warning(
+                    "live reply failure edit failed; posting the message whole", exc_info=True
+                )
+                await self._send_reply(bot, incoming, message)
+            return
+        await self._refuse_if_named(bot, incoming, message)
 
     def _lazy_reply(
         self, bot: ChannelBot, incoming: IncomingMessage
@@ -863,17 +928,24 @@ class ChannelMessageRouter:
 
     @staticmethod
     async def _discard_files(db: AsyncSession, files: list[Any]) -> None:
-        """Give back what the turn stored, for a turn that was refused.
+        """Give back what a turn stored, but only the rows still unlinked.
 
-        The files are fetched and stored before the agent is resolved, so a
-        refusal raised in its place - nothing exposed on this bot, a sender whose
-        account is nobody's - leaves rows nothing will ever link to a message and
-        bytes nothing will ever read (#661). The refusal is still what the sender
-        gets: nothing here is allowed to raise in its way.
+        The files are fetched and stored before the agent is resolved, so a turn
+        that ends without ever linking them - a refusal raised in the agent's
+        place, or a crash before a run was created - leaves rows nothing will link
+        to a message and bytes nothing will read (#661). A crash *during* the run
+        is different: the runner records the failed turn's user message and links
+        these files to it, and commits, before re-raising - so discarding them
+        would strip a persisted transcript of what the sender sent. Only the files
+        the database still shows as unlinked are given back (#1503); nothing here
+        is allowed to raise in the refusal's way.
         """
         if not files:
             return
-        await ChannelAttachmentService(db).discard(files)
+        orphan_ids = await chat_file_repo.unlinked_ids(db, [file.id for file in files])
+        orphaned = [file for file in files if file.id in orphan_ids]
+        if orphaned:
+            await ChannelAttachmentService(db).discard(orphaned)
 
     @staticmethod
     def _with_notes(answer: str, *notes: list[str]) -> str:

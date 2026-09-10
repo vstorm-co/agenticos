@@ -168,6 +168,12 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         patch(f"{router}.unseal_bot_token", return_value="xoxb-token"),
         patch(f"{router}.ChannelAttachmentService", _Attachments),
         patch(f"{router}.ChannelAgentRouter", agent_router),
+        # These turns never link a file (the run is mocked), so every stored row
+        # is an orphan the discard should give back.
+        patch(
+            f"{router}.chat_file_repo.unlinked_ids",
+            AsyncMock(side_effect=lambda _db, ids: set(ids)),
+        ),
     ):
         yield
 
@@ -691,6 +697,125 @@ class TestOneMessageOneStoredFile:
         assert adapter.download_attachment.await_count == 1
         assert agents.answer.await_args.kwargs["attachments"] == [upload.return_value]
         agents.answer_default.assert_not_awaited()
+
+
+class TestACrashAnswersTheSameOnEitherPath:
+    """The mention path let a crash propagate - releasing the dedupe claim and
+    answering nothing - where the default path apologised once. One `_run_turn`
+    now, so a crash on either apologises and consumes the claim (#1459).
+    """
+
+    async def test_a_crash_on_the_mention_path_answers_like_one_on_the_default_path(self):
+        router_m, replies_m, rows_m = _router()
+        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
+            # Without the fix this would raise out of `_route_inner` and answer
+            # nothing; with it the crash is caught and apologised for.
+            await router_m._route_inner(_incoming("@support help"), MagicMock())
+
+        router_d, replies_d, rows_d = _router()
+        router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
+            await router_d._route_inner(_incoming("just a question"), MagicMock())
+
+        mention_reply = replies_m.await_args.args[2]
+        default_reply = replies_d.await_args.args[2]
+        assert "something went wrong" in mention_reply.lower()
+        assert mention_reply == default_reply
+
+    async def test_a_crashed_turn_leaves_no_stored_file(self):
+        """A crash before the run links anything leaves the turn's stored
+        attachments as orphaned as a refused turn's, so they are given back on
+        either path. A crash that had already linked them keeps them - covered
+        below (#1503)."""
+        router_m, _replies_m, rows_m = _router()
+        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
+            await router_m._route_inner(_incoming("@support here is the report"), MagicMock())
+
+        router_d, _replies_d, rows_d = _router()
+        router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
+            await router_d._route_inner(_incoming("here is the report"), MagicMock())
+
+        assert rows_m == []
+        assert rows_d == []
+
+    async def test_a_crash_that_already_linked_the_files_keeps_them(self):
+        """A provider error inside the run records the failed turn and links its
+        attachments before re-raising, so the discard gives back only the rows the
+        database still shows as unlinked - never the ones a persisted failed-turn
+        transcript now points at (#1503)."""
+        linked = SimpleNamespace(id=uuid.uuid4())
+        orphan = SimpleNamespace(id=uuid.uuid4())
+        discarded: list[Any] = []
+
+        class _Attachments:
+            def __init__(self, _db: Any) -> None: ...
+
+            async def discard(self, files: list[Any]) -> None:
+                discarded.extend(files)
+
+        router_mod = "app.services.channels.router"
+        with (
+            patch(f"{router_mod}.chat_file_repo.unlinked_ids", AsyncMock(return_value={orphan.id})),
+            patch(f"{router_mod}.ChannelAttachmentService", _Attachments),
+        ):
+            await ChannelMessageRouter._discard_files(AsyncMock(), [linked, orphan])
+
+        assert discarded == [orphan]
+
+    async def test_a_failure_after_streaming_edits_the_open_reply(self):
+        """A turn that already streamed a status has a placeholder on screen, so
+        the apology edits *it* into place rather than leaving the "…" hanging and
+        posting a separate message the room may never even be shown (#1459)."""
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()  # type: ignore[method-assign]
+        router._refuse_if_named = AsyncMock()  # type: ignore[method-assign]
+        adapter = MagicMock(update_reply=AsyncMock())
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="xoxb"),
+        ):
+            await router._post_failure(
+                MagicMock(), _incoming("@support help"), "msg-42", "Sorry, something went wrong."
+            )
+
+        adapter.update_reply.assert_awaited_once()
+        assert "something went wrong" in adapter.update_reply.await_args.args[1].text.lower()
+        assert adapter.update_reply.await_args.args[2] == "msg-42"
+        router._refuse_if_named.assert_not_awaited()
+        router._send_reply.assert_not_awaited()
+
+    async def test_a_failure_with_no_open_reply_refuses_if_named(self):
+        """Nothing was streamed, so there is no placeholder to edit and it is
+        `_refuse_if_named` - silent in a room the bot was not named in (#1459)."""
+        router = ChannelMessageRouter()
+        router._refuse_if_named = AsyncMock()  # type: ignore[method-assign]
+        adapter = MagicMock(update_reply=AsyncMock())
+        with patch("app.services.channels.router.get_adapter", return_value=adapter):
+            await router._post_failure(MagicMock(), _incoming("just a question"), None, "Sorry.")
+
+        adapter.update_reply.assert_not_awaited()
+        router._refuse_if_named.assert_awaited_once()
+
+    async def test_a_failed_edit_of_the_open_reply_falls_back_to_a_whole_post(self):
+        """A placeholder that cannot be edited - deleted, rate-limited - still has
+        to be answered, so the message is posted whole rather than left as the
+        "…" it was (#1459)."""
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()  # type: ignore[method-assign]
+        adapter = MagicMock(update_reply=AsyncMock(side_effect=RuntimeError("gone")))
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="xoxb"),
+        ):
+            await router._post_failure(MagicMock(), _incoming("@support help"), "msg-42", "Sorry.")
+
+        router._send_reply.assert_awaited_once()
+        assert router._send_reply.await_args.args[2] == "Sorry."
 
 
 class TestADeactivatedLinkedSenderIsRefusedEarly:
