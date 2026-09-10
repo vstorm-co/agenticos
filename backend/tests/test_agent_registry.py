@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     CapabilityBindingSpec,
     OrgMcpServerRef,
@@ -1844,6 +1845,43 @@ class TestPublish:
             {"status": AgentStatus.PUBLISHED.value},
             {"current_version_id": version.id},
         ]
+
+    @pytest.mark.anyio
+    async def test_publishing_stamps_the_deployments_spec_version_onto_the_frozen_copy(self):
+        """The number a stored version carries is this deployment's, not one a
+        client's imported draft claimed: publish is where the spec is confirmed
+        against the current registry, so `spec_version: 2` on a draft freezes as
+        SPEC_VERSION rather than staying write-only and wrong."""
+        ctx = _ctx()
+        draft = _spec("Support", instructions="Be brief", model_profile_id=uuid.uuid4()).model_dump(
+            mode="json"
+        )
+        draft["spec_version"] = 2
+        agent = _agent(ctx, draft_spec=draft)
+        version = _version(agent.id, number=3)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create_version",
+                new=AsyncMock(return_value=version),
+            ) as create_version,
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
+            patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            environments.get_default_for_agent = AsyncMock(return_value=None)
+            environments.create = AsyncMock(
+                return_value=MagicMock(id=uuid.uuid4(), version_id=version.id)
+            )
+            await AgentRegistryService(_db()).publish(ctx, agent.id)
+
+        assert create_version.call_args.kwargs["spec"]["spec_version"] == SPEC_VERSION
 
     @pytest.mark.anyio
     async def test_a_default_that_follows_latest_takes_the_agents_pointer_with_it(self):

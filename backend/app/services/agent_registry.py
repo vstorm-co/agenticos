@@ -37,6 +37,7 @@ from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import tool_prefix
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     BudgetSpec,
     CapabilityBindingSpec,
@@ -1185,6 +1186,7 @@ class AgentRegistryService:
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
+        problems.add(await self._observability_problems(ctx, spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1473,6 +1475,41 @@ class AgentRegistryService:
             ]
         return []
 
+    async def _observability_problems(self, ctx: AuthContext, spec: AgentSpec) -> list[str]:
+        """Whether the token an agent redirects its traces with is publishable.
+
+        `factory._instrument` says publishing is where a missing tracing secret
+        is refused because a run is far too late: an unusable token there logs
+        `agent_logfire_token_unavailable` and the agent runs untraced. So the
+        token reference gets the same existence and tenant checks a capability's
+        secret does, plus the `logfire` purpose gate `_check_logfire_secret`
+        already applies on the environment path - a Tavily or OpenAI key passes
+        a kind-only check (all three are `api_key`) and is then handed to Logfire
+        as its token, exposing the credential to the wrong service. The purpose
+        subsumes the kind: `_check_purpose` refuses a `logfire` secret that is
+        not an `api_key` at creation. Miss and refusal read alike, so an id
+        cannot enumerate the vault.
+        """
+        observability = spec.observability
+        if observability is None or observability.token_secret_id is None:
+            return []
+        secret = await organization_secret_repo.get(
+            self.db, observability.token_secret_id, organization_id=ctx.organization_id
+        )
+        if secret is None or not await resolve_access(
+            self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            return [
+                "The tracing token points at a secret this organization does not have: "
+                f"{observability.token_secret_id}"
+            ]
+        if secret.purpose != "logfire":
+            return [
+                "The tracing token must be a Logfire key, but "
+                f"'{secret.name}' is for {secret.purpose}"
+            ]
+        return []
+
     async def _delegation_problems(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None
     ) -> _SpecProblems:
@@ -1708,6 +1745,13 @@ class AgentRegistryService:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
+
+        # Publish is where the spec is confirmed against this deployment's own
+        # registry and models, so the frozen copy carries this deployment's spec
+        # version - not whatever an imported draft claimed. Otherwise the number
+        # is write-only: a `spec_version: 3` YAML publishes carrying constructs
+        # this code understands and stays labelled 3.
+        spec.spec_version = SPEC_VERSION
 
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
         version = await agent_repo.create_version(

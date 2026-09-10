@@ -25,7 +25,7 @@ from app.agents.capabilities import (
     build,
     register,
 )
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret, SecretKind, SecretRequirement
@@ -330,6 +330,126 @@ class TestPublishValidation:
             "Capability 'clock' does not use a secret, so the one selected here "
             "would be stored and never read"
         ]
+
+
+async def _observability_publish_problems(
+    observability: ObservabilitySpec | None, *, secret: MagicMock | None
+) -> Any:
+    """Validate a spec whose only reference is a tracing token, through publish.
+
+    A tracing token is not a capability's secret, but it is checked the same
+    way and at the same moment - `factory._instrument` says a run is far too
+    late to learn the token is unusable.
+    """
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+    if secret is not None:
+        secret.organization_id = ctx.organization_id
+    spec = AgentSpec(name="Traced", model_profile_id=uuid.uuid4(), observability=observability)
+    lookup = AsyncMock(return_value=secret)
+    with (
+        patch(
+            "app.services.agent_registry.credential_repo.get_profile",
+            new=AsyncMock(return_value=MagicMock()),
+        ),
+        patch("app.services.agent_registry.organization_secret_repo.get", new=lookup),
+    ):
+        try:
+            await AgentRegistryService(MagicMock()).validate_spec(ctx, spec)
+        except BadRequestError as refused:
+            assert refused.details is not None
+            return refused.details["problems"], lookup, ctx
+    return [], lookup, ctx
+
+
+class TestObservabilityPublishValidation:
+    """A tracing token is refused at publish, not left to fail silently at run."""
+
+    @pytest.mark.anyio
+    async def test_publishing_refuses_a_tracing_token_this_organization_does_not_have(self):
+        token_id = uuid.uuid4()
+
+        problems, lookup, ctx = await _observability_publish_problems(
+            ObservabilitySpec(token_secret_id=token_id), secret=None
+        )
+
+        assert problems == [
+            f"The tracing token points at a secret this organization does not have: {token_id}"
+        ]
+        # Scoped, so another tenant's token is indistinguishable from a missing one.
+        assert lookup.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_publishing_refuses_a_tracing_token_for_another_service(self, secret_row):
+        """The gap a kind-only check missed: a Tavily or OpenAI key is also an
+        `api_key`, so it passes on kind and is then handed to Logfire as its
+        token. The `logfire` purpose gate - the same one the environment path
+        applies - refuses it."""
+        secret_row.purpose = "tavily"
+        secret_row.name = "Tavily search"
+
+        problems, _, _ = await _observability_publish_problems(
+            ObservabilitySpec(token_secret_id=secret_row.id), secret=secret_row
+        )
+
+        assert problems == [
+            "The tracing token must be a Logfire key, but 'Tavily search' is for tavily"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_matching_tracing_token_publishes(self, secret_row):
+        secret_row.purpose = "logfire"
+        problems, _, _ = await _observability_publish_problems(
+            ObservabilitySpec(token_secret_id=secret_row.id), secret=secret_row
+        )
+        assert problems == []
+
+    @pytest.mark.anyio
+    async def test_publishing_refuses_a_tracing_token_the_publisher_cannot_reach(self, secret_row):
+        """Naming a tracing token is lending it, the same as a capability's key:
+        the publisher has to reach it themselves, and the refusal reads like a
+        miss so an id cannot enumerate the vault."""
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER
+        )
+        secret_row.organization_id = ctx.organization_id
+        secret_row.owner_user_id = uuid.uuid4()
+        secret_row.visibility = Visibility.PRIVATE.value
+        secret_row.purpose = "logfire"
+        spec = AgentSpec(
+            name="Traced",
+            model_profile_id=uuid.uuid4(),
+            observability=ObservabilitySpec(token_secret_id=secret_row.id),
+        )
+
+        with (
+            patch(
+                "app.services.agent_registry.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                "app.services.agent_registry.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret_row),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(MagicMock()).validate_spec(ctx, spec)
+
+        assert refused.value.details is not None
+        assert refused.value.details["problems"] == [
+            f"The tracing token points at a secret this organization does not have: {secret_row.id}"
+        ]
+
+    @pytest.mark.anyio
+    async def test_an_observability_block_without_a_token_needs_no_lookup(self):
+        problems, lookup, _ = await _observability_publish_problems(
+            ObservabilitySpec(environment="prod"), secret=None
+        )
+        assert problems == []
+        lookup.assert_not_awaited()
 
 
 class TestSpecCarriesOnlyAReference:
