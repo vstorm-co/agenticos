@@ -17,6 +17,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.398] - 2026-09-10
+
+### Added
+
+- **Published images, and one compose file as the whole product.**
+  `ghcr.io/vstorm-co/agenticos-backend` and `agenticos-frontend` are built for
+  amd64 and arm64 on every push to `main` (`edge`, `sha-<short>`) and every
+  release (`<version>`, `latest`), scanned by Trivy after publishing, and only
+  ever from a commit on `main`. `docker-compose.yml` pulls them and runs the
+  API, worker, console, Postgres, Redis, Prefect and a `migrate` service the API
+  waits on, every variable defaulted; `docker-compose.override.yml` is what a
+  clone merges in for `make dev`. `scripts/quickstart.sh` needs Docker alone:
+  outside a clone it downloads that one file at the latest release into
+  `./agenticos`, writes a `.env` with generated keys, and pulls.
+  `scripts/deploy.sh` pins `AGENTICOS_VERSION=sha-<short>` and pulls rather than
+  building on the host. (#1546)
+
+### Changed
+
+- **The frontend reads its public URLs at runtime.** `NEXT_PUBLIC_*` were build
+  arguments, so one image carried one deployment's hostnames. The root layout
+  reads `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL`,
+  `CHAT_MAX_UPLOAD_SIZE_MB` and `OAUTH_PROVIDERS` per request and hands them
+  down through `PublicConfigProvider`; `robots` and `sitemap` render
+  dynamically. `NEXT_PUBLIC_RAG_ENABLED`, read by nothing, is gone. (#1546)
+- **The backend image is built from the repository root**, so
+  `emails/compiled/` ships inside it rather than bind-mounted from a checkout,
+  and the root `.dockerignore` is an allowlist that excludes `backend/.env`.
+  The `docker` job in `ci.yml` is replaced by the publishing workflow. (#1546)
+
 ## [0.0.397] - 2026-09-10
 
 ### Fixed
