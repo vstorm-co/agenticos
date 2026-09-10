@@ -164,13 +164,19 @@ async def deactivate(db: AsyncSession, session_id: UUID) -> Session | None:
     return session
 
 
-async def deactivate_all_user_sessions(db: AsyncSession, user_id: UUID) -> int:
-    """Deactivate all sessions for a user. Returns count of deactivated sessions."""
-    result = await db.execute(
-        update(Session)
-        .where(Session.user_id == user_id, Session.is_active.is_(True))
-        .values(is_active=False)
-    )
+async def deactivate_all_user_sessions(
+    db: AsyncSession, user_id: UUID, *, except_session_id: UUID | None = None
+) -> int:
+    """Deactivate a user's sessions, optionally sparing one. Returns the count closed.
+
+    `except_session_id` keeps the caller's own session alive when a password change
+    revokes the account's others (#1439); with none given every session is closed,
+    which is the safe default for a reset the account holder did not make.
+    """
+    predicate = [Session.user_id == user_id, Session.is_active.is_(True)]
+    if except_session_id is not None:
+        predicate.append(Session.id != except_session_id)
+    result = await db.execute(update(Session).where(*predicate).values(is_active=False))
     await db.flush()
     return getattr(result, "rowcount", 0) or 0
 

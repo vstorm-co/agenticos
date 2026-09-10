@@ -34,11 +34,11 @@ def create_access_token(
     `act` is the actor behind the subject when the two differ - an administrator
     impersonating another account. It is carried as its own claim so a request
     made with the token is attributable to the person who is really acting, not
-    only to the account they are acting as (#943). `sid` is the session row that
-    impersonation is, so the token can be refused once the row has been ended -
-    a bare token is good until it expires whatever anybody does (#1044). Both are
-    omitted from the payload when unset, so an ordinary token is byte-for-byte
-    what it was.
+    only to the account they are acting as (#943). `sid` names the session row the
+    token belongs to: on an impersonation so the token can be refused once the row
+    has been ended (#1044), and on an ordinary login so a password change can spare
+    the session that made it while revoking the account's others (#1439). Each is
+    omitted when unset, so a token minted without one is byte-for-byte what it was.
     """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
@@ -56,14 +56,26 @@ def create_access_token(
 def create_refresh_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    *,
+    credential_version: int = 0,
 ) -> str:
-    """Create a JWT refresh token."""
+    """Create a JWT refresh token.
+
+    Carries the account's `credential_version` as `cv`: a password change bumps
+    the user's version, and the refresh path refuses a token whose `cv` is behind
+    it, so a token minted before the change cannot be rotated past it (#1517).
+    """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "refresh",
+        "cv": credential_version,
+    }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
