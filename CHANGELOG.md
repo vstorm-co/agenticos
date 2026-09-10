@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.395] - 2026-09-10
+
+### Changed
+
+- **A connector's config is described as JSON Schema, like a capability's.**
+  Each connector declares a Pydantic `CONFIG_MODEL` and the listing publishes
+  its `model_json_schema()`; the required-field check derives from the model,
+  and a placeholder default is marked on the model rather than by a frontend
+  adapter. `ConnectorConfigField`, `ConnectorFieldType` and the
+  `connectorConfigToJsonSchema` bridge are gone; the wizard hands the schema to
+  `SchemaForm` unadapted. Stored connector configs are untouched. (#1538)
+
 ## [0.0.394] - 2026-09-10
 
 ### Fixed
