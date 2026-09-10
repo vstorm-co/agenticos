@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.381] - 2026-09-10
+
+### Security
+
+- **A password change revokes the account's other sessions.** Changing a password
+  from Settings hashed the new one and stopped, so every other browser's refresh
+  token - and any impersonation of the account - stayed valid. Ordinary access
+  tokens now carry a `sid` naming their session, and a password change deactivates
+  every session but the one that made it; a change that names no session (an
+  admin resetting another account, a token minted before this) revokes all of
+  them. Ships the self-service password-change endpoint, and an explicit
+  `password: null` is a no-op rather than a 500. (#1498)
+
 ## [0.0.380] - 2026-09-10
 
 ### Documentation
