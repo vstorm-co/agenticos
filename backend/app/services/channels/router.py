@@ -342,10 +342,24 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, command_reply)
             return
 
-        if identity.user_id is None and not admit_unlinked:
+        if not admit_unlinked and not await self._sender_is_active_member(db, bot, identity):
             # Through `_refuse_if_named`, not `_send_reply`: a room message that
             # names a colleague passes the overheard gate on its handle, and the
-            # invitation must not interrupt two people talking to each other.
+            # invitation must not interrupt two people talking to each other. A
+            # linked sender whose member is gone is refused here too, before any
+            # attachment is fetched, stored or transcribed for a turn
+            # `_membership_context` refuses anyway - which is now the second lock
+            # rather than the first (#1456).
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                # Consumed on the refusal path too, not only before a turn:
+                # otherwise a refused sender mints a link request and an
+                # invitation on every message with no allowance ever spent
+                # (#1516). Rides the invite's own channel - shown where the
+                # invite would show, silent where it would stay silent.
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
             await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
@@ -907,6 +921,24 @@ class ChannelMessageRouter:
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is `_admits_unlinked`'s to enforce.
 
+    async def _sender_is_active_member(
+        self, db: AsyncSession, bot: ChannelBot, identity: ChannelIdentity
+    ) -> bool:
+        """Whether the sender's linked account is still an active member of this org.
+
+        A link in `channel_identities` outlives the deactivation of the account
+        behind it, so a linked-but-departed sender must be treated as unlinked
+        before any attachment is fetched or transcribed - the joined read
+        `member_repo.get_active` is what tells the two apart, and the same read
+        `_membership_context` makes at the run (#1456).
+        """
+        if identity.user_id is None:
+            return False
+        membership = await member_repo.get_active(
+            db, organization_id=bot.organization_id, user_id=identity.user_id
+        )
+        return membership is not None
+
     def _admits_unlinked(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
         """Whether somebody with no linked account may be answered here.
 
@@ -1095,6 +1127,16 @@ class ChannelMessageRouter:
             # carrying a code somebody copied. Kept because "how do I connect
             # this?" is a question people ask in words, and because a URL that
             # expired needs a way to ask for another.
+            if incoming.chat_type == "private":
+                # The other door onto `_invite_to_link`, and it runs before the
+                # admission gate's allowance is consulted, so a refused sender
+                # could churn link requests through `/link` where the plain
+                # message is now throttled (#1516). Only in a direct message,
+                # where the invite actually mints a request.
+                try:
+                    await self._check_rate_limit(bot, str(identity.id))
+                except BadRequestError as exc:
+                    return exc.message
             try:
                 return await self._invite_to_link(incoming, db)
             except Exception:

@@ -212,27 +212,108 @@ class TestRedisProbe:
         assert "did not answer within" in check.detail
 
 
+def _capable(
+    *,
+    available: str = "0.8.0",
+    trusted: bool = True,
+    superuser: bool = True,
+    may_create: bool = True,
+) -> tuple[str | None, bool | None, bool, bool]:
+    """One row of `_PGVECTOR_CAPABILITY`: what the image ships, what the role may do."""
+    return (available, trusted, superuser, may_create)
+
+
 class TestVectorStoreProbe:
     async def test_it_reports_the_extension_version_and_how_many_collections(self) -> None:
-        check = await health.probe_vector_store(_Session("0.8.0", 3))  # type: ignore[arg-type]
+        check = await health.probe_vector_store(
+            _Session(_capable(), "0.8.0", 3)  # type: ignore[arg-type]
+        )
 
         assert check.status == "healthy"
         assert "pgvector 0.8.0" in check.detail
         assert "3 collection table(s)" in check.detail
 
-    async def test_a_missing_extension_is_unconfigured_not_broken(self) -> None:
+    async def test_an_extension_not_created_yet_is_unconfigured_not_broken(self) -> None:
         """A deployment that never ingests a document is not having an incident.
 
-        It does need to know before the first upload that the upload will fail,
-        which is what the detail is for.
+        The RAG store creates the extension the first time a collection is
+        written to, so on the image every compose file here pins, and as a role
+        that may create it, this is a state that resolves itself - and the detail
+        says so rather than predicting a failure that will not happen (#1504).
         """
-        session = _Session(None)
+        session = _Session(_capable(), None)
         check = await health.probe_vector_store(session)  # type: ignore[arg-type]
 
         assert check.status == "unconfigured"
-        assert "not installed" in check.detail
-        # No point counting embedding tables when the type they use is absent.
-        assert session.queries == 1
+        assert "may create it" in check.detail
+        assert "0.8.0" in check.detail
+        # No point counting embedding tables when the type they use does not
+        # exist yet.
+        assert session.queries == 2
+
+    async def test_a_trusted_extension_is_creatable_without_being_superuser(self) -> None:
+        """`CREATE EXTENSION` needs superuser *unless* the extension is trusted,
+        which pgvector is - then CREATE on the database is enough."""
+        check = await health.probe_vector_store(
+            _Session(_capable(superuser=False), None)  # type: ignore[arg-type]
+        )
+
+        assert check.status == "unconfigured"
+
+    async def test_a_role_that_cannot_create_it_is_unhealthy_however_available(self) -> None:
+        """Availability is the image's answer, not the role's.
+
+        An application connecting as a restricted role sees `vector` in
+        `pg_available_extensions` and still cannot run `CREATE EXTENSION`, so
+        promising that the first ingestion creates it is the same unverified
+        claim this probe exists to stop making.
+        """
+        check = await health.probe_vector_store(
+            _Session(_capable(superuser=False, may_create=False), None)  # type: ignore[arg-type]
+        )
+
+        assert check.status == "unhealthy"
+        assert "cannot create it" in check.detail
+
+    async def test_an_untrusted_extension_needs_superuser(self) -> None:
+        check = await health.probe_vector_store(
+            _Session(_capable(superuser=False, trusted=False), None)  # type: ignore[arg-type]
+        )
+
+        assert check.status == "unhealthy"
+        assert "cannot create it" in check.detail
+
+    async def test_an_image_without_pgvector_is_unhealthy_and_says_which_image(self) -> None:
+        """The other half, and the opposite consequence.
+
+        On stock Postgres the extension cannot be created at all, so the first
+        upload 500s *after* the bytes have been accepted. Reported as unhealthy,
+        because nothing about it resolves itself, and naming the image because
+        that is the fix.
+        """
+        session = _Session((None, None, False, True), None)
+        check = await health.probe_vector_store(session)  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert "does not ship pgvector" in check.detail
+        assert "pgvector/pgvector:pg16" in check.detail
+        assert session.queries == 2
+
+    async def test_a_volume_that_outlived_its_image_is_unhealthy(self) -> None:
+        """The row survives; the shared library does not.
+
+        A data directory carrying `pg_extension` started on an image without
+        pgvector keeps the catalog row and loses `$libdir/vector`, so the
+        extension reads as installed, the collection tables are still countable,
+        and every vector operation fails. Availability is therefore read whether
+        or not the extension exists (#1504).
+        """
+        check = await health.probe_vector_store(
+            _Session((None, None, False, True), "0.8.0")  # type: ignore[arg-type]
+        )
+
+        assert check.status == "unhealthy"
+        assert "$libdir/vector" in check.detail
 
     async def test_a_catalog_read_that_fails_is_unhealthy(self) -> None:
         check = await health.probe_vector_store(
@@ -316,7 +397,7 @@ class TestReadiness:
 class TestSystemHealth:
     async def test_it_reports_every_check_an_operator_can_act_on(self) -> None:
         report = await health.system_health(
-            db=_Session(1, "0.8.0", 2, (1, 1)),  # type: ignore[arg-type]
+            db=_Session(1, _capable(), "0.8.0", 2, (1, 1)),  # type: ignore[arg-type]
             redis=_Redis(),  # type: ignore[arg-type]
         )
 

@@ -21,10 +21,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.schemas.channel_bot import LinkedPlace
+from app.services import impersonation as impersonation_service
 from app.services.channel_link import REQUEST_TTL, ChannelLinkService
 from app.services.channels.base import IncomingMessage
 from app.services.channels.router import ChannelMessageRouter, _as_command
+from app.services.impersonation import ActiveImpersonation
 
 pytestmark = pytest.mark.anyio
 
@@ -261,6 +264,36 @@ class TestConfirming:
         assert self.resolved.call_count == 0
         assert self.updated.call_count == 0
 
+    async def test_confirm_is_refused_under_an_impersonation(self):
+        """An administrator acting as B must not attach their own chat account to
+        B's. Refused before the request is even read, so the token is neither read
+        nor spent and nothing is linked (#1438)."""
+        with (
+            patch(
+                "app.services.channel_link.channel_link_request_repo.get_valid",
+                new=AsyncMock(),
+            ) as read,
+            patch(
+                "app.services.channel_link.channel_link_request_repo.delete_by_id",
+                new=AsyncMock(),
+            ) as spent,
+        ):
+            active = impersonation_service._active.set(
+                ActiveImpersonation(
+                    session_id=uuid.uuid4(),
+                    user_id=uuid.uuid4(),
+                    impersonator_id=uuid.uuid4(),
+                    expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+                )
+            )
+            try:
+                with pytest.raises(AuthorizationError):
+                    await ChannelLinkService(MagicMock()).confirm("tok", self.user_id)
+            finally:
+                impersonation_service._active.reset(active)
+        read.assert_not_awaited()
+        spent.assert_not_awaited()
+
 
 class TestWhatTheBotSaysToAStranger:
     async def test_a_direct_message_gets_the_link(self):
@@ -415,6 +448,78 @@ class TestWhereTheInvitationIsPosted:
 
         sent.assert_awaited_once()
         assert sent.await_args.args[2] == "link first"
+
+
+class TestARefusedSenderCannotChurnTheInvitation:
+    """A sender refused at the admission gate mints a link request and sends an
+    invitation on every message. Before #1516 the per-sender allowance was
+    consulted only on the path that ran a turn, so a refused sender could churn
+    that path as fast as they could type. The allowance is consumed here too:
+    the first message still gets its invitation, one past the allowance mints
+    nothing."""
+
+    async def _route(self, *, rate_limited: bool) -> tuple[AsyncMock, AsyncMock]:
+        router = ChannelMessageRouter()
+        bot = MagicMock(is_active=True, access_policy={"mode": "jwt_linked"})
+        invite = AsyncMock(return_value="link first")
+        sent = AsyncMock()
+        check = AsyncMock(
+            side_effect=BadRequestError(message="Rate limit exceeded. Please slow down.")
+            if rate_limited
+            else None
+        )
+        with (
+            patch(
+                "app.services.channels.router.channel_bot_repo.get_for_inbound",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch.object(ChannelMessageRouter, "_handle_command", new=AsyncMock(return_value=None)),
+            patch.object(
+                ChannelMessageRouter,
+                "_resolve_identity",
+                new=AsyncMock(return_value=MagicMock(user_id=None)),
+            ),
+            patch.object(ChannelMessageRouter, "_check_rate_limit", new=check),
+            patch.object(ChannelMessageRouter, "_invite_to_link", new=invite),
+            patch.object(ChannelMessageRouter, "_send_reply", new=sent),
+        ):
+            await router._route_inner(_incoming(), MagicMock())
+        return invite, sent
+
+    async def test_a_first_message_still_gets_its_invitation(self):
+        invite, sent = await self._route(rate_limited=False)
+
+        invite.assert_awaited_once()
+        assert sent.await_args.args[2] == "link first"
+
+    async def test_a_message_past_the_allowance_mints_no_invitation(self):
+        invite, sent = await self._route(rate_limited=True)
+
+        invite.assert_not_awaited()
+        assert "slow down" in sent.await_args.args[2]
+
+    async def test_the_link_command_consumes_the_allowance_too(self):
+        """`/link` is the other door onto the invite, handled before the
+        admission gate consults the allowance - so a refused sender could churn
+        link requests through the command where the plain message is throttled.
+        It consumes the same per-sender allowance in a direct message."""
+        router = ChannelMessageRouter()
+        bot = MagicMock(access_policy={})
+        invite = AsyncMock(return_value="link first")
+        check = AsyncMock(
+            side_effect=[None, BadRequestError(message="Rate limit exceeded. Please slow down.")]
+        )
+        identity = MagicMock(id=uuid.uuid4(), user_id=None)
+        with (
+            patch.object(ChannelMessageRouter, "_check_rate_limit", new=check),
+            patch.object(ChannelMessageRouter, "_invite_to_link", new=invite),
+        ):
+            first = await router._handle_command("/link", _incoming(), bot, _db(), identity, False)
+            second = await router._handle_command("/link", _incoming(), bot, _db(), identity, False)
+
+        assert first == "link first"
+        assert invite.await_count == 1
+        assert "slow down" in second
 
 
 class TestASlashAPlatformAte:

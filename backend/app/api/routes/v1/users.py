@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 
 from app.api.deps import (
     CurrentAppAdmin,
+    CurrentSessionId,
     CurrentUser,
     UserSvc,
 )
@@ -31,6 +32,7 @@ async def update_current_user(
     user_in: UserUpdate,
     current_user: CurrentUser,
     user_service: UserSvc,
+    current_session_id: CurrentSessionId,
 ) -> Any:
     """Update current user profile.
 
@@ -45,7 +47,9 @@ async def update_current_user(
     `update_current` refuses an app admin suspending themselves here - otherwise
     it is the way around #941's guard.
     """
-    return await user_service.update_current(current_user, user_in)
+    return await user_service.update_current(
+        current_user, user_in, current_session_id=current_session_id
+    )
 
 
 @router.post("/me/avatar", response_model=UserRead)

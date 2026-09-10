@@ -165,6 +165,36 @@ Computed properties:
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
 
+## Email (SMTP)
+
+The deployment sends mail through an SMTP server, and one with none configured
+does not fail — it runs, and every mail-dependent flow silently stops, none of
+them announcing itself:
+
+- **passwordless sign-in and password resets** — the magic-link and reset emails
+  are the self-service ways into an account;
+- **invitations** — an invited address is never mailed (the console now says so
+  rather than claiming it sent one, #1484);
+- **notifications** — a budget breach, an approval request, a usage report, the
+  notice sent when an administrator acts as another account.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SMTP_HOST` | `localhost` | SMTP server host |
+| `SMTP_PORT` | `587` | SMTP server port. `587` and `25` negotiate STARTTLS; `465` opens TLS from the start |
+| `SMTP_USER` | (empty) | Username the relay authenticates with, alongside `SMTP_PASSWORD`. Leave empty for an unauthenticated relay |
+| `SMTP_PASSWORD` | (empty) | Password for that username |
+| `SMTP_TLS` | `true` | Whether to encrypt the connection. The port decides how — STARTTLS on `587`, implicit TLS on `465`. Set `false` only for an unencrypted relay, such as a local server on `25` |
+| `EMAIL_FROM` | `noreply@agenticos.com` | The `From` address on every message |
+| `EMAIL_FROM_NAME` | `agenticos` | The display name shown beside that address |
+
+!!! note "How the connection is encrypted"
+
+    `SMTP_TLS` is the on/off switch; the port chooses the scheme. The shipped
+    default — `587` with `SMTP_TLS=true` — negotiates STARTTLS, which is what a
+    standards-compliant submission server expects. Use `465` for a server that
+    wants implicit TLS instead, and `SMTP_TLS=false` on `25` for a plaintext relay.
+
 ## Background work (Prefect)
 
 | Variable | Default | Description |
@@ -255,7 +285,22 @@ see RAG below.
 ### Vector database
 
 pgvector uses the existing PostgreSQL connection. No additional configuration
-is needed.
+is needed — but the **image** must be `pgvector/pgvector:pg16`, which every
+compose file here pins.
+
+!!! note "\"Vector store: unconfigured\" on a fresh deployment is not a fault"
+
+    The extension is created the first time a collection is written to, so
+    before the first document it is genuinely absent and the admin System page
+    and `agenticos cmd doctor` both say so. It resolves itself on the first
+    ingestion.
+
+    What is a fault is `unhealthy` there, and it names which of three: the image
+    does not ship pgvector; the connecting role may not create it; or the data
+    directory carries the extension row while the image it now runs on has lost
+    the library. All three fail an upload after the bytes have been accepted, and
+    all three used to read the same as a healthy first day
+    ([#1504](https://github.com/vstorm-co/agenticos/issues/1504)).
 
 ### Embeddings
 
@@ -584,7 +629,7 @@ service's container, is refused with `mounts denied`.
 | | Default | |
 |---|---|---|
 | Local dev | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop shares it and anybody can write to it, so a laptop needs no setup |
-| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 (`install -d -o 10001`, once), and belongs on storage somebody backs up |
+| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, once. Not `install -d -o 10001`: `install` resolves the owner through the passwd database and refuses a uid no account owns. It belongs on storage somebody backs up |
 
 A reboot sweeps `/tmp`, which is the one reason not to point a real deployment
 there.
@@ -896,3 +941,8 @@ stale and production's pipe ping goes unanswered.
 - [ ] `REDIS_PASSWORD` — a strong password
 - [ ] `CORS_ORIGINS` — only your actual frontend domain(s)
 - [ ] `OPENROUTER_API_KEY` — your production API key
+
+Email is deliberately **not** on this list: a deployment runs without it. But
+invitations, password resets and notifications all go silently unsent until
+`SMTP_HOST` and the rest of [Email (SMTP)](#email-smtp) point at a real server —
+so a deployment that skips it should be skipping it knowingly.

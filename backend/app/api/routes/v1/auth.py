@@ -19,10 +19,12 @@ from app.core.exceptions import AuthenticationError
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    verify_token,
 )
 from app.schemas.password_reset import (
     MagicLinkRequest,
     MagicLinkVerifyRequest,
+    PasswordChangeRequest,
     PasswordResetConfirm,
     PasswordResetConfirmResponse,
     PasswordResetRequest,
@@ -47,16 +49,18 @@ async def login(
     """OAuth2 password login, returns access and refresh tokens."""
     await enforce_auth_limit(request, surface="auth_login", identifier=form_data.username)
     user = await user_service.authenticate(form_data.username, form_data.password)
-    access_token = create_access_token(subject=str(user.id))
-    refresh_token = create_refresh_token(subject=str(user.id))
+    refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
 
     # Track this login as a server-side session (enables remote logout).
-    await session_service.create_session(
+    session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -89,16 +93,27 @@ async def refresh_token(
     if not user.is_active:
         raise AuthenticationError(message="User account is disabled")
 
-    access_token = create_access_token(subject=str(user.id))
-    new_refresh_token = create_refresh_token(subject=str(user.id))
+    # The presented token must be at the account's current credential version. A
+    # password change bumps it, so a token minted before the change - even one
+    # whose session row a concurrent revocation had not yet closed - cannot rotate
+    # past it (#1517). A token minted before the claim existed carries no `cv` and
+    # reads as 0, which matches an account that has never changed its password.
+    payload = verify_token(body.refresh_token)
+    if payload is None or payload.get("cv", 0) != user.credential_version:
+        raise AuthenticationError(message="Invalid or expired refresh token")
+
+    new_refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
 
     await session_service.logout_by_refresh_token(body.refresh_token)
-    await session_service.create_session(
+    session = await session_service.create_session(
         user_id=user.id,
         refresh_token=new_refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 
 
@@ -114,6 +129,47 @@ async def logout(
     """
     await enforce_auth_limit(request, surface="auth_logout")
     await session_service.logout_by_refresh_token(body.refresh_token)
+
+
+@router.post("/password/change", response_model=Token)
+async def change_password(
+    request: Request,
+    body: PasswordChangeRequest,
+    current_user: CurrentUser,
+    user_service: UserSvc,
+    session_service: SessionSvc,
+) -> Any:
+    """Change the signed-in user's password and open this device a fresh session.
+
+    The current password is proved here, which `PATCH /users/me` cannot ask for -
+    the flow the Settings form posts to (#1517). The change bumps the credential
+    version and revokes every session, the caller's own included - so its stale
+    refresh token cannot rotate past the change - and a fresh session is minted at
+    the new version and returned, keeping the one who made the change signed in
+    while every other device, an impersonation among them, is logged out (#1439).
+    """
+    # Identified by the account, not only the caller's address: a stolen access
+    # token spread across source IPs would otherwise get a fresh guess budget per
+    # address against the same account's current password (#1517).
+    await enforce_auth_limit(
+        request, surface="auth_password_change", identifier=str(current_user.id)
+    )
+    updated = await user_service.change_password(
+        current_user,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+    refresh_token = create_refresh_token(
+        subject=str(updated.id), credential_version=updated.credential_version
+    )
+    session = await session_service.create_session(
+        user_id=updated.id,
+        refresh_token=refresh_token,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
+    access_token = create_access_token(subject=str(updated.id), sid=str(session.id))
+    return Token(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.get("/me", response_model=MeRead)
@@ -222,14 +278,16 @@ async def verify_magic_link(
     """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
     user, return_to = await user_service.consume_magic_link_token(body.token)
-    access_token = create_access_token(subject=str(user.id))
-    refresh_token = create_refresh_token(subject=str(user.id))
-    await session_service.create_session(
+    refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
+    session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return MagicLinkToken(
         access_token=access_token, refresh_token=refresh_token, return_to=return_to
     )
