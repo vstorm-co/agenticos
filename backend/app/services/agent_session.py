@@ -13,7 +13,7 @@ from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.subagent_events import SubagentEvent
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, AuthenticationError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -39,6 +39,7 @@ from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
+from app.services.ws_auth import authenticate_socket_token
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,13 @@ logger = logging.getLogger(__name__)
 # the general assistant the template shipped is gone, and guessing an agent on
 # the user's behalf would mean something they never picked answering them.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
+
+# Closed with the same 4001 the handshake uses for a bad credential: the client
+# treats it as a no-retry auth close rather than a dropped connection to
+# reconnect (`use-websocket.ts` NO_RETRY_CLOSE_CODES), which is what a revoked
+# session should get (#1437).
+_REVOKED_CLOSE_CODE = 4001
+_REVOKED_CLOSE_REASON = "Session revoked"
 
 HISTORY_MESSAGES = 200
 """How many of a thread's turns the model is reminded of.
@@ -92,10 +100,16 @@ class AgentSession:
         websocket: WebSocket,
         user: User,
         organization: Organization,
+        auth_token: str | None = None,
     ) -> None:
         self.websocket = websocket
         self.user = user
         self.organization_id = organization.id
+        # The credential the socket was opened with, re-checked before every
+        # frame so a revoked session cannot keep running (#1437). None only when
+        # the socket carried no token to re-check - which the handshake refuses,
+        # so it happens in tests alone; such a session is left to run.
+        self._auth_token = auth_token
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
@@ -122,28 +136,44 @@ class AgentSession:
         A `stop` cancels the running turn; an `ask_user_response` unblocks a
         paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
+
+        A frame that will *act* on the session is refused first if that session
+        has been revoked (#1437), so nothing - not a new turn, not the answer
+        that resumes a parked one, not cancelling a turn that is still running -
+        happens on a dead credential. A frame that would do nothing - an unknown
+        control type, or a message arriving while a turn is already in progress -
+        is dropped before that check, so it costs no credential query: an
+        authenticated client cannot turn a stream of no-op frames into a stream
+        of database reads (found reviewing #1437).
         """
         msg_type = data.get("type")
 
         if msg_type == "stop":
+            if self._turn_task is None or self._turn_task.done():
+                return
+            if not await self._reauthorize():
+                return
             await self._cancel_turn()
             return
 
         if msg_type == "ask_user_response":
             fut = self._ask_user_future
-            if fut is not None and not fut.done():
-                raw = data.get("answers")
-                answers = raw if isinstance(raw, list) else []
-                fut.set_result(answers)
-                # Recorded here, in the receive loop, rather than after the run
-                # resumes past its await: a `stop` sent right behind the answer is
-                # the next frame, so completing the pair now is what keeps a turn
-                # cancelled a microtask later from losing the answered question
-                # (#502).
-                if self._pending_question is not None and self._current_timeline is not None:
-                    self._current_timeline.add_ask_user(
-                        self._pending_question, render_answer(answers[0] if answers else None)
-                    )
+            if fut is None or fut.done():
+                return
+            if not await self._reauthorize():
+                return
+            raw = data.get("answers")
+            answers = raw if isinstance(raw, list) else []
+            fut.set_result(answers)
+            # Recorded here, in the receive loop, rather than after the run
+            # resumes past its await: a `stop` sent right behind the answer is
+            # the next frame, so completing the pair now is what keeps a turn
+            # cancelled a microtask later from losing the answered question
+            # (#502).
+            if self._pending_question is not None and self._current_timeline is not None:
+                self._current_timeline.add_ask_user(
+                    self._pending_question, render_answer(answers[0] if answers else None)
+                )
             return
 
         if msg_type is not None:
@@ -152,9 +182,54 @@ class AgentSession:
         if self._turn_task is not None and not self._turn_task.done():
             logger.warning("Ignoring message received while a turn is already in progress")
             return
+
+        if not await self._reauthorize():
+            return
         task = asyncio.create_task(self._run_turn(data))
         self._turn_task = task
         task.add_done_callback(self._on_turn_done)
+
+    async def _reauthorize(self) -> bool:
+        """Re-check the socket's credential before acting on a frame.
+
+        The handshake authenticates once and the socket is then held open for
+        its whole life, so a session revoked afterwards - an impersonation ended
+        (#1044), an account suspended, a signed-out administrator behind an
+        impersonation - would keep being served turn after turn if nothing
+        re-checked it (#1437). Re-run the handshake's own check
+        (`authenticate_socket_token`) on each inbound frame: on refusal, cancel
+        any running turn and close the socket, so the next turn is never served
+        on a dead session.
+
+        The check is at the frame boundary, not mid-turn: a turn already
+        streaming is left to finish, and the revocation lands on the next frame
+        the client sends - which is what stops a legitimate long turn being cut
+        off by it.
+
+        `allow_expired=True`: the socket is authenticated once, at the handshake,
+        and then held open past its access token's 30-minute lifetime - the
+        connection outlives the token, and the client re-credentials by
+        reconnecting, not per frame. So a token that has merely aged out is not a
+        revocation and must not close a live socket; what closes it is a session
+        or account state that says the access is gone, which this still reads.
+
+        A session opened without a token has nothing to re-check (the handshake
+        refuses a tokenless socket, so this is a test-only construction) and is
+        left to run.
+        """
+        if self._auth_token is None:
+            return True
+        async with get_db_context() as db:
+            try:
+                await authenticate_socket_token(db, self._auth_token, allow_expired=True)
+            except AuthenticationError:
+                await self._cancel_turn()
+                with contextlib.suppress(RuntimeError):
+                    await self.websocket.close(
+                        code=_REVOKED_CLOSE_CODE, reason=_REVOKED_CLOSE_REASON
+                    )
+                return False
+        return True
 
     def _on_turn_done(self, task: asyncio.Task[None]) -> None:
         """Clear the turn slot and surface unexpected crashes."""

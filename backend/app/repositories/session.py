@@ -15,14 +15,24 @@ async def get_by_id(db: AsyncSession, session_id: UUID) -> Session | None:
     return await db.get(Session, session_id)
 
 
-async def get_by_refresh_token_hash(db: AsyncSession, token_hash: str) -> Session | None:
-    """Get session by refresh token hash."""
-    result = await db.execute(
-        select(Session).where(
-            Session.refresh_token_hash == token_hash,
-            Session.is_active.is_(True),
-        )
+async def get_by_refresh_token_hash(
+    db: AsyncSession, token_hash: str, *, for_update: bool = False
+) -> Session | None:
+    """Get session by refresh token hash.
+
+    `for_update` locks the row for the rest of the transaction, so a refresh
+    serializes against a concurrent one bearing the same token: the second blocks
+    until the first commits, then re-reads and finds the hash already rotated away,
+    so it refuses cleanly rather than both rotating the row and one client walking
+    off with a refresh token the row no longer holds (#1501 review).
+    """
+    query = select(Session).where(
+        Session.refresh_token_hash == token_hash,
+        Session.is_active.is_(True),
     )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -152,6 +162,37 @@ async def update_last_used(db: AsyncSession, session_id: UUID) -> None:
         update(Session).where(Session.id == session_id).values(last_used_at=datetime.now(UTC))
     )
     await db.flush()
+
+
+async def rotate(
+    db: AsyncSession,
+    *,
+    session: Session,
+    refresh_token_hash: str,
+    expires_at: datetime,
+    device_name: str | None = None,
+    device_type: str | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> Session:
+    """Re-key a session row to a rotated refresh token, keeping its id.
+
+    The id is what a live access token names in `sid`, so it has to survive a
+    refresh (#1501); the hash and the window move, `last_used_at` gets the same
+    touch a plain use gives it, and the device and address move to where the
+    refresh came from so the sessions list shows where the credential is used now.
+    """
+    session.refresh_token_hash = refresh_token_hash
+    session.expires_at = expires_at
+    session.last_used_at = datetime.now(UTC)
+    session.device_name = device_name
+    session.device_type = device_type
+    session.ip_address = ip_address
+    session.user_agent = user_agent
+    db.add(session)
+    await db.flush()
+    await db.refresh(session)
+    return session
 
 
 async def deactivate(db: AsyncSession, session_id: UUID) -> Session | None:

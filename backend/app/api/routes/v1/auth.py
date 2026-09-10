@@ -53,7 +53,9 @@ async def login(
         subject=str(user.id), credential_version=user.credential_version
     )
 
-    # Track this login as a server-side session (enables remote logout).
+    # The session row is created before the access token is minted, so the token
+    # can name it in `sid` - which is what lets signing out everywhere revoke the
+    # access token, not only stop the next refresh (#1501).
     session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
@@ -106,10 +108,13 @@ async def refresh_token(
         subject=str(user.id), credential_version=user.credential_version
     )
 
-    await session_service.logout_by_refresh_token(body.refresh_token)
-    session = await session_service.create_session(
-        user_id=user.id,
-        refresh_token=new_refresh_token,
+    # Rotate the refresh token in place, keeping the row's id: the new access
+    # token names the same `sid`, so a live socket or a second tab holding the
+    # old access token is not cut off by a routine refresh (#1437, #1501). The
+    # old refresh token's hash is replaced, which is what makes it unusable.
+    await session_service.rotate_session(
+        session,
+        new_refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )

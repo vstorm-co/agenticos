@@ -126,6 +126,61 @@ async def test_login_names_its_session_in_the_access_token(
 
 
 @pytest.mark.anyio
+async def test_magic_link_binds_the_access_token_to_its_session(
+    client_with_mock_service: AsyncClient,
+    mock_user_service: MagicMock,
+    mock_user: MockUser,
+):
+    """A magic-link sign-in is a session like any other, bound to its row."""
+    mock_user_service.consume_magic_link_token = ServiceMock(return_value=(mock_user, None))
+    session_id = uuid4()
+    session_service = MagicMock()
+    session_service.create_session = ServiceMock(return_value=MagicMock(id=session_id))
+    app.dependency_overrides[get_session_service] = lambda: session_service
+
+    response = await client_with_mock_service.post(
+        f"{settings.API_V1_STR}/auth/magic-link/verify",
+        json={"token": "a-magic-token"},
+    )
+
+    assert response.status_code == 200
+    payload = verify_token(response.json()["access_token"])
+    assert payload is not None
+    assert payload["sid"] == str(session_id)
+
+
+@pytest.mark.anyio
+async def test_refresh_keeps_the_session_and_rebinds_the_new_token(
+    client_with_mock_service: AsyncClient,
+    mock_user_service: MagicMock,
+    mock_user: MockUser,
+):
+    """Refresh rotates the row in place: the new access token carries the *same*
+    `sid`, and no second row is created, so a live socket is not cut off (#1501)."""
+    session_id = uuid4()
+    session = MagicMock(id=session_id, user_id=mock_user.id)
+    session_service = MagicMock()
+    session_service.validate_refresh_token = ServiceMock(return_value=session)
+    session_service.rotate_session = ServiceMock(return_value=session)
+    session_service.create_session = ServiceMock()
+    app.dependency_overrides[get_session_service] = lambda: session_service
+
+    response = await client_with_mock_service.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={
+            "refresh_token": create_refresh_token(subject=str(mock_user.id), credential_version=0)
+        },
+    )
+
+    assert response.status_code == 200
+    payload = verify_token(response.json()["access_token"])
+    assert payload is not None
+    assert payload["sid"] == str(session_id)
+    session_service.rotate_session.assert_awaited_once()
+    session_service.create_session.assert_not_awaited()
+
+
+@pytest.mark.anyio
 async def test_get_current_session_id_reads_the_sid_claim() -> None:
     session_id = uuid4()
     token = create_access_token(subject=str(uuid4()), sid=str(session_id))
@@ -171,7 +226,7 @@ async def test_refresh_refuses_a_token_behind_the_credential_version(
     session_service.validate_refresh_token = AsyncMock(
         return_value=SimpleNamespace(id=uuid4(), user_id=user.id)
     )
-    session_service.create_session = AsyncMock()
+    session_service.rotate_session = AsyncMock()
     stale = create_refresh_token(subject=str(user.id), credential_version=4)
 
     app.dependency_overrides[get_user_service] = lambda: user_service
@@ -187,7 +242,7 @@ async def test_refresh_refuses_a_token_behind_the_credential_version(
         app.dependency_overrides.clear()
 
     assert resp.status_code == 401
-    session_service.create_session.assert_not_called()
+    session_service.rotate_session.assert_not_called()
 
 
 @pytest.mark.anyio
@@ -204,8 +259,7 @@ async def test_refresh_at_the_current_version_mints_a_token_carrying_it(
     session_service.validate_refresh_token = AsyncMock(
         return_value=SimpleNamespace(id=uuid4(), user_id=user.id)
     )
-    session_service.logout_by_refresh_token = AsyncMock()
-    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    session_service.rotate_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     current = create_refresh_token(subject=str(user.id), credential_version=5)
 
     app.dependency_overrides[get_user_service] = lambda: user_service

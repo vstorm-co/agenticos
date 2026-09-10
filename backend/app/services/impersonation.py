@@ -52,7 +52,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import current_impersonator, record_audit, set_impersonator
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
-from app.core.security import create_access_token
+from app.core.security import create_access_token, read_uuid_claim
 from app.db.models.user import User
 from app.repositories import session_repo, user_repo
 from app.schemas.user import ImpersonateResponse, ImpersonationRead, ImpersonatorRead
@@ -95,25 +95,9 @@ def current_impersonation() -> ActiveImpersonation | None:
     return _active.get()
 
 
-def _uuid_claim(payload: dict[str, Any], name: str) -> UUID | None:
-    """A claim read as a uuid, or None when it is absent or not one.
-
-    A malformed claim is no claim rather than a refusal: the token is signed by
-    this deployment, so a claim it cannot parse is one this code never wrote,
-    and the request stays attributable to its subject (#943).
-    """
-    value = payload.get(name)
-    if not value:
-        return None
-    try:
-        return UUID(str(value))
-    except ValueError:
-        return None
-
-
 def impersonator_from(payload: dict[str, Any]) -> UUID | None:
     """The administrator behind an impersonated token, or None for an ordinary one."""
-    return _uuid_claim(payload, "act")
+    return read_uuid_claim(payload, "act")
 
 
 def refuse_binding_while_impersonating(action: str) -> None:
@@ -264,7 +248,7 @@ class ImpersonationService:
             _active.set(None)
             return None
 
-        session_id = _uuid_claim(payload, "sid")
+        session_id = read_uuid_claim(payload, "sid")
         if session_id is None:
             raise AuthenticationError(message="An impersonation without a session is not accepted")
 
