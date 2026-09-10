@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 
 import { CookieBanner } from "@/components/legal/cookie-banner";
 import { locales, type Locale } from "@/i18n";
-import { OG_LOCALE, SITE } from "@/lib/seo";
+import { OG_LOCALE, SITE, siteOrigin } from "@/lib/seo";
 
 import { Providers } from "../providers";
 
@@ -22,13 +22,14 @@ export async function generateMetadata({
   const safeLocale: Locale = locales.includes(locale as Locale)
     ? (locale as Locale)
     : SITE.defaultLocale;
+  const origin = siteOrigin();
 
   return {
     alternates: {
       // x-default points to the canonical default-locale tree.
       languages: {
-        ...Object.fromEntries(SITE.locales.map((l) => [l, `${SITE.url}/${l}`])),
-        "x-default": `${SITE.url}/${SITE.defaultLocale}`,
+        ...Object.fromEntries(SITE.locales.map((l) => [l, `${origin}/${l}`])),
+        "x-default": `${origin}/${SITE.defaultLocale}`,
       },
     },
     openGraph: {

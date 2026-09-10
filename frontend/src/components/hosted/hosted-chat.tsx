@@ -7,8 +7,8 @@ import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { TurnParts } from "@/components/chat/turn-parts";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { Button, Input } from "@/components/ui";
-import { BACKEND_URL, WS_URL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/types";
 import type { HostedPageConfig } from "@/types/hosted";
@@ -280,6 +280,7 @@ function suppliedFromUrl(allowed: string[]): Record<string, string> {
  */
 export function HostedChat({ config }: { config: HostedPageConfig }) {
   const t = useTranslations("hosted");
+  const { apiUrl, wsUrl } = usePublicConfig();
   // Same origin, not the address the API gave. `img-src 'self' blob: data: https:`
   // excludes an API on plain `http`, which is every development checkout and any
   // deployment that terminates TLS elsewhere - so the header and every turn's
@@ -321,7 +322,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
 
   useEffect(() => {
     const visitor = visitorKeyFor(config.public_key);
-    const url = `${WS_URL}/api/v1/embed/${encodeURIComponent(config.public_key)}/ws?visitor=${visitor}`;
+    const url = `${wsUrl}/api/v1/embed/${encodeURIComponent(config.public_key)}/ws?visitor=${visitor}`;
     const socket = new WebSocket(url);
     socketRef.current = socket;
     // Set before the cleanup closes the socket, so a teardown - an unmount, a
@@ -361,7 +362,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       intentional = true;
       socket.close();
     };
-  }, [config.public_key, session]);
+  }, [wsUrl, config.public_key, session]);
 
   useEffect(() => {
     const thread = threadRef.current;
@@ -440,7 +441,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         body.append("file", file);
         const visitor = visitorKeyFor(config.public_key);
         const response = await fetch(
-          `${BACKEND_URL}/api/v1/embed/${encodeURIComponent(config.public_key)}/files`,
+          `${apiUrl}/api/v1/embed/${encodeURIComponent(config.public_key)}/files`,
           { method: "POST", body, headers: { "X-Visitor-Key": visitor } },
         );
         if (!response.ok) throw new Error("refused");
@@ -452,7 +453,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         setUploading(false);
       }
     },
-    [config.public_key, t],
+    [apiUrl, config.public_key, t],
   );
 
   const send = useCallback(() => {

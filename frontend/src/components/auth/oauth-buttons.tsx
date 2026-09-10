@@ -1,9 +1,9 @@
 "use client";
 
-import { BACKEND_URL } from "@/lib/constants";
 import { rememberReturnTo } from "@/lib/oauth-return";
 
 import { GlyphIcon } from "@/components/icons/glyph";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { AUTH_GLYPHS, type AuthProvider } from "@/lib/auth-glyphs.generated";
 
 import { useTranslations } from "next-intl";
@@ -15,15 +15,6 @@ const PROVIDER_WORDS: Record<Provider, string> = {
   github: "Github",
   microsoft: "Microsoft",
 };
-
-function readProviders(): Provider[] {
-  const raw = process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((p) => p.trim().toLowerCase())
-    .filter((p): p is Provider => p === "google" || p === "github" || p === "microsoft");
-}
 
 interface OAuthButtonsProps {
   /** Override label suffix when used in register page. */
@@ -48,8 +39,7 @@ interface OAuthButtonsProps {
 
 function OAuthButtons({ variant = "signin", invitation, returnTo }: OAuthButtonsProps) {
   const t = useTranslations("auth");
-  const providers = readProviders();
-  if (providers.length === 0) return null;
+  const { apiUrl, oauthProviders: providers } = usePublicConfig();
 
   const query = new URLSearchParams();
   if (invitation) query.set("invitation", invitation);
@@ -58,7 +48,7 @@ function OAuthButtons({ variant = "signin", invitation, returnTo }: OAuthButtons
   return (
     <div className="space-y-2.5">
       {providers.map((provider) => {
-        const url = `${BACKEND_URL}/api/v1/oauth/${provider}/login${search}`;
+        const url = `${apiUrl}/api/v1/oauth/${provider}/login${search}`;
         const label =
           variant === "signup"
             ? t(`signUpWith${PROVIDER_WORDS[provider]}`)
@@ -92,7 +82,8 @@ export function OAuthBlock({
   invitation?: string | null;
   returnTo?: string | null;
 }) {
-  if (!process.env.NEXT_PUBLIC_OAUTH_PROVIDERS) return null;
+  const { oauthProviders } = usePublicConfig();
+  if (oauthProviders.length === 0) return null;
   return (
     <div className="space-y-5">
       <OAuthDivider label={label} />

@@ -37,7 +37,7 @@ import {
   resumeFailureStatus,
 } from "@/lib/delegations";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
-import { WS_URL } from "@/lib/constants";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
@@ -583,10 +583,11 @@ export function useChat(options: UseChatOptions = {}) {
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const tenantId = useTenantId();
+  const { wsUrl: wsOrigin } = usePublicConfig();
   const wsUrl = useMemo(() => {
-    const base = `${WS_URL}/api/v1/ws/agent`;
+    const base = `${wsOrigin}/api/v1/ws/agent`;
     return activeOrgId ? `${base}?organization_id=${encodeURIComponent(activeOrgId)}` : base;
-  }, [activeOrgId]);
+  }, [wsOrigin, activeOrgId]);
   const wsProtocols = useMemo(
     () => (accessToken ? [`access_token.${accessToken}`, "chat"] : undefined),
     [accessToken],

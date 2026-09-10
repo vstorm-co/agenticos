@@ -6,16 +6,33 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OAuthBlock } from "./oauth-buttons";
-import { AUTH_GLYPHS } from "@/lib/auth-glyphs.generated";
+import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
+import { AUTH_GLYPHS, type AuthProvider } from "@/lib/auth-glyphs.generated";
+import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 
-const SAVED = process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
 afterEach(() => {
-  if (SAVED === undefined) delete process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
-  else process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = SAVED;
   window.sessionStorage.clear();
 });
+
+/** Mount the block under a deployment offering exactly these providers. */
+function renderWith(
+  providers: readonly AuthProvider[],
+  props: Partial<Parameters<typeof OAuthBlock>[0]> = {},
+) {
+  return render(
+    <PublicConfigProvider
+      config={{
+        ...DEFAULT_PUBLIC_CONFIG,
+        apiUrl: "https://api.acme.example",
+        oauthProviders: providers,
+      }}
+    >
+      <OAuthBlock label="or" {...props} />
+    </PublicConfigProvider>,
+  );
+}
 
 /** Click the provider button without letting jsdom follow the link out. */
 async function press(name: RegExp) {
@@ -26,9 +43,7 @@ async function press(name: RegExp) {
 
 describe("the OAuth buttons", () => {
   it("renders a link and a mark per configured provider", () => {
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google,github,microsoft";
-
-    render(<OAuthBlock label="or" />);
+    renderWith(["google", "github", "microsoft"]);
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(3);
@@ -36,10 +51,17 @@ describe("the OAuth buttons", () => {
     expect(document.querySelectorAll("svg")).toHaveLength(3);
   });
 
-  it("carries the invitation token to the provider on a sign-up", () => {
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
+  it("sends the visitor to the API origin the deployment named, not a baked one (#1544)", () => {
+    renderWith(["google"]);
 
-    render(<OAuthBlock label="or" variant="signup" invitation="tok" />);
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "https://api.acme.example/api/v1/oauth/google/login",
+    );
+  });
+
+  it("carries the invitation token to the provider on a sign-up", () => {
+    renderWith(["google"], { variant: "signup", invitation: "tok" });
 
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
@@ -50,8 +72,7 @@ describe("the OAuth buttons", () => {
   it("remembers the deep link the visitor was headed to", async () => {
     // Not sent to the provider and not in the OAuth `state`: the trip starts
     // and ends in this tab, and `/auth/callback` reads it back (#135).
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
-    render(<OAuthBlock label="or" returnTo="/agents/a-1" />);
+    renderWith(["google"], { returnTo: "/agents/a-1" });
 
     await press(/continueWith/);
 
@@ -61,9 +82,8 @@ describe("the OAuth buttons", () => {
   });
 
   it("forgets an abandoned one, rather than resuming it on the next attempt", async () => {
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
     window.sessionStorage.setItem("oauthReturnTo", "/agents/gone");
-    render(<OAuthBlock label="or" />);
+    renderWith(["google"]);
 
     await press(/continueWith/);
 
@@ -71,11 +91,18 @@ describe("the OAuth buttons", () => {
   });
 
   it("renders nothing when no provider is configured", () => {
-    delete process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
-
-    const { container } = render(<OAuthBlock label="or" />);
+    const { container } = renderWith([]);
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers Google outside a provider, which is the default a deployment ships with", () => {
+    render(<OAuthBlock label="or" />);
+
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      expect.stringContaining("/oauth/google/login"),
+    );
   });
 
   it("keeps the full brand table off the auth pages (#955)", () => {
