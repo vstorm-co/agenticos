@@ -519,20 +519,16 @@ class AgentSession:
         object it already parsed instead of re-deriving the discriminator from the
         envelope.
 
-        `cost_usd` is sent as a JSON number. Pydantic serialises a `Decimal` as a
-        string in JSON mode, and this wire already reports a turn's cost as a
-        number (see `usage_report.usage_frame`) - a delegation's share of that cost
-        is the same quantity and must not arrive in a different shape.
+        `cost_usd` crosses as the Decimal string Pydantic serialises it to in JSON
+        mode - the same shape `usage_report.usage_frame` and every REST surface
+        report a cost in, so a delegation's share arrives in the shape the client
+        already parses everywhere else (#545).
 
         Nothing is awaited on the client's behalf: `send_event` answers `False` on
         a closed socket rather than raising, so a background delegation whose
         frames outlive the tab does not take the run down with it.
         """
-        frame = event.model_dump(mode="json")
-        cost = frame.get("cost_usd")
-        if cost is not None:
-            frame["cost_usd"] = float(cost)
-        await send_event(self.websocket, event.kind, frame)
+        await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
 
     async def _compaction_event(self, event: CompactionEvent) -> None:
         """Forward one frame from a summary in progress, under the frame's own name.
