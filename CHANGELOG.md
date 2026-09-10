@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.391] - 2026-09-10
+
+### Fixed
+
+- **A tracing token is validated at publish.** `observability.token_secret_id`
+  was the one credential reference publish validation never checked, so a
+  wrong-kind or cross-tenant id published fine and the agent ran untraced. It
+  now runs through the same existence, tenant and kind checks a capability's
+  secret gets. (#1535)
+- **`spec_version` is read, not only written.** An imported YAML whose
+  `spec_version` is newer than this deployment's is refused, and publish stamps
+  the deployment's `SPEC_VERSION` onto the frozen copy. A stored spec is
+  unaffected. (#1535)
+- **The Slack Socket Mode client is closed on every session exit.** A cancel or
+  a crash-reconnect orphaned the aiohttp session, the WSS connection and the
+  listener; `_run_socket_mode` now closes the client in a `finally`, as
+  Mattermost's stream already did. (#1535)
+
 ## [0.0.390] - 2026-09-10
 
 ### Security
