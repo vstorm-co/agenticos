@@ -6,6 +6,10 @@ The submission port decides the encryption scheme: 465 opens TLS from the start,
 there was refused by every standards-compliant server and the deployment sent
 nothing (#1543). And an empty `SMTP_USER` means an unauthenticated relay, not a
 login attempt with a blank username.
+
+The port rule is a default, not a law: a server speaking implicit TLS on a
+non-standard port would be handed a plaintext handshake under it, so
+`SMTP_TLS_MODE` forces either scheme when the port does not say.
 """
 
 import aiosmtplib
@@ -68,6 +72,40 @@ async def test_tls_off_sends_plaintext_and_never_upgrades(monkeypatch):
     await SMTPProvider(host="mail", port=25, username="", password="", use_tls=False).send(
         _message()
     )
+
+    assert sent["use_tls"] is False
+    assert sent["start_tls"] is False
+
+
+async def test_implicit_mode_opens_tls_from_the_start_on_a_non_standard_port(monkeypatch):
+    sent = _capture(monkeypatch)
+
+    await SMTPProvider(
+        host="mail", port=8465, username="", password="", use_tls=True, tls_mode="implicit"
+    ).send(_message())
+
+    assert sent["use_tls"] is True
+    assert sent["start_tls"] is False
+
+
+async def test_starttls_mode_negotiates_the_upgrade_even_on_465(monkeypatch):
+    sent = _capture(monkeypatch)
+
+    await SMTPProvider(
+        host="mail", port=465, username="", password="", use_tls=True, tls_mode="starttls"
+    ).send(_message())
+
+    assert sent["use_tls"] is False
+    assert sent["start_tls"] is True
+
+
+@pytest.mark.parametrize("tls_mode", ["auto", "implicit", "starttls"])
+async def test_tls_off_is_plaintext_whatever_the_mode_says(monkeypatch, tls_mode):
+    sent = _capture(monkeypatch)
+
+    await SMTPProvider(
+        host="mail", port=8465, username="", password="", use_tls=False, tls_mode=tls_mode
+    ).send(_message())
 
     assert sent["use_tls"] is False
     assert sent["start_tls"] is False

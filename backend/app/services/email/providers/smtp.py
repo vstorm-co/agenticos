@@ -5,6 +5,7 @@ import uuid
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from app.core.config import SmtpTlsMode
 from app.services.email.providers.base import EmailMessage, SendResult
 
 logger = logging.getLogger(__name__)
@@ -27,12 +28,25 @@ class SMTPProvider:
         username: str,
         password: str,
         use_tls: bool = True,
+        tls_mode: SmtpTlsMode = "auto",
     ) -> None:
         self.host = host
         self.port = port
         self.username = username
         self.password = password
         self.use_tls = use_tls
+        self.tls_mode = tls_mode
+
+    def _implicit_tls(self) -> bool:
+        """Whether TLS is opened from the first byte rather than negotiated.
+
+        `auto` reads the port, which is right for the standard ones and wrong for
+        a server speaking implicit TLS somewhere else - there the deployment says
+        `implicit`, or the provider offers a plaintext handshake to a TLS socket.
+        """
+        if self.tls_mode == "auto":
+            return self.port == _IMPLICIT_TLS_PORT
+        return self.tls_mode == "implicit"
 
     async def send(self, message: EmailMessage) -> SendResult:
         import aiosmtplib
@@ -54,7 +68,7 @@ class SMTPProvider:
         msg.attach(MIMEText(message.text, "plain"))
         msg.attach(MIMEText(message.html, "html"))
 
-        implicit_tls = self.use_tls and self.port == _IMPLICIT_TLS_PORT
+        implicit_tls = self.use_tls and self._implicit_tls()
         try:
             await aiosmtplib.send(
                 msg,
