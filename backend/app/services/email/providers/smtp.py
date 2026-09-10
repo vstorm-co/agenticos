@@ -9,6 +9,10 @@ from app.services.email.providers.base import EmailMessage, SendResult
 
 logger = logging.getLogger(__name__)
 
+# 465 is the implicit-TLS submission port; 587 and 25 speak plaintext first and
+# upgrade with STARTTLS, so opening TLS from the start there is refused.
+_IMPLICIT_TLS_PORT = 465
+
 
 class SMTPProvider:
     delivers = True
@@ -50,14 +54,16 @@ class SMTPProvider:
         msg.attach(MIMEText(message.text, "plain"))
         msg.attach(MIMEText(message.html, "html"))
 
+        implicit_tls = self.use_tls and self.port == _IMPLICIT_TLS_PORT
         try:
             await aiosmtplib.send(
                 msg,
                 hostname=self.host,
                 port=self.port,
-                username=self.username,
-                password=self.password,
-                use_tls=self.use_tls,
+                username=self.username or None,
+                password=self.password or None,
+                use_tls=implicit_tls,
+                start_tls=self.use_tls and not implicit_tls,
             )
             msg_id = f"smtp_{uuid.uuid4()}"
             logger.info(
