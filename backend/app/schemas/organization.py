@@ -238,5 +238,25 @@ class InvitationAccept(BaseSchema):
     token: str
 
 
+class InvitationStageRequest(BaseSchema):
+    """The token an invitee holds, offered for the server-side exchange (#1414)."""
+
+    token: str = Field(min_length=1, max_length=64)
+
+
+class InvitationStaged(BaseSchema):
+    """The opaque handle the exchange mints, for the frontend's server layer to hold.
+
+    It stands in for the token through the sign-in round trip. What keeps it off a
+    script is not this model - it is the response body of a public endpoint - but
+    where the frontend puts it: its server layer reads the handle and sets it as an
+    `httpOnly` cookie the browser cannot read, rather than handing it to page code.
+    The handle holds nothing about the invitation - not the token, not the
+    organization - so it names nobody even to whoever reads it in transit.
+    """
+
+    handle: str
+
+
 class TransferOwnershipRequest(BaseSchema):
     new_owner_user_id: _ID

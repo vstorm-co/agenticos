@@ -27,6 +27,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
+from app.core.exceptions import NotFoundError
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -67,11 +68,23 @@ def service() -> MagicMock:
     stub.list_for_org = AsyncMock(return_value=[invitation])
     stub.revoke_by_id = AsyncMock(return_value=invitation)
     stub.revoke = AsyncMock(return_value=invitation)
+    stub.ensure_stageable = AsyncMock(return_value=None)
+    stub.accept = AsyncMock(return_value=invitation)
     return stub
 
 
 @pytest.fixture
-async def client(service: MagicMock) -> AsyncIterator[AsyncClient]:
+def staging() -> MagicMock:
+    """The Redis exchange, stubbed: a handle out, and the token back on redeem."""
+    stub = MagicMock()
+    stub.stage = AsyncMock(return_value="an-opaque-handle")
+    stub.redeem = AsyncMock(return_value=_TOKEN)
+    stub.peek = AsyncMock(return_value=_TOKEN)
+    return stub
+
+
+@pytest.fixture
+async def client(service: MagicMock, staging: MagicMock) -> AsyncIterator[AsyncClient]:
     """A client whose caller is signed in and whose service is the stub above.
 
     Who may call these routes is decided in `InvitationService` and tested in
@@ -80,6 +93,7 @@ async def client(service: MagicMock) -> AsyncIterator[AsyncClient]:
     """
     app.dependency_overrides[deps.get_current_user] = lambda: SimpleNamespace(id=uuid4())
     app.dependency_overrides[deps.get_invitation_service] = lambda: service
+    app.dependency_overrides[deps.get_invitation_staging_service] = lambda: staging
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
         yield http
     app.dependency_overrides.clear()
@@ -182,6 +196,73 @@ class TestRevokingAsAnAdministrator:
         put a live token in a URL.
         """
         response = await client.delete(_org_url(f"/invitations/{_TOKEN}"))
+
+        assert response.status_code == 422
+
+
+def _token_url(tail: str) -> str:
+    return f"{settings.API_V1_STR}/invitations{tail}"
+
+
+class TestStagingKeepsTheTokenOffTheSignInTrip:
+    """The server-side exchange (#1414): a token in, an opaque handle out, and the
+    handle back for a token only inside the server on redeem."""
+
+    async def test_a_valid_token_is_exchanged_for_a_handle(
+        self, client: AsyncClient, staging: MagicMock
+    ) -> None:
+        response = await client.post(_token_url("/stage"), json={"token": _TOKEN})
+
+        assert response.status_code == 200
+        assert response.json() == {"handle": "an-opaque-handle"}
+        assert staging.stage.await_args.args[0] == _TOKEN
+
+    async def test_the_reply_carries_nothing_but_the_handle(self, client: AsyncClient) -> None:
+        """Not the token, not the organization: a handle a script briefly holds
+        before the server sets it as an httpOnly cookie must reveal neither."""
+        response = await client.post(_token_url("/stage"), json={"token": _TOKEN})
+
+        assert _TOKEN not in response.text
+        assert str(_ORGANIZATION_ID) not in response.text
+
+    async def test_a_forged_token_is_refused_and_never_staged(
+        self, client: AsyncClient, service: MagicMock, staging: MagicMock
+    ) -> None:
+        service.ensure_stageable = AsyncMock(
+            side_effect=NotFoundError(message="Invitation not found or no longer valid")
+        )
+
+        response = await client.post(_token_url("/stage"), json={"token": "forged"})
+
+        assert response.status_code == 404
+        staging.stage.assert_not_awaited()
+
+    async def test_a_staged_handle_redeems_to_the_token_and_accepts_it(
+        self, client: AsyncClient, service: MagicMock, staging: MagicMock
+    ) -> None:
+        response = await client.post(
+            _token_url("/staged/accept"), headers={"X-Invitation-Handle": "an-opaque-handle"}
+        )
+
+        assert response.status_code == 204
+        assert staging.redeem.await_args.args[0] == "an-opaque-handle"
+        assert service.accept.await_args.args[0] == _TOKEN
+
+    async def test_a_replayed_or_expired_handle_is_a_clean_miss(
+        self, client: AsyncClient, service: MagicMock, staging: MagicMock
+    ) -> None:
+        staging.redeem = AsyncMock(return_value=None)
+
+        response = await client.post(
+            _token_url("/staged/accept"), headers={"X-Invitation-Handle": "spent"}
+        )
+
+        assert response.status_code == 404
+        service.accept.assert_not_awaited()
+
+    async def test_accepting_without_a_handle_is_refused(self, client: AsyncClient) -> None:
+        """The header is the credential; a request without one cannot be an accept."""
+        response = await client.post(_token_url("/staged/accept"))
 
         assert response.status_code == 422
 

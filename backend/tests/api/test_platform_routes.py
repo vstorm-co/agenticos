@@ -1388,6 +1388,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # code, and it cannot be asked to carry our session while doing so; the
         # code itself is the credential.
         ("POST", f"{V1}/me/mcp-connections/oauth/callback"),
+        # Staging an invitation deep link (#1414). An invitee follows the link
+        # while signed out, so this runs before they have a session; the token
+        # they hold is the credential, and it is exchanged here for an opaque
+        # httpOnly-cookie handle so it never rides the sign-in round trip. It
+        # returns nothing but the handle and refuses a forged token uniformly.
+        ("POST", f"{V1}/invitations/stage"),
         # Bearer-token surfaces where the token is in the URL, not a header.
         # A share link is a capability: whoever holds the token is the audience,
         # which is the whole point of being able to send it to somebody.

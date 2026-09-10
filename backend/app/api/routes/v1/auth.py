@@ -3,13 +3,14 @@
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import (
     CurrentUser,
     DeploymentSettingsSvc,
     ImpersonationSvc,
+    InvitationStagingSvc,
     SessionSvc,
     UserSvc,
     enforce_auth_limit,
@@ -65,9 +66,22 @@ async def register(
     request: Request,
     user_in: UserCreate,
     user_service: UserSvc,
+    staging: InvitationStagingSvc,
+    invitation_handle: Annotated[str | None, Header(alias="X-Invitation-Handle")] = None,
 ) -> Any:
-    """Register a new user."""
+    """Register a new user.
+
+    When the registration arrives through a staged invitation (#1414) the token
+    is not in the body - it was exchanged for an `httpOnly` handle before the
+    invitee ever reached this form. The handle is peeked, not redeemed, so the
+    same handle still closes the acceptance after sign-in; the token it resolves
+    to feeds the sign-up admission check and is never returned or logged.
+    """
     await enforce_auth_limit(request, surface="auth_register", identifier=user_in.email)
+    if invitation_handle and not user_in.invitation_token:
+        staged_token = await staging.peek(invitation_handle)
+        if staged_token is not None:
+            user_in = user_in.model_copy(update={"invitation_token": staged_token})
     return await user_service.register(user_in)
 
 
