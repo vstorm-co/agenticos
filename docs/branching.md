@@ -10,6 +10,13 @@ feat/… fix/… ──pull request──▶ main
 Everything reaching it does so as a squashed commit from a short-lived branch,
 after CI has run on the pull request.
 
+A push to `main` and a `v*` tag each also publish the two container images -
+`ghcr.io/vstorm-co/agenticos-backend` and `-frontend`, `edge` and `sha-<short>`
+from the branch, the version and `latest` from the tag - through
+`.github/workflows/images.yml`. It has no pull-request trigger, so a fork cannot
+publish under the organization's name; [Deploy](deploy.md#the-images) says what
+pulls them.
+
 There is no `dev`. There was, briefly: work landed there and reached `main` in
 release pull requests. At this size it bought a staging branch nobody needed and
 cost a second place for every change to sit, so it was removed.

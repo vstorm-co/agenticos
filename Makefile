@@ -1,31 +1,25 @@
 .PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build presentation
 
 # === Environments ===========================================================
-# Three, one compose file each, with a matching frontend file beside it:
+# Three. The images are published to GHCR by `.github/workflows/images.yml`
+# (`ghcr.io/vstorm-co/agenticos-backend` and `-frontend`); every environment but
+# the laptop pulls them, and the laptop builds the same Dockerfiles from the tree:
 #
 #   make dev         local, on a laptop    docker-compose.yml
-#                                          docker-compose.frontend.yml
+#                                          + docker-compose.override.yml (source)
 #   make dev-server  the dev server        docker-compose-dev.yml
 #                                          docker-compose-dev.frontend.yml
 #   make prod        production            docker-compose-prod.yml
 #                                          docker-compose-prod.frontend.yml
 #
-# Local bind-mounts the source and reloads. The other two build images, publish
-# no database port, and want a reverse proxy in front (nginx/nginx.conf).
-# Each has matching -down / -logs / -frontend siblings.
-
-# Wait for postgres to accept connections. Polls pg_isready instead of a
-# fixed sleep — handles slow startups and cold-start image pulls.
-define _wait_for_db
-	@echo "Waiting for PostgreSQL ($(1))..."
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-		if docker compose -f $(1) exec -T db pg_isready -U postgres >/dev/null 2>&1; then \
-			echo "  ✅ DB ready"; exit 0; \
-		fi; \
-		printf '.'; sleep 2; \
-	done; \
-	echo "  ❌ DB not ready after 30s — check 'make dev-logs'"; exit 1
-endef
+# `docker-compose.yml` on its own - in an empty directory, no clone - is the
+# product from the published images, console included. In a clone Compose merges
+# the override over it by itself, which bind-mounts the source and reloads; the
+# console goes behind the `console` profile there so `bun dev` keeps :3000.
+# The other two publish no database port and want a reverse proxy in front
+# (nginx/nginx.conf). Each has matching -down / -logs / -frontend siblings, and
+# every one runs the migrations itself through the `migrate` service.
+COMPOSE_LOCAL := -f docker-compose.yml -f docker-compose.override.yml
 
 # Which optional compose profiles `make dev` brings up. The sandbox service is
 # on by default so an agent can be given a container without anybody reading a
@@ -65,19 +59,14 @@ sandbox-runtimes:
 # admin seeding is a separate target (`make seed`) so re-running `make dev`
 # doesn't keep retrying user creation.
 dev: sandbox-token
-	@echo "▶ Building backend image…"
-	docker compose -f docker-compose.yml build app
-	@echo "▶ Starting services…"
-	@if ! docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) up -d; then \
+	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
+	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
 		echo ""; \
 		echo "⚠ First start failed. Tearing down stale containers and retrying once…"; \
-		echo "  (volumes preserved — DB data is safe; use 'make clean' for a full wipe)"; \
-		docker compose -f docker-compose.yml down --remove-orphans; \
-		docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) up -d; \
+		echo "  (volumes preserved — DB data is safe; use 'make docker-clean' for a full wipe)"; \
+		docker compose $(COMPOSE_LOCAL) down --remove-orphans; \
+		docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; \
 	fi
-	$(call _wait_for_db,docker-compose.yml)
-	@echo "▶ Applying migrations…"
-	docker compose -f docker-compose.yml exec -T app agenticos db upgrade
 	@echo ""
 	@echo "🚀 Dev stack ready:"
 	@echo "   API:      http://localhost:8000"
@@ -94,12 +83,12 @@ dev: sandbox-token
 # clean either way. Replace email/password before deploying anywhere real.
 seed:
 	@echo "▶ Seeding admin user (admin@example.com / admin123)…"
-	@if docker compose -f docker-compose.yml exec -T app \
+	@if docker compose $(COMPOSE_LOCAL) exec -T app \
 		agenticos user list 2>/dev/null \
 		| grep -q "admin@example.com"; then \
 		echo "  (admin@example.com already exists — nothing to do)"; \
 	else \
-		docker compose -f docker-compose.yml exec -T app \
+		docker compose $(COMPOSE_LOCAL) exec -T app \
 			agenticos user create \
 				--email admin@example.com --password admin123 --superuser \
 		&& echo "  ✅ Admin created. Login at http://localhost:8000/admin"; \
@@ -110,49 +99,53 @@ seed:
 # Pass a key to make the demo agent actually answerable:
 #   make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 platform-bootstrap:
-	docker compose -f docker-compose.yml exec -T \
+	docker compose $(COMPOSE_LOCAL) exec -T \
 		-e BOOTSTRAP_API_KEY=$(BOOTSTRAP_API_KEY) app \
 		agenticos cmd bootstrap
 
 bootstrap: dev seed
 
 dev-down:
-	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) down
+	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console down
 
 # Full wipe — containers, networks, AND volumes. Use after a corrupted state
 # (e.g. detached networks, port conflicts that left orphans). DESTROYS DB data.
 docker-clean:
 	@echo "▶ Removing containers, networks, AND volumes for the dev stack…"
 	@echo "  ⚠️  This deletes all local DB data and uploaded files."
-	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) down -v --remove-orphans
+	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console down -v --remove-orphans
 	@echo "✅ Cleaned. Run 'make dev' to start fresh."
 
 dev-logs:
-	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) logs -f
+	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console logs -f
 
 dev-rebuild:
-	docker compose -f docker-compose.yml build --no-cache app
-	docker compose -f docker-compose.yml up -d --force-recreate app
+	docker compose $(COMPOSE_LOCAL) build --no-cache app
+	docker compose $(COMPOSE_LOCAL) up -d --force-recreate app
+
+# Naming the service enables its `console` profile; `--no-deps` keeps `--build`
+# from rebuilding the backend image on the way, since `make dev` owns that.
 dev-frontend:
-	docker compose -f docker-compose.frontend.yml up -d
+	docker compose $(COMPOSE_LOCAL) up -d --build --no-deps frontend
 	@echo ""
 	@echo "✅ Frontend at http://localhost:3000  (backend must be up — 'make dev')"
 
-# === Dev server: a deployed environment, built images, no bind mounts ===
+# === Dev server: a deployed environment, published images, no bind mounts ===
 # Not a laptop. Needs backend/.env with POSTGRES_PASSWORD and REDIS_PASSWORD;
 # neither has a default here, because a shared environment reachable with
-# `postgres/postgres` is not one you want.
+# `postgres/postgres` is not one you want. Pulls `edge` - whatever `main` last
+# published - unless backend/.env pins `AGENTICOS_VERSION`.
 dev-server:
 	@test -f backend/.env || (echo "❌ backend/.env missing — cp backend/.env.example backend/.env and fill it in" && exit 1)
-	docker compose --env-file backend/.env -f docker-compose-dev.yml up -d --build
-	$(call _wait_for_db,docker-compose-dev.yml)
-	docker compose --env-file backend/.env -f docker-compose-dev.yml exec -T app agenticos db upgrade
+	docker compose --env-file backend/.env -f docker-compose-dev.yml pull
+	docker compose --env-file backend/.env -f docker-compose-dev.yml up -d
 	@echo "✅ Dev-server stack up on :8000 — put a reverse proxy in front of it"
 
 dev-server-frontend:
 	@test -f backend/.env || (echo "❌ backend/.env missing" && exit 1)
-	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml up -d --build
-	@echo "✅ Dev-server frontend on :3000 (PUBLIC_* vars are baked in at build time)"
+	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml pull
+	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml up -d
+	@echo "✅ Dev-server frontend on :3000 (PUBLIC_* are read at start — a change is a restart)"
 
 dev-server-down:
 	docker compose --env-file backend/.env -f docker-compose-dev.yml down
@@ -183,17 +176,18 @@ PROD_FILES := -f docker-compose-prod.yml $(if $(filter traefik,$(PROXY)),-f dock
 PROD_FRONTEND_FILES := -p agenticos-frontend -f docker-compose-prod.frontend.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.frontend.traefik.yml)
 PROD_PROXY_NOTE := $(if $(filter traefik,$(PROXY)),Traefik routes it once the certificate is issued,configure your nginx host with nginx/nginx.conf)
 
+# Pulls `latest` unless backend/.env pins `AGENTICOS_VERSION` - pin it on a host
+# you care about. The migrations are the `migrate` service the API waits on.
 prod:
 	@test -f backend/.env || (echo "❌ backend/.env missing — run 'cp backend/.env.example backend/.env' and fill in real secrets" && exit 1)
-	docker compose --env-file backend/.env $(PROD_FILES) up -d --build
-	@echo "▶ Waiting for DB then running migrations…"
-	@sleep 5
-	docker compose --env-file backend/.env $(PROD_FILES) exec -T app agenticos db upgrade
+	docker compose --env-file backend/.env $(PROD_FILES) pull
+	docker compose --env-file backend/.env $(PROD_FILES) up -d
 	@echo "✅ Production stack up — $(PROD_PROXY_NOTE)"
 
 prod-frontend:
 	@test -f backend/.env || (echo "❌ backend/.env missing" && exit 1)
-	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) up -d --build
+	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) pull
+	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) up -d
 	@echo "✅ Production frontend up"
 
 prod-down:
@@ -549,7 +543,8 @@ test-e2e:
 #
 #   - `e2e`, which needs a migrated database, a seeded organization and a running
 #     backend: `make dev && make platform-bootstrap && make test-e2e`.
-#   - the image build and Trivy scan, which CI runs only on a push to `main`.
+#   - the image build, publish and Trivy scan, which `images.yml` runs on a push
+#     to `main` and on a `v*` tag.
 #   - `test-migrations`. CI cycles the chain against a throwaway database; here
 #     `alembic downgrade base` points at whatever `backend/.env` says, which on a
 #     laptop is the database with your own work in it.
@@ -682,8 +677,7 @@ docker-up:
 	@echo "   Redis: localhost:6379"
 
 docker-down:
-	docker compose down
-	docker compose -f docker-compose.frontend.yml down 2>/dev/null || true
+	docker compose --profile console down
 
 docker-logs:
 	docker compose logs -f
@@ -696,7 +690,7 @@ docker-shell:
 
 # === Docker: Frontend (Development) ===
 docker-frontend:
-	docker compose -f docker-compose.frontend.yml up -d
+	docker compose up -d --build --no-deps frontend
 	@echo ""
 	@echo "✅ Frontend started!"
 	@echo "   URL: http://localhost:3000"
@@ -704,13 +698,13 @@ docker-frontend:
 	@echo "Note: Backend must be running (make docker-up)"
 
 docker-frontend-down:
-	docker compose -f docker-compose.frontend.yml down
+	docker compose --profile console stop frontend
 
 docker-frontend-logs:
-	docker compose -f docker-compose.frontend.yml logs -f
+	docker compose --profile console logs -f frontend
 
 docker-frontend-build:
-	docker compose -f docker-compose.frontend.yml build
+	docker compose build frontend
 
 # === Docker: Production (with Traefik) ===
 docker-prod:
@@ -728,9 +722,6 @@ docker-prod-down:
 
 docker-prod-logs:
 	docker compose -f docker-compose-prod.yml logs -f
-
-docker-prod-build:
-	docker compose -f docker-compose-prod.yml build
 
 
 # === Docker: Individual Services ===
@@ -756,16 +747,14 @@ vercel-deploy:
 	cd frontend && npx vercel --prod
 	@echo ""
 	@echo "✅ Frontend deployed to Vercel!"
-	@echo "   Set these in the Vercel dashboard. Every NEXT_PUBLIC_* is a BUILD"
-	@echo "   variable: set it at runtime only and the browser bundle keeps"
-	@echo "   whatever was baked in, while server rendering carries on working."
+	@echo "   Set these in the Vercel dashboard. All are read at runtime, so a"
+	@echo "   change is a redeploy of the same build, not a rebuild."
 	@echo "   BACKEND_URL=https://api.your-domain.com"
-	@echo "   NEXT_PUBLIC_API_URL=https://api.your-domain.com"
-	@echo "   NEXT_PUBLIC_WS_URL=wss://api.your-domain.com"
-	@echo "   NEXT_PUBLIC_SITE_URL=https://app.your-domain.com"
-	@echo "   NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=10"
-	@echo "   NEXT_PUBLIC_OAUTH_PROVIDERS=google"
-	@echo "   NEXT_PUBLIC_RAG_ENABLED=true"
+	@echo "   PUBLIC_API_URL=https://api.your-domain.com"
+	@echo "   PUBLIC_WS_URL=wss://api.your-domain.com"
+	@echo "   PUBLIC_SITE_URL=https://app.your-domain.com"
+	@echo "   CHAT_MAX_UPLOAD_SIZE_MB=10"
+	@echo "   OAUTH_PROVIDERS=google"
 
 # === Cleanup ===
 clean:
@@ -785,7 +774,7 @@ help:
 	@echo "  make bootstrap      'make dev' + 'make seed' — full setup from a fresh clone"
 	@echo ""
 	@echo "Day-to-day dev:"
-	@echo "  make dev            Build + start dev stack + apply migrations (idempotent)"
+	@echo "  make dev            Build + start dev stack; migrations run as a service (idempotent)"
 	@echo "  make seed           One-shot admin seed (admin@example.com / admin123)"
 	@echo "  make dev-down       Stop dev stack"
 	@echo "  make dev-logs       Tail dev container logs"
@@ -839,7 +828,7 @@ help:
 	@echo "  make docker-down          Stop all services"
 	@echo "  make docker-logs          View backend logs"
 	@echo "  make docker-build         Build backend images"
-	@echo "  make docker-frontend      Start frontend (separate)"
+	@echo "  make docker-frontend      Start the console (its 'console' profile)"
 	@echo "  make docker-frontend-down Stop frontend"
 	@echo "  make docker-db            Start only PostgreSQL"
 	@echo "  make docker-redis         Start only Redis"

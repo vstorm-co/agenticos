@@ -1,30 +1,65 @@
-# Local development, on a laptop. `make dev`.
+# The product, from the published images. `docker compose up -d`.
 #
-#   docker compose up -d
+# On its own - downloaded into an empty directory, no clone - this file pulls
+# `ghcr.io/vstorm-co/agenticos-backend` and `agenticos-frontend`, starts
+# Postgres (pgvector), Redis, the Prefect server and runner, the API and the
+# console, runs the migrations, and answers on http://localhost:3000. Every
+# variable carries a default, so there is no `.env` to write first; write one
+# beside this file when there is something to change - `AGENTICOS_VERSION` to
+# pin a release, `PUBLIC_*` when the browser reaches the host by a name other
+# than `localhost`, a provider key. `docs/install.md` has the list.
 #
-# Source is bind-mounted and uvicorn reloads, so an edit is live without a
-# rebuild. Postgres and Redis publish their ports so psql, a GUI client and the
-# test suite can reach them from the host.
+# In a clone, Compose merges `docker-compose.override.yml` over this file on its
+# own, and that override is what turns it into the local development stack:
+# source built into the image, bind-mounted and reloading, the database and
+# Redis published to the host. `make dev` is that pair of files; so is a bare
+# `docker compose up` in a checkout. The other two environments have files of
+# their own:
 #
-# The three files, and which is which:
+#   docker-compose.yml           this one - the product, from images
+#   docker-compose.override.yml  merged in a clone - built from source, reloading
+#   docker-compose-dev.yml       the dev server (published images, no bind mounts)
+#   docker-compose-prod.yml      production
 #
-#   docker-compose.yml        this one - local
-#   docker-compose-dev.yml    the dev server (built images, no bind mounts)
-#   docker-compose-prod.yml   production
+# The frontend used to be a separate file in every environment. It is a service
+# here now, because the console is part of the product and a `docker compose up`
+# that leaves it out answers on a port nobody was told about. Locally it sits
+# behind the `console` profile (the override puts it there), so that `bun dev`
+# on the host is not fighting a container for :3000.
 #
-# The frontend is separate in all three: docker-compose[-env].frontend.yml.
-#
-# There used to be a fourth, `docker-compose.dev.yml`, whose header claimed it
-# was identical to this file. It was not: it had drifted and lost
-# `--ws websockets-sansio`, and it was the file `make dev` used - so the chat
-# websocket 500'd on handshake for anyone developing locally.
+# The application containers read two env files, both optional: `.env` beside
+# this file - where a standalone install keeps its settings, and the same file
+# Compose reads for `${...}` - and `backend/.env`, which is where a clone keeps
+# them and where the rest of this repository says to look.
 
 services:
+  # Runs the migrations and exits. `app` and `prefect-runner` wait for it to have
+  # *completed*, not for the database to be up, so a first `up` on an empty
+  # volume is one command and a second `up` on a migrated one is a no-op that
+  # takes a second. `docker compose logs migrate` is where a failed migration
+  # says why the API never started.
+  migrate:
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    container_name: agenticos_migrate
+    command: agenticos db upgrade
+    env_file:
+      - path: ./.env
+        required: false
+      - path: ./backend/.env
+        required: false
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-local}
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   app:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: agenticos_backend:dev
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     container_name: agenticos_backend
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
@@ -32,58 +67,40 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/app:/app/app:ro
-      - ./backend/cli:/app/cli:ro
       - media_data:/app/media
-      # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.
-      # Build context is ./backend so the dir isn't in the image — mount it.
-      - ./emails:/app/emails:ro
     env_file:
-      - ./backend/.env
+      - path: ./.env
+        required: false
+      - path: ./backend/.env
+        required: false
     environment:
-      - DEBUG=true
-      - ENVIRONMENT=local
+      - DEBUG=${DEBUG:-false}
+      - ENVIRONMENT=${ENVIRONMENT:-local}
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
-      # no docker.sock, which is the whole point of the service below.
-    # Not `uvicorn --reload` directly. Its reloader is a file watcher, not a
-    # process supervisor: when the kernel kills the worker - an OOM kill is the
-    # realistic way - it neither reaps it nor replaces it, so PID 1 stays alive,
-    # this container stays `Up`, `restart:` below has nothing to act on, and
-    # nothing is listening. `cli/reload_supervisor.py` is the same reloader with
-    # a worker the kernel killed replaced within about five seconds.
+      # no docker.sock, which is the whole point of the sandbox service below.
+    # One worker by default. `--workers` above 1 puts uvicorn's supervisor at
+    # PID 1, which replaces a worker that dies; at 1 the process *is* PID 1, so
+    # a death is a container exit and `restart:` below is what replaces it. A
+    # worker that is wedged rather than dead kills itself either way
+    # (`app/core/watchdog.py`). Each worker imports the application on its own,
+    # 460 MiB measured, so raise this with the host's memory in mind -
+    # docker-compose-prod.yml sizes four.
     #
-    # It also replaces a worker that is alive but whose event loop has stopped
-    # turning - deadlocked, spinning, or stopped - which has no exit code and so
-    # looks healthy to everything else here. The worker beats from its own event
-    # loop and the supervisor replaces it after fifteen silent seconds. Set
-    # `EVENT_LOOP_WEDGED_AFTER` in `backend/.env` to change that, or to `0` to
-    # switch it off, which is what a breakpoint needs: a stopped event loop is
-    # exactly what the check is looking for.
-    #
-    # The same variable switches off `app/core/watchdog.py`, which judges the
-    # same loop from inside the worker and is what covers the two stacks with no
-    # supervisor. Here it is the faster of the two judges; the supervisor is
-    # still the only one that can see a worker stopped outright, which cannot
-    # run a watchdog of its own.
-    #
-    # It, and not `cli.commands server run --reload`, because that entrypoint
-    # imports `app.main` and would put the whole application - 464 MB against
-    # 28 MB - inside a reloader that never serves a request.
-    #
-    # The websockets implementation moved in there too: uvicorn's `auto` picks
-    # the legacy one, broken with websockets >=14 (handshake → HTTP 500), and
-    # the chat WS needs the sansio one. The other two compose files still pass
-    # `--ws websockets-sansio` explicitly, because neither runs with `--reload`.
-    command: python -m cli.reload_supervisor --host 0.0.0.0 --port 8000
+    # `--ws websockets-sansio`: uvicorn's `auto` picks the legacy websockets
+    # implementation, which fails the handshake against websockets >=14, and the
+    # chat is a WebSocket.
+    command: >-
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      --workers ${UVICORN_WORKERS:-1} --ws websockets-sansio
     networks:
       - backend
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     # This probe used to be a HEALTHCHECK in backend/Dockerfile, which the Prefect
@@ -116,9 +133,6 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # Port exposed only for local development - remove in production
-    ports:
-      - "5432:5432"
     networks:
       - backend
     healthcheck:
@@ -131,9 +145,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: agenticos_redis
-    # Port exposed only for local development - remove in production
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -149,8 +160,6 @@ services:
     image: prefecthq/prefect:3-latest
     container_name: agenticos_prefect_server
     command: prefect server start --host 0.0.0.0
-    ports:
-      - "4200:4200"
     volumes:
       - prefect_data:/root/.local/share/prefect/
     environment:
@@ -168,24 +177,26 @@ services:
     restart: unless-stopped
 
   prefect-runner:
-    image: agenticos_backend:dev
-    pull_policy: never
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     container_name: agenticos_prefect_runner
     volumes:
-      - ./backend/app:/app/app:ro
       - media_data:/app/media
     command: python -m app.worker.prefect_app
     env_file:
-      - ./backend/.env
+      - path: ./.env
+        required: false
+      - path: ./backend/.env
+        required: false
     environment:
-      - DEBUG=true
+      - DEBUG=${DEBUG:-false}
+      - ENVIRONMENT=${ENVIRONMENT:-local}
       - POSTGRES_HOST=db
       - PREFECT_API_URL=http://prefect-server:4200/api
       # The runner's own health endpoint, started by app/worker/prefect_app.py.
       # 127.0.0.1 rather than 0.0.0.0 because the same webserver also serves
       # `/shutdown`, and the only caller that should reach it is the probe below,
       # inside this container. Pinned here rather than left to Prefect's defaults
-      # so a value in backend/.env cannot move the port out from under the probe.
+      # so a value in an env file cannot move the port out from under the probe.
       - PREFECT_RUNNER_SERVER_HOST=127.0.0.1
       - PREFECT_RUNNER_SERVER_PORT=8080
     networks:
@@ -193,8 +204,8 @@ services:
     depends_on:
       prefect-server:
         condition: service_healthy
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     # Answers 503 once the runner has missed two polls, so a process that is alive
     # but no longer polling reads as unhealthy - which is the failure this status
     # exists to show. The long start_period covers importing the whole application
@@ -206,6 +217,51 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    restart: unless-stopped
+
+  # The console. `BACKEND_URL` is the server-side address its route handlers
+  # proxy to; the `PUBLIC_*` values are what it tells the *browser* to call, and
+  # they are read when the container starts rather than baked into the image
+  # (#1544) - so the same image serves localhost and a host with a name, and a
+  # change is a restart. They stay `localhost` until the site is reached by
+  # another name; then set them beside `FRONTEND_URL` and `CORS_ORIGINS`, which
+  # are the backend's side of the same fact.
+  frontend:
+    image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-latest}
+    container_name: agenticos_frontend
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://app:8000
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:8000}
+      - PUBLIC_WS_URL=${PUBLIC_WS_URL:-ws://localhost:8000}
+      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:3000}
+      # The composer refuses a file above this before uploading it; the backend's
+      # `CHAT_MAX_UPLOAD_SIZE_MB` is the limit it would hit otherwise, so the two
+      # are the same name and should be given the same value.
+      - CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
+      - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
+      # `instrumentation.ts` registers an OpenTelemetry SDK on every boot, and
+      # `@vercel/otel` off Vercel takes its exporter from these two - so without
+      # them the frontend's server-side spans are built and dropped in-process.
+      # Passed through empty by default rather than omitted: an operator who
+      # points them at Logfire (the same project the backend writes to) then gets
+      # traces without editing a compose file. `frontend/README.md` has the pair.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+    ports:
+      - "3000:3000"
+    networks:
+      - backend
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      # The oven/bun image has no curl/wget, so probe with bun's built-in fetch.
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
     restart: unless-stopped
 
   # The only service that holds the Docker socket, and the reason an agent can
@@ -220,15 +276,18 @@ services:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     container_name: agenticos_sandboxd
     profiles: [sandbox]
-    # The token comes from the same file every other secret in this stack comes
-    # from, rather than through compose interpolation. Interpolation reads the
-    # project root, not `backend/.env`, so a token generated where the
-    # application reads it would have been invisible here - and every other
-    # variable in this file carries a default precisely so the stack starts with
-    # no env file at all. The service exits naming the variable when it is
-    # missing, which `docker compose logs sandboxd` shows.
+    # The token comes from the same files every other secret in this stack comes
+    # from, rather than through compose interpolation: interpolation reads the
+    # project root's `.env` only, so a token generated into `backend/.env` -
+    # where `make sandbox-token` puts it - would have been invisible here. Every
+    # other variable in this file carries a default precisely so the stack
+    # starts with no env file at all. The service exits naming the variable when
+    # it is missing, which `docker compose logs sandboxd` shows.
     env_file:
-      - ./backend/.env
+      - path: ./.env
+        required: false
+      - path: ./backend/.env
+        required: false
     environment:
       SANDBOXD_HOST: 0.0.0.0
       SANDBOXD_PORT: "8080"
@@ -314,8 +373,9 @@ services:
 
 networks:
   backend:
-    # Named explicitly so the frontend compose file can join it as an external
-    # network instead of guessing the project-prefixed default.
+    # Named explicitly so a file run as a project of its own - the dev server's
+    # frontend - can join it as an external network instead of guessing the
+    # project-prefixed default.
     name: agenticos_backend
     driver: bridge
 

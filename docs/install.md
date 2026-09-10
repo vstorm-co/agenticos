@@ -1,7 +1,9 @@
 # Install
 
-You need four commands to get from a clean checkout to an agent that answers.
-This page is those four commands and what to do when one of them does not work.
+Two commands get from a machine with Docker on it to an agent that answers:
+`docker compose up -d` against one downloaded file, and a bootstrap inside the
+container it started. This page is those two commands, the source build for
+anyone changing the code, and what to do when something does not come up.
 
 Every step is idempotent — re-run any of them whenever you are not sure it took.
 
@@ -11,10 +13,11 @@ Every step is idempotent — re-run any of them whenever you are not sure it too
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 ```
 
-`scripts/quickstart.sh` checks what is missing and names the command that
-installs it for your platform, clones if you are not already in a clone, asks
-four questions, brings the stack up, creates an organization with an owner and a
-published agent, and optionally mirrors the MCP registry and starts the console.
+`scripts/quickstart.sh` needs Docker and nothing else. It downloads
+`docker-compose.yml` into `./agenticos`, asks four questions, pulls the published
+images and brings the stack up - console included - creates an organization with
+an owner and a published agent, and optionally mirrors the MCP registry. Run from
+inside a clone, it builds the same images from the tree instead.
 
 It takes `--check` to only report what is missing, `--dry-run` to print every
 command it would run without running one, and `--yes` with `--provider`,
@@ -25,52 +28,98 @@ there is no step it takes that you cannot.
 
 ## Requirements
 
-| Tool | Version | Get it |
-|---|---|---|
-| **Docker** | Desktop / Engine 24+ | <https://docs.docker.com/get-docker/> |
-| **Make** | GNU Make 3.81+ | Already on macOS and Linux. On Windows, use WSL2 |
-| **uv** | latest | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| **bun** | 1.x | `curl -fsSL https://bun.sh/install \| bash` |
+| To | You need |
+|---|---|
+| **Run it** | Docker with the Compose plugin, 2.24 or later - Docker Desktop, OrbStack, or Engine with `docker-compose-plugin`. <https://docs.docker.com/get-docker/> |
+| **Change it** | The above, plus GNU Make, [uv](https://docs.astral.sh/uv/) and [bun](https://bun.sh) - `make install` checks for all three |
 
 !!! warning "On Windows, use WSL2"
 
     The Makefile and the shell helpers assume bash. **WSL2** or **Git Bash**.
     Once you are inside one, everything below is identical.
 
-## Clone it
+## Run it from the published images
+
+The product is two images, `ghcr.io/vstorm-co/agenticos-backend` and
+`ghcr.io/vstorm-co/agenticos-frontend`, published by
+[every release](https://github.com/vstorm-co/agenticos/releases) for amd64 and
+arm64. `docker-compose.yml` at the root of the repository pulls them and starts
+everything around them, and it works on its own:
 
 ```bash
-git clone https://github.com/vstorm-co/agenticos
-cd agenticos
+mkdir agenticos && cd agenticos
+curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-compose.yml
+docker compose up -d
+```
+
+That pulls the images and starts **Postgres (with pgvector), Redis, the Prefect
+server and runner, the API and the console**, runs the migrations, and answers on
+<http://localhost:3000>. The first pull is about 2 GB.
+
+```mermaid
+flowchart LR
+    F["frontend<br/>:3000"] --> A["api<br/>:8000"]
+    A --> PG[("postgres<br/>pgvector")]
+    A --> RD[("redis")]
+    A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
+    A --> PF["prefect server"]
+    PF --> WK["prefect runner"]
+    WK --> PG
+    M["migrate<br/><i>runs once, exits</i>"] --> PG
 ```
 
 !!! success "There is no `.env` to write first"
 
-    Every variable in `docker-compose.yml` carries a default, deliberately, so
-    the stack starts on a clean checkout. You are not configuring anything yet.
+    Every variable in `docker-compose.yml` carries a default, deliberately. Write
+    a `.env` beside it when there is something to change - all of it optional:
 
-One value is generated rather than defaulted. `make dev` runs `make sandbox-token`
-first, which appends a fresh `SANDBOXD_TOKEN` to `backend/.env` if there is not
-one there. The sandbox service refuses to start without it: it can run commands on
-this host, so an empty default would be a shared secret of `""`.
+    | | |
+    |---|---|
+    | `AGENTICOS_VERSION` | Which release to run. `latest` when unset; a version such as `0.0.380` to pin one, `edge` for whatever `main` last published |
+    | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | What the *browser* is told to call, when the host is reached by a name other than `localhost`. The backend's `FRONTEND_URL` and `CORS_ORIGINS` are the same fact from its side |
+    | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | The sign-in buttons the console offers, and what the composer refuses before uploading |
+    | Anything from `backend/.env.example` | A provider key, SMTP, a Logfire token - the containers read the same file |
 
-It is generated once and then left alone. Regenerating it orphans every workspace
-the service is holding.
+    The images read that `.env`, and `backend/.env` when there is one, so a clone
+    keeps its settings where the rest of this documentation says to look.
+
+The sandbox service - the one that gives an agent a container to run code in -
+is behind the `sandbox` profile, because it holds the Docker socket and refuses
+to start without a token of its own:
+
+```bash
+echo "SANDBOXD_TOKEN=$(head -c 32 /dev/urandom | base64)" >> .env
+docker compose --profile sandbox up -d
+```
+
+The token is generated once and then left alone. Regenerating it orphans every
+workspace the service is holding. (`scripts/quickstart.sh` does both of these
+for you.)
+
+## Or build it from a clone
+
+```bash
+git clone https://github.com/vstorm-co/agenticos
+cd agenticos
+make dev
+```
+
+A clone has `docker-compose.override.yml` beside the base file, and Compose
+merges the two on its own - so the same `docker compose up` that pulls images in
+an empty directory builds them from the tree here, bind-mounts the source, and
+reloads the API on every edit. That is what `make dev` runs, with the sandbox
+profile on and a `SANDBOXD_TOKEN` generated into `backend/.env` first (it never
+regenerates one that is there).
 
 When you do want to change something — a provider key on the host, a different
 database name — edit `backend/.env`. `make install` creates it from
 `backend/.env.example` when there is none, and never overwrites it afterwards, so
 the file holding your keys survives every re-run.
 
-## Start the stack
-
-```bash
-make dev
-```
-
-This builds the backend image and starts **Postgres (with pgvector), Redis, the
-API, the Prefect server and runner, and the sandbox service**. Then it waits for
-the database to accept connections and applies any pending migrations.
+The first build takes a few minutes: the backend image carries LibreOffice and
+Tesseract for document parsing, and the console is a Next.js production build.
+Afterwards Docker's layer cache makes it about a minute, and the bind mounts mean
+an edit needs no rebuild at all.
 
 ```mermaid
 flowchart LR
@@ -83,26 +132,29 @@ flowchart LR
     WK --> PG
 ```
 
-Migrations are a no-op when the database is already at head, which is why this is
-also the command to re-run after any code or config change.
+Migrations run as the `migrate` service every time the stack starts, and are a
+no-op when the database is already at head - which is why `make dev` is also the
+command to re-run after any code or config change.
 
-## Start the frontend
+### The console, in a clone
 
 ```bash
 make dev-frontend      # or: cd frontend && bun dev
 ```
 
-!!! info "A separate command, and not an oversight"
+!!! info "Not started by `make dev`, and not an oversight"
 
-    `make dev` uses `docker-compose.yml` only. The Next.js container lives in
-    `docker-compose.frontend.yml` so that working on the API does not rebuild a
-    frontend image, and so that running `bun dev` on your host is not fighting a
-    container for port 3000.
+    In a clone the console sits behind the `console` compose profile, so that
+    working on the API does not rebuild a frontend image, and so that running
+    `bun dev` on your host is not fighting a container for port 3000. Outside a
+    clone there is no profile: `docker compose up` starts it with everything else.
 
 ## Create an organization, an owner, a model and an agent
 
 ```bash
-make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
+make platform-bootstrap BOOTSTRAP_API_KEY=sk-...               # in a clone
+docker compose exec -T -e BOOTSTRAP_API_KEY=sk-... app \
+  agenticos cmd bootstrap                                     # anywhere else
 ```
 
 This is the one that turns an empty database into something you can use.
@@ -144,7 +196,7 @@ You have a working agent.
 ## Check it
 
 ```bash
-cd backend && uv run agenticos cmd doctor
+docker compose exec app agenticos cmd doctor
 ```
 
 `doctor` asks the questions a first message would ask. Is the database reachable
@@ -157,13 +209,15 @@ failed.
 ## Recap
 
 ```bash
-git clone https://github.com/vstorm-co/agenticos && cd agenticos
-make dev                                          # postgres, redis, api, worker
-make dev-frontend                                 # the console on :3000
-make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a model, an agent
+mkdir agenticos && cd agenticos
+curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-compose.yml
+docker compose up -d                                             # everything, from the published images
+docker compose exec -T -e BOOTSTRAP_API_KEY=sk-... app \
+  agenticos cmd bootstrap                                       # an org, an owner, a model, an agent
 ```
 
-Then <http://localhost:3000>, `admin@example.com` / `admin123`.
+Then <http://localhost:3000>, `admin@example.com` / `admin123`. To change the
+code instead: `git clone`, `make dev`, `make dev-frontend`, `make platform-bootstrap`.
 
 ## When it does not come up
 
@@ -171,10 +225,11 @@ Then <http://localhost:3000>, `admin@example.com` / `admin123`.
 |---|---|
 | Ingestion 500s with `extension "vector" is not available` | Stock Postgres instead of `pgvector/pgvector:pg16`. See below |
 | `uv run` reports Python 3.13 or 3.14 | `backend/.venv` resolved past the pin. Delete it and re-run `uv sync` |
-| The frontend loads but every request fails | The frontend without the stack, or the API is still applying migrations. `make dev-logs` |
+| The frontend loads but every request fails | The API is still starting - it waits for the `migrate` service - or the browser was told the wrong host: `PUBLIC_API_URL` and `PUBLIC_WS_URL` have to be reachable from where the browser is. `docker compose logs migrate app` |
+| `docker compose up` fails with `unauthorized` on `ghcr.io/vstorm-co/...` | The package is private, or a stale `docker login` to GHCR is in the way. The images pull anonymously; `docker logout ghcr.io` and try again, and if it still refuses the package's visibility is the problem, not your machine |
 | `agenticos_backend` is `Up` and `unhealthy`, and every request hangs | A wedged event loop. The worker takes itself down after 15s and something replaces it, in all three stacks — so if it is still hanging a minute later, `EVENT_LOOP_WEDGED_AFTER` is set to `0` somewhere, which is what a debugger needs and what nothing else should. `docker inspect` shows `137` with `OOMKilled=false`, and the log line above it says which |
-| `agenticos_sandboxd` exits immediately | No `SANDBOXD_TOKEN` in `backend/.env`. `make sandbox-token`, then `make dev` |
-| Files says `This host's files could not be read` and names `workspace_root` | A sandbox service started before it had one. Recreate it — `docker compose -f docker-compose.yml --profile sandbox up -d sandboxd` — and `docker rm` the leftover `sandboxd-*` containers: a persisted container is reattached with the mounts it was created with, so an old session keeps writing where nothing can read it |
+| `agenticos_sandboxd` exits immediately | No `SANDBOXD_TOKEN` in `.env` or `backend/.env`. `make sandbox-token` in a clone, or write one, then `up -d` again |
+| Files says `This host's files could not be read` and names `workspace_root` | A sandbox service started before it had one. Recreate it — `docker compose --profile sandbox up -d sandboxd` — and `docker rm` the leftover `sandboxd-*` containers: a persisted container is reattached with the mounts it was created with, so an old session keeps writing where nothing can read it |
 | A port is already taken (3000, 5432, 6379, 8000, 4200) | Something else is on it. `make dev-down`, stop the other process, start again |
 | Anything stranger | `make docker-clean` wipes containers, networks **and volumes** — all local data — then `make dev` from scratch |
 
@@ -194,12 +249,15 @@ Every compose file in this repository pins `pgvector/pgvector:pg16`.
 ## Day to day
 
 ```bash
-make dev           # start or restart (idempotent)
+make dev           # start or restart (idempotent); in a clone, from source
 make dev-down      # stop everything
 make dev-logs      # tail logs
 make dev-rebuild   # force-rebuild the backend image after a pyproject change
-make dev-frontend  # start the Next.js container on its own
+make dev-frontend  # start the console container (behind the `console` profile in a clone)
 ```
+
+Outside a clone the same four are `docker compose up -d`, `down`, `logs -f`, and
+`docker compose pull && docker compose up -d` to move to a newer release.
 
 And where everything is:
 
@@ -210,8 +268,8 @@ And where everything is:
 | OpenAPI docs | <http://localhost:8000/docs> |
 | Django-style admin | <http://localhost:8000/admin> |
 | Prefect UI | <http://localhost:4200> |
-| Postgres | `localhost:5432` (`agenticos` / `agenticos`) |
-| Redis | `localhost:6379` |
+| Postgres | `localhost:5432` (`postgres` / `postgres`) - published by the clone's override file only |
+| Redis | `localhost:6379` - the same |
 
 !!! warning "The sandbox service is not published, on purpose"
 
@@ -226,7 +284,7 @@ does not.
 
 ```bash
 make install                                    # .env + uv sync + bun install + pre-commit
-docker compose -f docker-compose.yml up -d db redis
+docker compose up -d db redis
 make db-upgrade                                 # apply migrations
 make run                                        # uvicorn --reload
 ```
@@ -257,13 +315,15 @@ every clone rather than once per laptop.
 
 ## Environments
 
-Three, one compose file each, with a matching frontend file beside it.
+Three. Every one runs the two published images, at the `AGENTICOS_VERSION` its
+env file names; the laptop is the one that builds them from the tree instead.
 
 | Target | Compose files | Use |
 |---|---|---|
-| `make dev` | `docker-compose.yml`<br>`docker-compose.frontend.yml` | Local. Hot reload, bind-mounted source, Postgres and Redis published to the host |
-| `make dev-server` | `docker-compose-dev.yml`<br>`docker-compose-dev.frontend.yml` | A deployed dev environment. Built images, no bind mounts, no database port, verbose logging |
-| `make prod` | `docker-compose-prod.yml`<br>`docker-compose-prod.frontend.yml` | Production. Resource limits, internal data network, tuned Postgres |
+| `docker compose up` | `docker-compose.yml` | The product, from the published images. Console included, migrations run on start, every variable defaulted |
+| `make dev` | `docker-compose.yml`<br>`docker-compose.override.yml` | Local, in a clone. The override builds from source, bind-mounts it, reloads, and publishes Postgres and Redis to the host |
+| `make dev-server` | `docker-compose-dev.yml`<br>`docker-compose-dev.frontend.yml` | A deployed dev environment. Pulls `edge`, no bind mounts, no database port, verbose logging |
+| `make prod` | `docker-compose-prod.yml`<br>`docker-compose-prod.frontend.yml` | Production. Pulls a pinned release; resource limits, internal data network, tuned Postgres |
 
 Each has matching `-down`, `-logs` and `-frontend` siblings. `make stage` is kept
 as an alias for `make dev-server`, which is what it used to be.
@@ -290,15 +350,18 @@ uvicorn's `Multiprocess`. A worker that is *wedged* rather than dead is handled
 the same way everywhere — the worker kills itself. See
 [Configuration](configuration.md#a-worker-whose-event-loop-has-stopped-turning).
 
-!!! warning "`NEXT_PUBLIC_*` are build arguments"
+!!! warning "`PUBLIC_*` are what the browser is told, and they are read at start"
 
-    Next inlines them into the browser bundle, so the dev-server and production
-    frontend files require `PUBLIC_API_URL`, `PUBLIC_WS_URL` and `PUBLIC_SITE_URL`
-    at **build** time and refuse to start without them.
+    `PUBLIC_API_URL`, `PUBLIC_WS_URL` and `PUBLIC_SITE_URL` are the addresses the
+    console hands the browser - the chat WebSocket and the sign-in redirect reach
+    the API directly, so they have to be names a browser can resolve, never a
+    container name. The dev-server and production frontend files refuse to start
+    without them.
 
-    Changing one means rebuilding the image, not restarting it — otherwise
-    server-side rendering keeps working while every call from the browser goes to
-    whatever hostname was baked in.
+    The console reads them when the container starts, so the published image is
+    the same for every deployment and a change is a restart. Getting one wrong is
+    still the classic failure: server-side rendering keeps working over the compose
+    network while every call from the browser goes to the wrong host.
 
 ## Next
 

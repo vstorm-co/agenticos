@@ -48,7 +48,7 @@ fails if a gating job grows a step `check` does not run - or if `check` grows on
 CI does not. It has drifted four times, all four found by #143.
 
 Three things `check` leaves out, on purpose: `e2e` (needs a seeded backend), the
-image scan (push to `main` only), and `make test-migrations` - CI cycles the chain
+image build and scan (`images.yml`, on a push to `main` or a `v*` tag), and `make test-migrations` - CI cycles the chain
 against a throwaway database, and `alembic downgrade base` on a laptop points at
 the one with your own work in it. `check` also says at the end when
 `tests/integration/` skipped itself for want of a database, because CI's `test`

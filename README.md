@@ -72,9 +72,9 @@ Not a reader? <a href="https://vstorm-co.github.io/agenticos/presentation/"><b>T
 
 ## ⚡ Quick start
 
-One command. It checks what your machine is missing and tells you how to get it,
-asks four questions, and hands back a console with a working agent in it. Nothing
-leaves your machine.
+One command, and Docker is all it needs. It downloads one compose file, pulls the
+published images, asks four questions, and hands back a console with a working
+agent in it. Nothing leaves your machine.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
@@ -83,11 +83,7 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 <details>
 <summary><b>macOS</b></summary>
 
-Docker Desktop or [OrbStack](https://orbstack.dev), then:
-
-```bash
-xcode-select --install
-```
+Docker Desktop or [OrbStack](https://orbstack.dev). Nothing else.
 
 </details>
 
@@ -96,7 +92,7 @@ xcode-select --install
 
 ```bash
 curl -fsSL https://get.docker.com | sh
-sudo apt install make git python3 docker-compose-plugin
+sudo apt install docker-compose-plugin
 ```
 
 </details>
@@ -122,7 +118,7 @@ Ubuntu shell it gives you.
 | **Which model** | OpenAI, Anthropic, Google, OpenRouter — or *decide later*, which creates everything and lets you paste a key in the console |
 | **Your key** | Typed hidden, stored encrypted in your own database, never printed back |
 | **Your login and organization name** | Defaults are fine for a look around |
-| **Two switches** | Start the web console; mirror the public MCP registry so all 5,802 tool servers are searchable by name |
+| **One switch** | Mirror the public MCP registry so all 5,802 tool servers are searchable by name |
 
 Add `--check` to only find out what is missing, `--dry-run` to see every command
 it would run without running one, or drive it unattended:
@@ -132,24 +128,29 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
   --yes --provider anthropic --api-key sk-ant-... --org "Acme"
 ```
 
-### Or type the four commands yourself
+### Or type the three commands yourself
 
 The installer is a wrapper around these, and there is no step it takes that you
 cannot take by hand:
 
 ```bash
-git clone https://github.com/vstorm-co/agenticos && cd agenticos
-make dev                                          # postgres (pgvector), redis, api, prefect, sandbox
-make dev-frontend                                 # the console — a separate compose file
-make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a key, a model, a published agent
-open http://localhost:3000                        # sign in as admin@example.com / admin123
+mkdir agenticos && cd agenticos
+curl -fsSLO https://raw.githubusercontent.com/vstorm-co/agenticos/main/docker-compose.yml
+docker compose up -d                                          # postgres (pgvector), redis, api, prefect, console
+docker compose exec -T -e BOOTSTRAP_API_KEY=sk-... app \
+  agenticos cmd bootstrap                                    # an org, an owner, a key, a model, a published agent
+open http://localhost:3000                                   # sign in as admin@example.com / admin123
 ```
 
-There is no `.env` to write first: every compose variable has a default, and the
-one secret that cannot have one (`SANDBOXD_TOKEN`) is generated into
-`backend/.env` for you. If something does not come up, `make doctor` answers the
-only question that matters — can this deployment actually run an agent — and
-[docs/install.md](docs/install.md) has the rest.
+The images are `ghcr.io/vstorm-co/agenticos-backend` and `agenticos-frontend`,
+published for amd64 and arm64 by every release; `AGENTICOS_VERSION=x.y.z` in a
+`.env` beside the file pins one. There is no `.env` to write first: every
+compose variable has a default. To change the code, `git clone` and `make dev`
+instead - a clone builds the same images from the tree.
+
+If something does not come up, `docker compose exec app agenticos cmd doctor`
+answers the only question that matters — can this deployment actually run an
+agent — and [docs/install.md](docs/install.md) has the rest.
 
 ## What you get
 

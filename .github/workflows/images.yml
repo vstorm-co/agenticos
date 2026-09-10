@@ -1,0 +1,233 @@
+# Publish the two images the compose files pull.
+#
+#   ghcr.io/vstorm-co/agenticos-backend    the API, the Prefect runner, the migrations
+#   ghcr.io/vstorm-co/agenticos-frontend   the console
+#
+# A `v*` tag publishes `<version>` and `latest`; a push to `main` publishes
+# `edge`; both publish `sha-<short>`, which is what `scripts/deploy.sh` pins a
+# host to. Each image is built for amd64 and arm64 on a runner of that
+# architecture - QEMU would take twenty minutes over LibreOffice - pushed by
+# digest, and joined into one manifest list per tag by the `publish` job.
+#
+# Separate from `ci.yml` on purpose, the way `docs.yml` is. CI answers a pull
+# request; this answers a commit that is already on `main`, which the ruleset
+# only lets there after CI has passed - so gating the build on `lint` and `test`
+# again would run them a second time on the same commit. It replaces the `docker`
+# job that used to build the backend on `main` with `push: false` for Trivy to
+# scan; the scan is the last job here, over the image that was actually pushed.
+#
+# **The first publish creates each package private.** GHCR makes a new package
+# private until somebody opens its settings and changes that, and nobody inside
+# the organization can tell from inside it - every pull they try is
+# authenticated. #1512 found the sandbox image in that state after a month.
+# After the first run: `docker manifest inspect ghcr.io/vstorm-co/agenticos-backend:edge`
+# from a shell that is not logged in, and the same for the frontend.
+name: Images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  # For publishing `edge` before `main` has moved, and for re-running a publish
+  # whose runner died. It reads the ref it is dispatched on and nothing else.
+  workflow_dispatch:
+
+# Read-only by default; the two jobs that push declare `packages: write` on
+# themselves. There is no `pull_request` trigger, deliberately: a fork's pull
+# request must never be able to publish under this organization's name.
+permissions:
+  contents: read
+
+# One publish per ref at a time, queued rather than cancelled: a manifest list
+# is assembled from four digests pushed by four jobs, and cancelling the run
+# between them leaves digests nothing references and a tag still pointing at the
+# previous build - which is harmless, but a queued run is simpler to reason about
+# than a half-finished one.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_PREFIX: ghcr.io/vstorm-co/agenticos
+
+jobs:
+  build:
+    name: build ${{ matrix.image }} for ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    # The backend's arm64 build installs LibreOffice and Tesseract from Debian's
+    # mirrors on a cold cache; measured well under this, but a bound is for the
+    # stall, not the median (#364).
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          # The backend's context is the repository root, so that `emails/compiled/`
+          # can be copied in beside the application - backend/Dockerfile says why.
+          - image: backend
+            context: .
+            file: backend/Dockerfile
+          - image: frontend
+            context: ./frontend
+            file: frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Sign in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Labels only. The tags are decided once, in `publish`, where the four
+      # digests are joined; here each build pushes by digest and nothing else.
+      - name: Read the image's labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          # One cache scope per image and architecture, or the four builds evict
+          # each other's layers from the one 10 GB store.
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
+
+      # The digest travels to `publish` as an empty file named after it, which is
+      # what `imagetools create` reads back with a glob - the recipe from Docker's
+      # own multi-platform documentation.
+      - name: Record the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.image }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: publish ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Sign in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `semver` gives `0.0.379` on a `v0.0.379` tag and, through the default
+      # `latest=auto` flavour, `latest` beside it. `edge` follows `main`. `sha` is
+      # on every event and is the one a deployment pins to.
+      - name: Decide the tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=edge,branch=main
+            type=sha,format=short
+
+      - name: Join the digests into one manifest list per tag
+        env:
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          tags=()
+          while IFS= read -r tag; do tags+=(-t "$tag"); done \
+            < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          refs=()
+          for digest in *; do refs+=("$IMAGE@sha256:$digest"); done
+          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+
+      - name: Show what was published
+        env:
+          REF: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect "$REF"
+
+  scan:
+    name: scan ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: publish
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - name: Sign in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The `sha-` tag, because it is the one name every event publishes. Seven
+      # characters is metadata-action's default short form.
+      - name: Name the image this run published
+        id: ref
+        env:
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+        run: echo "ref=$IMAGE:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # Informational, as it was in `ci.yml`: `exit-code: 0` reports and does not
+      # fail. Gating a publish on the base image's CVE count is a decision for
+      # #1415, which owns the SBOM and the rest of what a release attests to.
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.ref.outputs.ref }}
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH

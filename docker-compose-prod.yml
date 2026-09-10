@@ -1,6 +1,12 @@
 # Production. `make prod`.
 #
-#   docker compose --env-file backend/.env -f docker-compose-prod.yml up -d --build
+#   docker compose --env-file backend/.env -f docker-compose-prod.yml pull
+#   docker compose --env-file backend/.env -f docker-compose-prod.yml up -d
+#
+# The images are pulled, not built: `ghcr.io/vstorm-co/agenticos-backend` at
+# the `AGENTICOS_VERSION` in `backend/.env` - a release, `latest` when unset,
+# or the `sha-<short>` a commit published, which is what `scripts/deploy.sh`
+# pins. Pin a release rather than tracking `latest` on a host you care about.
 #
 # Prerequisites:
 #   1. `backend/.env` with real secrets. The same file serves every environment;
@@ -24,20 +30,36 @@
 # could have answered anything.
 
 services:
+  # Runs the migrations and exits; `app` and `prefect-runner` wait for it to have
+  # completed. This is what `make prod` and `scripts/deploy.sh` used to do with
+  # an `exec` after `up`, and what a bare `docker compose up -d` on this file
+  # did not do at all. `docker compose logs migrate` is where a failed migration
+  # says why the API never started.
+  migrate:
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    container_name: agenticos_migrate
+    command: agenticos db upgrade
+    env_file:
+      - ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+    networks:
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   app:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: agenticos_backend:prod
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     container_name: agenticos_backend
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
     volumes:
       - media_data:/app/media
-      # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.
-      # Build context is ./backend so the dir isn't in the image — mount it.
-      - ./emails:/app/emails:ro
     env_file:
       - ./backend/.env
     environment:
@@ -85,8 +107,8 @@ services:
       # forwarded address is only a limit while nothing can reach past it.
       - "${BIND_HOST:-127.0.0.1}:8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     # Moved out of backend/Dockerfile, which the Prefect runner shares and could
@@ -227,8 +249,7 @@ services:
           memory: 768M
 
   prefect-runner:
-    image: agenticos_backend:prod
-    pull_policy: never
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     container_name: agenticos_prefect_runner
     volumes:
       - media_data:/app/media
@@ -256,8 +277,8 @@ services:
     depends_on:
       prefect-server:
         condition: service_healthy
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       app:
         condition: service_started
     # 503 once the runner has missed two polls; the start_period covers the

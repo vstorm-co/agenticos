@@ -1,10 +1,13 @@
 # The dev server. `make dev-server`.
 #
-#   docker compose --env-file backend/.env -f docker-compose-dev.yml up -d --build
+#   docker compose --env-file backend/.env -f docker-compose-dev.yml pull
+#   docker compose --env-file backend/.env -f docker-compose-dev.yml up -d
 #
-# A deployed environment, not a laptop: images are built rather than
-# bind-mounted, uvicorn does not reload, and Postgres and Redis are not
-# published to the host. It differs from production in the things a shared
+# A deployed environment, not a laptop: the images are pulled from GHCR rather
+# than built - `edge` by default, which is whatever `main` last published, or
+# the `AGENTICOS_VERSION` in `backend/.env` - the source is not bind-mounted,
+# uvicorn does not reload, and Postgres and Redis are not published to the
+# host. It differs from production in the things a shared
 # testing environment wants — verbose logging, a single worker, no resource
 # ceilings, and `ENVIRONMENT=dev` so an agent's traces and alerts are separable
 # from real ones.
@@ -13,20 +16,33 @@
 # The frontend is `docker-compose-dev.frontend.yml`.
 
 services:
+  # Runs the migrations and exits; `app` and `prefect-runner` wait for it to have
+  # completed, so `make dev-server` is a `pull` and an `up`.
+  migrate:
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
+    container_name: agenticos_migrate
+    command: agenticos db upgrade
+    env_file:
+      - ./backend/.env
+    environment:
+      - ENVIRONMENT=dev
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+    networks:
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   app:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: agenticos_backend:dev-server
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
     container_name: agenticos_backend
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
     volumes:
       - media_data:/app/media
-      # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.
-      # Build context is ./backend so the dir isn't in the image — mount it.
-      - ./emails:/app/emails:ro
     env_file:
       - ./backend/.env
     environment:
@@ -63,8 +79,8 @@ services:
         aliases:
           - backend
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     # Moved out of backend/Dockerfile, which the Prefect runner shares and could
@@ -141,8 +157,7 @@ services:
   prefect-runner:
     # Ingestion, collection syncs and scheduled reports run here. Without it
     # documents upload and then never become searchable.
-    image: agenticos_backend:dev-server
-    pull_policy: never
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
     container_name: agenticos_prefect_runner
     volumes:
       - media_data:/app/media
@@ -168,8 +183,8 @@ services:
     depends_on:
       prefect-server:
         condition: service_healthy
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       app:
         condition: service_started
     # 503 once the runner has missed two polls; the start_period covers the

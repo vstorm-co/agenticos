@@ -48,10 +48,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 MAKEFILE = REPO_ROOT / "Makefile"
 
-# The jobs `make check` claims to reproduce. `e2e` and `docker` are out of scope
-# on purpose and the reasons are in the `check` target: e2e needs a migrated
-# database, a seeded organization and a running backend, and the image build runs
-# only on a push to `main`.
+# The jobs `make check` claims to reproduce. `e2e` is out of scope on purpose and
+# the reason is in the `check` target: it needs a migrated database, a seeded
+# organization and a running backend. The image build is not in this workflow at
+# all any more - `images.yml` builds and publishes on a push to `main` and on a
+# tag, and `test_images_workflow.py` is what reads that file.
 GATING_JOBS = ("lint", "test", "test-frontend", "docs", "security")
 
 # Commands that prepare a runner rather than check anything. They have no place in

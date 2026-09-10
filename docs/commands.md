@@ -57,7 +57,7 @@ About five minutes, serial, on a warm cache. What it deliberately leaves out:
 | Not in `check` | Why, and what to run instead |
 |---|---|
 | `e2e` | Needs a migrated database, a seeded organization and a running backend: `make dev && make platform-bootstrap && make test-e2e` |
-| The image build and Trivy scan | CI runs those only on a push to `main` |
+| The image build, publish and Trivy scan | `.github/workflows/images.yml` runs those on a push to `main` and on a `v*` tag, and publishes to GHCR |
 | `make test-migrations` | CI cycles the chain against a throwaway `test_db`. On a laptop `alembic downgrade base` points at whatever `backend/.env` says, which is usually the database with your own work in it — `uv run pytest tests/test_migrations.py` asks the same question against a database of its own, and `make test` already runs it |
 
 !!! warning "One gap no command can close"
@@ -165,7 +165,7 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-logs` | Follow backend logs |
 | `make docker-build` | Build backend images |
 | `make docker-shell` | Open shell in app container |
-| `make docker-frontend` | Start frontend (separate compose) |
+| `make docker-frontend` | Start the console (behind the `console` profile in a clone) |
 | `make docker-frontend-down` | Stop frontend |
 | `make docker-frontend-logs` | Follow frontend logs |
 | `make docker-frontend-build` | Build frontend image |
@@ -181,7 +181,6 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-prod` | Start production stack |
 | `make docker-prod-down` | Stop production stack |
 | `make docker-prod-logs` | Follow production logs |
-| `make docker-prod-build` | Build production images |
 
 ### Vercel (frontend deployment)
 
@@ -380,7 +379,7 @@ fresh environment — it is faster than reading logs.
 ### Getting a deployment up
 
 ```bash
-# Prerequisites, a clone, four questions, and a running agent.
+# Docker, one downloaded compose file, four questions, and a running agent.
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 # Only report what this machine is missing.
 ./scripts/quickstart.sh --check
@@ -390,8 +389,9 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 ./scripts/quickstart.sh --yes --provider anthropic --api-key sk-ant-... --org Acme
 ```
 
-It is a wrapper around `make dev`, `make dev-frontend`, `agenticos cmd bootstrap`
-and `agenticos cmd mcp-registry-sync` — nothing it does is unavailable by hand.
+It is a wrapper around `docker compose up` on the published images (`make dev` in
+a clone), `agenticos cmd bootstrap` and `agenticos cmd mcp-registry-sync` —
+nothing it does is unavailable by hand, and Docker is the only thing it needs.
 
 ### The MCP registry mirror
 
