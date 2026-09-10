@@ -29,9 +29,18 @@ export async function GET(request: NextRequest) {
   );
   const servers = (query: string) => {
     const target = back ?? "/mcp-servers";
-    const response = NextResponse.redirect(
-      new URL(`${target}${target.includes("?") ? "&" : "?"}${query}`, request.url),
-    );
+    // **A relative `Location`, resolved by the browser against the URL it asked
+    // for.** `NextResponse.redirect` takes an absolute one, and the only origin
+    // this process knows is the address it binds to - `HOSTNAME=0.0.0.0` and
+    // `PORT=3000` in the Dockerfile - so behind a proxy every provider sent
+    // somebody back to `http://0.0.0.0:3000/mcp-servers`, having authorized
+    // successfully. Trusting `x-forwarded-host` would be the other answer and a
+    // worse one: it is a header, and this address is reachable by strangers
+    // (#1528).
+    const response = new NextResponse(null, {
+      status: 307,
+      headers: { Location: `${target}${target.includes("?") ? "&" : "?"}${query}` },
+    });
     // One consent, one return: a stale cookie must not steer the next.
     response.cookies.delete(MCP_OAUTH_RETURN_COOKIE);
     return response;
