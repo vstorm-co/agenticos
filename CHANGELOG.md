@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.383] - 2026-09-10
+
+### Fixed
+
+- **`/new` and `/unlink` honour the room's link requirement.** Commands ran
+  before identity resolution and the admission gate, so an unlinked participant
+  in a link-required room could reset the shared conversation. Both now take the
+  same admission the turn takes; `/start`, `/help` and `/link` stay open, and
+  `/new` attributes the new conversation to whoever issued it rather than to the
+  room's first speaker. (#1502)
+
 ## [0.0.382] - 2026-09-10
 
 ### Fixed
