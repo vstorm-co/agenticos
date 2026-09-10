@@ -181,19 +181,19 @@ them announcing itself:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SMTP_HOST` | `localhost` | SMTP server host |
-| `SMTP_PORT` | `587` | SMTP server port. Pair it with `SMTP_TLS` — `465` for TLS from the start, `587` for STARTTLS |
-| `SMTP_USER` | (empty) | Username the relay authenticates with, alongside `SMTP_PASSWORD` |
+| `SMTP_PORT` | `587` | SMTP server port. `587` and `25` negotiate STARTTLS; `465` opens TLS from the start |
+| `SMTP_USER` | (empty) | Username the relay authenticates with, alongside `SMTP_PASSWORD`. Leave empty for an unauthenticated relay |
 | `SMTP_PASSWORD` | (empty) | Password for that username |
-| `SMTP_TLS` | `true` | Open the connection with TLS from the start (`aiosmtplib`'s `use_tls`) — for an implicit-TLS port like `465`. A STARTTLS submission server on `587` wants this `false`, and the client then negotiates STARTTLS when the server offers it |
+| `SMTP_TLS` | `true` | Whether to encrypt the connection. The port decides how — STARTTLS on `587`, implicit TLS on `465`. Set `false` only for an unencrypted relay, such as a local server on `25` |
 | `EMAIL_FROM` | `noreply@agenticos.com` | The `From` address on every message |
 | `EMAIL_FROM_NAME` | `agenticos` | The display name shown beside that address |
 
-!!! warning "The shipped defaults do not send mail"
+!!! note "How the connection is encrypted"
 
-    `SMTP_TLS=true` opens TLS immediately, but the default `SMTP_PORT=587` is the
-    STARTTLS submission port, where implicit TLS is rejected. Match the pair —
-    `465` with `SMTP_TLS=true`, or `587` with `SMTP_TLS=false` — until the default
-    itself is fixed (#1543).
+    `SMTP_TLS` is the on/off switch; the port chooses the scheme. The shipped
+    default — `587` with `SMTP_TLS=true` — negotiates STARTTLS, which is what a
+    standards-compliant submission server expects. Use `465` for a server that
+    wants implicit TLS instead, and `SMTP_TLS=false` on `25` for a plaintext relay.
 
 ## Background work (Prefect)
 
