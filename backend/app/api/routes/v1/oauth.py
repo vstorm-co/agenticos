@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from app.api.deps import OAuthExchangeSvc, UserSvc
+from app.api.deps import InvitationStagingSvc, OAuthExchangeSvc, UserSvc
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.oauth import oauth
@@ -30,17 +30,25 @@ _INVITATION_KEY = "oauth_invitation_token"
 
 
 @router.get("/google/login", response_model=None)
-async def google_login(request: Request, invitation: str | None = None):
+async def google_login(
+    request: Request,
+    staging: InvitationStagingSvc,
+    invitation_handle: str | None = None,
+):
     """Redirect to Google OAuth2 login page.
 
-    `invitation` carries a shareable link's token through the round trip. Without
-    it, an `invite_only` deployment refused the Google button for exactly the
-    invitations that need it - a link constraining neither an address nor a domain
-    is invisible to the address-based fallback, so the same person could register
-    with a password and not with the provider offered beside it.
+    `invitation_handle` names the invitation a signed-out invitee staged before the
+    sign-in detour (#1414). It is peeked - not consumed - into the token the callback
+    needs for admission, so the raw token never rides this query and the same handle
+    still closes the acceptance afterwards. Without it an `invite_only` deployment
+    refused the Google button for exactly the invitations that need it: a link
+    constraining neither an address nor a domain is invisible to the address-based
+    fallback, so the same person could register with a password and not with the
+    provider offered beside it.
     """
-    if invitation:
-        request.session[_INVITATION_KEY] = invitation
+    token = await staging.peek(invitation_handle) if invitation_handle else None
+    if token:
+        request.session[_INVITATION_KEY] = token
     else:
         request.session.pop(_INVITATION_KEY, None)
     return await oauth.google.authorize_redirect(request, settings.GOOGLE_REDIRECT_URI)
