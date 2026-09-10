@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.388] - 2026-09-10
+
+### Performance
+
+- **The dashboard window's slices come from one scan, not five.** The day
+  buckets and the surface, status, model and provider splits were five aggregate
+  queries over the same rows; they are one `GROUPING SETS` query now, with a
+  `GROUPING` flag telling a genuine `NULL` model apart from a row that is not
+  that slice. The composed usage response issues four `agent_runs` queries
+  instead of eight, and a test counts them so the next dimension cannot become a
+  ninth. (#1514)
+
 ## [0.0.387] - 2026-09-10
 
 ### Fixed
