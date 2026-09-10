@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.394] - 2026-09-10
+
+### Fixed
+
+- **The lifespan drain test no longer flakes on a shared event loop.** Shutdown
+  closes three module-global httpx clients; two were stubbed and the web
+  research client was not, so under xdist the test closed a client another
+  worker's loop had opened and raised `Event loop is closed`. All three are
+  stubbed now. (#1541)
+
 ## [0.0.393] - 2026-09-10
 
 ### Changed
