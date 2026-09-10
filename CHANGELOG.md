@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.396] - 2026-09-10
+
+### Security
+
+- **An invitation token never reaches JavaScript storage.** A signed-out invitee
+  carried the raw token through the whole sign-in round trip - in `returnTo`,
+  in browser history and, on the OAuth path, in `sessionStorage`. The token is
+  now exchanged server-side before the redirect: `POST /invitations/stage`
+  stores it in Redis under an opaque single-use handle carried in an `httpOnly`
+  cookie, and `POST /invitations/staged/accept` redeems the handle after
+  sign-in through the same `accept` every check already guards. Registration and
+  OAuth sign-up carry the handle too, so an `invite_only` deployment still
+  admits the invitee. Both public routes are rate limited per IP and refuse a
+  dead token uniformly. Each staging is bound to its own flow - two invitation
+  links opened in two tabs redeem two different handles - a staging that fails
+  keeps the invitee on the link with a Retry rather than losing it, and a 429 or
+  a 5xx leaves the unspent handle in place. (#1547)
+
 ## [0.0.395] - 2026-09-10
 
 ### Changed
