@@ -21,7 +21,7 @@ otherwise would be describing a deployment nobody has run.
 | | |
 |---|---|
 | **A host** | 4 vCPU and 8 GB of RAM runs it. See [sizing](#sizing-the-host) |
-| **Docker** | Engine 24+ with the Compose plugin, and your user in the `docker` group |
+| **Docker** | Engine 24+ with the Compose plugin (2.24 or later), and your user in the `docker` group. Nothing is built on the host: the images are pulled from GHCR |
 | **Two hostnames** | one for the site, one for the API — see [why two](#why-two-hostnames) |
 | **A reverse proxy** | [Traefik](#option-a-traefik) or [Nginx](#option-b-nginx). It terminates TLS |
 | **An OpenRouter key** | every collection embeds through it. Chat models are configured per organization, in the product |
@@ -107,6 +107,45 @@ bash scripts/server-init.sh
 the two hostnames, an address for Let's Encrypt and the OpenRouter key, and
 derives the public URLs and the CORS origin from what you gave it. It refuses to
 overwrite an existing file.
+
+The clone is where the compose files and that env file live; no code runs from
+it. What runs is the two images the repository publishes.
+
+### The images
+
+| | |
+|---|---|
+| `ghcr.io/vstorm-co/agenticos-backend` | The API, the Prefect runner and the migrations - one image, three commands |
+| `ghcr.io/vstorm-co/agenticos-frontend` | The console |
+
+Both are built for `linux/amd64` and `linux/arm64` by `.github/workflows/images.yml`.
+A release (`v0.0.380`) publishes `0.0.380` and moves `latest`; every commit on
+`main` publishes `edge` and `sha-<short>`. The compose files read the tag from
+`AGENTICOS_VERSION` in `backend/.env` and default to `latest`.
+
+Three rules the workflow keeps, each worth knowing before relying on a tag:
+
+- **Only a commit on `main` is ever published.** A `v*` tag pushed from a branch,
+  or a run dispatched on one, is refused before anything is built - so `latest`
+  cannot get past the pull-request boundary.
+- **A release on a commit `main` already built is not rebuilt.** Its `sha-<short>`
+  manifest gets the version and `latest` as extra names, so the digests a host
+  pinned to are exactly the ones the release names.
+- **A commit with no images can be given them.** Run the workflow by hand with
+  its `sha` input - `gh workflow run images.yml --ref main -f sha=<commit>` - and
+  it publishes that commit's `sha-<short>` tag and nothing that moves. That is
+  the path for a commit older than the workflow, and for one whose run was lost.
+
+!!! warning "Pin a release on a host you care about"
+
+    `AGENTICOS_VERSION=0.0.380` in `backend/.env`, so that `make prod` on a bad
+    day pulls what ran yesterday rather than whatever was released this morning.
+    `scripts/deploy.sh` pins for you - to the `sha-` tag of the commit it deploys -
+    for exactly as long as the deploy runs.
+
+Both packages pull anonymously. If a pull answers `unauthorized`, the package has
+been made private or a stale `docker login ghcr.io` is in the way; neither is
+something a host can fix by itself.
 
 !!! danger "`backend/.env` holds the key that unwraps every stored credential"
 
@@ -203,9 +242,10 @@ deliberately leaves to whatever terminates TLS.
 
 ## Start it, and create the first account
 
-`make prod` builds the images, starts the stack and runs the migrations. The
-first build takes a few minutes; afterwards Docker's layer cache makes it about
-a minute.
+`make prod` pulls the images, starts the stack and runs the migrations - the
+last as a `migrate` service the API waits on, so a `docker compose up -d` by hand
+on the same files does the same. The first pull is about 2 GB; a later one is the
+layers that changed.
 
 Then create an organization, an owner and a working agent:
 
@@ -286,10 +326,12 @@ ssh you@your-host "cat > $remote" < scripts/deploy.sh
 ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 ```
 
-`scripts/deploy.sh` fetches that commit, rebuilds, migrates, restarts and waits
-for both containers to report healthy before it returns non-zero or not. It takes
-a **commit** rather than a branch, so what is deployed is what was reviewed, not
-whatever `main` has moved to since.
+`scripts/deploy.sh` fetches that commit, waits for the images CI published for it
+(`sha-<short>`, usually already there), pulls them, restarts, and waits for both
+containers to report healthy before it returns non-zero or not. It takes a
+**commit** rather than a branch, so what is deployed is what was reviewed, not
+whatever `main` has moved to since - and what runs is byte-for-byte what CI
+built, on a host that never needs the toolchain.
 
 !!! warning "Copy it to the host, then run it — do not pipe it into `bash -s`"
 
@@ -303,8 +345,8 @@ whatever `main` has moved to since.
     Two connections instead of one is what stops the procedure being able to
     truncate itself.
 
-It is not zero-downtime. Compose recreates the containers it rebuilt, so the site
-is unavailable for the few seconds that takes.
+It is not zero-downtime. Compose recreates the containers whose image changed, so
+the site is unavailable for the few seconds that takes.
 
 ### From GitHub, with an approval
 
@@ -388,7 +430,7 @@ otherwise get an empty file and an error nobody reads on the way past.
 
 | | How |
 |---|---|
-| **Code** | Deploy the previous commit: `workflow_dispatch` with its sha, or `scripts/deploy.sh` |
+| **Code** | Deploy the previous commit: `workflow_dispatch` with its sha, or `scripts/deploy.sh`. The images are still in the registry, so this is a pull, not a build. A commit with no `sha-<short>` images - older than `images.yml`, or its run lost - is published first with `gh workflow run images.yml --ref main -f sha=<commit>`; the deploy names that command when it gives up waiting |
 | **Schema** | `agenticos db downgrade --revision=-1`, then deploy the code that matches |
 | **Data** | `pg_restore` the dump, then check the migration the code expects |
 
@@ -398,7 +440,9 @@ migration. Read it before assuming.
 
 ## Recap
 
-- **One host, Compose, a proxy in front.** Six containers, two of them stateful.
+- **One host, Compose, a proxy in front.** Seven containers - one of them runs
+  the migrations and exits - two of them stateful,
+  every one pulled - nothing is built on the host. Pin `AGENTICOS_VERSION`.
 - **`UVICORN_WORKERS` decides what the host costs.** 460 MiB per worker, nothing
   shared. Two for a team, four for real traffic.
 - **DNS before everything.** No certificate is issued until the names resolve to

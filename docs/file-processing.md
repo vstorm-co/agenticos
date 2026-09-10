@@ -198,10 +198,10 @@ not define.
 !!! warning "Two ceilings, and the browser has its own copy of one"
 
     A chat attachment is refused by `CHAT_MAX_UPLOAD_SIZE_MB` (10 MB); a
-    knowledge-base document by `MAX_UPLOAD_SIZE_MB` (50 MB). Set
-    `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match the first: too high and the
-    composer accepts a file the API refuses, too low and it refuses one the API
-    would take.
+    knowledge-base document by `MAX_UPLOAD_SIZE_MB` (50 MB). The frontend
+    container reads the same `CHAT_MAX_UPLOAD_SIZE_MB` at runtime, so give both
+    containers one value: too high on the browser's side and the composer accepts
+    a file the API refuses, too low and it refuses one the API would take.
 
 - Maximum attachment size: `CHAT_MAX_UPLOAD_SIZE_MB` (default: **10 MB**). This is
   the section's own limit — a chat attachment is refused by this number, not by the
@@ -213,9 +213,10 @@ not define.
 - The whole request body is capped above both, at the larger of them plus a multipart
   allowance, so raising either ceiling raises that with it.
 - The limit is enforced server-side after reading the file content. The browser's own
-  check is `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB`, which should be set to match: too
-  high and the composer accepts a file the API refuses, too low and it refuses one the
-  API would take.
+  check reads the same `CHAT_MAX_UPLOAD_SIZE_MB` from the frontend container's
+  environment, so the two containers should be given one value: too high and the
+  composer accepts a file the API refuses, too low and it refuses one the API would
+  take.
 
 ### Storage
 

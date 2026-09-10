@@ -53,12 +53,6 @@ export const ROUTES = {
   LEGAL_COOKIES: "/legal/cookies",
 } as const;
 
-// WebSocket URL (for chat - direct to backend, use wss:// in production)
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
-
-// Backend API URL (public, for direct links like API docs)
-export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 // The published documentation. A self-hosted deployment can serve its own copy
 // with `make docs`, but a panel cannot know whether one is running - so the
 // links point at the canonical site.

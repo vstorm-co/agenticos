@@ -2,24 +2,34 @@
 #
 # AgenticOS quickstart: from nothing to an agent you can talk to.
 #
-#   curl -fsSL https://agenticos.sh | bash          # or the raw URL below
-#   ./scripts/quickstart.sh                         # from a clone
+#   curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
+#   ./scripts/quickstart.sh                         # from a clone: builds from source
 #   ./scripts/quickstart.sh --check                 # only say what is missing
 #   ./scripts/quickstart.sh --dry-run               # print the plan, run nothing
 #   ./scripts/quickstart.sh --yes --provider openai --api-key sk-...
 #
+# It needs Docker and nothing else. Outside a clone it downloads one file -
+# `docker-compose.yml`, at the latest release so the file and the `latest`
+# images it pulls are the same release - into a directory of its own and pulls
+# the published images (`ghcr.io/vstorm-co/agenticos-backend`, `-frontend`);
+# inside a clone it uses the clone's compose files, which build the same images
+# from the tree. Either way the stack, the migrations and the console are
+# containers, so there is no git, make, python, uv or bun to install first
+# (#1545).
+#
 # Written for bash 3.2, because that is what ships with macOS: no associative
 # arrays, no `${var,,}`, no `mapfile`. Prompts read from /dev/tty rather than
 # stdin, because stdin is this script when the thing is piped from curl.
-#
-# What it needs is smaller than the README used to claim: Docker, git, make and
-# python3. `uv` and `bun` are for developing AgenticOS, not for running it - the
-# stack and the frontend are both containers.
 
 set -euo pipefail
 
-REPO_URL="https://github.com/vstorm-co/agenticos.git"
-REPO_DIR_DEFAULT="agenticos"
+REPO="vstorm-co/agenticos"
+INSTALL_DIR_DEFAULT="agenticos"
+# `env_file: { path, required: false }` and `condition: service_completed_successfully`
+# in the compose file; older plugins refuse the schema with a message that names
+# neither the version nor the fix.
+COMPOSE_MIN_MAJOR=2
+COMPOSE_MIN_MINOR=24
 
 # --- how this run was asked for -----------------------------------------------
 
@@ -31,8 +41,8 @@ API_KEY=""
 ADMIN_EMAIL=""
 ADMIN_PASSWORD=""
 ORG_NAME=""
-WANT_FRONTEND=""
 WANT_MCP=""
+WANT_SANDBOX=""
 
 BOLD=""; DIM=""; RED=""; GREEN=""; YELLOW=""; BLUE=""; RESET=""
 if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
@@ -62,14 +72,18 @@ AgenticOS quickstart
   --email ADDRESS      Owner login (default admin@example.com)
   --password SECRET    Owner password (default admin123)
   --org NAME           Organization name (default Acme)
-  --frontend / --no-frontend    Start the web console container (default: yes)
   --mcp / --no-mcp     Mirror the public MCP registry, 5,703 servers (default: yes)
-  --dir PATH           Where to clone (default ./agenticos)
+  --sandbox / --no-sandbox
+                       Start the sandbox service, which gives agents a container to
+                       run code in and holds the Docker socket to do it (default: yes
+                       where /var/run/docker.sock exists)
+  --dir PATH           Where to put docker-compose.yml and .env when not in a clone
+                       (default ./agenticos)
   -h, --help           This.
 EOF
 }
 
-REPO_DIR="$REPO_DIR_DEFAULT"
+INSTALL_DIR="$INSTALL_DIR_DEFAULT"
 while [ $# -gt 0 ]; do
   case "$1" in
     --check) CHECK_ONLY=1 ;;
@@ -80,11 +94,11 @@ while [ $# -gt 0 ]; do
     --email) ADMIN_EMAIL="${2:-}"; shift ;;
     --password) ADMIN_PASSWORD="${2:-}"; shift ;;
     --org) ORG_NAME="${2:-}"; shift ;;
-    --frontend) WANT_FRONTEND=yes ;;
-    --no-frontend) WANT_FRONTEND=no ;;
     --mcp) WANT_MCP=yes ;;
     --no-mcp) WANT_MCP=no ;;
-    --dir) REPO_DIR="${2:-}"; shift ;;
+    --sandbox) WANT_SANDBOX=yes ;;
+    --no-sandbox) WANT_SANDBOX=no ;;
+    --dir) INSTALL_DIR="${2:-}"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1 (try --help)" ;;
   esac
@@ -133,19 +147,38 @@ hint_for() {
     docker:macos)  say "    brew install --cask docker   ${DIM}(or Docker Desktop / OrbStack)${RESET}" ;;
     docker:linux)  say "    curl -fsSL https://get.docker.com | sh" ;;
     docker:wsl)    say "    Install Docker Desktop on Windows and enable WSL2 integration" ;;
-    make:macos)    say "    xcode-select --install" ;;
-    make:linux)    say "    sudo apt install make    ${DIM}# or dnf/pacman${RESET}" ;;
-    make:wsl)      say "    sudo apt install make" ;;
-    git:macos)     say "    xcode-select --install" ;;
-    git:linux)     say "    sudo apt install git" ;;
-    git:wsl)       say "    sudo apt install git" ;;
-    python3:macos) say "    brew install python3" ;;
-    python3:*)     say "    sudo apt install python3" ;;
+    curl:macos)    say "    xcode-select --install" ;;
+    curl:*)        say "    sudo apt install curl" ;;
     *)             say "    install $1 and run this again" ;;
   esac
 }
 
 MISSING=0
+
+# `docker compose version --short` is `2.29.1` or `v2.29.1` depending on the
+# build; anything that does not parse is reported rather than assumed fine.
+check_compose_version() {
+  local raw major minor
+  raw="$(docker compose version --short 2>/dev/null || true)"
+  raw="${raw#v}"
+  major="${raw%%.*}"
+  minor="${raw#*.}"; minor="${minor%%.*}"
+  case "$major$minor" in
+    *[!0-9]*|"")
+      warn "docker compose reports '$raw' - could not read its version; ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR} or later is needed"
+      return 0
+      ;;
+  esac
+  if [ "$major" -gt "$COMPOSE_MIN_MAJOR" ] || { [ "$major" -eq "$COMPOSE_MIN_MAJOR" ] && [ "$minor" -ge "$COMPOSE_MIN_MINOR" ]; }; then
+    ok "docker compose $raw"
+  else
+    fail "docker compose $raw is too old - ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR} or later is needed"
+    note "The compose file uses env_file options that older plugins refuse. Update Docker Desktop / OrbStack,"
+    note "or on Linux install the plugin from Docker's own repository: https://docs.docker.com/compose/install/linux/"
+    MISSING=$((MISSING + 1))
+  fi
+}
+
 need() {
   if command -v "$1" >/dev/null 2>&1; then
     ok "$1"
@@ -172,14 +205,12 @@ check_prerequisites() {
     *) warn "Unrecognised platform $(uname -s) — carrying on, but untested" ;;
   esac
 
-  need git
-  need make
-  need python3
   need docker
+  in_clone || need curl
 
   if command -v docker >/dev/null 2>&1; then
     if docker compose version >/dev/null 2>&1; then
-      ok "docker compose"
+      check_compose_version
     else
       fail "docker compose is missing (the v2 plugin, not docker-compose)"
       note "Docker Desktop and OrbStack both ship it; on Linux: sudo apt install docker-compose-plugin"
@@ -194,7 +225,7 @@ check_prerequisites() {
     fi
   fi
 
-  note "uv and bun are not needed — the stack and the console are containers."
+  note "Nothing else is needed — the stack, the migrations and the console are containers."
 
   if [ "$MISSING" -gt 0 ]; then
     die "$MISSING thing(s) missing. Install them and run this again."
@@ -207,8 +238,7 @@ check_prerequisites() {
 #
 # The locals are prefixed because bash locals are *dynamically* scoped: a caller
 # that also had `__answer` would have had this function's `eval` write into its
-# own copy instead, which is how --yes silently skipped the frontend and the
-# registry sync.
+# own copy instead, which is how --yes silently skipped the registry sync.
 ask() {
   local _qs_var="$1" _qs_prompt="$2" _qs_default="$3" _qs_reply=""
   if [ "$ASSUME_YES" = "1" ]; then
@@ -284,74 +314,254 @@ wizard() {
   [ -n "$ORG_NAME" ]       || ask ORG_NAME       "  Organization name" "Acme"
 
   say ""
-  [ -n "$WANT_FRONTEND" ] || ask_yes_no WANT_FRONTEND "  Start the web console too?" "y"
-  [ -n "$WANT_MCP" ]      || ask_yes_no WANT_MCP      "  Mirror the public MCP registry (5,703 servers, ~20s)?" "y"
+  [ -n "$WANT_MCP" ] || ask_yes_no WANT_MCP "  Mirror the public MCP registry (5,703 servers, ~20s)?" "y"
 }
 
 # --- doing it -----------------------------------------------------------------
 
-in_repo() { [ -f Makefile ] && [ -d backend ] && [ -f docker-compose.yml ]; }
+# A clone has the override file, which is what turns the base file into a source
+# build. Checked on the files rather than on `.git`, because a tarball of the
+# repository should behave the same way.
+in_clone() { [ -f docker-compose.yml ] && [ -f docker-compose.override.yml ] && [ -d backend ]; }
 
-obtain_repo() {
-  if in_repo; then
-    ok "already in an AgenticOS clone"
+# Where the settings live: `backend/.env` in a clone, where every other document
+# in the repository says to look; `.env` beside the compose file otherwise, which
+# is also the file Compose reads for `${...}` in it.
+ENV_FILE=""
+IN_CLONE=0
+ENV_FILE_CREATED=0
+
+# Only a compose file that is *ours* is adopted. This runs from wherever the
+# reader is, and a developer's current directory often has a `docker-compose.yml`
+# of some other project in it - adopting that would `up` a stranger's stack,
+# append a token to its `.env`, and `exec` into a service that is not ours. The
+# old script died here (`does not look like an AgenticOS clone`); this one moves
+# on to `$INSTALL_DIR` instead.
+ours() { grep -q 'ghcr.io/vstorm-co/agenticos-' "${1:-.}/docker-compose.yml" 2>/dev/null; }
+
+# The compose file at the latest release, so that the file and the `latest`
+# images it pulls by default are the same release - the one on `main` can be
+# ahead of the last release by a rename the image does not know yet. The
+# GitHub API answers without a token at a rate a person never reaches; when it
+# does not answer at all (offline, a proxy), `main` is the fallback and says so.
+compose_url() {
+  local tag
+  tag="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+  # Progress goes to stderr: stdout is the URL, and this runs inside `$(...)`.
+  if [ -z "$tag" ]; then
+    warn "could not read the latest release from GitHub - taking docker-compose.yml from main" >&2
+    tag="main"
+  else
+    note "latest release: $tag" >&2
+  fi
+  printf 'https://raw.githubusercontent.com/%s/%s/docker-compose.yml' "$REPO" "$tag"
+}
+
+obtain_compose() {
+  if in_clone; then
+    IN_CLONE=1
+    ENV_FILE="backend/.env"
+    ok "in an AgenticOS clone — the images are built from this tree"
     return 0
   fi
-  step "Getting the code"
-  if [ -d "$REPO_DIR" ]; then
-    note "$REPO_DIR exists — using it"
+  step "Getting docker-compose.yml"
+  # A directory this script already set up is used in place - re-running it from
+  # there must not nest another install under it.
+  if ours; then
+    note "docker-compose.yml already here — keeping it"
   else
-    run git clone --depth 1 "$REPO_URL" "$REPO_DIR"
+    if [ -f docker-compose.yml ]; then
+      note "the docker-compose.yml here is another project's - installing into $INSTALL_DIR instead"
+    fi
+    # Decided against `$INSTALL_DIR` by path rather than after a `cd`, so that
+    # --dry-run, which never changes directory, still answers for the right one.
+    if ours "$INSTALL_DIR"; then
+      note "docker-compose.yml already in $INSTALL_DIR — keeping it"
+    elif [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+      die "$INSTALL_DIR has a docker-compose.yml that is not AgenticOS's - pick another directory with --dir"
+    else
+      run mkdir -p "$INSTALL_DIR"
+      run curl -fsSL -o "$INSTALL_DIR/docker-compose.yml" "$(compose_url)"
+    fi
+    if [ "$DRY_RUN" != "1" ]; then
+      cd "$INSTALL_DIR"
+    fi
   fi
-  if [ "$DRY_RUN" != "1" ]; then
-    cd "$REPO_DIR"
-    in_repo || die "$REPO_DIR does not look like an AgenticOS clone"
+  ENV_FILE=".env"
+  ok "compose file in $(pwd)"
+  note "The images come from ghcr.io/vstorm-co - pin a release with AGENTICOS_VERSION=x.y.z in .env."
+}
+
+# The env file is created by this script when there is none, mode 0600 from the
+# first byte: it is about to hold the sandbox token, which is worth the Docker
+# socket, and the vault key, which unwraps every provider key an organization
+# stores. A file that already exists keeps its mode and its contents - this
+# script appends, and only what is missing.
+ensure_env_file() {
+  if [ -f "$ENV_FILE" ] || [ "$ENV_FILE_CREATED" = "1" ]; then
+    return 0
   fi
-  ok "code in $(pwd)"
+  ENV_FILE_CREATED=1
+  run_sh "(umask 077 && : >> '$ENV_FILE')"
+}
+
+# Append `NAME=value` with a comment above it. Real argv into `printf`, so the
+# value never passes through `sh -c`; under --dry-run the value is masked, since
+# the plan is printed to a terminal and these are secrets.
+append_env() {
+  local name="$1" value="$2" comment="$3"
+  if [ "$DRY_RUN" = "1" ]; then
+    printf '  %s$ printf ... %s=<generated> >> %s%s\n' "$DIM" "$name" "$ENV_FILE" "$RESET"
+    return 0
+  fi
+  printf '\n%s\n%s=%s\n' "$comment" "$name" "$value" >> "$ENV_FILE"
+}
+
+# 64 hex characters from the kernel, the same shape `scripts/server-init.sh`
+# writes with `openssl rand -hex 32` - without assuming openssl is installed.
+random_hex() { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+
+# The one secret the stack cannot default. The sandbox service can run commands on
+# this host, so an empty token would be a shared secret of "" - it refuses to
+# start without one. Written once and left alone afterwards: a new token orphans
+# every workspace the service is holding. `make sandbox-token` is the same logic
+# for a clone, and the file it writes is the file read here.
+ensure_sandbox_token() {
+  if grep -q '^SANDBOXD_TOKEN=.' "$ENV_FILE" 2>/dev/null; then
+    note "SANDBOXD_TOKEN already in $ENV_FILE"
+    return 0
+  fi
+  ensure_env_file
+  # Every stage reads its whole input: a `head` at the end of a pipe kills `tr`
+  # with SIGPIPE, which `set -o pipefail` turns into this script exiting.
+  local token
+  token="$(head -c 64 /dev/urandom | base64 | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-43)"
+  append_env SANDBOXD_TOKEN "$token" \
+    "# Authorises opening a sandbox session, and a session runs commands
+# on this host. Treat it like the Docker socket it sits in front of."
+  ok "generated SANDBOXD_TOKEN in $ENV_FILE"
+}
+
+# The two keys the application would otherwise take from its own defaults: a
+# `SECRET_KEY` that is a constant in the repository, and no `VAULT_MASTER_KEY`,
+# which makes the vault seal every provider key under that constant. Generated
+# only into an env file this run created. An existing file is somebody's
+# configuration - and a database may already hold secrets sealed under whatever
+# key it names or implies, which a new key would make unreadable - so it is
+# left exactly as found.
+ensure_secrets() {
+  ensure_env_file
+  if [ "$ENV_FILE_CREATED" != "1" ]; then
+    return 0
+  fi
+  append_env SECRET_KEY "$(random_hex)" \
+    "# Signs sessions. Generated by scripts/quickstart.sh; changing it signs everyone out."
+  append_env VAULT_MASTER_KEY "$(random_hex)" \
+    "# Seals every credential the vault stores. Generated by scripts/quickstart.sh.
+# Back it up with the database: a dump restored beside a different key is unreadable."
+  ok "generated SECRET_KEY and VAULT_MASTER_KEY in $ENV_FILE"
+}
+
+# Which optional services this run brings up. The sandbox is on wherever the
+# Docker socket is, because an agent with a container to work in is most of the
+# demo; a host without the socket gets everything else and a note.
+PROFILES=""
+
+decide_sandbox() {
+  if [ -z "$WANT_SANDBOX" ]; then
+    if [ -S /var/run/docker.sock ]; then WANT_SANDBOX=yes; else WANT_SANDBOX=no; fi
+  fi
+  if [ "$WANT_SANDBOX" != "yes" ]; then
+    note "Sandbox off - agents get no container to run code in. --sandbox turns it on."
+    return 0
+  fi
+  if [ ! -S /var/run/docker.sock ]; then
+    die "--sandbox needs /var/run/docker.sock on this host, and there is none"
+  fi
+  PROFILES="--profile sandbox"
+  ensure_sandbox_token
+  # The group that owns the socket, which the service takes as a supplementary
+  # group to reach it. 0 on Docker Desktop, where the socket is proxied.
+  DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock)"
+  export DOCKER_GID
 }
 
 start_stack() {
-  step "Starting Postgres, Redis, the API, the worker and the sandbox"
-  note "First run builds an image, so this is the slow part — a few minutes."
-  run make dev
+  step "Starting Postgres, Redis, the API, the worker and the console"
+  if [ "$IN_CLONE" = "1" ]; then
+    note "First run builds the backend and console images from source — a few minutes."
+    # `--profile console` beside the sandbox one: in a clone the console sits
+    # behind it so `bun dev` on the host keeps :3000; this run wants it started.
+    run_sh "docker compose $PROFILES --profile console up -d --build"
+  else
+    note "First run pulls about 2 GB of images."
+    run_sh "docker compose $PROFILES pull --quiet"
+    run_sh "docker compose $PROFILES up -d"
+  fi
+}
+
+# Compose returns once the containers are *started*. The API imports the whole
+# application before it answers and, on a fresh volume, waits for the migrations
+# first, so the bootstrap below would race it. Its own healthcheck is the answer
+# to "is it up", so read that rather than guess at a sleep.
+wait_for_api() {
+  [ "$DRY_RUN" != "1" ] || return 0
+  step "Waiting for the API"
+  local attempt status
+  for attempt in $(seq 1 90); do
+    status=$(docker inspect -f '{{.State.Health.Status}}' agenticos_backend 2>/dev/null || echo starting)
+    case "$status" in
+      healthy) ok "API answering on http://localhost:8000"; return 0 ;;
+      unhealthy)
+        docker compose logs --tail 40 migrate app >&2 || true
+        die "the API reports unhealthy - the log above says why"
+        ;;
+    esac
+    if [ "$attempt" -eq 90 ]; then
+      docker compose logs --tail 40 migrate app >&2 || true
+      die "the API is still '$status' after three minutes"
+    fi
+    printf '.'
+    sleep 2
+  done
 }
 
 bootstrap_platform() {
   step "Creating your organization, your login, a model and a first agent"
-  local args="--email $ADMIN_EMAIL --password $ADMIN_PASSWORD --org \"$ORG_NAME\""
-  if [ "$PROVIDER" != "none" ]; then
-    args="$args --provider $PROVIDER"
-  fi
+  # Real argv, not a string through `sh -c`: a password with a `$`, a space or a
+  # quote in it has to reach the container as typed.
+  local -a cmd
+  cmd=(docker compose exec -T)
   if [ -n "$API_KEY" ]; then
     # Through the environment, not the command line: an argument is visible in
     # `ps` to every other user on the machine.
-    run_sh "docker compose -f docker-compose.yml exec -T -e BOOTSTRAP_API_KEY='$API_KEY' app agenticos cmd bootstrap $args"
-  else
-    run_sh "docker compose -f docker-compose.yml exec -T app agenticos cmd bootstrap $args"
+    cmd+=(-e "BOOTSTRAP_API_KEY=$API_KEY")
   fi
+  cmd+=(app agenticos cmd bootstrap --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --org "$ORG_NAME")
+  if [ "$PROVIDER" != "none" ]; then
+    cmd+=(--provider "$PROVIDER")
+  fi
+  run "${cmd[@]}"
 }
 
 sync_mcp() {
   [ "$WANT_MCP" = "yes" ] || return 0
   step "Mirroring the public MCP registry"
   note "5,703 servers, searchable by name in the console. Offline snapshot; --fetch refreshes it later."
-  run_sh "docker compose -f docker-compose.yml exec -T app agenticos cmd mcp-registry-sync"
-}
-
-start_frontend() {
-  [ "$WANT_FRONTEND" = "yes" ] || return 0
-  step "Starting the web console"
-  run make dev-frontend
+  run_sh "docker compose exec -T app agenticos cmd mcp-registry-sync"
 }
 
 summary() {
-  local where="http://localhost:3000"
-  [ "$WANT_FRONTEND" = "yes" ] || where="http://localhost:8000/docs"
+  local down="docker compose down" logs="docker compose logs -f"
+  if [ "$IN_CLONE" = "1" ]; then
+    down="make dev-down"; logs="make dev-logs"
+  fi
   cat <<EOF
 
 ${GREEN}${BOLD}Ready.${RESET}
 
-  Console    ${BLUE}${where}${RESET}
+  Console    ${BLUE}http://localhost:3000${RESET}
   Sign in    ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}
   API        http://localhost:8000${DIM}  (docs at /docs)${RESET}
 
@@ -360,10 +570,11 @@ ${BOLD}What to try first${RESET}
   2. Knowledge bases → new collection → drop a PDF in → ask about it.
   3. MCP servers → search for a tool your company already uses.
 
-${BOLD}Day to day${RESET}
-  make dev-logs        follow the logs
-  make dev-down        stop everything, keep the data
-  make doctor          can this deployment actually run an agent?
+${BOLD}Day to day${RESET}${DIM}  (from $(pwd))${RESET}
+  $logs        follow the logs
+  $down        stop everything, keep the data
+  docker compose exec app agenticos cmd doctor
+                       can this deployment actually run an agent?
 
 EOF
   if [ "$PROVIDER" = "none" ] || [ -z "$API_KEY" ]; then
@@ -381,12 +592,14 @@ main() {
   check_prerequisites
   [ "$CHECK_ONLY" = "1" ] && { say ""; ok "Everything this needs is here."; exit 0; }
 
-  obtain_repo
+  obtain_compose
+  ensure_secrets
+  decide_sandbox
   wizard
   start_stack
+  wait_for_api
   bootstrap_platform
   sync_mcp
-  start_frontend
   summary
 }
 

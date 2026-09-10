@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { OG_LOCALE, SITE, pageMetadata } from "./seo";
+import { OG_LOCALE, SITE, pageMetadata, siteOrigin } from "./seo";
 
 /**
  * The metadata every public page is built from.
@@ -14,7 +14,7 @@ describe("pageMetadata", () => {
   it("puts the locale in the canonical URL, because every public page has one", () => {
     const meta = pageMetadata({ title: "Terms", description: "…", path: "/legal/terms" });
 
-    expect(meta.alternates?.canonical).toBe(`${SITE.url}/en/legal/terms`);
+    expect(meta.alternates?.canonical).toBe(`${siteOrigin()}/en/legal/terms`);
   });
 
   it("names the same page in every locale the deployment serves", () => {
@@ -23,18 +23,18 @@ describe("pageMetadata", () => {
     const meta = pageMetadata({ title: "Terms", description: "…", path: "/legal/terms" });
 
     expect(meta.alternates?.languages).toEqual({
-      en: `${SITE.url}/en/legal/terms`,
-      pl: `${SITE.url}/pl/legal/terms`,
+      en: `${siteOrigin()}/en/legal/terms`,
+      pl: `${siteOrigin()}/pl/legal/terms`,
     });
   });
 
   it("canonicalises the home page as the locale root, not as a trailing slash", () => {
     const meta = pageMetadata({ title: SITE.name, description: "…" });
 
-    expect(meta.alternates?.canonical).toBe(`${SITE.url}/en`);
+    expect(meta.alternates?.canonical).toBe(`${siteOrigin()}/en`);
     expect(meta.alternates?.languages).toEqual({
-      en: `${SITE.url}/en`,
-      pl: `${SITE.url}/pl`,
+      en: `${siteOrigin()}/en`,
+      pl: `${siteOrigin()}/pl`,
     });
   });
 
@@ -87,10 +87,10 @@ describe("pageMetadata", () => {
     // a canonical nobody can reach.
     expect(
       pageMetadata({ title: "T", description: "…", path: "legal" }).alternates?.canonical,
-    ).toBe(`${SITE.url}/en/legal`);
+    ).toBe(`${siteOrigin()}/en/legal`);
     expect(
       pageMetadata({ title: "T", description: "…", path: "/legal/" }).alternates?.canonical,
-    ).toBe(`${SITE.url}/en/legal`);
+    ).toBe(`${siteOrigin()}/en/legal`);
   });
 
   it("says which locale a page is in, and which others exist", () => {
@@ -102,7 +102,7 @@ describe("pageMetadata", () => {
 
   it("falls back to the dynamic OG image, and takes an override", () => {
     expect(pageMetadata({ title: "T", description: "…" }).twitter?.images).toEqual([
-      `${SITE.url}/opengraph-image`,
+      `${siteOrigin()}/opengraph-image`,
     ]);
     expect(
       pageMetadata({ title: "T", description: "…", ogImage: "https://cdn.example/x.png" }).twitter
@@ -131,26 +131,31 @@ describe("pageMetadata", () => {
 describe("the canonical origin", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.resetModules();
   });
 
-  it("comes from the deployment, with any trailing slash removed", async () => {
+  it("comes from the deployment, with any trailing slash removed", () => {
     // A trailing slash here produces `https://site.com//en` in every canonical
     // the site emits.
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://agenticos.example/");
-    vi.resetModules();
+    vi.stubEnv("PUBLIC_SITE_URL", "https://agenticos.example/");
 
-    const { SITE: fresh } = await import("./seo");
-
-    expect(fresh.url).toBe("https://agenticos.example");
+    expect(siteOrigin()).toBe("https://agenticos.example");
   });
 
-  it("falls back to localhost so a dev build has absolute URLs at all", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", undefined);
-    vi.resetModules();
+  it("is read when asked, not when the module loaded (#1544)", () => {
+    // One published image serves every deployment, so the origin has to be the
+    // running server's environment rather than the build machine's.
+    vi.stubEnv("PUBLIC_SITE_URL", "https://first.example");
+    const canonical = pageMetadata({ title: "T", description: "…", path: "/login" }).alternates
+      ?.canonical;
+    vi.stubEnv("PUBLIC_SITE_URL", "https://second.example");
 
-    const { SITE: fresh } = await import("./seo");
+    expect(canonical).toBe("https://first.example/en/login");
+    expect(siteOrigin()).toBe("https://second.example");
+  });
 
-    expect(fresh.url).toBe("http://localhost:3000");
+  it("falls back to localhost so a dev build has absolute URLs at all", () => {
+    vi.stubEnv("PUBLIC_SITE_URL", undefined);
+
+    expect(siteOrigin()).toBe("http://localhost:3000");
   });
 });

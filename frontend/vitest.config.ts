@@ -64,6 +64,7 @@ export default defineConfig({
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
         "src/components/orgs/**/*.tsx",
+        "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
         // One file viewer for every surface (#136). Held to the gate because what

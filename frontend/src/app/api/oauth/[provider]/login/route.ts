@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BACKEND_URL } from "@/lib/constants";
 import { INVITATION_FLOW_PARAM, isInvitationFlow, stageCookieName } from "@/lib/invitation-links";
+import { readPublicConfig } from "@/lib/public-config";
 
 /**
  * Start an OAuth sign-in, attaching a staged invitation the browser cannot read.
@@ -25,7 +25,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   // even after that, the rule every hand-rolled proxy here keeps.
   if (!PROVIDERS.has(provider)) return new NextResponse(null, { status: 404 });
 
-  const target = new URL(`${BACKEND_URL}/api/v1/oauth/${encodeURIComponent(provider)}/login`);
+  // The browser follows this redirect, so it is the public API origin the
+  // deployment names at runtime, read per request like every other public URL (#1544).
+  const { apiUrl } = readPublicConfig(process.env);
+  const target = new URL(`${apiUrl}/api/v1/oauth/${encodeURIComponent(provider)}/login`);
   const flow = request.nextUrl.searchParams.get(INVITATION_FLOW_PARAM);
   const handle = isInvitationFlow(flow) ? request.cookies.get(stageCookieName(flow))?.value : null;
   if (handle) target.searchParams.set("invitation_handle", handle);

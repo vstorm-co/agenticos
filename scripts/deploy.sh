@@ -7,7 +7,8 @@
 #   ssh <host> "trap 'rm -f $remote' EXIT; bash $remote <sha>"
 #
 # Copied to the server rather than run from its checkout: the checkout there is
-# only the build context, and the procedure travels with whoever is running it.
+# only where the compose files and `backend/.env` live, and the procedure
+# travels with whoever is running it.
 # Deliberately **not** taken from the commit being deployed - a rollback to a
 # commit older than this file would then have no script to run, which is the one
 # moment it is needed most.
@@ -23,14 +24,21 @@
 # pending, and `git pull` on the server would then deploy whichever one won the
 # race rather than the one somebody approved.
 #
+# Nothing is built here. `images.yml` publishes every commit on `main` as
+# `ghcr.io/vstorm-co/agenticos-{backend,frontend}:sha-<short>`, and this pins
+# `AGENTICOS_VERSION` to that tag and pulls - so what runs is byte-for-byte what
+# CI built, and a host needs neither the toolchain nor the memory a build takes.
+# The image is usually there before anybody has approved the deploy; when it is
+# not yet, this waits for it rather than failing on the race.
+#
 # To roll back, run it again with the previous sha. There is nothing else to
-# undo: the images are rebuilt from the tree, and a migration that has run stays
+# undo: the images are still in the registry, and a migration that has run stays
 # run - which is why a rollback across one is a decision rather than a command.
 #
-# Not zero-downtime. Compose recreates the containers it rebuilt, so the API and
-# the site are unavailable for the few seconds that takes. Worth knowing before
-# scheduling a deploy in the middle of somebody's conversation; not worth a blue
-# environment for a deployment this size.
+# Not zero-downtime. Compose recreates the containers whose image changed, so the
+# API and the site are unavailable for the few seconds that takes. Worth knowing
+# before scheduling a deploy in the middle of somebody's conversation; not worth
+# a blue environment for a deployment this size.
 set -euo pipefail
 
 SHA="${1:?usage: deploy.sh <commit-sha>}"
@@ -110,6 +118,45 @@ git fetch --prune --quiet origin
 git checkout --quiet --detach "$SHA"
 git --no-pager log --oneline -1
 
+# The tag `images.yml` gave this commit. Exported rather than written to the env
+# file, so the file keeps saying what the operator wrote and the pin lives
+# exactly as long as this deploy; the compose files default to `latest` when it
+# is absent, which a `docker compose up` by hand on this host would then get.
+# `cut`, not `--short=7`: git widens a short sha past seven characters when it
+# is ambiguous, and metadata-action never does.
+AGENTICOS_VERSION="sha-$(git rev-parse HEAD | cut -c1-7)"
+export AGENTICOS_VERSION
+
+# `images.yml` starts when the commit lands on `main`, the same moment this
+# workflow does, and finishes some minutes later - so an approval given at once
+# would pull a tag that does not exist yet. Wait for the manifest rather than
+# fail on it; twenty minutes is a stalled publish, not a slow one.
+#
+# A commit that never had a run - older than `images.yml`, or its run lost -
+# is not a wait, and the message says what publishes it: the same workflow,
+# dispatched with the commit, which gives it its `sha-` tag and nothing that
+# moves.
+say "Waiting for the images tagged $AGENTICOS_VERSION"
+for image in agenticos-backend agenticos-frontend; do
+  ref="ghcr.io/vstorm-co/$image:$AGENTICOS_VERSION"
+  for attempt in $(seq 1 80); do
+    if docker manifest inspect "$ref" >/dev/null 2>&1; then
+      echo "  $ref"
+      break
+    fi
+    if [ "$attempt" -eq 80 ]; then
+      {
+        echo "  $ref is not in the registry after 20 minutes."
+        echo "  If the Images workflow never ran for $SHA - a commit older than it, or a run that was lost -"
+        echo "  publish it first, then deploy again:"
+        echo "    gh workflow run images.yml --repo vstorm-co/agenticos --ref main -f sha=$SHA"
+      } >&2
+      exit 1
+    fi
+    sleep 15
+  done
+done
+
 # `< /dev/null` on every compose call, so this stays correct even when somebody
 # pipes the script into `bash -s` anyway: nothing in here has any business
 # reading standard input, and one that does silently truncates the deploy (#1488).
@@ -117,17 +164,19 @@ compose() { docker compose --env-file "$COMPOSE_ENV" "$@" < /dev/null; }
 
 # The API first, and its migrations before the frontend: a frontend serving a
 # schema the backend has not migrated to yet is the window this ordering closes.
-say "Building and starting the API"
-compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" up -d --build
+# The migrations are the `migrate` service, which `app` waits on, so `up -d` is
+# the whole of it; `docker compose logs migrate` has the story when the API
+# never comes up.
+say "Pulling and starting the API"
+compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" pull --quiet
+compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" up -d
 
-say "Migrating"
-compose "${BACKEND[@]}" exec -T app agenticos db upgrade
-
-say "Building and starting the frontend"
-compose "${FRONTEND[@]}" up -d --build
+say "Pulling and starting the frontend"
+compose "${FRONTEND[@]}" pull --quiet
+compose "${FRONTEND[@]}" up -d
 
 # A deploy that finished is not a deploy that works. Compose returns as soon as
-# the containers are started, so without this a broken build is discovered by
+# the containers are started, so without this a broken image is discovered by
 # whoever opens the site next.
 say "Waiting for health"
 for name in agenticos_backend agenticos_frontend; do
@@ -146,8 +195,9 @@ for name in agenticos_backend agenticos_frontend; do
   done
 done
 
-# Only the layers nothing references. `image prune -a` would take the base images
-# every build starts from, and turn a two-minute deploy into a ten-minute one.
+# The previous release's images, which nothing references once the containers
+# have been recreated. Not `-a`: that would take the sandbox runtime images too,
+# and the next session would rebuild them.
 say "Reclaiming space"
 docker image prune -f >/dev/null
 df -h / | tail -1

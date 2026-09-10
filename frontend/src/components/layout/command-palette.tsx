@@ -23,8 +23,9 @@ import { NAV_GROUPS } from "@/components/layout/app-sidebar";
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { useAuth } from "@/hooks";
 import { usePermissions } from "@/hooks/use-permissions";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { apiClient } from "@/lib/api-client";
-import { BACKEND_URL, ROUTES } from "@/lib/constants";
+import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { isAppAdmin } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
@@ -65,6 +66,7 @@ export function CommandPalette() {
   const t = useTranslations("nav");
   const { user, logout } = useAuth();
   const { can } = usePermissions();
+  const { apiUrl } = usePublicConfig();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const admin = isAppAdmin(user);
@@ -176,7 +178,7 @@ export function CommandPalette() {
               setOpen(false);
               // The docs are FastAPI's, served by the backend. The frontend has
               // no /docs route, so the old link opened its 404 page.
-              window.open(`${BACKEND_URL}/docs`, "_blank", "noopener,noreferrer");
+              window.open(`${apiUrl}/docs`, "_blank", "noopener,noreferrer");
             }}
           />
         </Group>

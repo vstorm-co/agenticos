@@ -6,16 +6,33 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OAuthBlock } from "./oauth-buttons";
-import { AUTH_GLYPHS } from "@/lib/auth-glyphs.generated";
+import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
+import { AUTH_GLYPHS, type AuthProvider } from "@/lib/auth-glyphs.generated";
+import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 
-const SAVED = process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
 afterEach(() => {
-  if (SAVED === undefined) delete process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
-  else process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = SAVED;
   window.sessionStorage.clear();
 });
+
+/** Mount the block under a deployment offering exactly these providers. */
+function renderWith(
+  providers: readonly AuthProvider[],
+  props: Partial<Parameters<typeof OAuthBlock>[0]> = {},
+) {
+  return render(
+    <PublicConfigProvider
+      config={{
+        ...DEFAULT_PUBLIC_CONFIG,
+        apiUrl: "https://api.acme.example",
+        oauthProviders: providers,
+      }}
+    >
+      <OAuthBlock label="or" {...props} />
+    </PublicConfigProvider>,
+  );
+}
 
 /** Click the provider button without letting jsdom follow the link out. */
 async function press(name: RegExp) {
@@ -26,9 +43,7 @@ async function press(name: RegExp) {
 
 describe("the OAuth buttons", () => {
   it("renders a link and a mark per configured provider", () => {
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google,github,microsoft";
-
-    render(<OAuthBlock label="or" />);
+    renderWith(["google", "github", "microsoft"]);
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(3);
@@ -39,9 +54,7 @@ describe("the OAuth buttons", () => {
   it("starts the sign-in same-origin and carries no token in the URL (#1414)", () => {
     // A staged invitation rides an httpOnly cookie the same-origin proxy reads and
     // attaches to the cross-origin hop; the provider link itself is credential-free.
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
-
-    render(<OAuthBlock label="or" variant="signup" />);
+    renderWith(["google"], { variant: "signup" });
 
     expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/google/login");
   });
@@ -49,15 +62,10 @@ describe("the OAuth buttons", () => {
   it("names the staged invitation's flow on the start, and nothing else about it", () => {
     // The flow is which staging's cookie the proxy attaches - two staged side by side
     // hold two - and is no credential on its own; the token and handle stay off the URL.
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
-
-    render(
-      <OAuthBlock
-        label="or"
-        variant="signup"
-        returnTo="/invitations/pending?flow=0123456789abcdef0123456789abcdef"
-      />,
-    );
+    renderWith(["google"], {
+      variant: "signup",
+      returnTo: "/invitations/pending?flow=0123456789abcdef0123456789abcdef",
+    });
 
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
@@ -68,8 +76,7 @@ describe("the OAuth buttons", () => {
   it("remembers the deep link the visitor was headed to", async () => {
     // Not sent to the provider and not in the OAuth `state`: the trip starts
     // and ends in this tab, and `/auth/callback` reads it back (#135).
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
-    render(<OAuthBlock label="or" returnTo="/agents/a-1" />);
+    renderWith(["google"], { returnTo: "/agents/a-1" });
 
     await press(/continueWith/);
 
@@ -81,9 +88,8 @@ describe("the OAuth buttons", () => {
   it("forgets an abandoned one on a fresh attempt with no deep link", async () => {
     // A fresh sign-in with nothing in the URL passes `null` (what `returnToForAttempt`
     // answers there) - clear the stale one. A retry passes `undefined` and leaves it.
-    process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
     window.sessionStorage.setItem("oauthReturnTo", "/agents/gone");
-    render(<OAuthBlock label="or" returnTo={null} />);
+    renderWith(["google"], { returnTo: null });
 
     await press(/continueWith/);
 
@@ -91,11 +97,18 @@ describe("the OAuth buttons", () => {
   });
 
   it("renders nothing when no provider is configured", () => {
-    delete process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
-
-    const { container } = render(<OAuthBlock label="or" />);
+    const { container } = renderWith([]);
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("offers Google outside a provider, which is the default a deployment ships with", () => {
+    render(<OAuthBlock label="or" />);
+
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      expect.stringContaining("/oauth/google/login"),
+    );
   });
 
   it("keeps the full brand table off the auth pages (#955)", () => {
