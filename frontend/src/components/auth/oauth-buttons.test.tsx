@@ -47,25 +47,29 @@ describe("the OAuth buttons", () => {
 
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(3);
-    expect(links[0]).toHaveAttribute("href", expect.stringContaining("/oauth/google/login"));
+    expect(links[0]).toHaveAttribute("href", "/api/oauth/google/login");
     expect(document.querySelectorAll("svg")).toHaveLength(3);
   });
 
-  it("sends the visitor to the API origin the deployment named, not a baked one (#1544)", () => {
-    renderWith(["google"]);
+  it("starts the sign-in same-origin and carries no token in the URL (#1414)", () => {
+    // A staged invitation rides an httpOnly cookie the same-origin proxy reads and
+    // attaches to the cross-origin hop; the provider link itself is credential-free.
+    renderWith(["google"], { variant: "signup" });
 
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
-      "https://api.acme.example/api/v1/oauth/google/login",
-    );
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/api/oauth/google/login");
   });
 
-  it("carries the invitation token to the provider on a sign-up", () => {
-    renderWith(["google"], { variant: "signup", invitation: "tok" });
+  it("names the staged invitation's flow on the start, and nothing else about it", () => {
+    // The flow is which staging's cookie the proxy attaches - two staged side by side
+    // hold two - and is no credential on its own; the token and handle stay off the URL.
+    renderWith(["google"], {
+      variant: "signup",
+      returnTo: "/invitations/pending?flow=0123456789abcdef0123456789abcdef",
+    });
 
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
-      expect.stringContaining("invitation=tok"),
+      "/api/oauth/google/login?flow=0123456789abcdef0123456789abcdef",
     );
   });
 
@@ -81,9 +85,11 @@ describe("the OAuth buttons", () => {
     expect(screen.getByRole("link")).toHaveAttribute("href", expect.not.stringContaining("a-1"));
   });
 
-  it("forgets an abandoned one, rather than resuming it on the next attempt", async () => {
+  it("forgets an abandoned one on a fresh attempt with no deep link", async () => {
+    // A fresh sign-in with nothing in the URL passes `null` (what `returnToForAttempt`
+    // answers there) - clear the stale one. A retry passes `undefined` and leaves it.
     window.sessionStorage.setItem("oauthReturnTo", "/agents/gone");
-    renderWith(["google"]);
+    renderWith(["google"], { returnTo: null });
 
     await press(/continueWith/);
 

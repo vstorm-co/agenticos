@@ -11,33 +11,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as health } from "./health/route";
 import { POST as acceptInvitation, DELETE as declineInvitation } from "./invitations/[token]/route";
-import {
-  GET as readChannelLink,
-  POST as confirmChannelLink,
-  DELETE as unlinkChannelAccount,
-} from "./me/channel-link/[token]/route";
-import { GET as listChannelAccounts } from "./me/channel-link/route";
-import { GET as listConnections, POST as createConnection } from "./me/mcp-connections/route";
-import {
-  PATCH as patchConnection,
-  DELETE as deleteConnection,
-} from "./me/mcp-connections/[id]/route";
-import { POST as testConnection } from "./me/mcp-connections/[id]/test/route";
-import { POST as startOauth } from "./me/mcp-connections/oauth/start/route";
-import { PUT as upsertBuiltin } from "./me/slash-commands/builtin/route";
-import { POST as createCommand } from "./me/slash-commands/custom/route";
-import { GET as listCommands } from "./me/slash-commands/route";
-import { PATCH as patchCommand, DELETE as deleteCommand } from "./me/slash-commands/[id]/route";
 import { GET as listIntegrations, POST as createIntegration } from "./orgs/[id]/integrations/route";
 import { GET as connectors } from "./orgs/[id]/integrations/connectors/route";
 import { DELETE as deleteIntegration } from "./orgs/[id]/integrations/[sourceId]/route";
 import { POST as triggerIntegration } from "./orgs/[id]/integrations/[sourceId]/trigger/route";
-import { GET as listInvitations, POST as createInvitation } from "./orgs/[id]/invitations/route";
-import { DELETE as revokeInvitation } from "./orgs/[id]/invitations/[invitationId]/route";
-import { GET as members } from "./orgs/[id]/members/route";
-import { PATCH as patchMember, DELETE as removeMember } from "./orgs/[id]/members/[userId]/route";
-import { GET as getOrg, PATCH as patchOrg, DELETE as deleteOrg } from "./orgs/[id]/route";
-import { GET as listOrgs, POST as createOrg } from "./orgs/route";
 import { GET as getMe, PATCH as patchMe } from "./users/me/route";
 import { BackendApiError, backendFetch } from "@/lib/server-api";
 
@@ -48,7 +25,7 @@ vi.mock("@/lib/server-api", async () => {
 
 /** A signed-in request, unless `signedIn` says otherwise. */
 function request(
-  url = "http://localhost:3000/api/orgs",
+  url = "http://localhost:3000/api/orgs/org-1/integrations",
   { body, signedIn = true }: { body?: unknown; signedIn?: boolean } = {},
 ): NextRequest {
   return new NextRequest(url, {
@@ -60,119 +37,20 @@ function request(
 const org = { params: Promise.resolve({ id: "org-1" }) };
 
 /**
- * Every route that reads the session cookie itself, with a call that should
- * reach the backend.
+ * Every hand-rolled route that reads the session cookie itself, with a call
+ * that should reach the backend.
  *
- * Two invariants, and both are the kind that fail silently. A route that forgot
- * to check the cookie forwards an unauthenticated request and lets the backend
- * decide, which turns a 401 into whatever that endpoint does with no token. And
- * a route that forgot to forward the token asks the backend as nobody, which for
- * a listing endpoint answers an empty list rather than an error - a page that
- * says "nothing here" about data that plainly exists.
+ * The plain forwarders these used to sit beside now go through `platformProxy`;
+ * what is left is genuinely special - an org integration whose tenant travels
+ * in a header rather than the path, an invitation addressed by its token, the
+ * caller's own profile. Two invariants remain, and both fail silently. A route
+ * that forgot to check the cookie forwards an unauthenticated request and lets
+ * the backend decide, which turns a 401 into whatever that endpoint does with no
+ * token. And a route that forgot to forward the token asks the backend as
+ * nobody, which for a listing endpoint answers an empty list rather than an
+ * error - a page that says "nothing here" about data that plainly exists.
  */
 const COOKIE_GATED: [string, (signedIn: boolean) => Promise<Response>][] = [
-  [
-    "the chat account a link URL is about",
-    (s) =>
-      readChannelLink(request("http://localhost:3000/api/me/channel-link/tok", { signedIn: s }), {
-        params: Promise.resolve({ token: "tok" }),
-      }),
-  ],
-  [
-    "the chat accounts somebody has connected",
-    (s) =>
-      listChannelAccounts(request("http://localhost:3000/api/me/channel-link", { signedIn: s })),
-  ],
-  [
-    "disconnecting a chat account",
-    (s) =>
-      unlinkChannelAccount(
-        request("http://localhost:3000/api/me/channel-link/i-1", { signedIn: s }),
-        { params: Promise.resolve({ token: "i-1" }) },
-      ),
-  ],
-  [
-    "confirming a chat account is yours",
-    (s) =>
-      confirmChannelLink(
-        request("http://localhost:3000/api/me/channel-link/tok", { signedIn: s }),
-        { params: Promise.resolve({ token: "tok" }) },
-      ),
-  ],
-  [
-    "the organization list",
-    (s) => listOrgs(request("http://localhost:3000/api/orgs", { signedIn: s })),
-  ],
-  [
-    "creating an organization",
-    (s) =>
-      createOrg(request("http://localhost:3000/api/orgs", { body: { name: "Acme" }, signedIn: s })),
-  ],
-  [
-    "one organization",
-    (s) => getOrg(request("http://localhost:3000/api/orgs/org-1", { signedIn: s }), org),
-  ],
-  [
-    "renaming an organization",
-    (s) =>
-      patchOrg(
-        request("http://localhost:3000/api/orgs/org-1", { body: { name: "Beta" }, signedIn: s }),
-        org,
-      ),
-  ],
-  [
-    "deleting an organization",
-    (s) => deleteOrg(request("http://localhost:3000/api/orgs/org-1", { signedIn: s }), org),
-  ],
-  [
-    "the member list",
-    (s) => members(request("http://localhost:3000/api/orgs/org-1/members", { signedIn: s }), org),
-  ],
-  [
-    "a role change",
-    (s) =>
-      patchMember(
-        request("http://localhost:3000/api/orgs/org-1/members/u-1", {
-          body: { role: "admin" },
-          signedIn: s,
-        }),
-        { params: Promise.resolve({ id: "org-1", userId: "u-1" }) },
-      ),
-  ],
-  [
-    "removing a member",
-    (s) =>
-      removeMember(request("http://localhost:3000/api/orgs/org-1/members/u-1", { signedIn: s }), {
-        params: Promise.resolve({ id: "org-1", userId: "u-1" }),
-      }),
-  ],
-  [
-    "the invitation list",
-    (s) =>
-      listInvitations(
-        request("http://localhost:3000/api/orgs/org-1/invitations", { signedIn: s }),
-        org,
-      ),
-  ],
-  [
-    "sending an invitation",
-    (s) =>
-      createInvitation(
-        request("http://localhost:3000/api/orgs/org-1/invitations", {
-          body: { email: "a@example.com" },
-          signedIn: s,
-        }),
-        org,
-      ),
-  ],
-  [
-    "revoking an invitation",
-    (s) =>
-      revokeInvitation(
-        request("http://localhost:3000/api/orgs/org-1/invitations/inv-1", { signedIn: s }),
-        { params: Promise.resolve({ id: "org-1", invitationId: "inv-1" }) },
-      ),
-  ],
   [
     "the integration list",
     (s) =>
@@ -241,102 +119,6 @@ const COOKIE_GATED: [string, (signedIn: boolean) => Promise<Response>][] = [
         request("http://localhost:3000/api/users/me", { body: { full_name: "K" }, signedIn: s }),
       ),
   ],
-  [
-    "the caller's connections",
-    (s) =>
-      listConnections(request("http://localhost:3000/api/me/mcp-connections", { signedIn: s })),
-  ],
-  [
-    "adding a connection",
-    (s) =>
-      createConnection(
-        request("http://localhost:3000/api/me/mcp-connections", {
-          body: { name: "linear", url: "https://mcp/sse" },
-          signedIn: s,
-        }),
-      ),
-  ],
-  [
-    "editing a connection",
-    (s) =>
-      patchConnection(
-        request("http://localhost:3000/api/me/mcp-connections/c-1", {
-          body: { is_enabled: false },
-          signedIn: s,
-        }),
-        { params: Promise.resolve({ id: "c-1" }) },
-      ),
-  ],
-  [
-    "removing a connection",
-    (s) =>
-      deleteConnection(
-        request("http://localhost:3000/api/me/mcp-connections/c-1", { signedIn: s }),
-        {
-          params: Promise.resolve({ id: "c-1" }),
-        },
-      ),
-  ],
-  [
-    "checking a connection",
-    (s) =>
-      testConnection(
-        request("http://localhost:3000/api/me/mcp-connections/c-1/test", { signedIn: s }),
-        { params: Promise.resolve({ id: "c-1" }) },
-      ),
-  ],
-  [
-    "starting an OAuth flow",
-    (s) =>
-      startOauth(
-        request("http://localhost:3000/api/me/mcp-connections/oauth/start", {
-          body: { name: "linear", url: "https://mcp/sse" },
-          signedIn: s,
-        }),
-      ),
-  ],
-  [
-    "the caller's slash commands",
-    (s) => listCommands(request("http://localhost:3000/api/me/slash-commands", { signedIn: s })),
-  ],
-  [
-    "switching a built-in",
-    (s) =>
-      upsertBuiltin(
-        request("http://localhost:3000/api/me/slash-commands/builtin", {
-          body: { name: "summarise", is_enabled: false },
-          signedIn: s,
-        }),
-      ),
-  ],
-  [
-    "creating a command",
-    (s) =>
-      createCommand(
-        request("http://localhost:3000/api/me/slash-commands/custom", {
-          body: { name: "standup", prompt: "x" },
-          signedIn: s,
-        }),
-      ),
-  ],
-  [
-    "editing a command",
-    (s) =>
-      patchCommand(
-        request("http://localhost:3000/api/me/slash-commands/sc-1", {
-          body: { name: "daily" },
-          signedIn: s,
-        }),
-        { params: Promise.resolve({ id: "sc-1" }) },
-      ),
-  ],
-  [
-    "removing a command",
-    (s) =>
-      deleteCommand(request("http://localhost:3000/api/me/slash-commands/sc-1", { signedIn: s }), {
-        params: Promise.resolve({ id: "sc-1" }),
-      }),
-  ],
 ];
 
 beforeEach(() => {
@@ -389,20 +171,6 @@ describe("the routes that read the session cookie", () => {
 });
 
 describe("the paths each one addresses", () => {
-  it("names the organization, member, invitation and integration in the path", async () => {
-    await patchMember(
-      request("http://localhost:3000/api/orgs/org-1/members/u-1", { body: { role: "admin" } }),
-      { params: Promise.resolve({ id: "org-1", userId: "u-1" }) },
-    );
-    expect(vi.mocked(backendFetch).mock.calls[0]![0]).toBe("/api/v1/orgs/org-1/members/u-1");
-
-    vi.mocked(backendFetch).mockClear();
-    await revokeInvitation(request("http://localhost:3000/api/orgs/org-1/invitations/inv-1"), {
-      params: Promise.resolve({ id: "org-1", invitationId: "inv-1" }),
-    });
-    expect(vi.mocked(backendFetch).mock.calls[0]![0]).toBe("/api/v1/orgs/org-1/invitations/inv-1");
-  });
-
   it("addresses an org integration by source, naming the organization in a header", async () => {
     // These live under `/org/integrations` on the backend rather than nested
     // under an organization id, so the tenant travels in `X-Organization-Id` -

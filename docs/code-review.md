@@ -407,7 +407,7 @@ Python quality queries the suite runs, which is the wrong trade for a repository
 whose argument is that its value is in what it refuses. #220 holds the exclusion
 to apply on the day there is somewhere to apply it.
 
-### Seven findings already adjudicated
+### Eight findings already adjudicated
 
 These have been read. The query is wrong about this codebase, and the reason does
 not change per occurrence — so **resolve the thread and point at this section.**
@@ -423,6 +423,7 @@ justification each time.
 | `py/unnecessary-lambda` | `lambda: service` in a `dependency_overrides` entry | The override has to be a *callable returning the value*. Passing the object directly is the bug the query is recommending: a `MagicMock` is itself callable, so FastAPI would call it and inject its return value instead of the mock |
 | `py/unused-global-variable` | a module global only ever written through `global` | The query reads assignment without a *read* in the same scope as dead. `model_catalog._listing_loop` is written in one function and compared in another, three lines apart, which is the whole mechanism for noticing the loop changed |
 | Wrong name for an argument | a call in a test that deliberately passes an unsupported keyword | The assertion *is* the `TypeError`. `test_channel_tools.py` calls `history(thread_id=...)` inside `pytest.raises(TypeError)` with a `# type: ignore[call-arg]` beside it, because a bound directory refusing to be re-pointed is the behaviour under test |
+| `__eq__` not overridden when adding attributes | a test double subclassing `dict` that stores state (`_AnyIdMap._value`) but keeps the inherited `__eq__` | The double is a stub return value read only through `.get()`; no two instances are ever compared, so the `__eq__` the query wants would be dead code about an equality this object never takes part in. It answers one value for any id because the batched `get_by_ids` reads it that way (#954) |
 
 The first is not a test-file quirk. Fifteen statements under `backend/` are that
 shape, and the five in production code — `agent_session.py` and the Slack, Telegram

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.378"
+version = "0.0.397"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -579,6 +579,7 @@ include = [
     "app/services/approvals.py",
     "app/services/audit.py",
     "app/services/impersonation.py",
+    "app/services/ws_auth.py",
     "app/services/health.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
@@ -851,6 +852,9 @@ include = [
     # an ended row, an expired one, a token carried onto another session - and a
     # refusal nobody has watched fail is the credential #1044 replaced.
     "app/services/impersonation.py",
+    # The one check the chat socket re-runs on every frame - shared with the
+    # handshake so an open socket is no more permissive than a new one (#1437).
+    "app/services/ws_auth.py",
     # The health probes are ours: the template's version reported a hardcoded
     # "unknown" for the vector store and read environment variables for a
     # provider check. A probe nobody has watched fail is not a probe, which is

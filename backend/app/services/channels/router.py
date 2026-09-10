@@ -7,7 +7,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -21,7 +21,9 @@ from app.repositories import (
     channel_bot_repo,
     channel_identity_repo,
     channel_session_repo,
+    chat_file_repo,
     conversation_repo,
+    member_repo,
 )
 from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
@@ -43,6 +45,7 @@ from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
 from app.services.channels.mentions import (
+    AnsweredTurn,
     ChannelAgentRouter,
     UnaddressedMessage,
     parse_mention,
@@ -53,6 +56,8 @@ from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models.channel_bot import ChannelBot
@@ -287,8 +292,9 @@ class ChannelMessageRouter:
         Steps:
             1. Load bot config from DB.
             2. Check access policy.
-            3. Handle commands (/start, /new, /help, /link, /project, /unlink).
-            4. Resolve or create ChannelIdentity.
+            3. Resolve or create ChannelIdentity.
+            4. Handle commands (/start, /new, /help, /link, /unlink), the
+               state-changing ones gated on the same link admission as a turn.
             5. Resolve or create ChannelSession (+ Conversation).
             6. Rate-limit check.
             7. Hand an `@handle` message to that agent and stop.
@@ -321,11 +327,6 @@ class ChannelMessageRouter:
             await self._refuse_if_named(bot, incoming, exc.message)
             return
 
-        command_reply = await self._handle_command(incoming.text, incoming, bot, db)
-        if command_reply is not None:
-            await self._send_reply(bot, incoming, command_reply)
-            return
-
         try:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
@@ -333,10 +334,34 @@ class ChannelMessageRouter:
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
-        if identity.user_id is None and not admit_unlinked:
+
+        # Commands are handled after the identity is known, so the state-changing
+        # ones can be gated on the same admission the turn takes (#1455).
+        command_reply = await self._handle_command(
+            incoming.text, incoming, bot, db, identity, admit_unlinked
+        )
+        if command_reply is not None:
+            await self._send_reply(bot, incoming, command_reply)
+            return
+
+        if not admit_unlinked and not await self._sender_is_active_member(db, bot, identity):
             # Through `_refuse_if_named`, not `_send_reply`: a room message that
             # names a colleague passes the overheard gate on its handle, and the
-            # invitation must not interrupt two people talking to each other.
+            # invitation must not interrupt two people talking to each other. A
+            # linked sender whose member is gone is refused here too, before any
+            # attachment is fetched, stored or transcribed for a turn
+            # `_membership_context` refuses anyway - which is now the second lock
+            # rather than the first (#1456).
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                # Consumed on the refusal path too, not only before a turn:
+                # otherwise a refused sender mints a link request and an
+                # invitation on every message with no allowance ever spent
+                # (#1516). Rides the invite's own channel - shown where the
+                # invite would show, silent where it would stay silent.
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
             await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
@@ -376,7 +401,9 @@ class ChannelMessageRouter:
         # message to it skipped the backfill too.
         thread_history: list[ModelMessage] = []
         if session.thread_backfilled_at is None:
-            thread_history, read_transcript = await self._thread_backfill(incoming, directory, bot)
+            thread_history, read_transcript = await self._thread_backfill(
+                db, incoming, directory, bot
+            )
             earlier, earlier_refusals, read_files = await self._thread_files(
                 db, bot, incoming, identity, handled=recordings
             )
@@ -421,8 +448,11 @@ class ChannelMessageRouter:
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
         history = thread_history + await self._load_history(db, session.conversation_id)
-        try:
-            answered = await ChannelAgentRouter(db).answer_default(
+        await self._run_turn(
+            bot,
+            incoming,
+            db,
+            run=ChannelAgentRouter(db).answer_default(
                 incoming.text,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
@@ -445,24 +475,11 @@ class ChannelMessageRouter:
                 attachments=files,
                 message_history=history,
                 stream=None if live is None else channel_stream(live),
-            )
-        except AppException as exc:
-            # A refusal - no agent exposed, several to choose from, an unlinked
-            # sender - is the platform answering, not a crash. The message says
-            # what to do next.
-            await self._discard_files(db, files)
-            await self._send_reply(bot, incoming, exc.message)
-            return
-        except Exception:
-            logger.exception("Agent run failed for bot %s", incoming.bot_id)
-            await self._send_reply(bot, incoming, "Sorry, something went wrong. Please try again.")
-            return
-
-        # The notes are about what this reply could not carry - a file too large
-        # for Slack - so they belong to the delivery and not to the transcript,
-        # which holds what the agent actually said.
-        answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle)
+            ),
+            handle=lambda: handle,
+            files=files,
+            file_refusals=file_refusals,
+        )
 
     async def _deliver(
         self,
@@ -545,8 +562,11 @@ class ChannelMessageRouter:
         was ever linked to the turn (#683).
         """
         live, handle_of = self._lazy_reply(bot, incoming)
-        try:
-            answered = await ChannelAgentRouter(db).answer(
+        return await self._run_turn(
+            bot,
+            incoming,
+            db,
+            run=ChannelAgentRouter(db).answer(
                 incoming.text,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
@@ -564,34 +584,104 @@ class ChannelMessageRouter:
                 attachments=files,
                 stream=channel_stream(live),
                 message_history=thread_history or None,
-            )
+            ),
+            handle=handle_of,
+            files=files,
+            file_refusals=file_refusals,
+        )
+
+    async def _run_turn(
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        db: AsyncSession,
+        *,
+        run: Awaitable[AnsweredTurn],
+        handle: Callable[[], str | None],
+        files: list[Any],
+        file_refusals: list[str],
+    ) -> bool:
+        """Run one turn's answering coroutine and answer, refuse or apologise once.
+
+        The mention path and the default path run the same shape - try the agent,
+        discard the turn's files and post the refusal on an `AppException`,
+        apologise on any other crash, otherwise stitch the file notes and deliver
+        - and they had drifted into two hand-written copies that disagreed (#1459).
+        One copy now, with the two differences decided once:
+
+        - **A crash apologises and consumes the claim, on either path.** The
+          mention copy let a crash propagate, which released the dedupe claim and
+          answered nothing, so the platform's redelivery ran it again; the default
+          copy apologised once. Redelivering a persistent crash only re-runs it -
+          and re-bills - for the same failure, and a transient one the sender
+          re-sends, so the apology-and-consume is the behaviour both take.
+        - **Every refusal or apology is posted through `_refuse_if_named`.** It
+          posts wherever the platform reported the bot as addressed - always, on
+          the default path - and stays silent where it did not: a channel mention
+          the platform did not flag as ours, which is usually a colleague's handle
+          but on a crash may be an agent-slug the platform did not report. This is
+          the mention copy's own rule, now the default's too.
+
+        A refused or crashed turn's already-stored files are discarded: a turn
+        that produced no run leaves rows nothing points at, and `chat_files`
+        carries no organization, so an unlinked row is scoped by `user_id` alone
+        (#690, #1503). Nothing streamed on a refusal, so the lazy placeholder was
+        never opened.
+
+        Returns True when the turn was handled - answered, refused or apologised.
+        False is the mention path's `UnaddressedMessage`: the handle named nobody
+        of ours, so the message goes on to the default agent. The default path
+        never raises it and ignores the result.
+        """
+        try:
+            answered = await run
         except UnaddressedMessage:
             return False
         except AppException as exc:
-            # Whether or not the refusal is worth posting, the files this turn
-            # already stored are not: a turn that produced no run leaves rows
-            # nothing points at, and `chat_files` carries no organization, so an
-            # unlinked row is scoped by `user_id` alone (#690).
             await self._discard_files(db, files)
-            # A handle that names no agent of ours. In a channel where the bot was
-            # not among the mentioned accounts, that handle was somebody's
-            # colleague - so the refusal is logged rather than posted, because a bot
-            # that answers "@ada is not available on this bot" every time two people
-            # talk to each other is the interruption this gate exists to stop. It
-            # still counts as handled: nothing else should answer it either. Nothing
-            # streamed, so the lazy placeholder was never opened.
-            if self._names_the_bot(incoming):
-                await self._send_reply(bot, incoming, exc.message)
-            else:
-                logger.info(
-                    "channel_mention_not_ours",
-                    extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
-                )
+            await self._post_failure(bot, incoming, handle(), exc.message)
+            return True
+        except Exception:
+            logger.exception("Agent run failed for bot %s", incoming.bot_id)
+            await self._discard_files(db, files)
+            await self._post_failure(
+                bot, incoming, handle(), "Sorry, something went wrong. Please try again."
+            )
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle_of())
+        await self._deliver(bot, incoming, answer, answered, handle())
         return True
+
+    async def _post_failure(
+        self, bot: ChannelBot, incoming: IncomingMessage, handle: str | None, message: str
+    ) -> None:
+        """Show a refusal or apology, replacing an open live reply rather than
+        stranding its placeholder.
+
+        A turn that had already streamed a status or partial answer has a message
+        on screen, so the outcome edits *that* into place - a separate apology
+        would leave the "…" hanging for ever, and `_refuse_if_named`'s
+        stay-silent-when-not-addressed rule would post nothing at all (#1459). The
+        edit falls back to a whole post the way `_deliver` does, because a
+        placeholder that cannot be edited still has to be answered. Where no
+        placeholder was opened - a crash before the first token, a refusal on the
+        default path - it is `_refuse_if_named`, silent in a room it was not named
+        in.
+        """
+        if handle is not None:
+            adapter = get_adapter(incoming.platform)
+            try:
+                await adapter.update_reply(
+                    unseal_bot_token(bot), self._message(bot, incoming, message), handle
+                )
+            except Exception:
+                logger.warning(
+                    "live reply failure edit failed; posting the message whole", exc_info=True
+                )
+                await self._send_reply(bot, incoming, message)
+            return
+        await self._refuse_if_named(bot, incoming, message)
 
     def _lazy_reply(
         self, bot: ChannelBot, incoming: IncomingMessage
@@ -840,17 +930,24 @@ class ChannelMessageRouter:
 
     @staticmethod
     async def _discard_files(db: AsyncSession, files: list[Any]) -> None:
-        """Give back what the turn stored, for a turn that was refused.
+        """Give back what a turn stored, but only the rows still unlinked.
 
-        The files are fetched and stored before the agent is resolved, so a
-        refusal raised in its place - nothing exposed on this bot, a sender whose
-        account is nobody's - leaves rows nothing will ever link to a message and
-        bytes nothing will ever read (#661). The refusal is still what the sender
-        gets: nothing here is allowed to raise in its way.
+        The files are fetched and stored before the agent is resolved, so a turn
+        that ends without ever linking them - a refusal raised in the agent's
+        place, or a crash before a run was created - leaves rows nothing will link
+        to a message and bytes nothing will read (#661). A crash *during* the run
+        is different: the runner records the failed turn's user message and links
+        these files to it, and commits, before re-raising - so discarding them
+        would strip a persisted transcript of what the sender sent. Only the files
+        the database still shows as unlinked are given back (#1503); nothing here
+        is allowed to raise in the refusal's way.
         """
         if not files:
             return
-        await ChannelAttachmentService(db).discard(files)
+        orphan_ids = await chat_file_repo.unlinked_ids(db, [file.id for file in files])
+        orphaned = [file for file in files if file.id in orphan_ids]
+        if orphaned:
+            await ChannelAttachmentService(db).discard(orphaned)
 
     @staticmethod
     def _with_notes(answer: str, *notes: list[str]) -> str:
@@ -897,6 +994,24 @@ class ChannelMessageRouter:
                     )
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is `_admits_unlinked`'s to enforce.
+
+    async def _sender_is_active_member(
+        self, db: AsyncSession, bot: ChannelBot, identity: ChannelIdentity
+    ) -> bool:
+        """Whether the sender's linked account is still an active member of this org.
+
+        A link in `channel_identities` outlives the deactivation of the account
+        behind it, so a linked-but-departed sender must be treated as unlinked
+        before any attachment is fetched or transcribed - the joined read
+        `member_repo.get_active` is what tells the two apart, and the same read
+        `_membership_context` makes at the run (#1456).
+        """
+        if identity.user_id is None:
+            return False
+        membership = await member_repo.get_active(
+            db, organization_id=bot.organization_id, user_id=identity.user_id
+        )
+        return membership is not None
 
     def _admits_unlinked(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
         """Whether somebody with no linked account may be answered here.
@@ -996,12 +1111,45 @@ class ChannelMessageRouter:
         )
 
     async def _handle_command(
-        self, text: str, incoming: IncomingMessage, bot: ChannelBot, db: AsyncSession
+        self,
+        text: str,
+        incoming: IncomingMessage,
+        bot: ChannelBot,
+        db: AsyncSession,
+        identity: ChannelIdentity,
+        admit_unlinked: bool,
     ) -> str | None:
-        """Handle bot commands. Returns reply text or None if not a command."""
+        """Handle bot commands. Returns reply text or None if not a command.
+
+        `/new` and `/unlink` change shared state, so they are gated on the same
+        admission the turn takes: a sender a link-required room would refuse
+        cannot reset its session or unlink from it either (#1455). `/start`,
+        `/help` and `/link` stay open to an unlinked sender - `/link` is the way
+        back.
+
+        The admission is active membership, not the bare link: a `channel_identity`
+        keeps its `user_id` after that member is deactivated or removed, and the
+        turn reads through that with `member_repo.get_active` in
+        `_membership_context`. So an offboarded account - refused a turn - must not
+        reset the shared session or own the conversation it opens either.
+        """
         text = _as_command(text)
         if not text.startswith("/"):
             return None
+
+        async def _admission() -> tuple[bool, UUID | None]:
+            """Whether this sender may change shared state, and the active member
+            behind the chat account - `None` when the link outlived the
+            membership, so the issuer is resolved the same way the turn is."""
+            member = (
+                await member_repo.get_active(
+                    db, organization_id=bot.organization_id, user_id=identity.user_id
+                )
+                if identity.user_id is not None
+                else None
+            )
+            issuer = identity.user_id if member is not None else None
+            return issuer is not None or admit_unlinked, issuer
 
         # Only the first word: no command takes an argument any more. `/link`
         # was the one that did, and it took a code somebody copied out of the
@@ -1025,15 +1173,22 @@ class ChannelMessageRouter:
             )
 
         if cmd == "/new":
+            admitted, issuer = await _admission()
+            if not admitted:
+                return await self._invite_to_link(incoming, db)
             session = await channel_session_repo.get_by_bot_and_chat(
                 db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
             )
             if session:
-                identity = await channel_identity_repo.get_by_id(db, session.identity_id)
+                # The issuer, not `session.identity_id`: the new conversation
+                # belongs to whoever reset the thread, not to the person who
+                # opened it (#1455). `None` for an admitted-but-unnamed sender - a
+                # former member in an open room - so a stale link does not deed
+                # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
                     title=f"{incoming.platform.capitalize()} Chat",
-                    user_id=identity.user_id if identity else None,
+                    user_id=issuer,
                     organization_id=bot.organization_id,
                 )
                 await channel_session_repo.update(
@@ -1046,6 +1201,16 @@ class ChannelMessageRouter:
             # carrying a code somebody copied. Kept because "how do I connect
             # this?" is a question people ask in words, and because a URL that
             # expired needs a way to ask for another.
+            if incoming.chat_type == "private":
+                # The other door onto `_invite_to_link`, and it runs before the
+                # admission gate's allowance is consulted, so a refused sender
+                # could churn link requests through `/link` where the plain
+                # message is now throttled (#1516). Only in a direct message,
+                # where the invite actually mints a request.
+                try:
+                    await self._check_rate_limit(bot, str(identity.id))
+                except BadRequestError as exc:
+                    return exc.message
             try:
                 return await self._invite_to_link(incoming, db)
             except Exception:
@@ -1053,15 +1218,12 @@ class ChannelMessageRouter:
                 return "A system error occurred. Please try again later."
 
         if cmd == "/unlink":
-            identity = await channel_identity_repo.get_by_platform_user(
-                db,
-                platform=incoming.platform,
-                platform_user_id=incoming.platform_user_id,
+            admitted, _issuer = await _admission()
+            if not admitted:
+                return await self._invite_to_link(incoming, db)
+            await channel_identity_repo.update(
+                db, db_identity=identity, update_data={"user_id": None}
             )
-            if identity:
-                await channel_identity_repo.update(
-                    db, db_identity=identity, update_data={"user_id": None}
-                )
             return "Your account has been unlinked."
 
         return None
@@ -1321,7 +1483,7 @@ class ChannelMessageRouter:
         return received, refusals, True
 
     async def _thread_backfill(
-        self, incoming: IncomingMessage, directory: Any, bot: ChannelBot
+        self, db: AsyncSession, incoming: IncomingMessage, directory: Any, bot: ChannelBot
     ) -> tuple[list[ModelMessage], bool]:
         """What was said in this thread before we were brought into it.
 
@@ -1381,7 +1543,7 @@ class ChannelMessageRouter:
             )
             return [], False
 
-        admitted = self._backfill_admits(bot)
+        admitted = await self._backfill_admits(db, bot, incoming, posts)
         lines = [
             f"{post.author}: {post.text}"
             for post in posts
@@ -1422,7 +1584,9 @@ class ChannelMessageRouter:
             return str(post_id) == str(incoming.message_id)
         return bool(post.text) and post.text == incoming.text
 
-    def _backfill_admits(self, bot: ChannelBot) -> Callable[[Any], bool]:
+    async def _backfill_admits(
+        self, db: AsyncSession, bot: ChannelBot, incoming: IncomingMessage, posts: list[Any]
+    ) -> Callable[[Any], bool]:
         """Which earlier speakers may be quoted into the prompt.
 
         The bot's own access policy, applied to authors rather than only to the
@@ -1434,21 +1598,51 @@ class ChannelMessageRouter:
         reading. "Context, not instructions" is a sentence in a prompt, not a
         boundary.
 
-        An author the platform did not identify is dropped under a whitelist:
-        unattributable text is exactly what must not be quoted where only named
-        people may speak. `group_only` and `open` need no author filter - the
-        first gated the room, and the second admits everybody in it.
+        A mode that requires a link takes the same rule for the same reason: an
+        `unlinked` participant cannot invoke the bot, so their earlier posts must
+        not enter the prompt the first time a linked member does (#1457). One
+        query resolves which authors are linked to an *active* member; the rest,
+        and any author the platform did not identify, are dropped - unattributable
+        text is exactly what must not be quoted where only linked people may speak.
+
+        The two gates compose: a `whitelist` bot that *also* sets `require_link`
+        refuses an unlinked sender at the door (`_admits_unlinked`), so a
+        whitelisted-but-unlinked author's earlier posts must not be quoted either -
+        the author has to clear both filters, not just the whitelist.
+
+        `group_only` and `open` need no author filter - the first gated the room,
+        and the second admits everybody in it.
         """
         policy = self._parse_policy(bot)
-        if policy.get("mode") != "whitelist":
+        mode = policy.get("mode")
+        requires_link = mode == "jwt_linked" or bool(policy.get("require_link", False))
+
+        filters: list[Callable[[Any], bool]] = []
+        if mode == "whitelist":
+            allowed = {str(entry) for entry in policy.get("whitelist", [])}
+            filters.append(
+                lambda post: (
+                    (aid := getattr(post, "author_id", None)) is not None and str(aid) in allowed
+                )
+            )
+        if requires_link:
+            author_ids = {
+                str(aid) for post in posts if (aid := getattr(post, "author_id", None)) is not None
+            }
+            linked = await channel_identity_repo.linked_active_platform_user_ids(
+                db,
+                platform=incoming.platform,
+                platform_user_ids=author_ids,
+                organization_id=bot.organization_id,
+            )
+            filters.append(
+                lambda post: (
+                    (aid := getattr(post, "author_id", None)) is not None and str(aid) in linked
+                )
+            )
+        if not filters:
             return lambda _post: True
-        allowed = {str(entry) for entry in policy.get("whitelist", [])}
-
-        def _admits(post: Any) -> bool:
-            author_id = getattr(post, "author_id", None)
-            return author_id is not None and str(author_id) in allowed
-
-        return _admits
+        return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
     async def _load_history(db: AsyncSession, conversation_id: Any) -> list[ModelMessage]:

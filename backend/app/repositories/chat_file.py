@@ -87,6 +87,26 @@ async def link_to_message(
     return result.rowcount  # ty: ignore[unresolved-attribute]
 
 
+async def unlinked_ids(db: AsyncSession, file_ids: Iterable[UUID]) -> set[UUID]:
+    """Of these files, the ids whose row is not yet attached to a message.
+
+    A turn's attachments are linked when the runner records its transcript - a
+    failed turn included, which persists and commits before it re-raises - so a
+    file already carrying a `message_id` belongs to a stored turn and must not be
+    swept up as an orphan (#1503). Read as a column select rather than through the
+    mapped rows: the link is a bulk UPDATE the session never saw and
+    `expire_on_commit` is off, so a loaded instance still reads `message_id` as
+    None.
+    """
+    ids = list(file_ids)
+    if not ids:
+        return set()
+    result = await db.execute(
+        select(ChatFile.id).where(ChatFile.id.in_(ids), ChatFile.message_id.is_(None))
+    )
+    return set(result.scalars().all())
+
+
 async def delete(db: AsyncSession, *, db_file: ChatFile) -> None:
     """Delete a chat file row."""
     await db.delete(db_file)

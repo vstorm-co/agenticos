@@ -660,7 +660,7 @@ describe("what a turn cost, under the turn", () => {
   const usage = {
     input_tokens: 1200,
     output_tokens: 300,
-    cost_usd: 0.0125,
+    cost_usd: "0.0125",
     cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
@@ -852,7 +852,7 @@ describe("the footer of a turn drawn in several messages", () => {
   const USAGE: TurnUsage = {
     input_tokens: 6603,
     output_tokens: 189,
-    cost_usd: 0.0133,
+    cost_usd: "0.0133",
     cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,

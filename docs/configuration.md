@@ -165,6 +165,41 @@ Computed properties:
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
 
+## Email (SMTP)
+
+The deployment sends mail through an SMTP server, and one with none configured
+does not fail — it runs, and every mail-dependent flow silently stops, none of
+them announcing itself:
+
+- **passwordless sign-in and password resets** — the magic-link and reset emails
+  are the self-service ways into an account;
+- **invitations** — an invited address is never mailed (the console now says so
+  rather than claiming it sent one, #1484);
+- **notifications** — a budget breach, an approval request, a usage report, the
+  notice sent when an administrator acts as another account.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SMTP_HOST` | `localhost` | SMTP server host |
+| `SMTP_PORT` | `587` | SMTP server port. `587` and `25` negotiate STARTTLS; `465` opens TLS from the start |
+| `SMTP_USER` | (empty) | Username the relay authenticates with, alongside `SMTP_PASSWORD`. Leave empty for an unauthenticated relay |
+| `SMTP_PASSWORD` | (empty) | Password for that username |
+| `SMTP_TLS` | `true` | Whether to encrypt the connection. The port picks the scheme — STARTTLS on `587`, implicit TLS on `465` — unless `SMTP_TLS_MODE` says otherwise. Set `false` only for an unencrypted relay, such as a local server on `25` |
+| `SMTP_TLS_MODE` | `auto` | How the encrypted connection is opened. `auto` lets the port choose; `implicit` opens TLS from the first byte and `starttls` negotiates the upgrade, whatever the port. Ignored when `SMTP_TLS=false` |
+| `EMAIL_FROM` | `noreply@agenticos.com` | The `From` address on every message |
+| `EMAIL_FROM_NAME` | `agenticos` | The display name shown beside that address |
+
+!!! note "How the connection is encrypted"
+
+    `SMTP_TLS` is the on/off switch; the port chooses the scheme. The shipped
+    default — `587` with `SMTP_TLS=true` — negotiates STARTTLS, which is what a
+    standards-compliant submission server expects. Use `465` for a server that
+    wants implicit TLS instead, and `SMTP_TLS=false` on `25` for a plaintext relay.
+
+    A server that speaks implicit TLS on a port other than `465` — `8465`, say —
+    needs `SMTP_TLS_MODE=implicit`, because `auto` would offer it a plaintext
+    handshake and every send would fail. `starttls` is the mirror case.
+
 ## Background work (Prefect)
 
 | Variable | Default | Description |
@@ -911,3 +946,8 @@ stale and production's pipe ping goes unanswered.
 - [ ] `REDIS_PASSWORD` — a strong password
 - [ ] `CORS_ORIGINS` — only your actual frontend domain(s)
 - [ ] `OPENROUTER_API_KEY` — your production API key
+
+Email is deliberately **not** on this list: a deployment runs without it. But
+invitations, password resets and notifications all go silently unsent until
+`SMTP_HOST` and the rest of [Email (SMTP)](#email-smtp) point at a real server —
+so a deployment that skips it should be skipping it knowingly.

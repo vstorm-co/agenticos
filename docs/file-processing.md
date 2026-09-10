@@ -1004,7 +1004,7 @@ been shared. The fallback is gone; the setting now serves only the
 
 ### The credential is a vault secret, not a config field
 
-!!! danger "A credential never goes in a connector's `CONFIG_SCHEMA`"
+!!! danger "A credential never goes in a connector's `CONFIG_MODEL`"
 
     `sync_sources.config` says how to *find* the documents. What authenticates is
     a vault secret the source names in `secret_id` - and there is no
@@ -1128,12 +1128,18 @@ above is what records it.
 
 ### What a new connector owes
 
-A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
-the cheap part. **An object store is less than that**: S3, Azure Blob and GCS are
-one connector with three clients, so `ObjectStoreConnector` holds the listing
-loop, the `<scheme>://<container>/<key>` address and the directory-marker skip,
-and a subclass supplies a client, a `SCHEME`, and which `CONFIG_SCHEMA` field
-names the container - `bucket` for S3 and GCS, `container` for Azure. `S3Connector`
+A connector is `list_files` + `_fetch` + a `CONFIG_MODEL`, and the API calls are
+the cheap part. `CONFIG_MODEL` is a Pydantic model of the config fields; the
+listing publishes its `model_json_schema()` as `config_schema`, so the wizard
+draws the form with `SchemaForm` - the same shape a capability publishes
+([#1093](https://github.com/vstorm-co/agenticos/issues/1093)).
+
+**An object store
+is less than that**: S3, Azure Blob and GCS are one connector with three clients,
+so `ObjectStoreConnector` holds the listing loop, the `<scheme>://<container>/<key>`
+address and the directory-marker skip, and a subclass supplies a client, a
+`SCHEME`, and which `CONFIG_MODEL` field names the container - `bucket` for S3 and
+GCS, `container` for Azure. `S3Connector`
 is that subclass ([#988](https://github.com/vstorm-co/agenticos/issues/988)); its
 two hooks are deliberately blocking, because all three SDKs are, and the shared
 class runs them on a worker thread.
@@ -1185,7 +1191,7 @@ integrations already put an agent *in* Slack.
 
 `validate_config` answers a `ConfigRefusal` — a sentence, and the field that
 sentence is about — or `None` when the config is acceptable. The connector names
-its own `CONFIG_SCHEMA` key; `SyncSourceService` roots that against the document
+its own `CONFIG_MODEL` field; `SyncSourceService` roots that against the document
 the wizard posted (`folder_id` → `config.folder_id`) and raises it with
 `refused_field`, so it reaches the browser as `details["fields"]` in the one
 shape a form reads (`app/core/field_errors.py`) and the configure step marks the

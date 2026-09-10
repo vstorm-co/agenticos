@@ -319,10 +319,11 @@ class AgentEnvironmentService:
         the environments and reading the versions; 0 names that window rather
         than crashing the whole listing on it.
         """
-        numbers: dict[UUID, int] = {}
-        for version_id in {environment.version_id for environment in environments}:
-            version = await agent_repo.get_version(
-                self.db, version_id, organization_id=ctx.organization_id
-            )
-            numbers[version_id] = version.version if version else 0
-        return numbers
+        version_ids = {environment.version_id for environment in environments}
+        found = await agent_repo.get_versions_by_ids(
+            self.db, list(version_ids), organization_id=ctx.organization_id
+        )
+        return {
+            version_id: (found[version_id].version if version_id in found else 0)
+            for version_id in version_ids
+        }

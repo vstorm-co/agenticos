@@ -82,7 +82,7 @@ in the `rag-sources` listing.
 1. Navigate to **Knowledge Base** and open the **Sync** tab.
 2. Click **"+ Add Source"**.
 3. Select a connector type (Google Drive, S3). The form fields are
-   generated dynamically from the connector's `CONFIG_SCHEMA`.
+   generated from the JSON Schema of the connector's `CONFIG_MODEL`.
 4. Fill in the connector-specific config fields (e.g. folder ID, bucket
    name).
 5. Choose a target collection, sync mode, and schedule interval.
@@ -337,8 +337,8 @@ The short version:
    `app/services/rag/connectors/`.
 2. Implement `list_files()`, `_fetch()`, and optionally `validate_config()`.
 3. Declare `SECRET_KIND` — what kind of vault secret authenticates it — and a
-   `CONFIG_SCHEMA` of `ConnectorConfigField`s saying how to find the documents.
-   The credential is never one of those fields.
+   `CONFIG_MODEL`, a Pydantic model saying how to find the documents. The
+   credential is never one of its fields.
 4. Register it in `CONNECTOR_REGISTRY` in
    `app/services/rag/connectors/__init__.py`.
 

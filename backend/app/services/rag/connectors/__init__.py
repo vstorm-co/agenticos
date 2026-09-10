@@ -9,7 +9,6 @@ from typing import Any, ClassVar
 from pydantic import BaseModel
 
 from app.core.secret_kinds import SecretKind, StorableSecret
-from app.schemas.sync_source import ConnectorConfigField
 from app.services.rag.remote_names import destination_within
 
 logger = logging.getLogger(__name__)
@@ -18,13 +17,17 @@ logger = logging.getLogger(__name__)
 ConnectorConfig = dict[str, Any]
 """How to *find* a source's documents, as the wizard posted it.
 
-`Any` and meant: this is the source's own JSONB column, and what a connector
-accepts is described by its `CONFIG_SCHEMA` rather than by a model per
-connector - which is what lets the wizard draw a form for a connector it has
-never heard of. What is typed is the *shape of a declared field*, in
-`ConnectorConfigField`, because that is where a key typo silently disabled a
-check (#562). A credential never arrives here (#937).
+`Any` and meant: this is the source's own JSONB column, read with
+`config.get(...)`. What a connector accepts is described by its `CONFIG_MODEL`,
+a Pydantic model whose `model_json_schema()` is the form the wizard draws and
+whose fields drive the required-field check `validate_config` derives - JSON
+Schema, the same shape a capability publishes, rather than a bespoke mapping
+(#1093). A credential never arrives here (#937).
 """
+
+
+class EmptyConfig(BaseModel):
+    """A connector with nothing to configure - the base's default `CONFIG_MODEL`."""
 
 
 class RemoteFile(BaseModel):
@@ -44,9 +47,9 @@ class ConfigRefusal(BaseModel):
     `validate_config` used to answer `tuple[bool, str | None]`, so a refusal
     that knew exactly which field was wrong could not say so: the sentence
     reached the wire and the sync-source wizard, which draws one input per
-    `CONFIG_SCHEMA` entry, marked none of them (#897).
+    `CONFIG_MODEL` field, marked none of them (#897).
 
-    `field` is a key of `CONFIG_SCHEMA`, as the connector names it. Where that
+    `field` is a `CONFIG_MODEL` field name, as the connector declares it. Where that
     sits in the document the wizard posted is not a connector's to know:
     `SyncSourceService` roots it and builds the refusal with `refused_field`,
     which is the only thing that decides what reaches the wire. Singular here
@@ -70,14 +73,14 @@ class BaseSyncConnector(ABC):
     To add a new connector:
     1. Create a new class inheriting BaseSyncConnector
     2. Implement list_files() and _fetch()
-    3. Define CONFIG_SCHEMA with required/optional fields
+    3. Define CONFIG_MODEL, a Pydantic model of its config fields
     4. Register in CONNECTOR_REGISTRY
     """
 
     CONNECTOR_TYPE: ClassVar[str] = ""
     DISPLAY_NAME: ClassVar[str] = ""
-    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {}
-    # Which vault secret authenticates this connector. `CONFIG_SCHEMA` describes
+    CONFIG_MODEL: ClassVar[type[BaseModel]] = EmptyConfig
+    # Which vault secret authenticates this connector. `CONFIG_MODEL` describes
     # how to *find* the documents and holds nothing that has to be kept: the
     # credential arrives separately, unsealed from the organization's vault by
     # whoever is running the sync (#937). A connector that needs none says
@@ -132,14 +135,16 @@ class BaseSyncConnector(ABC):
     async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Why this config would not be accepted, or `None` if it would.
 
-        The required-field check knows the name of the field it is refusing, so
-        it says so: an override that has more to check calls this first and
-        returns what it answers, unchanged.
+        The required-field check is derived from `CONFIG_MODEL`: a field with no
+        default is required, and the wizard drew it under the model's `title`, so
+        the refusal names that rather than the key underneath it. An override
+        that has more to check calls this first and returns what it answers,
+        unchanged.
         """
-        for field_name, field_spec in self.CONFIG_SCHEMA.items():
-            if field_spec.required and not config.get(field_name):
+        for name, field in self.CONFIG_MODEL.model_fields.items():
+            if field.is_required() and not config.get(name):
                 return ConfigRefusal(
-                    message=f"Missing required field: {field_spec.label}", field=field_name
+                    message=f"Missing required field: {field.title or name}", field=name
                 )
         return None
 

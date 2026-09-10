@@ -113,7 +113,7 @@ over a list of five parallel sentences.
 Three conventions, and a new or edited page owes all three:
 
 - **Sentence case headings.** Product names and acronyms keep their capitals — Docker
-  Compose, Google Drive, PostgreSQL, MCP, CONFIG_SCHEMA. Title Case is what the
+  Compose, Google Drive, PostgreSQL, MCP, CONFIG_MODEL. Title Case is what the
   template shipped and what 126 headings were swept out of.
 - **No paragraph over ~115 words.** The site is at zero. A fact appended to a
   paragraph is a fact nobody finds: give it its own paragraph, a bullet, or an

@@ -218,7 +218,8 @@ export type WSEventType =
 export interface TurnUsage {
   input_tokens: number;
   output_tokens: number;
-  cost_usd: number;
+  /** The turn's cost as a Decimal string, the shape every REST surface uses. */
+  cost_usd: string;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
@@ -463,8 +464,8 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
   status: "completed" | "failed" | "cancelled";
   /** Present for a delegation to a published agent, which gets a run row. */
   run_id: string | null;
-  /** What this delegation added to the parent run's ledger, as a number. */
-  cost_usd: number | null;
+  /** What this delegation added to the parent run's ledger, as a Decimal string. */
+  cost_usd: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
   error: string | null;

@@ -9,12 +9,13 @@ from collections.abc import Sequence
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import and_, false, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.repositories._search import contains_ci
+from app.repositories._visibility import shared_with_caller, visible_to_caller
 
 SkillSort = Literal["name", "updated"]
 
@@ -86,25 +87,22 @@ async def list_visible(
     where = [Skill.organization_id == organization_id]
     if shared_with_me:
         where.append(
-            and_(
-                or_(
-                    Skill.visibility == Visibility.ORG.value,
-                    Skill.id.in_(shared_ids) if shared_ids else false(),
-                ),
-                # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
-                Skill.owner_user_id.is_distinct_from(user_id),
+            shared_with_caller(
+                Skill.owner_user_id,
+                Skill.visibility,
+                Skill.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
             )
         )
     elif not see_all:
-        # The same predicate every shared resource here uses: mine, the
-        # organization's, or one explicitly shared with me. A team-visible
-        # skill nobody granted is deliberately invisible - "team" means named
-        # members, not everybody.
         where.append(
-            or_(
-                Skill.owner_user_id == user_id,
-                Skill.visibility == Visibility.ORG.value,
-                Skill.id.in_(shared_ids) if shared_ids else false(),
+            visible_to_caller(
+                Skill.owner_user_id,
+                Skill.visibility,
+                Skill.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
             )
         )
     if search:

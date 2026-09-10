@@ -20,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.db.models.organization import Invitation, InvitationStatus
-from app.services.invitation_admission import admits
+from app.services.invitation_admission import admits, admits_anyone
 
 LATER = datetime.now(UTC) + timedelta(days=3)
 EARLIER = datetime.now(UTC) - timedelta(days=1)
@@ -147,3 +147,56 @@ def _accept_would_allow(invite: Invitation, email: str) -> bool:
     if invite.email_domain:
         return email.lower().endswith(f"@{invite.email_domain}")
     return True
+
+
+class TestAdmitsAnyone:
+    """The email-less liveness the staging gate asks before an invitee signs in.
+
+    It cannot check the address - there is no signed-in user yet - so it answers
+    the narrower question: is this a live invitation with a use left. What it must
+    never do is admit a row `admits` would refuse for being dead or spent, which
+    is what would stage a handle for an invitation the acceptance then rejects.
+    """
+
+    def test_a_pending_email_invitation_admits_someone(self):
+        assert admits_anyone(an_invite(email="me@acme.com"))
+
+    def test_a_pending_open_link_admits_someone(self):
+        assert admits_anyone(an_invite(email=None))
+
+    def test_a_link_with_a_domain_still_admits_someone(self):
+        assert admits_anyone(an_invite(email=None, email_domain="acme.com"))
+
+    def test_a_link_with_capacity_left_admits_someone(self):
+        assert admits_anyone(an_invite(email=None, max_uses=2, used_count=1))
+
+    def test_an_expired_invitation_admits_nobody(self):
+        assert not admits_anyone(an_invite(email="me@acme.com", expires_at=EARLIER))
+
+    def test_a_revoked_invitation_admits_nobody(self):
+        assert not admits_anyone(an_invite(status=InvitationStatus.REVOKED.value))
+
+    def test_a_link_spent_by_acceptances_admits_nobody(self):
+        assert not admits_anyone(an_invite(email=None, max_uses=1, used_count=1))
+
+    def test_a_reservation_does_not_lock_the_reserver_out_of_re_staging(self):
+        # The registrant holds the one reservation on a `max_uses=1` link and has
+        # not accepted yet. Counting reservations here would refuse a re-stage of
+        # the invitation reserved *for them* - the ceiling is `reserve_use` and
+        # `accept`, both atomic, not this liveness gate.
+        assert admits_anyone(
+            an_invite(email=None, max_uses=1, used_count=0, reserved_emails=["alice@acme.com"])
+        )
+
+    def test_it_never_admits_where_the_acceptance_would_refuse_outright(self):
+        # The parity that matters: for every row that is dead or spent regardless
+        # of who is asking, both answers are no.
+        dead_or_spent = [
+            an_invite(email="me@acme.com", expires_at=EARLIER),
+            an_invite(status=InvitationStatus.REVOKED.value),
+            an_invite(status=InvitationStatus.ACCEPTED.value),
+            an_invite(email=None, max_uses=1, used_count=1),
+        ]
+        for invite in dead_or_spent:
+            assert not admits_anyone(invite)
+            assert not _accept_would_allow(invite, "anybody@acme.com")

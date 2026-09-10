@@ -484,12 +484,23 @@ class SlackAdapter(ChannelAdapter):
                 await self._handle_event(req.payload, bot_id)
 
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
-        await client.connect()
-        await connection_state.record_up(bot_id)
-        # Blocks for the life of the connection, as the bare sleep loop it
-        # replaces did - and re-stamps the entry while it waits, so a bot nobody
-        # has messaged for fifteen minutes does not read `unknown` (#1351).
-        await connection_state.heartbeat(bot_id)
+        try:
+            await client.connect()
+            await connection_state.record_up(bot_id)
+            # Blocks for the life of the connection, as the bare sleep loop it
+            # replaces did - and re-stamps the entry while it waits, so a bot
+            # nobody has messaged for fifteen minutes does not read `unknown`
+            # (#1351).
+            await connection_state.heartbeat(bot_id)
+        finally:
+            # Both exits leak without this: `stop_polling` cancels the task and
+            # `CancelledError` unwinds out of `heartbeat`, and a crash the
+            # supervisor catches re-enters this coroutine every 5s - each
+            # otherwise orphaning the aiohttp session, the WSS and the
+            # registered listener. `close()` disconnects, cancels the client's
+            # own background tasks and closes its session; the web client is
+            # shared and is not ours to close here.
+            await client.close()
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Slack doesn't have a register webhook API - configuration is done

@@ -16,7 +16,6 @@ from app.schemas.conversation import (
 )
 
 from app.schemas.sync_source import (
-    ConnectorConfigField,
     ConnectorInfo,
     ConnectorList,
     SyncSourceCreate,
@@ -46,5 +45,4 @@ __all__ = [
     "SyncSourceList",
     "ConnectorInfo",
     "ConnectorList",
-    "ConnectorConfigField",
 ]

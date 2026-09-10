@@ -1,0 +1,221 @@
+"""The single credential check a chat socket runs - at the handshake and, since
+#1437, on every inbound frame.
+
+`authenticate_socket_token` is what stops an open socket outliving the
+revocation of the session that opened it. These pin each refusal it makes, so a
+socket is never more permissive than a fresh connection bearing the same token:
+an expired token, an ended impersonation, and a suspended account each close the
+door here, and the door is the same one the next frame knocks on.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
+
+import pytest
+
+from app.core.exceptions import AuthenticationError, NotFoundError
+from app.core.security import create_access_token
+from app.services.ws_auth import authenticate_socket_token
+
+pytestmark = pytest.mark.anyio
+
+
+def _user(*, is_active: bool = True) -> MagicMock:
+    user = MagicMock()
+    user.id = uuid4()
+    user.is_active = is_active
+    return user
+
+
+def _payload(subject: str, *, token_type: str = "access") -> dict[str, str]:
+    return {"sub": subject, "type": token_type}
+
+
+class TestAuthenticateSocketToken:
+    """Every path from a raw token to a user, or to a refusal."""
+
+    async def test_a_live_token_resolves_to_its_user(self) -> None:
+        user = _user()
+        with (
+            patch(
+                "app.services.ws_auth.verify_token",
+                return_value=_payload(str(user.id)),
+            ),
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.ws_auth.UserService") as user_service,
+        ):
+            impersonation.return_value.verify = AsyncMock(return_value=None)
+            user_service.return_value.get_by_id = AsyncMock(return_value=user)
+            resolved = await authenticate_socket_token(MagicMock(), "token")
+
+        assert resolved is user
+
+    async def test_impersonation_is_verified_before_the_subject_is_loaded(self) -> None:
+        """The `act` check is what refuses an ended impersonation, so it has to
+        run - and run against this token, on this session."""
+        user = _user()
+        db = MagicMock()
+        payload = _payload(str(user.id))
+        with (
+            patch("app.services.ws_auth.verify_token", return_value=payload),
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.ws_auth.UserService") as user_service,
+        ):
+            verify = AsyncMock(return_value=None)
+            impersonation.return_value.verify = verify
+            user_service.return_value.get_by_id = AsyncMock(return_value=user)
+            await authenticate_socket_token(db, "the-token")
+
+        impersonation.assert_called_once_with(db)
+        verify.assert_awaited_once_with(payload=payload, token="the-token", subject=str(user.id))
+
+    async def test_an_unverifiable_token_is_refused(self) -> None:
+        with (
+            patch("app.services.ws_auth.verify_token", return_value=None),
+            pytest.raises(AuthenticationError, match="Invalid or expired token"),
+        ):
+            await authenticate_socket_token(MagicMock(), "token")
+
+    async def test_a_non_access_token_is_refused(self) -> None:
+        with (
+            patch(
+                "app.services.ws_auth.verify_token",
+                return_value=_payload(str(uuid4()), token_type="refresh"),
+            ),
+            pytest.raises(AuthenticationError, match="Invalid token type"),
+        ):
+            await authenticate_socket_token(MagicMock(), "token")
+
+    async def test_a_token_without_a_subject_is_refused(self) -> None:
+        with (
+            patch("app.services.ws_auth.verify_token", return_value={"type": "access"}),
+            pytest.raises(AuthenticationError, match="Invalid token payload"),
+        ):
+            await authenticate_socket_token(MagicMock(), "token")
+
+    async def test_an_ended_impersonation_is_refused(self) -> None:
+        """`verify` raises for an impersonation whose row is gone; the refusal
+        propagates unchanged, so the socket closes with the reason it minted."""
+        with (
+            patch(
+                "app.services.ws_auth.verify_token",
+                return_value=_payload(str(uuid4())),
+            ),
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            pytest.raises(AuthenticationError, match="Impersonation has ended"),
+        ):
+            impersonation.return_value.verify = AsyncMock(
+                side_effect=AuthenticationError(message="Impersonation has ended")
+            )
+            await authenticate_socket_token(MagicMock(), "token")
+
+    async def test_an_unknown_subject_is_refused(self) -> None:
+        with (
+            patch(
+                "app.services.ws_auth.verify_token",
+                return_value=_payload(str(uuid4())),
+            ),
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.ws_auth.UserService") as user_service,
+            pytest.raises(AuthenticationError, match="User not found"),
+        ):
+            impersonation.return_value.verify = AsyncMock(return_value=None)
+            user_service.return_value.get_by_id = AsyncMock(
+                side_effect=NotFoundError(message="User not found")
+            )
+            await authenticate_socket_token(MagicMock(), "token")
+
+    async def test_a_suspended_account_is_refused(self) -> None:
+        user = _user(is_active=False)
+        with (
+            patch(
+                "app.services.ws_auth.verify_token",
+                return_value=_payload(str(user.id)),
+            ),
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.ws_auth.UserService") as user_service,
+            pytest.raises(AuthenticationError, match="User account is disabled"),
+        ):
+            impersonation.return_value.verify = AsyncMock(return_value=None)
+            user_service.return_value.get_by_id = AsyncMock(return_value=user)
+            await authenticate_socket_token(MagicMock(), "token")
+
+    async def test_the_handshake_refuses_an_already_expired_token(self) -> None:
+        """A socket cannot be *opened* with a dead credential: the default
+        enforces the token's own `exp`."""
+        token = create_access_token(str(uuid4()), expires_delta=timedelta(seconds=-1))
+
+        with pytest.raises(AuthenticationError, match="Invalid or expired token"):
+            await authenticate_socket_token(MagicMock(), token)
+
+    async def test_the_per_frame_check_tolerates_an_expired_token(self) -> None:
+        """The socket outlives its 30-minute token, so `allow_expired` keeps a
+        still-signed-in person's live session from being torn down for routine
+        token aging - only revocation (checked below) closes it (#1437)."""
+        user = _user()
+        token = create_access_token(str(user.id), expires_delta=timedelta(seconds=-1))
+        with (
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.ws_auth.UserService") as user_service,
+        ):
+            impersonation.return_value.verify = AsyncMock(return_value=None)
+            user_service.return_value.get_by_id = AsyncMock(return_value=user)
+            resolved = await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+        assert resolved is user
+
+    async def test_an_expired_impersonation_is_still_refused_on_the_socket(self) -> None:
+        """`allow_expired` relaxes the token's `exp` only - an impersonation's own
+        window is its row's `expires_at`, which `verify` enforces regardless, so
+        an hour-old impersonation still closes even though token expiry is not
+        checked."""
+        token = create_access_token(
+            str(uuid4()), act=str(uuid4()), expires_delta=timedelta(seconds=-1)
+        )
+        with (
+            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            pytest.raises(AuthenticationError, match="Impersonation has ended"),
+        ):
+            impersonation.return_value.verify = AsyncMock(
+                side_effect=AuthenticationError(message="Impersonation has ended")
+            )
+            await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+    async def test_a_revoked_ordinary_session_closes_the_socket(self) -> None:
+        """The #1501 door: an ordinary token whose `sid` names a deactivated row -
+        signed out everywhere - is refused on the next frame, so the socket closes
+        even though the account itself is untouched."""
+        user = _user()
+        row = MagicMock(
+            user_id=user.id,
+            is_active=False,
+            impersonator_user_id=None,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+        token = create_access_token(str(user.id), sid=str(uuid4()))
+        with (
+            patch("app.services.session.session_repo.get_by_id", AsyncMock(return_value=row)),
+            pytest.raises(AuthenticationError, match="Session has ended"),
+        ):
+            await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+    async def test_a_live_ordinary_session_resolves_to_its_user(self) -> None:
+        user = _user()
+        row = MagicMock(
+            user_id=user.id,
+            is_active=True,
+            impersonator_user_id=None,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+        token = create_access_token(str(user.id), sid=str(uuid4()))
+        with (
+            patch("app.services.session.session_repo.get_by_id", AsyncMock(return_value=row)),
+            patch("app.services.ws_auth.UserService") as user_service,
+        ):
+            user_service.return_value.get_by_id = AsyncMock(return_value=user)
+            resolved = await authenticate_socket_token(MagicMock(), token, allow_expired=True)
+
+        assert resolved is user

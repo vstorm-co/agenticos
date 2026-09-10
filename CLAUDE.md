@@ -106,9 +106,10 @@ Easy to violate, cross-cutting, and each one has been violated here at least onc
   `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser` (the `users.role` column went
   with them — authority inside an organization is a membership row plus the
   permission catalog), or `CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet
-  keys, or `app/core/crypto.py` and a `secret: true` field in a connector's
-  `CONFIG_SCHEMA` (`0042_sync_source_secret_id` - a connector credential is a vault
-  secret the source references by id).
+  keys, or `app/core/crypto.py` and a credential field in a connector's
+  `CONFIG_MODEL` - what `CONFIG_SCHEMA`'s `secret: true` used to be
+  (`0042_sync_source_secret_id` - a connector credential is a vault secret the
+  source references by id).
 
   **The first two have no revision of their own any more.** 65 were collapsed into
   `0001_baseline` on 2026-07-31 and the numbering restarted, so `0038` and `0066`

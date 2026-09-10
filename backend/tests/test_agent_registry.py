@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     CapabilityBindingSpec,
     OrgMcpServerRef,
@@ -94,6 +95,27 @@ def _db():
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
     return db
+
+
+class _AnyIdMap(dict):
+    """A batch-lookup result that answers `value` for any id it is asked for.
+
+    The reference resolvers now read a `get_by_ids` map rather than one row at a
+    time (#954); a test that used to stub the per-id read with one return value
+    keeps that shape without having to know which id the spec names.
+    """
+
+    def __init__(self, value):
+        super().__init__()
+        self._value = value
+
+    def get(self, _key, _default=None):
+        return self._value
+
+
+def _batch(value):
+    """An `AsyncMock` standing in for a `get_by_ids`, returning `value` for any id."""
+    return AsyncMock(return_value=_AnyIdMap(value))
 
 
 def _spec(name: str = "Support", **overrides) -> AgentSpec:
@@ -1123,9 +1145,7 @@ class TestValidateSpec:
 
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=None)),
-            patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=None)
-            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(None)),
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(ctx, spec)
@@ -1243,8 +1263,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=foreign),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(foreign),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1275,8 +1295,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=private),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(private),
             ),
             patch(
                 "app.services.access.resource_grant_repo.get_level",
@@ -1309,8 +1329,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=None),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(None),
             ) as lookup,
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1326,7 +1346,7 @@ class TestValidateSpec:
         assert str(connection_id) in problem
         assert "personal" in problem
         assert lookup.await_args.kwargs == {
-            "connection_id": connection_id,
+            "connection_ids": [connection_id],
             "organization_id": ctx.organization_id,
         }
 
@@ -1402,8 +1422,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=connection),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(connection),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1435,8 +1455,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=connection),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(connection),
             ),
         ):
             await AgentRegistryService(_db()).validate_spec(
@@ -1462,12 +1482,12 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(MagicMock(organization_id=ctx.organization_id)),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=_named_connection("linear")),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(_named_connection("linear")),
             ),
             patch(
                 f"{REGISTRY_PATH}.skill_repo.get_many",
@@ -1827,6 +1847,43 @@ class TestPublish:
         ]
 
     @pytest.mark.anyio
+    async def test_publishing_stamps_the_deployments_spec_version_onto_the_frozen_copy(self):
+        """The number a stored version carries is this deployment's, not one a
+        client's imported draft claimed: publish is where the spec is confirmed
+        against the current registry, so `spec_version: 2` on a draft freezes as
+        SPEC_VERSION rather than staying write-only and wrong."""
+        ctx = _ctx()
+        draft = _spec("Support", instructions="Be brief", model_profile_id=uuid.uuid4()).model_dump(
+            mode="json"
+        )
+        draft["spec_version"] = 2
+        agent = _agent(ctx, draft_spec=draft)
+        version = _version(agent.id, number=3)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create_version",
+                new=AsyncMock(return_value=version),
+            ) as create_version,
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
+            patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            environments.get_default_for_agent = AsyncMock(return_value=None)
+            environments.create = AsyncMock(
+                return_value=MagicMock(id=uuid.uuid4(), version_id=version.id)
+            )
+            await AgentRegistryService(_db()).publish(ctx, agent.id)
+
+        assert create_version.call_args.kwargs["spec"]["spec_version"] == SPEC_VERSION
+
+    @pytest.mark.anyio
     async def test_a_default_that_follows_latest_takes_the_agents_pointer_with_it(self):
         """`Agent.current_version_id` mirrors the default environment, and a default in
         `tracks_latest` mode moves on every publish - so the pointer moves with it.
@@ -2032,9 +2089,7 @@ class TestRollback:
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=None)
-            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(None)),
             patch(f"{REGISTRY_PATH}.agent_repo.create_version", new=AsyncMock()) as create_version,
             pytest.raises(BadRequestError),
         ):
@@ -3399,15 +3454,15 @@ class TestOneToolPrefixPerBinding:
     async def _problems(self, refs, *, connections: dict) -> list[str]:
         ctx = _ctx()
 
-        async def lookup(_db, *, connection_id, organization_id):
-            return connections.get(connection_id)
+        async def lookup(_db, *, connection_ids, organization_id):
+            return {cid: connections[cid] for cid in connection_ids if cid in connections}
 
         with (
             patch(
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id", new=lookup),
+            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids", new=lookup),
         ):
             try:
                 await AgentRegistryService(_db()).validate_spec(
