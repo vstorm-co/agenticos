@@ -96,6 +96,27 @@ def _db():
     return db
 
 
+class _AnyIdMap(dict):
+    """A batch-lookup result that answers `value` for any id it is asked for.
+
+    The reference resolvers now read a `get_by_ids` map rather than one row at a
+    time (#954); a test that used to stub the per-id read with one return value
+    keeps that shape without having to know which id the spec names.
+    """
+
+    def __init__(self, value):
+        super().__init__()
+        self._value = value
+
+    def get(self, _key, _default=None):
+        return self._value
+
+
+def _batch(value):
+    """An `AsyncMock` standing in for a `get_by_ids`, returning `value` for any id."""
+    return AsyncMock(return_value=_AnyIdMap(value))
+
+
 def _spec(name: str = "Support", **overrides) -> AgentSpec:
     return AgentSpec(name=name, **overrides)
 
@@ -1123,9 +1144,7 @@ class TestValidateSpec:
 
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=None)),
-            patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=None)
-            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(None)),
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(ctx, spec)
@@ -1243,8 +1262,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=foreign),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(foreign),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1275,8 +1294,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=private),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(private),
             ),
             patch(
                 "app.services.access.resource_grant_repo.get_level",
@@ -1309,8 +1328,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=None),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(None),
             ) as lookup,
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1326,7 +1345,7 @@ class TestValidateSpec:
         assert str(connection_id) in problem
         assert "personal" in problem
         assert lookup.await_args.kwargs == {
-            "connection_id": connection_id,
+            "connection_ids": [connection_id],
             "organization_id": ctx.organization_id,
         }
 
@@ -1402,8 +1421,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=connection),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(connection),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1435,8 +1454,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=connection),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(connection),
             ),
         ):
             await AgentRegistryService(_db()).validate_spec(
@@ -1462,12 +1481,12 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(MagicMock(organization_id=ctx.organization_id)),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=_named_connection("linear")),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(_named_connection("linear")),
             ),
             patch(
                 f"{REGISTRY_PATH}.skill_repo.get_many",
@@ -2032,9 +2051,7 @@ class TestRollback:
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=None)
-            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(None)),
             patch(f"{REGISTRY_PATH}.agent_repo.create_version", new=AsyncMock()) as create_version,
             pytest.raises(BadRequestError),
         ):
@@ -3399,15 +3416,15 @@ class TestOneToolPrefixPerBinding:
     async def _problems(self, refs, *, connections: dict) -> list[str]:
         ctx = _ctx()
 
-        async def lookup(_db, *, connection_id, organization_id):
-            return connections.get(connection_id)
+        async def lookup(_db, *, connection_ids, organization_id):
+            return {cid: connections[cid] for cid in connection_ids if cid in connections}
 
         with (
             patch(
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id", new=lookup),
+            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids", new=lookup),
         ):
             try:
                 await AgentRegistryService(_db()).validate_spec(

@@ -1624,6 +1624,13 @@ async def build_toolsets_for_agent(
     """
     specs: list[McpServerSpec] = []
     unavailable: list[UnavailablePersonalService] = []
+    found = await mcp_connection_repo.get_org_scoped_by_ids(
+        db,
+        connection_ids=[
+            ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
+        ],
+        organization_id=organization_id,
+    )
     for ref in refs:
         if isinstance(ref, PersonalMcpServerRef):
             spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
@@ -1632,9 +1639,7 @@ async def build_toolsets_for_agent(
             if gap is not None:
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
-        connection = await mcp_connection_repo.get_org_scoped_by_id(
-            db, connection_id=ref.connection_id, organization_id=organization_id
-        )
+        connection = found.get(ref.connection_id)
         if connection is None or not connection.is_enabled:
             # Deleted, disabled or moved out of the organization since publish.
             # A binding that was already broken is refused at publish, where
