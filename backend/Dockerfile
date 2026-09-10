@@ -1,3 +1,12 @@
+# Built from the repository root, not from `backend/`:
+#
+#   docker build -f backend/Dockerfile .
+#
+# because the image has to carry `emails/compiled/`, which lives beside `backend/`
+# rather than inside it. With `./backend` as the context the compose files had to
+# bind-mount the directory from a checkout, and an image with a bind mount it
+# cannot do without is an image nobody else can pull (#1545). `.dockerignore` at
+# the root says what of the tree reaches the daemon.
 
 # Build stage
 FROM python:3.12-slim AS builder
@@ -13,12 +22,13 @@ ENV UV_LINK_MODE=copy
 
 # Install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=backend/uv.lock,target=uv.lock \
+    --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
 
 # Copy application
-COPY . /app
+COPY backend /app
+COPY emails /app/emails
 
 # Install project
 RUN --mount=type=cache,target=/root/.cache/uv \

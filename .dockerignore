@@ -1,0 +1,27 @@
+# The backend image is built with the repository root as its context, so that
+# `emails/compiled/` can be copied in beside the application (backend/Dockerfile
+# says why). Everything else in the tree is noise to that build - the frontend's
+# node_modules alone is hundreds of megabytes the daemon would otherwise receive
+# on every build - so the list is an allowlist: nothing reaches the daemon unless
+# a line below lets it through.
+*
+!backend/
+!emails/
+
+# Of what is let through, what must not be. `.env` first: the old
+# backend/.dockerignore did not name it, so a local build copied whoever's keys
+# were in it into the image.
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/.mypy_cache/
+backend/htmlcov/
+backend/.coverage
+backend/.coverage.*
+backend/.idea/
+backend/.vscode/
+**/__pycache__/
+**/*.py[cod]
