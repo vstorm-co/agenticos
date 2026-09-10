@@ -506,15 +506,14 @@ class SyncSourceService:
         a `secret: true` field in `config_schema`, which is the whole of what
         #937 removed.
         """
-        return ConnectorList(
-            items=[
-                ConnectorInfo(
-                    type=connector_cls.CONNECTOR_TYPE,
-                    name=connector_cls.DISPLAY_NAME,
-                    config_schema=dict(connector_cls.CONFIG_SCHEMA),
-                    secret_kind=connector_cls.SECRET_KIND.value,
-                    enabled=True,
-                )
-                for connector_cls in CONNECTOR_REGISTRY.values()
-            ]
-        )
+        items = [
+            ConnectorInfo(
+                type=connector_cls.CONNECTOR_TYPE,
+                name=connector_cls.DISPLAY_NAME,
+                config_schema=dict(connector_cls.CONFIG_SCHEMA),
+                secret_kind=connector_cls.SECRET_KIND.value,
+                enabled=True,
+            )
+            for connector_cls in CONNECTOR_REGISTRY.values()
+        ]
+        return ConnectorList(items=items, total=len(items))

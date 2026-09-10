@@ -17,6 +17,173 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.391] - 2026-09-10
+
+### Fixed
+
+- **A tracing token is validated at publish.** `observability.token_secret_id`
+  was the one credential reference publish validation never checked, so a
+  wrong-kind or cross-tenant id published fine and the agent ran untraced. It
+  now runs through the same existence, tenant and kind checks a capability's
+  secret gets. (#1535)
+- **`spec_version` is read, not only written.** An imported YAML whose
+  `spec_version` is newer than this deployment's is refused, and publish stamps
+  the deployment's `SPEC_VERSION` onto the frozen copy. A stored spec is
+  unaffected. (#1535)
+- **The Slack Socket Mode client is closed on every session exit.** A cancel or
+  a crash-reconnect orphaned the aiohttp session, the WSS connection and the
+  listener; `_run_socket_mode` now closes the client in a `finally`, as
+  Mattermost's stream already did. (#1535)
+
+## [0.0.390] - 2026-09-10
+
+### Security
+
+- **An unlinked channel guest can no longer borrow the owner's personal MCP
+  connections.** On the publisher-fallback admission an unidentified visitor
+  runs under the binding's publisher, and personal-MCP resolution fell back to
+  the owner - so an anonymous guest could reach a third-party MCP server with
+  the publisher's connected-account credentials. Resolution is now gated on the
+  subject being a real person, on a fresh run and on a resume, where the fact
+  is carried in the parked terms. `docs/mcp.md` already said so. (#1524)
+
+## [0.0.389] - 2026-09-10
+
+### Fixed
+
+- **The Agents "?" walk offers to create an agent again.** The offer at the end
+  of the first-run tour is suppressed for an organization that already has an
+  agent, and that suppression also swallowed the offer at the end of the Agents
+  help walk - the walk whose whole point is asking to build one. The count gate
+  now applies only to the tour; a "?" replay offers regardless. (#1515)
+
+## [0.0.388] - 2026-09-10
+
+### Performance
+
+- **The dashboard window's slices come from one scan, not five.** The day
+  buckets and the surface, status, model and provider splits were five aggregate
+  queries over the same rows; they are one `GROUPING SETS` query now, with a
+  `GROUPING` flag telling a genuine `NULL` model apart from a row that is not
+  that slice. The composed usage response issues four `agent_runs` queries
+  instead of eight, and a test counts them so the next dimension cannot become a
+  ninth. (#1514)
+
+## [0.0.387] - 2026-09-10
+
+### Fixed
+
+- **A thread backfill under a link-required policy quotes linked members
+  only.** Under `jwt_linked` and `require_link` the backfill filtered earlier
+  authors only in whitelist mode, so an unlinked participant's earlier posts
+  reached the prompt the first time a linked member spoke. Authors are now
+  resolved in one query to accounts linked to an active member of the bot's
+  organization; everyone else is dropped, as the whitelist branch already did.
+  (#1513)
+
+## [0.0.386] - 2026-09-10
+
+### Changed
+
+- **The 2026-08-10 backend duplication audit is closed.** `InvitationCreate.email`
+  carries the `max_length` its siblings do, `RAGCollectionList` and
+  `ConnectorList` carry `total`, `doctor` and the agent runner drop their `Any`
+  parameters, the owner-or-org-or-shared visibility predicate is one helper
+  shared by skills and knowledge bases, the MCP tool-prefix normaliser has a
+  parity fixture between backend and frontend, `get_agent` and `get_version`
+  validate the Read schema rather than hand-mapping fields, and
+  `parent_doc_id` reaches the vector store as a typed argument. The chat socket
+  now sends `cost_usd` as the same Decimal string every REST surface does.
+  (#1511)
+
+## [0.0.385] - 2026-09-10
+
+### Performance
+
+- **A spec's references resolve in one query, not one each.** Publish validation
+  of collections, MCP connections and delegates, the MCP toolset build and the
+  environment listing each read their list of ids a row at a time. Each now reads
+  the whole list in one query with the same tenant and scope filters, so the
+  refusals are unchanged and preparing a run with five bound collections awaits
+  the collection read once. (#1510)
+
+## [0.0.384] - 2026-09-10
+
+### Fixed
+
+- **A crash on a mention answers the same apology a crash on a direct message
+  does.** The mention path and the default path ran the same turn as two copies
+  that had drifted: a crash on a mention propagated, released the dedupe claim
+  and answered nothing while the platform redelivered it. Both paths now run
+  through one `_run_turn`, which apologises once and keeps the claim, posts a
+  refusal wherever the bot was addressed, and discards a crashed turn's files
+  instead of orphaning them. (#1508)
+
+## [0.0.383] - 2026-09-10
+
+### Fixed
+
+- **`/new` and `/unlink` honour the room's link requirement.** Commands ran
+  before identity resolution and the admission gate, so an unlinked participant
+  in a link-required room could reset the shared conversation. Both now take the
+  same admission the turn takes; `/start`, `/help` and `/link` stay open, and
+  `/new` attributes the new conversation to whoever issued it rather than to the
+  room's first speaker. (#1502)
+
+## [0.0.382] - 2026-09-10
+
+### Fixed
+
+- **A departed member's linked chat account no longer costs a transcription
+  before it is refused.** The router read the membership only at the run, after
+  the message's attachments had been fetched, stored and a voice note billed to
+  the organization's transcription credential. A direct message now reads the
+  membership first; a linked identity whose member is gone is treated as
+  unlinked from that point, and the invite-on-refusal path is rate limited.
+  (#1500)
+
+## [0.0.381] - 2026-09-10
+
+### Security
+
+- **A password change revokes the account's other sessions.** Changing a password
+  from Settings hashed the new one and stopped, so every other browser's refresh
+  token - and any impersonation of the account - stayed valid. Ordinary access
+  tokens now carry a `sid` naming their session, and a password change deactivates
+  every session but the one that made it; a change that names no session (an
+  admin resetting another account, a token minted before this) revokes all of
+  them. Ships the self-service password-change endpoint, and an explicit
+  `password: null` is a no-op rather than a 500. (#1498)
+
+## [0.0.380] - 2026-09-10
+
+### Documentation
+
+- **The SMTP settings are documented.** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASSWORD`, `SMTP_TLS`, `EMAIL_FROM` and `EMAIL_FROM_NAME` appeared
+  nowhere in `docs/configuration.md`. A new section lists each with its default
+  and what depends on mail - invitations, password resets, notifications - all
+  of which go silently unsent without it, and the production checklist says why
+  email is deliberately not on it. (#1542)
+
+### Changed
+
+- **The frontend's `package.json` version literal is caught up.** The 0.0.379 cut
+  moved the backend's version and the lock but left `frontend/package.json` at
+  0.0.378; it reads 0.0.380 from this release on. (#1549)
+
+## [0.0.379] - 2026-09-10
+
+### Security
+
+- **Binding an identity while impersonating is refused.** Confirming a chat-link
+  code, starting a personal or organization MCP OAuth flow, the GitHub and portal
+  variants, and typing a bearer token into a member's MCP connection all fastened
+  the *administrator's own* identity or credential onto the impersonated account,
+  and the binding outlived the impersonation's hour. Every one of those seams now
+  answers 403 under an impersonation, before a token is read or a pending row is
+  written. (#1491)
+
 ## [0.0.378] - 2026-09-08
 
 ### Added

@@ -16,6 +16,9 @@ import { createTranslator } from "next-intl";
 import type { Translate } from "./agent-step-captions";
 import messages from "../../messages/en.json";
 import plMessages from "../../messages/pl.json";
+// Shared with the backend `tool_prefix` test, so the two normalisers cannot drift
+// apart behind two hand-copied expectation lists (#545, the #144 shape).
+import prefixCases from "./mcp-tool-prefix.cases.json";
 
 /**
  * The real `chat.tools` messages: a step's wording is what these tests are about, and
@@ -123,10 +126,8 @@ describe("the line for one tool call", () => {
  * "Github Work Create Issue" - which is what a miss already looks like.
  */
 describe("a call from an MCP server", () => {
-  it("mirrors the backend's prefix rule", () => {
-    expect(mcpToolPrefix("github-work")).toBe("github_work");
-    expect(mcpToolPrefix("Linear")).toBe("linear");
-    expect(mcpToolPrefix("!!!")).toBe("mcp");
+  it.each(prefixCases)("mirrors the backend's prefix rule for $name", ({ name, prefix }) => {
+    expect(mcpToolPrefix(name)).toBe(prefix);
   });
 
   it("names the server and what was asked of it", () => {

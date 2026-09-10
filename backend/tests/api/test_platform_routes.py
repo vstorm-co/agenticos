@@ -38,7 +38,7 @@ from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
-from app.repositories.agent_run import WindowAggregates
+from app.repositories.agent_run import WindowAggregates, WindowBreakdown
 from app.schemas.agent import ParkedCall
 from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
@@ -1158,12 +1158,9 @@ class TestStatsScopeIsDecidedInTheService:
         """Every aggregate answers zero, so a 200 is a statement about the gate."""
         for name, value in (
             ("count_runs", 0),
-            ("runs_by_day", []),
-            ("runs_by_dimension", []),
             ("runs_by_agent", []),
             ("latency_percentiles_ms", (None, None)),
             ("sum_cost_window", Decimal(0)),
-            ("cost_by_provider_window", []),
             ("count_distinct_users", 0),
             ("count_pending_approval_runs", 0),
             ("usage_by_user", []),
@@ -1174,6 +1171,12 @@ class TestStatsScopeIsDecidedInTheService:
                 ),
             ),
             ("window_totals", (0, Decimal(0))),
+            (
+                "window_breakdown",
+                WindowBreakdown(
+                    by_day=[], by_surface=[], by_status=[], by_model=[], by_provider=[]
+                ),
+            ),
         ):
             monkeypatch.setattr(
                 f"app.services.stats.agent_run_repo.{name}", AsyncMock(return_value=value)

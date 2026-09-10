@@ -263,21 +263,11 @@ async def promote_specialist(data: SpecialistPromote, service: AgentRegistrySvc,
 async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """One agent with the spec currently being edited."""
     agent = await service.get(ctx, agent_id)
-    return AgentDetail(
-        id=agent.id,
-        slug=agent.slug,
-        name=agent.name,
-        description=agent.description,
-        status=agent.status,
-        visibility=agent.visibility,
-        owner_user_id=agent.owner_user_id,
-        current_version_id=agent.current_version_id,
-        has_avatar=agent.has_avatar,
-        avatar_color=agent.avatar_color,
-        can_run=await service.may_run(ctx, agent),
-        created_at=agent.created_at,
-        updated_at=agent.updated_at,
-        draft_spec=AgentSpec.model_validate(agent.draft_spec),
+    # `model_validate` reads the row's columns and parses `draft_spec` (JSONB) into
+    # `AgentSpec` off the schema field, so this route names only the one value the
+    # row does not carry: `can_run` is this caller's, not the agent's (#545).
+    return AgentDetail.model_validate(agent).model_copy(
+        update={"can_run": await service.may_run(ctx, agent)}
     )
 
 
@@ -377,14 +367,9 @@ async def get_version(
 ) -> Any:
     """One version with the spec it froze - what a diff is read from."""
     version = await service.get_version(ctx, agent_id, version_id)
-    return AgentVersionDetail(
-        id=version.id,
-        version=version.version,
-        note=version.note,
-        published_by_user_id=version.published_by_user_id,
-        created_at=version.created_at,
-        spec=AgentSpec.model_validate(version.spec),
-    )
+    # The whole row maps off the schema, `spec` (JSONB) parsed into `AgentSpec` on
+    # the field rather than by hand here (#545).
+    return AgentVersionDetail.model_validate(version)
 
 
 @router.get(

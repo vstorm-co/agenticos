@@ -4004,7 +4004,6 @@
       "optionalUsage": "Usage reports",
       "optionalUsageAudience": "The organization's report goes to owners and admins. An agent can also ask for a report of its own. A period with zero runs sends nothing.",
       "optionalUsageTrigger": "Weekly and monthly, when your organization's agents ran anything at all.",
-      "passwordChangeRequiresBackend": "Password change requires backend wiring (POST /auth/password/change).",
       "passwordUpdated": "Password updated",
       "passwordsDoNotMatch": "Passwords do not match",
       "permanentlyRemoveYourAccount": "Permanently remove your account, conversations, and uploaded data. This can't be undone.",

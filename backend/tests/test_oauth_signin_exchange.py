@@ -9,15 +9,17 @@ code that the frontend swaps for the pair server to server.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
 
-from app.api.deps import get_redis
+from app.api.deps import get_redis, get_session_service
 from app.core.config import settings
 from app.core.oauth import oauth
+from app.core.security import verify_token
 from app.main import app
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.user import UserService
@@ -97,3 +99,65 @@ async def test_exchange_refuses_an_unknown_code(client: AsyncClient) -> None:
     resp = await client.post(_EXCHANGE, json={"code": "never-issued"})
 
     assert resp.status_code == 401
+
+
+async def test_the_oauth_login_binds_its_access_token_to_a_session(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An OAuth sign-in is an ordinary session: its access token carries a `sid`
+    so signing out everywhere can revoke it, as for any other login (#1501)."""
+    fake = _FakeRedis()
+    app.dependency_overrides[get_redis] = lambda: fake
+    session_service = MagicMock()
+    session_service.create_session = AsyncMock()
+    app.dependency_overrides[get_session_service] = lambda: session_service
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+
+    redirect = await client.get(_CALLBACK)
+    code = parse_qs(urlparse(redirect.headers["location"]).query)["code"][0]
+    exchanged = await client.post(_EXCHANGE, json={"code": code})
+
+    payload = verify_token(exchanged.json()["access_token"])
+    assert payload is not None
+    # The row is created with exactly the id the token names.
+    session_service.create_session.assert_awaited_once()
+    assert str(session_service.create_session.await_args.kwargs["session_id"]) == payload["sid"]
+
+
+async def test_a_failed_code_issue_leaves_no_session_row(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The row is written only after the single-use code is issued, so a failure
+    handing out the code leaves no phantom session behind (#1501 review)."""
+    app.dependency_overrides[get_redis] = _FakeRedis
+    session_service = MagicMock()
+    session_service.create_session = AsyncMock()
+    app.dependency_overrides[get_session_service] = lambda: session_service
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        OAuthExchangeService, "issue", AsyncMock(side_effect=RuntimeError("exchange store down"))
+    )
+
+    redirect = await client.get(_CALLBACK)
+
+    assert redirect.status_code == 307
+    assert "error=" in redirect.headers["location"]
+    session_service.create_session.assert_not_awaited()

@@ -84,6 +84,7 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.impersonation import ImpersonationService
+from app.services.ws_auth import authenticate_socket_token
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.sandbox_connection import SandboxConnectionService
@@ -291,12 +292,16 @@ from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False
+)
 
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     user_service: UserSvc,
     impersonation: ImpersonationSvc,
+    session: SessionSvc,
 ) -> User:
     """Get current authenticated user from JWT token.
 
@@ -305,9 +310,14 @@ async def get_current_user(
     is refused here rather than served for the rest of its hour (#1044). The
     check also puts who is really acting on the request's audit context (#943).
 
+    An ordinary token carrying a `sid` is bound to its login's session row the
+    same way, so signing out everywhere refuses it here rather than letting it
+    live to its `exp` (#1501); a token minted before that binding has no `sid`
+    and is left to expire.
+
     Raises:
-        AuthenticationError: If token is invalid, its impersonation has ended, or
-            the user is not found.
+        AuthenticationError: If token is invalid, its session or impersonation has
+            ended, or the user is not found.
     """
 
     payload = verify_token(token)
@@ -322,6 +332,7 @@ async def get_current_user(
         raise AuthenticationError(message="Invalid token payload")
 
     await impersonation.verify(payload=payload, token=token, subject=user_id)
+    await session.verify_access_session(payload=payload, subject=user_id)
 
     user = await user_service.get_by_id(UUID(user_id))
     if not user.is_active:
@@ -336,6 +347,36 @@ async def get_current_user(
 # global privilege is `CurrentAppAdmin` below, which gates the deployment's own
 # administration rather than a tenant's.
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_current_session_id(
+    token: Annotated[str | None, Depends(oauth2_scheme_optional)],
+) -> UUID | None:
+    """The session row the caller's access token names, or None.
+
+    Ordinary access tokens carry a `sid` naming their own session (#1439), so a
+    request can spare that session when a password change revokes the account's
+    others. A token minted by a login path that opens no session (OAuth), or
+    before this claim existed, carries none - and the caller then falls back to
+    revoking every session, the safe default. Optional rather than a gate: the
+    route it serves already authenticates through `CurrentUser`, so a missing or
+    unreadable token here is simply no session to spare, not a refusal.
+    """
+    if token is None:
+        return None
+    payload = verify_token(token)
+    if payload is None:
+        return None
+    raw = payload.get("sid")
+    if not raw:
+        return None
+    try:
+        return UUID(str(raw))
+    except ValueError:
+        return None
+
+
+CurrentSessionId = Annotated[UUID | None, Depends(get_current_session_id)]
 from app.db.models.organization import Organization, OrgRole
 
 # Module-level alias so tests can patch via `app.api.deps._member_repo`.
@@ -816,32 +857,16 @@ async def get_current_user_ws(
     if not auth_token:
         raise WebSocketException(code=4001, reason="Missing authentication token")
 
-    payload = verify_token(auth_token)
-    if payload is None:
-        raise WebSocketException(code=4001, reason="Invalid or expired token")
-
-    if payload.get("type") != "access":
-        raise WebSocketException(code=4001, reason="Invalid token type")
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise WebSocketException(code=4001, reason="Invalid token payload")
+    # The token the socket was opened with, so the session can re-run the check
+    # below on every inbound frame - a handshake authenticates once, and without
+    # this a session revoked afterwards keeps being served (#1437).
+    websocket.state.auth_token = auth_token
 
     async with get_db_context() as db:
         try:
-            await ImpersonationService(db).verify(
-                payload=payload, token=auth_token, subject=user_id
-            )
+            user = await authenticate_socket_token(db, auth_token)
         except AuthenticationError as exc:
             raise WebSocketException(code=4001, reason=exc.message) from None
-        user_service = UserService(db)
-        try:
-            user = await user_service.get_by_id(UUID(user_id))
-        except NotFoundError:
-            raise WebSocketException(code=4001, reason="User not found") from None
-
-        if not user.is_active:
-            raise WebSocketException(code=4001, reason="User account is disabled")
 
         # Eagerly load all columns, then detach from session to avoid
         # "instance not bound to a Session" errors after the context manager exits

@@ -282,10 +282,17 @@ An impersonation is a **session**, not a bare credential. The token names a row
 in `sessions` with `impersonator_user_id` set, and the API refuses it the moment
 that row is ended or has expired, or the administrator behind it is no longer an
 active app admin — so it stops when you press **End impersonation**, when the
-person signs out everywhere or resets their password by email, when the hour is
+person signs out everywhere or changes their password, when the hour is
 up, or when the administrator is suspended, demoted or deleted, whichever is
 first. It cannot be refreshed: the window is the access token's own, and the hour
 is the ceiling rather than a renewable lease.
+
+!!! note "An open chat conversation ends with it"
+
+    A chat conversation runs over a WebSocket that authenticates once, at the
+    handshake. It now re-runs that check on every message, so ending an
+    impersonation — or suspending the account — closes an open chat too, rather
+    than only refusing the next HTTP request while the socket keeps answering.
 
 !!! note "The person's own devices list does not show it"
 

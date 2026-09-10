@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import time
 from abc import ABC, abstractmethod
 from uuid import UUID
@@ -13,6 +14,22 @@ from app.services.rag.models import SearchResult
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
+
+_PARENT_DOC_ID_RE = re.compile(r'parent_doc_id\s*==\s*"([^"]+)"')
+
+
+def _parent_doc_id_from_filter(filter_expr: str) -> str | None:
+    """The document a scalar filter restricts to, or None.
+
+    The public `filter` grammar (`app/schemas/rag.py`) is a scalar-expression
+    string; the store honours exactly its `parent_doc_id == "<id>"` clause. This
+    is where that clause becomes the typed argument the store takes, so the store
+    itself never speaks the string DSL.
+    """
+    if not filter_expr:
+        return None
+    m = _PARENT_DOC_ID_RE.search(filter_expr)
+    return m.group(1) if m else None
 
 
 def _result_key(r: SearchResult) -> str:
@@ -135,7 +152,7 @@ class RetrievalService(BaseRetrievalService):
         pipeline_results = await self.store.search(
             collection_name=collection_name,
             query=query,
-            filter_expr=filter,
+            parent_doc_id=_parent_doc_id_from_filter(filter),
             limit=limit * fetch_multiplier,
             organization_id=organization_id,
         )

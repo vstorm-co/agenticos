@@ -147,7 +147,7 @@ InvitableRole = Annotated[str, AfterValidator(_invitable_role)]
 
 
 class InvitationCreate(BaseSchema):
-    email: EmailStr
+    email: EmailStr = Field(max_length=255)
     role: InvitableRole = "member"
 
 

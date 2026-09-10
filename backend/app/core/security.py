@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID, uuid4
 
 import bcrypt
 import jwt
@@ -34,11 +35,11 @@ def create_access_token(
     `act` is the actor behind the subject when the two differ - an administrator
     impersonating another account. It is carried as its own claim so a request
     made with the token is attributable to the person who is really acting, not
-    only to the account they are acting as (#943). `sid` is the session row that
-    impersonation is, so the token can be refused once the row has been ended -
-    a bare token is good until it expires whatever anybody does (#1044). Both are
-    omitted from the payload when unset, so an ordinary token is byte-for-byte
-    what it was.
+    only to the account they are acting as (#943). `sid` names the session row the
+    token belongs to: on an impersonation so the token can be refused once the row
+    has been ended (#1044), and on an ordinary login so a password change can spare
+    the session that made it while revoking the account's others (#1439). Each is
+    omitted when unset, so a token minted without one is byte-for-byte what it was.
     """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
@@ -56,26 +57,74 @@ def create_access_token(
 def create_refresh_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    *,
+    credential_version: int = 0,
 ) -> str:
-    """Create a JWT refresh token."""
+    """Create a JWT refresh token.
+
+    Carries a random `jti` so two tokens minted for the same subject in the same
+    second are not byte-identical. A session row stores the SHA-256 of its refresh
+    token, and `exp` is second-resolution, so without this two sign-ins a moment
+    apart would hash to the same value - two active rows under one hash, and the
+    next refresh's `scalar_one_or_none` lookup raises rather than resolving (#1501
+    review).
+
+    Carries the account's `credential_version` as `cv`: a password change bumps
+    the user's version, and the refresh path refuses a token whose `cv` is behind
+    it, so a token minted before the change cannot be rotated past it (#1517).
+    """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "refresh",
+        "jti": uuid4().hex,
+        "cv": credential_version,
+    }
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_token(token: str) -> dict[str, Any] | None:
-    """Verify a JWT token and return payload."""
+def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | None:
+    """Verify a JWT token and return payload.
+
+    `verify_exp=False` decodes a signature-valid token whose `exp` has passed. It
+    is set only by an already-open chat WebSocket re-checking its handshake
+    credential: the socket is authenticated once, when the token is valid, and
+    then outlives the access token's own 30-minute lifetime, so tearing it down
+    for routine token aging would cancel a turn a still-signed-in person is
+    running (#1437). Revocation is judged from the session and account state
+    instead. The signature is still verified; every other caller keeps expiry
+    enforced.
+    """
     try:
         return jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
+            options={"verify_exp": verify_exp},
         )
     except jwt.PyJWTError:
+        return None
+
+
+def read_uuid_claim(payload: dict[str, Any], name: str) -> UUID | None:
+    """A token claim read as a uuid, or None when it is absent or not one.
+
+    A malformed claim is no claim rather than a refusal: the token is signed by
+    this deployment, so a value it cannot parse is one this code never wrote. Both
+    the impersonation `sid`/`act` (#943) and the ordinary-session `sid` (#1501)
+    read their row id through here, so the leniency is decided in one place.
+    """
+    value = payload.get(name)
+    if not value:
+        return None
+    try:
+        return UUID(str(value))
+    except ValueError:
         return None
 
 

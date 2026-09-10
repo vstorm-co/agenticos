@@ -73,7 +73,9 @@ class _RecordingUserService:
         self.received = user_in
         return self.stored
 
-    async def update_current(self, user: MagicMock, user_in: UserUpdate) -> MagicMock:
+    async def update_current(
+        self, user: MagicMock, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> MagicMock:
         # The self-update route goes through the self-suspend guard; this test is
         # about which fields reach the update, so it delegates like the real one.
         return await self.update(user.id, user_in)
