@@ -53,6 +53,7 @@ class RAGCollectionList(BaseSchema):
     """List of all available collection names."""
 
     items: list[str]
+    total: int
 
 
 class RAGDocumentItem(BaseSchema):

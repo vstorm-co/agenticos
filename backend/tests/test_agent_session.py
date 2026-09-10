@@ -502,7 +502,7 @@ class TestATurnThatFinished:
                 "usage": {
                     "input_tokens": 1200,
                     "output_tokens": 340,
-                    "cost_usd": 0.0042,
+                    "cost_usd": "0.0042",
                     # Beside the figure, because without it the figure lies on a
                     # run that reached an unpriced model (#772).
                     "cost_is_partial": False,
@@ -1868,7 +1868,7 @@ class TestForwardingDelegationFrames:
             "subagent_tool_call",
         ]
 
-    async def test_what_a_delegation_cost_arrives_as_a_number(self):
+    async def test_what_a_delegation_cost_arrives_as_a_decimal_string(self):
         """A `Decimal` serialises to a *string* in JSON mode, and the chat formats
         cost as a number - the panel would have rendered `NaN` for every finished
         delegation. The turn's own cost is already a number on this wire; a
@@ -1891,8 +1891,8 @@ class TestForwardingDelegationFrames:
 
         [(event_type, data)] = _sent_events(session)
         assert event_type == "subagent_complete"
-        assert data["cost_usd"] == 0.0042
-        assert isinstance(data["cost_usd"], float)
+        assert data["cost_usd"] == "0.0042"
+        assert isinstance(data["cost_usd"], str)
         assert data["run_id"] == str(run_id)
 
     async def test_a_delegation_that_recorded_no_cost_reports_none_rather_than_zero(self):
@@ -2253,7 +2253,7 @@ class TestStoppingATurnMidDelegation:
         opened, closed = (data for _type, data in delegation_frames)
         assert opened["mode"] == "async"
         assert closed["status"] == "cancelled"
-        assert closed["cost_usd"] == float(_DELEGATE_REQUEST.cost_usd)
+        assert closed["cost_usd"] == str(_DELEGATE_REQUEST.cost_usd)
 
     async def test_shutting_the_socket_down_cancels_the_same_way(self):
         """`shutdown` is the other caller, and it runs when nobody is watching -

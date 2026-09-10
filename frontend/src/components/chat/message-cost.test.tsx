@@ -8,7 +8,7 @@ function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
   return {
     input_tokens: 12_400,
     output_tokens: 310,
-    cost_usd: 0.0421,
+    cost_usd: "0.0421",
     cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
@@ -56,7 +56,7 @@ describe("MessageCost", () => {
   });
 
   it("prices the turn to four decimals, because most turns cost less than a cent", () => {
-    render(<MessageCost usage={usage({ cost_usd: 0.0003 })} />);
+    render(<MessageCost usage={usage({ cost_usd: "0.0003" })} />);
 
     expect(screen.getByText(/\$0\.0003/)).toBeVisible();
   });

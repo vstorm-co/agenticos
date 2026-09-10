@@ -1,8 +1,10 @@
 """Tests for MCP connections: agents/mcp toolset building + the service layer."""
 
 import contextlib
+import json
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -161,15 +163,21 @@ def _open_from(conn: McpConnection, ciphertext: str) -> str:
     return unseal(ciphertext, scope=connection_scope(conn), key_version=conn.secret_key_version)
 
 
+_PREFIX_CASES = json.loads(
+    (Path(__file__).resolve().parents[2] / "frontend/src/lib/mcp-tool-prefix.cases.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
 class TestToolPrefix:
-    def test_hyphens_become_underscores(self):
-        assert tool_prefix("github-work") == "github_work"
-
-    def test_uppercase_and_specials_are_sanitized(self):
-        assert tool_prefix("My Server!") == "my_server"
-
-    def test_empty_falls_back(self):
-        assert tool_prefix("!!!") == "mcp"
+    @pytest.mark.parametrize("case", _PREFIX_CASES, ids=lambda c: c["name"])
+    def test_it_matches_the_shared_parity_cases(self, case: dict[str, str]):
+        """The cases are shared with the frontend `mcpToolPrefix` test, so the two
+        normalisers cannot drift apart behind two hand-copied lists (#545). A
+        connection name reaches the client only as this prefix, so a mismatch draws
+        a step "Github Work Create Issue" where it means "GitHub - Create issue"."""
+        assert tool_prefix(case["name"]) == case["prefix"]
 
 
 class TestTransportSelection:
