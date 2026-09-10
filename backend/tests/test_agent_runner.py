@@ -253,6 +253,49 @@ class TestPrepare:
         assert build.call_args.kwargs["resources"]["kb_collection_names"] == ["kb_live"]
 
     @pytest.mark.anyio
+    async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
+        """`_collection_names` runs on every turn, so five bound collections cost
+        one round trip rather than five serial reads at the front of it (#954)."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        ids = [uuid.uuid4() for _ in range(5)]
+        collections = {
+            cid: MagicMock(organization_id=ctx.organization_id, collection_name=f"kb{n}")
+            for n, cid in enumerate(ids)
+        }
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", collection_ids=ids)
+
+        async def get_collections(_db, given):
+            return {cid: collections[cid] for cid in given}
+
+        kb_read = AsyncMock(side_effect=get_collections)
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch("app.services.agent_runner.knowledge_base_repo.get_by_ids", new=kb_read),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(ctx, agent.id)
+
+        kb_read.assert_awaited_once()
+        assert list(kb_read.await_args.args[1]) == ids
+        assert build.call_args.kwargs["resources"]["kb_collection_names"] == [
+            f"kb{n}" for n in range(5)
+        ]
+
+    @pytest.mark.anyio
     async def test_the_mcp_servers_the_spec_binds_reach_the_agent_that_is_built(self):
         """`mcp_servers` is part of the published contract, so it has to act.
 

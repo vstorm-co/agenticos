@@ -108,3 +108,4 @@ class ConnectorList(BaseSchema):
     """List of available connectors."""
 
     items: list[ConnectorInfo]
+    total: int

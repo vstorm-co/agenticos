@@ -1,0 +1,12 @@
+[
+  { "name": "github-work", "prefix": "github_work" },
+  { "name": "GitHub Work", "prefix": "github_work" },
+  { "name": "Linear", "prefix": "linear" },
+  { "name": "my.server", "prefix": "my_server" },
+  { "name": "  spaced  ", "prefix": "spaced" },
+  { "name": "--dashes--", "prefix": "dashes" },
+  { "name": "!!!", "prefix": "mcp" },
+  { "name": "a1_b2", "prefix": "a1_b2" },
+  { "name": "Ünïçödé", "prefix": "n___d" },
+  { "name": "你好", "prefix": "mcp" }
+]

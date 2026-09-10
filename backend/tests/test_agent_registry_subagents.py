@@ -41,7 +41,7 @@ from app.services.agent_registry import (
     AgentRegistryService,
     slugify,
 )
-from tests.test_agent_registry import _agent, _ctx, _db, _skill, _spec, _version
+from tests.test_agent_registry import _agent, _batch, _ctx, _db, _skill, _spec, _version
 
 pytestmark = pytest.mark.anyio
 
@@ -104,13 +104,20 @@ def _published(ctx: AuthContext, name: str, *, slug: str | None = None) -> Any:
 
 
 def _agents(*agents: Any) -> AsyncMock:
-    """`agent_repo.get`, answering from a fixed set."""
+    """`agent_repo.get`, answering one row at a time from a fixed set.
+
+    The delegation *tree* walk still reads a node at a time, so this stays the
+    single read; `_repos` derives the batched `get_many` the publish-time
+    validation now uses from the same set (#954).
+    """
     rows = {agent.id: agent for agent in agents}
 
     async def get(_db_session, agent_id, *, organization_id):
         return rows.get(agent_id)
 
-    return AsyncMock(side_effect=get)
+    mock = AsyncMock(side_effect=get)
+    mock._rows = rows  # so `_repos` can build the matching `get_many`
+    return mock
 
 
 def _versions(*versions: Any) -> AsyncMock:
@@ -124,7 +131,14 @@ def _versions(*versions: Any) -> AsyncMock:
 
 
 def _repos(monkeypatch, *, agents: AsyncMock | None = None, versions: AsyncMock | None = None):
-    monkeypatch.setattr(agent_registry.agent_repo, "get", agents or _agents())
+    single = agents or _agents()
+    rows = getattr(single, "_rows", {})
+
+    async def get_many(_db_session, agent_ids, *, organization_id):
+        return {agent_id: rows[agent_id] for agent_id in agent_ids if agent_id in rows}
+
+    monkeypatch.setattr(agent_registry.agent_repo, "get", single)
+    monkeypatch.setattr(agent_registry.agent_repo, "get_many", AsyncMock(side_effect=get_many))
     monkeypatch.setattr(agent_registry.agent_repo, "get_version", versions or _versions())
 
 
@@ -207,9 +221,9 @@ class TestInlineSpecialists:
         collection_id = uuid4()
         monkeypatch.setattr(
             agent_registry.knowledge_base_repo,
-            "get_by_id",
-            AsyncMock(
-                return_value=MagicMock(
+            "get_by_ids",
+            _batch(
+                MagicMock(
                     organization_id=ctx.organization_id,
                     owner_user_id=uuid4(),
                     visibility=Visibility.PRIVATE.value,
@@ -838,7 +852,7 @@ class TestAnAgentThatDoesNotDelegate:
             _ctx(), _spec(model_profile_id=uuid4(), capabilities=[{"id": "clock"}])
         )
 
-        assert agent_registry.agent_repo.get.await_count == 0
+        assert agent_registry.agent_repo.get_many.await_count == 0
         assert agent_registry.agent_repo.get_version.await_count == 0
 
     async def test_a_delegating_agent_whose_every_reference_resolves_publishes(self, monkeypatch):
@@ -851,8 +865,8 @@ class TestAnAgentThatDoesNotDelegate:
         _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
         monkeypatch.setattr(
             agent_registry.knowledge_base_repo,
-            "get_by_id",
-            AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
+            "get_by_ids",
+            _batch(MagicMock(organization_id=ctx.organization_id)),
         )
 
         await AgentRegistryService(_db()).validate_spec(

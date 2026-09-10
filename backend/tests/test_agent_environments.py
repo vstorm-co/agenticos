@@ -84,7 +84,10 @@ class TestListing:
 
         with (
             patch(_REPO) as environments,
-            patch(f"{_AGENTS}.get_version", new=AsyncMock(return_value=version)),
+            patch(
+                f"{_AGENTS}.get_versions_by_ids",
+                new=AsyncMock(return_value={version.id: version}),
+            ),
             patch(f"{_AGENTS}.count_versions", new=AsyncMock(return_value=9)),
         ):
             environments.list_for_agent = AsyncMock(return_value=[environment])
@@ -106,7 +109,7 @@ class TestListing:
 
         with (
             patch(_REPO) as environments,
-            patch(f"{_AGENTS}.get_version", new=AsyncMock(return_value=None)),
+            patch(f"{_AGENTS}.get_versions_by_ids", new=AsyncMock(return_value={})),
             patch(f"{_AGENTS}.count_versions", new=AsyncMock(return_value=0)),
         ):
             environments.list_for_agent = AsyncMock(return_value=[environment])

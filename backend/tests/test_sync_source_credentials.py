@@ -324,6 +324,13 @@ class TestWhatTheConnectorsDeclare:
         assert kinds["gdrive"] == "gcp_service_account"
         assert kinds["s3"] == "aws_credentials"
 
+    def test_the_connector_listing_carries_its_total(self):
+        """A `*List` carries the `total` the convention names, like every sibling
+        (#545)."""
+        listed = SyncSourceService.list_connectors()
+
+        assert listed.total == len(listed.items)
+
 
 def test_there_is_no_second_encryption_mechanism():
     """`app/core/crypto.py` is gone, and this is the assertion that says so.

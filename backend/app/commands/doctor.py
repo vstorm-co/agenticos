@@ -17,8 +17,10 @@ same questions differently - two implementations of "is this healthy" is how a
 dashboard says green while a terminal says red.
 """
 
+from __future__ import annotations
+
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 
@@ -26,6 +28,12 @@ from app.commands import command, error, info, success, warning
 from app.core.config import settings
 from app.db.session import get_db_context
 from app.services.health import probe_database, probe_model_access, probe_vector_store
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.db.models.organization_secret import OrganizationSecret
+    from app.db.models.sandbox_connection import SandboxConnection
 
 # What each outcome prints. `unconfigured` is deliberately not a failure: a
 # deployment that never ingests a document and never runs an agent is installed
@@ -46,7 +54,7 @@ def _report(key: str, status: str, detail: str) -> bool:
     return status == "unhealthy"
 
 
-async def _migrations_current(db: Any) -> tuple[str, str]:
+async def _migrations_current(db: AsyncSession) -> tuple[str, str]:
     """Whether the database is at the newest revision on disk.
 
     Read from `alembic_version` rather than by running Alembic: the point is to
@@ -90,7 +98,7 @@ def _vault_configured() -> tuple[str, str]:
     return "healthy", "a key is configured"
 
 
-async def _sandbox_connections(db: Any) -> tuple[str, str]:
+async def _sandbox_connections(db: AsyncSession) -> tuple[str, str]:
     """Whether every registered sandbox host can actually be reached.
 
     Unconfigured is not a failure: the `state` backend needs no service and is
@@ -145,7 +153,9 @@ async def _sandbox_connections(db: Any) -> tuple[str, str]:
     return "healthy", f"{healthy} connection(s) answered /policy with a runtime"
 
 
-async def _probe_connection(connection: Any, secret: Any) -> str | None:
+async def _probe_connection(
+    connection: SandboxConnection, secret: OrganizationSecret | None
+) -> str | None:
     """What is wrong with one connection, or `None` if nothing is."""
     from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
     from app.core.vault import VaultScope

@@ -1266,9 +1266,12 @@ class AgentRegistryService:
         a refusal that reads differently would map the organization's private
         collections one guess at a time.
         """
+        if not collection_ids:
+            return []
+        found = await knowledge_base_repo.get_by_ids(self.db, collection_ids)
         problems: list[str] = []
         for collection_id in collection_ids:
-            collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
+            collection = found.get(collection_id)
             reachable = collection is not None and await resolve_access(
                 self.db, ctx, collection, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
             )
@@ -1328,6 +1331,13 @@ class AgentRegistryService:
         # it - `notion-` and `notion` are one prefix - so a collision is caught
         # here rather than by `_dedupe_by_prefix` dropping a server at run time.
         claimed: dict[str, list[str]] = {}
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db,
+            connection_ids=[
+                ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
+            ],
+            organization_id=ctx.organization_id,
+        )
         for ref in refs:
             if isinstance(ref, PersonalMcpServerRef):
                 if mcp_catalog.get_entry(ref.catalog_key) is None:
@@ -1341,9 +1351,7 @@ class AgentRegistryService:
                     f"each person's own {ref.catalog_key}"
                 )
                 continue
-            connection = await mcp_connection_repo.get_org_scoped_by_id(
-                self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
-            )
+            connection = found.get(ref.connection_id)
             if connection is None:
                 # Says which of the two ways it can fail applies, because the
                 # likely one - a personal connection picked in the Builder - is
@@ -1580,10 +1588,11 @@ class AgentRegistryService:
         delegates: list[_PinnedDelegate] = []
         handles: list[str] = []
         problems: list[str] = []
+        found = await agent_repo.get_many(
+            self.db, [ref.agent_id for ref in refs], organization_id=ctx.organization_id
+        )
         for ref in refs:
-            delegate = await agent_repo.get(
-                self.db, ref.agent_id, organization_id=ctx.organization_id
-            )
+            delegate = found.get(ref.agent_id)
             if delegate is None or not await resolve_access(
                 self.db, ctx, delegate, Perm.AGENTS_RUN, resource_type=AGENT
             ):
