@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.390] - 2026-09-10
+
+### Security
+
+- **An unlinked channel guest can no longer borrow the owner's personal MCP
+  connections.** On the publisher-fallback admission an unidentified visitor
+  runs under the binding's publisher, and personal-MCP resolution fell back to
+  the owner - so an anonymous guest could reach a third-party MCP server with
+  the publisher's connected-account credentials. Resolution is now gated on the
+  subject being a real person, on a fresh run and on a resume, where the fact
+  is carried in the parked terms. `docs/mcp.md` already said so. (#1524)
+
 ## [0.0.389] - 2026-09-10
 
 ### Fixed
