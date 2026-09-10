@@ -49,7 +49,13 @@ services:
         required: false
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-local}
+      # The same interpolation `db` reads, so the two agree by construction -
+      # the application's own default password is empty, and the image carries
+      # no env file to fill it.
       - POSTGRES_HOST=db
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
     networks:
       - backend
@@ -77,6 +83,9 @@ services:
       - DEBUG=${DEBUG:-false}
       - ENVIRONMENT=${ENVIRONMENT:-local}
       - POSTGRES_HOST=db
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
@@ -191,6 +200,10 @@ services:
       - DEBUG=${DEBUG:-false}
       - ENVIRONMENT=${ENVIRONMENT:-local}
       - POSTGRES_HOST=db
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-agenticos}
+      - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
       # The runner's own health endpoint, started by app/worker/prefect_app.py.
       # 127.0.0.1 rather than 0.0.0.0 because the same webserver also serves

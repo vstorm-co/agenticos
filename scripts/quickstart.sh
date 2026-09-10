@@ -306,14 +306,20 @@ obtain_compose() {
     return 0
   fi
   step "Getting docker-compose.yml"
-  run mkdir -p "$INSTALL_DIR"
-  if [ "$DRY_RUN" != "1" ]; then
-    cd "$INSTALL_DIR"
-  fi
+  # A directory this script already set up is used in place - re-running it from
+  # there must not nest another install under it.
   if [ -f docker-compose.yml ]; then
     note "docker-compose.yml already here — keeping it"
   else
-    run curl -fsSL -o docker-compose.yml "$COMPOSE_URL"
+    run mkdir -p "$INSTALL_DIR"
+    if [ "$DRY_RUN" != "1" ]; then
+      cd "$INSTALL_DIR"
+    fi
+    if [ -f docker-compose.yml ]; then
+      note "docker-compose.yml already in $INSTALL_DIR — keeping it"
+    else
+      run curl -fsSL -o docker-compose.yml "$COMPOSE_URL"
+    fi
   fi
   ENV_FILE=".env"
   ok "compose file in $(pwd)"
@@ -404,17 +410,20 @@ wait_for_api() {
 
 bootstrap_platform() {
   step "Creating your organization, your login, a model and a first agent"
-  local args="--email $ADMIN_EMAIL --password $ADMIN_PASSWORD --org \"$ORG_NAME\""
-  if [ "$PROVIDER" != "none" ]; then
-    args="$args --provider $PROVIDER"
-  fi
+  # Real argv, not a string through `sh -c`: a password with a `$`, a space or a
+  # quote in it has to reach the container as typed.
+  local -a cmd
+  cmd=(docker compose exec -T)
   if [ -n "$API_KEY" ]; then
     # Through the environment, not the command line: an argument is visible in
     # `ps` to every other user on the machine.
-    run_sh "docker compose exec -T -e BOOTSTRAP_API_KEY='$API_KEY' app agenticos cmd bootstrap $args"
-  else
-    run_sh "docker compose exec -T app agenticos cmd bootstrap $args"
+    cmd+=(-e "BOOTSTRAP_API_KEY=$API_KEY")
   fi
+  cmd+=(app agenticos cmd bootstrap --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" --org "$ORG_NAME")
+  if [ "$PROVIDER" != "none" ]; then
+    cmd+=(--provider "$PROVIDER")
+  fi
+  run "${cmd[@]}"
 }
 
 sync_mcp() {

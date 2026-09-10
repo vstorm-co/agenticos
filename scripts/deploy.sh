@@ -122,7 +122,9 @@ git --no-pager log --oneline -1
 # file, so the file keeps saying what the operator wrote and the pin lives
 # exactly as long as this deploy; the compose files default to `latest` when it
 # is absent, which a `docker compose up` by hand on this host would then get.
-AGENTICOS_VERSION="sha-$(git rev-parse --short=7 HEAD)"
+# `cut`, not `--short=7`: git widens a short sha past seven characters when it
+# is ambiguous, and metadata-action never does.
+AGENTICOS_VERSION="sha-$(git rev-parse HEAD | cut -c1-7)"
 export AGENTICOS_VERSION
 
 # `images.yml` starts when the commit lands on `main`, the same moment this

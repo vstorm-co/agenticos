@@ -161,7 +161,6 @@ services:
     container_name: agenticos_prefect_runner
     volumes:
       - media_data:/app/media
-      - ./emails:/app/emails:ro
     command: python -m app.worker.prefect_app
     env_file:
       - ./backend/.env

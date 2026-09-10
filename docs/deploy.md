@@ -427,7 +427,8 @@ migration. Read it before assuming.
 
 ## Recap
 
-- **One host, Compose, a proxy in front.** Six containers, two of them stateful,
+- **One host, Compose, a proxy in front.** Seven containers - one of them runs
+  the migrations and exits - two of them stateful,
   every one pulled - nothing is built on the host. Pin `AGENTICOS_VERSION`.
 - **`UVICORN_WORKERS` decides what the host costs.** 460 MiB per worker, nothing
   shared. Two for a team, four for real traffic.
