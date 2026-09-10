@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.379] - 2026-09-10
+
+### Security
+
+- **Binding an identity while impersonating is refused.** Confirming a chat-link
+  code, starting a personal or organization MCP OAuth flow, the GitHub and portal
+  variants, and typing a bearer token into a member's MCP connection all fastened
+  the *administrator's own* identity or credential onto the impersonated account,
+  and the binding outlived the impersonation's hour. Every one of those seams now
+  answers 403 under an impersonation, before a token is read or a pending row is
+  written. (#1491)
+
 ## [0.0.378] - 2026-09-08
 
 ### Added
