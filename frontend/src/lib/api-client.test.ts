@@ -165,6 +165,20 @@ describe("recovering from an expired token", () => {
     ]);
   });
 
+  it("does not refresh and retry a password-change 401", async () => {
+    fetchMock.mockResolvedValueOnce(
+      refused(401, { error: { message: "Current password is incorrect" } }),
+    );
+
+    await expect(
+      apiClient.post("/auth/password/change", { current_password: "x", new_password: "y" }),
+    ).rejects.toBeInstanceOf(ApiError);
+
+    // A wrong current password is the answer, not an expired token: the client
+    // must not refresh and resubmit the wrong password (#1517).
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual(["/api/auth/password/change"]);
+  });
+
   it("keeps the fresh token in memory, which is what the websocket authenticates with", async () => {
     fetchMock
       .mockResolvedValueOnce(refused(401, {}))

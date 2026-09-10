@@ -263,7 +263,7 @@ An impersonation is a **session**, not a bare credential. The token names a row
 in `sessions` with `impersonator_user_id` set, and the API refuses it the moment
 that row is ended or has expired, or the administrator behind it is no longer an
 active app admin — so it stops when you press **End impersonation**, when the
-person signs out everywhere or resets their password by email, when the hour is
+person signs out everywhere or changes their password, when the hour is
 up, or when the administrator is suspended, demoted or deleted, whichever is
 first. It cannot be refreshed: the window is the access token's own, and the hour
 is the ceiling rather than a renewable lease.

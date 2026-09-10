@@ -285,6 +285,9 @@ from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False
+)
 
 
 async def get_current_user(
@@ -337,6 +340,36 @@ async def get_current_user(
 # global privilege is `CurrentAppAdmin` below, which gates the deployment's own
 # administration rather than a tenant's.
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_current_session_id(
+    token: Annotated[str | None, Depends(oauth2_scheme_optional)],
+) -> UUID | None:
+    """The session row the caller's access token names, or None.
+
+    Ordinary access tokens carry a `sid` naming their own session (#1439), so a
+    request can spare that session when a password change revokes the account's
+    others. A token minted by a login path that opens no session (OAuth), or
+    before this claim existed, carries none - and the caller then falls back to
+    revoking every session, the safe default. Optional rather than a gate: the
+    route it serves already authenticates through `CurrentUser`, so a missing or
+    unreadable token here is simply no session to spare, not a refusal.
+    """
+    if token is None:
+        return None
+    payload = verify_token(token)
+    if payload is None:
+        return None
+    raw = payload.get("sid")
+    if not raw:
+        return None
+    try:
+        return UUID(str(raw))
+    except ValueError:
+        return None
+
+
+CurrentSessionId = Annotated[UUID | None, Depends(get_current_session_id)]
 from app.db.models.organization import Organization, OrgRole
 
 # Module-level alias so tests can patch via `app.api.deps._member_repo`.
