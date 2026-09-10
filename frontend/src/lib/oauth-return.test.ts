@@ -87,31 +87,22 @@ describe("what an attempt started from this URL should remember", () => {
     expect(returnToForAttempt(url(""))).toBeNull();
   });
 
-  it("keeps the path across a retry, where the URL has lost it", () => {
-    // A failed provider attempt comes back to `/login?error=oauth_failed` with
-    // no `returnTo` on it. Clearing there drops a path nobody abandoned.
+  it("leaves the stored path in place across a retry, rather than rewriting it", () => {
+    // A failed provider attempt comes back to `/login?error=oauth_failed` with no
+    // `returnTo` on it. It answers `undefined` - leave the deep link written before
+    // the attempt alone - rather than reading it back out and storing it again, which
+    // is a clear-text round trip of what the store holds (#1414).
     rememberReturnTo("/agents/a-1");
 
-    expect(returnToForAttempt(url("error=oauth_failed"))).toBe("/agents/a-1");
+    expect(returnToForAttempt(url("error=oauth_failed"))).toBeUndefined();
+
+    rememberReturnTo(returnToForAttempt(url("error=oauth_failed")));
+    expect(takeReturnTo()).toBe("/agents/a-1");
   });
 
-  it("prefers the URL's own deep link over what is stored", () => {
-    rememberReturnTo("/agents/older");
-
+  it("prefers the URL's own deep link over leaving the stored one", () => {
     expect(returnToForAttempt(url("error=oauth_failed&returnTo=/agents/newer"))).toBe(
       "/agents/newer",
     );
-  });
-
-  it("answers with nothing on a retry that never carried one", () => {
-    expect(returnToForAttempt(url("error=oauth_failed"))).toBeNull();
-  });
-
-  it("survives a browser that refuses to be read", () => {
-    vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
-      throw new Error("denied");
-    });
-
-    expect(returnToForAttempt(url("error=oauth_failed"))).toBeNull();
   });
 });

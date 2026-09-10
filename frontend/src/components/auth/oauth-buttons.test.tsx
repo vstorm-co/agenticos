@@ -59,10 +59,12 @@ describe("the OAuth buttons", () => {
     expect(screen.getByRole("link")).toHaveAttribute("href", expect.not.stringContaining("a-1"));
   });
 
-  it("forgets an abandoned one, rather than resuming it on the next attempt", async () => {
+  it("forgets an abandoned one on a fresh attempt with no deep link", async () => {
+    // A fresh sign-in with nothing in the URL passes `null` (what `returnToForAttempt`
+    // answers there) - clear the stale one. A retry passes `undefined` and leaves it.
     process.env.NEXT_PUBLIC_OAUTH_PROVIDERS = "google";
     window.sessionStorage.setItem("oauthReturnTo", "/agents/gone");
-    render(<OAuthBlock label="or" />);
+    render(<OAuthBlock label="or" returnTo={null} />);
 
     await press(/continueWith/);
 
