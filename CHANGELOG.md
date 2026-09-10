@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.382] - 2026-09-10
+
+### Fixed
+
+- **A departed member's linked chat account no longer costs a transcription
+  before it is refused.** The router read the membership only at the run, after
+  the message's attachments had been fetched, stored and a voice note billed to
+  the organization's transcription credential. A direct message now reads the
+  membership first; a linked identity whose member is gone is treated as
+  unlinked from that point, and the invite-on-refusal path is rate limited.
+  (#1500)
+
 ## [0.0.381] - 2026-09-10
 
 ### Security
