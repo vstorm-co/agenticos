@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.397] - 2026-09-10
+
+### Fixed
+
+- **The default SMTP configuration sends mail.** `SMTP_PORT` defaults to `587`,
+  the STARTTLS port, but `SMTP_TLS=true` opened implicit TLS from the first
+  byte, so a server configured exactly as documented refused every handshake
+  and passwordless sign-in, password resets, invitations and every notification
+  failed silently. The scheme now follows the port - `465` implicit TLS, `587`
+  and `25` STARTTLS, `SMTP_TLS=false` plaintext - and an empty `SMTP_USER` is an
+  unauthenticated relay rather than a refused login. A server that speaks
+  implicit TLS on a non-standard port sets `SMTP_TLS_MODE=implicit`
+  (`starttls` forces the other scheme; `auto`, the default, keeps the port
+  rule). (#1548)
+
 ## [0.0.396] - 2026-09-10
 
 ### Security
