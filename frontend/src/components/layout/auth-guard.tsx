@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
-import { invitationTokenFrom } from "@/lib/invitation-links";
+import { invitationTokenFrom, pendingLandingFor } from "@/lib/invitation-links";
 import { stageInvitation } from "@/lib/invitation-staging";
 import type { User } from "@/types";
+import { ErrorState } from "@/components/states";
 import { Spinner } from "@/components/ui";
 import { useTranslations } from "next-intl";
 
@@ -23,6 +24,29 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // the store, leaving the previous account's cache under the new one.
   const adoptSession = useAdoptSession();
   const [checking, setChecking] = useState(!isAuthenticated);
+  // The invitation token whose staging failed, kept so the retry has it. The URL
+  // still carries it too: the guard does not leave the link until the exchange has
+  // succeeded, because the token is the only credential the invitee holds.
+  const [unstagedToken, setUnstagedToken] = useState<string | null>(null);
+
+  // Exchange the token for an httpOnly-cookie handle before the sign-in detour, so
+  // it never rides `returnTo`, browser history or `sessionStorage` (#1414). The
+  // landing carries only the flow id; an invalid token is reported there, once there
+  // is a session to report to. A staging the server refused - transiently, or with a
+  // rate limit - keeps the invitee here to try again rather than sending them to sign
+  // in with nothing staged to come back to.
+  const stageAndGo = useCallback(
+    async (token: string) => {
+      const flow = await stageInvitation(token);
+      if (flow) {
+        setUnstagedToken(null);
+        router.replace(`${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pendingLandingFor(flow))}`);
+      } else {
+        setUnstagedToken(token);
+      }
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (isAuthenticated) return;
@@ -39,14 +63,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         const { pathname, search, hash } = window.location;
         const invitationToken = invitationTokenFrom(pathname);
         if (invitationToken) {
-          // Exchange the token for an httpOnly-cookie handle before the sign-in
-          // detour, so it never rides `returnTo`, browser history or
-          // `sessionStorage` (#1414). The landing carries no credential; an
-          // invalid token is reported there, once there is a session to report to.
-          await stageInvitation(invitationToken);
-          router.replace(
-            `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(ROUTES.INVITATION_PENDING)}`,
-          );
+          await stageAndGo(invitationToken);
         } else {
           router.replace(
             `${ROUTES.LOGIN}?returnTo=${encodeURIComponent(pathname + search + hash)}`,
@@ -58,13 +75,35 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
 
     verify();
-  }, [isAuthenticated, router, adoptSession]);
+  }, [isAuthenticated, router, adoptSession, stageAndGo]);
+
+  const retryStaging = async (token: string) => {
+    setChecking(true);
+    try {
+      await stageAndGo(token);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   if (checking && !isAuthenticated) {
     return (
       <div className="flex h-screen items-center justify-center" role="status" aria-live="polite">
         <Spinner className="text-muted-foreground h-6 w-6" />
         <span className="sr-only">{t("checkingAuthentication")}</span>
+      </div>
+    );
+  }
+
+  if (unstagedToken && !isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <ErrorState
+          className="w-full max-w-md"
+          title={t("invitationNotStaged")}
+          description={t("invitationNotStagedHint")}
+          cta={{ label: t("retryInvitation"), onClick: () => void retryStaging(unstagedToken) }}
+        />
       </div>
     );
   }
