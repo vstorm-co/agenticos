@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.392] - 2026-09-10
+
+### Security
+
+- **Revoking a session closes its open chat.** A chat WebSocket authenticated
+  once, at the handshake, and was served for its whole life - an impersonation
+  ended or an account suspended mid-conversation kept answering until the
+  client hung up. The session re-validates the handshake credential before
+  every incoming frame and, on a refusal, cancels the in-flight turn and closes
+  the socket with `4001`. A turn already streaming finishes; the revocation
+  lands on the next frame. A merely expired access token is tolerated, so a
+  live socket outlives its thirty-minute token as before. (#1536)
+
 ## [0.0.391] - 2026-09-10
 
 ### Fixed
