@@ -347,6 +347,50 @@ class TestPrepare:
         assert build.call_args.kwargs["extra_toolsets"] == ["surface-toolset", "linear-toolset"]
 
     @pytest.mark.anyio
+    async def test_a_publisher_fallback_guest_does_not_borrow_the_publishers_mcp(self):
+        """An unidentified channel visitor runs under the binding's publisher, and
+        `acts_for_sender` is set on that surface - but the publisher is a stand-in,
+        not a person whose own connected accounts may be reached for. Resolving one
+        would speak to a third-party MCP server with the publisher's credentials on
+        an anonymous guest's behalf (#1469), so no personal identity is passed, and
+        the parked terms record why - so a resume refuses it too, without the
+        request that carried the fact."""
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            subject_is_publisher_fallback=True,
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as toolsets,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, acts_for_sender=True)
+
+        assert toolsets.await_args.kwargs["sender_user_id"] is None
+        assert prepared.admitted_as.subject_is_publisher_fallback is True
+
+    @pytest.mark.anyio
     async def test_a_resumed_run_gets_its_servers_back(self):
         """The parked call may be an MCP tool, and it is answered after resume.
 
@@ -1783,6 +1827,7 @@ class TestParking:
                 "acts_for_sender": False,
                 "audience_user_id": None,
                 "audience_room_key": None,
+                "subject_is_publisher_fallback": False,
             },
         }
 
@@ -2240,6 +2285,35 @@ class TestResume:
         )
 
         assert build.call_args.kwargs["audience"] == RunAudience()
+
+    @pytest.mark.anyio
+    async def test_a_parked_publisher_fallback_run_does_not_borrow_the_publishers_mcp(self):
+        """The resume half of #1469. A publisher-fallback run parks with
+        `acts_for_sender` set and its user_id the publisher, so the naive resume
+        resolved personal MCP to the publisher and reached a third-party service
+        with their credentials on an anonymous guest's behalf. The parked terms
+        record that the subject was a stand-in - the approver's context cannot say
+        so - and the continuation keys personal MCP on nobody."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {
+                        "approval_mode": "follow_agent",
+                        "acts_for_sender": True,
+                        "audience_user_id": None,
+                        "audience_room_key": None,
+                        "subject_is_publisher_fallback": True,
+                    },
+                }
+            )
+
+        assert self.resumed_run.user_id is not None, "the run still records the publisher"
+        assert toolsets.await_args.kwargs["sender_user_id"] is None
 
     @pytest.mark.anyio
     async def test_a_parked_room_run_resumes_still_in_its_room(self):
