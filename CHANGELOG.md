@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.393] - 2026-09-10
+
+### Changed
+
+- **The `orgs/**`, `me/**` and `admin/**` forwarders are `platformProxy`
+  mounts.** Twenty-odd hand-rolled route files each repeated the cookie check,
+  the bearer, the error mapping and the JSON response, and silently dropped the
+  active-organization header, byte-accurate bodies and `no-store`. They are
+  one-line mounts now, about 1200 lines fewer. Admin routes drop a redundant
+  frontend pre-check the backend's `CurrentAppAdmin` already enforces, and the
+  whole query string is forwarded, which fixes the users table's dropped
+  `sort_by` and `sort_dir`. The avatar, integrations, OAuth callback and
+  impersonate routes stay hand-rolled because each does something a plain
+  forward cannot. (#1539)
+
 ## [0.0.392] - 2026-09-10
 
 ### Security
