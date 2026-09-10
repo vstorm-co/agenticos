@@ -42,6 +42,7 @@ class _User:
         self.email = "kacper@example.com"
         self.full_name = "Kacper"
         self.is_active = True
+        self.credential_version = 0
 
 
 @pytest.fixture

@@ -23,6 +23,7 @@ from app.repositories import (
     channel_session_repo,
     chat_file_repo,
     conversation_repo,
+    member_repo,
 )
 from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
@@ -55,6 +56,8 @@ from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models.channel_bot import ChannelBot
@@ -289,8 +292,9 @@ class ChannelMessageRouter:
         Steps:
             1. Load bot config from DB.
             2. Check access policy.
-            3. Handle commands (/start, /new, /help, /link, /project, /unlink).
-            4. Resolve or create ChannelIdentity.
+            3. Resolve or create ChannelIdentity.
+            4. Handle commands (/start, /new, /help, /link, /unlink), the
+               state-changing ones gated on the same link admission as a turn.
             5. Resolve or create ChannelSession (+ Conversation).
             6. Rate-limit check.
             7. Hand an `@handle` message to that agent and stop.
@@ -323,11 +327,6 @@ class ChannelMessageRouter:
             await self._refuse_if_named(bot, incoming, exc.message)
             return
 
-        command_reply = await self._handle_command(incoming.text, incoming, bot, db)
-        if command_reply is not None:
-            await self._send_reply(bot, incoming, command_reply)
-            return
-
         try:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
@@ -335,10 +334,34 @@ class ChannelMessageRouter:
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
-        if identity.user_id is None and not admit_unlinked:
+
+        # Commands are handled after the identity is known, so the state-changing
+        # ones can be gated on the same admission the turn takes (#1455).
+        command_reply = await self._handle_command(
+            incoming.text, incoming, bot, db, identity, admit_unlinked
+        )
+        if command_reply is not None:
+            await self._send_reply(bot, incoming, command_reply)
+            return
+
+        if not admit_unlinked and not await self._sender_is_active_member(db, bot, identity):
             # Through `_refuse_if_named`, not `_send_reply`: a room message that
             # names a colleague passes the overheard gate on its handle, and the
-            # invitation must not interrupt two people talking to each other.
+            # invitation must not interrupt two people talking to each other. A
+            # linked sender whose member is gone is refused here too, before any
+            # attachment is fetched, stored or transcribed for a turn
+            # `_membership_context` refuses anyway - which is now the second lock
+            # rather than the first (#1456).
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                # Consumed on the refusal path too, not only before a turn:
+                # otherwise a refused sender mints a link request and an
+                # invitation on every message with no allowance ever spent
+                # (#1516). Rides the invite's own channel - shown where the
+                # invite would show, silent where it would stay silent.
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
             await self._refuse_if_named(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
@@ -970,6 +993,24 @@ class ChannelMessageRouter:
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is `_admits_unlinked`'s to enforce.
 
+    async def _sender_is_active_member(
+        self, db: AsyncSession, bot: ChannelBot, identity: ChannelIdentity
+    ) -> bool:
+        """Whether the sender's linked account is still an active member of this org.
+
+        A link in `channel_identities` outlives the deactivation of the account
+        behind it, so a linked-but-departed sender must be treated as unlinked
+        before any attachment is fetched or transcribed - the joined read
+        `member_repo.get_active` is what tells the two apart, and the same read
+        `_membership_context` makes at the run (#1456).
+        """
+        if identity.user_id is None:
+            return False
+        membership = await member_repo.get_active(
+            db, organization_id=bot.organization_id, user_id=identity.user_id
+        )
+        return membership is not None
+
     def _admits_unlinked(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
         """Whether somebody with no linked account may be answered here.
 
@@ -1068,12 +1109,45 @@ class ChannelMessageRouter:
         )
 
     async def _handle_command(
-        self, text: str, incoming: IncomingMessage, bot: ChannelBot, db: AsyncSession
+        self,
+        text: str,
+        incoming: IncomingMessage,
+        bot: ChannelBot,
+        db: AsyncSession,
+        identity: ChannelIdentity,
+        admit_unlinked: bool,
     ) -> str | None:
-        """Handle bot commands. Returns reply text or None if not a command."""
+        """Handle bot commands. Returns reply text or None if not a command.
+
+        `/new` and `/unlink` change shared state, so they are gated on the same
+        admission the turn takes: a sender a link-required room would refuse
+        cannot reset its session or unlink from it either (#1455). `/start`,
+        `/help` and `/link` stay open to an unlinked sender - `/link` is the way
+        back.
+
+        The admission is active membership, not the bare link: a `channel_identity`
+        keeps its `user_id` after that member is deactivated or removed, and the
+        turn reads through that with `member_repo.get_active` in
+        `_membership_context`. So an offboarded account - refused a turn - must not
+        reset the shared session or own the conversation it opens either.
+        """
         text = _as_command(text)
         if not text.startswith("/"):
             return None
+
+        async def _admission() -> tuple[bool, UUID | None]:
+            """Whether this sender may change shared state, and the active member
+            behind the chat account - `None` when the link outlived the
+            membership, so the issuer is resolved the same way the turn is."""
+            member = (
+                await member_repo.get_active(
+                    db, organization_id=bot.organization_id, user_id=identity.user_id
+                )
+                if identity.user_id is not None
+                else None
+            )
+            issuer = identity.user_id if member is not None else None
+            return issuer is not None or admit_unlinked, issuer
 
         # Only the first word: no command takes an argument any more. `/link`
         # was the one that did, and it took a code somebody copied out of the
@@ -1097,15 +1171,22 @@ class ChannelMessageRouter:
             )
 
         if cmd == "/new":
+            admitted, issuer = await _admission()
+            if not admitted:
+                return await self._invite_to_link(incoming, db)
             session = await channel_session_repo.get_by_bot_and_chat(
                 db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
             )
             if session:
-                identity = await channel_identity_repo.get_by_id(db, session.identity_id)
+                # The issuer, not `session.identity_id`: the new conversation
+                # belongs to whoever reset the thread, not to the person who
+                # opened it (#1455). `None` for an admitted-but-unnamed sender - a
+                # former member in an open room - so a stale link does not deed
+                # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
                     title=f"{incoming.platform.capitalize()} Chat",
-                    user_id=identity.user_id if identity else None,
+                    user_id=issuer,
                     organization_id=bot.organization_id,
                 )
                 await channel_session_repo.update(
@@ -1118,6 +1199,16 @@ class ChannelMessageRouter:
             # carrying a code somebody copied. Kept because "how do I connect
             # this?" is a question people ask in words, and because a URL that
             # expired needs a way to ask for another.
+            if incoming.chat_type == "private":
+                # The other door onto `_invite_to_link`, and it runs before the
+                # admission gate's allowance is consulted, so a refused sender
+                # could churn link requests through `/link` where the plain
+                # message is now throttled (#1516). Only in a direct message,
+                # where the invite actually mints a request.
+                try:
+                    await self._check_rate_limit(bot, str(identity.id))
+                except BadRequestError as exc:
+                    return exc.message
             try:
                 return await self._invite_to_link(incoming, db)
             except Exception:
@@ -1125,15 +1216,12 @@ class ChannelMessageRouter:
                 return "A system error occurred. Please try again later."
 
         if cmd == "/unlink":
-            identity = await channel_identity_repo.get_by_platform_user(
-                db,
-                platform=incoming.platform,
-                platform_user_id=incoming.platform_user_id,
+            admitted, _issuer = await _admission()
+            if not admitted:
+                return await self._invite_to_link(incoming, db)
+            await channel_identity_repo.update(
+                db, db_identity=identity, update_data={"user_id": None}
             )
-            if identity:
-                await channel_identity_repo.update(
-                    db, db_identity=identity, update_data={"user_id": None}
-                )
             return "Your account has been unlinked."
 
         return None

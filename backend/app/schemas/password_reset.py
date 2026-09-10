@@ -30,6 +30,18 @@ class PasswordResetConfirm(BaseSchema):
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
+class PasswordChangeRequest(BaseSchema):
+    """A signed-in user changing their own password, proving the current one.
+
+    `current_password` only has to be present; whether it is right is decided
+    against the stored hash, not by its length. `new_password` takes the same
+    bounds every other password field does.
+    """
+
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
 class PasswordResetResponse(BaseSchema):
     """Symmetric response for both request + confirm to avoid email enumeration."""
 

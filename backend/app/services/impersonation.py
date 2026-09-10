@@ -15,10 +15,10 @@ that row in a `sid` claim. Three consequences, each of them the point:
   The auth dependency calls :meth:`verify` on every request carrying `act`, and
   refuses the token the moment the row is gone, deactivated or past
   `expires_at`, or the administrator behind it has been suspended or demoted.
-  So `DELETE /sessions`, a password reset by email, the administrator's own
-  *End impersonation*, a deleted administrator (the column cascades) and a
-  suspended one all end it at once, through the machinery every other session
-  already had. A token minted before this module - `act` with no `sid` - is
+  So `DELETE /sessions`, a password change (from Settings or by email), the
+  administrator's own *End impersonation*, a deleted administrator (the column
+  cascades) and a suspended one all end it at once, through the machinery every
+  other session already had. A token minted before this module - `act` with no `sid` - is
   refused outright, because it is exactly the credential this replaces.
 - **Nothing extends it.** There is no refresh token: the window is the access
   token's own lifetime, and `SessionService.validate_refresh_token` declines an
@@ -51,7 +51,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit, set_impersonator
 from app.core.background import spawn_after_commit
-from app.core.exceptions import AuthenticationError, BadRequestError
+from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
 from app.core.security import create_access_token
 from app.db.models.user import User
 from app.repositories import session_repo, user_repo
@@ -114,6 +114,26 @@ def _uuid_claim(payload: dict[str, Any], name: str) -> UUID | None:
 def impersonator_from(payload: dict[str, Any]) -> UUID | None:
     """The administrator behind an impersonated token, or None for an ordinary one."""
     return _uuid_claim(payload, "act")
+
+
+def refuse_binding_while_impersonating(action: str) -> None:
+    """Refuse fastening an external identity to the acting account under an impersonation.
+
+    Confirming a chat link or completing an integration's OAuth attaches that
+    identity to whoever the request acts as. Under an impersonation that is the
+    target, so the administrator's own chat account or OAuth grant would be bound
+    to somebody else's account, outlive the hour the impersonation is bounded to,
+    and stand recorded against a person who never consented (#1438). An
+    administrator repairing a member's connection is not a flow this platform has,
+    so the binding is refused rather than audited.
+
+    Args:
+        action: Named for the refusal message - "Linking a chat account".
+    """
+    if current_impersonation() is not None:
+        raise AuthorizationError(
+            message=f"{action} is not allowed while impersonating another account"
+        )
 
 
 class ImpersonationService:
