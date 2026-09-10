@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.389] - 2026-09-10
+
+### Fixed
+
+- **The Agents "?" walk offers to create an agent again.** The offer at the end
+  of the first-run tour is suppressed for an organization that already has an
+  agent, and that suppression also swallowed the offer at the end of the Agents
+  help walk - the walk whose whole point is asking to build one. The count gate
+  now applies only to the tour; a "?" replay offers regardless. (#1515)
+
 ## [0.0.388] - 2026-09-10
 
 ### Performance
