@@ -1,55 +1,20 @@
 """Sync source configuration schemas."""
 
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from pydantic import Field
 
 from app.schemas.base import BaseSchema
 
-ConnectorFieldType = Literal["string", "boolean", "integer", "textarea"]
-"""What the wizard draws for a field, and the whole vocabulary it can draw.
-
-A `Literal` because these are the field kinds the wizard can render. It no
-longer renders them itself: the frontend maps each to JSON Schema in
-`connectorConfigToJsonSchema` and draws it with `SchemaForm`, the same component
-the agent Builder and the vault secret forms use (#568). Until the two backend
-schema shapes converge - JSON Schema everywhere, this `Literal` gone - that
-mapping is the bridge, and #1093 is the removal.
-"""
-
-
-class ConnectorConfigField(BaseSchema):
-    """Describes a single configuration field for a connector.
-
-    **This is `CONFIG_SCHEMA`'s own type, not a copy of it.** A connector
-    declares its fields as these, so a key misspelled in a declaration is a type
-    error where it is written. It used to be `dict[str, dict[str, Any]]` there
-    and this model only at the edge, which meant `validate_config` read
-    `field_spec.get("required")` from an untyped mapping - a declaration that
-    said `require` disabled that field's check silently, and the wizard drew a
-    required field as optional (#562).
-
-    `label` is required, because it is what `SyncSourceConfigureStep` draws
-    above the input - it defaulted to `""`, and only `validate_config` fell back
-    to the key, so a connector omitting it got an unlabelled box on the form and
-    a refusal that read sensibly.
-
-    No `secret` flag any more. A connector's configuration says how to *find*
-    the documents; the credential is a vault secret the source references by id,
-    so there is no field here for a form to mask, encrypt or round-trip as
-    `••••••` (#937).
-    """
-
-    type: ConnectorFieldType
-    label: str = Field(min_length=1)
-    required: bool = False
-    help: str | None = None
-    default: Any = None
-
 
 class ConnectorInfo(BaseSchema):
     """Metadata about an available connector type.
+
+    `config_schema` is the JSON Schema of the connector's `CONFIG_MODEL`, the
+    same shape `CapabilityCatalogEntry.config_schema` carries, so the wizard
+    renders it with `SchemaForm` - the component the agent Builder and the vault
+    secret forms already use - rather than a second renderer (#1093).
 
     `secret_kind` is what a credential for this connector has to be, so the
     wizard can offer the organization's matching vault secrets and nothing else -
@@ -58,7 +23,9 @@ class ConnectorInfo(BaseSchema):
 
     type: str
     name: str
-    config_schema: dict[str, ConnectorConfigField]
+    config_schema: dict[str, Any] = Field(
+        description="JSON Schema the configuration form is generated from"
+    )
     secret_kind: str
     enabled: bool
 

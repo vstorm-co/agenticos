@@ -126,8 +126,7 @@ _PATTERN_ALLOWED: dict[str, str] = {
 }
 
 # A property whose type is one of these cannot be carrying a credential
-# whatever it is called - `ConnectorConfigField.secret` is a flag saying "this
-# input should be masked", which is the opposite of a leak.
+# whatever it is called: a secret is a string, masked with `format: "password"`.
 _HARMLESS_TYPES = frozenset({"boolean", "integer", "number"})
 
 

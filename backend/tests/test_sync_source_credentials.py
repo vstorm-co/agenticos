@@ -23,18 +23,14 @@ from __future__ import annotations
 
 import uuid
 from types import SimpleNamespace
-from typing import get_args
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import ValidationError
 
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import organization_secret_repo
 from app.schemas.sync_source import (
-    ConnectorConfigField,
-    ConnectorFieldType,
     SyncSourceCreate,
     SyncSourceUpdate,
 )
@@ -282,42 +278,44 @@ class TestWhatTheConnectorsDeclare:
 
         assert kinds == {"gdrive": "gcp_service_account", "s3": "aws_credentials"}
 
-    def test_a_connector_cannot_ask_for_a_secret_in_its_config_schema(self):
+    def test_no_connector_config_schema_carries_a_credential_field(self):
         """The `secret: true` marker is gone, and with it `_mask_config`,
         `_secret_fields` and the encryption they existed for.
 
-        A declaration is a `ConnectorConfigField` now rather than a bare mapping,
-        so this is no longer a sweep over what the two shipped connectors happen
-        to say: the field does not exist to be set, in any connector written
-        later, and `ty` refuses one that tries (#562)."""
-        assert "secret" not in ConnectorConfigField.model_fields
-
-    def test_every_declared_field_is_something_the_wizard_can_draw(self):
-        """`type` is what `SyncSourceConfigureStep` branches on, and its fall-through
-        is a text input - so a connector inventing a type got a field the form
-        collects wrongly, with nothing reporting it."""
+        A connector declares its config as a Pydantic model now, and a credential
+        field would surface as a `SecretStr` - the one thing `SchemaForm` masks,
+        stamped `format: "password"` in the JSON Schema. No connector emits one:
+        the credential is a vault secret the source references by id (#937)."""
         from app.services.rag.connectors import CONNECTOR_REGISTRY
 
-        drawable = set(get_args(ConnectorFieldType))
         for name, cls in CONNECTOR_REGISTRY.items():
-            for field, spec in cls.CONFIG_SCHEMA.items():
-                assert spec.type in drawable, f"{name}.{field} declares {spec.type!r}"
+            schema = cls.CONFIG_MODEL.model_json_schema()
+            for field, prop in schema.get("properties", {}).items():
+                branches = [prop, *prop.get("anyOf", [])]
+                assert all(b.get("format") != "password" for b in branches), f"{name}.{field}"
+
+    def test_every_declared_field_is_something_the_wizard_can_draw(self):
+        """`SchemaForm` renders a fixed set of kinds; a property outside it falls
+        through to a text box, which collects the value wrongly with nothing
+        reporting it. An optional field arrives as `anyOf: [..., {null}]`, so the
+        null branch is looked past the way the form looks past it."""
+        from app.services.rag.connectors import CONNECTOR_REGISTRY
+
+        drawable = {"string", "integer", "number", "boolean", "array"}
+        for name, cls in CONNECTOR_REGISTRY.items():
+            schema = cls.CONFIG_MODEL.model_json_schema()
+            for field, prop in schema.get("properties", {}).items():
+                types = {branch.get("type") for branch in prop.get("anyOf", [prop])} - {"null"}
+                assert types <= drawable, f"{name}.{field} declares {types}"
 
     async def test_a_required_field_is_refused_by_the_label_the_form_shows(self):
         """The wizard marks the input this names, so it has to be the name the
-        wizard drew - not the key underneath it."""
+        wizard drew - the model's `title` - not the key underneath it."""
         refusal = await S3Connector().validate_config({})
 
         assert refusal is not None
         assert refusal.field == "bucket"
         assert refusal.message == "Missing required field: Bucket Name"
-
-    def test_a_field_cannot_be_declared_without_the_label_the_form_draws(self):
-        """`SyncSourceConfigureStep` renders `label` above the input, and only
-        `validate_config` ever fell back to the key - so a connector omitting it
-        got an unlabelled box on the form and a refusal that read fine."""
-        with pytest.raises(ValidationError):
-            ConnectorConfigField(type="string", required=True)
 
     def test_the_connector_listing_publishes_the_kind(self):
         listed = SyncSourceService.list_connectors()

@@ -523,8 +523,9 @@ and the rest is what stops the one shape from meaning two things again:
   whoever can drop a file in the synced folder, and both checks in
   `app/services/rag/remote_names.py` run inside a background sync, where the
   reader is a log rather than a form. Same for a Google Drive source read back
-  without its credential: the row is stored, and `CONFIG_SCHEMA` is what refuses
-  it at the route.
+  without its credential: the row is stored, and the connector's
+  `validate_config`, derived from its `CONFIG_MODEL`, is what refuses it at the
+  route.
 - **A conflict.** `AlreadyExistsError` reports a fact about a row that already
   exists, not about the shape of what was sent — and which of a form's own
   inputs produced the taken value is a thing only the form knows, since an
@@ -877,8 +878,9 @@ Each ingested document gets:
 Remote document sources use pluggable connectors in
 `app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`
 with `list_files()` and `_fetch()`, declares a `SECRET_KIND` naming the vault
-secret that authenticates it, and declares a `CONFIG_SCHEMA` of
-`ConnectorConfigField`s saying how to find the documents. `download_file()` is
+secret that authenticates it, and declares a `CONFIG_MODEL` - a Pydantic model
+saying how to find the documents, published to the wizard as JSON Schema.
+`download_file()` is
 concrete and decides where a file may land. See `docs/patterns.md` for how to
 add one, and `docs/howto/add-sync-connector.md` for a worked example.
 

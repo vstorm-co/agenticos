@@ -11,6 +11,7 @@ import { apiClient } from "./api-client";
 import { saveBlob, type FileAccess } from "./file-access";
 import { qk } from "./query-keys";
 import type { KBParsedContent } from "@/types";
+import type { JsonSchema } from "@/types/agents";
 
 export interface RAGSearchRequest {
   query: string;
@@ -125,28 +126,15 @@ export async function listSyncSources(collectionName?: string): Promise<SyncSour
   return apiClient.get<SyncSourceList>(`/rag/sync/sources${params}`);
 }
 
-/**
- * What the wizard draws for a field, and the whole vocabulary it can draw.
- *
- * Mirrors `ConnectorFieldType` in `app/schemas/sync_source.py`. The wizard no
- * longer renders these directly: `connectorConfigToJsonSchema` maps each one to
- * the JSON Schema `SchemaForm` reads, so a fifth type is a case there (a compile
- * error until it is chosen) rather than a silent fall-through to a text box.
- */
-export type ConnectorFieldType = "string" | "boolean" | "integer" | "textarea";
-
-export interface ConnectorConfigField {
-  type: ConnectorFieldType;
-  required: boolean;
-  label: string;
-  help?: string;
-  default?: unknown;
-}
-
 export interface ConnectorInfo {
   type: string;
   name: string;
-  config_schema: Record<string, ConnectorConfigField>;
+  /**
+   * The JSON Schema of the connector's `CONFIG_MODEL`, the same shape a
+   * capability publishes - so the wizard draws it with `SchemaForm` unadapted
+   * (#1093).
+   */
+  config_schema: JsonSchema;
   /**
    * What kind of vault secret this connector authenticates with - so the wizard
    * offers the organization's matching credentials and nothing else. `none` for
