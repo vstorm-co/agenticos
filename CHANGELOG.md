@@ -17,6 +17,48 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.381] - 2026-09-10
+
+### Security
+
+- **A password change revokes the account's other sessions.** Changing a password
+  from Settings hashed the new one and stopped, so every other browser's refresh
+  token - and any impersonation of the account - stayed valid. Ordinary access
+  tokens now carry a `sid` naming their session, and a password change deactivates
+  every session but the one that made it; a change that names no session (an
+  admin resetting another account, a token minted before this) revokes all of
+  them. Ships the self-service password-change endpoint, and an explicit
+  `password: null` is a no-op rather than a 500. (#1498)
+
+## [0.0.380] - 2026-09-10
+
+### Documentation
+
+- **The SMTP settings are documented.** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASSWORD`, `SMTP_TLS`, `EMAIL_FROM` and `EMAIL_FROM_NAME` appeared
+  nowhere in `docs/configuration.md`. A new section lists each with its default
+  and what depends on mail - invitations, password resets, notifications - all
+  of which go silently unsent without it, and the production checklist says why
+  email is deliberately not on it. (#1542)
+
+### Changed
+
+- **The frontend's `package.json` version literal is caught up.** The 0.0.379 cut
+  moved the backend's version and the lock but left `frontend/package.json` at
+  0.0.378; it reads 0.0.380 from this release on. (#1549)
+
+## [0.0.379] - 2026-09-10
+
+### Security
+
+- **Binding an identity while impersonating is refused.** Confirming a chat-link
+  code, starting a personal or organization MCP OAuth flow, the GitHub and portal
+  variants, and typing a bearer token into a member's MCP connection all fastened
+  the *administrator's own* identity or credential onto the impersonated account,
+  and the binding outlived the impersonation's hour. Every one of those seams now
+  answers 403 under an impersonation, before a token is read or a pending row is
+  written. (#1491)
+
 ## [0.0.378] - 2026-09-08
 
 ### Added
