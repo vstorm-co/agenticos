@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.406] - 2026-09-11
+
+### Fixed
+
+- **Whether a personal MCP connection is usable is decided once, on the
+  server.** The console re-derived it and disagreed with the backend: a bearer
+  token whose sealing key had been rotated away read *Connected* in the chat
+  controls and unavailable in the next turn. `McpConnection.account_authorized`
+  is the single side-effect-free answer - an OAuth grant with a payload, a token
+  whose key version is still configured, or no token at all - the run path uses
+  it, and `McpConnectionRead` carries it to the client as `authorized`. (#1575)
+
 ## [0.0.405] - 2026-09-11
 
 ### Fixed
