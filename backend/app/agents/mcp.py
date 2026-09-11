@@ -219,11 +219,14 @@ def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:
     return [spec for spec in specs if id(spec) not in losers]
 
 
-async def build_mcp_toolsets(specs: list[McpServerSpec]) -> list[Any]:
-    """Toolsets for every reachable server in *specs* (probed concurrently)."""
-    specs = _dedupe_by_prefix(specs)
-    if not specs:
-        return []
+async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, Any | None]]:
+    """Every spec paired with its toolset, or `None` where its probe failed.
+
+    Probed concurrently, in the order given. A caller that has to decide
+    something about the servers that actually answered - which of two colliding
+    prefixes is attached (#1442) - reads this rather than `build_mcp_toolsets`,
+    which only says what survived.
+    """
 
     async def _try(spec: McpServerSpec) -> Any | None:
         try:
@@ -236,4 +239,12 @@ async def build_mcp_toolsets(specs: list[McpServerSpec]) -> list[Any]:
         return _make_toolset(spec)
 
     results = await asyncio.gather(*(_try(spec) for spec in specs))
-    return [toolset for toolset in results if toolset is not None]
+    return list(zip(specs, results, strict=True))
+
+
+async def build_mcp_toolsets(specs: list[McpServerSpec]) -> list[Any]:
+    """Toolsets for every reachable server in *specs* (probed concurrently)."""
+    specs = _dedupe_by_prefix(specs)
+    if not specs:
+        return []
+    return [toolset for _spec, toolset in await probe_toolsets(specs) if toolset is not None]
