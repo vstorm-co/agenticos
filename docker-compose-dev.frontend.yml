@@ -43,5 +43,5 @@ services:
 
 networks:
   backend:
-    name: agenticos_backend
+    name: ${AGENTICOS_NETWORK:-agenticos_backend}
     external: true

@@ -243,6 +243,14 @@ deliberately leaves to whatever terminates TLS.
     name. A deployment that predates both fixes is recreated under the new
     names on its next `up`; nothing has to be removed by hand.
 
+    The two projects still meet on a network with a fixed name - `agenticos_edge`
+    in production, `agenticos_backend` on the dev server - because the frontend
+    joins it as an external network. A host running **two** AgenticOS stacks sets
+    `AGENTICOS_EDGE_NETWORK` and `AGENTICOS_DATA_NETWORK` (or `AGENTICOS_NETWORK`)
+    apart in each stack's `backend/.env`; otherwise both stacks' `db`, `redis`
+    and `app` resolve on one bridge, and a request can reach the neighbour's
+    database.
+
 ## Start it, and create the first account
 
 `make prod` pulls the images, starts the stack and runs the migrations - the

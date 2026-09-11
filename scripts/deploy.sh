@@ -184,8 +184,11 @@ compose "${FRONTEND[@]}" up -d
 wait_healthy() {
   local service="$1"; shift
   local cid attempt status
-  cid=$(compose "$@" ps -q "$service")
   for attempt in $(seq 1 60); do
+    # Re-read every round, and with `-a`: between restart attempts the container
+    # is stopped and `ps -q` alone lists nothing, which would pin an empty id
+    # for the whole wait.
+    cid=$(compose "$@" ps -a -q "$service")
     status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)
     case "$status" in
       healthy) echo "  $service: healthy"; return 0 ;;

@@ -377,12 +377,17 @@ services:
     restart: unless-stopped
 
 networks:
+  # Named so `docker-compose-prod.frontend.yml`, a project of its own, can join
+  # `edge` as an external network. Two stacks on one host set
+  # AGENTICOS_DATA_NETWORK and AGENTICOS_EDGE_NETWORK apart in backend/.env -
+  # both files read it - or every `db`, `redis` and `app` alias resolves across
+  # them.
   data:
-    name: agenticos_data
+    name: ${AGENTICOS_DATA_NETWORK:-agenticos_data}
     driver: bridge
     internal: true
   edge:
-    name: agenticos_edge
+    name: ${AGENTICOS_EDGE_NETWORK:-agenticos_edge}
     driver: bridge
 
 volumes:

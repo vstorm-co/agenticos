@@ -74,5 +74,5 @@ services:
 
 networks:
   edge:
-    name: agenticos_edge
+    name: ${AGENTICOS_EDGE_NETWORK:-agenticos_edge}
     external: true

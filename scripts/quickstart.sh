@@ -409,7 +409,8 @@ obtain_compose() {
 # touched, and the reader is told where the other stack is.
 compose_project() {
   local name
-  name="$(docker compose config --format json 2>/dev/null | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -1)"
+  name="$(docker compose --project-directory "$STACK_DIR" -f "$STACK_DIR/docker-compose.yml" config --format json 2>/dev/null \
+    | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -1)"
   [ -n "$name" ] || name="$(basename "$STACK_DIR" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9_-]//g')"
   printf '%s' "$name"
 }
@@ -553,7 +554,7 @@ wait_for_api() {
   step "Waiting for the API"
   local attempt status
   for attempt in $(seq 1 90); do
-    status=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app 2>/dev/null)" 2>/dev/null || echo starting)
+    status=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -a -q app 2>/dev/null)" 2>/dev/null || echo starting)
     case "$status" in
       healthy) ok "API answering on http://localhost:8000"; return 0 ;;
       unhealthy)

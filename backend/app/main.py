@@ -16,7 +16,7 @@ from app.api.router import api_router
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.knowledge import reset_retrieval_service
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, ConfigurationError
 from app.db.session import claim_pooled_engines, close_db, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
 from app.core.logfire_setup import instrument_asyncpg
@@ -55,6 +55,12 @@ class LifespanState(TypedDict, total=False):
     vector_store: BaseVectorStore
 
 
+_UNSEALABLE_TOKEN = (
+    "The bot's token cannot be unsealed on this deployment ({}). It was sealed under a vault "
+    "key this deployment does not hold; enter the token again to seal it under the current one."
+)
+
+
 async def _start_channel_polling(channel: str) -> None:
     """Open a stream for every active polling bot on this platform.
 
@@ -65,10 +71,11 @@ async def _start_channel_polling(channel: str) -> None:
     is one copy that will be missing a step.
 
     A bot whose token the vault cannot unseal - a rotated `VAULT_MASTER_KEY`, a
-    database started under another installation's key - is logged and skipped
-    rather than raised: one unreadable credential must not keep the whole API
-    from starting, which is what it did on a machine where the quickstart had
-    reused a development stack's database.
+    key version this deployment does not hold, a database started under another
+    installation's key - is logged, recorded `down` with the reason an operator
+    can act on, and skipped rather than raised: one unreadable credential must
+    not keep the whole API from starting, which is what it did on a machine
+    where the quickstart had reused a development stack's database.
     """
     async with get_db_context() as _db:
         _bots = await get_active_polling_bots(_db, channel)
@@ -77,9 +84,12 @@ async def _start_channel_polling(channel: str) -> None:
         try:
             token = unseal_bot_token(_bot)
             app_token = unseal_slack_app_token(_bot)
-        except BadRequestError:
+        except (BadRequestError, ConfigurationError) as exc:
             logger.exception(
                 "%s: bot %s skipped - its token cannot be unsealed", channel.capitalize(), _bot.id
+            )
+            await channel_connection_state.record_down(
+                _bot.id, _UNSEALABLE_TOKEN.format(exc.message)
             )
             continue
         await open_inbound_stream(

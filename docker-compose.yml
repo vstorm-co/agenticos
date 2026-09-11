@@ -378,10 +378,9 @@ services:
 
 networks:
   backend:
-    # Named explicitly so a file run as a project of its own - the dev server's
-    # frontend - can join it as an external network instead of guessing the
-    # project-prefixed default.
-    name: agenticos_backend
+    # No fixed name: every service that joins this network is in this file, so
+    # compose scopes it to the project, and two stacks on one host do not share
+    # a bridge on which `db` and `app` resolve to the neighbour's containers.
     driver: bridge
 
 volumes:

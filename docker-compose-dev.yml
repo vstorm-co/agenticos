@@ -274,7 +274,10 @@ services:
 
 networks:
   backend:
-    name: agenticos_backend
+    # Named so `docker-compose-dev.frontend.yml`, a project of its own, can join
+    # it as an external network. Set AGENTICOS_NETWORK in backend/.env when two
+    # stacks share a host - both files read it, so they still meet.
+    name: ${AGENTICOS_NETWORK:-agenticos_backend}
     driver: bridge
 
 volumes:
