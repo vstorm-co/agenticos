@@ -68,6 +68,30 @@ last changed; the `?v=` built from that is the only reason a replacement ever
 appears. A URL would also be one every client had to rewrite, since in any real
 deployment the API is not on the same origin as the pages.
 
+## Security headers
+
+Every console page carries a Content-Security-Policy and the usual hardening
+headers, set by Next from `frontend/src/lib/csp.ts` and
+`frontend/src/lib/security-headers.ts`, both asserted by tests. The policy is
+`default-src 'self'` with an explicit `connect-src` for the API origin and the
+chat WebSocket, `img-src` allowing `data:` for the brand glyphs and avatars,
+`frame-src 'self' blob:` for document previews, `object-src 'none'`, `base-uri
+'self'` and `frame-ancestors 'none'`.
+
+Alongside it sit `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy`
+that denies camera and geolocation and allows the microphone only on this
+origin, for the chat's speech-to-text.
+
+!!! warning "A reverse proxy must not add its own copies of these"
+
+    Nginx, Traefik or an ALB in front of the app passes these through unchanged
+    rather than setting its own. Two `Content-Security-Policy` headers on one
+    response are combined by the browser into their intersection, so a proxy that
+    adds a second — even a laxer one — only tightens the policy into something
+    that blocks a pane nobody meant to block; and a second `X-Frame-Options` lets
+    the browser pick either value.
+
 ## Who may register
 
 `signup_mode`, applied in `app/services/signup_policy.py` — the one place, and it
