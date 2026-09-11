@@ -1,44 +1,16 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
-// A relative import, not `@/lib/csp`: the path alias is resolved for the
-// application's own build and this file is read before it. The policy lives
-// there so a directive can be asserted - one that goes missing breaks a pane in
-// somebody's browser and nothing else (#1039).
-import { contentSecurityPolicy } from "./src/lib/csp";
+// A relative import, not `@/lib/...`: the path alias is resolved for the
+// application's own build and this file is read before it. The headers live
+// there so each can be asserted - one that goes missing breaks a pane in
+// somebody's browser and nothing else (#1039, #1416). Only the static ones are
+// set here: `headers()` runs at build, and the Content-Security-Policy names
+// the deployment's public origins, which exist at runtime, so
+// `src/middleware.ts` stamps that one.
+import { staticSecurityHeaders } from "./src/lib/security-headers";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
-
-const securityHeaders = [
-  {
-    key: "Content-Security-Policy",
-    value: contentSecurityPolicy,
-  },
-  {
-    key: "X-Content-Type-Options",
-    value: "nosniff",
-  },
-  {
-    key: "X-Frame-Options",
-    value: "DENY",
-  },
-  {
-    // 0, not "1; mode=block": the legacy auditor is deprecated and its blocking
-    // mode opens XS-Leak vectors, so OWASP is to disable it and rely on the CSP.
-    // This matches the backend and the bundled Nginx, so a proxied response does
-    // not carry two conflicting values.
-    key: "X-XSS-Protection",
-    value: "0",
-  },
-  {
-    key: "Referrer-Policy",
-    value: "strict-origin-when-cross-origin",
-  },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
-  },
-];
 
 /**
  * Pages that have moved, and the URL that still has to work.
@@ -97,7 +69,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/(.*)",
-        headers: securityHeaders,
+        headers: [...staticSecurityHeaders],
       },
       // Relax framing for the file endpoint so the chat preview panel can
       // embed PDFs/HTML in an iframe from the same origin. Listed AFTER the

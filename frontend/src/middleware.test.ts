@@ -1,5 +1,5 @@
 import { NextRequest, type NextResponse } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import middleware from "@/middleware";
 import { LOCALE_COOKIE_NAME } from "@/lib/locale-routing";
@@ -99,5 +99,31 @@ describe("a path that names a locale", () => {
     // The router revalidates routes of the locale just switched away from; writing
     // the cookie from one of those would undo the switch that has just been made.
     expect(cookieSetTo(middleware(request("/pl/orgs", { dest: "empty" })))).toBeNull();
+  });
+});
+
+describe("the content security policy", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is stamped on every page response, naming the deployment's public origins", () => {
+    // `next.config.ts` runs at build and could only name `localhost`; the API and
+    // socket origins are read from the environment per request (#1544), so the
+    // middleware is the one place the header can say what the deployment is.
+    vi.stubEnv("PUBLIC_API_URL", "https://api.acme.example");
+    vi.stubEnv("PUBLIC_WS_URL", "wss://ws.acme.example");
+
+    const policy = middleware(request("/orgs")).headers.get("content-security-policy");
+
+    expect(policy).toContain("connect-src 'self' https://api.acme.example wss://ws.acme.example");
+    expect(policy).toContain("frame-ancestors 'none'");
+  });
+
+  it("rides the locale redirect too, so no document leaves without it", () => {
+    const redirected = middleware(request("/orgs", { locale: "pl" }));
+
+    expect(redirected.headers.get("location")).toContain("/pl/orgs");
+    expect(redirected.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
 });
