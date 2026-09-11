@@ -45,9 +45,10 @@ from app.agents import mcp_oauth
 from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
-    build_mcp_toolsets,
+    prefix_collisions,
     probe_error_message,
     probe_mcp_server,
+    probe_toolsets,
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
@@ -1581,18 +1582,52 @@ class UnavailablePersonalService:
 
 
 @dataclass(frozen=True)
+class UnavailablePrefixCollision:
+    """Two of the agent's reachable servers reduce to one tool prefix, so only the
+    first of them is attached this turn.
+
+    The other would emit the same tool names and pydantic-ai raises on the
+    duplicate, aborting the run. Refused at publish; reached at run time only for
+    an agent published before that check existed or a connection renamed to a
+    colliding name afterwards, where it used to vanish with a log line nobody
+    reads (#1442). Decided among the servers whose probe answered, so `kept` is
+    a server the turn really has. Not a personal gap - the person talking cannot
+    fix it, the agent's author renames one connection - so it briefs the model
+    but is kept off the chat's connect card.
+
+    `server` and `kept` are the names the two present their tools under; they
+    can be the same name (an organization connection and a personal binding
+    both called `notion`), which is why each also carries its *binding* - the
+    connection, or each person's own account - so the briefing can tell the model
+    which of two same-named servers it holds. One connection bound twice is a
+    duplicate, not a collision, and is dropped without a report.
+    """
+
+    server: str
+    prefix: str
+    kept: str
+    server_binding: str
+    kept_binding: str
+
+
+# A binding a turn could not honour: a personal one with nobody or nothing to
+# speak through, or a server dropped because its tool prefix collided.
+UnavailableBinding = UnavailablePersonalService | UnavailablePrefixCollision
+
+
+@dataclass(frozen=True)
 class ResolvedMcpToolsets:
     """What a spec's MCP bindings amount to for one turn.
 
-    The toolsets that could be built, and the personal bindings that could not.
-    Two lists rather than one because the second is not a failure: a personal
-    binding with nobody to speak as is the designed outcome on an API key or a
-    schedule, and the run proceeds - told, in its instructions, what is missing
-    and where the person connects it.
+    The toolsets that could be built, and the bindings that could not. Two lists
+    rather than one because the second is not a failure: a personal binding with
+    nobody to speak as is the designed outcome on an API key or a schedule, and a
+    prefix collision narrows the agent rather than aborting it - the run proceeds,
+    told in its instructions what is missing.
     """
 
     toolsets: list[Any]
-    unavailable: list[UnavailablePersonalService]
+    unavailable: list[UnavailableBinding]
 
 
 async def build_toolsets_for_agent(
@@ -1627,7 +1662,8 @@ async def build_toolsets_for_agent(
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
-    unavailable: list[UnavailablePersonalService] = []
+    bindings: dict[int, str] = {}
+    unavailable: list[UnavailableBinding] = []
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
         connection_ids=[
@@ -1640,6 +1676,7 @@ async def build_toolsets_for_agent(
             spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
             if spec is not None:
                 specs.append(spec)
+                bindings[id(spec)] = f"each person's own {ref.catalog_key}"
             if gap is not None:
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
@@ -1666,15 +1703,45 @@ async def build_toolsets_for_agent(
                 connection.name,
             )
             continue
-        specs.append(
-            McpServerSpec(
-                name=connection.name,
-                url=connection.url,
-                headers=headers,
-                allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
-            )
+        spec = McpServerSpec(
+            name=connection.name,
+            url=connection.url,
+            headers=headers,
+            allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
         )
-    return ResolvedMcpToolsets(toolsets=await build_mcp_toolsets(specs), unavailable=unavailable)
+        specs.append(spec)
+        bindings[id(spec)] = f"the connection {connection.name!r}"
+    # The same prefix arithmetic publish refuses a collision with, applied to the
+    # servers that answered their probe: a duplicate reaching pydantic-ai aborts
+    # the turn, so the loser is dropped - but reported on `unavailable`, not left
+    # to a log line, so the model can say the server is not available (#1442).
+    # Decided after the probe, not before it, so an unreachable first holder does
+    # not both lose the turn and be reported as the one attached; among those
+    # reachable, the first in binding order keeps the prefix. One connection
+    # bound twice is the same binding on both sides: dropped, nothing to report.
+    reachable = [
+        (spec, toolset) for spec, toolset in await probe_toolsets(specs) if toolset is not None
+    ]
+    dropped: set[int] = set()
+    for prefix, held in prefix_collisions((spec.name, spec) for spec, _ in reachable).items():
+        kept = held[0]
+        for loser in held[1:]:
+            dropped.add(id(loser))
+            if bindings[id(loser)] == bindings[id(kept)]:
+                continue
+            unavailable.append(
+                UnavailablePrefixCollision(
+                    server=loser.name,
+                    prefix=prefix,
+                    kept=kept.name,
+                    server_binding=bindings[id(loser)],
+                    kept_binding=bindings[id(kept)],
+                )
+            )
+    return ResolvedMcpToolsets(
+        toolsets=[toolset for spec, toolset in reachable if id(spec) not in dropped],
+        unavailable=unavailable,
+    )
 
 
 async def _personal_spec(

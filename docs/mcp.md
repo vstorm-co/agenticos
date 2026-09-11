@@ -187,6 +187,17 @@ connection may narrow further, and the two intersect.
     would put two servers under one prefix; Pydantic AI refuses the duplicate
     tool names and the turn aborts.
 
+!!! note "A collision that reaches a run is narrowed, not lost"
+
+    Publish is a point in time and a connection's name is editable afterwards, so
+    an agent published before this check or one whose connection was renamed to a
+    colliding name can still reach a run with two servers under one prefix. That
+    run keeps the first of them that answers its probe, drops the rest, and
+    tells the model which server is unavailable this turn - and, when both carry
+    one name, which binding it is speaking through - rather than losing it to a
+    log line nobody reads. Renaming one of the two connections is the author's
+    fix.
+
 One agent binds each service once, one way. An agent that needs the
 organization's handbook Notion *and* each person's own is two agents, or the
 same server connected twice under two names.

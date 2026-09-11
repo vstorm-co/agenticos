@@ -48,7 +48,11 @@ from app.services.agent_runner import (
     run_failure_summary,
 )
 from app.services.approvals import ApprovalService
-from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
+from app.services.mcp_connection import (
+    ResolvedMcpToolsets,
+    UnavailablePersonalService,
+    UnavailablePrefixCollision,
+)
 from app.services.transcript import RecordedToolCall
 
 _THE_ASKER = uuid.uuid4()
@@ -3767,6 +3771,57 @@ class TestTellingTheAgentWhatItCannotReach:
         )
 
         assert spec.instructions.count("is bound to the account") == 2
+
+    def test_a_prefix_collision_tells_the_model_the_server_is_not_available(self):
+        """The dropped server used to vanish with a log line; now it briefs the
+        model so the answer says it is missing rather than pretending it never
+        existed (#1442). The winner it names is one the resolution already saw
+        answer its probe, so "only GitHub is attached" is a fact, not a hope. It
+        is not a personal gap - the author renames a connection - so it names no
+        link."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailablePrefixCollision(
+                    server="github",
+                    prefix="github",
+                    kept="GitHub",
+                    server_binding="the connection 'github'",
+                    kept_binding="the connection 'GitHub'",
+                )
+            ],
+            RunSurface.WEB,
+        )
+
+        assert "github server (the connection 'github') is not available this turn" in (
+            spec.instructions
+        )
+        assert "only GitHub is attached" in spec.instructions
+        assert "is bound to the account" not in spec.instructions
+
+    def test_same_named_bindings_are_told_apart_by_binding_not_by_name(self):
+        """An organization `notion` and each person's own `notion` collide under
+        one name. Briefed by name, the model would read that `notion` is both
+        attached and unavailable and refuse the tools it holds; briefed by
+        binding, it knows whose tools it has (#1442 review)."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailablePrefixCollision(
+                    server="notion",
+                    prefix="notion",
+                    kept="notion",
+                    server_binding="each person's own notion",
+                    kept_binding="the connection 'notion'",
+                )
+            ],
+            RunSurface.WEB,
+        )
+
+        assert "both called notion" in spec.instructions
+        assert "only the connection 'notion' is attached" in spec.instructions
+        assert "The notion tools you have are that one's" in spec.instructions
+        assert "notion server is not available" not in spec.instructions
 
 
 class TestWhatAPreparedRunSaysThePersonCannotReach:

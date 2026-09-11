@@ -2406,11 +2406,11 @@ class TestBindingAnMcpServerToAnAgent:
         personal = await _mcp_connection(db, tenant, name="notion", scope="user")
         seen: list[list[str]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([spec.name for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         await build_toolsets_for_agent(
             db,
@@ -2444,11 +2444,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[tuple[str, str]]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([(spec.name, spec.url) for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         resolved = await build_toolsets_for_agent(
             db,
@@ -2476,11 +2476,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[str]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([spec.url for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         resolved = await build_toolsets_for_agent(
             db,
@@ -2508,11 +2508,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[str]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([spec.url for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         resolved = await build_toolsets_for_agent(
             db,

@@ -23,6 +23,7 @@ from app.agents.mcp import (
     _make_toolset,
     _mcp_transport,
     build_mcp_toolsets,
+    prefix_collisions,
     probe_mcp_server,
     tool_prefix,
 )
@@ -53,6 +54,7 @@ from app.services.impersonation import ActiveImpersonation
 from app.services.mcp_connection import (
     McpConnectionService,
     UnavailablePersonalService,
+    UnavailablePrefixCollision,
     _apply_token,
     _resolve_auth_headers,
     connection_scope,
@@ -178,6 +180,20 @@ class TestToolPrefix:
         connection name reaches the client only as this prefix, so a mismatch draws
         a step "Github Work Create Issue" where it means "GitHub - Create issue"."""
         assert tool_prefix(case["name"]) == case["prefix"]
+
+
+class TestPrefixCollisions:
+    """The one arithmetic publish and the run share (#1442)."""
+
+    def test_names_that_reduce_to_one_prefix_are_grouped_winner_first(self):
+        # `github`, `GitHub` and `github-` all normalise to `github`; `notion-work`
+        # keeps its inner separator as `notion_work` and stands alone.
+        assert prefix_collisions(
+            [("github", "a"), ("GitHub", "b"), ("github-", "c"), ("notion-work", "d")]
+        ) == {"github": ["a", "b", "c"]}
+
+    def test_names_that_stay_distinct_collide_with_nobody(self):
+        assert prefix_collisions([("notion", "a"), ("linear", "b")]) == {}
 
 
 class TestTransportSelection:
@@ -356,14 +372,14 @@ class TestToolsetsForAgent:
 
     @staticmethod
     def _capture(monkeypatch) -> list[list[McpServerSpec]]:
-        """Replace the toolset build with a recorder of the specs it was given."""
+        """Replace the probe with a recorder of the specs it was given, every one reachable."""
         seen: list[list[McpServerSpec]] = []
 
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+        async def fake_probe(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, str]]:
             seen.append(specs)
-            return [spec.name for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
         return seen
 
     @pytest.mark.anyio
@@ -387,6 +403,105 @@ class TestToolsetsForAgent:
 
         assert toolsets.toolsets == ["linear"]
         assert [spec.name for spec in seen[0]] == ["linear"]
+
+    @pytest.mark.anyio
+    async def test_a_prefix_collision_drops_the_loser_and_reports_it(self, monkeypatch):
+        """The run-time half of the publish check (#1442). Two servers whose names
+        reduce to one prefix would make pydantic-ai raise on the duplicate tool
+        names; the first is attached and the second reported on `unavailable`, so
+        the model can say it is missing rather than a log line nobody reads. Both
+        are probed - the decision is taken among the servers that answered."""
+        seen = self._capture(monkeypatch)
+        first = _connection(name="github", url="https://ws.example/mcp")
+        second = _connection(name="GitHub", url="https://user.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={first.id: first, second.id: second}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=first.id),
+                OrgMcpServerRef(connection_id=second.id),
+            ],
+        )
+
+        assert [spec.name for spec in seen[0]] == ["github", "GitHub"]
+        assert resolved.toolsets == ["github"]
+        assert resolved.unavailable == [
+            UnavailablePrefixCollision(
+                server="GitHub",
+                prefix="github",
+                kept="github",
+                server_binding="the connection 'GitHub'",
+                kept_binding="the connection 'github'",
+            )
+        ]
+
+    @pytest.mark.anyio
+    async def test_an_unreachable_first_holder_neither_wins_nor_is_reported_as_attached(
+        self, monkeypatch
+    ):
+        """The winner is the first server that *answered*. Decided before the probe,
+        an unreachable first holder would lose the turn to its probe and still be
+        named as the one attached, while the reachable second was dropped for
+        colliding with it - a turn with neither, told it had one (#1442 review)."""
+        first = _connection(name="github", url="https://dead.example/mcp")
+        second = _connection(name="GitHub", url="https://live.example/mcp")
+
+        async def fake_probe(
+            specs: list[McpServerSpec],
+        ) -> list[tuple[McpServerSpec, str | None]]:
+            return [(spec, None if spec.url == first.url else spec.name) for spec in specs]
+
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={first.id: first, second.id: second}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=first.id),
+                OrgMcpServerRef(connection_id=second.id),
+            ],
+        )
+
+        assert resolved.toolsets == ["GitHub"]
+        assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    async def test_a_same_named_duplicate_is_dropped_but_not_reported(self, monkeypatch):
+        """One connection bound twice is a duplicate of a service the kept spec
+        still serves, so it is dropped to spare pydantic-ai the clash but reported
+        as nothing - saying that service is unavailable would be false, since its
+        tools are present (#1442 review)."""
+        seen = self._capture(monkeypatch)
+        conn = _connection(name="github", url="https://ws.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={conn.id: conn}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=conn.id),
+                OrgMcpServerRef(connection_id=conn.id),
+            ],
+        )
+
+        assert [spec.name for spec in seen[0]] == ["github", "github"]
+        assert resolved.toolsets == ["github"]
+        assert resolved.unavailable == []
 
     @pytest.mark.anyio
     async def test_every_id_is_resolved_inside_the_agents_own_organization(self, monkeypatch):
@@ -497,11 +612,11 @@ class TestWhichToolsABindingMayCall:
     def _capture(monkeypatch) -> list[list[McpServerSpec]]:
         seen: list[list[McpServerSpec]] = []
 
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+        async def fake_probe(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, str]]:
             seen.append(specs)
-            return [spec.name for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
         return seen
 
     async def _tools(self, monkeypatch, *, on_connection, on_binding) -> list[str] | None:
@@ -573,11 +688,11 @@ class TestEachPersonsOwnAccount:
     def _capture(monkeypatch) -> list[list[McpServerSpec]]:
         seen: list[list[McpServerSpec]] = []
 
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+        async def fake_probe(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, str]]:
             seen.append(specs)
-            return [spec.name for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
         return seen
 
     @staticmethod
@@ -618,6 +733,40 @@ class TestEachPersonsOwnAccount:
         assert seen[0][0].allowed_tools == ["search"]
         assert resolved.toolsets == ["notion"]
         assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    async def test_a_collision_between_same_named_bindings_names_the_binding(self, monkeypatch):
+        """An organization connection called `notion` and each person's own
+        `notion` present their tools under one name - two different servers, not a
+        duplicate - so the report has to say *which* binding was dropped: the
+        names alone would tell the model that `notion` is both attached and
+        unavailable, and dropping it silently would lose a person's own account
+        the way the log line used to (#1442 review)."""
+        seen = self._capture(monkeypatch)
+        shared = _connection(name="notion", url="https://org.example/mcp", scope="org")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", _batch(shared)
+        )
+        self._owns(monkeypatch, [_connection(name="my-notion", catalog_key="notion")])
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=shared.id), self._personal()],
+            sender_user_id=uuid4(),
+        )
+
+        assert [spec.name for spec in seen[0]] == ["notion", "notion"]
+        assert resolved.toolsets == ["notion"]
+        assert resolved.unavailable == [
+            UnavailablePrefixCollision(
+                server="notion",
+                prefix="notion",
+                kept="notion",
+                server_binding="each person's own notion",
+                kept_binding="the connection 'notion'",
+            )
+        ]
 
     @pytest.mark.anyio
     async def test_the_lookup_is_scoped_to_the_sender_and_the_service(self, monkeypatch):
