@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.407] - 2026-09-11
+
+### Fixed
+
+- **A tool-prefix collision is decided once, and the model is told about it.**
+  Publish refused two MCP bindings reducing to one prefix while the run
+  re-computed the same rule and dropped the loser with a log line, so a
+  connection renamed after publish, or an agent published before the check,
+  lost a server nobody was told about. One `prefix_collisions` serves both;
+  the run records each dropped binding on the toolsets' `unavailable` list, the
+  briefing says the server is not available this turn, and the connect card
+  leaves it out because renaming a connection is the author's job. (#1576)
+
 ## [0.0.406] - 2026-09-11
 
 ### Fixed
