@@ -16,6 +16,7 @@ from app.api.router import api_router
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.knowledge import reset_retrieval_service
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.db.session import claim_pooled_engines, close_db, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
 from app.core.logfire_setup import instrument_asyncpg
@@ -63,18 +64,35 @@ async def _start_channel_polling(channel: str) -> None:
     here. Two copies of "tell the adapter the server address, then connect"
     is one copy that will be missing a step.
 
+    A bot whose token the vault cannot unseal - a rotated `VAULT_MASTER_KEY`, a
+    database started under another installation's key - is logged and skipped
+    rather than raised: one unreadable credential must not keep the whole API
+    from starting, which is what it did on a machine where the quickstart had
+    reused a development stack's database.
     """
     async with get_db_context() as _db:
         _bots = await get_active_polling_bots(_db, channel)
+    started = 0
     for _bot in _bots:
+        try:
+            token = unseal_bot_token(_bot)
+            app_token = unseal_slack_app_token(_bot)
+        except BadRequestError:
+            logger.exception(
+                "%s: bot %s skipped - its token cannot be unsealed", channel.capitalize(), _bot.id
+            )
+            continue
         await open_inbound_stream(
             bot_id=str(_bot.id),
             platform=channel,
-            token=unseal_bot_token(_bot),
+            token=token,
             api_base_url=_bot.api_base_url,
-            app_token=unseal_slack_app_token(_bot),
+            app_token=app_token,
         )
-    logger.info("%s: polling started for %d bot(s)", channel.capitalize(), len(_bots))
+        started += 1
+    logger.info(
+        "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
+    )
 
 
 @asynccontextmanager
