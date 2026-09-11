@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.405] - 2026-09-11
+
+### Fixed
+
+- **Telegram rooms are `group`, like every other platform's.** The Telegram
+  parser emitted the raw `supergroup` and `channel` types while Slack and
+  Mattermost fold everything but a DM to `group`, so `channel_sessions.chat_type`
+  held a different vocabulary per platform and the first consumer to write
+  `chat_type == "group"` would have missed every Telegram room. The parser folds
+  them now, and migration `0076_normalize_channel_chat_type` folds the rows
+  already written. (#1574)
+
 ## [0.0.404] - 2026-09-11
 
 ### Fixed
