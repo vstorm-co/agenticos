@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -164,6 +164,21 @@ def tool_prefix(name: str) -> str:
     return re.sub(r"[^a-z0-9_]", "_", name.lower()).strip("_") or "mcp"
 
 
+def prefix_collisions[T](holders: Iterable[tuple[str, T]]) -> dict[str, list[T]]:
+    """Which tool prefixes more than one name reduces to, and who holds each.
+
+    Two servers under one prefix emit the same tool names and pydantic-ai raises
+    on the duplicate, aborting the turn - so a publish is refused and a run drops
+    the loser, and both decide it here rather than each computing it apart (#1442).
+    `github`, `GitHub` and `github-` are one prefix; every value lists its holders
+    in the order given, the one that keeps the prefix first.
+    """
+    grouped: dict[str, list[T]] = {}
+    for name, holder in holders:
+        grouped.setdefault(tool_prefix(name), []).append(holder)
+    return {prefix: held for prefix, held in grouped.items() if len(held) > 1}
+
+
 def _make_toolset(spec: McpServerSpec) -> Any:
     """Build a pydantic-ai toolset for one MCP server.
 
@@ -189,25 +204,19 @@ def _make_toolset(spec: McpServerSpec) -> Any:
 def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:
     """Drop specs whose tool prefix an earlier spec already claimed.
 
-    Two servers sharing a prefix emit identical tool names and pydantic-ai
-    raises on duplicates, which aborts the whole turn. Deployment-managed
-    servers come first, so they win over a user connection that happens to
-    pick the same name (e.g. both called "github").
+    The defensive net beneath `build_toolsets_for_agent`, which already removes a
+    collision and reports it on `unavailable` (#1442): in a real run nothing is
+    dropped here. Kept because this is the one function that attaches the toolsets,
+    and a duplicate prefix reaching pydantic-ai aborts the whole turn. The first
+    spec keeps the prefix, so a deployment-managed server ordered ahead of a user
+    connection of the same name wins.
     """
-    unique: list[McpServerSpec] = []
-    taken: set[str] = set()
-    for spec in specs:
-        prefix = tool_prefix(spec.name)
-        if prefix in taken:
-            logger.warning(
-                "Skipping MCP server %r: tool prefix %r is already used by another server",
-                spec.name,
-                prefix,
-            )
-            continue
-        taken.add(prefix)
-        unique.append(spec)
-    return unique
+    losers = {
+        id(spec)
+        for held in prefix_collisions((s.name, s) for s in specs).values()
+        for spec in held[1:]
+    }
+    return [spec for spec in specs if id(spec) not in losers]
 
 
 async def build_mcp_toolsets(specs: list[McpServerSpec]) -> list[Any]:

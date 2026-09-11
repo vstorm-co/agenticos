@@ -180,7 +180,9 @@ from app.services.conversation import ConversationService
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
     PersonalServiceGapKind,
+    UnavailableBinding,
     UnavailablePersonalService,
+    UnavailablePrefixCollision,
     build_toolsets_for_agent,
 )
 from app.services.model_profile import ModelProfileService
@@ -1327,22 +1329,34 @@ def personal_service_gap(unavailable: UnavailablePersonalService) -> PersonalSer
 
 
 def _with_personal_service_gaps(
-    spec: AgentSpec, gaps: Sequence[UnavailablePersonalService], surface: RunSurface
+    spec: AgentSpec, gaps: Sequence[UnavailableBinding], surface: RunSurface
 ) -> AgentSpec:
-    """The spec told which personal services this turn cannot reach, and why.
+    """The spec told which of its bound servers this turn cannot reach, and why.
 
-    A personal binding with nothing to speak through is skipped, and a skipped
-    server is invisible to the model: it answers as though the agent never had
-    Notion, and the person asking concludes the agent is broken. One paragraph
-    per gap turns that into an answer they can act on - connect the account,
-    mark one as default, link the chat account - with the link that does it.
-    Appended per run with `model_copy`, like a binding's prompt, because it is
-    true of this message and not of the published version.
+    A binding with nothing to speak through, or one dropped for a prefix
+    collision, is skipped, and a skipped server is invisible to the model: it
+    answers as though the agent never had Notion, and the person asking concludes
+    the agent is broken. One paragraph per gap turns that into an answer they can
+    act on. Appended per run with `model_copy`, like a binding's prompt, because
+    it is true of this message and not of the published version.
     """
     if not gaps:
         return spec
-    added = "\n\n".join(_personal_gap_briefing(personal_service_gap(gap), surface) for gap in gaps)
+    added = "\n\n".join(_binding_gap_briefing(gap, surface) for gap in gaps)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
+
+
+def _binding_gap_briefing(gap: UnavailableBinding, surface: RunSurface) -> str:
+    """One paragraph for a binding this turn could not honour, model-facing."""
+    if isinstance(gap, UnavailablePrefixCollision):
+        return (
+            f"The {gap.server} server is not available this turn: it and {gap.kept} both reduce "
+            f"to the tool prefix {gap.prefix!r}, and two servers cannot share one - so only "
+            f"{gap.kept} is attached. If asked for anything in {gap.server}, say it is not "
+            "available because two of this agent's servers collide under one name, which the "
+            "agent's author resolves by renaming one connection."
+        )
+    return _personal_gap_briefing(personal_service_gap(gap), surface)
 
 
 def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
@@ -2302,7 +2316,14 @@ class AgentRunnerService:
             workspace=workspace,
             materialised_skills=materialised,
             workspace_at_start=started_with,
-            personal_service_gaps=[personal_service_gap(gap) for gap in resolved.unavailable],
+            # Only personal gaps reach the chat's connect card - a prefix collision
+            # is the agent author's to fix by renaming a connection, not something
+            # the person talking connects an account for (#1442).
+            personal_service_gaps=[
+                personal_service_gap(gap)
+                for gap in resolved.unavailable
+                if isinstance(gap, UnavailablePersonalService)
+            ],
             delegations=delegations,
             stash=stash,
             ctx=ctx,

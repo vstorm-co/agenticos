@@ -46,6 +46,7 @@ from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
     build_mcp_toolsets,
+    prefix_collisions,
     probe_error_message,
     probe_mcp_server,
     validate_mcp_url,
@@ -1577,18 +1578,42 @@ class UnavailablePersonalService:
 
 
 @dataclass(frozen=True)
+class UnavailablePrefixCollision:
+    """Two of the agent's bound servers reduce to one tool prefix, so only the
+    first is attached this turn.
+
+    The other would emit the same tool names and pydantic-ai raises on the
+    duplicate, aborting the run. Refused at publish; reached at run time only for
+    an agent published before that check existed or a connection renamed to a
+    colliding name afterwards, where it used to vanish with a log line nobody
+    reads (#1442). Not a personal gap - the person talking cannot fix it, the
+    agent's author renames one connection - so it briefs the model but is kept off
+    the chat's connect card.
+    """
+
+    server: str
+    prefix: str
+    kept: str
+
+
+# A binding a turn could not honour: a personal one with nobody or nothing to
+# speak through, or a server dropped because its tool prefix collided.
+UnavailableBinding = UnavailablePersonalService | UnavailablePrefixCollision
+
+
+@dataclass(frozen=True)
 class ResolvedMcpToolsets:
     """What a spec's MCP bindings amount to for one turn.
 
-    The toolsets that could be built, and the personal bindings that could not.
-    Two lists rather than one because the second is not a failure: a personal
-    binding with nobody to speak as is the designed outcome on an API key or a
-    schedule, and the run proceeds - told, in its instructions, what is missing
-    and where the person connects it.
+    The toolsets that could be built, and the bindings that could not. Two lists
+    rather than one because the second is not a failure: a personal binding with
+    nobody to speak as is the designed outcome on an API key or a schedule, and a
+    prefix collision narrows the agent rather than aborting it - the run proceeds,
+    told in its instructions what is missing.
     """
 
     toolsets: list[Any]
-    unavailable: list[UnavailablePersonalService]
+    unavailable: list[UnavailableBinding]
 
 
 async def build_toolsets_for_agent(
@@ -1623,7 +1648,7 @@ async def build_toolsets_for_agent(
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
-    unavailable: list[UnavailablePersonalService] = []
+    unavailable: list[UnavailableBinding] = []
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
         connection_ids=[
@@ -1670,6 +1695,19 @@ async def build_toolsets_for_agent(
                 allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
             )
         )
+    # The same prefix arithmetic publish refuses a collision with, applied here to
+    # the servers that actually resolved: a duplicate reaching pydantic-ai aborts
+    # the turn, so the loser is dropped - but reported on `unavailable`, not left
+    # to a log line, so the model can say the server is not available (#1442). The
+    # first spec keeps the prefix; org bindings are appended before personal ones.
+    dropped: set[int] = set()
+    for prefix, held in prefix_collisions((spec.name, spec) for spec in specs).items():
+        for loser in held[1:]:
+            dropped.add(id(loser))
+            unavailable.append(
+                UnavailablePrefixCollision(server=loser.name, prefix=prefix, kept=held[0].name)
+            )
+    specs = [spec for spec in specs if id(spec) not in dropped]
     return ResolvedMcpToolsets(toolsets=await build_mcp_toolsets(specs), unavailable=unavailable)
 
 

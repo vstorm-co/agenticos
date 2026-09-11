@@ -23,6 +23,7 @@ from app.agents.mcp import (
     _make_toolset,
     _mcp_transport,
     build_mcp_toolsets,
+    prefix_collisions,
     probe_mcp_server,
     tool_prefix,
 )
@@ -53,6 +54,7 @@ from app.services.impersonation import ActiveImpersonation
 from app.services.mcp_connection import (
     McpConnectionService,
     UnavailablePersonalService,
+    UnavailablePrefixCollision,
     _apply_token,
     _resolve_auth_headers,
     connection_scope,
@@ -178,6 +180,20 @@ class TestToolPrefix:
         connection name reaches the client only as this prefix, so a mismatch draws
         a step "Github Work Create Issue" where it means "GitHub - Create issue"."""
         assert tool_prefix(case["name"]) == case["prefix"]
+
+
+class TestPrefixCollisions:
+    """The one arithmetic publish and the run share (#1442)."""
+
+    def test_names_that_reduce_to_one_prefix_are_grouped_winner_first(self):
+        # `github`, `GitHub` and `github-` all normalise to `github`; `notion-work`
+        # keeps its inner separator as `notion_work` and stands alone.
+        assert prefix_collisions(
+            [("github", "a"), ("GitHub", "b"), ("github-", "c"), ("notion-work", "d")]
+        ) == {"github": ["a", "b", "c"]}
+
+    def test_names_that_stay_distinct_collide_with_nobody(self):
+        assert prefix_collisions([("notion", "a"), ("linear", "b")]) == {}
 
 
 class TestTransportSelection:
@@ -387,6 +403,35 @@ class TestToolsetsForAgent:
 
         assert toolsets.toolsets == ["linear"]
         assert [spec.name for spec in seen[0]] == ["linear"]
+
+    @pytest.mark.anyio
+    async def test_a_prefix_collision_drops_the_loser_and_reports_it(self, monkeypatch):
+        """The run-time half of the publish check (#1442). Two servers whose names
+        reduce to one prefix would make pydantic-ai raise on the duplicate tool
+        names; the first is attached and the second reported on `unavailable`, so
+        the model can say it is missing rather than a log line nobody reads."""
+        seen = self._capture(monkeypatch)
+        first = _connection(name="github", url="https://ws.example/mcp")
+        second = _connection(name="GitHub", url="https://user.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={first.id: first, second.id: second}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=first.id),
+                OrgMcpServerRef(connection_id=second.id),
+            ],
+        )
+
+        assert [spec.name for spec in seen[0]] == ["github"]
+        assert resolved.unavailable == [
+            UnavailablePrefixCollision(server="GitHub", prefix="github", kept="github")
+        ]
 
     @pytest.mark.anyio
     async def test_every_id_is_resolved_inside_the_agents_own_organization(self, monkeypatch):

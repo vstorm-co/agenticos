@@ -35,7 +35,7 @@ from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.mcp import tool_prefix
+from app.agents.mcp import prefix_collisions
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -1329,10 +1329,11 @@ class AgentRegistryService:
         time where the only options are to guess or to quietly drop a server.
         """
         problems: list[str] = []
-        # What each binding would call its tools, as the toolset builder derives
-        # it - `notion-` and `notion` are one prefix - so a collision is caught
-        # here rather than by `_dedupe_by_prefix` dropping a server at run time.
-        claimed: dict[str, list[str]] = {}
+        # What each binding would call its tools by, as the toolset builder derives
+        # it - `notion-` and `notion` are one prefix. Paired with a label so the
+        # same `prefix_collisions` the run uses catches a clash here, where somebody
+        # can still fix it, rather than a server being dropped mid-turn (#1442).
+        prefixed: list[tuple[str, str]] = []
         found = await mcp_connection_repo.get_org_scoped_by_ids(
             self.db,
             connection_ids=[
@@ -1349,9 +1350,7 @@ class AgentRegistryService:
                         "be matched to it."
                     )
                     continue
-                claimed.setdefault(tool_prefix(ref.catalog_key), []).append(
-                    f"each person's own {ref.catalog_key}"
-                )
+                prefixed.append((ref.catalog_key, f"each person's own {ref.catalog_key}"))
                 continue
             connection = found.get(ref.connection_id)
             if connection is None:
@@ -1366,16 +1365,13 @@ class AgentRegistryService:
                     "account instead if that is what you want."
                 )
                 continue
-            claimed.setdefault(tool_prefix(connection.name), []).append(
-                f"the connection {connection.name!r}"
+            prefixed.append((connection.name, f"the connection {connection.name!r}"))
+        for prefix, holders in prefix_collisions(prefixed).items():
+            problems.append(
+                f"Two bindings would present their tools under the prefix {prefix!r}: "
+                f"{' and '.join(holders)}. The model would see every tool twice, which "
+                "aborts the turn - bind one of them, or rename the connection."
             )
-        for prefix, holders in claimed.items():
-            if len(holders) > 1:
-                problems.append(
-                    f"Two bindings would present their tools under the prefix {prefix!r}: "
-                    f"{' and '.join(holders)}. The model would see every tool twice, which "
-                    "aborts the turn - bind one of them, or rename the connection."
-                )
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:

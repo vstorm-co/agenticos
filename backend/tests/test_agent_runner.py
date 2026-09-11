@@ -48,7 +48,11 @@ from app.services.agent_runner import (
     run_failure_summary,
 )
 from app.services.approvals import ApprovalService
-from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
+from app.services.mcp_connection import (
+    ResolvedMcpToolsets,
+    UnavailablePersonalService,
+    UnavailablePrefixCollision,
+)
 from app.services.transcript import RecordedToolCall
 
 _THE_ASKER = uuid.uuid4()
@@ -3736,6 +3740,21 @@ class TestTellingTheAgentWhatItCannotReach:
         )
 
         assert spec.instructions.count("is bound to the account") == 2
+
+    def test_a_prefix_collision_tells_the_model_the_server_is_not_available(self):
+        """The dropped server used to vanish with a log line; now it briefs the
+        model so the answer says it is missing rather than pretending it never
+        existed (#1442). It is not a personal gap - the author renames a
+        connection - so it names no connect link."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [UnavailablePrefixCollision(server="github", prefix="github", kept="GitHub")],
+            RunSurface.WEB,
+        )
+
+        assert "github server is not available this turn" in spec.instructions
+        assert "tool prefix 'github'" in spec.instructions
+        assert "is bound to the account" not in spec.instructions
 
 
 class TestWhatAPreparedRunSaysThePersonCannotReach:
