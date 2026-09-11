@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.404] - 2026-09-11
+
+### Fixed
+
+- **Removing a member is decided by the catalog, like changing a role.**
+  `MemberService.remove` refused Admin-removes-Admin with a literal role check
+  while `change_role` used `assignable_roles`, so a custom role holding
+  `members:manage` that does not outrank an Admin would be refused one action
+  and allowed the other. Both now use the same ceiling; the built-in roles
+  behave exactly as before. (#1573)
+
 ## [0.0.403] - 2026-09-11
 
 ### Fixed
