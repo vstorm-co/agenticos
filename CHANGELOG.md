@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.408] - 2026-09-11
+
+### Added
+
+- **Encrypted connections to Postgres and Redis, and a doctor line saying so.**
+  `POSTGRES_SSLMODE` builds the parameter each driver understands - `ssl=` for
+  asyncpg, `sslmode=` for Alembic's psycopg2 - and `REDIS_SSL` switches the
+  scheme to `rediss://` with hostname verification on. Both default off, so a
+  plaintext deployment is unchanged. `agenticos cmd doctor` reports
+  `postgres: tls=on/off` from `pg_stat_ssl`, the transport actually used, and
+  `redis: tls=on/off` from the URL. `docs/configuration.md` shows the managed-
+  store setup, every consumer included, and how a private CA is trusted. (#1578)
+
 ## [0.0.407] - 2026-09-11
 
 ### Fixed
