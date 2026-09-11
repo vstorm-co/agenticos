@@ -179,9 +179,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // The Builder holds the set rather than paging it: the gallery has to know
   // which selected skills still exist, and it can only tell that from what it
   // has. 100 is the endpoint's ceiling; `total` says when that is not all.
-  const { skills, total: skillCount } = useSkills({ limit: 100 });
-  const { files: contextFiles, total: contextCount } = useContextFiles({ limit: 100 });
-  const { kbs: collections } = useKnowledgeBases();
+  const { skills, total: skillCount, isLoading: skillsLoading } = useSkills({ limit: 100 });
+  const {
+    files: contextFiles,
+    total: contextCount,
+    isLoading: contextLoading,
+  } = useContextFiles({ limit: 100 });
+  const { kbs: collections, isLoading: collectionsLoading } = useKnowledgeBases();
   // Only the newest, and only for the number below: the history card pages the
   // rest itself, so a page that fetched fifty to read one would be fetching a
   // list nothing on it renders.
@@ -192,7 +196,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // is refused at publish, so offering one would be offering a choice that
   // cannot be published. `useMcpCatalog` only supplies the names and logos -
   // the ids the spec stores belong to the connections.
-  const { connections: mcpConnections, test: probeMcpConnection } = useOrgMcpConnections();
+  const {
+    connections: mcpConnections,
+    test: probeMcpConnection,
+    isLoading: connectionsLoading,
+  } = useOrgMcpConnections();
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
@@ -201,7 +209,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [toolBinding, setToolBinding] = useState<string | null>(null);
   const { exposures } = useExposures(id);
   const { embeds } = useEmbeds(id);
-  const { servers: mcpCatalog } = useMcpCatalog();
+  const { servers: mcpCatalog, isLoading: catalogLoading } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
 
@@ -241,6 +249,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+
+  // The stale-reference check reads a reference as dead when its id is absent
+  // from a list, so it must not run until every list it consults has answered:
+  // each defaults to `[]` while loading, and "still loading" would otherwise
+  // read as "the organization has none".
+  const referenceListsLoaded =
+    !collectionsLoading &&
+    !contextLoading &&
+    !skillsLoading &&
+    !connectionsLoading &&
+    !catalogLoading;
 
   // A builder who cannot add a model, in an organization that has none, can
   // create a draft they can never make work. Both halves are read from a
@@ -990,6 +1009,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         skillTotal={skillCount}
         connections={mcpConnections}
         catalog={mcpCatalog}
+        loaded={referenceListsLoaded}
         onRemove={update}
         disabled={!canEdit}
       />
