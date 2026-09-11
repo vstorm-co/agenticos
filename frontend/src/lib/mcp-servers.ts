@@ -107,8 +107,11 @@ export function entryForConnection(
  */
 export function connectionState(connection: McpConnectionRecord | null): McpConnectionState {
   if (!connection) return "not-connected";
-  if (connection.auth_type === "oauth" && !connection.oauth_authorized)
-    return "needs-authorization";
+  // The server's own answer to whether the credential can be used, so every
+  // surface that renders a connection agrees with `ownAccountStatus` and the run
+  // rather than re-deriving it from OAuth consent alone - a bearer token a key
+  // rotation orphaned needs authorizing again too, not only an OAuth grant (#1443).
+  if (!connection.authorized) return "needs-authorization";
   if (!connection.is_enabled) return "disabled";
   if (connection.last_status === "error") return "error";
   return "connected";

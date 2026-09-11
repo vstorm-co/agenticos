@@ -887,6 +887,12 @@ class TestAccountAuthorized:
         assert _connection(auth_type="oauth", oauth_payload='{"t":1}').account_authorized is True
         assert _connection(auth_type="oauth", oauth_payload=None).account_authorized is False
 
+    def test_an_oauth_payload_sealed_under_a_dropped_key_is_not_authorized(self):
+        # The payload is present but unopenable after a rotation, the same way a
+        # bearer token is - the run finds `_oauth_access_token` returns None.
+        gone = _connection(auth_type="oauth", oauth_payload='{"t":1}', secret_key_version=999)
+        assert gone.account_authorized is False
+
     @pytest.mark.anyio
     async def test_resolve_auth_headers_refuses_a_token_whose_key_is_gone(self):
         conn = _connection(auth_token="sealed", secret_key_version=999)

@@ -242,15 +242,18 @@ class McpConnection(Base, TimestampMixin):
 
         The side-effect-free half of `_resolve_auth_headers`, and the single place
         the answer is decided so a run and the rendered list cannot drift (#1443):
-        OAuth is authorized once its payload is written; a bearer token is usable
-        while the master key that sealed it is still configured, which is the half
+        an OAuth or bearer credential is usable once its payload/token is written
+        and the master key that sealed it is still configured - the half
         `_resolve_auth_headers` finds missing after a `SECRET_KEY` rotation. It
-        decrypts and refreshes nothing - a token whose ciphertext was tampered with
-        still reads authorized here, and only the run that actually unseals it
-        finds otherwise.
+        decrypts and refreshes nothing, so two failures it cannot see are left to
+        the run that actually unseals: a ciphertext tampered with under a still
+        configured key, and an OAuth grant the provider has revoked or expired past
+        its refresh - the sweep marks the latter `last_status="error"` beforehand.
         """
         if self.auth_type == "oauth":
-            return self.oauth_payload is not None
+            return self.oauth_payload is not None and is_key_version_available(
+                self.secret_key_version
+            )
         if self.auth_token is None:
             return True
         return is_key_version_available(self.secret_key_version)
