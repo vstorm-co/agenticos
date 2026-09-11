@@ -40,7 +40,6 @@ services:
   # says why the API never started.
   migrate:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_migrate
     command: agenticos db upgrade
     env_file:
       - path: ./.env
@@ -66,7 +65,6 @@ services:
 
   app:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_backend
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
@@ -135,7 +133,6 @@ services:
     # `extension "vector" is not available` — so every document upload 500s
     # before a row is committed. Same major version, same data directory.
     image: pgvector/pgvector:pg16
-    container_name: agenticos_db
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -153,7 +150,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: agenticos_redis
     volumes:
       - redis_data:/data
     networks:
@@ -167,7 +163,6 @@ services:
 
   prefect-server:
     image: prefecthq/prefect:3-latest
-    container_name: agenticos_prefect_server
     command: prefect server start --host 0.0.0.0
     volumes:
       - prefect_data:/root/.local/share/prefect/
@@ -187,7 +182,6 @@ services:
 
   prefect-runner:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_prefect_runner
     volumes:
       - media_data:/app/media
     command: python -m app.worker.prefect_app
@@ -241,7 +235,6 @@ services:
   # are the backend's side of the same fact.
   frontend:
     image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_frontend
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://app:8000
@@ -287,7 +280,6 @@ services:
   # its token is worth exactly as much as the socket is.
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
-    container_name: agenticos_sandboxd
     profiles: [sandbox]
     # The token comes from the same files every other secret in this stack comes
     # from, rather than through compose interpolation: interpolation reads the

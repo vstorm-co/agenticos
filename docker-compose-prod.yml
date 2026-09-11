@@ -37,7 +37,6 @@ services:
   # says why the API never started.
   migrate:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_migrate
     command: agenticos db upgrade
     env_file:
       - ./backend/.env
@@ -54,7 +53,6 @@ services:
 
   app:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_backend
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
@@ -142,7 +140,6 @@ services:
     # written to, and on postgres:16-alpine that fails with
     # `extension "vector" is not available`.
     image: pgvector/pgvector:pg16
-    container_name: agenticos_db
     # Postgres ships defaults sized for a machine from 2005 - `shared_buffers`
     # is 128 MB whatever the host has. These are the standard ratios against the
     # 2G limit below, so the two move together: a quarter of it resident, and
@@ -188,7 +185,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: agenticos_redis
     # A cache with no ceiling is a cache that grows until the container is
     # killed, and this one holds rate-limit buckets, channel dedupe claims and
     # membership answers - all of which are rebuildable, none of which is worth
@@ -218,7 +214,6 @@ services:
     # collection syncs and scheduled reports never ran: an upload was accepted
     # and the document stayed unsearchable forever.
     image: prefecthq/prefect:3-latest
-    container_name: agenticos_prefect_server
     command: prefect server start --host 0.0.0.0
     volumes:
       - prefect_data:/root/.local/share/prefect/
@@ -250,7 +245,6 @@ services:
 
   prefect-runner:
     image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_prefect_runner
     volumes:
       - media_data:/app/media
     command: python -m app.worker.prefect_app
@@ -303,7 +297,6 @@ services:
   # pinned rather than tracking a minor.
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
-    container_name: agenticos_sandboxd_prod
     profiles: [sandbox]
     # The token comes from the same file every other secret in this stack comes
     # from, rather than through compose interpolation. Interpolation reads the

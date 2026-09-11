@@ -328,6 +328,7 @@ in_clone() { [ -f docker-compose.yml ] && [ -f docker-compose.override.yml ] && 
 # in the repository says to look; `.env` beside the compose file otherwise, which
 # is also the file Compose reads for `${...}` in it.
 ENV_FILE=""
+STACK_DIR=""
 IN_CLONE=0
 ENV_FILE_CREATED=0
 
@@ -389,8 +390,50 @@ obtain_compose() {
     fi
   fi
   ENV_FILE=".env"
-  ok "compose file in $(pwd)"
+  STACK_DIR="$(pwd -P)"
+  if [ "$DRY_RUN" = "1" ] && ! ours; then
+    STACK_DIR="$(cd "$(dirname "$INSTALL_DIR")" && pwd -P)/$(basename "$INSTALL_DIR")"
+  fi
+  ok "compose file in $STACK_DIR"
   note "The images come from ghcr.io/vstorm-co - pin a release with AGENTICOS_VERSION=x.y.z in .env."
+}
+
+# Compose names a project after its directory, and nothing else tells two
+# AgenticOS stacks apart: a clone at `~/agenticos` and an install at
+# `./agenticos` are one project to Docker. `up` here would then recreate the
+# clone's containers on these images and start them on the clone's volumes -
+# under a `VAULT_MASTER_KEY` generated a moment ago, which cannot read a secret
+# the clone sealed, so the API crash-loops on the first bot it tries to open.
+# That is exactly what happened on the first machine this ran on that also ran
+# `make dev`. So the project is checked before a key is written or a container
+# touched, and the reader is told where the other stack is.
+compose_project() {
+  local name
+  name="$(docker compose config --format json 2>/dev/null | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' | head -1)"
+  [ -n "$name" ] || name="$(basename "$STACK_DIR" | tr 'A-Z' 'a-z' | sed 's/[^a-z0-9_-]//g')"
+  printf '%s' "$name"
+}
+
+refuse_other_stack() {
+  [ "$IN_CLONE" = "1" ] && return 0
+  local project other
+  project="$(compose_project)"
+  other="$(docker ps -a --filter "label=com.docker.compose.project=$project" \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null \
+    | sort -u | grep -vx "$STACK_DIR" | head -1 || true)"
+  if [ -n "$other" ]; then
+    die "another AgenticOS stack named '$project' runs on this machine, from $other.
+  Starting one here would take over its containers and its data. Stop it there first
+  (cd $other && docker compose down - its volumes stay), or install this one under
+  another name: --dir ~/some-other-name"
+  fi
+  if [ ! -f "$STACK_DIR/.env" ] && docker volume ls -q --filter "label=com.docker.compose.project=$project" 2>/dev/null | grep -q .; then
+    die "volumes of an earlier AgenticOS named '$project' are on this machine, and there is no .env here.
+  A fresh install would start on that data with a new VAULT_MASTER_KEY, which cannot read what the old
+  one sealed. Put the old .env beside docker-compose.yml to continue that install, remove the data with
+  'docker compose down -v' from its directory, or install under another name: --dir ~/some-other-name"
+  fi
+  ok "no other stack named '$project' on this machine"
 }
 
 # The env file is created by this script when there is none, mode 0600 from the
@@ -510,7 +553,7 @@ wait_for_api() {
   step "Waiting for the API"
   local attempt status
   for attempt in $(seq 1 90); do
-    status=$(docker inspect -f '{{.State.Health.Status}}' agenticos_backend 2>/dev/null || echo starting)
+    status=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q app 2>/dev/null)" 2>/dev/null || echo starting)
     case "$status" in
       healthy) ok "API answering on http://localhost:8000"; return 0 ;;
       unhealthy)
@@ -593,6 +636,7 @@ main() {
   [ "$CHECK_ONLY" = "1" ] && { say ""; ok "Everything this needs is here."; exit 0; }
 
   obtain_compose
+  refuse_other_stack
   ensure_secrets
   decide_sandbox
   wizard
