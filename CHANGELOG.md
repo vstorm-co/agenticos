@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.401] - 2026-09-11
+
+### Fixed
+
+- **The sandbox connection dialog's store-failure test no longer flakes under
+  coverage.** The local-service path debounces a probe that clears the same
+  failure state a save reports through; on a loaded run the probe fired after
+  the save and erased the message the assertion waited for. The case now waits
+  for the probe before it submits. (#1570)
+
 ## [0.0.400] - 2026-09-11
 
 ### Fixed
