@@ -495,6 +495,12 @@ describe("ConnectionDialog", () => {
         throw new Error("This deployment carries no sandbox service token");
       });
       const { onSubmit } = mount();
+      // The local-token address debounces a probe on open, and the start of a
+      // probe clears the same failure state a save reports through. Let it fire
+      // and settle first - its inputs do not change here, so it never re-runs -
+      // or under a slow run it clears the store failure after the save set it
+      // and the message is gone (#1471).
+      await waitFor(() => expect(state.probe).toHaveBeenCalled());
       await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
 
       await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
