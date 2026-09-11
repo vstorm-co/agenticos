@@ -52,6 +52,21 @@ and short enough that a URL left in a chat history is not a way in.
 """
 
 
+def mcp_servers_link(catalog_key: str | None = None) -> str:
+    """The absolute MCP servers page URL, for a reader who is not in the app.
+
+    A channel reply reaches somebody in Slack or Telegram, with no session to
+    navigate from, so a link it quotes has to be absolute - built here beside the
+    other channel URLs rather than in the runner, which does not own the console's
+    routes. `?connect=<key>` opens the connect flow for a service nobody has
+    connected yet; the bare page is where an account already held is put right,
+    because `?connect=` always mints a new connection. In the console the page is
+    named in words instead, because the reader is already in it.
+    """
+    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
+    return f"{servers}?connect={catalog_key}" if catalog_key else servers
+
+
 def _host_of(api_base_url: str | None) -> str | None:
     """The hostname a self-hosted bot lives on, or `None`.
 

@@ -1026,12 +1026,7 @@ class TestTellingTheChatWhatThePersonCannotReach:
 
     async def test_the_gaps_reach_the_sink_before_the_run(self):
         prepared = _prepared()
-        gap = PersonalServiceGap(
-            catalog_key="notion",
-            name="Notion",
-            gap="not_connected",
-            url="http://localhost:3000/mcp-servers?connect=notion",
-        )
+        gap = PersonalServiceGap(catalog_key="notion", name="Notion", gap="not_connected")
         prepared.personal_service_gaps = [gap]
         sink = AsyncMock()
 

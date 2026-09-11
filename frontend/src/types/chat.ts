@@ -585,15 +585,14 @@ export type PersonalServiceGapKind =
  * One of the agent's personal MCP services this person cannot reach yet.
  *
  * Sent once per turn, before the model answers, as `personal_services_unavailable`.
- * `url` is the servers page with `?connect=<key>` for a service they have not
- * connected, and the bare page for one they have - several accounts with no
- * default, or a grant that no longer authorizes. Not persisted: it is true of this
- * person at this moment, not of the transcript.
+ * The catalog key rather than a built URL: the card resolves the catalog entry
+ * itself and navigates in the app, so the link keeps the viewer's locale prefix
+ * instead of quoting a path a runner had no way to build. Not persisted: it is
+ * true of this person at this moment, not of the transcript.
  */
 export interface PersonalServiceGap {
   catalog_key: string;
   /** As the catalog names it; the key where the catalog no longer holds it. */
   name: string;
   gap: PersonalServiceGapKind;
-  url: string;
 }

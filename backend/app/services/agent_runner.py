@@ -172,6 +172,7 @@ from app.services.agent_registry import (
 )
 from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
+from app.services.channel_link import mcp_servers_link
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
@@ -1288,11 +1289,11 @@ class PersonalServiceGap(BaseModel):
     """One personal MCP service a turn cannot reach, as a surface draws it.
 
     The same fact the model is briefed with, carried to the person: which
-    service, why, and the one link that fixes it. `url` is the servers page
-    with `?connect=<key>` for a service they have not connected, and the bare
-    page for one they have - several accounts with no default, or a grant that
-    no longer authorizes - because `?connect=` always makes a *new* connection
-    and an expired Notion followed there becomes a second Notion.
+    service, and why. The catalog key rather than a built URL, because the surface
+    owns where the remedy lives - the chat resolves the catalog entry and
+    navigates in the app, and a channel builds the absolute link beside its other
+    URLs. A runner that built `{FRONTEND_URL}/mcp-servers` quoted a path the
+    console no longer serves under a locale prefix (#1444).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1302,27 +1303,20 @@ class PersonalServiceGap(BaseModel):
         description="As the catalog names it; the key where the catalog no longer holds it"
     )
     gap: PersonalServiceGapKind
-    url: str
 
 
 def personal_service_gap(unavailable: UnavailablePersonalService) -> PersonalServiceGap:
     """One gap as the model is briefed with it and the surface draws it.
 
-    Named after the catalog entry where there is one, and pointed at the connect
-    link only for a service the person has not connected at all: the other gaps
-    are about an account they already hold, and `?connect=` would make another.
+    Named after the catalog entry where there is one, so the person reads
+    "Notion" rather than the key. Where the remedy is reached from is the
+    surface's to decide, not this function's.
     """
     entry = mcp_catalog_entry(unavailable.catalog_key)
-    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
     return PersonalServiceGap(
         catalog_key=unavailable.catalog_key,
         name=unavailable.catalog_key if entry is None else entry.name,
         gap=unavailable.gap,
-        url=(
-            f"{servers}?connect={unavailable.catalog_key}"
-            if unavailable.gap == "not_connected"
-            else servers
-        ),
     )
 
 
@@ -1352,6 +1346,20 @@ def _with_personal_service_gaps(
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _servers_pointer(surface: RunSurface, *, connect_key: str | None = None) -> str:
+    """Where to send the person to fix a personal-service gap, phrased for the surface.
+
+    A channel reader is in Slack with no session, so the pointer is the absolute
+    link, built beside the other channel URLs; a console reader is already in the
+    app, so the page is named in words. Only a service nobody has connected takes
+    `?connect=`, which opens the connect flow - the other gaps are about an account
+    already held, where it would mint a second one.
+    """
+    if surface in _CHANNEL_SURFACES:
+        return f"point them at {mcp_servers_link(connect_key)}"
+    return "send them to the MCP servers page"
+
+
 def _personal_gap_briefing(
     gap: PersonalServiceGap, surface: RunSurface, *, sender_present: bool
 ) -> str:
@@ -1379,19 +1387,20 @@ def _personal_gap_briefing(
         return (
             f"{bound}, and this person holds several {gap.name} connections with none marked as "
             f"the one agents use, so its tools are not available for this message. If asked "
-            f"for anything in {gap.name}, say so and point them at {gap.url} to mark one of their "
-            f"{gap.name} connections as default, under You."
+            f"for anything in {gap.name}, say so and {_servers_pointer(surface)} to mark one of "
+            f"their {gap.name} connections as default, under You."
         )
     if gap.gap == "unauthorized":
         return (
             f"{bound}, and this person's own {gap.name} connection no longer authorizes, so its "
             f"tools are not available for this message. If asked for anything in {gap.name}, say "
-            f"so and point them at {gap.url} to authorize their {gap.name} connection again, under You."
+            f"so and {_servers_pointer(surface)} to authorize their {gap.name} connection again, "
+            "under You."
         )
     return (
         f"{bound}, and this person has not connected their own {gap.name} yet, so its tools are "
-        f"not available for this message. If asked for anything in {gap.name}, say so and give "
-        f"them this link to connect it: {gap.url} - once connected, they ask again."
+        f"not available for this message. If asked for anything in {gap.name}, say so and "
+        f"{_servers_pointer(surface, connect_key=gap.catalog_key)} to connect it, then ask again."
     )
 
 
