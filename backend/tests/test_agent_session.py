@@ -2449,14 +2449,7 @@ class TestTellingTheClientWhatThePersonCannotReach:
         session = _session()
 
         await session._personal_gaps_event(
-            [
-                PersonalServiceGap(
-                    catalog_key="notion",
-                    name="Notion",
-                    gap="not_connected",
-                    url="http://localhost:3000/mcp-servers?connect=notion",
-                )
-            ]
+            [PersonalServiceGap(catalog_key="notion", name="Notion", gap="not_connected")]
         )
 
         assert _sent_events(session) == [
@@ -2468,7 +2461,6 @@ class TestTellingTheClientWhatThePersonCannotReach:
                             "catalog_key": "notion",
                             "name": "Notion",
                             "gap": "not_connected",
-                            "url": "http://localhost:3000/mcp-servers?connect=notion",
                         }
                     ]
                 },
