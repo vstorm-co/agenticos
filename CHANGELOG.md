@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.403] - 2026-09-11
+
+### Fixed
+
+- **The connect-services card navigates in the app, and the runner no longer
+  builds console URLs.** `personal_service_gap` quoted `FRONTEND_URL/mcp-servers`
+  to both the model and the card, which 404s under a locale prefix. The frame
+  now carries the catalog key and the gap only: the card resolves the entry it
+  has and pushes the locale-aware route, a console reader is named the page in
+  words, and only a channel reader gets an absolute link, built beside the other
+  channel URLs. (#1572)
+
 ## [0.0.402] - 2026-09-11
 
 ### Fixed
