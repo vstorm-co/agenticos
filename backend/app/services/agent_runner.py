@@ -1321,7 +1321,11 @@ def personal_service_gap(unavailable: UnavailablePersonalService) -> PersonalSer
 
 
 def _with_personal_service_gaps(
-    spec: AgentSpec, gaps: Sequence[UnavailablePersonalService], surface: RunSurface
+    spec: AgentSpec,
+    gaps: Sequence[UnavailablePersonalService],
+    surface: RunSurface,
+    *,
+    sender_present: bool = False,
 ) -> AgentSpec:
     """The spec told which personal services this turn cannot reach, and why.
 
@@ -1335,7 +1339,10 @@ def _with_personal_service_gaps(
     """
     if not gaps:
         return spec
-    added = "\n\n".join(_personal_gap_briefing(personal_service_gap(gap), surface) for gap in gaps)
+    added = "\n\n".join(
+        _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
+        for gap in gaps
+    )
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
@@ -1353,7 +1360,9 @@ def _servers_pointer(surface: RunSurface, *, connect_key: str | None = None) -> 
     return "send them to the MCP servers page"
 
 
-def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
+def _personal_gap_briefing(
+    gap: PersonalServiceGap, surface: RunSurface, *, sender_present: bool
+) -> str:
     bound = f"{gap.name} is bound to the account of whoever is talking to you"
     if gap.gap == "nobody_to_speak_as":
         if surface in _CHANNEL_SURFACES:
@@ -1362,6 +1371,12 @@ def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
                 f"person here, so the {gap.name} tools are not available for it. If asked for "
                 f"anything in {gap.name}, say so and tell them to send /link to this bot first, "
                 "then ask again."
+            )
+        if sender_present:
+            return (
+                f"{bound}, and although they are signed in, this run does not act as their "
+                f"account, so the {gap.name} tools are not available here. If asked for anything "
+                f"in {gap.name}, say so plainly rather than attempting a workaround."
             )
         return (
             f"{bound}, and nobody is signed in on this surface, so the {gap.name} tools are not "
@@ -1462,6 +1477,15 @@ class _Delegation:
     The person who wrote the message, and `None` where nobody did. Here rather
     than derived per delegate because it is a fact about the *run*: a delegate
     answers the same person its parent does, at every level of the tree.
+    """
+
+    sender_present: bool
+    """Whether a signed-in person is behind the run though it may not act as them.
+
+    A fact about the run, like `personal_mcp_user_id`: it separates an API call a
+    person made with their own token from a surface with nobody on it, so a
+    delegate's gap briefing does not tell a signed-in caller that nobody is
+    signed in (#1445).
     """
 
     approvals: ApprovalChannel
@@ -2084,6 +2108,15 @@ class AgentRunnerService:
             if acts_for_sender and not subject_is_publisher_fallback
             else None
         )
+        # Whether a signed-in person is behind this run even where a personal
+        # binding may not speak through their account - true on the API, where a
+        # bearer token identifies the caller but their own connections are
+        # deliberately out of reach, and false where nobody wrote the message at
+        # all. It is what tells the gap briefing to explain the refusal rather
+        # than tell a signed-in caller that nobody is signed in (#1445).
+        sender_present = (
+            owner_user_id or ctx.user_id
+        ) is not None and not subject_is_publisher_fallback
 
         # The MCP servers the spec binds, resolved here rather than by each
         # surface. A surface that forgot would produce an agent missing half its
@@ -2096,7 +2129,9 @@ class AgentRunnerService:
             sender_user_id=personal_mcp_user_id,
         )
         spec_toolsets = resolved.toolsets
-        spec = _with_personal_service_gaps(spec, resolved.unavailable, surface)
+        spec = _with_personal_service_gaps(
+            spec, resolved.unavailable, surface, sender_present=sender_present
+        )
 
         run = existing_run
         if run is None:
@@ -2241,6 +2276,7 @@ class AgentRunnerService:
             surface=surface,
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
+            sender_present=sender_present,
             resources=resources,
             approvals=channel,
             budget=run_budget,
@@ -2336,6 +2372,7 @@ class AgentRunnerService:
         surface: RunSurface,
         user_name: str | None,
         personal_mcp_user_id: UUID | None,
+        sender_present: bool,
         resources: dict[str, Any],
         approvals: ApprovalChannel,
         budget: _RunBudget,
@@ -2392,6 +2429,7 @@ class AgentRunnerService:
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
+            sender_present=sender_present,
             approvals=approvals,
             budget=budget,
             record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
@@ -2775,7 +2813,12 @@ class AgentRunnerService:
         # Briefed like the parent: a delegate may bind a service the parent does
         # not, and one that lost it silently would report failure where the
         # parent could have relayed "connect your Notion" instead.
-        runnable = _with_personal_service_gaps(runnable, resolved.unavailable, delegation.surface)
+        runnable = _with_personal_service_gaps(
+            runnable,
+            resolved.unavailable,
+            delegation.surface,
+            sender_present=delegation.sender_present,
+        )
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
         return ResolvedSubagent(
             name=delegate.slug,

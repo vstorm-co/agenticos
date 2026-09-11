@@ -18,12 +18,12 @@ import { useOrgMcpConnections } from "./use-org-mcp-connections";
  * it is redeployed, not while someone is reading it.
  */
 export function useMcpCatalog() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.mcpServers.catalog(),
     queryFn: () => apiClient.get<McpCatalog>("/agents/mcp-catalog"),
     staleTime: Infinity,
   });
-  return { servers: data?.items ?? [], isLoading };
+  return { servers: data?.items ?? [], isLoading, error };
 }
 
 /** What one page of the server list holds. */

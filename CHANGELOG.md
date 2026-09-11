@@ -17,6 +17,59 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.402] - 2026-09-11
+
+### Fixed
+
+- **A signed-in API caller is no longer told that nobody is signed in.** A run
+  through `POST /agents/{id}/run` with a person's own token may not reach their
+  personal MCP bindings, which is right, but the briefing explained it with a
+  false sentence the model repeated back. The briefing now knows a person is
+  behind the run and says it does not act as their account; a run with genuinely
+  nobody - a schedule, an anonymous embed - reads as before. (#1571)
+
+## [0.0.401] - 2026-09-11
+
+### Fixed
+
+- **The sandbox connection dialog's store-failure test no longer flakes under
+  coverage.** The local-service path debounces a probe that clears the same
+  failure state a save reports through; on a loaded run the probe fired after
+  the save and erased the message the assertion waited for. The case now waits
+  for the probe before it submits. (#1570)
+
+## [0.0.400] - 2026-09-11
+
+### Fixed
+
+- **The stale-reference banner no longer flashes on every agent load.** Each
+  list it consults defaulted to empty while its query loaded, so on first paint
+  every referenced collection, context file, skill and MCP connection read as
+  deleted, the alarm-coloured banner rendered for a second, and its button would
+  have stripped live references from the draft on a fast click. It now computes
+  nothing until every list has answered. (#1569)
+
+## [0.0.399] - 2026-09-11
+
+### Fixed
+
+- **Two AgenticOS stacks can share a host, and the installer refuses to take
+  one over.** Compose names a project after its directory, so a clone at
+  `~/agenticos` and a quickstart install at `./agenticos` were one project to
+  Docker: the second `up` recreated the first's containers on the published
+  images, on the first's volumes, under a `VAULT_MASTER_KEY` generated a moment
+  before. The compose files fix no `container_name` any more, so each project
+  names its own containers, and `deploy.sh` and `quickstart.sh` wait for health
+  by service. Outside a clone the quickstart now checks the project before it
+  writes a key: containers of the same project from another directory, or
+  volumes of it with no `.env` here, stop it with a message naming the other
+  stack and the ways out. (#1577)
+- **One unreadable bot token no longer keeps the API from starting.** A bot
+  whose token the vault cannot unseal - a rotated master key, a database started
+  under another installation's key - raised out of the lifespan and the
+  container crash-looped. It is logged and skipped now; the other bots start.
+  (#1577)
+
 ## [0.0.398] - 2026-09-10
 
 ### Added

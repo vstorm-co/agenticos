@@ -236,9 +236,20 @@ deliberately leaves to whatever terminates TLS.
     containers as **orphans**, with compose's own suggestion to run the command
     again with `--remove-orphans`. Taking that advice stops the API, the
     database, Redis and both Prefect services. The `make` targets and
-    `scripts/deploy.sh` pass `-p agenticos-frontend`, so the warning is gone; a
-    deployment that predates this fix needs its frontend container removed once
-    (`docker rm -f agenticos_frontend`) before the renamed project can create it.
+    `scripts/deploy.sh` pass `-p agenticos-frontend`, so the warning is gone.
+    The compose files fix no container names either - each project names its
+    own, so two stacks on one host cannot take each other's containers over,
+    and `deploy.sh` waits on the `app` and `frontend` services rather than on a
+    name. A deployment that predates both fixes is recreated under the new
+    names on its next `up`; nothing has to be removed by hand.
+
+    The two projects still meet on a network with a fixed name - `agenticos_edge`
+    in production, `agenticos_backend` on the dev server - because the frontend
+    joins it as an external network. A host running **two** AgenticOS stacks sets
+    `AGENTICOS_EDGE_NETWORK` and `AGENTICOS_DATA_NETWORK` (or `AGENTICOS_NETWORK`)
+    apart in each stack's `backend/.env`; otherwise both stacks' `db`, `redis`
+    and `app` resolve on one bridge, and a request can reach the neighbour's
+    database.
 
 ## Start it, and create the first account
 

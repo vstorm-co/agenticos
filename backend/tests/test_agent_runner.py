@@ -3653,11 +3653,14 @@ class TestTellingTheAgentWhatItCannotReach:
     _CONNECT = "http://localhost:3000/mcp-servers?connect=notion"
 
     @staticmethod
-    def _briefed(gap: str, surface: RunSurface = RunSurface.WEB) -> str:
+    def _briefed(
+        gap: str, surface: RunSurface = RunSurface.WEB, *, sender_present: bool = False
+    ) -> str:
         spec = _with_personal_service_gaps(
             AgentSpec(name="Support", instructions="Be brief."),
             [UnavailablePersonalService("notion", gap)],  # type: ignore[arg-type]  # each literal is exercised below
             surface,
+            sender_present=sender_present,
         )
         return spec.instructions
 
@@ -3727,6 +3730,17 @@ class TestTellingTheAgentWhatItCannotReach:
         text = self._briefed("nobody_to_speak_as", surface)
 
         assert "nobody is signed in on this surface" in text
+        assert "/link" not in text
+
+    @pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.EMBED, RunSurface.SCHEDULE])
+    def test_a_signed_in_caller_is_told_the_run_will_not_act_as_them(self, surface):
+        """A run through `POST /agents/{id}/run` carries the caller's own token, so
+        `ctx.user_id` is that person even though the personal binding stays out of
+        reach - "nobody is signed in" was false, and the model repeated it (#1445)."""
+        text = self._briefed("nobody_to_speak_as", surface, sender_present=True)
+
+        assert "does not act as their account" in text
+        assert "nobody is signed in" not in text
         assert "/link" not in text
 
     def test_the_service_is_named_as_the_catalog_names_it(self):
