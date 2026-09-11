@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.399] - 2026-09-11
+
+### Fixed
+
+- **Two AgenticOS stacks can share a host, and the installer refuses to take
+  one over.** Compose names a project after its directory, so a clone at
+  `~/agenticos` and a quickstart install at `./agenticos` were one project to
+  Docker: the second `up` recreated the first's containers on the published
+  images, on the first's volumes, under a `VAULT_MASTER_KEY` generated a moment
+  before. The compose files fix no `container_name` any more, so each project
+  names its own containers, and `deploy.sh` and `quickstart.sh` wait for health
+  by service. Outside a clone the quickstart now checks the project before it
+  writes a key: containers of the same project from another directory, or
+  volumes of it with no `.env` here, stop it with a message naming the other
+  stack and the ways out. (#1577)
+- **One unreadable bot token no longer keeps the API from starting.** A bot
+  whose token the vault cannot unseal - a rotated master key, a database started
+  under another installation's key - raised out of the lifespan and the
+  container crash-looped. It is logged and skipped now; the other bots start.
+  (#1577)
+
 ## [0.0.398] - 2026-09-10
 
 ### Added
