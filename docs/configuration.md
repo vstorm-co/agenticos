@@ -148,6 +148,7 @@ exactly once.
 | `POSTGRES_USER` | `postgres` | PostgreSQL user |
 | `POSTGRES_PASSWORD` | (empty) | PostgreSQL password |
 | `POSTGRES_DB` | `agenticos` | Database name |
+| `POSTGRES_SSLMODE` | (empty) | Encrypt the connection: `require`, `verify-ca` or `verify-full`. Empty is plaintext. See [Encrypted connections](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Connection pool size |
 | `DB_MAX_OVERFLOW` | `10` | Max overflow connections |
 | `DB_POOL_TIMEOUT` | `30` | Pool timeout in seconds |
@@ -164,6 +165,43 @@ Computed properties:
 | `REDIS_PORT` | `6379` | Redis port |
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
+| `REDIS_SSL` | `false` | Encrypt the connection (`rediss://`). See [Encrypted connections](#encrypted-connections-tls) |
+
+## Encrypted connections (TLS)
+
+Both stores connect in plaintext by default. On a single host with Postgres and
+Redis on the same Docker network that is fine, and it is what the shipped compose
+files run. On a managed Postgres, or a Redis on another node, encrypting the
+connection is the transmission-security control a reviewer asks for first (HIPAA
+§164.312(e), SOC 2 CC6.7).
+
+Setting `POSTGRES_SSLMODE` builds the URL each driver understands — `?ssl=<mode>`
+for the app's asyncpg, `?sslmode=<mode>` for Alembic's psycopg2 — and `REDIS_SSL`
+switches the Redis scheme to `rediss://`. `require` encrypts the connection;
+`verify-ca` and `verify-full` also check the server's certificate.
+
+!!! note "The CA is trusted at the OS level, not per connection"
+
+    asyncpg reads no per-connection root-certificate path, so a `verify-full`
+    setup mounts the CA bundle into the container's trust store rather than naming
+    it in the URL. `agenticos cmd doctor` reports `postgres: tls=on/off` and
+    `redis: tls=on/off` — the transport of the connection it actually made, read
+    from `pg_stat_ssl`, not the setting that asked for it.
+
+```yaml
+# A managed Postgres that requires TLS, verified against its CA.
+services:
+  api:
+    environment:
+      POSTGRES_HOST: db.internal.example.com
+      POSTGRES_PORT: "5432"
+      POSTGRES_SSLMODE: verify-full
+      REDIS_SSL: "true"
+    volumes:
+      # Mounted where the base image's trust store looks, then trusted at build
+      # or entrypoint with `update-ca-certificates`.
+      - ./ca/managed-postgres.crt:/usr/local/share/ca-certificates/managed-postgres.crt:ro
+```
 
 ## Email (SMTP)
 
