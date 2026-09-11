@@ -42,6 +42,7 @@ function connection(overrides: Partial<McpConnectionRecord> = {}): McpConnection
     is_enabled: true,
     auth_type: "bearer",
     oauth_authorized: false,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,

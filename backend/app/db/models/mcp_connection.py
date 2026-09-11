@@ -49,6 +49,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.vault import is_key_version_available
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -234,3 +235,25 @@ class McpConnection(Base, TimestampMixin):
             f"<McpConnection(name={self.name} scope={self.scope} "
             f"url={self.url} enabled={self.is_enabled})>"
         )
+
+    @property
+    def account_authorized(self) -> bool:
+        """Whether this connection's stored credential can be used right now.
+
+        The side-effect-free half of `_resolve_auth_headers`, and the single place
+        the answer is decided so a run and the rendered list cannot drift (#1443):
+        an OAuth or bearer credential is usable once its payload/token is written
+        and the master key that sealed it is still configured - the half
+        `_resolve_auth_headers` finds missing after a `SECRET_KEY` rotation. It
+        decrypts and refreshes nothing, so two failures it cannot see are left to
+        the run that actually unseals: a ciphertext tampered with under a still
+        configured key, and an OAuth grant the provider has revoked or expired past
+        its refresh - the sweep marks the latter `last_status="error"` beforehand.
+        """
+        if self.auth_type == "oauth":
+            return self.oauth_payload is not None and is_key_version_available(
+                self.secret_key_version
+            )
+        if self.auth_token is None:
+            return True
+        return is_key_version_available(self.secret_key_version)

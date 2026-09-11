@@ -35,6 +35,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     is_enabled: true,
     auth_type: "bearer",
     oauth_authorized: false,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
@@ -125,7 +126,13 @@ describe("McpServerPicker", () => {
   it("warns that a server cannot be reached before it is attached", () => {
     // Attaching a connection that has never been authorized is allowed - it may
     // be authorized later - but it should not look ready.
-    render(picker({ connections: [connection({ auth_type: "oauth", oauth_authorized: false })] }));
+    render(
+      picker({
+        connections: [
+          connection({ auth_type: "oauth", oauth_authorized: false, authorized: false }),
+        ],
+      }),
+    );
 
     expect(screen.getByText("Needs authorization")).toBeInTheDocument();
   });

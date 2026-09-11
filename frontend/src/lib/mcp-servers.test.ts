@@ -47,6 +47,7 @@ function personal(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRe
     is_enabled: true,
     auth_type: "bearer",
     oauth_authorized: false,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
@@ -177,10 +178,18 @@ describe("connectionState", () => {
     expect(connectionState(null)).toBe("not-connected");
   });
 
-  it("says an unauthorized OAuth server needs authorization, before anything else", () => {
+  it("says a server the server cannot authorize needs authorization, before anything else", () => {
     expect(
-      connectionState(personal({ auth_type: "oauth", oauth_authorized: false, is_enabled: false })),
+      connectionState(personal({ auth_type: "oauth", authorized: false, is_enabled: false })),
     ).toBe("needs-authorization");
+  });
+
+  it("says a bearer token a key rotation orphaned needs authorization too", () => {
+    // The drift #1443 closed on this path as well: the client only knew about
+    // OAuth consent, so an unsealed bearer token read connected here.
+    expect(connectionState(personal({ auth_type: "bearer", authorized: false }))).toBe(
+      "needs-authorization",
+    );
   });
 
   it("says a switched-off server is disabled, whatever its last check said", () => {
@@ -331,6 +340,7 @@ describe("ownAccountStatus", () => {
       is_enabled: true,
       auth_type: "oauth",
       oauth_authorized: true,
+      authorized: true,
       last_status: "ok",
       last_error: null,
       last_checked_at: null,
@@ -369,7 +379,18 @@ describe("ownAccountStatus", () => {
   });
 
   it("is unauthorized when the chosen grant no longer stands", () => {
-    expect(ownAccountStatus("notion", [own({ oauth_authorized: false })])).toBe("unauthorized");
+    expect(ownAccountStatus("notion", [own({ oauth_authorized: false, authorized: false })])).toBe(
+      "unauthorized",
+    );
+  });
+
+  it("is unauthorized when the server can no longer unseal the stored token", () => {
+    // The drift #1443 closed: a bearer token the deployment can no longer open
+    // read connected, because the client only knew about OAuth consent and the
+    // server is the one that finds a rotated key. It now reads the server's answer.
+    expect(ownAccountStatus("notion", [own({ auth_type: "bearer", authorized: false })])).toBe(
+      "unauthorized",
+    );
   });
 });
 
@@ -384,6 +405,7 @@ describe("ownAccountStatus and a failed health check", () => {
       is_enabled: true,
       auth_type: "bearer",
       oauth_authorized: false,
+      authorized: true,
       last_status: "error",
       last_error: "timed out",
       last_checked_at: null,
