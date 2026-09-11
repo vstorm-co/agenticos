@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.400] - 2026-09-11
+
+### Fixed
+
+- **The stale-reference banner no longer flashes on every agent load.** Each
+  list it consults defaulted to empty while its query loaded, so on first paint
+  every referenced collection, context file, skill and MCP connection read as
+  deleted, the alarm-coloured banner rendered for a second, and its button would
+  have stripped live references from the draft on a fast click. It now computes
+  nothing until every list has answered. (#1569)
+
 ## [0.0.399] - 2026-09-11
 
 ### Fixed
