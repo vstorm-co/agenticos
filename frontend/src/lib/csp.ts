@@ -25,7 +25,8 @@ export type CspDirective =
   | "connect-src"
   | "frame-ancestors"
   | "base-uri"
-  | "form-action";
+  | "form-action"
+  | "object-src";
 
 /** What each directive allows, in the order the header is written. */
 export const CSP_DIRECTIVES: Readonly<Record<CspDirective, readonly string[]>> = {
@@ -54,6 +55,9 @@ export const CSP_DIRECTIVES: Readonly<Record<CspDirective, readonly string[]>> =
   "frame-ancestors": ["'none'"],
   "base-uri": ["'self'"],
   "form-action": ["'self'"],
+  // No `<object>`, `<embed>` or `<applet>` at all - the console renders none, and
+  // they are a plugin-content vector `default-src` does not cover on its own.
+  "object-src": ["'none'"],
 };
 
 /** The header value, as one line. */

@@ -47,6 +47,13 @@ describe("the console's content security policy", () => {
     }
   });
 
+  it("forbids plugin content outright", () => {
+    // `<object>`/`<embed>` are not covered by `default-src` on their own, and the
+    // console renders none (#1416).
+    expect(CSP_DIRECTIVES["object-src"]).toEqual(["'none'"]);
+    expect(contentSecurityPolicy).toContain("object-src 'none'");
+  });
+
   it("is one line, in the order the directives are written", () => {
     expect(contentSecurityPolicy).not.toContain("\n");
     expect(contentSecurityPolicy.startsWith("default-src 'self';")).toBe(true);
