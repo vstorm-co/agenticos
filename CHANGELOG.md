@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.409] - 2026-09-11
+
+### Security
+
+- **The console's security headers are complete, asserted and documented.**
+  `object-src 'none'` closes the plugin-content vector `default-src` does not
+  cover; `Permissions-Policy` allows the microphone on this origin alone so the
+  chat's dictation works, camera and geolocation still denied; every header
+  lives in `src/lib/security-headers.ts` with a test per header. `connect-src`
+  is built from the deployment's `PUBLIC_API_URL` and `PUBLIC_WS_URL` at
+  runtime, so a split-origin deployment's uploads and socket are allowed and
+  nothing else is, and the bundled nginx passes the application's headers
+  through instead of adding a conflicting set. `SECURITY.md` and
+  `docs/deployment.md` name the real policy. `script-src` still carries
+  `'unsafe-inline'`/`'unsafe-eval'` for Next's App Router; the nonce is #1416's
+  remaining item. (#1580)
+
 ## [0.0.408] - 2026-09-11
 
 ### Added
