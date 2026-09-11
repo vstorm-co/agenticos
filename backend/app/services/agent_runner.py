@@ -1349,12 +1349,14 @@ def _with_personal_service_gaps(
 def _binding_gap_briefing(gap: UnavailableBinding, surface: RunSurface) -> str:
     """One paragraph for a binding this turn could not honour, model-facing."""
     if isinstance(gap, UnavailablePrefixCollision):
+        # Says only what is certain - that {server} was not attached - and not that
+        # {kept} was: {kept} still faces its own liveness probe, so claiming it is
+        # attached could be wrong on the turn both are missing (#1442 review).
         return (
-            f"The {gap.server} server is not available this turn: it and {gap.kept} both reduce "
-            f"to the tool prefix {gap.prefix!r}, and two servers cannot share one - so only "
-            f"{gap.kept} is attached. If asked for anything in {gap.server}, say it is not "
-            "available because two of this agent's servers collide under one name, which the "
-            "agent's author resolves by renaming one connection."
+            f"The {gap.server} server was not attached this turn: it and {gap.kept} both reduce "
+            f"to the tool prefix {gap.prefix!r}, which two servers cannot share. If asked for "
+            f"anything in {gap.server}, say it is unavailable because it collides with {gap.kept} "
+            "under one tool name, which the agent's author resolves by renaming one connection."
         )
     return _personal_gap_briefing(personal_service_gap(gap), surface)
 

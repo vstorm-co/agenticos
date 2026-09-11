@@ -3744,16 +3744,18 @@ class TestTellingTheAgentWhatItCannotReach:
     def test_a_prefix_collision_tells_the_model_the_server_is_not_available(self):
         """The dropped server used to vanish with a log line; now it briefs the
         model so the answer says it is missing rather than pretending it never
-        existed (#1442). It is not a personal gap - the author renames a
-        connection - so it names no connect link."""
+        existed (#1442). It names only that the dropped server was not attached,
+        never that the winner was - the winner still faces its own probe. It is not
+        a personal gap - the author renames a connection - so it names no link."""
         spec = _with_personal_service_gaps(
             AgentSpec(name="Support", instructions="x"),
             [UnavailablePrefixCollision(server="github", prefix="github", kept="GitHub")],
             RunSurface.WEB,
         )
 
-        assert "github server is not available this turn" in spec.instructions
-        assert "tool prefix 'github'" in spec.instructions
+        assert "github server was not attached this turn" in spec.instructions
+        assert "collides with GitHub" in spec.instructions
+        assert "is attached" not in spec.instructions
         assert "is bound to the account" not in spec.instructions
 
 

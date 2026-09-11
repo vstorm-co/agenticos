@@ -434,6 +434,32 @@ class TestToolsetsForAgent:
         ]
 
     @pytest.mark.anyio
+    async def test_a_same_named_duplicate_is_dropped_but_not_reported(self, monkeypatch):
+        """One connection bound twice is a duplicate of a service the kept spec
+        still serves, so it is dropped to spare pydantic-ai the clash but reported
+        as nothing - saying that service is unavailable would be false, since its
+        tools are present (#1442 review)."""
+        seen = self._capture(monkeypatch)
+        conn = _connection(name="github", url="https://ws.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={conn.id: conn}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=conn.id),
+                OrgMcpServerRef(connection_id=conn.id),
+            ],
+        )
+
+        assert [spec.name for spec in seen[0]] == ["github"]
+        assert resolved.unavailable == []
+
+    @pytest.mark.anyio
     async def test_every_id_is_resolved_inside_the_agents_own_organization(self, monkeypatch):
         """A spec is data and can name any UUID; the tenant it resolves in is not
         negotiable, and neither is the connection being an organization one."""

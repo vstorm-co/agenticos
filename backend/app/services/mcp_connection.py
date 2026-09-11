@@ -1700,13 +1700,17 @@ async def build_toolsets_for_agent(
     # the turn, so the loser is dropped - but reported on `unavailable`, not left
     # to a log line, so the model can say the server is not available (#1442). The
     # first spec keeps the prefix; org bindings are appended before personal ones.
+    # A same-named loser - the same connection bound twice, or one renamed to the
+    # other's name - is a duplicate of a service the kept spec still serves, so it
+    # is dropped but not reported: nothing about that service is unavailable.
     dropped: set[int] = set()
     for prefix, held in prefix_collisions((spec.name, spec) for spec in specs).items():
         for loser in held[1:]:
             dropped.add(id(loser))
-            unavailable.append(
-                UnavailablePrefixCollision(server=loser.name, prefix=prefix, kept=held[0].name)
-            )
+            if loser.name != held[0].name:
+                unavailable.append(
+                    UnavailablePrefixCollision(server=loser.name, prefix=prefix, kept=held[0].name)
+                )
     specs = [spec for spec in specs if id(spec) not in dropped]
     return ResolvedMcpToolsets(toolsets=await build_mcp_toolsets(specs), unavailable=unavailable)
 
