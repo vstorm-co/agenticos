@@ -21,6 +21,7 @@ from app.core.vault import (
     VaultScopeKind,
     current_key_version,
     generate_master_key,
+    is_key_version_available,
     needs_rotation,
     rewrap,
     seal,
@@ -35,6 +36,16 @@ KEY_C = "vault-master-key-c-" + "c" * 32
 
 def _org() -> VaultScope:
     return VaultScope.organization(uuid.uuid4())
+
+
+class TestKeyVersionAvailability:
+    def test_a_configured_version_is_available(self, three_master_keys):
+        assert is_key_version_available(current_key_version()) is True
+
+    def test_a_dropped_version_is_not(self, three_master_keys):
+        # The version a row was sealed under, removed from VAULT_MASTER_KEYS before
+        # rotation finished moving every row off it - `unseal` would fail on it.
+        assert is_key_version_available(99) is False
 
 
 @pytest.fixture

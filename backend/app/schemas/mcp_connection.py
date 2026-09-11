@@ -93,6 +93,11 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # OAuth connection that has completed the consent flow (has usable tokens).
     # False for a bearer connection or an OAuth connection still awaiting consent.
     oauth_authorized: bool
+    # Whether the stored credential can be used right now, decided server-side so
+    # a run and this rendered row cannot drift (#1443). False for an OAuth
+    # connection awaiting consent or a bearer token the deployment can no longer
+    # unseal after a key rotation; a client reads this rather than re-deriving it.
+    authorized: bool
     # The OAuth scopes the account consented to, so a caller can tell whether a
     # connection carries a scope a feature needs (a trigger portal's webhook-admin
     # scope). Scope names describe breadth, not a credential, so they are safe to
@@ -133,6 +138,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             is_enabled=connection.is_enabled,
             auth_type=connection.auth_type,
             oauth_authorized=oauth_authorized,
+            authorized=connection.account_authorized,
             granted_scopes=connection.granted_scopes,
             last_status=connection.last_status,
             last_error=connection.last_error,

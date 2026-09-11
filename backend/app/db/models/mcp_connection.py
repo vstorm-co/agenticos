@@ -49,6 +49,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.vault import is_key_version_available
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -234,3 +235,22 @@ class McpConnection(Base, TimestampMixin):
             f"<McpConnection(name={self.name} scope={self.scope} "
             f"url={self.url} enabled={self.is_enabled})>"
         )
+
+    @property
+    def account_authorized(self) -> bool:
+        """Whether this connection's stored credential can be used right now.
+
+        The side-effect-free half of `_resolve_auth_headers`, and the single place
+        the answer is decided so a run and the rendered list cannot drift (#1443):
+        OAuth is authorized once its payload is written; a bearer token is usable
+        while the master key that sealed it is still configured, which is the half
+        `_resolve_auth_headers` finds missing after a `SECRET_KEY` rotation. It
+        decrypts and refreshes nothing - a token whose ciphertext was tampered with
+        still reads authorized here, and only the run that actually unseals it
+        finds otherwise.
+        """
+        if self.auth_type == "oauth":
+            return self.oauth_payload is not None
+        if self.auth_token is None:
+            return True
+        return is_key_version_available(self.secret_key_version)
