@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.402] - 2026-09-11
+
+### Fixed
+
+- **A signed-in API caller is no longer told that nobody is signed in.** A run
+  through `POST /agents/{id}/run` with a person's own token may not reach their
+  personal MCP bindings, which is right, but the briefing explained it with a
+  false sentence the model repeated back. The briefing now knows a person is
+  behind the run and says it does not act as their account; a run with genuinely
+  nobody - a schedule, an anonymous embed - reads as before. (#1571)
+
 ## [0.0.401] - 2026-09-11
 
 ### Fixed
