@@ -5,24 +5,32 @@
  * the [CSP](./csp.ts) is: a header that goes missing breaks nothing a build or a
  * log would notice, and the reason surfaces only as a refusal in one visitor's
  * browser (#1039, #1416).
+ *
+ * Two emitters, one list. The headers whose value never changes are set by
+ * `next.config.ts` at build time. The Content-Security-Policy names the
+ * deployment's public origins, which are read from the environment per request
+ * (#1544), so `src/middleware.ts` stamps it on every page response - the one
+ * place a runtime value can reach a header. Neither sets what the other does,
+ * so no response carries a header twice.
  */
 
 import { contentSecurityPolicy } from "./csp";
+import type { PublicConfig } from "./public-config";
 
 export interface SecurityHeader {
   key: string;
   value: string;
 }
 
-export const securityHeaders: readonly SecurityHeader[] = [
-  { key: "Content-Security-Policy", value: contentSecurityPolicy },
+/** The headers whose value does not depend on the deployment, set by Next at build. */
+export const staticSecurityHeaders: readonly SecurityHeader[] = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   {
     // 0, not "1; mode=block": the legacy auditor is deprecated and its blocking
     // mode opens XS-Leak vectors, so OWASP is to disable it and rely on the CSP.
-    // This matches the backend and the bundled Nginx, so a proxied response does
-    // not carry two conflicting values.
+    // This matches the backend, so a response proxied through either carries one
+    // value.
     key: "X-XSS-Protection",
     value: "0",
   },
@@ -37,3 +45,8 @@ export const securityHeaders: readonly SecurityHeader[] = [
     value: "camera=(), microphone=(self), geolocation=()",
   },
 ];
+
+/** The policy header for a deployment, stamped per request by the middleware. */
+export function contentSecurityPolicyHeader(config: PublicConfig): SecurityHeader {
+  return { key: "Content-Security-Policy", value: contentSecurityPolicy(config) };
+}

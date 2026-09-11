@@ -71,12 +71,18 @@ deployment the API is not on the same origin as the pages.
 ## Security headers
 
 Every console page carries a Content-Security-Policy and the usual hardening
-headers, set by Next from `frontend/src/lib/csp.ts` and
+headers, defined in `frontend/src/lib/csp.ts` and
 `frontend/src/lib/security-headers.ts`, both asserted by tests. The policy is
-`default-src 'self'` with an explicit `connect-src` for the API origin and the
-chat WebSocket, `img-src` allowing `data:` for the brand glyphs and avatars,
-`frame-src 'self' blob:` for document previews, `object-src 'none'`, `base-uri
-'self'` and `frame-ancestors 'none'`.
+`default-src 'self'` with a `connect-src` naming exactly this origin,
+`PUBLIC_API_URL` and `PUBLIC_WS_URL`, `img-src` allowing `data:` for the brand
+glyphs and avatars, `frame-src 'self' blob:` for document previews, `object-src
+'none'`, `base-uri 'self'` and `frame-ancestors 'none'`.
+
+The policy is stamped per request by the frontend's middleware, because the two
+public URLs are read from the server's environment at runtime and a header set
+at build could only name `localhost`. The other headers are constants and are
+set by Next's configuration. Change the public URLs and the policy follows on
+the next request; nothing is rebuilt.
 
 Alongside it sit `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy`
@@ -90,7 +96,9 @@ origin, for the chat's speech-to-text.
     response are combined by the browser into their intersection, so a proxy that
     adds a second — even a laxer one — only tightens the policy into something
     that blocks a pane nobody meant to block; and a second `X-Frame-Options` lets
-    the browser pick either value.
+    the browser pick either value. The bundled `nginx/nginx.conf` sets only
+    `Strict-Transport-Security`, which belongs to whatever terminates TLS; an
+    existing proxy configuration that adds the others should drop them.
 
 ## Who may register
 

@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import { contentSecurityPolicy } from "./csp";
-import { securityHeaders } from "./security-headers";
+import { DEFAULT_PUBLIC_CONFIG } from "./public-config";
+import { contentSecurityPolicyHeader, staticSecurityHeaders } from "./security-headers";
 
 /**
  * Each header is asserted for the same reason the CSP is: one that goes missing
  * fails no build and appears in no log the deployment reads (#1039, #1416).
  */
 describe("the console's security headers", () => {
-  const byKey = new Map(securityHeaders.map((header) => [header.key, header.value]));
+  const every = [...staticSecurityHeaders, contentSecurityPolicyHeader(DEFAULT_PUBLIC_CONFIG)];
+  const byKey = new Map(every.map((header) => [header.key, header.value]));
 
-  it("carries every header a review expects, once each", () => {
+  it("carries every header a review expects, once each, between its two emitters", () => {
     expect([...byKey.keys()].sort()).toEqual([
       "Content-Security-Policy",
       "Permissions-Policy",
@@ -19,12 +21,16 @@ describe("the console's security headers", () => {
       "X-Frame-Options",
       "X-XSS-Protection",
     ]);
-    // No key appears twice - a duplicate would let a proxy pick either value.
-    expect(securityHeaders).toHaveLength(byKey.size);
+    // No key appears twice - a duplicate would let a proxy pick either value. The
+    // static set is Next's at build; the policy is the middleware's per request.
+    expect(every).toHaveLength(byKey.size);
+    expect(staticSecurityHeaders.map((header) => header.key)).not.toContain(
+      "Content-Security-Policy",
+    );
   });
 
-  it("sets the content security policy the CSP module builds", () => {
-    expect(byKey.get("Content-Security-Policy")).toBe(contentSecurityPolicy);
+  it("sets the content security policy the CSP module builds for the deployment", () => {
+    expect(byKey.get("Content-Security-Policy")).toBe(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG));
   });
 
   it("denies framing and sniffing, and leaks no path across origins", () => {
