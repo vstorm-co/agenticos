@@ -299,6 +299,34 @@ class TestMemberService:
             await service.remove(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
 
     @pytest.mark.anyio
+    async def test_a_custom_role_that_does_not_outrank_an_admin_cannot_remove_one(
+        self, service, monkeypatch
+    ):
+        """The hole the literal `admin`-vs-`admin` rule left, that `change_role`
+        already closes with the catalog (#700, #1066). A custom role (Phase 2)
+        holding `members:manage` whose set does not outrank an Admin's would pass
+        the literal - `requester.role == "admin"` is false - and remove the Admin.
+        The catalog bounds it by the same ceiling `change_role` uses."""
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:members-only", {Perm.MEMBERS_MANAGE: Scope.ALL})
+        mock_requester = MagicMock(role="test:members-only")
+        mock_target = MagicMock(role="admin")
+
+        call_count = 0
+
+        async def mock_get(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return mock_requester if call_count == 1 else mock_target
+
+        with (
+            patch("app.services.member.member_repo.get", new=mock_get),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.remove(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
+
+    @pytest.mark.anyio
     async def test_change_role_admin_cannot_demote_admin(self, service):
         """The other half of test_remove_admin_cannot_remove_admin: demoting a
         peer Admin to Viewer strips the same authority `remove` refuses to touch,

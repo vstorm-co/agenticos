@@ -107,8 +107,11 @@ export function entryForConnection(
  */
 export function connectionState(connection: McpConnectionRecord | null): McpConnectionState {
   if (!connection) return "not-connected";
-  if (connection.auth_type === "oauth" && !connection.oauth_authorized)
-    return "needs-authorization";
+  // The server's own answer to whether the credential can be used, so every
+  // surface that renders a connection agrees with `ownAccountStatus` and the run
+  // rather than re-deriving it from OAuth consent alone - a bearer token a key
+  // rotation orphaned needs authorizing again too, not only an OAuth grant (#1443).
+  if (!connection.authorized) return "needs-authorization";
   if (!connection.is_enabled) return "disabled";
   if (connection.last_status === "error") return "error";
   return "connected";
@@ -329,12 +332,14 @@ export function mergeServers(
  * Whether this person can speak to a catalog service through an account of
  * their own, as a binding to each person's own account would find it.
  *
- * The same rule the run applies (`_nominated` on the backend): one enabled
- * connection needs no choosing, several answer only the one marked default, and
- * several with none marked are `undecided` rather than guessed between. A chosen
- * OAuth connection whose grant is gone is `unauthorized` - the account exists,
- * the credential behind it does not. A failed health check is not that: the
- * run still sends the token it holds, so the row reads connected.
+ * Which connection answers is a pure reading of the list, the same choice
+ * `_nominated` makes on the backend: one enabled connection needs no choosing,
+ * several answer only the one marked default, and several with none marked are
+ * `undecided`. Whether that connection's credential is usable is **not** re-derived
+ * here - it is the server's `authorized`, so a chosen connection reads the same
+ * `connected`/`unauthorized` the run reports. A bearer token the deployment can no
+ * longer unseal used to read connected because the client only knew about OAuth
+ * consent (#1443).
  */
 export function ownAccountStatus(
   catalogKey: string,
@@ -346,5 +351,5 @@ export function ownAccountStatus(
   if (mine.length === 0) return "not_connected";
   const chosen = mine.length === 1 ? mine[0] : mine.find((one) => one.is_default);
   if (chosen === undefined) return "undecided";
-  return connectionState(chosen) === "needs-authorization" ? "unauthorized" : "connected";
+  return chosen.authorized ? "connected" : "unauthorized";
 }

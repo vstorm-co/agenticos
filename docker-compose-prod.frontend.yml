@@ -28,7 +28,6 @@
 services:
   frontend:
     image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-latest}
-    container_name: agenticos_frontend
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://app:8000
@@ -75,5 +74,5 @@ services:
 
 networks:
   edge:
-    name: agenticos_edge
+    name: ${AGENTICOS_EDGE_NETWORK:-agenticos_edge}
     external: true

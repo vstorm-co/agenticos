@@ -10,6 +10,7 @@ import type { McpCatalogEntry } from "@/types/mcp";
 const state = vi.hoisted(() => ({
   connections: [] as McpConnectionRecord[],
   servers: [] as McpCatalogEntry[],
+  push: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-mcp-connections", () => ({
@@ -17,6 +18,9 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
 }));
 vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: state.servers, isLoading: false }),
+}));
+vi.mock("@/lib/locale-navigation", () => ({
+  useRouter: () => ({ push: state.push }),
 }));
 // The dialog is tested on its own; here it only has to be opened for the right
 // entry, so it renders a marker naming the one it was given.
@@ -55,7 +59,6 @@ function gap(overrides: Partial<PersonalServiceGap> = {}): PersonalServiceGap {
     catalog_key: "notion",
     name: "Notion",
     gap: "not_connected",
-    url: "http://localhost:3000/mcp-servers?connect=notion",
     ...overrides,
   };
 }
@@ -70,6 +73,7 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
     is_enabled: true,
     auth_type: "oauth",
     oauth_authorized: true,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
@@ -101,12 +105,9 @@ describe("ConnectServicesCard", () => {
 
   it("sends a person who already holds accounts to the servers page instead", () => {
     // `?connect=` would mint a third Notion; choosing between two is done there.
-    const opened = vi.spyOn(window, "open").mockReturnValue(null);
-    render(
-      <ConnectServicesCard
-        gaps={[gap({ gap: "undecided", url: "http://localhost:3000/mcp-servers" })]}
-      />,
-    );
+    // Navigated to in the app, so the path keeps the viewer's locale prefix.
+    state.push.mockClear();
+    render(<ConnectServicesCard gaps={[gap({ gap: "undecided" })]} />);
 
     expect(
       screen.getByText("You hold several connections to it and none is marked as default."),
@@ -114,7 +115,7 @@ describe("ConnectServicesCard", () => {
     expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
     screen.getByRole("button", { name: "Open MCP servers" }).click();
 
-    expect(opened).toHaveBeenCalledWith("http://localhost:3000/mcp-servers", "_blank", "noopener");
+    expect(state.push).toHaveBeenCalledWith("/mcp-servers");
   });
 
   it("falls back to the link for a service the catalog no longer describes", () => {

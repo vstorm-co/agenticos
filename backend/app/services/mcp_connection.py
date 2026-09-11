@@ -446,6 +446,10 @@ async def _resolve_auth_headers(
         return {"Authorization": f"Bearer {token}"} if token else None
     if connection.auth_token is None:
         return {}
+    if not connection.account_authorized:
+        # The master key that sealed it is gone; `unseal` would fail below anyway,
+        # and `account_authorized` is the same answer the rendered list reads (#1443).
+        return None
     try:
         token = unseal(
             connection.auth_token,

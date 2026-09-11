@@ -23,7 +23,7 @@ Three processes, and the arrangement is the security model:
 
 ```mermaid
 flowchart LR
-    B["agenticos_backend<br/><i>no docker.sock</i>"] -->|HTTP + SANDBOXD_TOKEN| S["agenticos_sandboxd<br/><i>holds /var/run/docker.sock</i>"]
+    B["app - the API<br/><i>no docker.sock</i>"] -->|HTTP + SANDBOXD_TOKEN| S["sandboxd<br/><i>holds /var/run/docker.sock</i>"]
     S -->|start a container| D[["the host's Docker daemon"]]
     D --> C["a session's container<br/><i>a sibling of sandboxd, not a child</i>"]
 ```

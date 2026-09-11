@@ -1015,6 +1015,46 @@ class TestAuthHeaders:
             connection_scope(conn)
 
 
+class TestAccountAuthorized:
+    """`account_authorized` is the one place a connection's usability is decided,
+    so the rendered list and the run cannot drift (#1443)."""
+
+    def test_a_bearer_connection_with_no_token_is_usable(self):
+        assert _connection().account_authorized is True
+
+    def test_a_token_on_a_configured_key_is_authorized(self):
+        conn = _connection()
+        conn.auth_token = _seal_into(conn, "secret-token")
+        assert conn.account_authorized is True
+
+    def test_a_token_whose_sealing_key_is_gone_is_not_authorized(self):
+        # A SECRET_KEY rotation leaves the row naming a version nothing can unwrap;
+        # the client had no way to know, so it read connected.
+        assert _connection(auth_token="sealed", secret_key_version=999).account_authorized is False
+
+    def test_an_oauth_connection_is_authorized_once_its_payload_is_written(self):
+        assert _connection(auth_type="oauth", oauth_payload='{"t":1}').account_authorized is True
+        assert _connection(auth_type="oauth", oauth_payload=None).account_authorized is False
+
+    def test_an_oauth_payload_sealed_under_a_dropped_key_is_not_authorized(self):
+        # The payload is present but unopenable after a rotation, the same way a
+        # bearer token is - the run finds `_oauth_access_token` returns None.
+        gone = _connection(auth_type="oauth", oauth_payload='{"t":1}', secret_key_version=999)
+        assert gone.account_authorized is False
+
+    @pytest.mark.anyio
+    async def test_resolve_auth_headers_refuses_a_token_whose_key_is_gone(self):
+        conn = _connection(auth_token="sealed", secret_key_version=999)
+        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+
+    def test_the_read_carries_the_server_decided_authorized(self):
+        usable = _connection()
+        usable.auth_token = _seal_into(usable, "secret-token")
+        assert McpConnectionRead.from_model(usable).authorized is True
+        gone = _connection(auth_token="sealed", secret_key_version=999)
+        assert McpConnectionRead.from_model(gone).authorized is False
+
+
 def _oauth_connection(payload: McpOAuthPayload, **overrides) -> McpConnection:
     """A connection carrying a sealed OAuth payload."""
     conn = _connection(auth_type="oauth", **overrides)

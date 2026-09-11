@@ -178,22 +178,34 @@ compose "${FRONTEND[@]}" up -d
 # A deploy that finished is not a deploy that works. Compose returns as soon as
 # the containers are started, so without this a broken image is discovered by
 # whoever opens the site next.
-say "Waiting for health"
-for name in agenticos_backend agenticos_frontend; do
+# By service, through compose, not by a fixed container name: the compose files
+# carry none, so each project names its own containers and two stacks on one
+# host stop taking each other's over.
+wait_healthy() {
+  local service="$1"; shift
+  local cid attempt status
   for attempt in $(seq 1 60); do
-    status=$(docker inspect -f '{{.State.Health.Status}}' "$name" 2>/dev/null || echo missing)
+    # Re-read every round, and with `-a`: between restart attempts the container
+    # is stopped and `ps -q` alone lists nothing, which would pin an empty id
+    # for the whole wait.
+    cid=$(compose "$@" ps -a -q "$service")
+    status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)
     case "$status" in
-      healthy) echo "  $name: healthy"; break ;;
-      unhealthy) echo "  $name: unhealthy" >&2; docker logs --tail 50 "$name" >&2; exit 1 ;;
+      healthy) echo "  $service: healthy"; return 0 ;;
+      unhealthy) echo "  $service: unhealthy" >&2; compose "$@" logs --tail 50 "$service" >&2; exit 1 ;;
     esac
     if [ "$attempt" -eq 60 ]; then
-      echo "  $name: still $status after 120s" >&2
-      docker logs --tail 50 "$name" >&2
+      echo "  $service: still $status after 120s" >&2
+      compose "$@" logs --tail 50 "$service" >&2
       exit 1
     fi
     sleep 2
   done
-done
+}
+
+say "Waiting for health"
+wait_healthy app "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
+wait_healthy frontend "${FRONTEND[@]}"
 
 # The previous release's images, which nothing references once the containers
 # have been recreated. Not `-a`: that would take the sandbox runtime images too,

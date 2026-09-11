@@ -172,9 +172,18 @@ class MemberService:
                 )
             if requester.role != OrgRole.OWNER.value:
                 raise AuthorizationError(message="Only an Owner can remove another Owner")
-
-        if requester.role == OrgRole.ADMIN.value and target.role == OrgRole.ADMIN.value:
-            raise AuthorizationError(message="Admin cannot remove another Admin")
+        # Every other target is administrable only by a role that strictly
+        # outranks their current one - the catalog-derived ceiling `change_role`
+        # applies, so a custom role that does not outrank an Admin cannot remove
+        # one either, rather than the literal `admin`-vs-`admin` rule that left
+        # that hole open on this side (#700, #1066). The Owner case is decided
+        # above, because an Owner may remove a peer Owner and `assignable_roles`
+        # never offers Owner.
+        elif target.role not in assignable_roles(requester.role):
+            raise AuthorizationError(
+                message="You cannot remove a member your own role does not outrank",
+                details={"target_role": target.role},
+            )
 
         removed_role = target.role
         await member_repo.delete(self.db, target)

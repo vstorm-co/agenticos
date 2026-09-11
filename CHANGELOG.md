@@ -17,6 +17,106 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.406] - 2026-09-11
+
+### Fixed
+
+- **Whether a personal MCP connection is usable is decided once, on the
+  server.** The console re-derived it and disagreed with the backend: a bearer
+  token whose sealing key had been rotated away read *Connected* in the chat
+  controls and unavailable in the next turn. `McpConnection.account_authorized`
+  is the single side-effect-free answer - an OAuth grant with a payload, a token
+  whose key version is still configured, or no token at all - the run path uses
+  it, and `McpConnectionRead` carries it to the client as `authorized`. (#1575)
+
+## [0.0.405] - 2026-09-11
+
+### Fixed
+
+- **Telegram rooms are `group`, like every other platform's.** The Telegram
+  parser emitted the raw `supergroup` and `channel` types while Slack and
+  Mattermost fold everything but a DM to `group`, so `channel_sessions.chat_type`
+  held a different vocabulary per platform and the first consumer to write
+  `chat_type == "group"` would have missed every Telegram room. The parser folds
+  them now, and migration `0076_normalize_channel_chat_type` folds the rows
+  already written. (#1574)
+
+## [0.0.404] - 2026-09-11
+
+### Fixed
+
+- **Removing a member is decided by the catalog, like changing a role.**
+  `MemberService.remove` refused Admin-removes-Admin with a literal role check
+  while `change_role` used `assignable_roles`, so a custom role holding
+  `members:manage` that does not outrank an Admin would be refused one action
+  and allowed the other. Both now use the same ceiling; the built-in roles
+  behave exactly as before. (#1573)
+
+## [0.0.403] - 2026-09-11
+
+### Fixed
+
+- **The connect-services card navigates in the app, and the runner no longer
+  builds console URLs.** `personal_service_gap` quoted `FRONTEND_URL/mcp-servers`
+  to both the model and the card, which 404s under a locale prefix. The frame
+  now carries the catalog key and the gap only: the card resolves the entry it
+  has and pushes the locale-aware route, a console reader is named the page in
+  words, and only a channel reader gets an absolute link, built beside the other
+  channel URLs. (#1572)
+
+## [0.0.402] - 2026-09-11
+
+### Fixed
+
+- **A signed-in API caller is no longer told that nobody is signed in.** A run
+  through `POST /agents/{id}/run` with a person's own token may not reach their
+  personal MCP bindings, which is right, but the briefing explained it with a
+  false sentence the model repeated back. The briefing now knows a person is
+  behind the run and says it does not act as their account; a run with genuinely
+  nobody - a schedule, an anonymous embed - reads as before. (#1571)
+
+## [0.0.401] - 2026-09-11
+
+### Fixed
+
+- **The sandbox connection dialog's store-failure test no longer flakes under
+  coverage.** The local-service path debounces a probe that clears the same
+  failure state a save reports through; on a loaded run the probe fired after
+  the save and erased the message the assertion waited for. The case now waits
+  for the probe before it submits. (#1570)
+
+## [0.0.400] - 2026-09-11
+
+### Fixed
+
+- **The stale-reference banner no longer flashes on every agent load.** Each
+  list it consults defaulted to empty while its query loaded, so on first paint
+  every referenced collection, context file, skill and MCP connection read as
+  deleted, the alarm-coloured banner rendered for a second, and its button would
+  have stripped live references from the draft on a fast click. It now computes
+  nothing until every list has answered. (#1569)
+
+## [0.0.399] - 2026-09-11
+
+### Fixed
+
+- **Two AgenticOS stacks can share a host, and the installer refuses to take
+  one over.** Compose names a project after its directory, so a clone at
+  `~/agenticos` and a quickstart install at `./agenticos` were one project to
+  Docker: the second `up` recreated the first's containers on the published
+  images, on the first's volumes, under a `VAULT_MASTER_KEY` generated a moment
+  before. The compose files fix no `container_name` any more, so each project
+  names its own containers, and `deploy.sh` and `quickstart.sh` wait for health
+  by service. Outside a clone the quickstart now checks the project before it
+  writes a key: containers of the same project from another directory, or
+  volumes of it with no `.env` here, stop it with a message naming the other
+  stack and the ways out. (#1577)
+- **One unreadable bot token no longer keeps the API from starting.** A bot
+  whose token the vault cannot unseal - a rotated master key, a database started
+  under another installation's key - raised out of the lifespan and the
+  container crash-looped. It is logged and skipped now; the other bots start.
+  (#1577)
+
 ## [0.0.398] - 2026-09-10
 
 ### Added
