@@ -201,3 +201,40 @@ async def test_a_service_allowing_no_runtime_cannot_start_a_sandbox(monkeypatch)
     detail = await _probe_connection(_connection(), _secret())
 
     assert detail == "the service allows no runtime, so no sandbox can start"
+
+
+def _scalar_db(value: object) -> MagicMock:
+    """A db whose one query answers `value` to `.scalar()`."""
+    db = MagicMock()
+    result = MagicMock()
+    result.scalar = MagicMock(return_value=value)
+    db.execute = AsyncMock(return_value=result)
+    return db
+
+
+class TestStoreTlsIsReported:
+    """`doctor` says whether the connections it made were encrypted (#1418), and
+    off is a warning rather than a failure - two stores on one compose network
+    need no TLS."""
+
+    async def test_postgres_reads_the_transport_from_pg_stat_ssl(self):
+        from app.commands.doctor import _postgres_tls
+
+        assert await _postgres_tls(_scalar_db(True)) == ("healthy", "tls=on")
+        assert await _postgres_tls(_scalar_db(False)) == ("unconfigured", "tls=off")
+
+    async def test_postgres_that_cannot_be_read_is_not_checked_not_failed(self):
+        from app.commands.doctor import _postgres_tls
+
+        db = MagicMock(execute=AsyncMock(side_effect=RuntimeError("denied")))
+        status, detail = await _postgres_tls(db)
+        assert status == "not_checked"
+        assert "pg_stat_ssl" in detail
+
+    def test_redis_reads_the_transport_from_the_url_scheme(self, monkeypatch):
+        from app.commands import doctor
+
+        monkeypatch.setattr(doctor.settings, "REDIS_SSL", True)
+        assert doctor._redis_tls() == ("healthy", "tls=on")
+        monkeypatch.setattr(doctor.settings, "REDIS_SSL", False)
+        assert doctor._redis_tls() == ("unconfigured", "tls=off")

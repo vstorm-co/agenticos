@@ -91,6 +91,33 @@ async def _redis_reachable() -> tuple[str, str]:
     return ("healthy", "PING answered") if answered else ("unhealthy", "PING failed")
 
 
+async def _postgres_tls(db: AsyncSession) -> tuple[str, str]:
+    """Whether the connection this doctor made to Postgres was encrypted.
+
+    Read from `pg_stat_ssl` for the backend serving this session - the transport
+    itself, not the `POSTGRES_SSLMODE` that asked for it (#1418). Not a failure
+    when off: two stores on one compose network need no TLS, and a provisioning
+    script must not exit non-zero on that.
+    """
+    try:
+        on = (
+            await db.execute(text("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"))
+        ).scalar()
+    except Exception as exc:
+        return "not_checked", f"could not read pg_stat_ssl: {exc}"
+    return ("healthy", "tls=on") if on else ("unconfigured", "tls=off")
+
+
+def _redis_tls() -> tuple[str, str]:
+    """Whether the Redis URL selects TLS. redis-py reads it off the scheme, so
+    `rediss://` is the encrypted transport and `redis://` is not (#1418)."""
+    return (
+        ("healthy", "tls=on")
+        if settings.REDIS_URL.startswith("rediss://")
+        else ("unconfigured", "tls=off")
+    )
+
+
 def _vault_configured() -> tuple[str, str]:
     """A vault with no key cannot unseal a provider credential, so no agent runs."""
     if not settings.VAULT_MASTER_KEY and not settings.VAULT_MASTER_KEYS:
@@ -206,6 +233,9 @@ async def _run() -> int:
             error("Nothing else can be checked without a database. Is it running?")
             return 1
 
+        status, detail = await _postgres_tls(db)
+        failures += _report("postgres", status, detail)
+
         status, detail = await _migrations_current(db)
         failures += _report("migrations", status, detail)
 
@@ -216,6 +246,9 @@ async def _run() -> int:
         failures += _report("model access", model.status, model.detail)
 
     status, detail = await _redis_reachable()
+    failures += _report("redis", status, detail)
+
+    status, detail = _redis_tls()
     failures += _report("redis", status, detail)
 
     status, detail = _vault_configured()

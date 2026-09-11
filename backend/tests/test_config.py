@@ -80,3 +80,23 @@ class TestVaultMasterKeyValidation:
         highest configured, so version 0 could never be anything but a mistake."""
         with pytest.raises(ValidationError, match="positive"):
             Settings(ENVIRONMENT="local", VAULT_MASTER_KEY="", VAULT_MASTER_KEYS={0: KEY})
+
+
+class TestStoreTls:
+    """Encrypted transport to the two stores, off by default (#1418)."""
+
+    def test_both_urls_are_plaintext_by_default(self):
+        settings = Settings()
+        assert "ssl" not in settings.DATABASE_URL
+        assert "sslmode" not in settings.DATABASE_URL_SYNC
+        assert settings.REDIS_URL.startswith("redis://")
+
+    def test_postgres_sslmode_sets_each_driver_s_own_parameter(self):
+        # asyncpg's parameter is `ssl`; psycopg2 (Alembic) speaks libpq's `sslmode`.
+        settings = Settings(POSTGRES_SSLMODE="require")
+        assert settings.DATABASE_URL.endswith("?ssl=require")
+        assert settings.DATABASE_URL_SYNC.endswith("?sslmode=require")
+
+    def test_redis_ssl_switches_the_scheme_to_rediss(self):
+        assert Settings(REDIS_SSL=True).REDIS_URL.startswith("rediss://")
+        assert Settings(REDIS_SSL=True, REDIS_PASSWORD="pw").REDIS_URL.startswith("rediss://:pw@")
