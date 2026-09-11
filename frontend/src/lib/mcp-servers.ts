@@ -329,12 +329,14 @@ export function mergeServers(
  * Whether this person can speak to a catalog service through an account of
  * their own, as a binding to each person's own account would find it.
  *
- * The same rule the run applies (`_nominated` on the backend): one enabled
- * connection needs no choosing, several answer only the one marked default, and
- * several with none marked are `undecided` rather than guessed between. A chosen
- * OAuth connection whose grant is gone is `unauthorized` - the account exists,
- * the credential behind it does not. A failed health check is not that: the
- * run still sends the token it holds, so the row reads connected.
+ * Which connection answers is a pure reading of the list, the same choice
+ * `_nominated` makes on the backend: one enabled connection needs no choosing,
+ * several answer only the one marked default, and several with none marked are
+ * `undecided`. Whether that connection's credential is usable is **not** re-derived
+ * here - it is the server's `authorized`, so a chosen connection reads the same
+ * `connected`/`unauthorized` the run reports. A bearer token the deployment can no
+ * longer unseal used to read connected because the client only knew about OAuth
+ * consent (#1443).
  */
 export function ownAccountStatus(
   catalogKey: string,
@@ -346,5 +348,5 @@ export function ownAccountStatus(
   if (mine.length === 0) return "not_connected";
   const chosen = mine.length === 1 ? mine[0] : mine.find((one) => one.is_default);
   if (chosen === undefined) return "undecided";
-  return connectionState(chosen) === "needs-authorization" ? "unauthorized" : "connected";
+  return chosen.authorized ? "connected" : "unauthorized";
 }

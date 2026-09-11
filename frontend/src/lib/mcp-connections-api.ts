@@ -20,6 +20,13 @@ export interface McpConnectionRecord {
   auth_type: "bearer" | "oauth";
   /** OAuth connection that finished consent and has usable tokens. */
   oauth_authorized: boolean;
+  /**
+   * Whether the stored credential can be used right now, decided by the server so
+   * this matches what a run reports rather than being re-derived here (#1443).
+   * False for an OAuth connection awaiting consent or a token the deployment can
+   * no longer unseal after a key rotation.
+   */
+  authorized: boolean;
   /** Result of the most recent connectivity check ("ok" / "error"), if any. */
   last_status: string | null;
   last_error: string | null;

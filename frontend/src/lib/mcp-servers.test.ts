@@ -47,6 +47,7 @@ function personal(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRe
     is_enabled: true,
     auth_type: "bearer",
     oauth_authorized: false,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
@@ -331,6 +332,7 @@ describe("ownAccountStatus", () => {
       is_enabled: true,
       auth_type: "oauth",
       oauth_authorized: true,
+      authorized: true,
       last_status: "ok",
       last_error: null,
       last_checked_at: null,
@@ -369,7 +371,18 @@ describe("ownAccountStatus", () => {
   });
 
   it("is unauthorized when the chosen grant no longer stands", () => {
-    expect(ownAccountStatus("notion", [own({ oauth_authorized: false })])).toBe("unauthorized");
+    expect(ownAccountStatus("notion", [own({ oauth_authorized: false, authorized: false })])).toBe(
+      "unauthorized",
+    );
+  });
+
+  it("is unauthorized when the server can no longer unseal the stored token", () => {
+    // The drift #1443 closed: a bearer token the deployment can no longer open
+    // read connected, because the client only knew about OAuth consent and the
+    // server is the one that finds a rotated key. It now reads the server's answer.
+    expect(ownAccountStatus("notion", [own({ auth_type: "bearer", authorized: false })])).toBe(
+      "unauthorized",
+    );
   });
 });
 
@@ -384,6 +397,7 @@ describe("ownAccountStatus and a failed health check", () => {
       is_enabled: true,
       auth_type: "bearer",
       oauth_authorized: false,
+      authorized: true,
       last_status: "error",
       last_error: "timed out",
       last_checked_at: null,

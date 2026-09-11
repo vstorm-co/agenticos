@@ -28,6 +28,7 @@ function record(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConnecti
     is_enabled: true,
     auth_type: "bearer",
     oauth_authorized: false,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
