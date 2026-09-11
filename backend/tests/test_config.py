@@ -97,6 +97,16 @@ class TestStoreTls:
         assert settings.DATABASE_URL.endswith("?ssl=require")
         assert settings.DATABASE_URL_SYNC.endswith("?sslmode=require")
 
-    def test_redis_ssl_switches_the_scheme_to_rediss(self):
-        assert Settings(REDIS_SSL=True).REDIS_URL.startswith("rediss://")
-        assert Settings(REDIS_SSL=True, REDIS_PASSWORD="pw").REDIS_URL.startswith("rediss://:pw@")
+    def test_redis_ssl_switches_the_scheme_to_rediss_and_verifies_the_server(self):
+        """`rediss://` alone leaves the chain and hostname checks to redis-py's
+        defaults, which have differed between releases; the URL states both, so
+        a certificate for another host is refused whatever version is installed."""
+        url = Settings(REDIS_SSL=True).REDIS_URL
+        assert url.startswith("rediss://")
+        assert url.endswith("/0?ssl_cert_reqs=required&ssl_check_hostname=true")
+        with_password = Settings(REDIS_SSL=True, REDIS_PASSWORD="pw").REDIS_URL
+        assert with_password.startswith("rediss://:pw@")
+        assert with_password.endswith("?ssl_cert_reqs=required&ssl_check_hostname=true")
+
+    def test_a_plaintext_redis_url_carries_no_tls_parameters(self):
+        assert "?" not in Settings(REDIS_SSL=False, REDIS_PASSWORD="pw").REDIS_URL
