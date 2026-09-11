@@ -381,7 +381,11 @@ class TelegramAdapter(ChannelAdapter):
 
         chat = msg_data.get("chat", {})
 
-        chat_type: str = chat.get("type", "private")
+        # Normalised to the two-word vocabulary Slack and Mattermost emit, so the
+        # persisted `chat_type` reads the same across platforms: Telegram's own
+        # `group`, `supergroup` and `channel` are all rooms, and only `private` is
+        # a DM (#556).
+        chat_type: str = "private" if chat.get("type") == "private" else "group"
         platform_chat_id: str = str(chat.get("id", ""))
         platform_user_id: str = str(from_user.get("id", ""))
 
