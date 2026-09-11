@@ -180,28 +180,49 @@ for the app's asyncpg, `?sslmode=<mode>` for Alembic's psycopg2 — and `REDIS_S
 switches the Redis scheme to `rediss://`. `require` encrypts the connection;
 `verify-ca` and `verify-full` also check the server's certificate.
 
-!!! note "The CA is trusted at the OS level, not per connection"
+`REDIS_SSL` also asks for a valid certificate chain and a matching hostname on
+the URL itself, rather than leaving both to redis-py's defaults.
 
-    asyncpg reads no per-connection root-certificate path, so a `verify-full`
-    setup mounts the CA bundle into the container's trust store rather than naming
-    it in the URL. `agenticos cmd doctor` reports `postgres: tls=on/off` and
-    `redis: tls=on/off` — the transport of the connection it actually made, read
-    from `pg_stat_ssl`, not the setting that asked for it.
+!!! warning "A private CA is a file the drivers read, not the OS trust store"
+
+    Neither driver consults the container's trust store, and the image runs as a
+    non-root user with no entrypoint that could rebuild it. asyncpg and libpq
+    both read the CA file `PGSSLROOTCERT` names; redis-py trusts whatever bundle
+    OpenSSL points at, which `SSL_CERT_FILE` overrides. Mount the CA once and set
+    both variables to it - `verify-ca` and `verify-full` fail without the first,
+    since asyncpg then looks for `~/.postgresql/root.crt` and finds nothing.
+
+!!! note "Every service that opens a store connection needs the change"
+
+    `app`, `migrate` and `prefect-runner` each connect to Postgres and Redis, and
+    the shipped compose files pin `POSTGRES_HOST=db` and `REDIS_HOST=redis` in
+    each one's `environment`, which wins over an env file. So a managed store is
+    an override file that reaches all three, not a line in `.env`.
 
 ```yaml
-# A managed Postgres that requires TLS, verified against its CA.
+# docker-compose.managed.yml - a managed Postgres and Redis, verified against a
+# private CA. Run with `docker compose -f docker-compose.yml -f docker-compose.managed.yml up -d`.
+x-managed: &managed
+  environment:
+    POSTGRES_HOST: db.internal.example.com
+    POSTGRES_SSLMODE: verify-full
+    PGSSLROOTCERT: /run/tls/managed-ca.crt
+    REDIS_HOST: redis.internal.example.com
+    REDIS_SSL: "true"
+    SSL_CERT_FILE: /run/tls/managed-ca.crt
+  volumes:
+    - ./ca/managed-ca.crt:/run/tls/managed-ca.crt:ro
+
 services:
-  api:
-    environment:
-      POSTGRES_HOST: db.internal.example.com
-      POSTGRES_PORT: "5432"
-      POSTGRES_SSLMODE: verify-full
-      REDIS_SSL: "true"
-    volumes:
-      # Mounted where the base image's trust store looks, then trusted at build
-      # or entrypoint with `update-ca-certificates`.
-      - ./ca/managed-postgres.crt:/usr/local/share/ca-certificates/managed-postgres.crt:ro
+  app: *managed
+  migrate: *managed
+  prefect-runner: *managed
 ```
+
+The bundled `db` and `redis` services keep starting, unused; `agenticos cmd
+doctor` shows which store each connection actually reached and whether it was
+encrypted (`postgres: tls=on/off`, `redis: tls=on/off`, from `pg_stat_ssl` and the
+URL scheme).
 
 ## Email (SMTP)
 
