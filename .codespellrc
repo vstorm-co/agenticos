@@ -25,9 +25,18 @@
 #              The same: a typo'd key in an imported spec must come back named
 #              in `loc` rather than as a 500 (#873), so the tests assert on the
 #              misspelling. Correcting it would assert nothing.
-ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons
+#   ist, sie, unter, referenz, plattform
+#              German, for the same reason as the Polish entries above. The
+#              site's navigation is translated in `mkdocs.yml` and the notice a
+#              reader gets on an untranslated page is written out in
+#              `scripts/mkdocs_hooks.py`; both files are otherwise English prose
+#              worth checking, so the words are ignored rather than the files.
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,ist,sie,unter,referenz,plattform
 
-# Lockfiles, generated code, uploaded media and the Polish message catalog are
-# not English prose. `messages/pl.json` in particular is a translation file:
-# every entry in it reads as a misspelling.
-skip = *.lock,*.min.js,*.svg,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json
+# Lockfiles, generated code, uploaded media and the translated message catalogs
+# and documentation pages are not English prose. `messages/pl.json` and every
+# `docs/*.{pl,de,es}.md` is a translation: entry for entry, codespell reads all
+# of it as misspelled English. `docs/howto/translate.md` is the one English page
+# that is: its glossary states each term in four languages, which is the point
+# of it.
+skip = *.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./docs/howto/translate.md

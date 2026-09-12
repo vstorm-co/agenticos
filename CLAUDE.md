@@ -323,6 +323,7 @@ Trigger map — what changed → which page:
 | `.pre-commit-config.yaml`, `.github/dependabot.yml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
 | A new dashboard page, tab or create control | `frontend/src/lib/onboarding/{tour,flows}.ts` — see below |
+| Any published page under `docs/` | Its `.pl.md`, `.de.md` and `.es.md` — `make lint` fails on a translation made from an older revision. `docs/howto/translate.md` |
 
 ### A new surface owes the walkthrough a stop (required)
 
@@ -408,6 +409,7 @@ say so and move on. Run it yourself any time with
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
+| Translating a page, and the terminology that has to be exact | `docs/howto/translate.md` |
 | Getting it onto a host: sizing, TLS, the approved deploy | `docs/deploy.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |

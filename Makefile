@@ -321,6 +321,7 @@ lint-backend:
 	python3 scripts/check_routes.py
 	python3 scripts/check_comments.py
 	python3 scripts/check_docs_paragraphs.py
+	python3 scripts/check_docs_i18n.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and

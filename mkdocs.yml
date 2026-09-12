@@ -66,7 +66,12 @@ theme:
     - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
-    - navigation.instant
+    # `navigation.instant` is deliberately absent. Material's language switcher
+    # keeps the reader on the same page in the other language, and that link is
+    # built server-side per page - instant loading swaps the body without
+    # rebuilding it, so the switcher silently starts sending everyone to the
+    # locale's home page instead. Losing a reader's place on every language
+    # switch costs more than the load it saved.
     - navigation.tracking
     - navigation.indexes
     # Learn is a sequence, not a bag of pages. The footer's previous/next is what
@@ -134,6 +139,83 @@ watch:
   - CHANGELOG.md
 
 plugins:
+  # First in the list on purpose: every plugin below it runs once per locale,
+  # against the file tree this one has already resolved. `suffix` structure means
+  # a translation sits beside its source as `<page>.<locale>.md`, so the English
+  # URLs the site has always published keep working - `/install/` stays where it
+  # is and `/pl/install/` is added next to it, rather than everything moving
+  # under `/en/` and every existing link breaking.
+  #
+  # `fallback_to_default` is what stops a missing translation from 404ing. It
+  # serves the English page under the localized URL instead, and
+  # `scripts/mkdocs_hooks.py` stamps a notice on it saying so - an untranslated
+  # page a reader cannot tell from a translated one is the failure this whole
+  # arrangement exists to avoid.
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+          site_description: One place to build, run and govern your company's AI agents. Self-hosted, open source, and yours.
+        - locale: pl
+          name: Polski
+          build: true
+          site_description: Jedno miejsce, w którym budujesz, uruchamiasz i nadzorujesz agentów AI swojej firmy. Self-hosted, open source i w pełni Twoje.
+          nav_translations:
+            Features: Funkcje
+            Learn: Nauka
+            Get started: Pierwsze kroki
+            Build the agent: Zbuduj agenta
+            Put it in front of people: Udostępnij go ludziom
+            Keep it under control: Zachowaj kontrolę
+            How-to - recipes: Przewodniki - przepisy
+            Reference: Referencje
+            Resources: Zasoby
+            Development - contributing: Rozwój - współtworzenie
+            Extending the platform: Rozszerzanie platformy
+            About: O projekcie
+            Release Notes: Informacje o wydaniach
+        - locale: de
+          name: Deutsch
+          build: true
+          site_description: Ein Ort, um die KI-Agenten Ihres Unternehmens zu bauen, zu betreiben und zu steuern. Selbst gehostet, quelloffen und Ihr Eigentum.
+          nav_translations:
+            Features: Funktionen
+            Learn: Lernen
+            Get started: Erste Schritte
+            Build the agent: Den Agent bauen
+            Put it in front of people: Für Nutzer bereitstellen
+            Keep it under control: Unter Kontrolle halten
+            How-to - recipes: Anleitungen - Rezepte
+            Reference: Referenz
+            Resources: Ressourcen
+            Development - contributing: Entwicklung - Mitwirken
+            Extending the platform: Die Plattform erweitern
+            About: Über das Projekt
+            Release Notes: Versionshinweise
+        - locale: es
+          name: Español
+          build: true
+          site_description: Un solo lugar para construir, ejecutar y gobernar los agentes de IA de tu empresa. Autoalojado, de código abierto y tuyo.
+          nav_translations:
+            Features: Funciones
+            Learn: Aprende
+            Get started: Primeros pasos
+            Build the agent: Construye el agent
+            Put it in front of people: Ponlo delante de las personas
+            Keep it under control: Mantenlo bajo control
+            How-to - recipes: Guías prácticas - recetas
+            Reference: Referencia
+            Resources: Recursos
+            Development - contributing: Desarrollo - contribuir
+            Extending the platform: Ampliar la plataforma
+            About: Acerca del proyecto
+            Release Notes: Notas de la versión
   - search
   # Screenshots of the console are the only thing on this site a reader cannot
   # zoom into, and they carry small text - a model picker, a budget field. This
@@ -216,6 +298,7 @@ nav:
           - testing.md
           - code-review.md
           - branching.md
+          - howto/translate.md
       - Extending the platform:
           - howto/add-capability.md
           - howto/add-mcp-server.md
