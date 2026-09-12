@@ -1,6 +1,6 @@
 ---
 description: Code style, formatting, naming, imports, and type hints
-paths: ["backend/**/*.py", "*.py"]
+paths: ["backend/**/*.py", "scripts/**/*.py", "*.py"]
 ---
 
 # Code Style

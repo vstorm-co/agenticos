@@ -8,6 +8,7 @@ paths:
     "**/conftest.py",
     "frontend/src/**/*.test.ts",
     "frontend/src/**/*.test.tsx",
+    "frontend/e2e/**/*.ts",
   ]
 ---
 
