@@ -1,6 +1,6 @@
 ---
 description: Testing standards, the four layers, anyio patterns, the 100% platform gate
-globs:
+paths:
   [
     "backend/tests/**/*.py",
     "tests/**/*.py",

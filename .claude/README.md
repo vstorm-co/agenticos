@@ -5,9 +5,10 @@ brief; everything here is loaded on demand.
 
 ```
 .claude/
-  rules/       path-scoped conventions, matched by the `globs` in each file's frontmatter
+  rules/       path-scoped conventions, matched by the `paths` in each file's frontmatter
   skills/      task-scoped guidance, selected by the `description` in SKILL.md
   commands/    slash commands (/add-endpoint, /fix-issue, /review)
+  references/  task-specific procedures linked from CLAUDE.md (issue triage)
   settings.json          permission allowlist, committed
   settings.local.json    per-machine, not shared
 ```
@@ -20,11 +21,11 @@ different reader is a copy that disagrees.
 
 So nothing here restates `docs/`. A skill **routes** to the page and adds what a page
 does not carry: which shape the work should take, which invariant is easy to break, and
-which failures are silent. When a skill and a doc disagree, the doc is right and the
-skill is stale.
+which failures are silent. When a skill and a doc disagree, verify the relevant code, configuration and
+current user instructions before correcting the stale guidance.
 
 **`rules/` is about a file you are editing.** Shapes, naming, layer boundaries. Each
-file declares `globs` so it applies where it is true.
+file declares `paths` so it applies where it is true.
 
 **`skills/` is about a task you are doing.** Each has a `description` written as
 triggers — the phrasings a request actually arrives in, including the symptoms of the
@@ -76,8 +77,8 @@ stale claim is worse than no skill — it is confidently wrong. Two rules:
 
 `type(scope): summary`, Conventional Commits, enforced by a `commit-msg` hook. The
 types, the scope vocabulary, what belongs in a body, and how to reference an issue
-are in `CLAUDE.md` under *Git*. Only the shape is enforced — the scope list is a
-suggestion, because a hook that argues about vocabulary is a hook people bypass.
+are in `CLAUDE.md` under *Git*. The scope names the subsystem; it is not a fixed
+list enforced by the hook.
 
 `make install` wires both hook types. Plain `pre-commit install` wires only
 `pre-commit`, and the subject check would silently never run.
@@ -90,9 +91,8 @@ moved, it names the pages owed.
 
 A reminder, never a gate — it always exits 0. A refactor with no behaviour change and
 a test-only change legitimately owe nothing, and a check that blocked those would be
-routed around within a week. The trigger map lives in the script (one place, so the
-hook and the reader cannot disagree) and is summarised in `CLAUDE.md` under
-*Documentation*.
+routed around within a week. The trigger map lives in the script; `CLAUDE.md` under
+*Documentation* points to it and provides the topic-to-page index.
 
 Run it by hand any time: `python3 scripts/docs_drift.py`. Review or disable the hook
 with `/hooks`.

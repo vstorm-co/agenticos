@@ -2,7 +2,10 @@
 description: Review code changes against project conventions
 ---
 
-Review the staged and unstaged changes on this branch.
+Review the scope requested by the user. For a branch review, include committed
+changes relative to the PR base (or the merge base with the target branch), plus
+relevant staged and unstaged changes. State the base and scope reviewed.
+Review without editing files unless fixes were requested.
 
 Read the change in the context of the system, not as a diff. For each file, check:
 
@@ -55,14 +58,13 @@ Read the change in the context of the system, not as a diff. For each file, chec
 **Docs** — behaviour changed means the page changed, in this change. Run
 `python3 scripts/docs_drift.py`; it names the pages owed. A refactor with no
 behaviour change owes nothing — say so rather than editing a page for the sake of
-it. The trigger map is in `CLAUDE.md` under *Documentation*.
+it. The trigger map is in `scripts/docs_drift.py`; the topic index is in
+`CLAUDE.md` under *Documentation*.
 
-Then run:
-
-```bash
-make lint
-make test-fast     # or make test if the platform layer changed
-```
+Run checks relevant to the changed code and any suspected defects. Use frontend
+checks for frontend changes and backend checks for backend changes; do not treat a
+backend-only test run as verification of the frontend. Reuse available results for
+the same revision where appropriate and report any checks not run.
 
 Report findings with `file:line` references, most severe first, each with the concrete
 failure it causes. Say plainly if you found nothing worth changing.
