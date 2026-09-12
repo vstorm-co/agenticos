@@ -90,6 +90,7 @@ architecture was chosen.
 | What stops an agent doing damage? | Nothing side-effecting runs without [approval](governance.md#approvals) when you require it, and an approval is decided exactly once |
 | Can we prove what happened? | Every run, every approval, every secret rotation is in the [audit trail](governance.md#audit) — including runs that failed |
 | Where are the credentials? | [One vault](secrets.md), sealed per organization. No API response, log line or audit entry ever carries a plaintext key |
+| Is it GDPR-compliant? | A deployment is, or is not; the code is deployable inside one. [Data protection](data-protection.md) maps every store, every destination and every control to a mechanism, a test or an open issue, and lists what the deployment itself has to decide |
 | Can we read the code? | Yes. That is usually the end of the conversation |
 
 ## Three ways this goes wrong

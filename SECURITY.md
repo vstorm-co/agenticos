@@ -39,6 +39,7 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 - **Secrets** — read from environment via `pydantic-settings`. Never committed. See `backend/.env.example` and [Configuration](docs/configuration.md).
 - **Audit log** — app-admin actions (user updates, deletes, impersonations) recorded in the `app_admin_audit_logs` table with actor + IP + payload snapshot. Organization-level actions that change access or spend money carry their own trail, gated by `audit:read` — see [Governance](docs/governance.md).
 - **RAG documents** — file uploads scoped per-org. No public read endpoint; all retrieval happens server-side during chat.
+- **Personal data** — where it lives, what leaves the deployment and under which setting, what deletion reaches and what it does not, with the open gaps named: [Data protection](docs/data-protection.md).
 
 ### Hardening checklist for production
 
