@@ -180,7 +180,7 @@ class TestModel:
                 new=AsyncMock(return_value=profile),
             ) as create_profile,
         ):
-            await _resolve_model(MagicMock(), _ctx(), "openai", "sk-test", "gpt-4o-mini")
+            await _resolve_model(MagicMock(), _ctx(), "openai", "sk-test-1234", "gpt-4o-mini")
 
         assert create_profile.call_args.kwargs["model"] == "gpt-4o-mini"
 
@@ -328,7 +328,9 @@ class TestEndToEnd:
             ) as resolve_model,
             patch("app.commands.bootstrap._resolve_demo_agent", new=AsyncMock()) as demo,
         ):
-            await _bootstrap("admin@example.com", "password123", "Acme", "openai", "sk-test", None)
+            await _bootstrap(
+                "admin@example.com", "password123", "Acme", "openai", "sk-test-1234", None
+            )
 
         register.assert_awaited_once()
         # The agent must be given the model the previous step produced.

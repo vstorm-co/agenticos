@@ -155,7 +155,9 @@ async def test_the_wrong_kind_of_credential_is_reported_rather_than_sent(monkeyp
     handing them over would be a credential sent to the wrong host."""
     secret = _secret(
         AwsCredentialsSecret(
-            aws_access_key_id="AKIA0000", aws_secret_access_key="x", region_name="eu-west-1"
+            aws_access_key_id="AKIA0000",
+            aws_secret_access_key="x-secret-access",
+            region_name="eu-west-1",
         )
     )
 

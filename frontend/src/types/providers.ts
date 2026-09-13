@@ -57,7 +57,6 @@ export interface ModelProfile {
    */
   base_url?: string | null;
   params: Record<string, unknown>;
-  allow_byo: boolean;
   fallback_profile_ids: string[];
   /**
    * Tokens this model accepts, as its provider's listing said when the profile
