@@ -1,0 +1,91 @@
+# Licence decisions read by scripts/license_inventory.py (docs/licenses.md).
+#
+# Two kinds of entry, both keyed by ecosystem and package name:
+#
+#   [overrides.<python|npm>."<name>"]  the licence a person determined for a
+#       component whose own metadata does not name one readably, with the
+#       evidence they read. The script reports the component as unknown until
+#       an entry exists; it never guesses.
+#
+#   [review.<python|npm>."<name>"]  the decision for a component under a licence
+#       in REVIEW_FAMILIES - copyleft, share-alike, or not open source. `license`
+#       is the expression that was reviewed, so an upgrade that changes it fails
+#       the check and reopens the question. `status` is `accepted`, with
+#       `fulfilled_by` saying how the obligation is met, or `open`, with
+#       `tracked_in` pointing at the issue that owns the decision.
+#
+# An entry for a component the lockfiles no longer resolve fails the check too:
+# a decision about nothing is clutter that reads as coverage.
+
+[overrides.python."text-unidecode"]
+license = "Artistic-1.0-Perl OR GPL-2.0-or-later"
+evidence = "text_unidecode-1.3.dist-info/LICENSE.txt: 'redistribute it and/or modify it under the terms of either: GPL or GPLv2+, or Artistic License'; the metadata's License field says only 'Artistic License'"
+
+[overrides.python."uritemplate"]
+license = "BSD-3-Clause OR Apache-2.0"
+evidence = "uritemplate-4.2.0.dist-info/licenses/LICENSE: 'made available under the terms of either of the licenses found in LICENSE.APACHE or LICENSE.BSD'; the License field says 'BSD 3-Clause OR Apache-2.0' in non-SPDX spelling"
+
+[overrides.python."psycopg2-binary"]
+license = "LGPL-3.0-or-later"
+evidence = "psycopg2_binary-2.9.12.dist-info/licenses/LICENSE: LGPL-3.0-or-later with an additional permission to link against OpenSSL; the License field says 'LGPL with exceptions'"
+
+[review.python."psycopg2-binary"]
+license = "LGPL-3.0-or-later"
+status = "accepted"
+obligations = "Ship the licence text, keep the library replaceable, make its source available. Used only by Alembic's synchronous engine, unmodified, as a separately installed wheel."
+fulfilled_by = "The wheel's LICENSE is in the image under its dist-info; the wheel is a separate file a deployment can replace; source at https://github.com/psycopg/psycopg2."
+
+[review.python."pymupdf"]
+license = "AGPL-3.0-only"
+status = "open"
+obligations = "Network copyleft: a deployment that modifies the platform and serves it over a network must offer its modified source to those users (AGPL-3.0 s.13). The alternative Artifex sells is a commercial licence."
+fulfilled_by = ""
+tracked_in = "https://github.com/vstorm-co/agenticos/issues/1602"
+
+[review.python."text-unidecode"]
+license = "Artistic-1.0-Perl OR GPL-2.0-or-later"
+status = "accepted"
+obligations = "Dual-licensed; taken under the Artistic License: keep the copyright notice and the licence text with the distribution, do not misrepresent the package."
+fulfilled_by = "Unmodified; the wheel's LICENSE.txt ships in the image; named with its source in THIRD_PARTY_NOTICES.md."
+
+[review.python."certifi"]
+license = "MPL-2.0"
+status = "accepted"
+obligations = "File-level copyleft: the MPL-covered files stay under MPL and their source is made available. The bundle is a CA certificate list, distributed unmodified."
+fulfilled_by = "Unmodified; the wheel's LICENSE ships in the image; source at https://github.com/certifi/python-certifi."
+
+[review.python."orjson"]
+license = "MPL-2.0 AND (Apache-2.0 OR MIT)"
+status = "accepted"
+obligations = "The MPL-covered files stay under MPL with source available; the rest is taken under MIT."
+fulfilled_by = "Unmodified wheel; its three licence files ship in the image; source at https://github.com/ijl/orjson."
+
+[review.python."pathspec"]
+license = "MPL-2.0"
+status = "accepted"
+obligations = "File-level copyleft on the library's own files; source availability for them."
+fulfilled_by = "Unmodified; the wheel's LICENSE ships in the image; source at https://github.com/cpburnz/python-pathspec."
+
+[review.python."tqdm"]
+license = "MPL-2.0"
+status = "accepted"
+obligations = "MPL-2.0 for the library's own files (tqdm's LICENCE also carries MIT for parts). Source availability, unmodified."
+fulfilled_by = "Unmodified; the wheel's LICENCE ships in the image; source at https://github.com/tqdm/tqdm."
+
+[review.npm."@img/sharp-libvips-linux-x64"]
+license = "LGPL-3.0-or-later"
+status = "accepted"
+obligations = "Prebuilt libvips shared library that sharp loads dynamically for Next.js image optimisation. Ship the licence text, keep it replaceable, make its source available."
+fulfilled_by = "Unmodified; loaded as a separate shared object under node_modules; its LICENSE ships in the image under /app/licenses/; source at https://github.com/libvips/libvips and https://github.com/lovell/sharp-libvips."
+
+[review.npm."@img/sharp-libvips-linux-arm64"]
+license = "LGPL-3.0-or-later"
+status = "accepted"
+obligations = "The arm64 build of the same libvips library; the same obligations as the x64 build."
+fulfilled_by = "As for @img/sharp-libvips-linux-x64."
+
+[review.npm."caniuse-lite"]
+license = "CC-BY-4.0"
+status = "accepted"
+obligations = "Attribution: name the work and its licence, link the source. Browser-support data read by the build tooling and compiled into the console's bundle."
+fulfilled_by = "Named with its source in THIRD_PARTY_NOTICES.md; its LICENSE ships in the image under /app/licenses/; source at https://github.com/browserslist/caniuse-lite (data from https://caniuse.com)."

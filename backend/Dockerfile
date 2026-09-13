@@ -68,6 +68,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app /app
 
+# The licence, the notice and the generated index of every third-party component
+# in this image (docs/licenses.md). The wheels' own licence files are already in
+# `.venv/**/*.dist-info/`; this is what tells a reader of the image which is which.
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /app/
+
 # Add venv to path
 ENV PATH="/app/.venv/bin:$PATH"
 
