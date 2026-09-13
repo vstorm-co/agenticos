@@ -224,10 +224,6 @@ class EmbeddingProviderEntry(BaseSchema):
     provider: str
     name: str
     models: list[EmbeddingModelEntry]
-    # Whether this deployment's own key pays here. A collection on any other
-    # provider needs a key of its own, and the form says so rather than letting
-    # somebody create a collection that cannot index its first document.
-    deployment_key: bool
 
 
 class EmbeddingModelsResponse(BaseSchema):
@@ -241,5 +237,4 @@ class EmbeddingModelsResponse(BaseSchema):
     """
 
     default: str
-    default_provider: str
     providers: list[EmbeddingProviderEntry]

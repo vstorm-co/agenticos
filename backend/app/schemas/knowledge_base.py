@@ -37,17 +37,18 @@ class KnowledgeBaseCreate(BaseSchema):
         description=(
             "Whose endpoint serves that model, from "
             "`GET /rag/embedding-models`. Unlike the model this one can be "
-            "changed later. Omit for the provider the deployment's own key "
-            "belongs to."
+            "changed later. Required for a new collection; a knowledge base "
+            "joining a collection name already in use adopts that collection's."
         ),
     )
     embedding_secret_id: UUID | None = Field(
         default=None,
         description=(
             "The organization vault key that pays for this collection's "
-            "embeddings. Must be a key for the chosen provider. Omit to use "
-            "the deployment's key, which only the deployment's own provider "
-            "can be paid with."
+            "embeddings. Must be a key for the chosen provider. There is no "
+            "deployment-wide key: a new personal or organization collection "
+            "must name one, and a knowledge base joining an existing collection "
+            "adopts its key."
         ),
     )
     ingestion_config: IngestionConfig | None = Field(
@@ -94,16 +95,9 @@ class KnowledgeBaseUpdate(BaseSchema):
         default=None,
         description=(
             "The organization vault key that pays from now on. Must be a key "
-            "for the provider the collection ends up on. Send "
-            "`clear_embedding_secret` to go back to the deployment's key."
-        ),
-    )
-    clear_embedding_secret: bool = Field(
-        default=False,
-        description=(
-            "Stop using a vault key and fall back to the deployment's. Needed "
-            "because a null `embedding_secret_id` means 'leave it alone' on a "
-            "partial update, and both must be sayable."
+            "for the provider the collection ends up on. Null leaves the key "
+            "alone; a collection cannot be left without one, because there is "
+            "no deployment-wide key to fall back to."
         ),
     )
 

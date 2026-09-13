@@ -77,12 +77,10 @@ function mockApi(kbList: KnowledgeBase[] | Error) {
     if (endpoint === "/rag/embedding-models") {
       return Promise.resolve({
         default: "text-embedding-3-large",
-        default_provider: "openrouter",
         providers: [
           {
             provider: "openrouter",
             name: "OpenRouter",
-            deployment_key: true,
             models: [{ model: "text-embedding-3-large", dim: 3072 }],
           },
         ],

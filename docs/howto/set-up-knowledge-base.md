@@ -23,6 +23,14 @@ yours or the organization's.
     everything. Leave it at the deployment default unless you have a reason, and
     if you have one, see [Choosing a model](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
 
+Under **Embeddings**, choose the provider that serves the model and the vault
+key that pays for it. Both are required: there is no deployment-wide embedding
+key, so a collection without one is refused here rather than created and left
+unable to index its first document. The key has to be one for the chosen
+provider; if the organization has none yet, the form beside the picker stores
+one. The provider and the key can be changed later, the model cannot - see
+[File processing](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
 ## 2. Decide how documents are read
 
 Every collection carries its own ingestion settings, and every upload can

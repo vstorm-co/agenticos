@@ -66,7 +66,11 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // model list and which vault keys can pay, so it is resolved before either -
   // and a model the chosen provider does not serve is not a model this
   // collection can be created with.
-  const provider = embeddingProvider ?? embeddingModels?.default_provider ?? "";
+  // No deployment default: the first provider the catalog lists is preselected
+  // so the model list has something to show, and the key beside it stays empty
+  // until somebody chooses one - every collection pays with a vault key of its
+  // own.
+  const provider = embeddingProvider ?? embeddingModels?.providers[0]?.provider ?? "";
   const providerEntry = embeddingModels?.providers.find((item) => item.provider === provider);
   const offered = providerEntry?.models ?? [];
   const defaultModel =
@@ -111,9 +115,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       // defaults" is a thing the API is told by being told nothing.
       if (chosen) input.ingestion_config = ingestion;
       if (model && model !== embeddingModels?.default) input.embedding_model = model;
-      if (provider && provider !== embeddingModels?.default_provider) {
-        input.embedding_provider = provider;
-      }
+      // The provider and the key are always sent: the API has no deployment
+      // default for either, and a missing key comes back as a refusal on that
+      // field rather than as a collection that cannot index its first document.
+      if (provider) input.embedding_provider = provider;
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
       const kb = await createKB(input);
       reset();
@@ -131,7 +136,13 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "description", ...INGESTION_FORM_FIELDS],
+          fields: [
+            "name",
+            "description",
+            "embedding_provider",
+            "embedding_secret_id",
+            ...INGESTION_FORM_FIELDS,
+          ],
         },
         tErrors,
       );
@@ -234,6 +245,11 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       onSecretId={setEmbeddingSecretId}
                       idPrefix="kb-new-embedding"
                     />
+                    {(errors.embedding_provider ?? errors.embedding_secret_id) !== undefined && (
+                      <p className="text-destructive text-xs">
+                        {errors.embedding_provider ?? errors.embedding_secret_id}
+                      </p>
+                    )}
                     <div className="space-y-1.5">
                       <Label htmlFor="kb-embedding-model">{t("model")}</Label>
                       {/*

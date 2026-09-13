@@ -18,19 +18,17 @@ from app.services.rag.config import EMBEDDING_DIMENSIONS
 
 
 class TestTheCatalog:
-    def test_exactly_one_provider_owns_the_deployments_key(self):
-        """`OPENROUTER_API_KEY` is one key and it belongs to one endpoint. Two
-        entries claiming it would send it to whichever the file listed first;
-        none would leave a deployment with a key and nowhere to use it."""
-        owners = [entry for entry in embedding_providers.providers() if entry.deployment_key]
-
-        assert len(owners) == 1
-        assert embedding_providers.deployment_provider() is owners[0]
+    def test_no_provider_claims_a_deployment_key(self):
+        """There is no deployment-wide embedding credential: every collection
+        pays with a vault key of its own, so the catalog states addresses and
+        models and nothing about whose key applies where."""
+        for entry in embedding_providers.providers():
+            assert not hasattr(entry, "deployment_key")
 
     def test_every_provider_is_a_purpose_a_key_can_be_stored_for(self):
         """A collection's key is a vault entry whose purpose is the provider id.
-        A provider nothing can be keyed for is a provider only the deployment's
-        own key could pay for."""
+        A provider nothing can be keyed for is a provider no collection could
+        ever pay for."""
         purposes = {entry.id for entry in secret_purposes.all_purposes()}
 
         assert {entry.provider for entry in embedding_providers.providers()} <= purposes
@@ -50,11 +48,11 @@ class TestTheCatalog:
 
 
 class TestRequiringOne:
-    def test_no_provider_named_is_the_deployments_own(self):
-        """What a collection created before providers were a choice has."""
-        entry = embedding_providers.require(None, model="text-embedding-3-small", dim=1536)
+    def test_a_provider_that_serves_the_model_at_its_width_is_returned(self):
+        entry = embedding_providers.require("openai", model="text-embedding-3-small", dim=1536)
 
-        assert entry is embedding_providers.deployment_provider()
+        assert entry.provider == "openai"
+        assert entry.base_url == "https://api.openai.com/v1"
 
     def test_an_id_this_build_does_not_offer_is_refused_on_the_field(self):
         with pytest.raises(BadRequestError) as refusal:

@@ -3,10 +3,10 @@
 Three properties carry the weight. The recorded model and width win - a
 collection keeps embedding with what its table was created for, whatever the
 deployment default became. A credential failure degrades rather than raising:
-whose key *pays* must never decide whether documents can be *found*. And what
-it degrades *to* stops at the provider the deployment's key belongs to - a
-collection embedding through OpenAI paid for with the deployment's OpenRouter
-key is a request refused by the provider after the key has already reached it.
+whose key *pays* must never decide whether the collection's row can be *read*.
+And what it degrades *to* is no key at all - there is no deployment-wide
+embedding credential, so a collection that names no usable vault key resolves
+to an empty key and a reason, and the embedding client refuses with both.
 """
 
 from __future__ import annotations
@@ -87,21 +87,20 @@ async def _resolve(kb, secret_row=None):
 
 class TestResolution:
     async def test_a_collection_nobody_claims_resolves_to_none(self):
-        """The store then uses its deployment defaults - what such collections
-        have always gotten."""
+        """The store then uses its own keyless embedder, which refuses on first
+        use - such a collection has nothing to pay with."""
         resolved, _ = await _resolve(None)
         assert resolved is None
 
     async def test_the_recorded_model_and_width_win_over_any_default(self):
-        with patch(f"{_MODULE}.settings") as env:
-            env.OPENROUTER_API_KEY = "sk-deployment"
-            resolved, _ = await _resolve(_kb())
+        secret_id = uuid.uuid4()
+        resolved, _ = await _resolve(_kb(secret_id=secret_id), _sealed_key_row("sk-org-own-key"))
 
         assert resolved == ResolvedEmbeddings(
             model="text-embedding-3-small",
             dim=1536,
-            api_key="sk-deployment",
-            key_source=EmbeddingKeySource.DEPLOYMENT,
+            api_key="sk-org-own-key",
+            key_source=EmbeddingKeySource.ORGANIZATION,
             base_url="https://openrouter.ai/api/v1",
             provider="openrouter",
         )
@@ -113,6 +112,17 @@ class TestResolution:
         assert resolved is not None
         assert resolved.api_key == "sk-org-own-key"
         assert resolved.key_source is EmbeddingKeySource.ORGANIZATION
+
+    async def test_a_collection_that_names_no_key_resolves_to_none_and_says_so(self):
+        """There is no deployment-wide key to fall back to, and the resolution
+        says which of the five situations this is rather than handing back an
+        empty string with no story."""
+        resolved, secrets = await _resolve(_kb())
+
+        assert resolved is not None
+        assert resolved.api_key == ""
+        assert resolved.key_source is EmbeddingKeySource.NONE_CHOSEN
+        secrets.get.assert_not_called()
 
     async def test_a_repr_never_carries_the_key(self):
         """A dataclass repr in a log line is the way a key usually escapes."""
@@ -158,99 +168,84 @@ class TestOrganizationScoping:
 
 
 class TestCredentialDegradation:
-    """Every failure lands on the deployment key, saying which failure it was.
+    """Every failure lands on no key, saying which failure it was.
 
-    The key itself is the same on all four fallback paths, so `api_key` alone
-    cannot tell an operator whether they never chose a key or chose one that is
-    now gone. `key_source` is what carries that out to the flow log and the
-    error left on the document row.
+    An empty `api_key` alone cannot tell an operator whether they never chose a
+    key or chose one that is now gone. `key_source` is what carries that out to
+    the flow log and the error left on the document row.
     """
 
-    async def test_a_deleted_secret_falls_back_to_the_deployment_key(self):
-        with patch(f"{_MODULE}.settings") as env:
-            env.OPENROUTER_API_KEY = "sk-deployment"
-            resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), None)
+    async def test_a_deleted_secret_degrades_to_no_key(self):
+        resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), None)
 
         assert resolved is not None
-        assert resolved.api_key == "sk-deployment"
+        assert resolved.api_key == ""
         assert resolved.key_source is EmbeddingKeySource.SECRET_MISSING
 
-    async def test_an_unopenable_ciphertext_falls_back(self):
-        """A rotated master key must not take search down."""
+    async def test_an_unopenable_ciphertext_degrades_rather_than_raising(self):
+        """A rotated master key must not take the collection's row down with it."""
         broken = MagicMock(
             sealed_secret="not-a-ciphertext",
             kind=SecretKind.API_KEY.value,
             key_version=1,
         )
-        with patch(f"{_MODULE}.settings") as env:
-            env.OPENROUTER_API_KEY = "sk-deployment"
-            resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), broken)
+        resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), broken)
 
         assert resolved is not None
-        assert resolved.api_key == "sk-deployment"
+        assert resolved.api_key == ""
         assert resolved.key_source is EmbeddingKeySource.SECRET_UNUSABLE
 
-    async def test_a_secret_of_the_wrong_kind_falls_back(self):
+    async def test_a_secret_of_the_wrong_kind_degrades(self):
         """The vault can hold shapes an embedding client cannot use."""
         row = _sealed_key_row("sk-org")
-        with (
-            patch(f"{_MODULE}.settings") as env,
-            patch(f"{_MODULE}.unseal_secret", return_value=MagicMock(spec=[])),
-        ):
-            env.OPENROUTER_API_KEY = "sk-deployment"
+        with patch(f"{_MODULE}.unseal_secret", return_value=MagicMock(spec=[])):
             resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), row)
 
         assert resolved is not None
-        assert resolved.api_key == "sk-deployment"
+        assert resolved.api_key == ""
         assert resolved.key_source is EmbeddingKeySource.SECRET_WRONG_KIND
 
-    async def test_a_personal_collection_never_looks_in_a_vault(self):
-        """No organization, no vault scope to open an envelope with."""
-        with patch(f"{_MODULE}.settings") as env:
-            env.OPENROUTER_API_KEY = "sk-deployment"
-            resolved, secrets = await _resolve(_kb(secret_id=uuid.uuid4(), organization_id=None))
+    async def test_a_collection_with_no_organization_never_looks_in_a_vault(self):
+        """No organization, no vault scope to open an envelope with - and no
+        deployment key to hand it instead."""
+        resolved, secrets = await _resolve(_kb(secret_id=uuid.uuid4(), organization_id=None))
 
         assert resolved is not None
-        assert resolved.api_key == "sk-deployment"
-        assert resolved.key_source is EmbeddingKeySource.DEPLOYMENT
+        assert resolved.api_key == ""
+        assert resolved.key_source is EmbeddingKeySource.NONE_CHOSEN
         secrets.get.assert_not_called()
 
 
 class TestSayingWhichKeyPaid:
-    """A fallback nobody can see is a fallback nobody can fix.
+    """A degradation nobody can see is a degradation nobody can fix.
 
     Until #306 the three degradations were a `logger.warning` in this module
     and nothing else: not in the Prefect flow log, not in the error on the
-    document row, not in the product. An organization that had chosen a key
-    could be billed to the deployment's account with nothing anywhere saying
-    so.
+    document row, not in the product.
     """
 
     @pytest.mark.parametrize("source", list(EmbeddingKeySource))
     def test_every_source_says_which_key_paid_or_that_none_did(
         self, source: EmbeddingKeySource
     ) -> None:
+        """No explanation names an environment variable: there is no
+        deployment-wide embedding key, so advising one would be advice about a
+        setting that does not exist."""
         explanation = source.explanation
 
         assert explanation
-        if source is EmbeddingKeySource.DEPLOYMENT:
-            assert "OPENROUTER_API_KEY" in explanation
-        else:
-            # Naming the deployment's variable is advice for the operator of a
-            # deployment the reader may not be running, and it is wrong outright
-            # where that key is for another provider's endpoint.
-            assert "OPENROUTER_API_KEY" not in explanation
+        assert "OPENROUTER_API_KEY" not in explanation
 
-    def test_only_a_key_that_was_asked_for_and_not_given_counts_as_degraded(self):
-        """A collection that chose no key embedding on the deployment's is the
-        documented normal path, not an incident to log per document."""
+    def test_every_source_but_the_organizations_own_key_counts_as_degraded(self):
+        """Including a collection that chose no key: with nothing to fall back
+        to, that is a collection that cannot index, and the flow log says so."""
         degraded = {source for source in EmbeddingKeySource if source.is_degraded}
 
         assert degraded == {
+            EmbeddingKeySource.NONE_CHOSEN,
             EmbeddingKeySource.SECRET_MISSING,
             EmbeddingKeySource.SECRET_UNUSABLE,
             EmbeddingKeySource.SECRET_WRONG_KIND,
-            EmbeddingKeySource.FOREIGN_PROVIDER,
         }
 
     def test_the_description_names_the_collection_the_provider_and_the_key(self):
@@ -271,7 +266,7 @@ class TestSayingWhichKeyPaid:
 
 
 class TestWhereTheRequestGoes:
-    """The address is the collection's own now, and it travels with the key.
+    """The address is the collection's own, and it travels with the key.
 
     Every embedding request used to go to openrouter.ai whatever key the
     collection had chosen, so an organization's OpenAI key was sent to
@@ -288,35 +283,19 @@ class TestWhereTheRequestGoes:
         assert resolved.provider == "openai"
         assert resolved.api_key == "sk-org-openai"
 
-    async def test_another_providers_collection_gets_no_deployment_key(self):
-        """The deployment has one key and it belongs to one endpoint. Sending it
-        to another provider is a refusal with a credential attached."""
-        with patch(f"{_MODULE}.settings") as env:
-            env.OPENROUTER_API_KEY = "sk-deployment"
-            resolved, _ = await _resolve(_kb(provider="openai"))
-
-        assert resolved is not None
-        assert resolved.api_key == ""
-        assert resolved.key_source is EmbeddingKeySource.FOREIGN_PROVIDER
-
-    async def test_a_broken_key_on_another_provider_says_there_is_none_to_use(self):
-        """Which of the two facts leads matters: with nothing to fall back to,
-        "no key for this provider" is what the operator acts on."""
-        with patch(f"{_MODULE}.settings") as env:
-            env.OPENROUTER_API_KEY = "sk-deployment"
-            resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4(), provider="openai"), None)
-
-        assert resolved is not None
-        assert resolved.api_key == ""
-        assert resolved.key_source is EmbeddingKeySource.FOREIGN_PROVIDER
-
-    async def test_a_provider_the_catalog_no_longer_names_falls_back_to_the_deployments(self):
+    async def test_a_provider_the_catalog_no_longer_names_keeps_its_key_to_itself(self):
         """An entry removed from the file under a collection using it. The
-        alternative is a collection nobody can search because of a catalog edit."""
-        with patch(f"{_MODULE}.settings") as env:
-            env.OPENROUTER_API_KEY = "sk-deployment"
-            resolved, _ = await _resolve(_kb(provider="a-provider-that-left"))
+        address falls back to the first the catalog still holds, so the row can
+        be read; the key does not follow, because it was stored for the
+        provider that is gone and sending it to another address would hand one
+        vendor's credential to another."""
+        resolved, secrets = await _resolve(
+            _kb(secret_id=uuid.uuid4(), provider="a-provider-that-left"),
+            _sealed_key_row("sk-for-the-old-provider"),
+        )
 
         assert resolved is not None
         assert resolved.provider == "openrouter"
-        assert resolved.key_source is EmbeddingKeySource.DEPLOYMENT
+        assert resolved.api_key == ""
+        assert resolved.key_source is EmbeddingKeySource.NONE_CHOSEN
+        secrets.get.assert_not_called()

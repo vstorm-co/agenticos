@@ -318,11 +318,9 @@ class Settings(BaseSettings):
     # otherwise start all of them - see app/worker/prefect_app.py.
     PREFECT_RUNNER_LIMIT: int = 5
 
-    # The embeddings credential. Every collection in the deployment is embedded
-    # on this key (via OpenRouter); model *profiles* in the vault cover chat
-    # models only. Moving this to per-organization credentials is a feature,
-    # not a rename - the vector column width is bound to EMBEDDING_MODEL below.
-    OPENROUTER_API_KEY: str = ""
+    # There is no deployment-wide embedding credential: every collection names
+    # the organization vault key that pays for its embeddings, and the provider
+    # it embeds through, from `app/core/catalog/embedding_providers.json`.
     # Deployment-level on purpose: pgvector columns are created at this model's
     # width, so changing it mid-life invalidates every existing collection.
     # ingestion_config guards both directions of that mistake.

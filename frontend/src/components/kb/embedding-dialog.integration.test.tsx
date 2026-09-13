@@ -29,12 +29,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const MODELS = {
   default: "text-embedding-3-large",
-  default_provider: "openrouter",
   providers: [
     {
       provider: "openrouter",
       name: "OpenRouter",
-      deployment_key: true,
       models: [
         { model: "text-embedding-3-small", dim: 1536 },
         { model: "text-embedding-3-large", dim: 3072 },
@@ -43,7 +41,6 @@ const MODELS = {
     {
       provider: "openai",
       name: "OpenAI",
-      deployment_key: false,
       models: [{ model: "text-embedding-3-small", dim: 1536 }],
     },
     // Serves the same model at another width, which is another space: offering
@@ -51,7 +48,6 @@ const MODELS = {
     {
       provider: "elsewhere",
       name: "Elsewhere",
-      deployment_key: false,
       models: [{ model: "text-embedding-3-small", dim: 3072 }],
     },
   ],
@@ -125,19 +121,27 @@ describe("what this dialog will and will not change", () => {
     expect(screen.queryByRole("option", { name: "Elsewhere" })).toBeNull();
   });
 
-  it("saves the provider and falls back to the deployment's key by its own word", async () => {
-    // A null id means "leave the key alone" on a partial update, so going back to
-    // the deployment's key has to be sayable rather than implied by absence.
+  it("saves the provider alone when no key was chosen, and never asks to clear one", async () => {
+    // A null id means "leave the key alone" on a partial update. There is no
+    // deployment-wide key to go back to, so "clear the key" is not a thing this
+    // dialog can say - the server keeps whatever key the row holds.
     show();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(save).toHaveBeenCalled());
-    expect(save.mock.calls[0]?.[0]).toEqual({
-      embedding_provider: "openai",
-      clear_embedding_secret: true,
-    });
+    expect(save.mock.calls[0]?.[0]).toEqual({ embedding_provider: "openai" });
+  });
+
+  it("offers no deployment key, and reads as empty until one is chosen", async () => {
+    show();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+
+    expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a key");
+    await userEvent.click(screen.getByLabelText("Key"));
+    expect(screen.queryByRole("option", { name: /Deployment key/ })).toBeNull();
   });
 
   it("sends the key chosen for the new provider", async () => {

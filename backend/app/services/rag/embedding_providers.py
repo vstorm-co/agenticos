@@ -61,11 +61,6 @@ class EmbeddingProviderEntry:
     # The OpenAI-compatible root the `/embeddings` call is made against.
     base_url: str
     models: tuple[EmbeddingModelEntry, ...]
-    # Whether this deployment's own `OPENROUTER_API_KEY` belongs to this provider.
-    # Exactly one entry may set it, and it is what a collection with no key of its
-    # own falls back to - sending that key anywhere else would be handing one
-    # vendor's credential to another.
-    deployment_key: bool = False
 
     def serves(self, model: str, dim: int) -> bool:
         """Whether this provider answers for `model` at exactly `dim`."""
@@ -87,22 +82,8 @@ def get(provider: str) -> EmbeddingProviderEntry | None:
     return next((entry for entry in CATALOG if entry.provider == provider), None)
 
 
-def deployment_provider() -> EmbeddingProviderEntry:
-    """The provider the deployment's own key belongs to.
-
-    The catalog is validated to hold exactly one, at import, by
-    `tests/test_embedding_providers.py`: a fallback key with no address to send it
-    to, or two addresses claiming it, is a deployment that cannot embed and finds
-    out one document at a time.
-    """
-    return next(entry for entry in CATALOG if entry.deployment_key)
-
-
-def require(provider: str | None, *, model: str, dim: int) -> EmbeddingProviderEntry:
+def require(provider: str, *, model: str, dim: int) -> EmbeddingProviderEntry:
     """The provider to record, refused if it cannot serve this model at this width.
-
-    `None` is the deployment's own provider, which is what a collection created
-    before providers were a choice has.
 
     Raises:
         BadRequestError: If the id is not one this deployment offers, or the
@@ -110,8 +91,6 @@ def require(provider: str | None, *, model: str, dim: int) -> EmbeddingProviderE
             `embedding_provider` field, because that is the control that was
             wrong.
     """
-    if provider is None:
-        return deployment_provider()
     entry = get(provider)
     if entry is None:
         offered = ", ".join(item.provider for item in CATALOG)

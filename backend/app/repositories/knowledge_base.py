@@ -168,13 +168,12 @@ async def update(
     ingestion_config: dict[str, object] | None = None,
     embedding_provider: str | None = None,
     embedding_secret_id: UUID | None = None,
-    clear_embedding_secret: bool = False,
 ) -> KnowledgeBase:
     """Apply what an update named, leaving what it did not alone.
 
-    `clear_embedding_secret` is separate from a null `embedding_secret_id`
-    because both have to be sayable: on a partial update null means "leave the
-    key alone", so going back to the deployment's key needs a word of its own.
+    A null `embedding_secret_id` means "leave the key alone": a collection is
+    never left without a key, because there is no deployment-wide one to fall
+    back to.
     """
     if name is not None:
         db_kb.name = name
@@ -184,9 +183,7 @@ async def update(
         db_kb.ingestion_config = ingestion_config
     if embedding_provider is not None:
         db_kb.embedding_provider = embedding_provider
-    if clear_embedding_secret:
-        db_kb.embedding_secret_id = None
-    elif embedding_secret_id is not None:
+    if embedding_secret_id is not None:
         db_kb.embedding_secret_id = embedding_secret_id
     await db.flush()
     await db.refresh(db_kb)

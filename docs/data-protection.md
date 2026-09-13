@@ -106,7 +106,7 @@ complete list of destinations, with the configuration that decides each.
 | Destination | What is sent | Decided by | Location and terms |
 |---|---|---|---|
 | The chat model | The conversation so far, attachments pasted or described, retrieved chunks, tool results | A [model profile](models.md#a-model-profile): `provider`, `model`, `base_url` and a sealed key. Twenty-seven providers; `ollama` and `litellm` are keyless and reached at an endpoint you host, and `openai`, `anthropic`, `google`, `huggingface` and others accept a `base_url`, so an EU endpoint or a gateway is a field, not a fork | The provider's. Verify per profile |
-| The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection: `embedding_provider` (`openrouter` or `openai`) and a vault key `embedding_secret_id`. Only OpenRouter has a deployment-wide fallback, `OPENROUTER_API_KEY`; an OpenAI collection must carry its own key, and the fallback never crosses providers | The provider's. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
+| The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection, and only there: `embedding_provider` (`openrouter` or `openai`, from the catalog) and the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a collection without one refuses to index or search | The provider's. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | The whole document | A collection whose `pdf_parser` is `llamaparse` **and** a key - the collection's own `llamaparse_secret_id`, or `LLAMAPARSE_API_KEY` for the deployment. The default `pymupdf` parses in the worker | LlamaCloud's, if used |
 | An image-description model | Images inside documents | A collection's `image_description_model` | That model provider's |
 | Web research | The search query the agent composed | `web_research.method` on the spec: `duckduckgo` (no key), `tavily`, `brave` or `exa` (a `search` secret each), or `native`, where the chat model provider searches | The search vendor's, or the model provider's |
@@ -228,7 +228,7 @@ uv run agenticos cmd doctor
 uv run agenticos cmd vault-rotate --dry-run
 
 # 3. The settings that decide what leaves. Empty is the quiet answer.
-env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|OPENROUTER_API_KEY|LLAMAPARSE_API_KEY|LITEPARSE_OCR_SERVER_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
+env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|LLAMAPARSE_API_KEY|LITEPARSE_OCR_SERVER_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
   | sed -E 's/(KEY|TOKEN)=.+/\1=<set>/'
 ```
 

@@ -118,7 +118,7 @@ class TestTheEmbeddingResolverUnsealsOnlyTheCallersKey:
     async def test_a_shared_name_never_unseals_another_tenants_vault_key(self, db) -> None:
         """The security payoff (#913): org A chose its own key; resolving the same
         collection name for org B must not open A's vault entry and bill A - it
-        resolves B's own configuration, which here is the deployment fallback."""
+        resolves B's own configuration, which here is no key at all."""
         org_a, owner_a = await _org(db, name="Alpha")
         org_b, _ = await _org(db, name="Beta")
         secret = await OrganizationSecretService(db).create(
@@ -138,5 +138,5 @@ class TestTheEmbeddingResolverUnsealsOnlyTheCallersKey:
         assert resolved_a.key_source is EmbeddingKeySource.ORGANIZATION
 
         assert resolved_b is not None
-        assert resolved_b.api_key != "sk-alpha-only"
-        assert resolved_b.key_source is EmbeddingKeySource.DEPLOYMENT
+        assert resolved_b.api_key == ""
+        assert resolved_b.key_source is EmbeddingKeySource.NONE_CHOSEN

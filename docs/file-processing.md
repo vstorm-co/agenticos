@@ -461,7 +461,7 @@ All three are decided **per collection**, not per deployment, by
 |---|---|
 | **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
 | **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
-| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. A collection on the provider the deployment's own key belongs to may instead embed on `OPENROUTER_API_KEY`. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. There is no deployment-wide embedding key: a new personal or organization collection has to name one, and a collection without a usable key refuses to index or search until it has one. |
 
 Which knowledge base a collection name resolves to is itself a tenant question.
 `collection_name` is indexed but **not unique** — two organizations can name a
@@ -509,24 +509,20 @@ a Member could bind another member's **private** key by supplying its UUID.
 A key they cannot view is refused as one the vault does not hold, so the refusal
 cannot enumerate somebody else's private secrets.
 
-At embed time nothing is refused: a chosen key that has since been deleted,
-cannot be unsealed, or does not hold an API key falls back to the deployment's,
-because *whose key pays* must never decide *whether documents can be found*.
+At embed time nothing is refused by the resolver: a chosen key that has since
+been deleted, cannot be unsealed, or does not hold an API key resolves to *no*
+key, because *whose key pays* must never decide *whether the collection's row can
+be read*. The embedding client then refuses the index or the search with a
+message naming the collection, its provider and which of those happened — there
+is no deployment-wide key to fall back to, so the refusal never advises a
+variable.
 
-**That fallback stops at the provider the deployment's key belongs to.** A
-collection embedding through anyone else resolves to *no* key rather than to
-somebody else's — the request would be refused at the far end anyway, having
-already carried the credential there — and the refusal then says which collection
-and which provider, rather than naming a variable that would not have helped.
-
-That fallback is announced rather than assumed. The resolution carries which of
-the five sources it landed on, ingestion writes the degraded ones into the
-Prefect run's log, and a deployment with no key of its own fails with a message
-naming the collection and which key it tried — not with advice to set a variable
-about a collection that already had a key. Before #306 the ingestion worker was
-the one caller that never asked the resolver at all, so every uploaded document
-was embedded with the deployment's model and key whatever its collection had
-chosen.
+That degradation is announced rather than assumed. The resolution carries which
+of the five sources it landed on, and ingestion writes every degraded one into
+the Prefect run's log, a collection that simply names no key included. Before
+#306 the ingestion worker was the one caller that never asked the resolver at
+all, so every uploaded document was embedded with the deployment's model and a
+deployment-wide key whatever its collection had chosen; that key is gone.
 
 ### Vector storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.

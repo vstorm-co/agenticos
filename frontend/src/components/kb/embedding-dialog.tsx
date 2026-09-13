@@ -81,12 +81,10 @@ export function EmbeddingDialog({
     try {
       await onSave({
         embedding_provider: provider,
-        // Two different things to say, so two fields: null means "leave the key
-        // alone" on a partial update, and going back to the deployment's key has
-        // to be sayable as well.
-        ...(secretId === null
-          ? { clear_embedding_secret: true }
-          : { embedding_secret_id: secretId }),
+        // Null means "leave the key alone" on a partial update. There is no
+        // deployment-wide key to go back to, so a key is only ever replaced,
+        // never cleared.
+        ...(secretId === null ? {} : { embedding_secret_id: secretId }),
       });
       onOpenChange(false);
     } catch (error) {

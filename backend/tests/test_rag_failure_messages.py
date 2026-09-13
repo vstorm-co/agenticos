@@ -96,7 +96,7 @@ class TestWhatMayBeStored:
         """
         ours = ConfigurationError(
             message="No embedding credential is configured for the collection's key",
-            details={"setting": "OPENROUTER_API_KEY"},
+            details={"key_origin": "collection 'handbook'"},
         )
 
         assert failure_summary(ours, stage=IngestionStage.INDEX) == (

@@ -17,9 +17,6 @@ import { apiClient } from "@/lib/api-client";
 import type { EmbeddingModels } from "@/types";
 import { useTranslations } from "next-intl";
 
-/** Sentinel for "the deployment's key" - a Select item may not be empty. */
-export const DEPLOYMENT_KEY = "__deployment__";
-
 /**
  * Which providers this build can embed through, and what each serves.
  *
@@ -47,7 +44,8 @@ export function useEmbeddingProviders() {
  * provider without changing the key produces a collection holding an OpenRouter
  * key and an OpenAI address, which the provider refuses after the key has
  * already reached it. So choosing a provider here clears a key that belongs to
- * another one, and the deployment's key is offered only where it applies.
+ * another one. There is no deployment-wide key on offer: every collection pays
+ * with a vault key of its own, and the picker is empty until one is chosen.
  */
 export function EmbeddingProviderFields({
   models,
@@ -59,7 +57,7 @@ export function EmbeddingProviderFields({
 }: {
   models: EmbeddingModels;
   provider: string;
-  /** The chosen vault key, or null for the deployment's. */
+  /** The chosen vault key, or null while none is. */
   secretId: string | null;
   onProvider: (provider: string) => void;
   onSecretId: (secretId: string | null) => void;
@@ -99,22 +97,14 @@ export function EmbeddingProviderFields({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-key`}>{t("key")}</Label>
-        <Select
-          value={secretId ?? DEPLOYMENT_KEY}
-          onValueChange={(value) => onSecretId(value === DEPLOYMENT_KEY ? null : value)}
-        >
+        {/* Controlled throughout: an empty string is how Radix is told "nothing
+            chosen, show the placeholder", where `undefined` would flip the
+            select to uncontrolled and leave the last key on the trigger. */}
+        <Select value={secretId ?? ""} onValueChange={onSecretId}>
           <SelectTrigger id={`${idPrefix}-key`}>
-            <SelectValue />
+            <SelectValue placeholder={t("chooseKey")} />
           </SelectTrigger>
           <SelectContent>
-            {/* Only where it applies. The deployment has one key and it belongs
-                to one provider; offering it elsewhere offers a collection that
-                cannot index its first document. */}
-            {entry?.deployment_key === true && (
-              <SelectItem value={DEPLOYMENT_KEY} textValue={t("deploymentKey")}>
-                <ProviderRow provider={provider} name={t("deploymentKey")} />
-              </SelectItem>
-            )}
             {keys.map((secret) => (
               <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                 <ProviderRow provider={provider} name={secret.name} hint={secret.hint} />
@@ -122,9 +112,7 @@ export function EmbeddingProviderFields({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-xs">
-          {entry?.deployment_key === true ? t("keyHereBillsEmbeddings") : t("keyRequiredHere")}
-        </p>
+        <p className="text-muted-foreground text-xs">{t("keyRequiredHere")}</p>
         {/* Rather than only telling somebody to go and add one: a picker with
             nothing in it and no way to fill it is a dead end, and the answer to
             "add a key in the vault" is a form, not a sentence. Unconditional

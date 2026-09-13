@@ -95,18 +95,17 @@ async def list_embedding_models() -> Any:
     Deployment description, like `/supported-formats`: the list feeds the
     create-collection form and the one that moves an existing collection to
     another provider, and hardcoding it in the client is how the form and the
-    build drift apart. The defaults are named so the form can preselect what an
-    untouched deployment would use.
+    build drift apart. The default model is named so the form can preselect
+    what an untouched deployment would build a collection with; the provider
+    and the vault key that pays are the collection's own choice, every time.
     """
     return {
         "default": settings.EMBEDDING_MODEL,
-        "default_provider": embedding_providers.deployment_provider().provider,
         "providers": [
             {
                 "provider": entry.provider,
                 "name": entry.name,
                 "models": [{"model": model.model, "dim": model.dim} for model in entry.models],
-                "deployment_key": entry.deployment_key,
             }
             for entry in embedding_providers.providers()
         ],

@@ -91,21 +91,21 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
     key rather than whichever knowledge base the database ordered first (#913). The
     store passes no organization on the ingest path, so the flow's stands in.
 
-    The resolver falls back to the deployment key on three paths - the chosen
+    The resolver degrades to no key on four paths - no key chosen, or the chosen
     secret deleted, unsealable, or not an API key - each a `logger.warning` in
     `app.services.embedding_resolution` that reaches nothing an operator reads.
-    So a collection that *had* been given a vault key either failed with advice
-    about a deployment variable, or succeeded while billing the deployment's
-    account, and in both cases nothing said which of the three had happened.
+    So a collection that *had* been given a vault key failed with advice about
+    a deployment variable, and nothing said which of the reasons had happened.
+    There is no deployment-wide key any more, so every one of the four is a
+    collection that cannot index, and every one is said here.
 
-    Two things it does not say. A collection that simply chose no key: that is
-    the documented normal path. And the same collection twice - the store
-    resolves per operation rather than per cache miss, so indexing one document
-    asks twice (once to create the table, once to embed), and a sync of two
-    hundred files would otherwise print four hundred copies of the line it
-    exists to make noticeable. The set is per ingestion service, so it is per
-    flow run rather than per process; a credential fixed between runs is
-    reported again on the next one.
+    One thing it does not say twice: the same collection - the store resolves
+    per operation rather than per cache miss, so indexing one document asks
+    twice (once to create the table, once to embed), and a sync of two hundred
+    files would otherwise print four hundred copies of the line it exists to
+    make noticeable. The set is per ingestion service, so it is per flow run
+    rather than per process; a credential fixed between runs is reported again
+    on the next one.
     """
     announced: set[str] = set()
 

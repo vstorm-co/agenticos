@@ -146,12 +146,10 @@ function serve() {
     if (path === "/rag/embedding-models") {
       return {
         default: "text-embedding-3-large",
-        default_provider: "openrouter",
         providers: [
           {
             provider: "openrouter",
             name: "OpenRouter",
-            deployment_key: true,
             models: [{ model: "text-embedding-3-large", dim: 3072 }],
           },
         ],

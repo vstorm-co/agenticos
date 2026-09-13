@@ -274,7 +274,11 @@ class TestKBAccessControl:
 
     @pytest.mark.anyio
     async def test_app_admin_can_create_app_kb(self, mock_db, unclaimed_collection_name):
-        data = KnowledgeBaseCreate(name="Global KB", scope="app", collection_name="global")
+        """An app-scoped collection has no organization vault to hold a key, so
+        it is the one shape allowed to be created without one."""
+        data = KnowledgeBaseCreate(
+            name="Global KB", scope="app", collection_name="global", embedding_provider="openrouter"
+        )
         mock_kb = MagicMock()
 
         with patch(
@@ -290,11 +294,26 @@ class TestKBAccessControl:
     ):
         """`own` in the matrix is meaningless for a row nobody owns."""
         creator = uuid.uuid4()
-        data = KnowledgeBaseCreate(name="Team KB", scope="org", collection_name="team")
+        secret = MagicMock(id=uuid.uuid4(), purpose="openrouter")
+        data = KnowledgeBaseCreate(
+            name="Team KB",
+            scope="org",
+            collection_name="team",
+            embedding_provider="openrouter",
+            embedding_secret_id=secret.id,
+        )
 
-        with patch(
-            "app.repositories.knowledge_base_repo.create", new=AsyncMock(return_value=MagicMock())
-        ) as created:
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch("app.services.knowledge_base.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.knowledge_base_repo.create",
+                new=AsyncMock(return_value=MagicMock()),
+            ) as created,
+        ):
             svc = KnowledgeBaseService(mock_db)
             await svc.create(data, ctx=_ctx(user_id=creator))
 
@@ -814,6 +833,7 @@ class TestBindingAnEmbeddingSecret:
             name="Team KB",
             scope="org",
             collection_name="team",
+            embedding_provider="openrouter",
             embedding_secret_id=secret.id,
         )
 
@@ -842,6 +862,7 @@ class TestBindingAnEmbeddingSecret:
             name="Team KB",
             scope="org",
             collection_name="team",
+            embedding_provider="openrouter",
             embedding_secret_id=secret.id,
         )
 
@@ -893,18 +914,42 @@ class TestWhoServesTheEmbeddingModel:
         )
 
     @pytest.mark.anyio
-    async def test_a_new_collection_records_the_deployments_provider_by_default(
+    async def test_a_new_collection_must_name_its_provider(
         self, mock_db, unclaimed_collection_name
     ):
-        with patch(
-            "app.repositories.knowledge_base_repo.create",
-            new=AsyncMock(return_value=MagicMock()),
-        ) as created:
+        """There is no deployment-wide default to fall back to, and the refusal
+        names the select that was left empty."""
+        with (
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+            pytest.raises(BadRequestError) as exc,
+        ):
             await KnowledgeBaseService(mock_db).create(
                 KnowledgeBaseCreate(name="KB", scope="org", collection_name="kb"), ctx=_ctx()
             )
 
-        assert created.call_args.kwargs["embedding_provider"] == "openrouter"
+        assert exc.value.details["fields"][0]["field"] == "embedding_provider"
+        created.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_new_organization_collection_must_name_the_key_that_pays(
+        self, mock_db, unclaimed_collection_name
+    ):
+        """A collection without a key cannot index its first document, and
+        there is no deployment key it could embed on instead - so the form's
+        key select is the field the refusal marks."""
+        data = KnowledgeBaseCreate(
+            name="KB", scope="org", collection_name="kb", embedding_provider="openrouter"
+        )
+
+        with (
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_secret_id"
+        assert "OpenRouter" in exc.value.message
+        created.assert_not_called()
 
     @pytest.mark.anyio
     async def test_a_provider_that_cannot_serve_the_model_is_refused_at_creation(
@@ -938,6 +983,7 @@ class TestWhoServesTheEmbeddingModel:
             name="KB",
             scope="org",
             collection_name="kb",
+            embedding_provider="openrouter",
             embedding_secret_id=secret.id,
         )
 
@@ -1005,12 +1051,14 @@ class TestWhoServesTheEmbeddingModel:
         updated.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_falling_back_to_the_deployments_key_is_its_own_word(self, mock_db):
-        """A null id means "leave it alone" on a partial update, so clearing the
-        key needs a flag of its own - and it is not refused for the old key's
-        purpose, because the old key is what it removes."""
+    async def test_a_collection_cannot_be_left_without_a_key(self, mock_db):
+        """A null id means "leave it alone" on a partial update, and there is no
+        word for clearing the key: with no deployment-wide key to fall back to,
+        a collection without one cannot index, so the update leaves the key it
+        has in place."""
         kb = self._kb_row(secret_id=uuid.uuid4())
 
+        assert "clear_embedding_secret" not in KnowledgeBaseUpdate.model_fields
         with (
             patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
             patch(
@@ -1019,10 +1067,11 @@ class TestWhoServesTheEmbeddingModel:
             ) as updated,
         ):
             await KnowledgeBaseService(mock_db).update(
-                kb.id, KnowledgeBaseUpdate(clear_embedding_secret=True), ctx=_ctx()
+                kb.id, KnowledgeBaseUpdate(name="renamed"), ctx=_ctx()
             )
 
-        assert updated.call_args.kwargs["clear_embedding_secret"] is True
+        assert updated.call_args.kwargs["embedding_secret_id"] is None
+        assert "clear_embedding_secret" not in updated.call_args.kwargs
 
     @pytest.mark.anyio
     async def test_a_provider_that_cannot_serve_this_collections_model_is_refused(self, mock_db):

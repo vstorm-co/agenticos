@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Embeddings are paid for with the collection's vault key, and nothing else.**
+  `OPENROUTER_API_KEY` is gone: it was a deployment-wide fallback for one
+  provider, left over from when `openrouter.ai` was hardcoded, and the only
+  reason the catalog carried a `deployment_key` flag, the resolver two fallback
+  states and the form a "Deployment key" row. A new personal or organization
+  collection names its provider from `embedding_providers.json` and the vault
+  key that pays, or is refused on that field; a collection whose key is missing,
+  unusable or never chosen refuses to index or search with a message naming the
+  collection and the reason, and the ingestion flow log says so. A key can be
+  replaced but no longer cleared (`clear_embedding_secret` is removed), because
+  there is nothing to fall back to. App-scoped collections have no vault and
+  stay keyless. (#1596)
+
+### Added
+
+- **`docs/data-protection.md`** - where personal data lives, what leaves the
+  deployment and under which setting, the controls with their proof or their
+  open issue, what deletion reaches, and a reproducible verification checklist
+  for one deployment. Linked from the security-review table, `SECURITY.md` and
+  the topic map. (#1596)
+
 ## [0.0.409] - 2026-09-11
 
 ### Security

@@ -4,9 +4,7 @@ from openai import OpenAI
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import record_ambient_usage
-from app.core.config import settings as app_settings
 from app.core.exceptions import ConfigurationError
-from app.services.rag import embedding_providers
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
 
@@ -52,8 +50,8 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
             base_url: Override base URL (e.g. OpenRouter-compatible endpoint).
             key_origin: Where `api_key` came from, said in words, for the
                 refusal below. A per-collection caller passes what
-                `ResolvedEmbeddings.describe` built; the deployment-wide
-                provider has nothing to add and passes nothing.
+                `ResolvedEmbeddings.describe` built; a caller with no collection
+                in hand passes nothing, and has no key either.
         """
         self.model = model
         self._api_key = api_key
@@ -79,12 +77,10 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
 
         The advice depends on who is asking. A collection has a `key_origin`
         naming it and the key it tried, and what it needs is a usable key of its
-        own: telling somebody who picked an organization key in the UI to set an
-        environment variable is advice for a deployment they are not running,
-        and where their collection embeds through another provider it is advice
-        that would send this deployment's key to the wrong vendor. A caller with
-        no collection - the warmup, a `rag-*` command - is the deployment
-        itself, and the variable is exactly what it is missing.
+        own from its organization's vault. A caller with no collection - the
+        warmup, a `rag-*` command embedding outside any collection - has no key
+        to try, because there is no deployment-wide embedding credential: the
+        refusal says so rather than advising a variable that does not exist.
         """
         if self._client is None:
             if not self._api_key:
@@ -95,11 +91,11 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
                 if self._key_origin is None:
                     raise ConfigurationError(
                         message=(
-                            "No embedding credential is configured, so documents cannot be "
-                            "indexed or searched. Set OPENROUTER_API_KEY in the backend "
-                            "environment and restart."
+                            "No embedding credential applies to this call: it embeds outside "
+                            "any collection, and every embedding key belongs to a collection. "
+                            "Embed through a knowledge base that names a vault key."
                         ),
-                        details={**details, "setting": "OPENROUTER_API_KEY"},
+                        details={**details, "key_origin": "none"},
                     )
                 raise ConfigurationError(
                     message=(
@@ -147,28 +143,27 @@ class EmbeddingService:
     ) -> None:
         """One model, one endpoint, one credential, one expected width.
 
-        `api_key` defaults to the deployment's key; a per-collection caller
-        passes the organization's own (see `embedding_resolution`).
+        `api_key` is the collection's vault key, passed by the per-collection
+        caller (see `embedding_resolution`); there is no deployment-wide key to
+        default to, so a service built without one refuses on first use.
         `expected_dim` defaults to the config's derived width; a collection
         passes the width its table was actually created at, which a later
         catalog change must not overrule. `key_origin` says in words where
         `api_key` came from, so a refusal for an empty one is actionable.
 
-        `base_url` is the collection's provider, and it defaults to the provider
-        the deployment's own key belongs to - which is what a caller with no
-        collection in hand has. It used to be this class's one hardcoded string,
-        so every collection embedded through OpenRouter whatever key it had
-        chosen: an organization's OpenAI key was sent to openrouter.ai, and
-        refused there.
+        `base_url` is the collection's provider. It used to be this class's one
+        hardcoded string, so every collection embedded through OpenRouter
+        whatever key it had chosen: an organization's OpenAI key was sent to
+        openrouter.ai, and refused there. A service with no collection has no
+        endpoint either, which the empty key turns into a refusal before any
+        request is built.
         """
         config = settings.embeddings_config
         self.expected_dim = expected_dim if expected_dim is not None else config.dim
         self.provider = OpenAIEmbeddingProvider(
             model=config.model,
-            api_key=api_key if api_key is not None else app_settings.OPENROUTER_API_KEY,
-            base_url=base_url
-            if base_url is not None
-            else embedding_providers.deployment_provider().base_url,
+            api_key=api_key or "",
+            base_url=base_url,
             key_origin=key_origin,
         )
 

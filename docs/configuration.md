@@ -368,10 +368,14 @@ compose file here pins.
 
 ### Embeddings
 
+There is no embedding credential in the environment. Every collection names the
+provider it embeds through and the organization vault key that pays for it, the
+way a chat model is keyed per organization; see
+[File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | The fallback embeddings credential, for collections that chose no vault key of their own — and the one a degraded choice falls back to. Not "every collection embeds on it": see [File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays) |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is built with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
+| `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is preselected with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
 
 ### Document parsing — configured per collection, not here
 
@@ -1004,7 +1008,6 @@ stale and production's pipe ping goes unanswered.
 - [ ] `POSTGRES_PASSWORD` — a strong, unique password
 - [ ] `REDIS_PASSWORD` — a strong password
 - [ ] `CORS_ORIGINS` — only your actual frontend domain(s)
-- [ ] `OPENROUTER_API_KEY` — your production API key
 
 Email is deliberately **not** on this list: a deployment runs without it. But
 invitations, password resets and notifications all go silently unsent until

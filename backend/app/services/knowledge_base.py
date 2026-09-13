@@ -176,6 +176,11 @@ class KnowledgeBaseService:
         (the /rag endpoint already validates it) rather than slug-derived, and
         the KB is org-scoped so it is visible to the workspace. Returns the
         existing KB unchanged if one already maps to this collection.
+
+        The row names no vault key, because that route takes none: the
+        collection exists and can be read, and refuses to index or search until
+        `PATCH /kb/{id}` gives it a provider and a key. There is no
+        deployment-wide key it could embed on instead.
         """
         existing = await knowledge_base_repo.get_by_collection_name(self.db, collection_name)
         if existing:
@@ -196,10 +201,7 @@ class KnowledgeBaseService:
             ingestion_config=deployment_defaults().model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
-            # A collection that appeared under the vector store rather than
-            # through the form embeds where the deployment's own key points,
-            # because that is the only credential it has.
-            embedding_provider=embedding_providers.deployment_provider().provider,
+            embedding_provider=embedding_providers.providers()[0].provider,
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
@@ -362,10 +364,25 @@ class KnowledgeBaseService:
             embedding_secret_id = shared.embedding_secret_id
         else:
             embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
+            if data.embedding_provider is None:
+                raise refused_field(
+                    "embedding_provider",
+                    "Choose the provider this collection embeds through; there is no "
+                    "deployment-wide default.",
+                )
             provider = embedding_providers.require(
                 data.embedding_provider, model=embedding_model, dim=embedding_dim
             )
             embedding_secret_id = data.embedding_secret_id
+            # An app-scoped collection has no organization vault to hold a key,
+            # so it is the one shape allowed to exist keyless; it refuses to
+            # index or search until it has one, which nothing can give it yet.
+            if embedding_secret_id is None and org_id is not None:
+                raise refused_field(
+                    "embedding_secret_id",
+                    f"Choose the vault key that pays for this collection's embeddings on "
+                    f"{provider.name}; there is no deployment-wide key to fall back to.",
+                )
             if embedding_secret_id is not None:
                 await self._check_embedding_secret(
                     embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
@@ -441,8 +458,9 @@ class KnowledgeBaseService:
         """Refuse a key the organization does not hold, or one of the wrong kind.
 
         Checked at creation, where the person choosing can fix it - the
-        resolver deliberately degrades to the deployment key at embed time, so
-        this is the only moment a wrong choice is visible.
+        resolver deliberately degrades to no key at embed time rather than
+        raising, so this is the moment a wrong choice is visible as a refusal
+        on the field.
 
         Binding a key is lending it: the collection's embeddings bill it for
         everyone who can write the collection. So the chooser has to be able to
@@ -506,7 +524,7 @@ class KnowledgeBaseService:
                 organization_id=kb.organization_id,
                 provider=provider,
             )
-        elif data.embedding_provider is not None and not data.clear_embedding_secret:
+        elif data.embedding_provider is not None:
             await self._check_kept_secret(kb, provider=provider)
         return await knowledge_base_repo.update(
             self.db,
@@ -516,7 +534,6 @@ class KnowledgeBaseService:
             ingestion_config=None if config is None else config.model_dump(mode="json"),
             embedding_provider=data.embedding_provider,
             embedding_secret_id=data.embedding_secret_id,
-            clear_embedding_secret=data.clear_embedding_secret,
         )
 
     async def _check_kept_secret(
@@ -542,8 +559,7 @@ class KnowledgeBaseService:
         raise refused_field(
             "embedding_provider",
             f"This collection pays with a {row.purpose} key, which {provider.name} will "
-            "not accept. Choose a key for the new provider, or fall back to the "
-            "deployment's.",
+            "not accept. Choose a key for the new provider in the same request.",
             purpose=row.purpose,
         )
 

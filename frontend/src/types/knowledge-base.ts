@@ -157,23 +157,24 @@ export interface CreateKnowledgeBaseInput {
    * Omit for the deployment default.
    */
   embedding_model?: string;
-  /** Whose endpoint serves it; omit for the deployment key's own provider. */
+  /** Whose endpoint serves it. Required for a new collection - there is no deployment default. */
   embedding_provider?: string;
-  /** The org vault key that pays for embeddings; omit for the deployment key. */
+  /**
+   * The org vault key that pays for embeddings. Required for a personal or
+   * organization collection; there is no deployment-wide key to fall back to.
+   */
   embedding_secret_id?: string;
 }
 
-/** What a collection's embeddings may be re-pointed at after the fact. */
+/**
+ * What a collection's embeddings may be re-pointed at after the fact.
+ *
+ * A null key means "leave the key alone": a collection is never left without
+ * one, because there is no deployment-wide key to fall back to.
+ */
 export interface EmbeddingProviderInput {
   embedding_provider?: string;
   embedding_secret_id?: string;
-  /**
-   * Go back to the deployment's key.
-   *
-   * Its own flag because a null `embedding_secret_id` means "leave the key
-   * alone" on a partial update, and both have to be sayable.
-   */
-  clear_embedding_secret?: boolean;
 }
 
 /** One provider a collection can embed through, from `GET /rag/embedding-models`. */
@@ -181,13 +182,10 @@ export interface EmbeddingProvider {
   provider: string;
   name: string;
   models: { model: string; dim: number }[];
-  /** Whether this deployment's own key pays here. */
-  deployment_key: boolean;
 }
 
 export interface EmbeddingModels {
   default: string;
-  default_provider: string;
   providers: EmbeddingProvider[];
 }
 
