@@ -981,6 +981,24 @@ def render_notices(review: Review) -> str:
     return "\n".join(lines)
 
 
+def comparable(notices: str) -> str:
+    """The notices without the evidence cell, which is what `check` compares.
+
+    Two wheels of one release can carry different metadata: `caio` 0.9.25 declares
+    `License-Expression: Apache-2.0` on its Linux wheel and nothing on its macOS
+    wheel, where the licence is read from the COPYING file instead. The licence is
+    the same; only where this machine read it from differs, and that cell records
+    exactly that. Comparing it would make the check fail on every laptop that is
+    not the runner. A licence, version or source that differs still fails.
+    """
+    lines: list[str] = []
+    for line in notices.splitlines():
+        if line.startswith("| ") and line.count(" | ") == 4:
+            line = line.rsplit(" | ", 1)[0] + " |"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def print_stale_diff(current: str, rendered: str, limit: int = 80) -> None:
     """The first lines that differ, so a red job says what moved rather than only that it did.
 
@@ -1039,8 +1057,8 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_REVIEWED
 
     current = NOTICES_PATH.read_text() if NOTICES_PATH.exists() else ""
-    if current != rendered:
-        print_stale_diff(current, rendered)
+    if comparable(current) != comparable(rendered):
+        print_stale_diff(comparable(current), comparable(rendered))
         verdict(
             "FAILED", f"{NOTICES_PATH.name} is stale - run `make licenses` and commit the result"
         )

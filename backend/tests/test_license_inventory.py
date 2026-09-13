@@ -498,6 +498,35 @@ class TestMain:
         assert "-something older" in out
         assert "+# Third-party notices" in out
 
+    def test_a_difference_only_in_the_evidence_cell_is_not_stale(
+        self, notices: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two wheels of one release can read their licence from different places."""
+        linux = inventory.Component(
+            "python", "caio", "0.9.25", "Apache-2.0", "https://x", "License-Expression"
+        )
+        macos = inventory.Component(
+            "python", "caio", "0.9.25", "Apache-2.0", "https://x", "licence file text"
+        )
+        notices.write_text(inventory.render_notices(self._review(macos)))
+        monkeypatch.setattr(inventory, "collect", lambda: self._review(linux))
+
+        assert inventory.main(["check"]) == inventory.EXIT_REVIEWED
+
+    def test_a_different_licence_for_the_same_component_is_stale(
+        self, notices: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        before = inventory.Component(
+            "python", "lib", "1.0", "MIT", "https://x", "License-Expression"
+        )
+        after = inventory.Component(
+            "python", "lib", "1.0", "Apache-2.0", "https://x", "License-Expression"
+        )
+        notices.write_text(inventory.render_notices(self._review(before)))
+        monkeypatch.setattr(inventory, "collect", lambda: self._review(after))
+
+        assert inventory.main(["check"]) == inventory.EXIT_FAILED
+
     def test_an_untracked_finding_neither_writes_nor_passes(
         self, notices: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:

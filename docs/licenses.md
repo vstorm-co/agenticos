@@ -55,7 +55,10 @@ data files and the service images, each with a status and its obligation.
 notices; `make licenses-check`, which the `security` job and `make check` run,
 regenerates them in memory and fails when:
 
-- the committed notices differ from what the lockfiles now resolve to;
+- the committed notices differ from what the lockfiles now resolve to, in any
+  component, version, licence or source (the evidence cell is not compared: two
+  wheels of one release can carry different metadata, and it records where this
+  machine read the licence from);
 - a component's metadata names no licence and no override records one;
 - a component is under a licence in the review set and has no decision;
 - a decision was made about a different licence than the one the component now
