@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.410] - 2026-09-13
+
+### Changed
+
+- **The repository's agent guidance is a brief, not a history.** `CLAUDE.md`
+  now carries project-wide decisions and pointers: what the product is, the
+  quality bar, the hard boundaries, rule and skill routing, commands,
+  verification and the documentation topic map. Incident anecdotes and pinned
+  framework versions are gone; issue-board conventions moved to
+  `.claude/references/issue-triage.md`. The rule files under `.claude/rules/`
+  declare their scope with the `paths` frontmatter key Claude Code matches on,
+  so the code-style rule now covers `scripts/` and the testing rule covers the
+  Playwright layer. `scripts/docs_drift.py` is the one path-to-page trigger
+  map and gained the sandbox, agent-template, skill-gallery and Makefile
+  mappings that used to live only in `CLAUDE.md`. (#1601)
+
 ## [0.0.409] - 2026-09-11
 
 ### Security
