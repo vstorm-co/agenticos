@@ -88,6 +88,10 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/api/routes/", "docs/architecture.md"),
     ("backend/alembic/versions/", "docs/architecture.md"),
     (".github/workflows/ai-review.yml", "docs/code-review.md"),
+    ("licenses/", "docs/licenses.md"),
+    ("scripts/license_inventory.py", "docs/licenses.md"),
+    ("backend/Dockerfile", "docs/licenses.md"),
+    ("frontend/Dockerfile", "docs/licenses.md"),
     (".github/codex/", "docs/code-review.md"),
     # The only in-repo half of the branch policy; the rest is a ruleset,
     # which nothing here can watch.

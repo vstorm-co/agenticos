@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A licence review of everything the images ship, with generated notices and a
+  check.** `THIRD_PARTY_NOTICES.md` is generated from the two lockfiles by
+  `scripts/license_inventory.py` and lists every distribution in either image with
+  its SPDX licence, source and the evidence the licence was read from. Decisions
+  live in `licenses/policy.toml` (overrides with evidence, review entries for
+  copyleft and share-alike components) and `licenses/components.toml` (images,
+  Debian packages, fonts, glyphs, data files, compose services). `make
+  licenses-check` runs in the `security` job and `make check`: stale notices, a
+  component with no readable licence, a copyleft component with no decision, or a
+  decision about a licence that has since changed all fail it; tracked open
+  findings pass and are counted. Both images now carry their licence files - the
+  backend image `LICENSE`, `NOTICE` and the notices, the frontend image every
+  package's own licence under `/app/licenses/`, which the standalone build had
+  been dropping. `docs/licenses.md` is the review: scope, obligations per licence
+  family and how each is met, hosted-provider terms and model-weight licences as
+  deployment-time decisions, the maintenance workflow and a release checklist.
+  Three findings are open and tracked: PyMuPDF is AGPL-3.0 (#1602), `redis:7`
+  resolves to Redis 7.4 under RSALv2/SSPLv1 (#1603), and the sandbox runtime is
+  built at the deployment. (#1600)
+
 ## [0.0.409] - 2026-09-11
 
 ### Security

@@ -91,6 +91,7 @@ architecture was chosen.
 | Can we prove what happened? | Every run, every approval, every secret rotation is in the [audit trail](governance.md#audit) — including runs that failed |
 | Where are the credentials? | [One vault](secrets.md), sealed per organization. No API response, log line or audit entry ever carries a plaintext key |
 | Can we read the code? | Yes. That is usually the end of the conversation |
+| What is in it, and under what licences? | Apache-2.0, on top of about five hundred packages that are almost all MIT, Apache-2.0 or BSD. [Every one is listed with its evidence](licenses.md), and the three findings still open are listed first rather than averaged away |
 
 ## Three ways this goes wrong
 
