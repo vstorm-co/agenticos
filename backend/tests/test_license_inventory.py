@@ -493,7 +493,10 @@ class TestMain:
         monkeypatch.setattr(inventory, "collect", lambda: self._review(_component("a", "MIT")))
 
         assert inventory.main(["check"]) == inventory.EXIT_FAILED
-        assert "stale" in capsys.readouterr().out.splitlines()[-1]
+        out = capsys.readouterr().out.splitlines()
+        assert "stale" in out[-1]
+        assert "-something older" in out
+        assert "+# Third-party notices" in out
 
     def test_an_untracked_finding_neither_writes_nor_passes(
         self, notices: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

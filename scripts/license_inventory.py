@@ -48,6 +48,7 @@ verdict and listed in the notices.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -980,6 +981,24 @@ def render_notices(review: Review) -> str:
     return "\n".join(lines)
 
 
+def print_stale_diff(current: str, rendered: str, limit: int = 80) -> None:
+    """The first lines that differ, so a red job says what moved rather than only that it did.
+
+    The notices are regenerated on another machine than the one that committed
+    them, so a difference can be a dependency bump or a metadata source that
+    reads differently there; the diff is what tells those apart without a
+    checkout.
+    """
+    diff = difflib.unified_diff(
+        current.splitlines(), rendered.splitlines(), "committed", "regenerated", lineterm="", n=0
+    )
+    for index, line in enumerate(diff):
+        if index >= limit:
+            print("... (diff truncated)")
+            break
+        print(line)
+
+
 def verdict(state: str, detail: str) -> None:
     line = f"{VERDICT_PREFIX} {state} - {detail}"
     print(line)
@@ -1021,6 +1040,7 @@ def main(argv: list[str] | None = None) -> int:
 
     current = NOTICES_PATH.read_text() if NOTICES_PATH.exists() else ""
     if current != rendered:
+        print_stale_diff(current, rendered)
         verdict(
             "FAILED", f"{NOTICES_PATH.name} is stale - run `make licenses` and commit the result"
         )
