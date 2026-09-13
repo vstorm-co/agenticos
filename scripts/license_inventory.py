@@ -976,7 +976,10 @@ def review_components(
     """Judge the inventory against the policy; every problem is one a person has to answer."""
     problems: list[str] = []
     present = {component.key for component in components}
-    without_file = {c.key for c in components if c.license_file is False}
+    # A notice is stale for a component that is gone or is known to ship its own
+    # licence file. One read from an index (`license_file` None) was not inspected
+    # on this machine - a Linux-only build on a macOS laptop - and keeps its notice.
+    with_file = {c.key for c in components if c.license_file is True}
     for component in components:
         label = f"{component.ecosystem} {component.name} {component.version}"
         if component.key in policy.overrides and not component.evidence.startswith("override:"):
@@ -1013,7 +1016,7 @@ def review_components(
         problems.append(
             f"policy review for {key} names a component the lockfiles no longer resolve - remove it"
         )
-    for key in sorted(set(policy.notices) - without_file):
+    for key in sorted(key for key in policy.notices if key not in present or key in with_file):
         problems.append(
             f"policy notice for {key} names a component that is gone or now ships its own licence file - remove it"
         )

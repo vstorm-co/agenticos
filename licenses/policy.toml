@@ -36,6 +36,14 @@ evidence = "uritemplate-4.2.0.dist-info/licenses/LICENSE: 'made available under 
 holder = "Meta Platforms, Inc. and affiliates"
 evidence = "client-only 0.0.1 names no author; its package.json points at reactjs.org and facebook/react, and the React repository's LICENSE is MIT, Copyright (c) Meta Platforms, Inc. and affiliates"
 
+[notices.npm."@next/swc-linux-x64-gnu"]
+holder = "Vercel, Inc."
+evidence = "The platform build of Next.js's compiler names no author and ships no licence file; it is published from https://github.com/vercel/next.js, whose LICENSE is MIT, Copyright (c) 2025 Vercel, Inc."
+
+[notices.npm."@next/swc-linux-arm64-gnu"]
+holder = "Vercel, Inc."
+evidence = "As for @next/swc-linux-x64-gnu: the arm64 build from the same repository"
+
 [notices.python."pydantic-monty"]
 holder = "Pydantic Services Inc."
 evidence = "The wheel names no author; its Project-URL is https://github.com/pydantic/monty, whose LICENSE is MIT, Copyright (c) Pydantic Services Inc. 2026 to present"

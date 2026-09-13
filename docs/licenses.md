@@ -106,7 +106,7 @@ the current figure.
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 families | Licence text and copyright notices with the fonts; no selling the fonts alone; no reuse of the reserved names for modified fonts | `frontend/src/app/fonts/OFL.txt` carries all three notices; the fonts are served unmodified |
 | CC0-1.0, CC-BY-4.0, MIT (brand glyphs) | 3 sources | Attribution for the Font Awesome icons; the marks stay their owners' trademarks | `NOTICE` names the sources and the trademark position |
 
-**A package that publishes no licence file** cannot have one copied. Six npm
+**A package that publishes no licence file** cannot have one copied. Several npm
 packages in the closure are like that, `@img/sharp-libvips-linux-x64` and its
 arm64 twin among them: an LGPL library with no copy of the LGPL in the tarball. So
 are nine wheels, `tokenizers` and `liteparse` among them. For each npm package,

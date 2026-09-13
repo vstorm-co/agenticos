@@ -575,11 +575,17 @@ class TestReview:
             "npm", "a", "1", "MIT", "https://x", "package.json license", True, ""
         )
 
+        uninspected = inventory.Component(
+            "npm", "a", "1", "MIT", "https://x", "package.json license", None, ""
+        )
+
         problems = inventory.review_components([with_file], [], policy, tmp_path).problems
 
         assert problems == [
             "policy notice for npm:a names a component that is gone or now ships its own licence file - remove it"
         ]
+        assert inventory.review_components([uninspected], [], policy, tmp_path).problems == []
+        assert len(inventory.review_components([], [], policy, tmp_path).problems) == 1
 
     def test_open_findings_are_counted_not_failed(self) -> None:
         decision = inventory.ReviewDecision(
