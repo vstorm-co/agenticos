@@ -117,7 +117,7 @@ one.
 | Content at rest | **Not encrypted by the application.** Postgres data, `media_data` and the sandbox workspace root rely on disk or volume encryption you provide | Operator control. An S3 backend with server-side encryption for files is [#1423](https://github.com/vstorm-co/agenticos/issues/1423) |
 | In transit, inbound | HTTPS at your proxy; `Strict-Transport-Security` when `ENVIRONMENT=production`; session cookies `httpOnly`, and `secure` whenever the request arrived over HTTPS | [Deploy](deploy.md#choose-a-reverse-proxy); `frontend/src/app/api/auth/login/route.ts` |
 | In transit, to the stores | `POSTGRES_SSLMODE` and `REDIS_SSL`; `agenticos cmd doctor` reports whether the connection it made was encrypted | [Encrypted connections](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
-| In transit, to providers | HTTPS to every provider; a `base_url` is refused if it lacks a host | `refused_field("base_url", ...)` in the model profile service |
+| In transit, to providers | HTTPS to every catalogued endpoint. A custom `base_url` is refused without a host or with credentials in it, but **`http://` is accepted**, for an Ollama or a gateway on the deployment's own network; a plain-HTTP profile pointing off that network sends prompts and the key in clear. Item 4 of the checklist lists every such profile | `refused_field("base_url", ...)` in the model profile service; operator control for the scheme |
 | Secrets in responses, logs, audit, exports | No endpoint returns a plaintext; `SecretStr` everywhere; specs reference secrets by id | [Secrets](secrets.md#what-never-happens) |
 | Personal data in logs | `app/core/logging.py` redacts email addresses, JWTs, API keys, bearer tokens and `password=` pairs from every log record, API and worker alike | `tests/test_logging.py`; the worker installs it in `prefect_app.py` (#440) |
 | Personal data reaching the model | The `guardrails` capability redacts IBANs, card numbers, US social security numbers and email addresses from prompts, answers and tool results when configured | [Capabilities](reference/capabilities.md); its tests under `tests/` |
@@ -213,6 +213,10 @@ email provider writes whole mail bodies to disk when it is on.
 SELECT o.name AS organization, p.label, p.provider, p.model, p.base_url
 FROM model_profiles p JOIN organizations o ON o.id = p.organization_id
 ORDER BY 1, 2;
+
+-- Profiles that speak plain HTTP. Each must point at the deployment's own
+-- network; anything else sends prompts and the key in clear.
+SELECT label, provider, base_url FROM model_profiles WHERE base_url LIKE 'http://%';
 
 SELECT o.name AS organization, s.purpose, s.kind, s.name
 FROM organization_secrets s JOIN organizations o ON o.id = s.organization_id
