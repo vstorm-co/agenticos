@@ -1,0 +1,33 @@
+AgenticOS console
+Copyright 2026 Vstorm
+
+Licensed under the Apache License, Version 2.0. The full LICENSE and NOTICE of
+the project are at https://github.com/vstorm-co/agenticos; this file is the part
+of the NOTICE that concerns what this image ships.
+
+Third-party brand marks
+
+src/lib/brand-glyphs.generated.ts contains SVG path data for the brand marks the
+console draws, fetched by scripts/gen-brand-icons.ts from:
+
+  Simple Icons      https://simpleicons.org            CC0 1.0 Universal
+  Font Awesome Free https://fontawesome.com/license    icons under CC BY 4.0
+  @lobehub/icons    https://icons.lobehub.com          MIT
+
+The marks themselves are the trademarks of their respective owners and are used
+to identify those products. Their inclusion implies no affiliation with or
+endorsement by them.
+
+Fonts
+
+Inter, Bricolage Grotesque and Geist Mono are served from src/app/fonts/ under
+the SIL Open Font License 1.1; OFL.txt beside them carries the licence and each
+family's copyright notice.
+
+Packages
+
+Every npm package in this image keeps its own licence file under
+/app/licenses/node_modules/<name>/. A package that publishes none has a NOTICE
+there naming its licence and the copyright holders its package.json declares.
+The index of every component and its licence is THIRD_PARTY_NOTICES.md in the
+repository.

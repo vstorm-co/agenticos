@@ -10,7 +10,10 @@ how each obligation is met is reviewed in `docs/licenses.md`.
 
 Each component's own licence file, with its copyright notice, ships beside it:
 the backend image keeps every wheel's `*.dist-info/` and the frontend image
-keeps every package's licence file under `/app/licenses/`.
+collects every package's licence file under `/app/licenses/`. A package that
+publishes none gets a NOTICE there naming its licence and author, with the
+licence text from `frontend/licenses/texts/`; the holder recorded for one that
+names no author is in the evidence column below.
 
 ## Open findings
 
@@ -110,7 +113,7 @@ keeps every package's licence file under `/app/licenses/`.
 | fake-useragent | 2.2.0 | Apache-2.0 | https://github.com/fake-useragent/fake-useragent | License-Expression |
 | fastapi | 0.141.1 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.12.2 | MIT | https://github.com/fastavro/fastavro | License field |
-| fastmcp-slim | 3.4.4 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
+| fastmcp-slim | 3.4.4 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin |
 | filelock | 3.32.0 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.6.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
@@ -160,10 +163,10 @@ keeps every package's licence file under `/app/licenses/`.
 | jsonschema | 4.26.0 | MIT | https://github.com/python-jsonschema/jsonschema | License-Expression |
 | jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications | License-Expression |
 | keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | License-Expression |
-| liteparse | 2.14.3 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression |
+| liteparse | 2.14.3 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.15.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
 | logfire | 4.41.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
-| logfire-api | 4.39.0 | MIT | https://pypi.org/project/logfire-api/4.39.0/ | License-Expression |
+| logfire-api | 4.39.0 | MIT | https://pypi.org/project/logfire-api/4.39.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
 | lxml | 6.1.1 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
 | magic-filter | 1.0.12 | MIT | https://github.com/aiogram/magic-filter | License-Expression |
 | mako | 1.3.12 | MIT | https://docs.makotemplates.org | License field |
@@ -193,9 +196,9 @@ keeps every package's licence file under `/app/licenses/`.
 | opentelemetry-proto | 1.39.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-sdk | 1.39.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-semantic-conventions | 0.60b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-util-http | 0.60b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
+| opentelemetry-util-http | 0.60b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |
 | orjson | 3.11.9 | MPL-2.0 AND (Apache-2.0 OR MIT) | https://github.com/ijl/orjson | License-Expression; review accepted |
-| packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | classifier |
+| packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
 | pathspec | 1.1.1 | MPL-2.0 | https://github.com/cpburnz/python-pathspec | classifier; review accepted |
 | pendulum | 3.2.0 | MIT | https://github.com/sdispater/pendulum | License field |
 | pillow | 12.3.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
@@ -204,12 +207,12 @@ keeps every package's licence file under `/app/licenses/`.
 | portalocker | 3.2.0 | BSD-3-Clause | https://github.com/wolph/portalocker/ | License-Expression |
 | posthog | 7.47.0 | MIT | https://github.com/posthog/posthog-python | License-Expression |
 | prefect | 3.8.5 | Apache-2.0 | https://github.com/PrefectHQ/prefect | License field |
-| primp | 1.3.1 | MIT | https://github.com/deedy5/primp | License field |
+| primp | 1.3.1 | MIT | https://github.com/deedy5/primp | License field; no licence file, attributed to deedy5 |
 | prometheus-client | 0.26.0 | Apache-2.0 AND BSD-2-Clause | https://github.com/prometheus/client_python | License-Expression |
 | propcache | 0.5.2 | Apache-2.0 | https://github.com/aio-libs/propcache | License field |
 | proto-plus | 1.28.2 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
 | protobuf | 6.33.6 | BSD-3-Clause | https://developers.google.com/protocol-buffers/ | License field |
-| psycopg2-binary | 2.9.12 | LGPL-3.0-or-later | https://psycopg.org/ | override: psycopg2_binary-2.9.12.dist-info/licenses/LICENSE: LGPL-3.0-or-later with an additional permission to link against OpenSSL; the License field says 'LGPL with exceptions'; review accepted |
+| psycopg2-binary | 2.9.12 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
 | py-key-value-aio | 0.4.5 | Apache-2.0 | https://pypi.org/project/py-key-value-aio/0.4.5/ | License-Expression |
 | pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
@@ -222,16 +225,16 @@ keeps every package's licence file under `/app/licenses/`.
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
 | pydantic-graph | 2.40.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
-| pydantic-monty | 0.0.21 | MIT | https://github.com/pydantic/monty | License-Expression |
-| pydantic-monty-client | 0.0.21 | MIT | https://github.com/pydantic/monty | License field |
-| pydantic-monty-runtime | 0.0.21 | MIT | https://github.com/pydantic/monty | License field |
+| pydantic-monty | 0.0.21 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-client | 0.0.21 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-runtime | 0.0.21 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-settings | 2.15.0 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
 | pydocket | 0.23.1 | MIT | https://github.com/chrisguidry/docket | classifier |
 | pygments | 2.20.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |
 | pyjwt | 2.13.0 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
 | pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review open |
 | pyparsing | 3.3.2 | MIT | https://github.com/pyparsing/pyparsing.git | License-Expression |
-| python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | classifier |
+| python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
 | python-dotenv | 1.2.2 | BSD-3-Clause | https://github.com/theskumar/python-dotenv | License field |
 | python-json-logger | 4.1.0 | BSD-2-Clause | https://nhairs.github.io/python-json-logger | License-Expression |
@@ -271,7 +274,7 @@ keeps every package's licence file under `/app/licenses/`.
 | tenacity | 9.1.4 | Apache-2.0 | https://github.com/jd/tenacity | License field |
 | text-unidecode | 1.3 | Artistic-1.0-Perl OR GPL-2.0-or-later | https://github.com/kmike/text-unidecode/ | override: text_unidecode-1.3.dist-info/LICENSE.txt: 'redistribute it and/or modify it under the terms of either: GPL or GPLv2+, or Artistic License'; the metadata's License field says only 'Artistic License'; review accepted |
 | tiktoken | 0.13.0 | MIT | https://github.com/openai/tiktoken | License field |
-| tokenizers | 0.23.1 | Apache-2.0 | https://github.com/huggingface/tokenizers | classifier |
+| tokenizers | 0.23.1 | Apache-2.0 | https://github.com/huggingface/tokenizers | classifier; no licence file, attributed to Nicolas Patry, Anthony Moi |
 | toml | 0.10.2 | MIT | https://github.com/uiri/toml | License field |
 | tqdm | 4.70.0 | MPL-2.0 | https://github.com/tqdm/tqdm | licence file text; review accepted |
 | truststore | 0.10.4 | MIT | https://github.com/sethmlarson/truststore | License-Expression |
@@ -313,7 +316,7 @@ keeps every package's licence file under `/app/licenses/`.
 | @img/sharp-libvips-linux-x64 | 1.2.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
 | @img/sharp-linux-arm64 | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @next/env | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
+| @next/env | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
 | @next/swc-linux-x64-gnu | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
@@ -371,13 +374,13 @@ keeps every package's licence file under `/app/licenses/`.
 | @radix-ui/react-visually-hidden | 1.2.11 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/rect | 1.1.3 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @reduxjs/toolkit | 2.12.0 | MIT | https://github.com/reduxjs/redux-toolkit | package.json license |
-| @schummar/icu-type-parser | 1.21.5 | MIT | https://github.com/schummar/schummar-translate | package.json license |
+| @schummar/icu-type-parser | 1.21.5 | MIT | https://github.com/schummar/schummar-translate | package.json license; no licence file, attributed to Marco Schumacher, Marco Schumacher |
 | @standard-schema/spec | 1.1.0 | MIT | https://github.com/standard-schema/standard-schema | package.json license |
 | @standard-schema/utils | 0.3.0 | MIT | https://github.com/standard-schema/standard-schema | package.json license |
 | @swc/core | 1.15.47 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @swc/core-linux-arm64-gnu | 1.15.47 | Apache-2.0 AND MIT | https://github.com/swc-project/swc | package.json license |
 | @swc/core-linux-x64-gnu | 1.15.47 | Apache-2.0 AND MIT | https://github.com/swc-project/swc | package.json license |
-| @swc/counter | 0.1.3 | Apache-2.0 | https://github.com/swc-project/pkgs | package.json license |
+| @swc/counter | 0.1.3 | Apache-2.0 | https://github.com/swc-project/pkgs | package.json license; no licence file, attributed to 강동윤 <kdy1997.dev@gmail.com> |
 | @swc/helpers | 0.5.15 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @swc/types | 0.1.28 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @tanstack/query-core | 5.101.4 | MIT | https://github.com/TanStack/query | package.json license |
@@ -415,7 +418,7 @@ keeps every package's licence file under `/app/licenses/`.
 | character-reference-invalid | 2.0.1 | MIT | https://github.com/wooorm/character-reference-invalid | package.json license |
 | cjs-module-lexer | 2.2.0 | MIT | https://github.com/nodejs/cjs-module-lexer | package.json license |
 | class-variance-authority | 0.7.1 | Apache-2.0 | https://github.com/joe-bell/cva | package.json license |
-| client-only | 0.0.1 | MIT | https://reactjs.org/ | package.json license |
+| client-only | 0.0.1 | MIT | https://reactjs.org/ | package.json license; no licence file, attributed to Meta Platforms, Inc. and affiliates |
 | clsx | 2.1.1 | MIT | https://github.com/lukeed/clsx | package.json license |
 | cmdk | 1.1.1 | MIT | https://github.com/pacocoursey/cmdk | package.json license |
 | comma-separated-tokens | 2.0.3 | MIT | https://github.com/wooorm/comma-separated-tokens | package.json license |
@@ -534,7 +537,7 @@ keeps every package's licence file under `/app/licenses/`.
 | react-markdown | 10.1.0 | MIT | https://github.com/remarkjs/react-markdown | package.json license |
 | react-redux | 9.3.0 | MIT | github:reduxjs/react-redux | package.json license |
 | react-remove-scroll | 2.7.2 | MIT | https://github.com/theKashey/react-remove-scroll | package.json license |
-| react-remove-scroll-bar | 2.3.8 | MIT | https://github.com/theKashey/react-remove-scroll-bar | package.json license |
+| react-remove-scroll-bar | 2.3.8 | MIT | https://github.com/theKashey/react-remove-scroll-bar | package.json license; no licence file, attributed to Anton Korzunov <thekashey@gmail.com> |
 | react-style-singleton | 2.2.3 | MIT | https://github.com/theKashey/react-style-singleton | package.json license |
 | recharts | 3.10.1 | MIT | https://github.com/recharts/recharts | package.json license |
 | redux | 5.0.1 | MIT | github:reduxjs/redux | package.json license |
@@ -574,7 +577,7 @@ keeps every package's licence file under `/app/licenses/`.
 | use-sync-external-store | 1.6.0 | MIT | https://github.com/facebook/react | package.json license |
 | vfile | 6.0.3 | MIT | https://github.com/vfile/vfile | package.json license |
 | vfile-message | 4.0.3 | MIT | https://github.com/vfile/vfile-message | package.json license |
-| victory-vendor | 37.3.6 | MIT AND ISC | https://github.com/FormidableLabs/victory | package.json license |
+| victory-vendor | 37.3.6 | MIT AND ISC | https://github.com/FormidableLabs/victory | package.json license; no licence file, attributed to Formidable |
 | yaml | 2.9.0 | ISC | github:eemeli/yaml | package.json license |
 | zustand | 5.0.14 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zwitch | 2.0.4 | MIT | https://github.com/wooorm/zwitch | package.json license |
@@ -592,8 +595,8 @@ and data files.
 | tesseract-ocr, tesseract-ocr-eng, tesseract-ocr-pol (Debian packages) | as pinned by the base image's Debian release | system package, backend image | Apache-2.0 (engine and language data) | https://github.com/tesseract-ocr/tesseract | accepted | Attribution and the licence text. | Debian's /usr/share/doc/tesseract-ocr*/copyright is in the image; named here. |
 | oven/bun (Docker image) | 1 (Debian) | runtime image, frontend | Bun: MIT (with bundled components under their own licences, listed in Bun's LICENSE.md). Debian base: as for the python image. | https://hub.docker.com/r/oven/bun | accepted | Ship licence texts; for GPL and LGPL packages in the base, make their corresponding source available to recipients of the image. | As for the python image: /usr/share/doc/*/copyright in the image, Debian's source packages, the per-release SBOM (#1415). |
 | ghcr.io/astral-sh/uv (build stage only) | latest | build tool, not in the published image | Apache-2.0 OR MIT | https://github.com/astral-sh/uv | accepted | None for the published image: the binary is copied into the builder stage and installs the wheels; it is not in the final layer. | Not distributed. |
-| Inter, Bricolage Grotesque, Geist Mono (web fonts) | Google Fonts v20, v9, v6 (frontend/src/app/fonts/README.md) | font, frontend image | OFL-1.1 | https://fonts.google.com | accepted | Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version. | frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices and is in the repository; the fonts are served unmodified under their own names. |
-| Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/icons: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com | accepted | CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for. | The NOTICE file names the three sources, their licences and the trademark position; the console draws a mark only next to the product it identifies. |
+| Inter, Bricolage Grotesque, Geist Mono (web fonts) | Google Fonts v20, v9, v6 (frontend/src/app/fonts/README.md) | font, frontend image | OFL-1.1 | https://fonts.google.com | accepted | Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version. | frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices; frontend/scripts/collect-licenses.ts copies it into the frontend image at /app/licenses/OFL.txt; the fonts are served unmodified under their own names. |
+| Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/icons: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com | accepted | CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for. | NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies. |
 | backend/app/core/catalog/mcp_registry.json | a snapshot refreshed by `agenticos cmd mcp-registry-sync` | data, backend image | Server names, descriptions and URLs published to the Official MCP Registry by their publishers; the registry software is MIT. | https://registry.modelcontextprotocol.io | accepted | Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher. | app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL. |
 | pgvector/pgvector | pg16 | service image, deployment | PostgreSQL: PostgreSQL License. pgvector: PostgreSQL License. | https://github.com/pgvector/pgvector | accepted | Permissive; keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. |
 | redis | 7-alpine (resolves to Redis 7.4) | service image, deployment | RSALv2 OR SSPL-1.0 since Redis 7.4.0; Redis 8 adds AGPL-3.0. Redis 7.2 and earlier: BSD-3-Clause. | https://redis.io/legal/licenses/ | open | Neither RSALv2 nor SSPL-1.0 is an OSI-approved open-source licence. RSALv2 permits running Redis inside your own application, which is how this stack uses it, and forbids offering it as a managed service. A deployment on the compose path is agreeing to these terms. | https://github.com/vstorm-co/agenticos/issues/1603 |

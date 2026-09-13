@@ -10,6 +10,7 @@
 !LICENSE
 !NOTICE
 !THIRD_PARTY_NOTICES.md
+!frontend/licenses/texts/
 
 # Of what is let through, what must not be. `.env` first: the old
 # backend/.dockerignore did not name it, so a local build copied whoever's keys

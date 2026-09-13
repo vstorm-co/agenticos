@@ -45,9 +45,11 @@ first, a count of components per licence, and the hand-recorded components.
 
 **`licenses/policy.toml`** holds the decisions. An `override` entry is the licence a
 person determined for a component whose metadata does not say, with the evidence
-they read. A `review` entry is the decision for a component under a copyleft,
-share-alike or non-open licence: `accepted`, saying how the obligation is met, or
-`open`, pointing at the issue that owns it. **`licenses/components.toml`** records
+they read; it applies only while the metadata stays silent. A `notices` entry is the
+copyright holder for a package that ships no licence file and names no author. A
+`review` entry is the decision for a component under a copyleft, share-alike or
+non-open licence: `accepted`, saying how the obligation is met, or `open`, pointing
+at the issue that owns it. **`licenses/components.toml`** records
 what no lockfile knows: the images, the Debian packages, the fonts, the glyphs, the
 data files and the service images, each with a status and its obligation.
 
@@ -59,7 +61,11 @@ regenerates them in memory and fails when:
   component, version, licence or source (the evidence cell is not compared: two
   wheels of one release can carry different metadata, and it records where this
   machine read the licence from);
-- a component's metadata names no licence and no override records one;
+- a component's metadata names no licence and no override records one, or an
+  override is recorded for a component whose metadata now does name one;
+- a package ships no licence file and either names no author (and no `notices`
+  entry records the holder) or declares a licence with no text under
+  `frontend/licenses/texts/`;
 - a component is under a licence in the review set and has no decision;
 - a decision was made about a different licence than the one the component now
   carries, because an upgrade changed it;
@@ -89,16 +95,30 @@ the current figure.
 
 | Licence family | Components | Obligation | How it is met |
 |---|---|---|---|
-| MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, MIT-0, MIT-CMU, Unlicense | about 400 | Keep the copyright notice and the licence text with copies | Each package's own licence file ships in the image, next to the code: every wheel's `*.dist-info/` in the backend image, every package's `LICENSE` under `/app/licenses/` in the frontend image. The notices index them |
+| MIT, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, MIT-0, MIT-CMU, Unlicense | about 400 | Keep the copyright notice and the licence text with copies | Each package's own licence file ships in the image, next to the code: every wheel's `*.dist-info/` in the backend image, every package's licence file under `/app/licenses/node_modules/<name>/` in the frontend image. The notices index them |
 | Apache-2.0 | about 90 | The licence text, notice of changes, any `NOTICE` file the package carries | Same as above; nothing is modified, so there are no changes to notice |
 | PSF-2.0, CNRI-Python, Zlib, CC0-1.0 | a few | Attribution or nothing | Same as above |
 | MPL-2.0 (`certifi`, `pathspec`, `tqdm`, part of `orjson`) | 4 | File-level copyleft: the covered files stay under MPL and their source is available | Used unmodified; the licence text ships; the notices link the source |
-| LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Licence text, source availability, and the ability to replace the library | Both are separately installed binaries loaded dynamically, unmodified, replaceable by reinstalling; sources linked in the notices |
+| LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Licence text, source availability, and the ability to replace the library | Both are separately installed binaries loaded dynamically, unmodified, replaceable by reinstalling; sources linked in the notices. The libvips packages publish no licence file, so the image places the LGPL text beside them |
 | Artistic-1.0-Perl or GPL-2.0-or-later (`text-unidecode`) | 1 | Dual; taken under the Artistic License: notice and text | The wheel's licence file ships |
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Attribution and a link to the source | Named with its source in the notices |
 | AGPL-3.0-only (`pymupdf`) | 1 | Network copyleft, see the finding below | **Open** |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 families | Licence text and copyright notices with the fonts; no selling the fonts alone; no reuse of the reserved names for modified fonts | `frontend/src/app/fonts/OFL.txt` carries all three notices; the fonts are served unmodified |
 | CC0-1.0, CC-BY-4.0, MIT (brand glyphs) | 3 sources | Attribution for the Font Awesome icons; the marks stay their owners' trademarks | `NOTICE` names the sources and the trademark position |
+
+**A package that publishes no licence file** cannot have one copied. Six npm
+packages in the closure are like that, `@img/sharp-libvips-linux-x64` and its
+arm64 twin among them: an LGPL library with no copy of the LGPL in the tarball. So
+are nine wheels, `tokenizers` and `liteparse` among them. For each npm package,
+`frontend/scripts/collect-licenses.ts` writes a `NOTICE` naming the package, its
+declared licence, its author and its repository, and copies the text of every
+licence in its expression from `frontend/licenses/texts/`. The backend image
+carries the same texts under `/app/licenses/texts/`, and each wheel's `METADATA`
+already names its licence and author. A licence with no text there fails the
+frontend image build, and `make licenses-check` fails earlier, on the pull
+request, for either image. A package that names no author either, `client-only`,
+has its copyright holder recorded in `licenses/policy.toml` under `notices`, with
+the evidence, and the notices file carries it.
 
 The base images deserve a sentence of their own. `python:3.12-slim` and `oven/bun:1`
 are Debian, which means hundreds of packages under GPL, LGPL, MIT and BSD terms.
@@ -226,7 +246,9 @@ Before a release is cut, and as evidence attached to it:
   `security` job's summary
 - [ ] `THIRD_PARTY_NOTICES.md` at that commit is the notices for the release; both
   images carry their licence files (`/app/THIRD_PARTY_NOTICES.md` and
-  `.venv/**/*.dist-info/` in the backend image, `/app/licenses/` in the frontend)
+  `.venv/**/*.dist-info/` and `/app/licenses/texts/` in the backend image;
+  `/app/licenses/` in the frontend, with `NOTICE`, `OFL.txt` and one directory per
+  package)
 - [ ] The open findings in the notices are the ones this page lists, each with an
   issue that is still the right one
 - [ ] `licenses/components.toml` names the image tags and compose services the

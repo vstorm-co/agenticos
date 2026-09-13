@@ -71,7 +71,12 @@ COPY --from=builder /app /app
 # The licence, the notice and the generated index of every third-party component
 # in this image (docs/licenses.md). The wheels' own licence files are already in
 # `.venv/**/*.dist-info/`; this is what tells a reader of the image which is which.
+# The texts directory is for the wheels that publish no licence file of their own:
+# their `METADATA` names the licence and the author, and this is the text. It lives
+# under `frontend/` because the frontend image's build context cannot reach the
+# repository root, and one copy is better than two.
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /app/
+COPY frontend/licenses/texts /app/licenses/texts
 
 # Add venv to path
 ENV PATH="/app/.venv/bin:$PATH"

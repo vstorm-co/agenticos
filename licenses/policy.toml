@@ -7,6 +7,13 @@
 #       evidence they read. The script reports the component as unknown until
 #       an entry exists; it never guesses.
 #
+#   [notices.<python|npm>."<name>"]  the copyright holder a person found for a
+#       package that ships no licence file and names no author in its own
+#       metadata - the one case where nothing in the package can be copied or
+#       quoted to attribute it. The frontend image's collector writes the licence
+#       text and the manifest's attribution beside such a package; this entry is
+#       what the notices carry in its place.
+#
 #   [review.<python|npm>."<name>"]  the decision for a component under a licence
 #       in REVIEW_FAMILIES - copyleft, share-alike, or not open source. `license`
 #       is the expression that was reviewed, so an upgrade that changes it fails
@@ -25,9 +32,21 @@ evidence = "text_unidecode-1.3.dist-info/LICENSE.txt: 'redistribute it and/or mo
 license = "BSD-3-Clause OR Apache-2.0"
 evidence = "uritemplate-4.2.0.dist-info/licenses/LICENSE: 'made available under the terms of either of the licenses found in LICENSE.APACHE or LICENSE.BSD'; the License field says 'BSD 3-Clause OR Apache-2.0' in non-SPDX spelling"
 
-[overrides.python."psycopg2-binary"]
-license = "LGPL-3.0-or-later"
-evidence = "psycopg2_binary-2.9.12.dist-info/licenses/LICENSE: LGPL-3.0-or-later with an additional permission to link against OpenSSL; the License field says 'LGPL with exceptions'"
+[notices.npm."client-only"]
+holder = "Meta Platforms, Inc. and affiliates"
+evidence = "client-only 0.0.1 names no author; its package.json points at reactjs.org and facebook/react, and the React repository's LICENSE is MIT, Copyright (c) Meta Platforms, Inc. and affiliates"
+
+[notices.python."pydantic-monty"]
+holder = "Pydantic Services Inc."
+evidence = "The wheel names no author; its Project-URL is https://github.com/pydantic/monty, whose LICENSE is MIT, Copyright (c) Pydantic Services Inc. 2026 to present"
+
+[notices.python."pydantic-monty-client"]
+holder = "Pydantic Services Inc."
+evidence = "As for pydantic-monty: the same repository and LICENSE"
+
+[notices.python."pydantic-monty-runtime"]
+holder = "Pydantic Services Inc."
+evidence = "As for pydantic-monty: the same repository and LICENSE"
 
 [review.python."psycopg2-binary"]
 license = "LGPL-3.0-or-later"
@@ -76,7 +95,7 @@ fulfilled_by = "Unmodified; the wheel's LICENCE ships in the image; source at ht
 license = "LGPL-3.0-or-later"
 status = "accepted"
 obligations = "Prebuilt libvips shared library that sharp loads dynamically for Next.js image optimisation. Ship the licence text, keep it replaceable, make its source available."
-fulfilled_by = "Unmodified; loaded as a separate shared object under node_modules; its LICENSE ships in the image under /app/licenses/; source at https://github.com/libvips/libvips and https://github.com/lovell/sharp-libvips."
+fulfilled_by = "Unmodified; loaded as a separate shared object under node_modules and replaceable by reinstalling. The package publishes no licence file, so frontend/scripts/collect-licenses.ts places frontend/licenses/texts/LGPL-3.0-or-later.txt and a NOTICE naming its author beside it at /app/licenses/node_modules/@img/sharp-libvips-linux-x64/; source at https://github.com/libvips/libvips and https://github.com/lovell/sharp-libvips."
 
 [review.npm."@img/sharp-libvips-linux-arm64"]
 license = "LGPL-3.0-or-later"
@@ -88,4 +107,4 @@ fulfilled_by = "As for @img/sharp-libvips-linux-x64."
 license = "CC-BY-4.0"
 status = "accepted"
 obligations = "Attribution: name the work and its licence, link the source. Browser-support data read by the build tooling and compiled into the console's bundle."
-fulfilled_by = "Named with its source in THIRD_PARTY_NOTICES.md; its LICENSE ships in the image under /app/licenses/; source at https://github.com/browserslist/caniuse-lite (data from https://caniuse.com)."
+fulfilled_by = "Named with its source in THIRD_PARTY_NOTICES.md; its LICENSE is collected into the image under /app/licenses/node_modules/caniuse-lite/; source at https://github.com/browserslist/caniuse-lite (data from https://caniuse.com)."

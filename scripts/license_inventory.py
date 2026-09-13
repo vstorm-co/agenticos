@@ -58,7 +58,7 @@ import tomllib
 import urllib.error
 import urllib.request
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import metadata
 from pathlib import Path
 from typing import Literal
@@ -71,12 +71,23 @@ FRONTEND_DIR = REPO_ROOT / "frontend"
 POLICY_PATH = REPO_ROOT / "licenses" / "policy.toml"
 COMPONENTS_PATH = REPO_ROOT / "licenses" / "components.toml"
 NOTICES_PATH = REPO_ROOT / "THIRD_PARTY_NOTICES.md"
+# The licence texts `frontend/scripts/collect-licenses.ts` places beside a package
+# that publishes none of its own, one file per SPDX identifier.
+TEXTS_DIR = FRONTEND_DIR / "licenses" / "texts"
 
 VERDICT_PREFIX = "LICENSES:"
 EXIT_REVIEWED = 0
 EXIT_FAILED = 1
 
-# The two architectures `images.yml` builds for. A marker is evaluated once per
+# The two architectures `images.yml` builds for, as npm spells them: `oven/bun:1`
+# is Debian glibc on x64 and arm64. A platform package is in the frontend image
+# when its `os`, `cpu` and `libc` fields all admit one of these.
+IMAGE_TARGETS: tuple[tuple[str, str, str], ...] = (
+    ("linux", "x64", "glibc"),
+    ("linux", "arm64", "glibc"),
+)
+
+# The same two, as Python markers see them. A marker is evaluated once per
 # environment and a requirement true in either is in the inventory.
 LINUX_ENVIRONMENTS: tuple[dict[str, str], ...] = tuple(
     {
@@ -171,7 +182,11 @@ LICENSE_FIELD_ALIASES: dict[str, str] = {
 }
 
 # Trove classifiers that name one licence. `BSD License` and the bare LGPL and GPL
-# classifiers are deliberately absent for the same reason as above.
+# classifiers are deliberately absent for the same reason as above. Classifiers
+# decide only when every licence classifier a distribution carries is in this
+# table and they all name the same licence: `text-unidecode` lists Artistic, GPL
+# and GPLv2+, and reading the one recognised entry as the answer would turn a
+# dual licence into a copyleft one.
 CLASSIFIER_LICENSES: dict[str, str] = {
     "License :: OSI Approved :: MIT License": "MIT",
     "License :: OSI Approved :: Apache Software License": "Apache-2.0",
@@ -222,6 +237,12 @@ class Component:
     license: str | None
     source: str
     evidence: str
+    # Whether the package itself ships a licence file. None when it was not
+    # inspected: a distribution read from an index rather than from disk.
+    license_file: bool | None = None
+    # Whom the package's own metadata names as its author, for one that ships
+    # no licence file and so no copyright notice of its own.
+    attribution: str = ""
 
     @property
     def key(self) -> str:
@@ -248,9 +269,18 @@ class Override:
 
 
 @dataclass(frozen=True)
+class Notice:
+    """The copyright holder a person found for a package that names none itself."""
+
+    holder: str
+    evidence: str
+
+
+@dataclass(frozen=True)
 class Policy:
     overrides: Mapping[str, Override]
     reviews: Mapping[str, ReviewDecision]
+    notices: Mapping[str, Notice] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -495,6 +525,12 @@ def python_component(name: str, version: str, policy: Policy) -> Component:
             for path in (distribution.files or [])
             if LICENSE_FILE_NAMES.match(path.name)
         ]
+        attribution = people(
+            meta.get("Author"),
+            meta.get("Author-email"),
+            meta.get("Maintainer"),
+            meta.get("Maintainer-email"),
+        )
     else:
         document = fetch_json(f"https://pypi.org/pypi/{name}/{version}/json")
         info = document.get("info")
@@ -510,28 +546,72 @@ def python_component(name: str, version: str, policy: Policy) -> Component:
         )
         home_page = as_str(info.get("home_page"))
         license_texts = []
+        attribution = people(
+            info.get("author"),
+            info.get("author_email"),
+            info.get("maintainer"),
+            info.get("maintainer_email"),
+        )
 
     source = first_project_url(project_urls, home_page or fallback_source)
-    override = policy.overrides.get(key)
-    if override is not None:
-        return Component(
-            "python", name, version, override.license, source, f"override: {override.evidence}"
-        )
+    resolved, evidence = python_license(expression, license_field, classifiers, license_texts)
+    resolved, evidence = apply_override(policy, key, resolved, evidence)
+    license_file = bool(license_texts) if distribution is not None else None
+    return Component("python", name, version, resolved, source, evidence, license_file, attribution)
+
+
+def people(*fields: object) -> str:
+    """The names in a distribution's author and maintainer fields, as one line.
+
+    `Author-email` often carries the name too (`Name <address>`), and a wheel built
+    from a `pyproject.toml` with only `authors = [{name, email}]` puts everything
+    there and leaves `Author` empty, so both are read; the address itself is not
+    an attribution and is dropped.
+    """
+    names: list[str] = []
+    for value in fields:
+        for entry in as_str(value).split(","):
+            name = re.sub(r"<[^>]*>", "", entry).strip().strip('"')
+            if name and "@" not in name and name not in names:
+                names.append(name)
+    return ", ".join(names)
+
+
+def python_license(
+    expression: str, license_field: str, classifiers: list[str], license_texts: list[str]
+) -> tuple[str | None, str]:
+    """A distribution's licence from its own metadata, most authoritative source first."""
     if expression:
-        return Component("python", name, version, expression, source, "License-Expression")
+        return expression, "License-Expression"
     alias = LICENSE_FIELD_ALIASES.get(license_field.lower()) or LICENSE_FIELD_ALIASES.get(
         license_field.splitlines()[0].strip().lower() if license_field else ""
     )
     if alias:
-        return Component("python", name, version, alias, source, "License field")
-    named = [CLASSIFIER_LICENSES[c] for c in classifiers if c in CLASSIFIER_LICENSES]
-    if len(set(named)) == 1:
-        return Component("python", name, version, named[0], source, "classifier")
+        return alias, "License field"
+    named = {CLASSIFIER_LICENSES.get(c) for c in classifiers}
+    if len(named) == 1 and None not in named:
+        return next(iter(named)), "classifier"
     for text in license_texts:
         recognised = license_from_text(text)
         if recognised:
-            return Component("python", name, version, recognised, source, "licence file text")
-    return Component("python", name, version, None, source, "no readable licence metadata")
+            return recognised, "licence file text"
+    return None, "no readable licence metadata"
+
+
+def apply_override(
+    policy: Policy, key: str, resolved: str | None, evidence: str
+) -> tuple[str | None, str]:
+    """An override answers only the question the metadata could not.
+
+    Applied when nothing readable names a licence, and only then: once a release
+    starts declaring one, the metadata wins and `review_components` reports the
+    override as stale, so a licence that changed under an override reopens the
+    question instead of inheriting the old answer.
+    """
+    override = policy.overrides.get(key)
+    if override is not None and resolved is None:
+        return override.license, f"override: {override.evidence}"
+    return resolved, evidence
 
 
 def python_components(policy: Policy, backend_dir: Path = BACKEND_DIR) -> list[Component]:
@@ -566,18 +646,27 @@ def resolve_node_package(name: str, from_dir: Path, root: Path) -> Path | None:
 def builds_for_linux(manifest: Mapping[str, object]) -> bool:
     """Whether a platform-specific package is one the frontend image can contain.
 
-    `oven/bun:1` is Debian on amd64 and arm64, so a package whose `os`, `cpu` or
-    `libc` field rules that out - a Windows or musl build, a s390x one - is not in
-    the image whatever the lockfile resolved. An absent field admits everything.
+    A package whose `os`, `cpu` or `libc` field rules out both image targets - a
+    Windows or musl build, a s390x one - is not in the image whatever the lockfile
+    resolved. Each field is read with npm's own semantics: an absent field admits
+    everything, a listed value is an allowlist, and a `!value` excludes without
+    listing, so `["!darwin"]` admits both targets and `["!linux"]` neither.
     """
-    systems = as_str_list(manifest.get("os"))
-    if systems and ("linux" not in systems or "!linux" in systems):
-        return False
-    cpus = as_str_list(manifest.get("cpu"))
-    if cpus and not {"x64", "arm64"} & set(cpus):
-        return False
-    libcs = as_str_list(manifest.get("libc"))
-    return not libcs or "glibc" in libcs
+    fields = (
+        as_str_list(manifest.get("os")),
+        as_str_list(manifest.get("cpu")),
+        as_str_list(manifest.get("libc")),
+    )
+    return any(
+        all(admits(values, wanted) for values, wanted in zip(fields, target, strict=True))
+        for target in IMAGE_TARGETS
+    )
+
+
+def admits(values: list[str], candidate: str) -> bool:
+    positives = [value for value in values if not value.startswith("!")]
+    negatives = {value[1:] for value in values if value.startswith("!")}
+    return (not positives or candidate in positives) and candidate not in negatives
 
 
 def lockfile_versions(lockfile: Path) -> dict[str, set[str]]:
@@ -638,6 +727,21 @@ def node_license(
     return None, "no readable licence metadata"
 
 
+def manifest_attribution(manifest: Mapping[str, object]) -> str:
+    """Whom an npm manifest names: `author`, else its `contributors`, as one line."""
+    people: list[str] = []
+    contributors = manifest.get("contributors")
+    for entry in [
+        manifest.get("author"),
+        *(contributors if isinstance(contributors, list) else []),
+    ]:
+        if isinstance(entry, str) and entry.strip():
+            people.append(entry.strip())
+        elif isinstance(entry, dict) and as_str(entry.get("name")):
+            people.append(as_str(entry.get("name")))
+    return ", ".join(people)
+
+
 def node_source(manifest: Mapping[str, object], name: str, version: str) -> str:
     repository = manifest.get("repository")
     url = repository.get("url") if isinstance(repository, dict) else repository
@@ -689,7 +793,7 @@ def node_components(policy: Policy, frontend_dir: Path = FRONTEND_DIR) -> list[C
                 seen.add((name, version))
                 manifest = fetch_json(f"https://registry.npmjs.org/{name}/{version}")
                 if builds_for_linux(manifest):
-                    components.append(node_component(policy, manifest, name, version, []))
+                    components.append(node_component(policy, manifest, name, version, None))
             continue
 
         manifest = read_package_json(manifest_path)
@@ -725,16 +829,27 @@ def dependencies_of(manifest: Mapping[str, object], *, optional: bool) -> list[s
 
 
 def node_component(
-    policy: Policy, manifest: Mapping[str, object], name: str, version: str, texts: list[str]
+    policy: Policy,
+    manifest: Mapping[str, object],
+    name: str,
+    version: str,
+    texts: list[str] | None,
 ) -> Component:
+    """One npm package; `texts` is None when it was read from the registry, not from disk."""
     source = node_source(manifest, name, version)
-    override = policy.overrides.get(f"npm:{name}")
-    if override is not None:
-        return Component(
-            "npm", name, version, override.license, source, f"override: {override.evidence}"
-        )
-    expression, evidence = node_license(manifest, texts)
-    return Component("npm", name, version, expression, source, evidence)
+    expression, evidence = node_license(manifest, texts or [])
+    expression, evidence = apply_override(policy, f"npm:{name}", expression, evidence)
+    license_file = bool(texts) if texts is not None else None
+    return Component(
+        "npm",
+        name,
+        version,
+        expression,
+        source,
+        evidence,
+        license_file,
+        manifest_attribution(manifest),
+    )
 
 
 def load_policy(path: Path = POLICY_PATH) -> Policy:
@@ -742,11 +857,17 @@ def load_policy(path: Path = POLICY_PATH) -> Policy:
     document = tomllib.loads(path.read_text()) if path.exists() else {}
     overrides: dict[str, Override] = {}
     reviews: dict[str, ReviewDecision] = {}
+    notices: dict[str, Notice] = {}
     for ecosystem in ("python", "npm"):
         for name, entry in dict_section(document, "overrides", ecosystem).items():
             overrides[f"{ecosystem}:{name}"] = Override(
                 license=required_str(entry, "license", f"overrides.{ecosystem}.{name}"),
                 evidence=required_str(entry, "evidence", f"overrides.{ecosystem}.{name}"),
+            )
+        for name, entry in dict_section(document, "notices", ecosystem).items():
+            notices[f"{ecosystem}:{name}"] = Notice(
+                holder=required_str(entry, "holder", f"notices.{ecosystem}.{name}"),
+                evidence=required_str(entry, "evidence", f"notices.{ecosystem}.{name}"),
             )
         for name, entry in dict_section(document, "review", ecosystem).items():
             where = f"review.{ecosystem}.{name}"
@@ -765,7 +886,7 @@ def load_policy(path: Path = POLICY_PATH) -> Policy:
                 else as_str(entry.get("fulfilled_by")),
                 tracked_in=tracked_in,
             )
-    return Policy(overrides=overrides, reviews=reviews)
+    return Policy(overrides=overrides, reviews=reviews, notices=notices)
 
 
 def dict_section(document: Mapping[str, object], *keys: str) -> dict[str, Mapping[str, object]]:
@@ -847,13 +968,24 @@ class Review:
 
 
 def review_components(
-    components: list[Component], manual: list[ManualComponent], policy: Policy
+    components: list[Component],
+    manual: list[ManualComponent],
+    policy: Policy,
+    texts_dir: Path = TEXTS_DIR,
 ) -> Review:
     """Judge the inventory against the policy; every problem is one a person has to answer."""
     problems: list[str] = []
     present = {component.key for component in components}
+    without_file = {c.key for c in components if c.license_file is False}
     for component in components:
         label = f"{component.ecosystem} {component.name} {component.version}"
+        if component.key in policy.overrides and not component.evidence.startswith("override:"):
+            problems.append(
+                f"{label}: its metadata now names {component.license!r} ({component.evidence}); "
+                f"the override in policy.toml is stale - remove it, or review the new licence"
+            )
+        if component.license_file is False and component.license is not None:
+            problems += missing_notice_problems(component, label, policy, texts_dir)
         if component.license is None:
             problems.append(
                 f'{label}: no readable licence metadata - record `[overrides.{component.ecosystem}."{component.name}"]` with evidence'
@@ -881,7 +1013,57 @@ def review_components(
         problems.append(
             f"policy review for {key} names a component the lockfiles no longer resolve - remove it"
         )
+    for key in sorted(set(policy.notices) - without_file):
+        problems.append(
+            f"policy notice for {key} names a component that is gone or now ships its own licence file - remove it"
+        )
     return Review(components=components, manual=manual, policy=policy, problems=problems)
+
+
+def missing_notice_problems(
+    component: Component, label: str, policy: Policy, texts_dir: Path
+) -> list[str]:
+    """What a package that publishes no licence file still owes its recipients.
+
+    An image cannot copy a file that does not exist. The frontend image writes a
+    NOTICE from the manifest and places the licence text from
+    `frontend/licenses/texts/` beside such a package; the backend image carries the
+    same texts under `/app/licenses/texts/` and each wheel's own `METADATA`, which
+    names its author. Both need somebody to attribute - the metadata's author, or
+    a holder a person recorded in the policy - and a text for every identifier in
+    the expression.
+    """
+    problems: list[str] = []
+    if not component.attribution and component.key not in policy.notices:
+        problems.append(
+            f'{label}: ships no licence file and names no author - record `[notices.{component.ecosystem}."{component.name}"]` with the copyright holder'
+        )
+    assert component.license is not None
+    for identifier in spdx_identifiers(component.license):
+        if not (texts_dir / f"{identifier}.txt").is_file():
+            problems.append(
+                f"{label}: ships no licence file and {texts_dir.name}/{identifier}.txt does not exist - add the text so the image can carry it"
+            )
+    return problems
+
+
+def spdx_identifiers(expression: str) -> list[str]:
+    """The licence identifiers in an expression, without operators, exceptions or parentheses."""
+    identifiers: list[str] = []
+    tokens = re.findall(r"[^\s()]+", expression)
+    skip_next = False
+    for token in tokens:
+        if skip_next:
+            skip_next = False
+            continue
+        if token.upper() == "WITH":
+            skip_next = True
+            continue
+        if token.upper() in ("AND", "OR"):
+            continue
+        if token not in identifiers:
+            identifiers.append(token)
+    return identifiers
 
 
 def collect(backend_dir: Path = BACKEND_DIR, frontend_dir: Path = FRONTEND_DIR) -> Review:
@@ -910,7 +1092,10 @@ def render_notices(review: Review) -> str:
         "",
         "Each component's own licence file, with its copyright notice, ships beside it:",
         "the backend image keeps every wheel's `*.dist-info/` and the frontend image",
-        "keeps every package's licence file under `/app/licenses/`.",
+        "collects every package's licence file under `/app/licenses/`. A package that",
+        "publishes none gets a NOTICE there naming its licence and author, with the",
+        "licence text from `frontend/licenses/texts/`; the holder recorded for one that",
+        "names no author is in the evidence column below.",
         "",
     ]
     findings = review.open_findings
@@ -951,6 +1136,10 @@ def render_notices(review: Review) -> str:
             evidence = component.evidence
             if decision is not None:
                 evidence += f"; review {decision.status}"
+            if component.license_file is False:
+                notice = review.policy.notices.get(component.key)
+                holder = notice.holder if notice is not None else component.attribution
+                evidence += f"; no licence file, attributed to {holder}"
             lines.append(
                 f"| {cell(component.name)} | {cell(component.version)} | {cell(component.license or '')} "
                 f"| {cell(component.source)} | {cell(evidence)} |"

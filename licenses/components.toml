@@ -80,7 +80,7 @@ license = "OFL-1.1"
 source = "https://fonts.google.com"
 status = "accepted"
 obligations = "Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version."
-fulfilled_by = "frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices and is in the repository; the fonts are served unmodified under their own names."
+fulfilled_by = "frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices; frontend/scripts/collect-licenses.ts copies it into the frontend image at /app/licenses/OFL.txt; the fonts are served unmodified under their own names."
 
 [[component]]
 name = "Brand marks in frontend/src/lib/brand-glyphs.generated.ts"
@@ -90,7 +90,7 @@ license = "Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/i
 source = "https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com"
 status = "accepted"
 obligations = "CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for."
-fulfilled_by = "The NOTICE file names the three sources, their licences and the trademark position; the console draws a mark only next to the product it identifies."
+fulfilled_by = "NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies."
 
 # Data files the backend bundles
 

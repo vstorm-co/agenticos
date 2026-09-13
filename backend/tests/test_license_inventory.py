@@ -76,6 +76,23 @@ class TestClassifyExpression:
         assert inventory.classify_expression(expression) == "unknown"
 
 
+class TestSpdxIdentifiers:
+    @pytest.mark.parametrize(
+        ("expression", "expected"),
+        [
+            ("MIT", ["MIT"]),
+            ("(MIT OR Apache-2.0)", ["MIT", "Apache-2.0"]),
+            ("MIT AND ISC AND MIT", ["MIT", "ISC"]),
+            ("LGPL-3.0-or-later WITH openssl-exception", ["LGPL-3.0-or-later"]),
+            ("MPL-2.0 AND (Apache-2.0 OR MIT)", ["MPL-2.0", "Apache-2.0", "MIT"]),
+        ],
+    )
+    def test_identifiers_without_operators_or_exceptions(
+        self, expression: str, expected: list[str]
+    ) -> None:
+        assert inventory.spdx_identifiers(expression) == expected
+
+
 class TestLicenseFromText:
     @pytest.mark.parametrize(
         ("text", "expected"),
@@ -117,6 +134,52 @@ class TestLicenseFromText:
         )
 
 
+class TestPythonLicense:
+    def test_classifiers_decide_only_when_all_are_recognised_and_agree(self) -> None:
+        mit = ["License :: OSI Approved :: MIT License"]
+        dual = [
+            "License :: OSI Approved :: Artistic License",
+            "License :: OSI Approved :: GNU General Public License (GPL)",
+            "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+        ]
+
+        assert inventory.python_license("", "", mit, []) == ("MIT", "classifier")
+        assert inventory.python_license("", "", dual, [])[0] is None
+        assert inventory.python_license("", "", dual, [MIT_TEXT]) == ("MIT", "licence file text")
+
+    def test_an_override_yields_to_metadata_that_names_a_licence(self) -> None:
+        policy = inventory.Policy({"python:lib": inventory.Override("ISC", "read upstream")}, {})
+
+        assert inventory.apply_override(
+            policy, "python:lib", None, "no readable licence metadata"
+        ) == (
+            "ISC",
+            "override: read upstream",
+        )
+        assert inventory.apply_override(policy, "python:lib", "MIT", "License-Expression") == (
+            "MIT",
+            "License-Expression",
+        )
+
+    @pytest.mark.parametrize(
+        ("fields", "expected"),
+        [
+            (("Ada Lovelace", "ada@example.invalid", "", ""), "Ada Lovelace"),
+            (("", "Ada Lovelace <ada@example.invalid>", "", ""), "Ada Lovelace"),
+            (
+                ("", '"Ada Lovelace" <a@x>, Grace Hopper <g@x>', "Ada Lovelace", ""),
+                "Ada Lovelace, Grace Hopper",
+            ),
+            (("", "", "", "team@example.invalid"), ""),
+            ((None, None, None, None), ""),
+        ],
+    )
+    def test_people_reads_names_and_drops_addresses(
+        self, fields: tuple[object, ...], expected: str
+    ) -> None:
+        assert inventory.people(*fields) == expected
+
+
 class TestNodeManifests:
     def test_the_modern_field_is_read_as_an_expression(self) -> None:
         assert inventory.node_license({"license": "(MIT OR Apache-2.0)"}, []) == (
@@ -156,6 +219,10 @@ class TestNodeManifests:
             ({"os": ["linux"], "cpu": ["s390x"]}, False),
             ({"os": ["linux"], "cpu": ["x64"], "libc": ["musl"]}, False),
             ({"os": ["!linux"]}, False),
+            ({"os": ["!darwin", "!win32"]}, True),
+            ({"cpu": ["!arm", "!ia32"]}, True),
+            ({"libc": ["!musl"]}, True),
+            ({"os": ["linux"], "cpu": ["arm64", "!arm64"]}, False),
         ],
     )
     def test_platform_builds_are_kept_only_when_the_image_can_contain_them(
@@ -198,6 +265,26 @@ def _node_package(
     )
     if license_text is not None:
         (directory / "LICENSE").write_text(license_text)
+
+
+class TestNodeComponent:
+    def test_an_override_yields_to_metadata_that_names_a_licence(self) -> None:
+        policy = inventory.Policy({"npm:lib": inventory.Override("ISC", "read upstream")}, {})
+
+        declared = inventory.node_component(policy, {"license": "MIT"}, "lib", "1.0", ["text"])
+        silent = inventory.node_component(policy, {}, "lib", "1.0", [])
+
+        assert (declared.license, declared.evidence) == ("MIT", "package.json license")
+        assert (silent.license, silent.evidence) == ("ISC", "override: read upstream")
+
+    def test_a_missing_licence_file_and_the_author_are_recorded(self) -> None:
+        manifest = {"license": "MIT", "author": {"name": "Ada"}, "contributors": ["Grace <g@x>"]}
+
+        on_disk = inventory.node_component(inventory.Policy({}, {}), manifest, "a", "1", [])
+        from_index = inventory.node_component(inventory.Policy({}, {}), manifest, "a", "1", None)
+
+        assert (on_disk.license_file, on_disk.attribution) == (False, "Ada, Grace <g@x>")
+        assert from_index.license_file is None
 
 
 class TestNodeComponents:
@@ -312,6 +399,16 @@ class TestPolicy:
         assert loaded.overrides == {"python:odd-one": inventory.Override("MIT", "its LICENSE file")}
         assert loaded.reviews["npm:lib"].status == "accepted"
 
+    def test_a_notice_records_the_holder_and_the_evidence(self, tmp_path: Path) -> None:
+        policy = tmp_path / "policy.toml"
+        policy.write_text(
+            '[notices.npm."anon"]\nholder = "Somebody"\nevidence = "the repository LICENSE"\n'
+        )
+
+        assert inventory.load_policy(policy).notices == {
+            "npm:anon": inventory.Notice("Somebody", "the repository LICENSE")
+        }
+
     def test_an_open_finding_without_an_issue_is_refused(self, tmp_path: Path) -> None:
         policy = tmp_path / "policy.toml"
         policy.write_text(
@@ -410,6 +507,80 @@ class TestReview:
             "policy review for python:gone names a component the lockfiles no longer resolve - remove it",
         ]
 
+    def test_an_override_whose_component_now_declares_a_licence_is_stale(self) -> None:
+        policy = inventory.Policy({"python:lib": inventory.Override("MIT", "read upstream")}, {})
+        declared = inventory.Component(
+            "python", "lib", "1.0", "MIT", "https://x", "License-Expression"
+        )
+        applied = inventory.Component(
+            "python", "lib", "1.0", "MIT", "https://x", "override: read upstream"
+        )
+
+        assert inventory.review_components([applied], [], policy).problems == []
+        problems = inventory.review_components([declared], [], policy).problems
+        assert len(problems) == 1
+        assert "the override in policy.toml is stale" in problems[0]
+
+    def test_a_package_without_a_licence_file_needs_a_holder_and_a_text(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "MIT.txt").write_text("MIT")
+        attributed = inventory.Component(
+            "npm", "a", "1", "MIT", "https://x", "package.json license", False, "Ada"
+        )
+        anonymous = inventory.Component(
+            "npm", "b", "1", "MIT", "https://x", "package.json license", False, ""
+        )
+        no_text = inventory.Component(
+            "npm", "c", "1", "MIT AND ISC", "https://x", "package.json license", False, "Ada"
+        )
+        with_file = inventory.Component(
+            "npm", "d", "1", "GPL-3.0-only", "https://x", "package.json license", True, ""
+        )
+        policy = inventory.Policy({}, {}, {"npm:b": inventory.Notice("Somebody", "found upstream")})
+
+        assert (
+            inventory.review_components([attributed, anonymous], [], policy, tmp_path).problems
+            == []
+        )
+        anonymous_problems = inventory.review_components(
+            [anonymous], [], inventory.Policy({}, {}), tmp_path
+        ).problems
+        assert anonymous_problems == [
+            'npm b 1: ships no licence file and names no author - record `[notices.npm."b"]` with the copyright holder'
+        ]
+        text_problems = inventory.review_components(
+            [no_text], [], inventory.Policy({}, {}), tmp_path
+        ).problems
+        assert text_problems == [
+            f"npm c 1: ships no licence file and {tmp_path.name}/ISC.txt does not exist - add the text so the image can carry it"
+        ]
+        assert "text" not in " ".join(
+            inventory.review_components(
+                [with_file],
+                [],
+                inventory.Policy(
+                    {},
+                    {"npm:d": inventory.ReviewDecision("GPL-3.0-only", "accepted", "o", "f", "")},
+                ),
+                tmp_path,
+            ).problems
+        )
+
+    def test_a_notice_for_a_package_that_ships_its_file_again_is_stale(
+        self, tmp_path: Path
+    ) -> None:
+        policy = inventory.Policy({}, {}, {"npm:a": inventory.Notice("Somebody", "found upstream")})
+        with_file = inventory.Component(
+            "npm", "a", "1", "MIT", "https://x", "package.json license", True, ""
+        )
+
+        problems = inventory.review_components([with_file], [], policy, tmp_path).problems
+
+        assert problems == [
+            "policy notice for npm:a names a component that is gone or now ships its own licence file - remove it"
+        ]
+
     def test_open_findings_are_counted_not_failed(self) -> None:
         decision = inventory.ReviewDecision(
             "AGPL-3.0-only", "open", "copyleft", "", "https://issues/1"
@@ -454,8 +625,29 @@ class TestNotices:
             "| font | v1 | font | OFL-1.1 | https://fonts | accepted | text | OFL.txt |" in rendered
         )
 
+    def test_a_package_without_a_licence_file_shows_whom_it_is_attributed_to(self) -> None:
+        by_author = inventory.Component(
+            "npm", "a", "1", "MIT", "https://x", "package.json license", False, "Ada"
+        )
+        by_policy = inventory.Component(
+            "npm", "b", "1", "MIT", "https://x", "package.json license", False, ""
+        )
+        policy = inventory.Policy({}, {}, {"npm:b": inventory.Notice("Somebody", "found upstream")})
+
+        rendered = inventory.render_notices(
+            inventory.Review([by_author, by_policy], [], policy, [])
+        )
+
+        assert (
+            "| a | 1 | MIT | https://x | package.json license; no licence file, attributed to Ada |"
+            in rendered
+        )
+        assert (
+            "| b | 1 | MIT | https://x | package.json license; no licence file, attributed to Somebody |"
+            in rendered
+        )
+
     def test_a_pipe_in_a_field_cannot_break_the_table(self) -> None:
-        review = inventory.review_components([_component("a", "MIT")], [], inventory.Policy({}, {}))
         row = inventory.Component("python", "a|b", "1", "MIT", "https://x", "test")
         review = inventory.Review([row], [], inventory.Policy({}, {}), [])
 
