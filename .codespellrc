@@ -30,4 +30,4 @@ ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,a
 # Lockfiles, generated code, uploaded media and the Polish message catalog are
 # not English prose. `messages/pl.json` in particular is a translation file:
 # every entry in it reads as a misspelling.
-skip = *.lock,*.min.js,*.svg,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json
+skip = *THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json

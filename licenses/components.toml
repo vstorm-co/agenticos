@@ -1,0 +1,170 @@
+# Components no lockfile knows, read by scripts/license_inventory.py and rendered
+# into THIRD_PARTY_NOTICES.md beside the generated rows (docs/licenses.md).
+#
+# One [[component]] per item, every field required:
+#
+#   name, version, kind, source   what it is and where it comes from
+#   license                       free text on purpose - a Debian base image is
+#                                 hundreds of packages under dozens of licences,
+#                                 and one identifier would be the blanket claim
+#                                 the review exists to avoid
+#   status                        `accepted` (obligations met, say how in
+#                                 `fulfilled_by`), `open` (tracked_in an issue) or
+#                                 `deployment-review` (a deployment chooses it and
+#                                 reviews its own choice; the notices say what to
+#                                 look at)
+#   obligations                   what the licence asks of a distributor or user
+#
+# Versions here are what the Dockerfiles and compose files name. When one of
+# those moves, this file moves with it - `scripts/docs_drift.py` reminds.
+
+# Images the two published containers are built from
+
+[[component]]
+name = "python (Docker Official Image)"
+version = "3.12-slim (Debian)"
+kind = "runtime image, backend"
+license = "Python: PSF-2.0. Debian base: each package under its own licence (GPL-2.0, GPL-3.0, LGPL-2.1, MIT, BSD and others)."
+source = "https://hub.docker.com/_/python"
+status = "accepted"
+obligations = "Ship licence texts and, for GPL and LGPL packages in the base, make their corresponding source available to recipients of the image."
+fulfilled_by = "Debian keeps every package's licence under /usr/share/doc/<package>/copyright in the image and publishes the matching source packages (apt-get source; https://snapshot.debian.org). The image is distributed unmodified apart from the packages listed below; the per-release SBOM (#1415) records the exact package set."
+
+[[component]]
+name = "libreoffice-core, libreoffice-writer, libreoffice-calc, libreoffice-impress (Debian packages)"
+version = "as pinned by the base image's Debian release"
+kind = "system package, backend image"
+license = "MPL-2.0 (LibreOffice), with parts under LGPL-3.0-or-later and Apache-2.0"
+source = "https://www.libreoffice.org/about-us/licenses/"
+status = "accepted"
+obligations = "MPL and LGPL: licence texts ship with the binaries and their source is available; used unmodified, invoked as a separate process by LiteParse for office-format conversion."
+fulfilled_by = "Debian's /usr/share/doc/libreoffice-*/copyright is in the image; source through Debian's source packages; no modification."
+
+[[component]]
+name = "tesseract-ocr, tesseract-ocr-eng, tesseract-ocr-pol (Debian packages)"
+version = "as pinned by the base image's Debian release"
+kind = "system package, backend image"
+license = "Apache-2.0 (engine and language data)"
+source = "https://github.com/tesseract-ocr/tesseract"
+status = "accepted"
+obligations = "Attribution and the licence text."
+fulfilled_by = "Debian's /usr/share/doc/tesseract-ocr*/copyright is in the image; named here."
+
+[[component]]
+name = "oven/bun (Docker image)"
+version = "1 (Debian)"
+kind = "runtime image, frontend"
+license = "Bun: MIT (with bundled components under their own licences, listed in Bun's LICENSE.md). Debian base: as for the python image."
+source = "https://hub.docker.com/r/oven/bun"
+status = "accepted"
+obligations = "Ship licence texts; for GPL and LGPL packages in the base, make their corresponding source available to recipients of the image."
+fulfilled_by = "As for the python image: /usr/share/doc/*/copyright in the image, Debian's source packages, the per-release SBOM (#1415)."
+
+[[component]]
+name = "ghcr.io/astral-sh/uv (build stage only)"
+version = "latest"
+kind = "build tool, not in the published image"
+license = "Apache-2.0 OR MIT"
+source = "https://github.com/astral-sh/uv"
+status = "accepted"
+obligations = "None for the published image: the binary is copied into the builder stage and installs the wheels; it is not in the final layer."
+fulfilled_by = "Not distributed."
+
+# Bundled assets
+
+[[component]]
+name = "Inter, Bricolage Grotesque, Geist Mono (web fonts)"
+version = "Google Fonts v20, v9, v6 (frontend/src/app/fonts/README.md)"
+kind = "font, frontend image"
+license = "OFL-1.1"
+source = "https://fonts.google.com"
+status = "accepted"
+obligations = "Distribute with the licence text and each family's copyright notice; do not sell the fonts on their own; do not use the reserved font names for a modified version."
+fulfilled_by = "frontend/src/app/fonts/OFL.txt carries the licence and all three copyright notices; frontend/scripts/collect-licenses.ts copies it into the frontend image at /app/licenses/OFL.txt; the fonts are served unmodified under their own names."
+
+[[component]]
+name = "Brand marks in frontend/src/lib/brand-glyphs.generated.ts"
+version = "as generated by frontend/scripts/gen-brand-icons.ts"
+kind = "icons, frontend image"
+license = "Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/icons: MIT. The marks themselves are their owners' trademarks."
+source = "https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com"
+status = "accepted"
+obligations = "CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for."
+fulfilled_by = "NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies."
+
+# Data files the backend bundles
+
+[[component]]
+name = "backend/app/core/catalog/mcp_registry.json"
+version = "a snapshot refreshed by `agenticos cmd mcp-registry-sync`"
+kind = "data, backend image"
+license = "Server names, descriptions and URLs published to the Official MCP Registry by their publishers; the registry software is MIT."
+source = "https://registry.modelcontextprotocol.io"
+status = "accepted"
+obligations = "Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher."
+fulfilled_by = "app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL."
+
+# Images a deployment runs beside the two published ones. These are pulled by the
+# operator's compose file and are not redistributed by this project, so what the
+# review owes is the licence a deployment is agreeing to when it starts them.
+
+[[component]]
+name = "pgvector/pgvector"
+version = "pg16"
+kind = "service image, deployment"
+license = "PostgreSQL: PostgreSQL License. pgvector: PostgreSQL License."
+source = "https://github.com/pgvector/pgvector"
+status = "accepted"
+obligations = "Permissive; keep the copyright notice with copies. Not redistributed by this project."
+fulfilled_by = "Pulled by the operator from Docker Hub; named here with its source."
+
+[[component]]
+name = "redis"
+version = "7-alpine (resolves to Redis 7.4)"
+kind = "service image, deployment"
+license = "RSALv2 OR SSPL-1.0 since Redis 7.4.0; Redis 8 adds AGPL-3.0. Redis 7.2 and earlier: BSD-3-Clause."
+source = "https://redis.io/legal/licenses/"
+status = "open"
+obligations = "Neither RSALv2 nor SSPL-1.0 is an OSI-approved open-source licence. RSALv2 permits running Redis inside your own application, which is how this stack uses it, and forbids offering it as a managed service. A deployment on the compose path is agreeing to these terms."
+fulfilled_by = ""
+tracked_in = "https://github.com/vstorm-co/agenticos/issues/1603"
+
+[[component]]
+name = "prefecthq/prefect"
+version = "3-latest"
+kind = "service image, deployment"
+license = "Apache-2.0"
+source = "https://github.com/PrefectHQ/prefect"
+status = "accepted"
+obligations = "Attribution and the licence text. Not redistributed by this project."
+fulfilled_by = "Pulled by the operator; named here with its source."
+
+[[component]]
+name = "traefik"
+version = "v3.7"
+kind = "service image, deployment (optional reverse proxy)"
+license = "MIT"
+source = "https://github.com/traefik/traefik"
+status = "accepted"
+obligations = "Keep the copyright notice. Not redistributed by this project."
+fulfilled_by = "Pulled by the operator; named here with its source."
+
+[[component]]
+name = "ghcr.io/vstorm-co/sandboxd"
+version = "0.2"
+kind = "service image, deployment (optional agent sandbox)"
+license = "MIT (pydantic-ai-backend, Vstorm)"
+source = "https://github.com/vstorm-co/pydantic-ai-backend"
+status = "accepted"
+obligations = "Keep the copyright notice."
+fulfilled_by = "Published by Vstorm under MIT; the image is built from that repository."
+
+[[component]]
+name = "Sandbox runtime `workbench` (built by sandboxd from backend/app/core/catalog/sandbox_runtimes.json)"
+version = "python:3.12-slim plus the listed apt, npm and PyPI packages, resolved at build time"
+kind = "runtime image built at the deployment"
+license = "Mixed: Node.js (MIT), LibreOffice (MPL-2.0), poppler-utils (GPL-2.0 or GPL-3.0), uv (Apache-2.0 OR MIT), and PyPI packages under their own licences. Not pinned, so not enumerated here."
+source = "backend/app/core/catalog/sandbox_runtimes.json"
+status = "deployment-review"
+obligations = "Built and run inside the deployment, never redistributed by this project; GPL tools are used as separate processes. A deployment that redistributes the built image owes the GPL and LGPL source offers for it."
+fulfilled_by = ""
