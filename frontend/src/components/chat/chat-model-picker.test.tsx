@@ -64,7 +64,6 @@ const profile = (id: string, provider: string, model: string): ModelProfile => (
   model,
   secret_id: "s1",
   params: {},
-  allow_byo: false,
   fallback_profile_ids: [],
 });
 

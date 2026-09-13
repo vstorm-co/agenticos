@@ -121,7 +121,6 @@ beforeEach(() => {
       model: "claude",
       secret_id: null,
       params: {},
-      allow_byo: false,
       fallback_profile_ids: [],
     },
   ];
