@@ -1447,7 +1447,7 @@ weiterreisen zu lassen. Ein Eintrag, der niemanden nennt, bedeutet also genau zw
 Dinge, und die `action` sagt welches: den Ablauf-Sweep für Freigaben und einen
 Betreiberbefehl an der Shell des Deployments.
 
-Eine Zugangsdatei an eine Sammlung zu binden ist eine dieser Aktionen.
+Zugangsdaten an eine Sammlung zu binden ist eine dieser Aktionen.
 `sync_source`-Einträge halten das Erstellen, Klonen, Umhängen und Löschen einer
 Quelle fest, denn die Zeile entscheidet, wer am Ende lesen kann, was sie
 aufnimmt
@@ -1499,7 +1499,7 @@ Beides wird während einer Impersonierung mit einem 403 abgelehnt, denn ein
 Administrator, der die Verbindung eines Mitglieds repariert, ist kein Ablauf, den
 diese Plattform hat. Das Mitglied verknüpft seine eigenen Konten, als es selbst.
 
-Die Linie verläuft bei jeder an das Mitglied gehefteten Zugangsdatei, nicht nur
+Die Linie verläuft bei allen an das Mitglied gehefteten Zugangsdaten, nicht nur
 bei einer Identität: Über das Chat-Konto und den OAuth-Grant oben hinaus wird auch
 ein Bearer-Token abgelehnt, das auf die Verbindung des Mitglieds getippt wird. Ein
 solches Token ist nicht die eigene Identität des Administrators, aber unter dem

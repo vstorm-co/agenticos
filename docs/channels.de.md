@@ -1976,7 +1976,7 @@ Dinge, die er zeigt und eine Kanal-Fußzeile nicht:
 Bei Slack wird `thread_ts` in die Chat-ID gefaltet — also *ist* ein Thread eine
 Unterhaltung, und ein Agent, dessen Spec `conversation` sagt, bekommt einen
 Workspace pro Thread. In einem lebhaften Channel sind das fünfzig Container und ein
-`429` für die fünfzigerste Person, die antwortet. Die Bindung kann stattdessen
+`429` für die einundfünfzigste Person, die antwortet. Die Bindung kann stattdessen
 `channel` sagen, und jeder Thread in diesem Channel teilt sich einen.
 
 Die Auswahl ist dieselbe wie die des Specs (`run`, `conversation`, `channel`,

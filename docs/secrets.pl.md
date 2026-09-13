@@ -1,5 +1,5 @@
 ---
-source_sha: 71f500e2c070
+source_sha: a4432cd987e3
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -118,6 +118,12 @@ pustym łańcuchem znaków, żeby resolver mógł przełączać się po pełnym 
 i dlatego, że vault odmawia zapieczętowania pustej wartości. Tylko runtime może
 trzymać `none`; nikt nie może takiego zapisać, i to właśnie trzyma „sekret bez
 wartości" poza schematem API.
+
+Każde pole, które uwierzytelnia — klucz API, secret access key, client secret —
+musi mieć co najmniej osiem znaków. Lista pokazuje jako podpowiedź cztery ostatnie
+znaki poświadczenia, więc krótsza wartość zostałaby opublikowana w całości przez
+własną podpowiedź; ta dolna granica wyłapuje też ucięte wklejenie, póki formularz
+jest jeszcze otwarty.
 
 ## Gdzie są używane { #where-they-are-used }
 

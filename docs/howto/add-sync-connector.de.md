@@ -69,20 +69,20 @@ Dasselbe gilt für jeden vom Aufrufer gelieferten Wert, den ein Connector in ein
 was das entfernte System tatsächlich ausstellen kann.
 `app/services/rag/remote_names.py` hält beide Antworten.
 
-### Ein Connector hält auch nicht seine eigene Zugangsdatei { #a-connector-does-not-hold-its-own-credential-either }
+### Ein Connector hält auch nicht seine eigenen Zugangsdaten { #a-connector-does-not-hold-its-own-credential-either }
 
 `CONFIG_MODEL` sagt, wie die Dokumente zu **finden** sind, und sonst nichts. Die
-Zugangsdatei ist ein Secret im Vault, das die Source über ihre ID referenziert,
+Zugangsdaten sind ein Secret im Vault, das die Source über ihre ID referenziert,
 entsiegelt von dem, der den Sync ausführt, und als `credential` hineingereicht —
 ein Connector erklärt also, welche Art von Secret er braucht (`SECRET_KIND`), und
 liest zum Authentifizieren nichts aus `config`.
 
-!!! danger "Ein Feld für ein Token in `CONFIG_MODEL` ist eine Zugangsdatei in einer JSONB-Spalte"
+!!! danger "Ein Feld für ein Token in `CONFIG_MODEL` sind Zugangsdaten in einer JSONB-Spalte"
 
     Genau das haben `0042_sync_source_secret_id` und
     [#937](https://github.com/vstorm-co/agenticos/issues/937) entfernt. Es gibt
     auch keinen deploymentweiten Rückfallweg, nach dem man greifen könnte: eine
-    Source läuft auf der Zugangsdatei, die sie benennt, oder sie läuft nicht, denn
+    Source läuft auf den Zugangsdaten, die sie benennt, oder sie läuft nicht, denn
     ein Rückfall bedeutet, dass die `folder_id` eines Mandanten auswählt, was unter
     der Identität des *Betreibers* gelesen wird.
 
@@ -375,7 +375,7 @@ Null-Zweig hinweg, statt auf ein Textfeld durchzufallen.
 | `json_schema_extra={"x-placeholder": "…"}` | Ein grauer Hinweis, der angezeigt wird, solange das Feld leer ist, und nie gespeichert wird — für einen serverseitig aufgelösten Standardwert, etwa eine S3-`region`, die auf `S3_RAG_*` zurückfällt |
 
 Es gibt keine Eigenschaft für ein Secret, und es gibt auch keinen Ort, eine
-hinzuzufügen: eine Zugangsdatei ist ein Secret im Vault, das die Source über ihre
+hinzuzufügen: Zugangsdaten sind ein Secret im Vault, das die Source über ihre
 ID referenziert, also ist `SECRET_KIND` der Weg, auf dem ein Connector sagt, was
 er braucht.
 
@@ -403,7 +403,7 @@ Modelle zum Abschauen.
 
 - Setzen Sie `RemoteFile.source_path` auf einen eindeutigen URI (zum Beispiel `notion://page_id`) — er dient der Deduplizierung über Syncs hinweg
 - Umschließen Sie blockierende SDK-Aufrufe mit `asyncio.to_thread()`, damit sie den Event Loop nicht blockieren
-- Implementieren Sie `validate_config()`, um eine Konfiguration abzulehnen, die der Assistent noch beheben kann — eine `ConfigRefusal`, die ein `field` benennt, ist das, was ihn dieses Eingabefeld markieren lässt, statt einen Satz über vier davon zu zeigen. Sie sieht die Konfiguration und nicht die Zugangsdatei, also ist "kann dieser Key den Dienst erreichen" eine Frage für den ersten Sync und nicht für diese Methode
-- Deklarieren Sie `SECRET_KIND` und lesen Sie die Zugangsdatei aus dem Argument `credential`. Eine Zugangsdatei gehört nie in `CONFIG_MODEL`, und es gibt keinen deploymentweiten Rückfallweg, auf den zurückgefallen werden könnte
+- Implementieren Sie `validate_config()`, um eine Konfiguration abzulehnen, die der Assistent noch beheben kann — eine `ConfigRefusal`, die ein `field` benennt, ist das, was ihn dieses Eingabefeld markieren lässt, statt einen Satz über vier davon zu zeigen. Sie sieht die Konfiguration und nicht die Zugangsdaten, also ist "kann dieser Key den Dienst erreichen" eine Frage für den ersten Sync und nicht für diese Methode
+- Deklarieren Sie `SECRET_KIND` und lesen Sie die Zugangsdaten aus dem Argument `credential`. Zugangsdaten gehören nie in `CONFIG_MODEL`, und es gibt keinen deploymentweiten Rückfallweg, auf den zurückgefallen werden könnte
 - Einstellungen in `app/core/config.py` und `.env` sind für Werte, die kein Prinzipal benennen — wo ein Speicher liegt, nicht wer fragt (`S3_RAG_ENDPOINT` ist die Form)
 - `_fetch()` schreibt in den `dest_path`, den es bekommt, und gibt nichts zurück — die Basisklasse beantwortet, wo der liegt, und die Ingestion-Pipeline übernimmt alles Weitere

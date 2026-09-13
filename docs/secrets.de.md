@@ -1,14 +1,14 @@
 ---
-source_sha: 71f500e2c070
+source_sha: a4432cd987e3
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
 
 !!! abstract "Ein Modul, und bewusst kein zweiter Mechanismus"
 
-    Jeder Provider-Key, jedes Bot-Token eines Channels, jede MCP-Zugangsdatei und
+    Jeder Provider-Key, jedes Bot-Token eines Channels, alle MCP-Zugangsdaten und
     jeder API-Key eines Drittanbieters in dieser Plattform läuft durch
-    `app/core/vault.py`. Einen zweiten Weg hinzuzufügen, eine Zugangsdatei im
+    `app/core/vault.py`. Einen zweiten Weg hinzuzufügen, Zugangsdaten im
     Ruhezustand zu halten, ist genau der Defekt, den zwei Migrationen entfernt
     haben.
 
@@ -82,16 +82,16 @@ eine Organisation, `0042_sync_source_secret_id` ließ die Spalte das sagen, und
 *finden*.
 
 Zwei Folgen jenseits der Kryptografie, und es sind die, die ein Betreiber merkt:
-eine Zugangsdatei wird einmal hinterlegt und von jeder Source wiederverwendet,
+Zugangsdaten werden einmal hinterlegt und von jeder Source wiederverwendet,
 die sie braucht, statt pro Source eingefügt und an ebenso vielen Stellen rotiert
-zu werden; und sie erscheint wie alles andere auf der Vault-Seite, sodass "hält
-diese Organisation eine Google-Zugangsdatei" eine Antwort hat.
+zu werden; und sie erscheinen wie alles andere auf der Vault-Seite, sodass "hält
+diese Organisation Google-Zugangsdaten" eine Antwort hat.
 
 ## Arten { #kinds }
 
-Ein Secret ist nicht immer eine Zeichenkette, und jede Zugangsdatei in ein
+Ein Secret ist nicht immer eine Zeichenkette, und alle Zugangsdaten in ein
 einziges Feld "API key" zu pressen ergibt ein Formular, das jemand korrekt
-ausfüllt und am Ende doch eine Zugangsdatei hat, die beim ersten Run scheitert.
+ausfüllt und am Ende doch Zugangsdaten hat, die beim ersten Run scheitern.
 Also hat ein Secret eine **Art**, und die Art entscheidet, welche Felder
 existieren.
 
@@ -102,13 +102,13 @@ existieren.
 | `aws_credentials` | Access Key ID, Secret Access Key, Region, optionales Session-Token |
 | `gcp_service_account` | Das JSON des Service-Accounts, beim Hineingeben validiert |
 | `github_oauth_app` | Die öffentliche Client-ID einer GitHub OAuth App und deren Secret |
-| `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdatei braucht |
+| `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |
 
 `github_oauth_app` wird von der Plattform ausgegeben und nicht von einer Person
 ausgewählt — der GitHub-Verbindungsablauf liest es serverseitig, um den
 Token-Austausch durchzuführen — also muss es **für die Organisation sichtbar
-sein, und es darf genau eines geben**: die private Zugangsdatei eines Mitglieds
-wird nie stillschweigend für die Verbindung der ganzen Organisation verwendet,
+sein, und es darf genau eines geben**: die privaten Zugangsdaten eines Mitglieds
+werden nie stillschweigend für die Verbindung der ganzen Organisation verwendet,
 und bei zwei gespeicherten org-sichtbaren Apps wird die Verbindung abgelehnt
 (unter Nennung beider), statt an denjenigen Namen gebunden zu werden, der zuerst
 sortiert.
@@ -126,13 +126,19 @@ verzweigen kann — und weil der Vault es ablehnt, einen leeren Wert zu versiege
 Nur die Laufzeit kann `none` halten; niemand kann eines speichern, und das hält
 "ein Secret ohne Wert" aus dem API-Schema heraus.
 
+Jedes Feld, das authentifiziert — ein API-Schlüssel, ein Secret Access Key, ein
+Client Secret — muss mindestens acht Zeichen lang sein. Die Liste zeigt als
+Hinweis die letzten vier Zeichen der Zugangsdaten, ein kürzerer Wert würde also
+durch seinen eigenen Hinweis vollständig veröffentlicht; die Untergrenze fängt
+außerdem eine abgeschnittene Einfügung ab, solange das Formular noch offen ist.
+
 ## Wo sie verwendet werden { #where-they-are-used }
 
 **Model-Provider.** Benannt von einem [Model-Profil](models.md). Ausgaben werden
 dem Secret zugerechnet, auf das der Run aufgelöst hat, und so bekommt "welcher
 Key kostet am meisten" eine Antwort.
 
-**Capabilities.** Eine Capability erklärt, dass sie eine Zugangsdatei einer
+**Capabilities.** Eine Capability erklärt, dass sie Zugangsdaten einer
 bestimmten *Art* braucht — nie eine Instanz. Der Code sagt "ich brauche einen API
 Key"; die `secret_id` eines Bindings sagt, welchen. Siehe
 [den Capability-Katalog](reference/capabilities.md#what-a-binding-may-change).
@@ -140,7 +146,7 @@ Key"; die `secret_id` eines Bindings sagt, welchen. Siehe
 **MCP-Verbindungen.** Bearer-Token und OAuth-Nutzlasten, versiegelt an die
 Organisation oder an das Mitglied. Siehe [MCP](mcp.md#authentication).
 
-**Channel-Bots.** Jede Zugangsdatei auf der Zeile, versiegelt an die Organisation
+**Channel-Bots.** Alle Zugangsdaten auf der Zeile, versiegelt an die Organisation
 des Bots unter einer gemeinsamen `key_version`: das Bot-Token, das Signing Secret
 und das App-Token einer Slack-App sowie das gemeinsame Secret, gegen das ein
 eingehender Webhook authentifiziert wird — Telegrams
@@ -187,7 +193,7 @@ Organisation ihren eigenen Key mitbringen darf:
 
     Kein Klartext in einer Antwort, in einer Logzeile, in einem Audit-Eintrag
     oder in einem exportierten Spec - und eine Capability erfährt nie, woher ihre
-    Zugangsdatei kam.
+    Zugangsdaten kamen.
 
 - **Keine API-Antwort gibt einen Klartext zurück.** Es gibt keinen Endpunkt
   dafür. Der Service, dem die Secrets einer Organisation gehören, hat zwei Leser,
@@ -204,7 +210,7 @@ Organisation ihren eigenen Key mitbringen darf:
 - **Kein Spec trägt einen.** Ein exportiertes Agent-Spec referenziert Secrets über
   IDs. Genau das macht es sicher, es in das Git-Repository eines Kunden zu
   committen.
-- **Eine Capability erfährt nie, woher ihre Zugangsdatei kam**, und das Model
+- **Eine Capability erfährt nie, woher ihre Zugangsdaten kamen**, und das Model
   sieht sie überhaupt nicht.
 
 Diese vier sind durch Tests festgehalten, nicht durch Konvention.
@@ -233,7 +239,7 @@ Konfiguration lehnt einen nicht gesetzten Schlüssel überall außer in
 regelmäßig echte Provider-Keys, also bekommt es dieselbe Ablehnung wie
 Produktion.
 
-!!! danger "Jeden konfigurierten Schlüssel zu verlieren heißt, jede gespeicherte Zugangsdatei ist weg"
+!!! danger "Jeden konfigurierten Schlüssel zu verlieren heißt, alle gespeicherten Zugangsdaten sind weg"
 
     Es gibt keinen Wiederherstellungsweg und keine Escrow-Kopie: jedes Secret muss
     von Hand neu eingegeben werden. Sichern Sie den Schlüssel an einem Ort, an dem
