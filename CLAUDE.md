@@ -183,6 +183,11 @@ pages and build checks. Add new pages to `mkdocs.yml`, relevant cross-links and
 the topic map below. `scripts/docs_drift.py` contains the code-to-page trigger map;
 its Stop hook is a reminder, not a completeness check or a gate.
 
+The site publishes in four languages, so a published page owes a `.pl.md`, a
+`.de.md` and an `.es.md` beside it, and editing an English page makes all three
+stale. `scripts/check_docs_i18n.py` gates `make lint` on that and names what is
+missing; `docs/howto/translate.md` is the workflow.
+
 | Topic | Page |
 |---|---|
 | Spec, version, exposure, run | `docs/concepts.md` |
@@ -212,6 +217,7 @@ its Stop hook is a reminder, not a completeness check or a gate.
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
+| Translating a page, and the terminology that has to be exact | `docs/howto/translate.md` |
 | Getting it onto a host: sizing, TLS, the approved deploy | `docs/deploy.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |

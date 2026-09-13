@@ -184,6 +184,10 @@ docs = [
     "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=1.0.6",
+    # One build per locale from `<page>.<locale>.md` files sitting beside the
+    # English source, so `/install/` keeps its URL and `/pl/install/` is added
+    # rather than everything moving under `/en/`.
+    "mkdocs-static-i18n>=1.2.3",
 ]
 
 [project.scripts]
