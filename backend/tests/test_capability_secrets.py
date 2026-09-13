@@ -122,7 +122,7 @@ class TestInjection:
         try:
             build(
                 [CapabilityBinding(capability_id="test_needs_nothing", secret_id=uuid.uuid4())],
-                secrets={uuid.uuid4(): ApiKeySecret(api_key="wx")},
+                secrets={uuid.uuid4(): ApiKeySecret(api_key="wx-12345678")},
             )
         finally:
             REGISTRY.pop("test_needs_nothing", None)

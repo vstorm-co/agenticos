@@ -29,15 +29,61 @@ Two things are versioned separately from this file and worth knowing about:
   licenses-check` runs in the `security` job and `make check`: stale notices, a
   component with no readable licence, a copyleft component with no decision, or a
   decision about a licence that has since changed all fail it; tracked open
-  findings pass and are counted. Both images now carry their licence files - the
-  backend image `LICENSE`, `NOTICE` and the notices, the frontend image every
-  package's own licence under `/app/licenses/`, which the standalone build had
-  been dropping. `docs/licenses.md` is the review: scope, obligations per licence
+  findings pass and are counted, and so does a package that ships no licence
+  file without an author to attribute or a text to place beside it. Both images
+  now carry their licence files: the backend image `LICENSE`, `NOTICE`, the
+  notices and the texts of the licences nine wheels declare but do not ship; the
+  frontend image every package's own licence file under `/app/licenses/`, which
+  the standalone build had been dropping, a `NOTICE` and the licence text for a
+  package that publishes none (`@img/sharp-libvips-linux-*` ships an LGPL
+  library with no copy of the LGPL), the fonts' OFL and the brand-mark
+  attributions. `docs/licenses.md` is the review: scope, obligations per licence
   family and how each is met, hosted-provider terms and model-weight licences as
   deployment-time decisions, the maintenance workflow and a release checklist.
   Three findings are open and tracked: PyMuPDF is AGPL-3.0 (#1602), `redis:7`
   resolves to Redis 7.4 under RSALv2/SSPLv1 (#1603), and the sandbox runtime is
   built at the deployment. (#1600)
+
+## [0.0.411] - 2026-09-13
+
+### Security
+
+- **A secret too short to hint safely is refused.** The listing shows the last
+  four characters of a credential as its hint, so `ApiKeySecret(api_key="1234")`
+  used to publish the whole key to everyone with `secrets:view` and into the
+  audit entry. Every field that authenticates - an API key, a secret access key,
+  a session token, an OAuth client secret - now needs at least eight characters,
+  `minLength` is on the schema the forms are generated from, and the refusal
+  says so while the form is open. A key shorter than that stored before this
+  release fails to open and has to be saved again. (#1608)
+- **An MCP OAuth payload masks its credentials.** `client_secret`,
+  `access_token` and `refresh_token` are `SecretStr`, so a payload that reaches
+  a log line or a traceback whole shows `**********`; only the sealed JSON on
+  its way into the vault carries the real values. The guarantee used to hold by
+  accident of one `except` clause. (#1608)
+
+### Removed
+
+- **`model_profiles.allow_byo`.** Written by the create route and read by
+  nothing - the resolver always spends the profile's own key - so the flag
+  looked like a security control and changed no behaviour. Migration
+  `0077_drop_allow_byo` drops the column. (#1608)
+
+## [0.0.410] - 2026-09-13
+
+### Changed
+
+- **The repository's agent guidance is a brief, not a history.** `CLAUDE.md`
+  now carries project-wide decisions and pointers: what the product is, the
+  quality bar, the hard boundaries, rule and skill routing, commands,
+  verification and the documentation topic map. Incident anecdotes and pinned
+  framework versions are gone; issue-board conventions moved to
+  `.claude/references/issue-triage.md`. The rule files under `.claude/rules/`
+  declare their scope with the `paths` frontmatter key Claude Code matches on,
+  so the code-style rule now covers `scripts/` and the testing rule covers the
+  Playwright layer. `scripts/docs_drift.py` is the one path-to-page trigger
+  map and gained the sandbox, agent-template, skill-gallery and Makefile
+  mappings that used to live only in `CLAUDE.md`. (#1601)
 
 ## [0.0.409] - 2026-09-11
 

@@ -448,9 +448,9 @@ class TestBuilder:
         sid = uuid4()
         (capability,) = build(
             [CapabilityBinding(capability_id="memory_mem0", config={}, secret_id=sid)],
-            secrets={sid: ApiKeySecret(api_key="k-9")},
+            secrets={sid: ApiKeySecret(api_key="k-9-12345")},
         )
-        assert capability.api_key == "k-9"
+        assert capability.api_key == "k-9-12345"
 
     def test_no_key_contributes_nothing(self):
         """A capability whose every call refuses is worse than one that is absent:
