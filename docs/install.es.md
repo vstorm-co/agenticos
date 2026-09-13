@@ -1,3 +1,7 @@
+---
+source_sha: 15980ecd7957
+---
+
 # Instalación { #install }
 
 Con dos comandos se pasa de una máquina con Docker a un agent que responde:
