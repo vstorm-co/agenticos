@@ -39,7 +39,12 @@ from pathlib import Path
 # change and teach the reader to ignore it.
 TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/agents/spec.py", "docs/reference/spec.md"),
+    ("backend/app/agents/capabilities/sandbox/", "docs/sandbox.md"),
+    ("backend/app/services/sandbox_", "docs/sandbox.md"),
+    ("backend/app/core/catalog/sandbox_runtimes.json", "docs/sandbox.md"),
     ("backend/app/agents/capabilities/", "docs/reference/capabilities.md"),
+    ("backend/app/services/agent_templates.py", "docs/first-agent.md"),
+    ("backend/app/core/catalog/agent_templates/", "docs/first-agent.md"),
     ("backend/app/agents/mcp", "docs/mcp.md"),
     ("backend/app/agents/model_resolver.py", "docs/models.md"),
     ("backend/app/services/mcp_", "docs/mcp.md"),
@@ -55,6 +60,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/skills.py", "docs/skills.md"),
     ("backend/app/services/skill_library.py", "docs/skills.md"),
     ("backend/app/core/catalog/skills/", "docs/skills.md"),
+    ("backend/app/core/catalog/skill_gallery/", "docs/skills.md"),
     ("backend/app/services/spend.py", "docs/governance.md"),
     ("backend/app/services/approvals.py", "docs/governance.md"),
     ("backend/app/services/notifications.py", "docs/governance.md"),
@@ -85,6 +91,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/schemas/deployment_settings.py", "docs/deployment.md"),
     ("frontend/src/lib/branding.ts", "docs/deployment.md"),
     ("backend/app/commands/", "docs/commands.md"),
+    ("Makefile", "docs/commands.md"),
     ("backend/app/api/routes/", "docs/architecture.md"),
     ("backend/alembic/versions/", "docs/architecture.md"),
     (".github/workflows/ai-review.yml", "docs/code-review.md"),
