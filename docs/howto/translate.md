@@ -158,6 +158,33 @@ Everything else is ordinary vocabulary and should read naturally: knowledge base
 organization, member, role, permission, approval, budget cap, notification,
 channel, deployment.
 
+### A kept noun needs a gender, and it gets one here
+
+An English noun dropped into a German, Polish or Spanish sentence has to take an
+article and an ending, and left to each page it takes a different one. The first
+German pass produced "der Sandbox" on one page and "ein Sandbox" on another; the
+reader meets both. So the choice is made once, here:
+
+| Noun | German | Polish | Spanish |
+|---|---|---|---|
+| agent | der Agent | ten agent, agenta | el agent |
+| spec | der Spec | ten spec, speca | el spec |
+| capability | die Capability | ta capability (nieodmienne) | la capability |
+| skill | der Skill | ten skill, skilla | el skill |
+| embed | das Embed | ten embed, embeda | el embed |
+| budget | das Budget | ten budżet | el budget |
+| run | der Run | ten run, runa | el run |
+| prompt | der Prompt | ten prompt, promptu | el prompt |
+| provider | der Provider | ten provider, providera | el provider |
+| token | das Token | ten token, tokena | el token |
+| vault | der Vault | ten vault, vaulcie | el vault |
+| workspace | der Workspace | ten workspace, workspace'u | el workspace |
+| sandbox | die Sandbox | ten sandbox, sandboksie | la sandbox |
+| MCP server | der MCP-Server | ten serwer MCP | el servidor MCP |
+
+German compounds them with a hyphen when the second half is German - Run-Kosten,
+Vault-Eintrag, Sandbox-Session - and keeps the English word's own capital.
+
 ## Terminology that has to be exact
 
 Permission, governance and security pages describe refusals, and a refusal
