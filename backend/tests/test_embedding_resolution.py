@@ -192,7 +192,7 @@ class TestCredentialDegradation:
 
     async def test_a_secret_of_the_wrong_kind_falls_back(self):
         """The vault can hold shapes an embedding client cannot use."""
-        row = _sealed_key_row("sk-org")
+        row = _sealed_key_row("sk-org-key")
         with (
             patch(f"{_MODULE}.settings") as env,
             patch(f"{_MODULE}.unseal_secret", return_value=MagicMock(spec=[])),

@@ -17,6 +17,47 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.411] - 2026-09-13
+
+### Security
+
+- **A secret too short to hint safely is refused.** The listing shows the last
+  four characters of a credential as its hint, so `ApiKeySecret(api_key="1234")`
+  used to publish the whole key to everyone with `secrets:view` and into the
+  audit entry. Every field that authenticates - an API key, a secret access key,
+  a session token, an OAuth client secret - now needs at least eight characters,
+  `minLength` is on the schema the forms are generated from, and the refusal
+  says so while the form is open. A key shorter than that stored before this
+  release fails to open and has to be saved again. (#1608)
+- **An MCP OAuth payload masks its credentials.** `client_secret`,
+  `access_token` and `refresh_token` are `SecretStr`, so a payload that reaches
+  a log line or a traceback whole shows `**********`; only the sealed JSON on
+  its way into the vault carries the real values. The guarantee used to hold by
+  accident of one `except` clause. (#1608)
+
+### Removed
+
+- **`model_profiles.allow_byo`.** Written by the create route and read by
+  nothing - the resolver always spends the profile's own key - so the flag
+  looked like a security control and changed no behaviour. Migration
+  `0077_drop_allow_byo` drops the column. (#1608)
+
+## [0.0.410] - 2026-09-13
+
+### Changed
+
+- **The repository's agent guidance is a brief, not a history.** `CLAUDE.md`
+  now carries project-wide decisions and pointers: what the product is, the
+  quality bar, the hard boundaries, rule and skill routing, commands,
+  verification and the documentation topic map. Incident anecdotes and pinned
+  framework versions are gone; issue-board conventions moved to
+  `.claude/references/issue-triage.md`. The rule files under `.claude/rules/`
+  declare their scope with the `paths` frontmatter key Claude Code matches on,
+  so the code-style rule now covers `scripts/` and the testing rule covers the
+  Playwright layer. `scripts/docs_drift.py` is the one path-to-page trigger
+  map and gained the sandbox, agent-template, skill-gallery and Makefile
+  mappings that used to live only in `CLAUDE.md`. (#1601)
+
 ## [0.0.409] - 2026-09-11
 
 ### Security

@@ -140,7 +140,7 @@ class TestTheHalfMem0Holds:
         one call per binding rather than one for the organization."""
         agents = [_agent(), _agent()]
         service = _service(agents)
-        secret = ApiKeySecret(api_key=SecretStr("k-1"))
+        secret = ApiKeySecret(api_key=SecretStr("k-1-12345"))
 
         result, forget = await self._forget(service, resolved={SECRET: secret})
 
@@ -176,7 +176,7 @@ class TestTheHalfMem0Holds:
         service = _service([_agent(base_url="https://mem0.internal")])
 
         _result, forget = await self._forget(
-            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1"))}
+            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}
         )
 
         assert forget.await_args.kwargs["base_url"] == "https://mem0.internal"
@@ -196,7 +196,7 @@ class TestTheHalfMem0Holds:
         service = _service([agent])
 
         _result, forget = await self._forget(
-            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1"))}
+            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}
         )
 
         assert forget.await_args.kwargs["base_url"] == "https://mem0.internal"
@@ -205,7 +205,7 @@ class TestTheHalfMem0Holds:
         service = _service([_agent()])
 
         _result, forget = await self._forget(
-            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1"))}
+            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}
         )
 
         assert forget.await_args.kwargs["base_url"] is None
@@ -221,7 +221,7 @@ class TestTheHalfMem0Holds:
             patch.object(
                 service.secrets,
                 "resolve_for_bindings",
-                AsyncMock(return_value={SECRET: ApiKeySecret(api_key=SecretStr("k-1"))}),
+                AsyncMock(return_value={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}),
             ),
             pytest.raises(RuntimeError),
         ):

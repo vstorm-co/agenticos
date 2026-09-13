@@ -1,6 +1,6 @@
 ---
 description: Frontend conventions — App Router, data layer, stores, i18n, permissions
-globs: ["frontend/**/*.ts", "frontend/**/*.tsx", "frontend/**/*.css"]
+paths: ["frontend/**/*.ts", "frontend/**/*.tsx", "frontend/**/*.css"]
 ---
 
 # Frontend Conventions
@@ -9,7 +9,7 @@ Deeper guidance lives in the `frontend-feature` skill.
 
 ## Stack
 
-Next.js 15 (App Router) · React 19 · TypeScript strict · Tailwind · `next-intl` ·
+Next.js (App Router) · React · TypeScript strict · Tailwind · `next-intl` ·
 TanStack Query · Zustand · vitest + Testing Library · Playwright. Package manager and
 runner: **bun**.
 
@@ -258,8 +258,8 @@ is a whole catalog spotlights the entire viewport, which highlights nothing, so 
 describing step takes the header and the card's own anchor is left to the guided
 flow, which needs the list reachable.
 
-The full picture, including what CLAUDE.md requires, is in `CLAUDE.md` under
-"A new surface owes the walkthrough a stop".
+A page without a stop renders no help button (`pageHasSteps`). Check this when
+verifying that a new page has been registered in the walkthrough.
 
 ## A feature with glanceable state owes the dashboard a widget
 

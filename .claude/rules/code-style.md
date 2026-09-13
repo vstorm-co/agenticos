@@ -1,6 +1,6 @@
 ---
 description: Code style, formatting, naming, imports, and type hints
-globs: ["backend/**/*.py", "*.py"]
+paths: ["backend/**/*.py", "scripts/**/*.py", "*.py"]
 ---
 
 # Code Style
@@ -15,7 +15,8 @@ globs: ["backend/**/*.py", "*.py"]
 - Type hints on ALL function signatures — parameters and return types
 - Use modern syntax: `str | None` not `Optional[str]`, `list[User]` not `List[User]`
 - Use `Annotated[Type, Depends(...)]` for DI (defined as aliases in `deps.py`)
-- Use `dict[str, Any]` for generic dicts
+- Use a model or `TypedDict` for known structures and a precise value type for mappings.
+  Use `Any` only at a boundary that genuinely requires it, not as a generic shortcut.
 - Use `Literal["value1", "value2"]` for string enums in schemas
 - Use `TYPE_CHECKING` block for circular import resolution:
   ```python
@@ -60,39 +61,14 @@ from app.schemas.user import UserCreate, UserRead
 
 ## Comments
 
-Comments are scarce and earn their place. **The default is no comment.** The
-reference docs are generated from docstrings, so what reasoning a piece of code
-needs lives in a docstring, not in a running commentary of `#` lines.
+Explain non-obvious constraints, invariants and decisions that are not apparent
+from the code. Keep comments proportional to the explanation needed; do not force
+all reasoning into a one-line comment or a function docstring.
 
-The bar for a comment is one question: **would a competent reader make a mistake,
-or be genuinely misled, without it?** If not, delete it. Clear names and small
-functions carry the meaning; a comment is for the thing the code cannot say.
-
-Delete a comment that:
-
-- **Restates what the code does.** `# increment i`, `# loop over users`.
-- **Labels a section.** `# the owner's side`, `# sending`, `# internals`,
-  `# what the agent may ask` — the class, the method and their names already mark
-  the structure. (ASCII-banner form — `# --- sending ---` — is rejected outright
-  by `scripts/check_comments.py`; the plain-label form is the same slop without
-  the dashes, so it goes too.)
-- **Narrates an optimisation or a mechanism a reader already sees.** "In one
-  query rather than an `EXISTS` per row." "Skipped when the page is empty —
-  nothing to do." "Two queries, deduplicated on ids." The code says this; the
-  comment is a second, staler copy.
-- **Grows into a paragraph.** A multi-line essay is a docstring in the wrong
-  place — move it, or cut it to the single clause that carries the *why*, or drop
-  it. Most drop.
-
-Keep a comment only when it prevents a real mistake: a footgun, a non-obvious
-constraint, a security or correctness invariant that the code cannot express, or
-a decision that looks wrong until you know the reason — ideally with the issue
-number (`# … (#417)`). One tight sentence, not a paragraph.
-
-**No commented-out code.** Git remembers it; delete it.
-
-When in doubt, delete. A comment removed is cheap to bring back; a wall of
-comments is what makes real code hard to find.
+Put API contracts and generated reference documentation in docstrings. Avoid
+comments that merely repeat the code, section labels and ASCII banners (checked by
+`scripts/check_comments.py`). Remove commented-out code. Apply these conventions
+to code being changed rather than sweeping unrelated files.
 
 ## Dead code
 

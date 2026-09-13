@@ -102,29 +102,15 @@ are the two that do.
 
 ## Voice
 
-The site was rewritten into one register. Match it, because a page in the old one
-reads as a different product.
+Use second person and present tense for user instructions. Explain behaviour and
+relevant reasons; distinguish verified facts from uncertainty. Choose prose, lists
+or tables according to what helps the reader.
 
-**Second person, present tense, stating the decision and the reason it was taken**,
-without hedging — "A dead server is skipped, not raised, because Pydantic AI enters
-every toolset when a run starts." Explain *why*, never restate *what*. Prefer a table
-over a list of five parallel sentences.
-
-Three conventions, and a new or edited page owes all three:
-
-- **Sentence case headings.** Product names and acronyms keep their capitals — Docker
-  Compose, Google Drive, PostgreSQL, MCP, CONFIG_MODEL. Title Case is what the
-  template shipped and what 126 headings were swept out of.
-- **No paragraph over ~115 words.** The site is at zero. A fact appended to a
-  paragraph is a fact nobody finds: give it its own paragraph, a bullet, or an
-  admonition. A fact a reader has to have seen *before* acting is an admonition —
-  `!!! danger` for a footgun, `!!! warning` for a surprise, `!!! info` for the reason
-  behind a design.
-- **A recap at the end** of any page long enough to need one: at most five bullets,
-  each the thing a reader should leave with. Not a summary of the page — the five
-  things.
-
-`scripts/check_docs_paragraphs.py` is that count, and `make lint` runs it.
+- Use sentence case headings, preserving product names and acronyms.
+- Keep paragraphs within the limit enforced by `scripts/check_docs_paragraphs.py`.
+  Split by idea; use an admonition when a reader needs a warning before acting.
+- Add a recap only when it helps a reader retain the decisions from a long page.
+  Do not repeat short pages or force a fixed number of bullets.
 
 ## Icons
 

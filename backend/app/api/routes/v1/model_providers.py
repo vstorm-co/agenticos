@@ -93,7 +93,6 @@ async def create_model_profile(
         secret_id=data.secret_id,
         base_url=data.base_url,
         params=data.params,
-        allow_byo=data.allow_byo,
         fallback_profile_ids=data.fallback_profile_ids,
     )
 

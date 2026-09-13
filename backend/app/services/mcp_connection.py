@@ -38,6 +38,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from mcp.shared.auth import OAuthToken
+from pydantic import SecretStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -127,13 +128,20 @@ async def _checked_url(url: str) -> str:
         raise refused_field("url", f"This MCP server URL cannot be used: {exc}") from exc
 
 
+def _revealed(value: SecretStr | None) -> str | None:
+    """A stored credential as the provider wants it on the wire."""
+    return None if value is None else value.get_secret_value()
+
+
 def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload:
     """Fold a fresh token grant/refresh into the stored payload."""
     return payload.model_copy(
         update={
-            "access_token": token.access_token,
+            "access_token": SecretStr(token.access_token),
             # A refresh response may omit refresh_token - keep the existing one.
-            "refresh_token": token.refresh_token or payload.refresh_token,
+            "refresh_token": (
+                SecretStr(token.refresh_token) if token.refresh_token else payload.refresh_token
+            ),
             "expires_at": (_now_epoch() + token.expires_in) if token.expires_in else None,
             "scope": token.scope or payload.scope,
             "code_verifier": None,
@@ -155,7 +163,7 @@ async def _complete_mcp_flow(
     token = await mcp_oauth.exchange_code(
         token_endpoint=payload.token_endpoint,
         client_id=payload.client_id,
-        client_secret=payload.client_secret,
+        client_secret=_revealed(payload.client_secret),
         code=code,
         code_verifier=payload.code_verifier,
         redirect_uri=payload.redirect_uri,
@@ -203,7 +211,7 @@ async def _complete_google_flow(
     try:
         token = await google_oauth.exchange_code(
             client_id=payload.client_id,
-            client_secret=payload.client_secret or "",
+            client_secret=_revealed(payload.client_secret) or "",
             code=code,
             redirect_uri=payload.redirect_uri,
         )
@@ -211,13 +219,13 @@ async def _complete_google_flow(
         raise OAuthError(str(exc)) from exc
     payload = payload.model_copy(
         update={
-            "access_token": token.access_token,
+            "access_token": SecretStr(token.access_token),
             # Kept where Google sent one. Without `access_type=offline` it does not,
             # and a grant with no refresh token stops working in an hour with
             # nothing to say why - which is why the consent URL asks for it. A
             # re-consent that omits one falls back to the live payload's, in the
             # callback, where that payload is in hand.
-            "refresh_token": token.refresh_token,
+            "refresh_token": SecretStr(token.refresh_token) if token.refresh_token else None,
             "expires_at": (
                 None if token.expires_in is None else _now_epoch() + float(token.expires_in)
             ),
@@ -241,7 +249,7 @@ async def _complete_github_flow(
     try:
         token = await github_oauth.exchange_code(
             client_id=payload.client_id,
-            client_secret=payload.client_secret or "",
+            client_secret=_revealed(payload.client_secret) or "",
             code=code,
             redirect_uri=payload.redirect_uri,
         )
@@ -249,7 +257,7 @@ async def _complete_github_flow(
         raise OAuthError(str(exc)) from exc
     payload = payload.model_copy(
         update={
-            "access_token": token.access_token,
+            "access_token": SecretStr(token.access_token),
             "refresh_token": None,
             "expires_at": None,
             "code_verifier": None,
@@ -349,15 +357,15 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
     if payload is None or not payload.access_token:
         return None
     if _token_is_fresh(payload):
-        return payload.access_token  # another turn refreshed while we waited
+        return _revealed(payload.access_token)  # another turn refreshed while we waited
     if not payload.refresh_token:
         return None
     try:
         token = await mcp_oauth.refresh_tokens(
             token_endpoint=payload.token_endpoint,
             client_id=payload.client_id,
-            client_secret=payload.client_secret,
-            refresh_token=payload.refresh_token,
+            client_secret=_revealed(payload.client_secret),
+            refresh_token=payload.refresh_token.get_secret_value(),
             resource=payload.resource,
             scope=payload.scope,
         )
@@ -370,7 +378,7 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
         db_connection=locked,
         update_data={"oauth_payload": _seal_for(locked, payload.model_dump_json()).ciphertext},
     )
-    return payload.access_token
+    return _revealed(payload.access_token)
 
 
 async def _oauth_access_token(db: AsyncSession, connection: McpConnection) -> str | None:
@@ -381,7 +389,7 @@ async def _oauth_access_token(db: AsyncSession, connection: McpConnection) -> st
     if payload is None or not payload.access_token:
         return None  # not authorized yet, or an unreadable payload
     if _token_is_fresh(payload):
-        return payload.access_token
+        return _revealed(payload.access_token)
     if not payload.refresh_token:
         return None  # expired, no refresh token → user must re-authorize
     return await _refresh_under_lock(db, connection)
@@ -927,7 +935,7 @@ class McpConnectionService:
             authorization_endpoint=github_oauth.AUTHORIZE_ENDPOINT,
             token_endpoint=github_oauth.TOKEN_ENDPOINT,
             client_id=creds.client_id,
-            client_secret=creds.client_secret.get_secret_value(),
+            client_secret=creds.client_secret,
             scope=" ".join(scopes),
             # GitHub uses no RFC 8707 resource indicator; the field is required, so
             # it carries the server the connection points at, like every payload.
@@ -1119,7 +1127,7 @@ class McpConnectionService:
             authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
             token_endpoint=google_oauth.TOKEN_ENDPOINT,
             client_id=creds.client_id,
-            client_secret=creds.client_secret.get_secret_value(),
+            client_secret=creds.client_secret,
             scope=" ".join(scopes),
             resource=_POLLED_PORTAL_URL[portal_key],
             redirect_uri=redirect_uri,
@@ -1193,14 +1201,15 @@ class McpConnectionService:
         # right now leaves the cursor to the first poll, which is the old window
         # rather than a broken flow.
         poll_cursor = connection.poll_cursor
+        access_token = _revealed(payload.access_token)
         if (
             connection.purpose == "portal"
             and connection.portal_key is not None
             and poll_cursor is None
-            and payload.access_token
+            and access_token
         ):
             poll_cursor = await _initial_poll_cursor(
-                portal_key=connection.portal_key, access_token=payload.access_token
+                portal_key=connection.portal_key, access_token=access_token
             )
         return await mcp_connection_repo.update(
             self.db,
