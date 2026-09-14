@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.427] - 2026-09-14
+
+### Added
+
+- **The admin drawer's organization rows are links now.** They were plain text
+  because there was nowhere for an app admin to go: the tenant-scoped page 404s
+  for anybody who is not a member. Each row opens `/admin/organizations/{id}`,
+  which reads the metadata endpoint - name, members and their roles, size, owner
+  and budget. The conversation rows stay text, deliberately: there is no
+  admin-readable destination for a single conversation, and adding one would relax
+  the tenant boundary the architecture page holds. Both drawer comments now record
+  that decision. (#1245)
+
 ## [0.0.426] - 2026-09-14
 
 ### Added
