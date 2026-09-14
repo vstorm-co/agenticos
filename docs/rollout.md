@@ -92,6 +92,11 @@ architecture was chosen.
 | Where are the credentials? | [One vault](secrets.md), sealed per organization. No API response, log line or audit entry ever carries a plaintext key |
 | Can we read the code? | Yes. That is usually the end of the conversation |
 
+The long-form answers a HIPAA- or SOC 2-shaped review hands over — the threat
+model, what data leaves the deployment, what is encrypted where, and a controls
+matrix mapping each control to its mechanism and its test — are in
+[Security](security.md).
+
 ## Three ways this goes wrong
 
 Each has been seen; each is avoidable.
