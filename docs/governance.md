@@ -1283,6 +1283,23 @@ privileged mutation land unaudited.
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.
 
+The trail keeps itself honest, too. Every entry joins a per-organization hash
+chain — each carries a hash over its own contents with the previous entry's hash
+folded in — so editing, reordering, inserting or deleting any entry diverges every
+hash after it.
+
+`agenticos cmd audit-verify` walks each chain, recomputes the hashes, and names
+the first entry that no longer matches; with no argument it checks every chain,
+including the deployment-wide one that holds the expiry sweep and operator
+commands, and exits non-zero if any chain fails. This is **detection, not
+prevention** — an operator with the database can still rewrite a row and recompute
+every hash after it — so a clean run is evidence of no tampering by anyone who did
+not also re-forge the chain, not proof the rows are immutable.
+
+Two audited writes for one organization cannot fork the chain: each appends under
+a per-organization lock, so they serialize into a single line rather than both
+extending the same head.
+
 An **impersonated** action names both. When an app admin acts as another account,
 the access token carries the administrator as an `act` claim; every entry that
 request records keeps `actor_user_id` as the account being acted as and adds
