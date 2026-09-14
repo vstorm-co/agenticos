@@ -62,8 +62,13 @@ nothing until one is relevant.
 | `e2e-tests` | Playwright journeys and seeded fixtures |
 | `frontend-feature` | Pages, data layer, stores, i18n, permission-hiding |
 | `project-docs` | The mkdocs site, diagrams, icons, `--strict` |
+| `dev-agent` | Requirements → design → tests → review → implement → review, detecting this repo's own commands |
+| `pr-comments` | Fetching and systematically addressing PR review threads |
+| `pr-description` | Writing a consistent, structured PR description from a diff |
+| `resolve-changelog-conflict` | A `CHANGELOG.md` merge conflict, detecting this repo's own entry format |
 | `review-map` | A private visual PR walkthrough for a reviewer, projected onto the architecture map |
 | `ste-writing` | Rewriting prose — docs, PR descriptions, error messages — into plain, controlled English |
+| `vstorm-code-review` | The multi-stage, convergent code-review pipeline (`/vstorm-code-review`) |
 
 ## Keeping this honest
 
