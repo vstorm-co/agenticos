@@ -421,10 +421,16 @@ ignore = [
 known-first-party = ["app", "cli"]
 
 [tool.ty.terminal]
-# The "warn" rules below are informational — don't let them fail `ty check`.
-# The platform-layer override further down promotes them back to errors for our
-# own code, and those do fail the run.
-error-on-warning = false
+# The "warn" rules below are downgraded because the template's own, untyped-by-
+# design dependencies trip them - not because a finding there is safe to ignore.
+# `error-on-warning = true` means a warning gates the run exactly like an error
+# does; the platform-layer override further down still promotes the same rules
+# to `error` for our own code, so a violation there is the more severe
+# annotation (red, not yellow) even though both now fail the run the same way.
+# `false` here is what let 61 warning-level diagnostics exit 0 and look
+# identical to a clean run - green check, no annotation, nothing distinguishing
+# the two.
+error-on-warning = true
 
 [tool.ty.environment]
 python-version = "3.12"
