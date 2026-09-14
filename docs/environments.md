@@ -78,11 +78,20 @@ because the two are genuinely different projects.
 
 Where the traces go is the environment's; *how much they carry* is the agent's.
 An agent's [observability](reference/spec.md#observability) block has a `content`
-mode: `full` records the message, the model's output and every tool argument;
-`none` records timing, tokens, cost and tool names only. For a project over
-health, legal or HR data, `none` is what keeps a copy of the protected content
-from leaving the machine. The environment's token redirects the run but does not
-override that choice.
+mode:
+
+- `full` records the message, the model's output and every tool argument.
+- `none` records timing, tokens, cost and tool names only.
+- `redacted` records the content but runs it through the deployment's PII filter
+  first, so a span keeps the shape of the exchange while an email, a token or a
+  key is scrubbed before it leaves for Logfire.
+
+For a project over health, legal or HR data, `none` keeps every copy of the
+protected content off the machine, and `redacted` is the middle ground that
+keeps a debuggable trace without the raw PII. `redacted` needs the agent's own
+token, though — without a project to send the scrubbed trace to, it falls back
+to suppressing content as `none` would. The environment's token redirects the
+run but does not override the choice of how much it carries.
 
 ## What the default environment is not
 
