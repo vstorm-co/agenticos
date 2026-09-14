@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.audit import chain_hash
 from app.core.permissions import AuthContext, OrgRoleName
 from app.services.audit import AuditService
 
@@ -134,3 +135,126 @@ async def test_an_organization_with_no_entries_answers_empty() -> None:
 
     assert page.items == []
     assert page.total == 0
+
+
+def _linked_chain(organization_id: uuid.UUID | None, count: int) -> list[MagicMock]:
+    """A correctly linked chain of `count` entries, hashed the way `record_audit`
+    would have hashed them - so an untouched one verifies and a test can then break
+    exactly one entry."""
+    entries: list[MagicMock] = []
+    created_at = datetime(2026, 1, 1, tzinfo=UTC)
+    prev_hash: str | None = None
+    for index in range(count):
+        entry = MagicMock()
+        entry.id = uuid.uuid4()
+        entry.seq = index + 1
+        entry.actor_user_id = uuid.uuid4()
+        entry.impersonator_user_id = None
+        entry.organization_id = organization_id
+        entry.action = f"action.{index}"
+        entry.target_type = None
+        entry.target_id = None
+        entry.details = None
+        entry.ip_address = None
+        entry.created_at = created_at
+        entry.prev_hash = prev_hash
+        entry.entry_hash = chain_hash(
+            prev_hash=prev_hash,
+            actor_user_id=entry.actor_user_id,
+            impersonator_user_id=None,
+            organization_id=organization_id,
+            action=entry.action,
+            target_type=None,
+            target_id=None,
+            details=None,
+            ip_address=None,
+            created_at=created_at,
+        )
+        prev_hash = entry.entry_hash
+        entries.append(entry)
+    return entries
+
+
+async def test_an_intact_chain_verifies_with_no_break() -> None:
+    org = uuid.uuid4()
+    with patch(
+        "app.services.audit.audit_log_repo.chain_for_org",
+        new=AsyncMock(return_value=_linked_chain(org, 4)),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is None
+    assert result.entries_checked == 4
+    assert result.organization_id == org
+
+
+async def test_an_empty_chain_verifies() -> None:
+    with patch("app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=[])):
+        result = await AuditService(MagicMock()).verify_chain(uuid.uuid4())
+
+    assert result.first_break is None
+    assert result.entries_checked == 0
+
+
+async def test_a_rewritten_entry_is_caught_by_its_own_hash() -> None:
+    """Editing a field leaves the stored `entry_hash` describing the old contents,
+    so recomputing over the new contents diverges - and the walk names that row."""
+    org = uuid.uuid4()
+    entries = _linked_chain(org, 4)
+    entries[2].action = "action.tampered"
+
+    with patch(
+        "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.seq == entries[2].seq
+    assert result.first_break.entry_id == entries[2].id
+    assert "entry_hash" in result.first_break.reason
+    assert result.entries_checked == 3
+
+
+async def test_a_broken_link_is_caught_by_prev_hash() -> None:
+    """A deleted or reordered entry leaves the next one's `prev_hash` pointing at a
+    hash the walk never arrives with."""
+    org = uuid.uuid4()
+    entries = _linked_chain(org, 4)
+    entries[2].prev_hash = "0" * 64
+
+    with patch(
+        "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.seq == entries[2].seq
+    assert "prev_hash" in result.first_break.reason
+    assert result.entries_checked == 3
+
+
+async def test_verify_all_walks_every_chain_with_the_deployment_chain_first() -> None:
+    org_a, org_b = uuid.uuid4(), uuid.uuid4()
+    chains = {
+        None: _linked_chain(None, 1),
+        org_a: _linked_chain(org_a, 2),
+        org_b: _linked_chain(org_b, 3),
+    }
+
+    async def _chain_for_org(_db: object, *, organization_id: uuid.UUID | None) -> list[MagicMock]:
+        return chains[organization_id]
+
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.distinct_organization_ids",
+            new=AsyncMock(return_value=[org_a, None, org_b]),
+        ),
+        patch("app.services.audit.audit_log_repo.chain_for_org", new=_chain_for_org),
+    ):
+        results = await AuditService(MagicMock()).verify_all_chains()
+
+    assert [result.organization_id for result in results] == [
+        None,
+        *sorted([org_a, org_b], key=str),
+    ]
+    assert all(result.first_break is None for result in results)
