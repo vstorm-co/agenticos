@@ -7,14 +7,18 @@ chain, recomputes every entry's hash, and reports the first entry whose stored h
 no longer matches its contents or no longer links to the entry before it.
 
 It exits non-zero when any chain fails, so it can run in a scheduled job or a
-provisioning check and fail loudly rather than in a report nobody reads. What it
-proves is detection, not prevention: an operator with the database can rewrite a
-row and recompute every hash after it, so a clean run means no tampering by anyone
-who did not also re-forge the chain - not that the database is immutable. It is
-also blind to two deletions the surviving rows stay consistent under: dropping the
-newest entries from a chain, and deleting an organization's chain outright (which
-just removes it from the set walked). Catching either needs a terminal checkpoint
-kept outside this table, which is left as a follow-up.
+provisioning check and fail loudly rather than in a report nobody reads. The two
+deletions the hash walk cannot see on its own - the newest entries dropped, and a
+whole chain deleted - are caught by comparing each chain against its checkpoint
+(`app_admin_audit_checkpoints`, #1648): a head behind the recorded high-water mark,
+or a checkpoint with no chain at all.
+
+What it proves is detection, not prevention: an operator with the database can
+rewrite a row and recompute every hash after it, and a Postgres superuser can drop
+the checkpoint's guard trigger and delete both the entries and the checkpoint - so
+a clean run means no tampering by anyone who did not also defeat those, not that the
+database is immutable. Closing the superuser gap needs a checkpoint kept outside
+this database, which #1648 tracks as the next step.
 """
 
 from __future__ import annotations
