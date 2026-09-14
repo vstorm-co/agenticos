@@ -44,6 +44,7 @@ import {
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
   rowsForEntries,
+  slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
 import { useTranslations } from "next-intl";
@@ -76,17 +77,21 @@ function categoryLabel(category: string): string {
 /**
  * A name nothing in this scope holds yet, for a second account on one server.
  *
- * The entry's own key first, because that is the ordinary case and reads
- * best; then `-2`, `-3` and so on. A name is unique per organization and
- * becomes the tool prefix, so seeding one already taken made the form's first
- * submit a guaranteed conflict.
+ * A slug of the entry's key first (the name, not the namespace it lives in - so
+ * `com.snitcher/snitcher` seeds `snitcher`, which the tool-prefix pattern accepts,
+ * #1628); then `-2`, `-3` and so on. A name is unique per organization and becomes
+ * the tool prefix, so seeding one already taken made the form's first submit a
+ * guaranteed conflict, and each suffixed candidate stays within the pattern's 32.
  */
 function freeName(row: McpServerRow, taken: Set<string>): string | undefined {
-  const base = row.entry?.key;
-  if (base === undefined) return undefined;
+  const key = row.entry?.key;
+  if (key === undefined) return undefined;
+  const base = slugForPrefix(key);
+  if (base === "") return undefined;
   if (!taken.has(base)) return base;
   for (let n = 2; ; n += 1) {
-    const candidate = `${base}-${n}`;
+    const suffix = `-${n}`;
+    const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
     if (!taken.has(candidate)) return candidate;
   }
 }
@@ -347,7 +352,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     }
     if (requestedRow.auth !== "oauth") return;
     const taken = new Set(personal.connections.map((connection) => connection.name));
-    const name = freeName(requestedRow, taken) ?? connectKey;
+    const name = freeName(requestedRow, taken) ?? slugForPrefix(connectKey);
     startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
       .then(({ authorization_url }) => window.location.assign(authorization_url))
       .catch((caught: unknown) =>

@@ -1,5 +1,5 @@
 ---
-source_sha: "5740161792de"
+source_sha: "ea642dfad774"
 ---
 
 # Governance { #governance }
@@ -870,6 +870,17 @@ und außerhalb davon nicht, schickt Menschen in die Datenbank.
 | `GET /runs/export` | Die Run-Historie, dieselben Filter wie `GET /runs` und dieselbe Voreinstellung nur oberste Ebene. `runs:view` |
 | `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | Die Ausgaben-Aufschlüsselung je Agent, dasselbe Fenster wie `GET /spend`. `runs:view` |
+| `GET /audit/export` | Die Audit-Spur über ein Fenster, CSV oder JSONL (`?fmt=`). `audit:read` |
+
+Der Audit-Export ist der einzige, der auch **JSONL** anbietet (`?fmt=jsonl`),
+ein JSON-Objekt pro Zeile, weil eine Audit-Spur ebenso oft von einer
+Log-Pipeline eingelesen wie in einer Tabelle geöffnet wird; beide beschreiben
+dieselben Einträge, mit `details` als JSON-String in der CSV-Zelle und als
+verschachteltes Objekt in den Zeilen. Er liefert genau die Felder, die das
+Lesemodell von `GET /audit` zeigt — die gespeicherte `ip_address` steht nicht auf
+diesem Tab und daher auch nicht im Export — und hält wie jeder Export hier seinen
+eigenen Abruf in der Spur fest (`audit.export`, mit Fenster, Format und
+Zeilenzahl).
 
 Der Ausgaben-Export trägt nur die Zahlen des Fensters — `cost_usd`, `run_count`
 und `partial_run_count`. `month_to_date_usd` und `monthly_cap_usd` des Spend-Tabs

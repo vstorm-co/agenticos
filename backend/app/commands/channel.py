@@ -24,7 +24,7 @@ pointed at it.
 
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import click
@@ -160,7 +160,7 @@ def channel_add_bot(
     platform: str,
     name: str,
     token: str,
-    mode: str,
+    mode: Literal["open", "whitelist", "jwt_linked", "group_only"],
     org_id: str | None,
     api_base_url: str | None,
     webhook_secret: str | None,

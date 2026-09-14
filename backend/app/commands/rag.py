@@ -229,6 +229,9 @@ async def ingest_path_async(
                     success_count += 1
                     if result.message and "replaced" in result.message:
                         replaced_count += 1
+                    # `ingest_file` only sets `document_id` on the branch that
+                    # returns `DONE` - the two travel together in `IngestionResult`.
+                    assert result.document_id is not None
                     async with get_db_context() as db:
                         await RAGDocumentService(db).complete_ingestion(
                             doc_id,
@@ -541,12 +544,12 @@ def rag_sources() -> None:
             svc = SyncSourceService(db)
             sources = await svc.list_sources()
 
-            if not sources:
+            if not sources.items:
                 info("No sync sources configured.")
                 return
 
-            click.echo(f"\nFound {len(sources)} sync source(s):\n")
-            for s in sources:
+            click.echo(f"\nFound {sources.total} sync source(s):\n")
+            for s in sources.items:
                 status_str = s.last_sync_status or "never"
                 active_str = "active" if s.is_active else "inactive"
                 click.echo(f"  [{active_str}] {s.name} (id={s.id})")
@@ -767,11 +770,11 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
 
             if sync_all:
                 sources = await svc.list_sources(is_active=True)
-                if not sources:
+                if not sources.items:
                     warning("No active sync sources found.")
                     return
-                info(f"Triggering sync for {len(sources)} active source(s)...")
-                for s in sources:
+                info(f"Triggering sync for {sources.total} active source(s)...")
+                for s in sources.items:
                     try:
                         log = await svc.trigger_sync(str(s.id))
                         triggered += 1

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.416"
+version = "0.0.428"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -546,6 +546,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
@@ -630,6 +634,7 @@ include = [
     "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",
@@ -809,6 +814,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
@@ -926,6 +935,7 @@ include = [
     "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",

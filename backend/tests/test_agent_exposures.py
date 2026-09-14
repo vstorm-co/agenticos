@@ -15,14 +15,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.agents.capabilities import CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_exposure import ExposureSurface
 from app.schemas.agent_exposure import ExposureCreate, ExposureUpdate
-from app.services.agent_exposure import AgentExposureService
+from app.services.agent_exposure import AgentExposureService, _description_for, _prose
 from app.services.agent_runner import _with_channel_tools, _with_exposure_prompt
+from app.services.capability_contracts import ToolContract, tool_contracts
 
 pytestmark = pytest.mark.anyio
 
@@ -652,6 +654,54 @@ class TestWhatANewBindingStartsWith:
         ).instructions == "x"
 
 
+class TestDescriptionForALookup:
+    """`_description_for` - the real description, defended and stripped.
+
+    Below the service, and below the caching in `tool_contracts` - a `dict` a
+    test builds by hand, so a fallback or a stripping rule that only worked by
+    accident of what `channel_tools` happens to declare today shows up here
+    rather than staying invisible behind the one real capability every other
+    test in this file exercises it through.
+    """
+
+    @staticmethod
+    def _tool() -> CapabilityToolInfo:
+        return CapabilityToolInfo(id="a_lookup", description="Catalog blurb.")
+
+    def test_no_contract_at_all_falls_back_to_the_catalog_blurb(self):
+        assert _description_for(self._tool(), {}) == "Catalog blurb."
+
+    def test_a_contract_with_an_empty_description_falls_back_too(self):
+        """A missing key and an empty value must refuse the lookup the same
+        way - a tool with no docstring is exactly the one that most needs the
+        catalog's blurb, not a blank checkbox label."""
+        contracts = {"a_lookup": ToolContract(description="", parameters={})}
+
+        assert _description_for(self._tool(), contracts) == "Catalog blurb."
+
+    def test_a_wrapped_description_is_unwrapped_to_its_prose(self):
+        """`<summary>`/`<returns>` is structure for the model, not for a
+        person deciding whether to grant the tool."""
+        contracts = {
+            "a_lookup": ToolContract(
+                description=(
+                    "<summary>Real sentence.\n\nMore prose.</summary>\n"
+                    "<returns>\n<description>the answer's shape</description>\n</returns>"
+                ),
+                parameters={},
+            )
+        }
+
+        assert _description_for(self._tool(), contracts) == "Real sentence.\n\nMore prose."
+
+    def test_a_description_with_no_returns_section_passes_through_unchanged(self):
+        contracts = {
+            "a_lookup": ToolContract(description="Plain prose, no wrapper.", parameters={})
+        }
+
+        assert _description_for(self._tool(), contracts) == "Plain prose, no wrapper."
+
+
 class TestWhatTheAgentMayLookUpHere:
     """Per bound bot, not per agent.
 
@@ -745,9 +795,51 @@ class TestWhatTheAgentMayLookUpHere:
 
     async def test_the_form_reads_the_registry_s_own_words(self):
         """The sentence somebody reads while deciding to grant a tool is the one
-        the model reads before deciding to call it - not a second paraphrase."""
+        the model reads before deciding to call it - not a second, shorter
+        paraphrase (#1473): the catalog's hand-typed one-liner is not what is
+        asserted here, the real contract is."""
         service = _service()
         with patch("app.services.agent_exposure.agent_exposure_repo") as exposures:
+            exposures.list_for_agent = AsyncMock(return_value=[self._exposure("slack")])
+            service._bot_names = AsyncMock(return_value={})
+
+            (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
+
+        contracts = (await tool_contracts())["channel_tools"]
+        real = {
+            tool.id: _prose(contracts[tool.id].description)
+            for tool in get_capability("channel_tools").tools
+        }
+        assert {tool.id: tool.description for tool in slack.available_tools} == real
+
+    async def test_the_lookups_list_strips_the_markup_the_model_reads_and_a_person_should_not(
+        self,
+    ):
+        """`<summary>`/`<returns>` structure a tool's text for the model - every
+        `channel_tools` lookup has a `Returns:` section, so without stripping
+        this a person deciding whether to grant `read_channel_history` would
+        see literal XML tags instead of a sentence."""
+        service = _service()
+        with patch("app.services.agent_exposure.agent_exposure_repo") as exposures:
+            exposures.list_for_agent = AsyncMock(return_value=[self._exposure("slack")])
+            service._bot_names = AsyncMock(return_value={})
+
+            (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
+
+        assert slack.available_tools, "nothing to assert the absence of markup on"
+        for tool in slack.available_tools:
+            assert "<summary>" not in tool.description
+            assert "<returns>" not in tool.description
+
+    async def test_a_capability_whose_contract_failed_falls_back_to_the_catalog_blurb(self):
+        """`capability_contracts.tool_contracts` logs and skips a capability it
+        cannot build (an empty dict, not a raise) - the lookup must still carry
+        a description rather than come back blank."""
+        service = _service()
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.tool_contracts", new=AsyncMock(return_value={})),
+        ):
             exposures.list_for_agent = AsyncMock(return_value=[self._exposure("slack")])
             service._bot_names = AsyncMock(return_value={})
 
