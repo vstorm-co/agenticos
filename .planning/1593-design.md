@@ -890,3 +890,588 @@ correctness fix; M2 is a scope-confirmation gate; M3/M4 close usability and roll
 gaps; L5/L6 are documentation duties). **Still design-only** — this round amends
 design sections and adds test-surface bullets; it adds no implementation plan, task
 breakdown or production code.
+
+---
+
+## 9. Implementation plan
+
+Sections 1–8 are settled. This section turns them into an ordered, file-level plan.
+It is grounded in the code as it stands on `feat/1593-rag-metadata-filters`
+(migration head `0077_drop_allow_byo`, verified). It adds **no production code** —
+it is the plan the implementation PR(s) will follow.
+
+### 9.0 Preconditions / open decisions (resolve before coding)
+
+These gate the work; none is a code change, and two would change scope.
+
+- **P1 — `document_type` meaning (self-review M2).** Confirm with the issue owner
+  whether #1593's "document type" means the stored **filetype/mime** string (the
+  portable technical canonical this design adopts) or a **semantic** class
+  (contract/invoice/policy). *Plan proceeds on the mime/filetype decision.* If
+  semantic typing is required, it becomes a separate `document_category` dimension
+  (new business metadata + a populate story) — a scope increase to be re-planned, not
+  silently satisfied by mime.
+- **P2 — pgvector version.** Iterative index scan (the H1 mitigation, 9.2) requires
+  **pgvector ≥ 0.8.0**. Confirm the repository's pgvector-enabled Postgres image ships
+  it (`SELECT extversion FROM pg_extension WHERE extname='vector'`); if not, the image
+  bump is a prerequisite of Phase 2, and the fallback (raised `ef_search` only, 9.2)
+  ships until then.
+- **P3 — backfill as its own issue (self-review M4).** The tenant backfill (Phase 6)
+  is materially larger and riskier than the filter work and should be split into its
+  own `effort:l` sub-issue under FA-039 with its own review. Confirm the split;
+  Phase 6 is written so it can be lifted out whole.
+- **P4 — per-document ACL boundary (R3/2.7).** Confirm #1593's acceptance criteria do
+  **not** require per-document permission filtering inside FA-039 (that is FA-037).
+  If they do, that is a scope escalation to raise, not silently added here.
+
+### 9.1 Phase 1 — schema & metadata contract (foundational; blocks 2/3/4/5)
+
+The typed contract every other phase imports. No behaviour change on its own.
+
+- **`app/services/rag/models.py`**
+  - Add a `VectorDocumentId = NewType("VectorDocumentId", str)` (R6): the parser
+    `Document.id` / chunk `parent_doc_id`, distinct from the `RAGDocument.id` UUID.
+    Use it in the filter/scope signatures so the namespaces cannot be compared by
+    accident.
+  - Extend `DocumentMetadata` with **typed, optional** fields:
+    `organization_id: str | None = None`, `source: str | None = None`,
+    `document_type: str | None = None`, `organizational_unit: str | None = None`,
+    `doc_date: str | None = None` (ISO `YYYY-MM-DD`). Because
+    `PgVectorStore._build_chunk_metadata` already does `**document.metadata.model_dump()`,
+    these are written per chunk with **no change to the write path**. (Adding optional
+    fields keeps existing stored JSONB readable — the `rag-knowledge` JSONB rule.)
+- **New module `app/services/rag/filters.py`** (keeps the store off `app/schemas`, and
+  keeps the security types out of the caller-facing schema layer):
+  - `RetrievalFilters(BaseModel)` — business filters, `model_config =
+    ConfigDict(extra="forbid")` (R9; the repo `BaseSchema` does **not** forbid extras,
+    verified in `schemas/base.py` via the rule doc). Fields per §2.1:
+    `source`, `document_type`, `organizational_unit` as `list[str] | None`,
+    `date_from`/`date_to` as `date | None`, `parent_doc_id: VectorDocumentId | None`.
+    Validators: reject an **empty** list on any list field (tri-state, R1) via
+    `refused_field(...)`/`field_errors`; `date_from <= date_to`; `document_type`
+    against the closed filetype/mime vocabulary (P1). **No** `organization_id` /
+    authorization field — structurally inexpressible.
+  - `RetrievalScope` — a **discriminated scoped/unscoped type** (codex-3 M9): the
+    `Tenant` variant carries `organization_id: UUID` (non-null by construction) and
+    `authorized_document_ids: frozenset[VectorDocumentId] | None` (FA-037 slot; `None`
+    = not applied, populated-empty = match-nothing, R1); the `Unscoped` variant is the
+    single maintenance marker (2.2). Constructed only from ctx/deps; the store raises
+    on a `Tenant` built with a null org and there is no third "implicitly unscoped"
+    state. Enumerate the authorized constructors (API route, agent tool, the named
+    CLI/app-admin path) so the `Unscoped` variant has exactly those call sites.
+  - **`AgentDeps.organization_id` is `UUID | None` today** — the tool boundary (9.4)
+    refuses to build a `Tenant` scope when it is `None` rather than silently widening.
+  - `RetrievalQuery(BaseModel)` — the composed object the store receives:
+    `scope: RetrievalScope` + `filters: RetrievalFilters`. Composition helper lives
+    here (service calls it; store consumes it).
+- **`app/schemas/rag.py`** — `RAGSearchRequest` drops the scalar `filter: str` field
+  and gains `filters: RetrievalFilters | None`. Keep a **deprecated** `filter: str |
+  None` for the L5 shim window (9.4).
+
+- **Coverage gate for `filters.py` (codex-3 H8).** This module is the trust-boundary
+  validation (narrowing-only, `extra="forbid"`, empty-denies-all), so it is **platform
+  security code and goes under the 100% gate** — unlike the template-inherited rest of
+  `app/services/rag/*`. Add `app/services/rag/filters.py` to `PLATFORM_MODULES` in
+  `backend/tests/test_coverage_gate.py`, to `[tool.coverage.run] include`, and to the
+  matching `[[tool.ty.overrides]] include`, **in the same order** (the gate contract).
+
+*Tests (Phase 1):* under the gate for `filters.py` — empty-list rejection;
+`date_from > date_to` rejection; unknown `document_type` rejection; an
+unknown/`organization_id` key rejected by `extra="forbid"`; `VectorDocumentId` typing
+does not coerce a relational UUID silently; the `Tenant`/`Unscoped` discriminator; a
+`Tenant` with null org refused.
+
+### 9.2 Phase 2 — store layer (depends on 1; blocks 3)
+
+All in `app/services/rag/vectorstore.py` plus one migration-side helper (9.6).
+
+- **`BaseVectorStore.search` signature (line ~64) and `PgVectorStore.search`
+  (line ~505):** replace the bare `parent_doc_id: str | None` /
+  `organization_id: UUID | None` params with a single `query_filter: RetrievalQuery`
+  (name kept distinct from the text `query`). The store owns the translation to SQL;
+  the service builds no SQL (2.6/M7).
+- **WHERE translation (`PgVectorStore.search`):** build parameterized conjuncts from
+  `RetrievalQuery`, all values bound (only the already-validated table name is
+  interpolated — the store's existing S608 rule):
+  - tenant (mandatory, from scope): `metadata->>'organization_id' = :org`. A **null
+    scope or null `organization_id` raises** a domain error (C1) — no unscoped
+    fallback. The one exception is an explicit `unscoped=True` marker on
+    `RetrievalScope` reachable only from the maintenance CLI (2.2), asserted by test.
+  - `authorized_document_ids`: when populated, `parent_doc_id = ANY(:authz)`;
+    populated-empty ⇒ a predicate that matches nothing (`false`); intersected with the
+    business `parent_doc_id` (M5).
+  - `source`/`document_type`/`organizational_unit`: `metadata->>'X' = ANY(:list)`.
+  - date: `rag_safe_to_date(metadata->>'doc_date') BETWEEN :from AND :to` (each bound
+    applied only when present; missing/malformed ⇒ NULL ⇒ fails closed, R7).
+  - `parent_doc_id`: existing `parent_doc_id = :doc_id`.
+- **H1 HNSW filtered-ANN recall mitigation — concrete choice (self-review H1):**
+  enable **pgvector iterative index scan**, set **per statement** so unfiltered paths
+  are untouched, inside the same session before the `SELECT`:
+  ```
+  SET LOCAL hnsw.iterative_scan = 'relaxed_order';
+  SET LOCAL hnsw.max_scan_tuples = 20000;   -- bounded ceiling
+  SET LOCAL hnsw.ef_search = 100;            -- raised from the default 40
+  ```
+  Rationale for the pick over the alternatives in §2.3: a **per-tenant partial index**
+  is rejected because tenants are created dynamically and unboundedly — one partial
+  HNSW index per org on a shared runtime table is unmanageable and unbuildable at
+  tenant-creation time. Dropping the ANN index (exact scan) is rejected on latency
+  (§2.3). Iterative scan makes the scan keep expanding past `ef_search` until it has
+  `k` rows that satisfy the (selective, mandatory) tenant conjunct or hits
+  `max_scan_tuples`; the raised `ef_search` is the fallback that ships if P2 shows
+  pgvector < 0.8. Config surfaced as `RAGSettings` knobs so a deployment can tune the
+  recall/latency trade-off. **Requires P2.**
+  - **The guarantee is *bounded*, not unconditional (codex-3 H4).** `max_scan_tuples`
+    is a real ceiling, so the recall claim and its test are "a full in-scope top-k up
+    to the configured scan ceiling", not "always `k`". `SET LOCAL` is
+    **transaction-local** (the search runs in its own session/transaction, which is
+    how the unfiltered paths stay unaffected), not literally per-statement.
+    `relaxed_order` does not guarantee exact distance order, so results are
+    **re-sorted by score in the store** after fetch. Because P2 (pgvector ≥ 0.8) is
+    what delivers the recall property, if iterative scan is required for acceptance the
+    image bump is a **hard prerequisite** and the `ef_search`-only path is a
+    stopgap that does not claim the same recall.
+- **Indexes in `_ensure_collection` (line ~396), mirroring the existing hash-index
+  loop (line ~432):**
+  - equality dimensions (`organization_id`, `source`, `document_type`,
+    `organizational_unit`): `CREATE INDEX IF NOT EXISTS … USING hash
+    ((metadata->>'X'))` — same shape and reasoning as the existing `source_path`/
+    `filename`/`content_hash` hash indexes (unbounded value length).
+  - date: a **partial btree** on the identical safe expression —
+    `CREATE INDEX IF NOT EXISTS … ((rag_safe_to_date(metadata->>'doc_date'))) WHERE
+    rag_safe_to_date(metadata->>'doc_date') IS NOT NULL` — so the index build cannot
+    raise on a bad legacy row (R7). Predicate and index use the **same** function.
+  - The `rag_safe_to_date` function is **not** created here (codex-3 H5): a search of
+    an existing collection never calls `_ensure_collection`, so relying on it would
+    emit the date predicate against a missing function. The function is created by a
+    **prerequisite migration that precedes any code emitting the date predicate**
+    (9.6, split from the backfill), so the application role never runs
+    `CREATE FUNCTION` at request time. `_ensure_collection` still owns the per-table
+    indexes.
+- **Tenant conjunct on every other row-level op (§2.3/R2) — the same `organization_id`
+  predicate threaded through:**
+  - `delete_document` (line ~601): `DELETE … WHERE parent_doc_id = :id AND
+    metadata->>'organization_id' = :org`.
+  - `get_documents` (line ~611) and the count in `get_collection_info` (line ~591):
+    add the tenant conjunct.
+  - `get_document_chunks` (line ~709): add the tenant conjunct.
+  - `find_existing_document` / `_first_document` (lines ~634/~679): add
+    `metadata->>'organization_id' = :org` to **every** lookup branch — this is the
+    replace/dedup path and the highest-risk write clobber (R2).
+  - `insert_document`'s `ON CONFLICT (id) DO UPDATE` (line ~486) is a row-level write:
+    give it a **tenant-safe conflict policy** so an id collision cannot overwrite a
+    chunk owned by another org (codex-3 C2). Chunk ids are uuid4 so collision is
+    astronomically unlikely, but the policy is stated rather than assumed.
+  - These methods take a `RetrievalScope` (not a bare nullable UUID — codex-3 C2/M9),
+    which is the discriminated scoped/unscoped type defined in Phase 1; CLI/maintenance
+    passes the explicit unscoped marker (2.2).
+- **Every caller of a now-scoped store method must be updated to supply trusted scope
+  (codex-3 C2) — the complete list, verified:**
+  - `get_document_list` (line ~107) → the `/collections/{name}/documents` route
+    (`rag.py` `list_documents`, line ~233): thread `ctx.organization_id`.
+  - `IngestionService.remove_document` (`ingestion.py` line ~229) → the RAG delete
+    routes.
+  - `RAGDocumentService.delete_document` (`rag_document.py` line ~464) and its
+    background `remove_document` cleanup (line ~506).
+  - `RAGDocumentService.get_parsed_content` (line ~540) → `get_document_chunks`
+    (line ~565).
+  - Worker local-sync and connector-sync calls to `existing_document` / `ingest_file`
+    (`rag_tasks.py`) — local sync passes the **unscoped** marker (R5), connector sync
+    the KB's org.
+  - Legacy connector-base and CLI ingest/search/stats/delete paths — the explicit
+    maintenance marker.
+  - The reference `BaseVectorStore.find_existing_document` (line ~124), which delegates
+    to `get_documents` — scope threaded through both.
+  - The new facet method (9.4) takes the same `RetrievalScope`, not a nullable UUID.
+- **`_build_chunk_metadata` (line ~181):** no change needed for business fields (they
+  ride `model_dump()`), but assert `organization_id` is present when the ingest is
+  tenant-scoped (9.5 stamps it upstream; the store does not invent it).
+
+*Tests (Phase 2, integration with real Postgres — `test-integration`, explicit
+named):* WHERE translation per dimension; combined AND/OR; cross-tenant denial on a
+shared-named table; **cross-tenant write-clobber** denial (R2); impossible date
+`2025-99-99` excluded and never 500s, index build tolerates it (R7); **H1 recall** —
+a small-tenant filter returns a full in-scope top-k when that many rows exist;
+null-scope raises; unscoped marker reachable only by the maintenance path. The **H1
+recall test must force the HNSW path** (a corpus large enough that the planner picks
+the index, verified with `EXPLAIN`, not a tiny table that sequential-scans and passes
+vacuously) and assert a full in-scope top-k **up to the configured scan ceiling**
+(codex-3 H4), plus that results come back in score order after the `relaxed_order`
+re-sort.
+
+### 9.3 Phase 3 — retrieval service (depends on 2)
+
+All in `app/services/rag/retrieval.py`.
+
+- **Compose once:** `retrieve` builds a `RetrievalQuery` from the passed
+  `RetrievalScope` + `RetrievalFilters` and hands it to `store.search`. Replace the
+  `filter: str` param + `_parent_doc_id_from_filter` regex (lines 18–32) with typed
+  inputs. `BaseRetrievalService.retrieve`/`retrieve_multi` abstract signatures change
+  accordingly.
+- **`_bm25_search` fix (lines 97–128):** thread the same `RetrievalQuery` into its
+  `store.search` call so its candidate corpus is pre-filtered (closes the tenant +
+  business-filter gap on the hybrid path in one change). **Remove the unscoped
+  `store.get_documents(collection_name)` probe (line 100)** or replace it with the
+  scoped candidate check (R8/2.6) — on a shared table that probe reads across tenants.
+  Rename/docstring `_bm25_search` to say it **reranks filtered vector candidates**,
+  not corpus-wide keyword search (H3).
+- **`retrieve_multi` (lines 226–267):** take **both** `RetrievalFilters` and
+  `RetrievalScope` and thread them to every collection's `retrieve` (H4) — today it
+  forwards no filter at all.
+- **Backend-neutral mode note (R8):** document in the service that every
+  candidate-producing query (vector or the BM25 rerank) takes scope+filters as
+  mandatory inputs, so no future backend can add a candidate source that skips
+  enforcement.
+
+*Tests (Phase 3, unit + integration, explicit named):* hybrid and non-hybrid return
+the same restricted set; `_bm25_search` regression (scope + `parent_doc_id` reach its
+`store.search`, fusion reintroduces no out-of-scope row); `retrieve_multi` carries
+scope to every collection; the removed probe no longer reads cross-tenant.
+
+### 9.4 Phase 4 — API + tool (depends on 1 & 3; the two sub-tasks are parallel)
+
+- **API route `app/api/routes/v1/rag.py::search_documents` (line ~249):**
+  - Build `RetrievalScope(organization_id=ctx.organization_id)` **after**
+    `access.readable_all(ctx, names)` (which already resolves collection access).
+  - Pass `request.filters` (business only) + the scope to `retrieve`/`retrieve_multi`.
+  - **L5 deprecation shim:** if the legacy `filter` string is present, accept **only**
+    a full-match `parent_doc_id == "<id>"` (exact grammar: the whole trimmed string
+    matches `^parent_doc_id == "<id>"$`, no substring extraction) and map it to
+    `filters.parent_doc_id`; **reject any other string with 422** (R9) via
+    `refused_field`. **Conflict rule (codex-3 H7):** if **both** `filter` and
+    `filters.parent_doc_id` are supplied, reject with 422 rather than silently
+    overwriting one with the other (overwriting could widen the caller's intent) —
+    equal values included, so there is one unambiguous source. Mark the legacy field
+    deprecated in the generated OpenAPI schema; the removal is tracked by a named
+    follow-up issue with a usage-telemetry check before removal.
+- **M3 facet affordance:** add a tenant/collection-scoped read that returns the
+  distinct in-scope `source` and `organizational_unit` values (and, for the small
+  closed set, `document_type`). Concretely a `GET
+  /collections/{name}/filter-values` route (gated `COLLECTIONS_VIEW`, resolved via
+  `access.readable`) backed by a new store method
+  (`distinct_metadata_values(collection, keys, organization_id)` →
+  `SELECT DISTINCT metadata->>'X' … WHERE metadata->>'organization_id' = :org`). A
+  `RAGFilterValues` response schema in `app/schemas/rag.py`.
+- **Agent tool `app/agents/capabilities/knowledge/_toolset.py` + `_search.py`
+  (+ `_capability.py`):**
+  - Expose the **whitelisted** business filters as optional, typed tool parameters on
+    `search_documents` (`source`, `document_type`, `organizational_unit`, `date_from`,
+    `date_to`) so PydanticAI validates them; **do not** expose `parent_doc_id`
+    (§2.1). Assemble a `RetrievalFilters` inside the tool.
+  - Build `RetrievalScope` from `ctx.deps.organization_id` (never from parameters);
+    thread it and the filters through `search_knowledge_base` →
+    `retrieve`/`retrieve_multi`.
+  - **Discoverability for the model (M3) — one concrete choice (codex-3 M10):** add a
+    **second whitelisted tool operation** `list_filter_values` on the knowledge
+    toolset that returns the distinct in-scope `source`/`organizational_unit` values
+    (scope from deps, keys whitelisted so they can never become SQL fragments) — the
+    toolset is built synchronously and cannot embed tenant-specific facet data in a
+    static description, so a runtime tool call is the honest shape. (Rejected
+    alternatives: a static enum in the description — the values are tenant/collection
+    dependent; a dynamic description at run setup — extra resolution per run for data
+    the model rarely needs.)
+  - `KnowledgeConfig`/`Knowledge` (`_capability.py`) unchanged unless the facet set is
+    made configurable; if a spec field is touched, follow the `agent-spec` skill
+    (SPEC_VERSION). Default plan: **no spec change** (filters are runtime tool args,
+    not spec).
+- **Frontend (codex-3 H7/C3):** `frontend/src/lib/rag-api.ts` still types the search
+  request with `filter?: string` only — update it to the `filters` object (and drop or
+  deprecate `filter`), following `.claude/rules/frontend.md`; add the vitest coverage
+  the frontend gate expects.
+
+*Tests (Phase 4):* **tool/capability under the 100% gate** (`app/agents/**`) — filter
+args assembled correctly, scope built from deps not params, business filter cannot set
+tenant, `parent_doc_id` not offered to the model, discoverability values surfaced.
+**API** (`tests/api`, anyio) — `filters` narrow correctly; `extra="forbid"` rejects an
+`organization_id` key (403/422); legacy non-`parent_doc_id` filter string 422s;
+cross-tenant denial through the route; facet endpoint tenant-scoped and omits absent
+values (M3).
+
+### 9.5 Phase 5 — ingestion write path (depends on 1 **and 2**)
+
+Depends on Phase 2 as well as Phase 1 (codex-3 C1): the replace/dedup path calls the
+now-scoped `find_existing_document`/`delete_document` signatures.
+
+- **`app/services/rag/ingestion.py::ingest_file`:** accept the trusted
+  `organization_id` and business metadata (`source`, `document_type`,
+  `organizational_unit`, `doc_date`) and stamp them onto `document.metadata` **before**
+  `insert_document` (so `_build_chunk_metadata` carries them). `organization_id` is
+  **never** taken from the uploader's `ingestion` form or any model input.
+- **Per-source provenance mapping (codex-3 H6) — where each field is filled, so fields
+  do not silently stay `None`:**
+  - `document_type` = the existing stored `filetype`/mime (a pure derivation, computed
+    for every path; P1).
+  - `source` = a canonical origin string set at the call site: `upload`, the
+    connector's name (e.g. `gdrive`, `s3`), or `local` for the directory sync.
+  - `doc_date` (§2.4 precedence): upload → author/uploader-supplied date if the form
+    carries one, else file mtime; connector sync → the source file's modified time
+    (`app/services/rag/sources/base.py` `SourceFile` modified field, S3
+    `LastModified`, Drive `modifiedTime`); local sync → file mtime; **fallback**
+    ingestion time captured once in the worker. Timestamp → UTC → date → ISO string.
+  - `organizational_unit` = author/connector-supplied where present, else absent.
+  - Files touched: `sources/base.py` and the connector implementations (to expose the
+    modified time and origin), the upload schema/route if an author date/unit is
+    accepted, and every `ingest_file` caller in `rag_tasks.py`.
+- **`existing_document` / the replace path (lines ~66–89, ~125–166):** pass the
+  trusted `organization_id` into `find_existing_document` so the dedup lookup and the
+  subsequent `delete_document(existing_id)` cannot find/replace/delete another tenant's
+  document (R2).
+- **`app/worker/tasks/rag_tasks.py`:**
+  - `_run_ingestion` (line ~337) already reads the trusted
+    `record.organization_id` (from the `rag_documents` row) — thread it (and business
+    metadata derived from the connector/upload context) into `ingest_file`.
+  - **`doc_date` provenance (§2.4):** compute at ingestion as a pure calendar date —
+    author/uploader date, else source mtime/`LastModified`/`modifiedTime`, else
+    ingestion time — convert any timestamp to UTC first, then extract the date, store
+    ISO `YYYY-MM-DD`.
+  - **Local-sync path `_run_sync` (verified `SpendLedger()` with no org):** these
+    ingest with `organization_id=None` and stay **deployment-scoped** — no tenant
+    metadata, reachable only via the unscoped maintenance path, never tenant-scoped
+    search (R5). No attempt to invent a tenant.
+
+*Tests (Phase 5, integration, explicit named):* a tenant-scoped ingest stamps
+`organization_id` and business metadata on every chunk; an uploader-supplied
+`organization_id` in the `ingestion` form is ignored; the replace path scoped so it
+cannot delete another tenant's document; a local sync writes no `organization_id`;
+`doc_date` normalized to ISO from a source timestamp.
+
+### 9.6 Phase 6 — migration + tenant backfill (distinct workstream, P3/M4)
+
+Own `effort:l` sub-issue. Ships behind the ordered rollout so no window leaves
+untagged chunks searchable.
+
+**Migration numbering (codex-3 M11).** `0077_drop_allow_byo` is the current single head
+(verified), so the prerequisite-DDL migration is `0078_…` with
+**`down_revision = "0077_drop_allow_byo"`** (full-filename convention). `0078` is **not
+permanently reserved**: if the P3 split lands another migration first, regenerate the
+revision against the then-current head before merge.
+
+**Two migrations, not one (codex-3 H5), in this order:**
+
+1. **`0078_rag_metadata_prereqs`** — the global, additive DDL that must exist before
+   any code emits the date predicate or the scoped queries: `CREATE OR REPLACE
+   FUNCTION rag_safe_to_date(text)`, the new JSONB hash indexes and the partial date
+   btree on pre-existing collections. Alembic owns the global function (the app role
+   does not create functions at request time). This migration ships and is applied
+   **before** the read-enforcement flag is turned on.
+2. **`0079_rag_tenant_backfill`** — the operational tenant ownership backfill and the
+   degraded-state columns (below). Runs after dual-write is deployed and old workers
+   drained.
+
+- **DDL (safe/additive):**
+  - `CREATE OR REPLACE FUNCTION rag_safe_to_date(text) RETURNS date` — PL/pgSQL,
+    `IMMUTABLE`, parses ISO `YYYY-MM-DD` with `make_date(...)` inside a `BEGIN …
+    EXCEPTION WHEN others THEN RETURN NULL` block so `2025-99-99` and any non-date
+    yield NULL and it never raises and never depends on `DateStyle` (R7).
+  - Backfill the new JSONB hash indexes and the partial date btree on **pre-existing**
+    collections (same pattern as `0058_backfill_rag_lookup_indexes`), iterating the
+    runtime `rag_*` tables via the `app/db/vector_tables.py` predicate. `IF NOT EXISTS`
+    throughout.
+- **Tenant ownership backfill (security step, C2/R4) — positive join only:**
+  - Assign `metadata['organization_id']` **only** through a positive, unique join from
+    a chunk's `(collection_name, parent_doc_id)` to a `DONE` `rag_documents` row's
+    `(collection_name, vector_document_id, organization_id)`. **Never** stamp a table
+    wholesale with its sole current tenant.
+  - **Quarantine** every chunk the join does not positively resolve (no match,
+    ambiguous match, or tracked org NULL): leave `organization_id` unset ⇒ fails closed
+    ⇒ unsearchable. No guessed tenant.
+- **Operator-visible degraded surface (M4) — a concrete lifecycle (codex-3 C3):**
+  - **Stored, not derived:** add two **columns** to `knowledge_bases` in
+    `0079_rag_tenant_backfill` — `degraded: bool NOT NULL DEFAULT false` and
+    `quarantined_chunk_count: int NOT NULL DEFAULT 0` (new `mapped_column`s on the
+    `KnowledgeBase` model; the backfill migration sets them). Deriving them would mean
+    a per-request scan of the runtime table.
+  - **How ambiguous chunks are attributed to a KB for counting:** by
+    `collection_name` — a quarantined chunk is counted against the KB(s) whose
+    `collection_name` backs its table. Where a shared name backs several KBs the count
+    is reported on each with a note, since the join could not say whose it was.
+  - **Which query maintains them:** the backfill migration writes the initial values;
+    a small `KnowledgeBaseService` method recomputes `quarantined_chunk_count` (and
+    clears `degraded` when it reaches zero) — invoked after a **re-ingest under a real
+    organization** tags formerly-quarantined chunks, which is the defined clearing
+    event.
+  - **Read model + API:** extend the KB read schema (`app/schemas`) and the collection
+    API so the flag and count are returned; a one-line migration report (tables
+    scanned, chunks resolved, chunks quarantined, KBs degraded) is logged.
+  - **Frontend:** surface both on the KB admin view — the KB TypeScript type, the
+    list/detail UI, `next-intl` translations and vitest coverage, per
+    `.claude/rules/frontend.md`.
+  - **Downgrade:** the columns and the backfilled JSON `organization_id` keys are
+    additive; a downgrade drops the columns and (optionally) the stamped keys — the
+    migration's `downgrade()` is written and exercised by `test-migrations`.
+- **Ordered rollout (R4 / codex-3 C1) — one flag gating *all* scoped ops, flipped
+  last:**
+  1. ship the tenant **dual-write** (Phase 5: new ingests stamp `organization_id`) and
+     deploy everywhere; apply `0078_rag_metadata_prereqs`;
+  2. **drain/upgrade old workers** so nothing still writes untagged chunks;
+  3. run `0079` **backfill and verify** (report reviewed, quarantine understood);
+  4. **atomically enable tenant enforcement across every scoped operation — search,
+     listing, counts, chunk fetch, dedup lookup, deletion and the insert conflict
+     policy — not reads alone.** A single `RAGSettings` flag gates all of them so
+     there is never a state where scoped delete/dedup is on while scoped search is off
+     (which would reopen the clobber) or vice versa (which would hide a tenant's own
+     legacy document mid-rollout). Until the flag flips, the scoped methods preserve
+     the **documented legacy behaviour** (no tenant conjunct) so a tenant can still
+     reach its not-yet-tagged chunks.
+  5. **remove the temporary flag** in a named follow-up so enforcement cannot later be
+     switched off by accident.
+  Steps 1–2 can ship in an earlier PR than 3–5.
+
+*Tests (Phase 6, `test-migrations` + integration, explicit named):* forward/back chain
+green; positive-join assigns the right org; ambiguous/orphan/NULL-org chunks
+quarantined (not guessed); degraded flag + quarantine count surfaced; index/function
+build tolerates `2025-99-99`; the read-enforcement flag gates step 4.
+
+### 9.7 Phase 7 — tests (cross-cutting; one bullet per §4 item)
+
+Layer rules: `app/agents/**` tool/capability at the **100% gate**; `app/services/rag/*`
+and `app/schemas/rag.py` are **outside** the gate, so every invariant is pinned by an
+**explicit named test** (`rag-knowledge` skill). All async tests use anyio
+(`pytestmark = pytest.mark.anyio`); refusal-first, assert the consequence
+(`.claude/rules/testing.md`). The §4 surface maps to phases: combined filters (9.2/9.4),
+missing-metadata per dimension incl. tenant-missing (9.2), cross-tenant denial (9.2/9.4),
+access-widening + `extra="forbid"` (9.1/9.4), empty-set semantics (9.1), cross-tenant
+write clobber (9.2/9.5), impossible-but-shaped date (9.2/9.6), hybrid == non-hybrid +
+`_bm25_search` regression (9.3), `retrieve_multi` scope (9.3), **H1 filtered-ANN recall**
+(9.2), **M3 discoverability** (9.4), contract/docstrings (9.8).
+
+**Per-scoped-operation tests (codex-3 M12).** Because "tenant conjunct everywhere" is a
+security claim, each scoped op gets its **own** named denial test, not just `search`:
+`get_document_list`/listing, count, `get_document_chunks`, explicit
+`delete_document`, the background `RAGDocumentService` delete, the dedup
+`find_existing_document`, the `insert_document` conflict, `get_parsed_content`, and the
+facet operation. Additional cases: both one-sided date ranges (`date_from` only /
+`date_to` only); `filters=None` normalization; the agent tool refusing when
+`AgentDeps.organization_id` is `None`; a **valid** legacy-shim expression accepted and
+a both-fields-supplied shim conflict rejected; enforcement **off vs on** across
+backfilled and still-untagged rows; the migration `downgrade()` and re-run idempotency;
+the frontend degraded-state and updated request-type (vitest).
+
+### 9.8 Phase 8 — docs (with the behaviour change)
+
+- `docs/reference/capabilities.md` — the knowledge tool's new filter args, the
+  whitelist, `document_type` = filetype/mime (P1), `organizational_unit` is discovery
+  not access (L6), the M3 discoverability affordance.
+- `docs/reference/spec.md` — if any spec field changes (default plan: none); otherwise
+  the `doc_date` provenance precedence and date semantics belong in the API/tool
+  contract docstrings and capabilities page.
+- `docs/api.md` — `RAGSearchRequest.filters` shape, the OR-within/AND-across rule,
+  inclusive date range, fail-closed missing-field behaviour, and the **L5 breaking
+  note**: a previously-ignored non-`parent_doc_id` `filter` string now returns 422;
+  deprecation window communicated to programmatic consumers.
+- `CHANGELOG.md` — the L5 behaviour change and the tenant-isolation fix (per the
+  monthly format; `docs/release-notes.md` reads it).
+- Docstrings on `search`, `retrieve`, `_bm25_search`, the filter models carry the
+  grammar and date semantics (API contracts belong in docstrings, per code-style).
+
+### 9.9 Dependency graph (what is sequential vs parallel)
+
+```
+P0 (preconditions) ─▶ Phase 1 ─┬─▶ Phase 2 ─▶ Phase 3 ─▶ Phase 4
+                               ├─▶ Phase 5 (ingestion dual-write) ─▶ Phase 6 steps 1–2
+                               └─▶ (schema)         Phase 6 step 3 (backfill) ─▶ step 4 (enable read)
+```
+Phase 1 blocks all. Phase 2 blocks 3; 3 blocks 4. Phase 5 depends only on Phase 1 and
+ships the dual-write **before** Phase 6's backfill. Phase 4's tool and API halves are
+parallel once 1 & 3 land. Read enforcement (Phases 2–4 flag-on) is the **last** step,
+after the backfill (Phase 6 steps 1→4 ordering, R4). Docs (Phase 8) accompany the PR
+that changes the described behaviour.
+
+### 9.10 Verification checklist
+
+- `make lint` (ruff + ty + vulture + deptry + guards; note the existing per-file S608
+  allowance on `vectorstore.py` covers the new bound-parameter SQL).
+- `make test` (backend + 100% gate — the `app/agents/**` tool/capability tests must
+  keep the gate green; if a platform module is added, align `[tool.coverage.run]
+  include` and `[[tool.ty.overrides]] include`, per `test_coverage_gate.py`).
+- `make test-integration` (real Postgres: WHERE translation, cross-tenant denial,
+  H1 recall, write-clobber, impossible-date).
+- `make db-check` (model/migration drift) and `make test-migrations` (0078 forward/back).
+- `make test-frontend-cov` — the frontend gate, needed because Phase 4/6 add frontend
+  work (`rag-api.ts` type, the degraded KB view); `make test` alone does not cover it
+  (codex-3, closing note).
+- `make docs-build` (`--strict`: the new/changed pages and links).
+- `make check` before the PR (aggregate; excludes e2e).
+- Manual: confirm P2 pgvector version on the target image before enabling iterative
+  scan; review the Phase 6 migration report before flipping the read-enforcement flag.
+
+### 9.11 Plan review (gpt-5.6-sol)
+
+A read-only codex pass (`codex exec --sandbox read-only -m gpt-5.6-sol`, run header
+confirmed `model: gpt-5.6-sol`) critiqued **§9 only** (the design in §1–8 being
+settled). Twelve ranked findings plus a closing note. Each was verified against the
+code before a verdict; §9 is amended above and the deltas recorded here. All four
+highlighted decisions (H1 mitigation, tenant conjunct on all row ops, backfill rollout
+ordering, deprecation shim) were judged captured; the enforcement-state machine,
+backfill observability, HNSW verification and per-source ingestion needed sharpening.
+
+- **C1 — rollout flag not wired to the dependency graph; Phase 5 also depends on
+  Phase 2.** *Verified:* Phase 2 made tenant scope mandatory immediately while Phase 6
+  deferred it, with no defined in-between state, and the replace path uses Phase 2's
+  scoped signatures. **Accepted.** 9.6 step 4 now flips **one flag across every scoped
+  op** (search, listing, counts, chunks, dedup, deletion, insert conflict) atomically,
+  preserves documented legacy behaviour until then, and adds a flag-removal follow-up
+  (step 5); 9.5 header now reads "depends on 1 **and 2**".
+- **C2 — no complete caller-update plan; `insert_document ON CONFLICT` missed.**
+  *Verified in code:* `get_document_list`/`list_documents`, `remove_document`,
+  `RAGDocumentService.delete_document` (line ~464) + its background `remove_document`
+  (line ~506), `get_parsed_content`→`get_document_chunks` (lines ~540/565), the worker
+  sync callers, CLI, the reference `find_existing_document`, and the `ON CONFLICT (id)
+  DO UPDATE` write (line ~486) are all real. **Accepted.** 9.2 now enumerates every
+  caller and adds a tenant-safe conflict policy.
+- **C3 — degraded/quarantine lifecycle not actionable; frontend files missing.**
+  *Verified:* `KnowledgeBase` has no such columns and the surface was left as "add".
+  **Accepted.** 9.6 now specifies **stored columns** (`degraded`,
+  `quarantined_chunk_count`) with their Alembic ops, per-`collection_name` attribution,
+  the recompute/clear event (re-ingest under a real org), read-model/API changes, and
+  the frontend type/UI/i18n/vitest files.
+- **H4 — the H1 guarantee exceeds what iterative scan delivers.** *Verified:*
+  `max_scan_tuples` is a real ceiling; `SET LOCAL` is transaction-, not
+  statement-local; `relaxed_order` is not exact order; a tiny test table
+  sequential-scans. **Accepted.** 9.2 reworded to a **bounded** guarantee, notes the
+  transaction-local SET and the score re-sort, makes the ≥0.8 image a hard
+  prerequisite when required, and the test now forces + `EXPLAIN`-verifies HNSW.
+- **H5 — `rag_safe_to_date` sequenced after the code that uses it.** *Verified:*
+  `_ensure_collection` does not run on a search of an existing collection, so the
+  function must pre-exist; runtime `CREATE FUNCTION` also over-privileges the app role.
+  **Accepted.** Split into `0078_rag_metadata_prereqs` (global function + indexes,
+  applied before enforcement) and `0079_rag_tenant_backfill`; 9.2 no longer creates the
+  function in `_ensure_collection`.
+- **H6 — business-metadata ingestion underspecified.** *Verified:* passing values into
+  `ingest_file` alone leaves the new fields `None` on real paths. **Accepted.** 9.5
+  adds a per-source provenance mapping (`document_type` from `filetype`; `source`
+  canonical per origin; `doc_date` from author/`SourceFile` modified/mtime/ingestion
+  time) and names `sources/base.py`, connectors and the upload route. (Codex called the
+  class `RemoteFile`; the actual type is `SourceFile` — corrected in the plan.)
+- **H7 — shim conflict/retirement semantics.** *Verified:* the frontend still types
+  `filter?: string` and the conflict case was undefined. **Accepted.** 9.4 rejects
+  both-fields-supplied with 422 (no widening), fixes the exact grammar, marks the field
+  deprecated in the OpenAPI schema with a removal follow-up, adds a success test, and
+  names `frontend/src/lib/rag-api.ts`.
+- **H8 — `filters.py` wrongly left outside the coverage gate.** *Verified:* it is new
+  platform trust-boundary code, and the generic "if a module is added" note was too
+  weak. **Accepted.** 9.1 adds it explicitly to `PLATFORM_MODULES`,
+  `[tool.coverage.run] include` and `[[tool.ty.overrides]] include`, in order.
+- **M9 — unscoped marker referenced but undefined; `AgentDeps.organization_id`
+  nullable.** *Verified.* **Accepted.** 9.1 makes `RetrievalScope` a discriminated
+  `Tenant`/`Unscoped` type with non-null org by construction and enumerated
+  constructors, and the tool refuses a `None` org.
+- **M10 — facet discoverability left as a choice.** *Verified:* the toolset is built
+  synchronously with no tenant facet data. **Accepted.** 9.4 commits to a **second
+  whitelisted `list_filter_values` tool operation** and rejects the enum/dynamic-
+  description alternatives.
+- **M11 — do not reserve `0078` across split PRs.** *Verified:* `0077` is the single
+  head today, so `0078` is correct now. **Accepted.** 9.6 states the revisions must be
+  regenerated against the then-current head if another migration lands first.
+- **M12 — test list does not pin every security consequence.** *Verified.* **Accepted.**
+  9.7 adds a per-scoped-operation denial test each, both one-sided date ranges,
+  `filters=None`, the tool's missing-org refusal, a valid + a conflicting shim request,
+  enforcement off/on across backfilled/untagged rows, migration downgrade/idempotency,
+  and the frontend tests.
+- **Closing note — run frontend coverage/`make check`.** **Accepted.** 9.10 adds
+  `make test-frontend-cov` and `make check`.
+
+**Rejected / partial:** none rejected outright; C1's demand for an explicit
+enforcement state machine and flag retirement is adopted in full. The one factual
+correction to codex is the `SourceFile`/`RemoteFile` class name (H6), which does not
+change the finding. Every accepted finding is reflected in §9 above.
