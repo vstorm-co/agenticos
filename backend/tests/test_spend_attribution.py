@@ -35,7 +35,7 @@ def _model_spec(secret_id: uuid.UUID | None) -> ModelRequestSpec:
         provider="openai",
         model="gpt-4.1",
         params={},
-        credential=ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-x")),
+        credential=ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-x-12345")),
         secret_id=secret_id,
         fallbacks=[],
     )

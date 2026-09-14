@@ -3778,16 +3778,16 @@ class TestTheOrganizationsSecrets:
     async def test_several_secrets_resolve_in_one_query(self, db) -> None:
         """A run reads every secret its bindings name; one query, not one each."""
         tenant = await _tenant(db, name="Batched")
-        first = await self._store(db, tenant, name="Weather", key="wx-1111")
-        second = await self._store(db, tenant, name="Maps", key="mp-2222")
+        first = await self._store(db, tenant, name="Weather", key="wx-key-1111")
+        second = await self._store(db, tenant, name="Maps", key="mp-key-2222")
 
         resolved = await OrganizationSecretService(db).resolve_for_bindings(
             tenant.ctx, [first, second]
         )
 
         assert {secret.api_key.get_secret_value() for secret in resolved.values()} == {
-            "wx-1111",
-            "mp-2222",
+            "wx-key-1111",
+            "mp-key-2222",
         }
 
     async def test_deleting_the_organization_takes_its_secrets_with_it(self, db) -> None:

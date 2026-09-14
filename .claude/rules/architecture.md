@@ -1,6 +1,6 @@
 ---
 description: Layered architecture patterns — Routes, Services, Repositories, DI
-globs: ["backend/app/**/*.py"]
+paths: ["backend/app/**/*.py"]
 ---
 
 # Architecture

@@ -8,6 +8,8 @@ import {
   pickedLocale,
   routing,
 } from "./lib/locale-routing";
+import { readPublicConfig } from "./lib/public-config";
+import { contentSecurityPolicyHeader } from "./lib/security-headers";
 
 const handleI18nRouting = createMiddleware(routing);
 
@@ -64,13 +66,27 @@ function rememberPrefixedLocale(request: NextRequest, response: NextResponse): v
   });
 }
 
+/**
+ * Stamp the Content-Security-Policy, which names this deployment's public origins.
+ *
+ * Here and not in `next.config.ts`, whose `headers()` runs at build: `connect-src`
+ * has to allow `PUBLIC_API_URL` and `PUBLIC_WS_URL`, and those are read from the
+ * server's environment on every request (#1544). The rest of the security headers
+ * are constants and stay in the config; this is the one a runtime value reaches.
+ */
+function withContentSecurityPolicy(response: NextResponse): NextResponse {
+  const { key, value } = contentSecurityPolicyHeader(readPublicConfig(process.env));
+  response.headers.set(key, value);
+  return response;
+}
+
 export default function middleware(request: NextRequest): NextResponse {
   const restored = restorePickedLocale(request);
-  if (restored) return restored;
+  if (restored) return withContentSecurityPolicy(restored);
 
   const response = handleI18nRouting(request);
   rememberPrefixedLocale(request, response);
-  return response;
+  return withContentSecurityPolicy(response);
 }
 
 export const config = {

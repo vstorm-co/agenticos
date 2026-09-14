@@ -17,6 +17,90 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.411] - 2026-09-13
+
+### Security
+
+- **A secret too short to hint safely is refused.** The listing shows the last
+  four characters of a credential as its hint, so `ApiKeySecret(api_key="1234")`
+  used to publish the whole key to everyone with `secrets:view` and into the
+  audit entry. Every field that authenticates - an API key, a secret access key,
+  a session token, an OAuth client secret - now needs at least eight characters,
+  `minLength` is on the schema the forms are generated from, and the refusal
+  says so while the form is open. A key shorter than that stored before this
+  release fails to open and has to be saved again. (#1608)
+- **An MCP OAuth payload masks its credentials.** `client_secret`,
+  `access_token` and `refresh_token` are `SecretStr`, so a payload that reaches
+  a log line or a traceback whole shows `**********`; only the sealed JSON on
+  its way into the vault carries the real values. The guarantee used to hold by
+  accident of one `except` clause. (#1608)
+
+### Removed
+
+- **`model_profiles.allow_byo`.** Written by the create route and read by
+  nothing - the resolver always spends the profile's own key - so the flag
+  looked like a security control and changed no behaviour. Migration
+  `0077_drop_allow_byo` drops the column. (#1608)
+
+## [0.0.410] - 2026-09-13
+
+### Changed
+
+- **The repository's agent guidance is a brief, not a history.** `CLAUDE.md`
+  now carries project-wide decisions and pointers: what the product is, the
+  quality bar, the hard boundaries, rule and skill routing, commands,
+  verification and the documentation topic map. Incident anecdotes and pinned
+  framework versions are gone; issue-board conventions moved to
+  `.claude/references/issue-triage.md`. The rule files under `.claude/rules/`
+  declare their scope with the `paths` frontmatter key Claude Code matches on,
+  so the code-style rule now covers `scripts/` and the testing rule covers the
+  Playwright layer. `scripts/docs_drift.py` is the one path-to-page trigger
+  map and gained the sandbox, agent-template, skill-gallery and Makefile
+  mappings that used to live only in `CLAUDE.md`. (#1601)
+
+## [0.0.409] - 2026-09-11
+
+### Security
+
+- **The console's security headers are complete, asserted and documented.**
+  `object-src 'none'` closes the plugin-content vector `default-src` does not
+  cover; `Permissions-Policy` allows the microphone on this origin alone so the
+  chat's dictation works, camera and geolocation still denied; every header
+  lives in `src/lib/security-headers.ts` with a test per header. `connect-src`
+  is built from the deployment's `PUBLIC_API_URL` and `PUBLIC_WS_URL` at
+  runtime, so a split-origin deployment's uploads and socket are allowed and
+  nothing else is, and the bundled nginx passes the application's headers
+  through instead of adding a conflicting set. `SECURITY.md` and
+  `docs/deployment.md` name the real policy. `script-src` still carries
+  `'unsafe-inline'`/`'unsafe-eval'` for Next's App Router; the nonce is #1416's
+  remaining item. (#1580)
+
+## [0.0.408] - 2026-09-11
+
+### Added
+
+- **Encrypted connections to Postgres and Redis, and a doctor line saying so.**
+  `POSTGRES_SSLMODE` builds the parameter each driver understands - `ssl=` for
+  asyncpg, `sslmode=` for Alembic's psycopg2 - and `REDIS_SSL` switches the
+  scheme to `rediss://` with hostname verification on. Both default off, so a
+  plaintext deployment is unchanged. `agenticos cmd doctor` reports
+  `postgres: tls=on/off` from `pg_stat_ssl`, the transport actually used, and
+  `redis: tls=on/off` from the URL. `docs/configuration.md` shows the managed-
+  store setup, every consumer included, and how a private CA is trusted. (#1578)
+
+## [0.0.407] - 2026-09-11
+
+### Fixed
+
+- **A tool-prefix collision is decided once, and the model is told about it.**
+  Publish refused two MCP bindings reducing to one prefix while the run
+  re-computed the same rule and dropped the loser with a log line, so a
+  connection renamed after publish, or an agent published before the check,
+  lost a server nobody was told about. One `prefix_collisions` serves both;
+  the run records each dropped binding on the toolsets' `unavailable` list, the
+  briefing says the server is not available this turn, and the connect card
+  leaves it out because renaming a connection is the author's job. (#1576)
+
 ## [0.0.406] - 2026-09-11
 
 ### Fixed

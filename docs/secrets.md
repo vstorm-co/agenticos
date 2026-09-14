@@ -109,6 +109,11 @@ string so the resolver can switch on a total set — and because the vault refus
 seal an empty value. Only the runtime can hold `none`; nobody can save one, which
 is what keeps "a secret with no value" out of the API schema.
 
+Every field that authenticates — an API key, a secret access key, a client secret —
+must be at least eight characters. The listing shows the last four characters of a
+credential as its hint, so a shorter value would be published whole by its own hint;
+the floor also catches a truncated paste while the form is still open.
+
 ## Where they are used
 
 **Model providers.** Named by a [model profile](models.md). Spend is attributed to

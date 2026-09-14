@@ -157,7 +157,6 @@ describe("promoting a specialist the model invented", () => {
     model: "gpt-4.1",
     secret_id: null,
     params: {},
-    allow_byo: false,
     fallback_profile_ids: [],
   };
 

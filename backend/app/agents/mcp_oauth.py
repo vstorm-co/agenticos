@@ -51,6 +51,7 @@ from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
 from app.core.config import settings
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import UrlRefusedError
+from app.core.secret_kinds import SealedStr
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,12 @@ class McpOAuthPayload(BaseModel):
     filled in. `expires_at` is epoch seconds (or None if the token doesn't
     expire).
 
+    The three credentials are :data:`SealedStr`, so a payload that reaches a log
+    line or a traceback whole masks them, and only `model_dump_json()` - the way
+    into the vault - carries the real values. `model_copy(update=...)` skips
+    validation, so a caller folding a fresh token in wraps it in a `SecretStr`
+    itself or the next `model_dump_json()` fails.
+
     `provider` names a non-discovery flow when one issued the payload - `"github"`
     for a GitHub OAuth App, whose endpoints are fixed and whose token exchange has
     its own quirks (see `app/services/portals/github_oauth.py`). `None` is the
@@ -185,13 +192,13 @@ class McpOAuthPayload(BaseModel):
     token_endpoint: str
     registration_endpoint: str | None = None
     client_id: str
-    client_secret: str | None = None
+    client_secret: SealedStr | None = None
     scope: str | None = None
     resource: str
     redirect_uri: str
     code_verifier: str | None = None
-    access_token: str | None = None
-    refresh_token: str | None = None
+    access_token: SealedStr | None = None
+    refresh_token: SealedStr | None = None
     expires_at: float | None = None
     provider: str | None = None
 

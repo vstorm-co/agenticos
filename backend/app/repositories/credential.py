@@ -71,7 +71,6 @@ async def create_profile(
     secret_id: UUID | None,
     base_url: str | None = None,
     params: dict | None = None,
-    allow_byo: bool = False,
     fallback_profile_ids: list[str] | None = None,
     context_length: int | None = None,
 ) -> ModelProfile:
@@ -83,7 +82,6 @@ async def create_profile(
         secret_id=secret_id,
         base_url=base_url,
         params=params or {},
-        allow_byo=allow_byo,
         fallback_profile_ids=fallback_profile_ids or [],
         context_length=context_length,
     )

@@ -1,6 +1,6 @@
 ---
 description: Exception handling patterns and security conventions
-globs: ["backend/app/core/**/*.py", "backend/app/services/**/*.py"]
+paths: ["backend/app/core/**/*.py", "backend/app/services/**/*.py"]
 ---
 
 # Exceptions & Security
