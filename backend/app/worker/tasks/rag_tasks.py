@@ -741,10 +741,17 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         source = await source_svc.get_source(source_id)
         connector_cls = CONNECTOR_REGISTRY.get(source.connector_type)
         if not connector_cls:
-            await source_svc.update_after_sync(
-                source_id, "error", f"Unknown connector: {source.connector_type}"
-            )
-            return {"status": "error", "message": f"Unknown connector: {source.connector_type}"}
+            message = f"Unknown connector: {source.connector_type}"
+            # A manual trigger already created this log and handed us its id
+            # before dispatching - refusing here without completing it left a
+            # sync stuck `running` forever, with nothing left to ever finish
+            # it. A scheduler dispatch carries no id yet: nothing to complete.
+            if sync_log_id:
+                await RAGSyncService(db).complete_sync(
+                    sync_log_id, status="error", error_message=message
+                )
+            await source_svc.update_after_sync(source_id, "error", message)
+            return {"status": "error", "message": message}
 
         config = source.config if isinstance(source.config, dict) else json.loads(source.config)
         if source.collection_name is None:
@@ -752,11 +759,16 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             # refuses a source with no collection, and the scheduler's own
             # query only selects sources that have one. Guarded again here
             # because this flow can also be dispatched directly by name as a
-            # Prefect deployment, outside either call path.
-            await source_svc.update_after_sync(
-                source_id, "error", "Source has no assigned collection."
-            )
-            return {"status": "error", "message": "Source has no assigned collection."}
+            # Prefect deployment, outside either call path - and because a
+            # source can be edited between `trigger_sync`'s check and this
+            # flow actually running, the same stuck-log risk as above applies.
+            message = "Source has no assigned collection."
+            if sync_log_id:
+                await RAGSyncService(db).complete_sync(
+                    sync_log_id, status="error", error_message=message
+                )
+            await source_svc.update_after_sync(source_id, "error", message)
+            return {"status": "error", "message": message}
         collection_name = source.collection_name
         sync_mode = source.sync_mode
         organization_id = source.organization_id
