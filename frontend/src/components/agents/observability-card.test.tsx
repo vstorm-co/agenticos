@@ -184,6 +184,29 @@ describe("the tracing card", () => {
     );
   });
 
+  it("records the choice to redact message content", async () => {
+    const { onChange } = mount({ token_secret_id: "s-logfire" });
+
+    await userEvent.click(screen.getByLabelText("Trace content"));
+    await userEvent.click(screen.getByRole("option", { name: /Redacted/ }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ token_secret_id: "s-logfire", content: "redacted" }),
+    );
+  });
+
+  it("keeps a content-only block when redacted is chosen without a token", async () => {
+    // Like `none`, `redacted` is meaningful with no per-agent token - it
+    // suppresses content on the deployment's own traces - so the block survives.
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByLabelText("Trace content"));
+    await userEvent.click(screen.getByRole("option", { name: /Redacted/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ content: "redacted" }));
+    expect(onChange).not.toHaveBeenCalledWith(null);
+  });
+
   it("keeps a content-only block when none is chosen without a token", async () => {
     // The block must survive with no token so an environment-routed run honours
     // it - a plain `null` here would discard the choice.

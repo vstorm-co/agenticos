@@ -65,7 +65,7 @@ export interface CapabilityBindingSpec {
 
 /** How much of a run its spans carry. `full` is everything; `none` is timing,
  * tokens, cost and tool names but no message text or tool arguments. */
-export type TraceContent = "full" | "none";
+export type TraceContent = "full" | "redacted" | "none";
 
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {

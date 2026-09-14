@@ -17,7 +17,7 @@ import {
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
-import type { ObservabilitySpec } from "@/types/agents";
+import type { ObservabilitySpec, TraceContent } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 /**
@@ -63,13 +63,15 @@ export function ObservabilityCard({
 
   // Clearing the token clears the block - a service name and environment with
   // nowhere to send are stored fields that do nothing - unless `content` is set
-  // to something other than the default. A `none` matters with no agent token of
-  // its own: an environment can carry the token, and it also suppresses content
-  // on the deployment's own instrumentation, so it is kept where a service name
-  // would be dropped.
+  // to something other than the default. A `none` or `redacted` matters with no
+  // agent token of its own: an environment can carry the token, and either one
+  // suppresses content on the deployment's own instrumentation (redacted has no
+  // per-agent project to scrub into, so it falls back to none), so the block is
+  // kept where a service name would be dropped.
   const update = (patch: Partial<ObservabilitySpec>) => {
     const next = { ...(value ?? {}), ...patch };
-    const meaningful = Boolean(next.token_secret_id) || next.content === "none";
+    const meaningful =
+      Boolean(next.token_secret_id) || next.content === "none" || next.content === "redacted";
     onChange(meaningful ? next : null);
   };
 
@@ -151,13 +153,14 @@ export function ObservabilityCard({
           <Select
             value={value?.content ?? "full"}
             disabled={disabled}
-            onValueChange={(content) => update({ content: content as "full" | "none" })}
+            onValueChange={(content) => update({ content: content as TraceContent })}
           >
             <SelectTrigger id="logfire-content">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="full">{t("traceContentFull")}</SelectItem>
+              <SelectItem value="redacted">{t("traceContentRedacted")}</SelectItem>
               <SelectItem value="none">{t("traceContentNone")}</SelectItem>
             </SelectContent>
           </Select>
