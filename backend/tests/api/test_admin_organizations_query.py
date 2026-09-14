@@ -152,7 +152,7 @@ async def test_the_detail_route_hands_the_service_the_org_and_the_admin() -> Non
     org_id = uuid4()
     svc = AsyncMock(get_organization_detail=AsyncMock(return_value=_detail(org_id)))
     app.dependency_overrides[get_current_user] = lambda: admin
-    app.dependency_overrides[get_db_session] = lambda: AsyncMock()
+    app.dependency_overrides[get_db_session] = AsyncMock
     app.dependency_overrides[get_admin_service] = lambda: svc
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -170,7 +170,7 @@ async def test_the_detail_route_hands_the_service_the_org_and_the_admin() -> Non
 async def test_the_detail_route_is_app_admin_only() -> None:
     svc = AsyncMock(get_organization_detail=AsyncMock())
     app.dependency_overrides[get_current_user] = lambda: _User(is_app_admin=False)
-    app.dependency_overrides[get_db_session] = lambda: AsyncMock()
+    app.dependency_overrides[get_db_session] = AsyncMock
     app.dependency_overrides[get_admin_service] = lambda: svc
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
