@@ -1,0 +1,1091 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Authoring assistant — builder demo (#52)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============ tokens — mirrored from frontend/src/app/globals.css ============ */
+:root {
+  --background:#f5f7f9; --foreground:#0b0b0b;
+  --card:#ffffff; --popover:#ffffff;
+  --primary:#15191d; --primary-foreground:#fafafa;
+  --primary-hover:#2a2e33; --primary-active:#3b4046;
+  --secondary:#e9ebee; --muted:#e9ebee; --muted-foreground:#555555;
+  --accent:#e9ebee; --border:#d9dbdd; --input:#d9dbdd;
+  --destructive:#c43f3e; --success:#438c60; --warning:#b28242;
+  --brand:#0056c4; --brand-hover:#004199; --brand-foreground:#ffffff;
+  --brand-subtle:#f1f5fd; --brand-line:#96bcf8;
+  --added-bg:rgba(16,185,129,.10); --added-fg:#059669;
+  --removed-bg:rgba(196,63,62,.10);
+  --shadow-card:0 1px 2px 0 rgba(0,0,0,.05),0 1px 3px 0 rgba(0,0,0,.03);
+  --shadow-float:0 4px 6px -2px rgba(0,0,0,.05),0 10px 15px -3px rgba(0,0,0,.08);
+  --font-body:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.dark {
+  --background:#141619; --foreground:#eceff2;
+  --card:#1d2022; --popover:#222427;
+  --primary:#f0f2f4; --primary-foreground:#0a0e11;
+  --primary-hover:#d5d8da; --primary-active:#bec1c4;
+  --secondary:#27292c; --muted:#27292c; --muted-foreground:#95999d;
+  --accent:#2c2e31; --border:#35383c; --input:#303337;
+  --destructive:#e06d6c; --success:#6ebf8c; --warning:#dbb06b;
+  --brand:#629efc; --brand-hover:#96bcf8; --brand-foreground:#070f1c;
+  --brand-subtle:#031b41; --brand-line:#004199;
+  --added-bg:rgba(16,185,129,.10); --added-fg:#34d399;
+  --removed-bg:rgba(224,109,108,.12);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; }
+body {
+  font-family:var(--font-body); background:var(--background); color:var(--foreground);
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+:focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:4px; }
+::selection { background:var(--brand); color:var(--brand-foreground); }
+svg { flex-shrink:0; }
+[hidden] { display:none !important; }
+.mono { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+
+/* ============ shell ============ */
+.app { display:flex; min-height:100vh; }
+.sidebar {
+  width:240px; flex-shrink:0; border-right:1px solid var(--border);
+  background:color-mix(in oklab, var(--card) 55%, transparent);
+  backdrop-filter:blur(24px); display:flex; flex-direction:column;
+  position:sticky; top:0; height:100vh;
+}
+.sidebar-head {
+  height:56px; display:flex; align-items:center; gap:8px; padding:0 12px;
+  border-bottom:1px solid var(--border); font-weight:600; font-size:14px;
+}
+.sidebar-mark {
+  width:24px; height:24px; border-radius:7px; background:var(--primary);
+  color:var(--primary-foreground); display:grid; place-items:center;
+  font-size:12px; font-weight:700;
+}
+.sidebar nav { padding:12px 12px; display:flex; flex-direction:column; gap:2px; }
+.nav-link {
+  display:flex; align-items:center; gap:10px; border-radius:8px; padding:6px 10px;
+  font-size:14px; color:var(--muted-foreground); text-align:left; width:100%;
+}
+.nav-link:hover { background:color-mix(in oklab, var(--accent) 50%, transparent); color:var(--foreground); }
+.nav-link.active { background:var(--accent); color:var(--foreground); font-weight:500; }
+.nav-link svg { width:16px; height:16px; }
+main { flex:1; min-width:0; padding:32px 24px 64px; }
+@media (max-width:900px){ .sidebar{display:none;} }
+
+/* ============ page header ============ */
+.breadcrumb { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--muted-foreground); margin-bottom:10px; }
+.breadcrumb svg { width:12px; height:12px; opacity:.5; }
+.title-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.avatar {
+  width:40px; height:40px; border-radius:12px; background:var(--brand-subtle);
+  border:1px solid var(--brand-line); color:var(--brand);
+  display:grid; place-items:center;
+}
+.avatar svg { width:20px; height:20px; }
+h1 { font-size:24px; font-weight:600; letter-spacing:-.01em; }
+.page-desc { font-size:14px; color:var(--muted-foreground); margin-top:6px; max-width:42rem; }
+.header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
+.page-header { margin-bottom:32px; }
+
+/* ============ buttons / badges ============ */
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;
+  border-radius:999px; font-size:14px; font-weight:500; height:36px; padding:0 16px;
+  transition:background .15s cubic-bezier(.22,1,.36,1), color .15s;
+}
+.btn svg { width:16px; height:16px; }
+.btn-sm { height:32px; padding:0 14px; font-size:12px; }
+.btn-sm svg { width:14px; height:14px; }
+.btn-primary { background:var(--primary); color:var(--primary-foreground); box-shadow:var(--shadow-card); }
+.btn-primary:hover { background:var(--primary-hover); }
+.btn-primary:active { background:var(--primary-active); }
+.btn-outline { border:1px solid var(--input); background:var(--card); box-shadow:var(--shadow-card); }
+.btn-outline:hover { background:var(--accent); }
+.btn-ghost:hover { background:var(--accent); }
+.btn-icon { width:36px; padding:0; }
+.btn:disabled { opacity:.65; cursor:default; }
+.spin { animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.badge {
+  display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid transparent;
+  padding:2px 10px; font-size:12px; font-weight:500;
+}
+.badge svg { width:12px; height:12px; }
+.badge-secondary { background:var(--secondary); color:var(--foreground); }
+.badge-outline { border-color:var(--border); color:var(--foreground); }
+.badge-brand { background:var(--brand-subtle); border-color:var(--brand-line); color:var(--brand); }
+.badge-success { background:color-mix(in oklab, var(--success) 15%, transparent); color:var(--success); }
+
+/* ============ tabs ============ */
+.tabs { display:flex; gap:24px; border-bottom:1px solid var(--border); color:var(--muted-foreground); }
+.tab {
+  display:inline-flex; align-items:center; gap:8px; margin-bottom:-1px;
+  border-bottom:2px solid transparent; padding:0 4px 12px; font-size:14px; font-weight:500;
+}
+.tab.active { border-bottom-color:var(--foreground); color:var(--foreground); }
+.tab .count {
+  min-width:18px; height:18px; padding:0 5px; border-radius:999px; font-size:11px;
+  background:var(--brand); color:var(--brand-foreground);
+  display:inline-grid; place-items:center; font-weight:600;
+}
+.tab-panel { margin-top:24px; display:flex; flex-direction:column; gap:24px; }
+.tab-panel[hidden] { display:none; }
+
+/* ============ card ============ */
+.card { background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-card); }
+.card-header { padding:24px 24px 0; display:flex; flex-direction:column; gap:6px; }
+.card-title { font-size:16px; font-weight:600; line-height:1; letter-spacing:-.01em; }
+.card-desc { font-size:14px; color:var(--muted-foreground); }
+.card-content { padding:24px; display:flex; flex-direction:column; gap:16px; }
+
+/* ============ assistant strip ============ */
+.assistant-strip {
+  border:1px solid var(--brand-line); background:var(--brand-subtle); border-radius:16px;
+  padding:16px 20px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;
+}
+.assistant-strip > svg { width:18px; height:18px; color:var(--brand); margin-top:2px; }
+.strip-body { flex:1; min-width:18rem; }
+.strip-actions { flex-wrap:wrap; }
+.strip-title { font-weight:600; font-size:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.strip-note { font-size:12px; color:var(--muted-foreground); margin-top:4px; }
+.strip-actions { display:flex; gap:8px; align-items:center; }
+.strip-mode { flex-basis:100%; display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--brand-line); }
+.strip-mode .lbl { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--brand); }
+.mode-seg { display:inline-flex; gap:2px; border:1px solid var(--input); border-radius:8px; padding:2px; background:var(--card); }
+.mode-seg button { border-radius:6px; padding:4px 12px; font-size:12px; font-weight:500; color:var(--muted-foreground); }
+.mode-seg button.on { background:var(--foreground); color:var(--background); }
+.mode-note { font-size:12px; color:var(--muted-foreground); flex:1; min-width:14rem; }
+.mode-note b { color:var(--foreground); font-weight:600; }
+
+/* ============ diff — the SpecDiff idiom from version-history.tsx ============ */
+.editor-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.seg {
+  display:inline-flex; align-items:center; gap:2px; border:1px solid var(--input);
+  border-radius:8px; padding:2px;
+}
+.seg button {
+  display:inline-flex; align-items:center; gap:4px; border-radius:6px; padding:4px 8px;
+  font-size:12px; color:var(--muted-foreground);
+}
+.seg button:hover { color:var(--foreground); }
+.seg button.on { background:var(--foreground); color:var(--background); }
+.seg button svg { width:12px; height:12px; }
+.diff-stat { font-family:var(--font-mono); font-size:12px; }
+.diff-stat .plus { color:var(--added-fg); }
+.diff-stat .minus { color:var(--destructive); }
+.diff-wrap { border:1px solid var(--border); border-radius:6px; overflow:visible; }
+table.diff { width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:12px; line-height:20px; }
+.diff td { padding:2px 0; vertical-align:top; }
+.diff .marker { width:24px; padding:2px 8px; text-align:center; color:var(--muted-foreground); user-select:none; }
+.diff .text { width:100%; padding-right:8px; white-space:pre-wrap; }
+.diff tr.same .text { color:var(--muted-foreground); }
+.diff tr.added { background:var(--added-bg); }
+.diff tr.removed { background:var(--removed-bg); }
+.diff tr.sugg-first td { border-top:1px solid color-mix(in oklab, var(--brand) 25%, transparent); }
+.diff tr[data-s] .marker { box-shadow:inset 2px 0 0 var(--brand); }
+.diff tr[data-s].decided .marker { box-shadow:inset 2px 0 0 transparent; }
+tr.collapse-row { display:none; }
+.plain { font-family:var(--font-mono); font-size:12px; line-height:20px; white-space:pre-wrap; padding:12px; }
+
+/* suggestion anchor + popover */
+.sugg-cell { position:relative; width:32px; padding:0 6px !important; text-align:right; }
+.sugg-icon {
+  display:inline-grid; place-items:center; width:22px; height:22px; border-radius:6px;
+  color:var(--brand); background:color-mix(in oklab, var(--brand) 12%, transparent);
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1);
+}
+.sugg-icon:hover { transform:scale(1.12); }
+.sugg-icon svg { width:13px; height:13px; }
+.decided .sugg-icon { background:transparent; }
+.decided.accepted .sugg-icon { color:var(--success); }
+.decided.dismissed .sugg-icon { color:var(--muted-foreground); }
+.popover {
+  position:absolute; right:28px; top:-8px; z-index:40; width:360px; max-width:70vw;
+  border-radius:12px; padding:16px; text-align:left; font-family:var(--font-body);
+  border:1px solid color-mix(in oklab, var(--foreground) 16%, transparent);
+  background:color-mix(in oklab, var(--popover) 78%, transparent);
+  backdrop-filter:blur(24px) saturate(1.8);
+  box-shadow:inset 0 1px 0 0 color-mix(in oklab, white 12%, transparent), 0 1px 2px rgba(0,0,0,.08), 0 12px 40px -12px rgba(0,0,0,.3);
+  opacity:0; pointer-events:none; transform:translateY(4px);
+  transition:opacity .15s, transform .15s cubic-bezier(.22,1,.36,1);
+  white-space:normal; font-size:13px; line-height:1.5; cursor:default;
+}
+.sugg-anchor:hover .popover, .sugg-anchor.pinned .popover { opacity:1; pointer-events:auto; transform:translateY(0); }
+.pop-title { font-weight:600; font-size:13px; display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.pop-title svg { width:14px; height:14px; color:var(--brand); }
+.pop-why { color:var(--foreground); margin-bottom:10px; }
+.pop-evidence {
+  border-left:2px solid var(--border); padding:2px 0 2px 10px; margin-bottom:10px;
+  color:var(--muted-foreground); font-size:12px;
+}
+.pop-evidence q { font-style:italic; }
+.pop-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.chip {
+  display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border);
+  border-radius:999px; padding:1px 8px; font-size:11px; font-family:var(--font-mono);
+  color:var(--muted-foreground); background:var(--card);
+}
+.chip svg { width:11px; height:11px; }
+.chip.down { color:var(--destructive); border-color:color-mix(in oklab, var(--destructive) 30%, transparent); }
+.chip.run:hover { color:var(--brand); border-color:var(--brand-line); cursor:pointer; }
+.pop-actions { display:flex; gap:6px; }
+.pop-state { display:flex; align-items:center; gap:8px; font-size:12px; }
+.pop-state .undo { color:var(--brand); font-size:12px; }
+.pop-state .undo:hover { text-decoration:underline; }
+.pop-edit textarea {
+  width:100%; min-height:88px; resize:vertical; border:1px solid var(--input); border-radius:8px;
+  background:transparent; color:var(--foreground); font-family:var(--font-mono); font-size:12px;
+  line-height:1.6; padding:8px; margin-bottom:10px;
+}
+
+/* accepted/dismissed row states */
+tr.gone { display:none; }
+tr.added.settled { background:transparent; }
+tr.added.settled .text { color:var(--foreground); }
+tr.removed.settled { background:transparent; }
+tr.removed.settled .text { color:var(--muted-foreground); }
+
+/* footer bar after accepting */
+.draft-bar {
+  display:none; align-items:center; gap:12px; flex-wrap:wrap;
+  border:1px solid var(--border); border-radius:10px; padding:10px 14px;
+  background:color-mix(in oklab, var(--success) 7%, transparent);
+  font-size:13px;
+}
+.draft-bar.show { display:flex; }
+.draft-bar svg { width:15px; height:15px; color:var(--success); }
+.draft-bar .spacer { flex:1; }
+
+/* ============ toolbox tab ============ */
+.toolbox-grid { display:grid; gap:16px; grid-template-columns:minmax(0,18rem) minmax(0,1fr); align-items:start; }
+@media (max-width:900px){ .toolbox-grid{grid-template-columns:1fr;} }
+.cap-list { display:flex; flex-direction:column; gap:2px; }
+.cap-cat { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted-foreground); padding:10px 8px 4px; }
+.cap-row {
+  display:flex; align-items:flex-start; gap:8px; border:1px solid transparent; border-radius:8px;
+  padding:8px; width:100%; text-align:left;
+}
+.cap-row:hover { background:color-mix(in oklab, var(--accent) 50%, transparent); }
+.cap-row.focused { border-color:color-mix(in oklab, var(--foreground) 25%, transparent); background:var(--accent); }
+.cap-row .cap-name { font-size:13px; font-weight:500; display:flex; align-items:center; gap:6px; }
+.cap-row .cap-hint { font-size:11px; color:var(--muted-foreground); }
+.cap-row .dot { width:6px; height:6px; border-radius:99px; background:var(--brand); }
+.switch {
+  margin-left:auto; width:32px; height:18px; border-radius:999px; background:var(--muted);
+  position:relative; flex-shrink:0; transition:background .15s;
+}
+.switch::after {
+  content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:99px;
+  background:var(--card); box-shadow:var(--shadow-card); transition:left .15s;
+}
+.switch.on { background:var(--primary); }
+.switch.on::after { left:16px; }
+.cap-detail-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.cap-id { font-family:var(--font-mono); font-size:12px; color:var(--muted-foreground); }
+.subtabs { display:flex; gap:18px; border-bottom:1px solid var(--border); color:var(--muted-foreground); margin-top:4px; }
+.subtab { padding:0 2px 10px; margin-bottom:-1px; font-size:13px; font-weight:500; border-bottom:2px solid transparent; }
+.subtab.active { color:var(--foreground); border-bottom-color:var(--foreground); }
+.tool-list-head { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted-foreground); font-weight:500; }
+.tool-list { border:1px solid var(--border); border-radius:6px; list-style:none; }
+.tool-row { padding:12px; display:flex; flex-direction:column; gap:10px; }
+.tool-row + .tool-row { border-top:1px solid var(--border); }
+.tool-row.proposed { border-left:2px solid var(--brand); background:color-mix(in oklab, var(--brand) 5%, transparent); }
+.tool-row-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.tool-id { font-family:var(--font-mono); font-size:12px; color:var(--muted-foreground); }
+.tool-desc-label { font-size:11px; color:var(--muted-foreground); }
+.tool-row .diff-wrap { background:var(--card); }
+.tool-row-foot { display:flex; gap:6px; align-items:center; }
+
+/* ============ verify report ============ */
+.finding { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:13px; }
+.finding svg { width:15px; height:15px; margin-top:2px; }
+.finding.good svg { color:var(--success); }
+.finding.warn { border-color:color-mix(in oklab, var(--warning) 30%, transparent); background:color-mix(in oklab, var(--warning) 6%, transparent); }
+.finding.warn svg { color:var(--warning); }
+.finding .f-body { flex:1; min-width:0; }
+.finding .f-actions { display:flex; gap:6px; margin-top:8px; }
+.finding.resolved { opacity:.55; }
+.finding .pop-chips { margin:6px 0 0; }
+
+/* ============ replay dialog ============ */
+.dialog-overlay {
+  position:fixed; inset:0; z-index:70; background:rgba(0,0,0,.8);
+  display:grid; place-items:center; padding:24px;
+}
+.dialog {
+  background:var(--background); border:1px solid var(--border); border-radius:16px;
+  box-shadow:var(--shadow-float); width:100%; max-width:72rem; max-height:90vh;
+  display:flex; flex-direction:column; gap:14px; padding:24px; position:relative;
+}
+.dialog-title { font-size:18px; font-weight:600; letter-spacing:-.01em; }
+.dialog-desc { font-size:14px; color:var(--muted-foreground); }
+.dialog-close { position:absolute; top:16px; right:16px; color:var(--muted-foreground); }
+.dialog-close:hover { color:var(--foreground); }
+.dialog-close svg { width:16px; height:16px; }
+.replay-summary { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.sum-chip { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:500; border:1px solid var(--border); }
+.sum-chip.better { color:var(--success); border-color:color-mix(in oklab, var(--success) 35%, transparent); background:color-mix(in oklab, var(--success) 10%, transparent); }
+.sum-chip.worse { color:var(--destructive); border-color:color-mix(in oklab, var(--destructive) 35%, transparent); background:color-mix(in oklab, var(--destructive) 10%, transparent); }
+.replay-wrap { overflow:auto; border:1px solid var(--border); border-radius:8px; min-height:0; }
+table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width:56rem; }
+.replay th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); font-weight:500; padding:10px 12px; border-bottom:1px solid var(--border); background:var(--card); position:sticky; top:0; }
+.replay td { padding:10px 12px; vertical-align:top; border-bottom:1px solid var(--border); }
+.replay tr:last-child td { border-bottom:none; }
+.replay .r-prompt { font-weight:500; min-width:12rem; }
+.replay .r-old { color:var(--muted-foreground); }
+.replay .r-old, .replay .r-new { min-width:16rem; max-width:22rem; }
+.replay .r-new .mono-block { font-family:var(--font-mono); font-size:11px; background:var(--muted); border-radius:6px; padding:6px 8px; margin-top:4px; white-space:pre-wrap; }
+.diverge { display:inline-flex; align-items:center; gap:5px; border-radius:999px; border:1px solid var(--brand-line); background:var(--brand-subtle); color:var(--brand); padding:1px 8px; font-size:11px; font-family:var(--font-mono); margin-top:6px; }
+.verdict-seg { display:inline-flex; gap:2px; border:1px solid var(--input); border-radius:8px; padding:2px; }
+.verdict-seg button { border-radius:6px; padding:3px 8px; font-size:11px; color:var(--muted-foreground); }
+.verdict-seg button.on[data-v="better"] { background:color-mix(in oklab, var(--success) 18%, transparent); color:var(--success); }
+.verdict-seg button.on[data-v="same"] { background:var(--muted); color:var(--foreground); }
+.verdict-seg button.on[data-v="worse"] { background:color-mix(in oklab, var(--destructive) 15%, transparent); color:var(--destructive); }
+.judge-note { display:block; font-size:10.5px; color:var(--muted-foreground); margin-top:4px; }
+.picked { display:block; font-size:10.5px; font-weight:400; color:var(--muted-foreground); margin-top:5px; font-family:var(--font-mono); }
+
+/* ============ misc ============ */
+.placeholder { border:1px dashed var(--border); border-radius:16px; padding:48px; text-align:center; color:var(--muted-foreground); font-size:13px; }
+.toast {
+  position:fixed; bottom:20px; left:50%; transform:translate(-50%, 10px); z-index:60;
+  background:var(--foreground); color:var(--background); border-radius:10px;
+  padding:10px 16px; font-size:13px; box-shadow:var(--shadow-float);
+  opacity:0; pointer-events:none; transition:opacity .2s, transform .2s cubic-bezier(.22,1,.36,1);
+  max-width:min(90vw, 480px); text-align:center;
+}
+.toast.show { opacity:1; transform:translate(-50%, 0); }
+.demo-tag {
+  position:fixed; bottom:12px; right:14px; z-index:50; font-family:var(--font-mono);
+  font-size:11px; color:var(--muted-foreground); opacity:.7;
+}
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ sidebar ============ -->
+  <aside class="sidebar">
+    <div class="sidebar-head"><span class="sidebar-mark">A</span> AgenticOS</div>
+    <nav>
+      <button class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>Dashboard</button>
+      <button class="nav-link active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>Agents</button>
+      <button class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Skills</button>
+      <button class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>Knowledge</button>
+      <button class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg>MCP servers</button>
+      <button class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Activity</button>
+      <button class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>Settings</button>
+    </nav>
+  </aside>
+
+  <!-- ============ main ============ -->
+  <main>
+    <header class="page-header">
+      <div class="breadcrumb">
+        <span>Agents</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        <span>Support Copilot</span>
+      </div>
+      <div class="title-row">
+        <span class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></span>
+        <h1>Support Copilot</h1>
+        <span class="badge badge-secondary">Published · v7</span>
+        <span class="badge badge-outline mono" id="draft-badge" hidden>Draft updated</span>
+      </div>
+      <p class="page-desc">Answers customer questions about orders, refunds and shipping. Exposed on web chat and the site widget.</p>
+      <div class="header-actions">
+        <button class="btn btn-outline" onclick="toast('Demo — opens the agent\'s chat in the product.')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Open chat</button>
+        <button class="btn btn-outline" onclick="toast('Demo — exports the spec as YAML in the product.')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Export YAML</button>
+        <button class="btn btn-primary" onclick="toast('Demo — in the product this validates the draft and publishes v8. It stays a human decision.')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>Publish</button>
+        <button class="btn btn-outline btn-icon" id="theme-toggle" aria-label="Toggle theme">
+          <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          <svg id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="build" role="tab">Build <span class="count" id="count-build">4</span></button>
+      <button class="tab" data-tab="toolbox" role="tab">Toolbox <span class="count" id="count-toolbox">1</span></button>
+      <button class="tab" data-tab="mcp" role="tab">MCP servers</button>
+      <button class="tab" data-tab="limits" role="tab">Limits</button>
+      <button class="tab" data-tab="availability" role="tab">Availability</button>
+      <button class="tab" data-tab="history" role="tab">History</button>
+    </nav>
+
+    <!-- ============ BUILD tab ============ -->
+    <section class="tab-panel" id="panel-build">
+
+      <div class="assistant-strip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>
+        <div class="strip-body">
+          <div class="strip-title">
+            Authoring assistant
+            <span class="badge badge-brand" id="sugg-chip">4 suggestions · from 6 👎 across 22 runs</span>
+          </div>
+          <p class="strip-note" id="strip-note">
+            Built from ratings and run outcomes over the last 30 days · improver run
+            <span class="mono">#f2c9</span>, 2 h ago · no Logfire traces for this agent — worked without them.
+          </p>
+        </div>
+        <div class="strip-actions">
+          <button class="btn btn-sm btn-ghost" onclick="dismissAll()">Dismiss all</button>
+          <span id="verify-controls" style="display:contents"></span>
+          <button class="btn btn-sm btn-outline" onclick="toast('Demo — starts a new improver run. An ordinary run: budgeted, metered, visible in Activity.')">Run again</button>
+        </div>
+        <div class="strip-mode">
+          <span class="lbl">Apply mode</span>
+          <div class="mode-seg" role="tablist" aria-label="How accepted changes reach production">
+            <button class="on" onclick="setMode('manual',this)">Manual</button>
+            <button onclick="setMode('canary',this)">Canary</button>
+            <button onclick="setMode('auto',this)">Auto</button>
+          </div>
+          <span class="mode-note" id="mode-note">Nothing goes live without a person — you Accept, then Publish.</span>
+        </div>
+      </div>
+
+      <!-- ============ verify: the assistant reviews the human's manual edits ============ -->
+      <div class="card" id="verify-card" hidden>
+        <div class="card-header">
+          <div class="editor-head">
+            <div>
+              <div class="card-title">Verification — your edits vs v7</div>
+              <p class="card-desc" style="margin-top:6px">You edited the draft by hand. The assistant checked the changes against 22 runs and 6 rated-down answers.</p>
+            </div>
+            <span class="badge badge-secondary mono" id="verify-run-badge">improver run #a1d7 · $0.03</span>
+          </div>
+        </div>
+        <div class="card-content" style="gap:10px">
+          <div id="verify-findings" style="display:contents">
+          <div class="finding good">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <div class="f-body">Capping answers at three paragraphs is supported by the data — rated-down answers average <b>612 output tokens</b> against 214 on rated-up ones.</div>
+          </div>
+          <div class="finding good">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <div class="f-body">Citing the refund-policy clause answers what the 👎 comments asked for.
+              <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>2 of 6</span><span class="chip run">run #b127</span></div>
+            </div>
+          </div>
+          <div class="finding warn" id="finding-lang">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div class="f-body">Regression risk: your edit removed <span class="mono">"Match the customer's language."</span> 2 of 6 👎 were about answering Polish customers in English — dropping the line will bring those back.
+              <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>2 of 6</span><span class="chip run">run #77b0</span><span class="chip run">run #91e2</span></div>
+              <div class="f-actions">
+                <button class="btn btn-sm btn-primary" onclick="resolveFinding(this, 'Restored in the draft — review and publish when ready.')">Restore the line</button>
+                <button class="btn btn-sm btn-ghost" onclick="resolveFinding(this, 'Ignored — recorded with the verification report.')">Ignore</button>
+              </div>
+            </div>
+          </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+            <p style="font-size:12px; color:var(--muted-foreground); flex:1; min-width:16rem">The verdict informs — it cannot block a publish. Anything actionable lands as an ordinary suggestion in the diff above.</p>
+            <button class="btn btn-sm btn-outline" onclick="openReplay()">Test against past prompts</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="editor-head">
+            <div>
+              <div class="card-title">Instructions</div>
+              <p class="card-desc" style="margin-top:6px">What the agent is, what it may do, how it should answer.</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px">
+              <span class="diff-stat"><span class="plus">+5</span> <span class="minus">−3</span></span>
+              <div class="seg" role="tablist">
+                <button data-view="current">Current v7</button>
+                <button data-view="diff" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>Review</button>
+                <button data-view="proposed">Proposed</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-content">
+
+          <!-- ============ the hero: instructions diff ============ -->
+          <div class="diff-wrap" id="view-diff">
+            <table class="diff">
+              <tbody>
+                <tr class="same"><td class="marker"></td><td class="text">You are Support Copilot, the support assistant for Acme Inc.</td><td class="sugg-cell"></td></tr>
+                <tr class="same"><td class="marker"></td><td class="text">&nbsp;</td><td class="sugg-cell"></td></tr>
+                <tr class="same"><td class="marker"></td><td class="text">Answer customer questions about orders, refunds and shipping.</td><td class="sugg-cell"></td></tr>
+
+                <!-- S2: ground refund answers in the skill -->
+                <tr class="removed sugg-first" data-s="s2"><td class="marker">−</td><td class="text">Use the knowledge base to find policy answers.</td>
+                  <td class="sugg-cell"><span class="sugg-anchor" id="anchor-s2">
+                    <button class="sugg-icon" aria-label="Suggestion: ground refund answers in the skill" onclick="pin(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></button>
+                    <div class="popover" role="tooltip">
+                      <div class="pop-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Ground refund answers in the refund-policy skill</div>
+                      <p class="pop-why">"Use the knowledge base" is too vague to route a refund question. In 4 sampled runs the agent answered refunds from memory and never called <span class="mono">load_skill</span>.</p>
+                      <div class="pop-evidence">👎 with comment: <q>quoted a 14-day return window — our policy says 30 days</q><br>The bound <span class="mono">refund-policy</span> skill states 30 days in §2.</div>
+                      <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>2 of 6</span><span class="chip run">run #b127</span><span class="chip run">run #d3a8</span></div>
+                      <div class="pop-actions" data-role="actions">
+                        <button class="btn btn-sm btn-primary" onclick="decide('s2','accepted')">Accept</button>
+                        <button class="btn btn-sm btn-outline" onclick="editSugg('s2')">Edit</button>
+                        <button class="btn btn-sm btn-ghost" onclick="decide('s2','dismissed')">Dismiss</button>
+                      </div>
+                      <div class="pop-state" data-role="state" hidden></div>
+                    </div>
+                  </span></td></tr>
+                <tr class="added" data-s="s2"><td class="marker">+</td><td class="text">Look up refund questions in the refund-policy skill before answering, and cite the clause you used.</td><td class="sugg-cell"></td></tr>
+
+                <!-- S4: replace the vague tone line -->
+                <tr class="removed sugg-first" data-s="s4"><td class="marker">−</td><td class="text">Be concise and friendly.</td>
+                  <td class="sugg-cell"><span class="sugg-anchor" id="anchor-s4">
+                    <button class="sugg-icon" aria-label="Suggestion: make brevity measurable" onclick="pin(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></button>
+                    <div class="popover" role="tooltip">
+                      <div class="pop-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Make brevity measurable</div>
+                      <p class="pop-why">"Concise" is not enforceable. Rated-down answers average <b>612 output tokens</b>; rated-up ones average 214. A hard shape ("at most three short paragraphs") is what the model can actually follow.</p>
+                      <div class="pop-evidence">👎 with comment: <q>wall of text for a yes/no question</q></div>
+                      <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>1 of 6</span><span class="chip">avg 612 vs 214 tok</span><span class="chip run">run #91e2</span></div>
+                      <div class="pop-actions" data-role="actions">
+                        <button class="btn btn-sm btn-primary" onclick="decide('s4','accepted')">Accept</button>
+                        <button class="btn btn-sm btn-outline" onclick="editSugg('s4')">Edit</button>
+                        <button class="btn btn-sm btn-ghost" onclick="decide('s4','dismissed')">Dismiss</button>
+                      </div>
+                      <div class="pop-state" data-role="state" hidden></div>
+                    </div>
+                  </span></td></tr>
+                <tr class="added" data-s="s4"><td class="marker">+</td><td class="text">Answer in at most three short paragraphs. Match the customer's language.</td><td class="sugg-cell"></td></tr>
+
+                <tr class="same"><td class="marker"></td><td class="text">&nbsp;</td><td class="sugg-cell"></td></tr>
+
+                <!-- S1: pin the output format (the hero suggestion) -->
+                <tr class="added sugg-first" data-s="s1"><td class="marker">+</td><td class="text">When the caller asks for structured data, return valid JSON only — no prose around it.</td>
+                  <td class="sugg-cell"><span class="sugg-anchor" id="anchor-s1">
+                    <button class="sugg-icon" aria-label="Suggestion: pin the output format" onclick="pin(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></button>
+                    <div class="popover" role="tooltip">
+                      <div class="pop-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>Pin the output format</div>
+                      <p class="pop-why">The instructions never say what shape an answer should take, so API callers asking for JSON get prose. 3 of 6 👎 say the agent ignored the requested format; both cited runs retried twice.</p>
+                      <div class="pop-evidence">👎 with comment: <q>ignored my JSON — had to re-ask twice</q></div>
+                      <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>3 of 6</span><span class="chip run">run #a3f4</span><span class="chip run">run #b127</span><span class="chip">surface: api</span></div>
+                      <div class="pop-actions" data-role="actions">
+                        <button class="btn btn-sm btn-primary" onclick="decide('s1','accepted')">Accept</button>
+                        <button class="btn btn-sm btn-outline" onclick="editSugg('s1')">Edit</button>
+                        <button class="btn btn-sm btn-ghost" onclick="decide('s1','dismissed')">Dismiss</button>
+                      </div>
+                      <div class="pop-state" data-role="state" hidden></div>
+                    </div>
+                  </span></td></tr>
+                <tr class="added" data-s="s1"><td class="marker">+</td><td class="text">&nbsp;</td><td class="sugg-cell"></td></tr>
+
+                <!-- S3: concrete escalation criteria -->
+                <tr class="removed sugg-first" data-s="s3"><td class="marker">−</td><td class="text">When you cannot help, hand off to a human.</td>
+                  <td class="sugg-cell"><span class="sugg-anchor" id="anchor-s3">
+                    <button class="sugg-icon" aria-label="Suggestion: make the handoff rule concrete" onclick="pin(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></button>
+                    <div class="popover" role="tooltip">
+                      <div class="pop-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>Make the handoff rule concrete</div>
+                      <p class="pop-why">"When you cannot help" never triggers — the model always thinks it can. Two conversations show it looping instead of escalating; both were rated down.</p>
+                      <div class="pop-evidence">👎 with comment: <q>kept apologising instead of getting me a person</q></div>
+                      <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>2 of 6</span><span class="chip run">run #77b0</span><span class="chip run">run #91e2</span></div>
+                      <div class="pop-actions" data-role="actions">
+                        <button class="btn btn-sm btn-primary" onclick="decide('s3','accepted')">Accept</button>
+                        <button class="btn btn-sm btn-outline" onclick="editSugg('s3')">Edit</button>
+                        <button class="btn btn-sm btn-ghost" onclick="decide('s3','dismissed')">Dismiss</button>
+                      </div>
+                      <div class="pop-state" data-role="state" hidden></div>
+                    </div>
+                  </span></td></tr>
+                <tr class="added" data-s="s3"><td class="marker">+</td><td class="text">Hand off to a human when the customer asks for a refund above $200, mentions legal action, or after your second failed answer.</td><td class="sugg-cell"></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- current / proposed plain views -->
+          <div class="diff-wrap" id="view-current" hidden><div class="plain" id="plain-current"></div></div>
+          <div class="diff-wrap" id="view-proposed" hidden><div class="plain" id="plain-proposed"></div></div>
+
+          <div class="draft-bar" id="draft-bar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span id="draft-bar-text"></span>
+            <span class="spacer"></span>
+            <button class="btn btn-sm btn-outline" onclick="openReplay()">Test against past prompts</button>
+            <button class="btn btn-sm btn-outline" onclick="toast('Demo — in the product this opens the publish dialog: validate_spec runs, a person decides, v8 is minted.')">Review draft &amp; publish v8</button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TOOLBOX tab ============ -->
+    <section class="tab-panel" id="panel-toolbox" hidden>
+      <div class="toolbox-grid">
+        <div class="card" style="padding:12px">
+          <div class="cap-list">
+            <div class="cap-cat">Knowledge</div>
+            <button class="cap-row focused"><span><span class="cap-name"><span class="dot"></span>Knowledge</span><span class="cap-hint">Search bound collections</span></span><span class="switch on"></span></button>
+            <button class="cap-row"><span><span class="cap-name">Skills</span><span class="cap-hint">Read organizational know-how</span></span><span class="switch on"></span></button>
+            <div class="cap-cat">Research</div>
+            <button class="cap-row"><span><span class="cap-name">Web research</span><span class="cap-hint">Search the public web</span></span><span class="switch"></span></button>
+            <div class="cap-cat">Analysis</div>
+            <button class="cap-row"><span><span class="cap-name">Charts</span><span class="cap-hint">Render data as charts</span></span><span class="switch"></span></button>
+            <button class="cap-row"><span><span class="cap-name">Run Python</span><span class="cap-hint">Execute code in a sandbox</span></span><span class="switch"></span></button>
+            <div class="cap-cat">Utility</div>
+            <button class="cap-row"><span><span class="cap-name">Delegation</span><span class="cap-hint">Hand work to other agents</span></span><span class="switch"></span></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-content" style="gap:14px">
+            <div class="cap-detail-head">
+              <span style="font-size:14px; font-weight:500">Knowledge</span>
+              <span class="cap-id">knowledge</span>
+              <span class="switch on" style="margin-left:auto"></span>
+            </div>
+            <p class="card-desc">Semantic search over the collections bound to this agent.</p>
+            <div class="subtabs">
+              <span class="subtab">Resources</span>
+              <span class="subtab">Settings</span>
+              <span class="subtab active">Tools</span>
+            </div>
+            <div class="tool-list-head">Tools</div>
+            <ul class="tool-list">
+              <li class="tool-row proposed" id="toolrow">
+                <div class="tool-row-head">
+                  <span class="tool-id">search_documents</span>
+                  <span class="badge badge-brand" id="tool-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+                    Proposed by assistant
+                  </span>
+                </div>
+                <div class="tool-desc-label">Description — what the model reads before deciding to call this tool</div>
+                <div class="diff-wrap">
+                  <table class="diff">
+                    <tbody>
+                      <tr class="removed" data-s="t1"><td class="marker">−</td><td class="text">Search the knowledge base.</td>
+                        <td class="sugg-cell"><span class="sugg-anchor" id="anchor-t1">
+                          <button class="sugg-icon" aria-label="Suggestion: teach the model how to query" onclick="pin(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></button>
+                          <div class="popover" role="tooltip">
+                            <div class="pop-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Teach the model how to query</div>
+                            <p class="pop-why">In 9 of 12 sampled runs the model passed the customer's <b>entire message</b> as the query. Retrieval returned generic passages and the model retried — 2.3 calls per run on average. A description that says <i>how</i> to query fixes this at the cheapest possible layer.</p>
+                            <div class="pop-evidence">👎 with comment: <q>it quoted the wrong document entirely</q><br>Applied as a per-binding override — the capability itself is untouched.</div>
+                            <div class="pop-chips"><span class="chip">9 of 12 runs</span><span class="chip">avg 2.3 calls/run</span><span class="chip run">run #c91d</span><span class="chip run">run #e04a</span></div>
+                            <div class="pop-actions" data-role="actions">
+                              <button class="btn btn-sm btn-primary" onclick="decide('t1','accepted')">Accept</button>
+                              <button class="btn btn-sm btn-outline" onclick="editSugg('t1')">Edit</button>
+                              <button class="btn btn-sm btn-ghost" onclick="decide('t1','dismissed')">Dismiss</button>
+                            </div>
+                            <div class="pop-state" data-role="state" hidden></div>
+                          </div>
+                        </span></td></tr>
+                      <tr class="added" data-s="t1"><td class="marker">+</td><td class="text">Search the organization's document collections. Pass a short, specific query — one question per call, never the user's whole message. Returns the top passages with citations.</td><td class="sugg-cell"></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="tool-row-foot" id="tool-foot">
+                  <button class="btn btn-sm btn-primary" onclick="decide('t1','accepted')">Accept</button>
+                  <button class="btn btn-sm btn-outline" onclick="editSugg('t1')">Edit</button>
+                  <button class="btn btn-sm btn-ghost" onclick="decide('t1','dismissed')">Dismiss</button>
+                  <span style="font-size:11px; color:var(--muted-foreground); margin-left:auto">Accept writes <span class="mono">tool_overrides.search_documents.description</span> into the draft</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- other tabs: placeholders -->
+    <section class="tab-panel" id="panel-mcp" hidden><div class="placeholder">Not part of this demo — see the real Builder.</div></section>
+    <section class="tab-panel" id="panel-limits" hidden><div class="placeholder">Not part of this demo — the improver agent is budgeted here like any other.</div></section>
+    <section class="tab-panel" id="panel-availability" hidden><div class="placeholder">Not part of this demo.</div></section>
+    <section class="tab-panel" id="panel-history" hidden><div class="placeholder">Not part of this demo — accepting suggestions edits the draft; publishing mints v8 here.</div></section>
+  </main>
+</div>
+
+<!-- ============ replay dialog ============ -->
+<div class="dialog-overlay" id="replay-overlay" hidden>
+  <div class="dialog" role="dialog" aria-labelledby="replay-title">
+    <button class="dialog-close" aria-label="Close" onclick="closeReplay()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    <div>
+      <div class="dialog-title" id="replay-title">Replay — draft vs v7</div>
+      <p class="dialog-desc">The same prompts users already sent to this agent, answered again by the draft — picked for similarity to the lines you edited, so the set actually exercises the change. Tool calls are served from the recordings; nothing side-effecting runs twice. A skill edit replays the same way, over the runs that loaded it.</p>
+    </div>
+    <div class="replay-summary" id="replay-summary"></div>
+    <div class="replay-wrap">
+      <table class="replay">
+        <thead>
+          <tr><th>Prompt (from history)</th><th>v7 answered</th><th>Draft answers</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="r-prompt">"Where's my order #4512?"<span class="picked">picked: matches "three short paragraphs"</span></td>
+            <td class="r-old">"Thank you so much for reaching out! I completely understand how concerning it can be to wait for a package…" — four paragraphs before the tracking number.</td>
+            <td class="r-new">"Order #4512 shipped Aug 21 via DHL and arrives tomorrow. Tracking: DH-88213."</td>
+            <td data-row="r1"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"Can I still return shoes I bought 3 weeks ago?"<span class="picked">picked: matches "refund-policy skill" · closest to the edit</span></td>
+            <td class="r-old">"Our return window is 14 days, so unfortunately the order no longer qualifies…" — the answer a 👎 comment corrected.</td>
+            <td class="r-new">"Yes — refund-policy §2 gives you 30 days from delivery. Here's how to start the return."</td>
+            <td data-row="r2"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"Send me my last 3 orders as JSON"<span class="picked">picked: matches "return valid JSON only"</span></td>
+            <td class="r-old">"Of course! Your most recent order was the trail runners, before that…" — prose, no JSON.</td>
+            <td class="r-new">Valid JSON only:<div class="mono-block">{"orders":[{"id":4512,"status":"shipped"},…]}</div></td>
+            <td data-row="r3"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"Do you ship to Norway?"<span class="picked">picked: nearest neighbour — nothing closer to the edit left</span></td>
+            <td class="r-old">"Yes, we ship to Norway — delivery takes 3–5 business days and is free over €100."</td>
+            <td class="r-new">"Yes — Norway is 3–5 business days, free over €100."</td>
+            <td data-row="r4"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"I want a $340 refund NOW or I'm calling my lawyer"<span class="picked">picked: matches "hand off to a human" · rated 👎</span></td>
+            <td class="r-old">"I'm so sorry to hear that! Let me explain our refund policy in detail…" — kept apologising; the 👎 said "get me a person".</td>
+            <td class="r-new">Stopped at a divergent call — the draft reached for a tool the recorded run never used:
+              <div class="mono-block">handoff_to_human({reason: "legal threat", order: 4512})</div>
+              <span class="diverge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>not executed — side effects never replay</span>
+            </td>
+            <td data-row="r5"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px">
+      <p style="font-size:12px; color:var(--muted-foreground); flex:1">Replay runs are ordinary runs: metered against both budgets, recorded in Activity with their own surface. The judge's verdict is a suggestion — yours wins.</p>
+      <button class="btn btn-outline" onclick="closeReplay()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<div class="demo-tag">design demo · #52 · nothing here is wired to a backend</div>
+
+<script>
+"use strict";
+
+/* ---------- theme ---------- */
+const root = document.documentElement;
+const store = {
+  get() { try { return localStorage.getItem("demo52-theme"); } catch { return null; } },
+  set(v) { try { localStorage.setItem("demo52-theme", v); } catch { /* data: URLs disable storage */ } },
+};
+const saved = store.get();
+if (saved === "dark" || (!saved && matchMedia("(prefers-color-scheme: dark)").matches)) root.classList.add("dark");
+syncThemeIcon();
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  root.classList.toggle("dark");
+  store.set(root.classList.contains("dark") ? "dark" : "light");
+  syncThemeIcon();
+});
+function syncThemeIcon() {
+  const dark = root.classList.contains("dark");
+  document.getElementById("icon-sun").style.display = dark ? "none" : "";
+  document.getElementById("icon-moon").style.display = dark ? "" : "none";
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === tab));
+  document.querySelectorAll(".tab-panel").forEach(p => p.hidden = p.id !== "panel-" + tab.dataset.tab);
+}));
+
+/* ---------- instructions views ---------- */
+const CURRENT_TEXT = [
+  "You are Support Copilot, the support assistant for Acme Inc.", "",
+  "Answer customer questions about orders, refunds and shipping.",
+  "Use the knowledge base to find policy answers.",
+  "Be concise and friendly.", "",
+  "When you cannot help, hand off to a human.",
+].join("\n");
+document.getElementById("plain-current").textContent = CURRENT_TEXT;
+
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".seg button").forEach(x => x.classList.toggle("on", x === b));
+  ["diff","current","proposed"].forEach(v => document.getElementById("view-" + v).hidden = v !== b.dataset.view);
+  if (b.dataset.view === "proposed") renderProposed();
+}));
+function renderProposed() {
+  const lines = [];
+  document.querySelectorAll("#view-diff tr").forEach(tr => {
+    if (tr.classList.contains("gone")) return;
+    const keep = tr.classList.contains("same") || tr.classList.contains("added")
+      || (tr.classList.contains("removed") && tr.classList.contains("settled"));
+    if (keep) lines.push(tr.querySelector(".text").textContent.replace(/ /g, ""));
+  });
+  document.getElementById("plain-proposed").textContent = lines.join("\n");
+}
+
+/* ---------- suggestions ---------- */
+const state = { s1:"pending", s2:"pending", s3:"pending", s4:"pending", t1:"pending" };
+const INSTRUCTION_SUGGS = ["s1","s2","s3","s4"];
+
+function pin(btn) { btn.closest(".sugg-anchor").classList.toggle("pinned"); }
+document.addEventListener("click", e => {
+  document.querySelectorAll(".sugg-anchor.pinned").forEach(a => { if (!a.contains(e.target)) a.classList.remove("pinned"); });
+});
+
+function decide(id, verdict) {
+  if (state[id] !== "pending") return;
+  state[id] = verdict;
+  const rows = document.querySelectorAll(`tr[data-s="${id}"]`);
+  rows.forEach(tr => {
+    tr.classList.add("decided");
+    if (verdict === "accepted") {
+      if (tr.classList.contains("removed")) tr.classList.add("gone");
+      else tr.classList.add("settled");
+    } else {
+      if (tr.classList.contains("added")) tr.classList.add("gone");
+      else tr.classList.add("settled");
+    }
+  });
+  const anchor = document.getElementById("anchor-" + id);
+  if (anchor) {
+    anchor.classList.remove("pinned");
+    anchor.closest("tr").classList.add(verdict, "decided");
+    anchor.querySelector('[data-role="actions"]').hidden = true;
+    const st = anchor.querySelector('[data-role="state"]');
+    st.hidden = false;
+    st.innerHTML = (verdict === "accepted"
+      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Accepted — written into the draft'
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Dismissed — recorded, will not be re-proposed')
+      + ` <button class="undo" onclick="undo('${id}')">Undo</button>`;
+    const icon = anchor.querySelector(".sugg-icon");
+    icon.innerHTML = verdict === "accepted"
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  }
+  if (id === "t1") {
+    const badge = document.getElementById("tool-badge");
+    const row = document.getElementById("toolrow");
+    document.getElementById("tool-foot").querySelectorAll(".btn").forEach(b => b.remove());
+    if (verdict === "accepted") {
+      badge.className = "badge badge-secondary"; badge.textContent = "Overridden";
+      toast("Draft updated — tool_overrides.search_documents.description. Publish when ready.");
+    } else {
+      badge.className = "badge badge-outline"; badge.textContent = "Suggestion dismissed";
+      row.classList.remove("proposed");
+      toast("Dismissed — the assistant records the decision and won't re-propose it.");
+    }
+  } else if (verdict === "accepted") {
+    toast("Draft updated — nothing is published until a person publishes v8.");
+  }
+  refresh();
+}
+
+function undo(id) {
+  state[id] = "pending";
+  document.querySelectorAll(`tr[data-s="${id}"]`).forEach(tr => tr.classList.remove("gone","settled","decided","accepted","dismissed"));
+  const anchor = document.getElementById("anchor-" + id);
+  if (anchor) {
+    anchor.querySelector('[data-role="actions"]').hidden = false;
+    anchor.querySelector('[data-role="state"]').hidden = true;
+    anchor.querySelector(".sugg-icon").innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>';
+  }
+  if (id === "t1") {
+    const badge = document.getElementById("tool-badge");
+    badge.className = "badge badge-brand";
+    badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> Proposed by assistant';
+    document.getElementById("toolrow").classList.add("proposed");
+    const foot = document.getElementById("tool-foot");
+    foot.insertAdjacentHTML("afterbegin",
+      `<button class="btn btn-sm btn-primary" onclick="decide('t1','accepted')">Accept</button>
+       <button class="btn btn-sm btn-outline" onclick="editSugg('t1')">Edit</button>
+       <button class="btn btn-sm btn-ghost" onclick="decide('t1','dismissed')">Dismiss</button>`);
+  }
+  refresh();
+}
+
+function editSugg(id) {
+  const anchor = document.getElementById("anchor-" + id);
+  const actions = anchor.querySelector('[data-role="actions"]');
+  if (actions.dataset.editing) return;
+  actions.dataset.editing = "1";
+  const addedRows = [...document.querySelectorAll(`tr.added[data-s="${id}"]`)]
+    .map(tr => tr.querySelector(".text").textContent.replace(/ /g, "")).filter(Boolean);
+  const box = document.createElement("div");
+  box.className = "pop-edit";
+  box.id = "edit-" + id;
+  const ta = document.createElement("textarea");
+  ta.value = addedRows.join("\n");
+  const row = document.createElement("div");
+  row.className = "pop-actions";
+  const save = document.createElement("button");
+  save.className = "btn btn-sm btn-primary";
+  save.textContent = "Save & accept";
+  save.addEventListener("click", () => saveEdit(id));
+  const cancel = document.createElement("button");
+  cancel.className = "btn btn-sm btn-ghost";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => cancelEdit(id));
+  row.append(save, cancel);
+  box.append(ta, row);
+  actions.before(box);
+  actions.hidden = true;
+  anchor.classList.add("pinned");
+}
+function saveEdit(id) {
+  const box = document.getElementById("edit-" + id);
+  const text = box.querySelector("textarea").value.trim();
+  const added = [...document.querySelectorAll(`tr.added[data-s="${id}"]`)];
+  added.forEach((tr, i) => { if (i > 0) tr.remove(); });
+  if (added[0]) added[0].querySelector(".text").textContent = text;
+  cancelEdit(id);
+  decide(id, "accepted");
+}
+function cancelEdit(id) {
+  const box = document.getElementById("edit-" + id);
+  if (box) box.remove();
+  const actions = document.getElementById("anchor-" + id).querySelector('[data-role="actions"]');
+  delete actions.dataset.editing;
+  if (state[id] === "pending") actions.hidden = false;
+}
+
+function dismissAll() {
+  INSTRUCTION_SUGGS.forEach(id => decide(id, "dismissed"));
+  if (state.t1 === "pending") decide("t1", "dismissed");
+}
+
+function refresh() {
+  const pendingBuild = INSTRUCTION_SUGGS.filter(id => state[id] === "pending").length;
+  const accepted = Object.keys(state).filter(id => state[id] === "accepted").length;
+  const pendingTool = state.t1 === "pending" ? 1 : 0;
+  const chip = document.getElementById("sugg-chip");
+  const total = pendingBuild + pendingTool;
+  chip.textContent = total > 0
+    ? `${total} suggestion${total === 1 ? "" : "s"} · from 6 👎 across 22 runs`
+    : "All suggestions reviewed";
+  setCount("count-build", pendingBuild);
+  setCount("count-toolbox", pendingTool);
+  const bar = document.getElementById("draft-bar");
+  const acceptedBuild = INSTRUCTION_SUGGS.filter(id => state[id] === "accepted").length;
+  document.getElementById("draft-badge").hidden = accepted === 0;
+  if (acceptedBuild > 0) {
+    bar.classList.add("show");
+    document.getElementById("draft-bar-text").textContent =
+      `${acceptedBuild} of 4 accepted — written into the draft. Nothing is live yet.`;
+  } else {
+    bar.classList.remove("show");
+  }
+}
+function setCount(id, n) {
+  const el = document.getElementById(id);
+  el.textContent = n; el.style.display = n > 0 ? "" : "none";
+}
+
+/* ---------- apply mode (manual → canary → auto) ---------- */
+function setMode(m, btn){
+  document.querySelectorAll('.mode-seg button').forEach(b=>b.classList.toggle('on', b===btn));
+  const notes={
+    manual:'Nothing goes live without a person — you Accept, then Publish.',
+    canary:'Accepted changes ship to a <b>canary</b> slice of traffic first; replay must pass, rollback is one click.',
+    auto:'Eval-gated changes graduate on their own — behind <b>replay + canary + org switch + budget cap</b>. Off by default.'
+  };
+  document.getElementById('mode-note').innerHTML = notes[m];
+}
+
+/* ---------- verify: idle → running → results, re-runnable ---------- */
+let verifying = false;
+let hasVerifyResults = false;
+let verifySeq = 7;
+const FINDINGS_TEMPLATE = document.getElementById("verify-findings").innerHTML;
+
+function renderVerifyControls() {
+  const el = document.getElementById("verify-controls");
+  const seeResults = hasVerifyResults
+    ? `<button class="btn btn-sm btn-primary" onclick="showVerify()">See results</button>` : "";
+  const verifyBtn = verifying
+    ? `<button class="btn btn-sm btn-outline" disabled>
+         <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+         Verifying…</button>`
+    : `<button class="btn btn-sm btn-outline" onclick="startVerify()">Verify my edits</button>`;
+  el.innerHTML = seeResults + verifyBtn;
+}
+
+function startVerify() {
+  if (verifying) return;
+  verifying = true;
+  renderVerifyControls();
+  setTimeout(finishVerify, 2000);
+}
+
+function finishVerify() {
+  verifying = false;
+  if (hasVerifyResults) {
+    verifySeq++;
+    document.getElementById("verify-findings").innerHTML = FINDINGS_TEMPLATE;
+  }
+  hasVerifyResults = true;
+  document.getElementById("verify-run-badge").textContent =
+    `improver run #a1d${verifySeq.toString(16)} · $0.03`;
+  renderVerifyControls();
+  toast("Verification finished — 2 findings support your edits, 1 regression risk.");
+}
+
+function showVerify() {
+  const card = document.getElementById("verify-card");
+  card.hidden = false;
+  card.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+function resolveFinding(btn, msg) {
+  const finding = btn.closest(".finding");
+  finding.classList.add("resolved");
+  finding.querySelector(".f-actions").remove();
+  toast("Demo — " + msg);
+}
+
+/* ---------- replay ---------- */
+const JUDGE = { r1: "better", r2: "better", r3: "better", r4: "same", r5: "better" };
+const replay = { r1: null, r2: null, r3: null, r4: null, r5: null };
+function openReplay() {
+  document.getElementById("replay-overlay").hidden = false;
+  document.querySelectorAll("[data-row]").forEach(cell => renderVerdict(cell));
+  renderReplaySummary();
+}
+function closeReplay() { document.getElementById("replay-overlay").hidden = true; }
+document.getElementById("replay-overlay").addEventListener("click", e => {
+  if (e.target === e.currentTarget) closeReplay();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeReplay(); });
+function renderVerdict(cell) {
+  const row = cell.dataset.row;
+  cell.innerHTML = `<div class="verdict-seg">` +
+    ["better", "same", "worse"].map(v =>
+      `<button data-v="${v}" class="${replay[row] === v ? "on" : ""}"
+        onclick="setVerdict('${row}','${v}')">${v[0].toUpperCase() + v.slice(1)}</button>`).join("") +
+    `</div><span class="judge-note">judge suggests: ${JUDGE[row]} · yours: ${replay[row] ?? "—"}</span>`;
+}
+function setVerdict(row, v) {
+  replay[row] = v;
+  renderVerdict(document.querySelector(`[data-row="${row}"]`));
+  renderReplaySummary();
+}
+function renderReplaySummary() {
+  const counts = { better: 0, same: 0, worse: 0 };
+  let undecided = 0;
+  Object.values(replay).forEach(v => (v ? counts[v]++ : undecided++));
+  document.getElementById("replay-summary").innerHTML =
+    `<span class="sum-chip better">${counts.better} better</span>` +
+    `<span class="sum-chip">${counts.same} same</span>` +
+    `<span class="sum-chip worse">${counts.worse} worse</span>` +
+    `<span class="sum-chip">${undecided} undecided</span>` +
+    `<span class="sum-chip">1 divergence</span>` +
+    `<span class="sum-chip mono">top 5 of 22 · matched to the edit · $0.11 spent</span>`;
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+refresh();
+renderVerifyControls();
+</script>
+</body>
+</html>
