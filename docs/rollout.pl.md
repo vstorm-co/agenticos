@@ -1,5 +1,5 @@
 ---
-source_sha: "e2011b4848b5"
+source_sha: "c4345a034178"
 ---
 
 # Wdrożenie u siebie { #rolling-it-out }
@@ -99,6 +99,11 @@ wybrano tę architekturę.
 | Czy to jest zgodne z RODO? | Zgodne jest wdrożenie albo nie jest; kod da się wdrożyć wewnątrz takiego, które jest. [Ochrona danych](data-protection.md) przypisuje każde miejsce przechowywania, każdy cel wysyłki i każdą kontrolę do mechanizmu, testu albo otwartego zgłoszenia, i wypisuje to, co samo wdrożenie musi rozstrzygnąć |
 | Czy możemy przeczytać kod? | Tak. Zwykle na tym rozmowa się kończy |
 | Z czego to się składa i na jakich licencjach? | Apache-2.0, a pod spodem około pięciuset pakietów, które niemal wszystkie są na MIT, Apache-2.0 albo BSD. [Każdy z nich jest wymieniony wraz z dowodem](licenses.md), a ustalenia wciąż otwarte są wypisane na początku, a nie uśrednione. Jeden komponent, parser PDF-ów, jest na AGPL-3.0: wdrożenie, które modyfikuje platformę i serwuje ją przez sieć, jest winne swoim użytkownikom zmodyfikowane źródła, a [ta decyzja ma własną sekcję](licenses.md#the-agpl-component) |
+
+Rozbudowane odpowiedzi, które przekazuje się przeglądowi w kształcie HIPAA albo
+SOC 2 — model zagrożeń, jakie dane opuszczają wdrożenie, co jest gdzie szyfrowane
+i macierz kontroli mapująca każdą kontrolę na jej mechanizm i jej test — są
+w [Bezpieczeństwie](security.md).
 
 ## Trzy sposoby, na jakie idzie to źle { #three-ways-this-goes-wrong }
 

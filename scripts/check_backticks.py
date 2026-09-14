@@ -49,6 +49,14 @@ PYTHON_SUFFIXES = {".py"}
 # three findings on line 170 of a file nobody had edited.
 SELF = Path(__file__).name
 
+# Anchors the no-argument default on the script's own location rather than the
+# process's cwd. `uv run --directory backend python3 ../scripts/check_backticks.py`
+# runs with cwd already shifted to `backend/`, and a bare `Path()` default would
+# then scan only that - `frontend/` and `docs/` silently unchecked, with a clean
+# exit and nothing saying why. `check_routes.py` anchors the same way for the
+# same reason.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
 SKIP_DIRS = {
     ".git",
     ".next",
@@ -165,23 +173,36 @@ def walk(roots: list[Path]) -> Iterator[Path]:
                     yield path
 
 
+def _displayed(path: Path) -> Path:
+    """`path`, relative to the repository root when it is under it.
+
+    Walking from `REPO_ROOT` yields absolute paths regardless of cwd, which is
+    the point - but printing them absolute would make every finding harder to
+    read than the relative form this tool has always shown.
+    """
+    try:
+        return path.relative_to(REPO_ROOT)
+    except ValueError:
+        return path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("paths", nargs="*", type=Path, default=[Path()])
+    parser.add_argument("paths", nargs="*", type=Path, default=[REPO_ROOT])
     parser.add_argument("--fix", action="store_true", help="rewrite them to single backticks")
     args = parser.parse_args()
 
     found = 0
-    for path in sorted(walk(args.paths or [Path()])):
+    for path in sorted(walk(args.paths or [REPO_ROOT])):
         if args.fix:
             changed = fix(path)
             if changed:
                 found += changed
-                print(f"fixed {changed} line(s) in {path}")
+                print(f"fixed {changed} line(s) in {_displayed(path)}")
             continue
         for number, line in scan(path):
             found += 1
-            print(f"{path}:{number}: {line.strip()}")
+            print(f"{_displayed(path)}:{number}: {line.strip()}")
 
     if not found:
         print("No double backticks in Markdown, TypeScript comments or Python files.")

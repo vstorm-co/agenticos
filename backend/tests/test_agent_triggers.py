@@ -65,6 +65,10 @@ def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> Magic
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service = AgentTriggerService(MagicMock())
     service.db.flush = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mock must await and answer the head read with an empty chain.
+    service.db.execute = AsyncMock()
+    service.db.execute.return_value.scalar_one_or_none.return_value = None
     # `create` refreshes the row before returning it, so it serializes without a
     # MissingGreenlet on a live session; the mock must await.
     service.db.refresh = AsyncMock()

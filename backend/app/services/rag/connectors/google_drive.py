@@ -162,8 +162,12 @@ class GoogleDriveConnector(BaseSyncConnector):
         page_token = None
 
         while True:
+            # `Resource` is built at runtime from Google's discovery document, so
+            # `files` and every other resource method are attached dynamically
+            # rather than declared on the class - there is no stub that can see
+            # them. The four sites below in this file take the same ignore.
             response = (
-                service.files()
+                service.files()  # ty: ignore[unresolved-attribute]
                 .list(
                     q=query,
                     pageSize=100,
@@ -239,14 +243,18 @@ class GoogleDriveConnector(BaseSyncConnector):
         def _download() -> None:
             service = self._get_drive_service(credential)
 
-            meta = service.files().get(fileId=file.id, fields="mimeType").execute()
+            # `Resource` is built at runtime from Google's discovery document - see
+            # the same ignore in `_list_folder` above for why.
+            meta = service.files().get(fileId=file.id, fields="mimeType").execute()  # ty: ignore[unresolved-attribute]
             original_mime = meta.get("mimeType", "")
 
             if original_mime in GOOGLE_DOCS_EXPORT:
                 export_mime, ext = GOOGLE_DOCS_EXPORT[original_mime]
-                request = service.files().export_media(fileId=file.id, mimeType=export_mime)
+                request = service.files().export_media(  # ty: ignore[unresolved-attribute]
+                    fileId=file.id, mimeType=export_mime
+                )
             else:
-                request = service.files().get_media(fileId=file.id)
+                request = service.files().get_media(fileId=file.id)  # ty: ignore[unresolved-attribute]
 
             with open(dest_path, "wb") as fh:
                 downloader = MediaIoBaseDownload(fh, request)

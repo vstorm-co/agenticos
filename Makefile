@@ -317,11 +317,16 @@ lint-backend:
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
-	python3 scripts/check_backticks.py
-	python3 scripts/check_routes.py
-	python3 scripts/check_comments.py
-	python3 scripts/check_docs_paragraphs.py
-	python3 scripts/check_docs_i18n.py
+	# Through the pinned interpreter for all five, not whatever `python3`
+	# resolves to on the host: `check_routes.py`'s isinstance union check
+	# needs 3.10+, and a system Python older than the backend's own pin
+	# crashed it with a bare TypeError while the others happened to
+	# still work - until the next one written this way needs 3.10+ too.
+	uv run --directory backend python3 ../scripts/check_backticks.py
+	uv run --directory backend python3 ../scripts/check_routes.py
+	uv run --directory backend python3 ../scripts/check_comments.py
+	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
+	uv run --directory backend python3 ../scripts/check_docs_i18n.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -494,7 +499,7 @@ AUDIT_TIMEOUT ?= 30
 
 audit:
 	cd backend && uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
-	python3 scripts/audit_dependencies.py backend/requirements-audit.txt \
+	uv run --directory backend python3 ../scripts/audit_dependencies.py requirements-audit.txt \
 		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
 # The other half of the `security` job: what the two images ship and under which

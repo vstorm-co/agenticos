@@ -1,5 +1,5 @@
 ---
-source_sha: "e2011b4848b5"
+source_sha: "c4345a034178"
 ---
 
 # Die Einführung { #rolling-it-out }
@@ -104,6 +104,11 @@ Grund, warum diese Architektur gewählt wurde.
 | Ist es DSGVO-konform? | Ein Deployment ist es oder ist es nicht; der Code lässt sich innerhalb eines solchen betreiben. [Datenschutz](data-protection.md) bildet jeden Speicherort, jedes Ziel und jede Kontrolle auf einen Mechanismus, einen Test oder ein offenes Issue ab und führt auf, was das Deployment selbst entscheiden muss |
 | Können wir den Code lesen? | Ja. Damit endet das Gespräch meistens |
 | Was steckt darin, und unter welchen Lizenzen? | Apache-2.0, aufgesetzt auf rund fünfhundert Pakete, die fast alle MIT, Apache-2.0 oder BSD sind. [Jedes einzelne ist mit seinem Nachweis aufgeführt](licenses.md), und die noch offenen Befunde stehen zuerst, statt weggemittelt zu werden. Eine Komponente, der PDF-Parser, ist AGPL-3.0: Ein Deployment, das die Plattform verändert und über ein Netzwerk ausliefert, schuldet seinen Nutzern den veränderten Quellcode, und [diese Entscheidung hat einen eigenen Abschnitt](licenses.md#the-agpl-component) |
+
+Die Langfassung, die eine Prüfung im Zuschnitt von HIPAA oder SOC 2 ausgehändigt
+bekommt — das Bedrohungsmodell, welche Daten das Deployment verlassen, was wo
+verschlüsselt ist, und eine Kontrollmatrix, die jede Kontrolle auf ihren
+Mechanismus und ihren Test abbildet — steht in [Sicherheit](security.md).
 
 ## Drei Arten, wie das schiefgeht { #three-ways-this-goes-wrong }
 

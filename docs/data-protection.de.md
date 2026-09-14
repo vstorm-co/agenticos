@@ -1,5 +1,5 @@
 ---
-source_sha: "3a50fc3a822d"
+source_sha: "a20c296fac18"
 ---
 
 # Datenschutz { #data-protection }
@@ -160,8 +160,9 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Personenbezogene Daten, die das Model erreichen | Die Capability `guardrails` redigiert IBANs, Kartennummern, US-Sozialversicherungsnummern und E-Mail-Adressen aus Prompts, Antworten und Tool-Ergebnissen, sofern konfiguriert | [Capabilities](reference/capabilities.md); ihre Tests unter `tests/` |
 | Personenbezogene Daten in einer Fehlerspalte | `rag_documents.error_message` und Verwandte halten Stufe und Klasse fest, nie den Text des Kunden | `app/services/rag/failures.py` (#423) |
 | Rechenschaft | Audit-Einträge teilen die handelnde Transaktion und scheitern geschlossen; Impersonation nennt beide Personen; Massenexporte werden festgehalten | [Governance](governance.md#audit) |
-| Audit-Export und Manipulationsnachweis | Noch keiner | [#1422](https://github.com/vstorm-co/agenticos/issues/1422) |
-| Traces | Heute voller Inhalt, und kein Schalter | [#1413](https://github.com/vstorm-co/agenticos/issues/1413) ergänzt `full`, `redacted`, `none` je Agent |
+| Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
+| Manipulationsnachweis der Spur | Noch keiner | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
+| Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); `redacted` ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Aufbewahrung nach Zeitplan | Nur `sandbox_operations`-Zeilen werden weggeräumt, nach 30 Tagen. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
 | Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -177,10 +178,10 @@ also die Nachricht des Benutzers, die Antwort des Models und jedes Tool-Argument
 und -Ergebnis. Mit ungesetztem `LOGFIRE_TOKEN`, ohne `observability`-Token auf
 irgendeinem Spec und ohne `logfire_token_secret_id` auf irgendeinem Environment
 wird nichts gesendet, und die Trace-Id wird trotzdem lokal festgehalten. Ein
-Deployment, das Traces braucht, bevor
-[#1413](https://github.com/vstorm-co/agenticos/issues/1413) landet, hat eine
-Möglichkeit: ein Logfire-Projekt, dessen Bedingungen und Region es akzeptiert
-hat — im Wissen, dass der Inhalt mit den Zeiten mitgeht.
+Deployment, das Traces ohne den Inhalt braucht, setzt `observability.content` des
+Agents auf `none`: aufgezeichnet werden Zeit, Tokens, Kosten und Tool-Namen, und
+kein Nachrichtentext verlässt die Maschine. Alles dazwischen — der Inhalt durch
+einen PII-Filter — ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 
 ### Was das Löschen erreicht { #what-deletion-reaches }
 
@@ -341,12 +342,12 @@ zutreffend für jedes Deployment, bis jede einzelne geschlossen ist.
 
 **Im Code, verfolgt:**
 
-- Traces tragen vollen Inhalt — [#1413](https://github.com/vstorm-co/agenticos/issues/1413).
+- Traces tragen vollen Inhalt, sofern ein Agent `observability.content` nicht auf `none` setzt; ein gefiltertes Dazwischen gibt es nicht — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 - Keine geplante Aufbewahrung — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Anhang-Bytes und das Memory einer Person überleben die Löschung ihres
   Besitzers; kein Export personenbezogener Daten; die Löschinventur —
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- Kein Audit-Export und kein Manipulationsnachweis — [#1422](https://github.com/vstorm-co/agenticos/issues/1422).
+- Kein Manipulationsnachweis der Audit-Spur — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Dateien nur auf lokaler Platte, vom Volume verschlüsselt oder gar nicht — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - Keine Selbstbedienungssicht auf das eigene Memory — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Keine OIDC-Anmeldung — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).

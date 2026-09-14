@@ -1,5 +1,5 @@
 ---
-source_sha: "82fcf03671a3"
+source_sha: "9871a922f9f3"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -614,7 +614,7 @@ Los archivos que alguien adjunta a un mensaje aterrizan en `/uploads`; consulta
 [Tratamiento de archivos](../file-processing.md).
 
 **Los skills también se vuelven archivos.** Un agent que tenga a la vez un workspace
-y skills recibe cada skill como `/skills/<name>/SKILL.md` con sus recursos al lado,
+y skills recibe cada skill como `/workspace/skills/<name>/SKILL.md` con sus recursos al lado,
 que es lo que hace ejecutable el script de un skill: está en disco junto a la shell
 que puede ejecutarlo. Deliberadamente no hay `run_skill_script`: `execute` ya tiene
 detrás la puerta de aprobación y los topes del operador, y una segunda vía de

@@ -12,7 +12,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from mcp.shared.auth import OAuthMetadata, OAuthToken
-from pydantic import AnyUrl
+from pydantic import AnyUrl, SecretStr, ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
@@ -45,6 +45,7 @@ from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionRead,
     McpConnectionUpdate,
+    McpOAuthStart,
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
@@ -2133,6 +2134,153 @@ class TestMcpConnectionService:
         assert "url" not in update_data  # and so does the URL they belong to
 
     @pytest.mark.anyio
+    async def test_oauth_start_uses_a_pre_registered_client_instead_of_registering(
+        self, service, repo, monkeypatch
+    ):
+        """HubSpot publishes no registration endpoint, so the operator brings the
+        client. Registration must not run, and the staged payload must hold the
+        credentials that were handed in rather than any of its own."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+                token_endpoint_auth_methods_supported=["client_secret_post"],
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+        register = AsyncMock(return_value=("registered", "registered-secret"))
+        monkeypatch.setattr(mcp_oauth, "register_client", register)
+
+        user_id = uuid4()
+        await service.oauth_start(
+            user_id=user_id,
+            name="hubspot",
+            url="https://srv/mcp",
+            client_id="operators-client",
+            client_secret=SecretStr("operators-secret"),
+        )
+
+        register.assert_not_awaited()
+        payload = McpOAuthPayload.model_validate_json(
+            unseal(
+                repo.create.call_args.kwargs["oauth_pending_payload"],
+                scope=VaultScope.user(user_id),
+            )
+        )
+        assert payload.client_id == "operators-client"
+        assert payload.client_secret is not None
+        assert payload.client_secret.get_secret_value() == "operators-secret"
+
+    @pytest.mark.anyio
+    async def test_a_pre_registered_public_client_needs_no_secret(self, service, repo, monkeypatch):
+        """A static client id with PKCE and no secret is a public client, which is
+        a legitimate registration - there is no secret for a server to refuse, so
+        the auth-method check does not apply."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+                token_endpoint_auth_methods_supported=["client_secret_basic"],
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+        register = AsyncMock()
+        monkeypatch.setattr(mcp_oauth, "register_client", register)
+
+        user_id = uuid4()
+        url = await service.oauth_start(
+            user_id=user_id, name="hubspot", url="https://srv/mcp", client_id="public-client"
+        )
+
+        register.assert_not_awaited()
+        assert "client_id=public-client" in url
+        payload = McpOAuthPayload.model_validate_json(
+            unseal(
+                repo.create.call_args.kwargs["oauth_pending_payload"],
+                scope=VaultScope.user(user_id),
+            )
+        )
+        assert payload.client_secret is None
+
+    @pytest.mark.anyio
+    async def test_oauth_start_refuses_a_client_the_server_will_not_authenticate(
+        self, service, monkeypatch
+    ):
+        """`exchange_code` and `refresh_tokens` only put the secret in the form
+        body. A server that does not allow that is refused at start, not after
+        the user has already consented."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+                token_endpoint_auth_methods_supported=["client_secret_basic"],
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+
+        with pytest.raises(mcp_oauth.OAuthError) as excinfo:
+            await service.oauth_start(
+                user_id=uuid4(),
+                name="hubspot",
+                url="https://srv/mcp",
+                client_id="operators-client",
+                client_secret=SecretStr("operators-secret"),
+            )
+        assert "client_secret_basic" in str(excinfo.value)
+
+    @pytest.mark.anyio
+    async def test_a_server_that_names_no_auth_method_takes_the_static_client(
+        self, service, repo, monkeypatch
+    ):
+        """RFC 8414 makes the list optional. Servers that omit it accept the body
+        form in practice, and refusing them would refuse the case this exists
+        for - so silence is consent."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+
+        url = await service.oauth_start(
+            user_id=uuid4(),
+            name="hubspot",
+            url="https://srv/mcp",
+            client_id="operators-client",
+            client_secret=SecretStr("operators-secret"),
+        )
+        assert "client_id=operators-client" in url
+
+    @pytest.mark.anyio
     async def test_oauth_start_rejects_internal_urls(self, service, repo):
         with pytest.raises(BadRequestError) as excinfo:
             await service.oauth_start(
@@ -3284,6 +3432,33 @@ class TestOrgReadSchema:
         assert sealed.ciphertext not in rendered
 
 
+class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
+    """The two ways a hand-registered client arrives malformed, both refused by
+    the schema so the caller hears about it on submit rather than at consent."""
+
+    def test_a_secret_with_no_client_id_is_refused(self):
+        """`_oauth_start` would register dynamically and overwrite the secret, so
+        the caller would consent against a client they never named."""
+        with pytest.raises(ValidationError) as excinfo:
+            McpOAuthStart(name="hubspot", url="https://srv/mcp", client_secret="operators-secret")
+        assert "client_id" in str(excinfo.value)
+
+    def test_a_truncated_secret_is_refused_at_submission(self):
+        """The repository-wide credential floor: the secret is not used until the
+        callback, so without this a bad paste passes start, takes the operator
+        through consent, and fails the token exchange."""
+        with pytest.raises(ValidationError) as excinfo:
+            McpOAuthStart(
+                name="hubspot", url="https://srv/mcp", client_id="cid", client_secret="short"
+            )
+        assert "at least 8 characters" in str(excinfo.value)
+
+    def test_a_client_id_alone_is_a_public_client_and_is_accepted(self):
+        """PKCE without a secret is a legitimate static client."""
+        start = McpOAuthStart(name="hubspot", url="https://srv/mcp", client_id="cid")
+        assert (start.client_id, start.client_secret) == ("cid", None)
+
+
 class TestOAuthRequestSafety:
     """Discovery lets the remote server choose most of the URLs we call, so
     every hop - redirects included - is checked and then dialled at the address
@@ -3548,8 +3723,9 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
     @pytest.mark.anyio
     async def test_an_unreadable_token_response_does_not_echo_its_input(self, monkeypatch, caplog):
         """A pydantic `ValidationError` echoes the input it rejected, and here
-        that input is the token payload - so a server that names the field
-        wrongly used to have its own tokens read back to the browser."""
+        that input is the token payload - so it reaches neither the browser nor
+        the log. The refusal names the class; the log names the failing field and
+        its error type, never the value (#1626)."""
 
         async def fake_send(client, request):
             return httpx.Response(200, json={"token": "at-secret-9f2c"}, request=request)
@@ -3566,7 +3742,22 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         shown = str(exc_info.value)
         assert "at-secret-9f2c" not in shown
         assert "ValidationError" in shown
-        assert "at-secret-9f2c" in caplog.text
+        # The token must not reach the log, but the failure is still described.
+        assert "at-secret-9f2c" not in caplog.text
+        assert "unreadable token response" in caplog.text
+
+    def test_validation_detail_names_the_field_not_the_value(self):
+        """The sanitized detail says which field failed and how, not what was in it."""
+        with pytest.raises(ValidationError) as exc_info:
+            mcp_oauth.OAuthToken.model_validate_json('{"token": "at-secret-9f2c"}')
+        detail = mcp_oauth._validation_detail(exc_info.value)
+        assert "at-secret-9f2c" not in detail
+        assert "access_token" in detail
+        assert "missing" in detail
+
+    def test_validation_detail_falls_back_to_the_class_for_a_plain_value_error(self):
+        """The caller catches the wider `ValueError`; a non-validation one names its class."""
+        assert mcp_oauth._validation_detail(ValueError("boom")) == "ValueError"
 
 
 class TestAUrlNoRequestCanBeBuiltFor:

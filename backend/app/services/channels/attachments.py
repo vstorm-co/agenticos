@@ -42,6 +42,7 @@ from app.services.channels.base import (
     OutgoingAttachment,
 )
 from app.services.file_upload import FileUploadService
+from app.services.skill_workspace import RESERVED_SKILL_PREFIXES
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ platform-side rejection arrives as an opaque API error the agent cannot act on."
 # organizational know-how materialised for the run, and `/tool_output` is a
 # spilled tool return `tool_output_limits` parked for the model to page through -
 # an internal artefact, not an answer (#803).
-_NOT_THE_AGENTS = ("uploads/", "skills/", f"{OVERFLOW_PREFIX}/")
+_NOT_THE_AGENTS = ("uploads/", *RESERVED_SKILL_PREFIXES, f"{OVERFLOW_PREFIX}/")
 """Prefixes a reply must not post back, matched after the leading slash is
 stripped.
 

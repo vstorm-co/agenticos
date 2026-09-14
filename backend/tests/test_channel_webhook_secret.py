@@ -29,6 +29,7 @@ from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
 from app.services.channels import get_adapter, register_adapter
 from app.services.channels.base import IncomingMessage
 from app.services.channels.mattermost import MattermostAdapter
+from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
 
 pytestmark = pytest.mark.anyio
@@ -60,6 +61,27 @@ def _sealed_bot(
         api_base_url=api_base_url,
     )
     bot.webhook_secret_encrypted = (
+        None if secret is None else seal(secret, scope=VaultScope.organization(org_id)).ciphertext
+    )
+    return bot
+
+
+def _sealed_slack_bot(secret: str | None) -> ChannelBot:
+    """A Slack bot whose signing secret is `secret`, sealed for its organization.
+
+    Slack verifies with its own `slack_signing_secret_encrypted`, a different
+    column than the webhook secret the other two adapters share.
+    """
+    org_id = uuid.uuid4()
+    bot = ChannelBot(
+        id=uuid.uuid4(),
+        organization_id=org_id,
+        platform="slack",
+        name="bot",
+        token_encrypted="",
+        secret_key_version=1,
+    )
+    bot.slack_signing_secret_encrypted = (
         None if secret is None else seal(secret, scope=VaultScope.organization(org_id)).ciphertext
     )
     return bot
@@ -220,7 +242,7 @@ class TestTheRowSaysWhetherItIsConfigured:
 
 @pytest.fixture
 def registered_adapters():
-    """The two adapters the receivers look up.
+    """The three adapters the receivers look up.
 
     Registered by the lifespan in production, and the test client does not run
     one - without this the routes raise `KeyError` before reaching the refusal
@@ -228,12 +250,13 @@ def registered_adapters():
     """
     register_adapter(TelegramAdapter())
     register_adapter(MattermostAdapter())
+    register_adapter(SlackAdapter())
 
 
 @pytest.mark.usefixtures("registered_adapters")
 class TestTheReceiversRefuse:
-    """Both webhook routes, asked the same question: does an unauthenticated
-    request reach `process_channel_event`?"""
+    """All three webhook routes, asked the same question: does an unauthenticated
+    request reach `process_channel_event`? Each refuses with 403 (#555)."""
 
     async def _post(self, client: AsyncClient, path: str, bot: ChannelBot | None, **kwargs) -> int:
         app.dependency_overrides[deps.get_channel_bot_service] = lambda: _bot_service(bot)
@@ -268,6 +291,23 @@ class TestTheReceiversRefuse:
         bot = _sealed_bot(None)
         status = await self._post(
             client, f"/api/v1/mattermost/{bot.id}/webhook", bot, json={"text": "hello"}
+        )
+        assert status == 403
+
+    async def test_a_slack_bot_with_no_signing_secret_is_refused(self, client: AsyncClient):
+        """The third route agreed with the other two only after #555: a bot saved
+        with no signing secret answered 500, a bodiless error to Slack's retrier,
+        where Telegram and Mattermost refused unverified events with 403."""
+        bot = _sealed_slack_bot(None)
+        status = await self._post(
+            client, f"/api/v1/slack/{bot.id}/events", bot, json={"type": "event_callback"}
+        )
+        assert status == 403
+
+    async def test_a_slack_bot_with_an_unsigned_request_is_refused(self, client: AsyncClient):
+        bot = _sealed_slack_bot("the-signing-secret")
+        status = await self._post(
+            client, f"/api/v1/slack/{bot.id}/events", bot, json={"type": "event_callback"}
         )
         assert status == 403
 

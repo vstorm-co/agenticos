@@ -1,5 +1,5 @@
 ---
-source_sha: "5b5a4d2b272d"
+source_sha: "2491700b56ff"
 ---
 
 # Skills { #skills }
@@ -110,8 +110,8 @@ Ein Agent, der sowohl Skills als auch einen
 zusätzlich dort hineingeschrieben:
 
 ```
-/skills/<name>/SKILL.md      the body, with its name and description
-/skills/<name>/<resource>    each resource, beside it
+/workspace/skills/<name>/SKILL.md      the body, with its name and description
+/workspace/skills/<name>/<resource>    each resource, beside it
 ```
 
 Das ist es, was das Skript eines Skills nützlich macht. Ein Skill, dessen

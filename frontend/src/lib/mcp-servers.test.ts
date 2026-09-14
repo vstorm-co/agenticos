@@ -9,6 +9,7 @@ import {
   matchingCustomRows,
   mergeServers,
   narrowedSelection,
+  slugForPrefix,
 } from "./mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 
@@ -418,5 +419,34 @@ describe("ownAccountStatus and a failed health check", () => {
     };
 
     expect(ownAccountStatus("github", [failing])).toBe("connected");
+  });
+});
+
+describe("slugForPrefix", () => {
+  const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+  it("takes the name after the namespace so a dotted key becomes a valid prefix", () => {
+    expect(slugForPrefix("com.snitcher/snitcher")).toBe("snitcher");
+    expect(NAME_PATTERN.test(slugForPrefix("com.snitcher/snitcher"))).toBe(true);
+  });
+
+  it("leaves a key that is already its own name unchanged", () => {
+    expect(slugForPrefix("hubspot")).toBe("hubspot");
+  });
+
+  it("reduces any other punctuation to single hyphens", () => {
+    expect(slugForPrefix("com.example.foo")).toBe("com-example-foo");
+    expect(slugForPrefix("Weird Name!!")).toBe("weird-name");
+  });
+
+  it("bounds the slug to the pattern's 32 characters", () => {
+    const slug = slugForPrefix("a".repeat(50));
+    expect(slug).toHaveLength(32);
+    expect(NAME_PATTERN.test(slug)).toBe(true);
+  });
+
+  it("returns an empty string when nothing usable remains, so the field stays blank", () => {
+    expect(slugForPrefix("///")).toBe("");
+    expect(slugForPrefix("...")).toBe("");
   });
 });

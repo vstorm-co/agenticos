@@ -169,7 +169,7 @@ class GooglePortalAdapter(PortalAdapter):
             try:
                 body = await self._get(client, access_token, "/users/me/history", params=params)
             except PortalUnreachable as exc:
-                if exc.details.get("status") != 404:
+                if (exc.details or {}).get("status") != 404:
                     raise
                 logger.info("gmail_history_expired", extra={"from": history_id})
                 return [], await self._now(client, access_token)
@@ -203,7 +203,7 @@ class GooglePortalAdapter(PortalAdapter):
                 params={"format": _MESSAGE_FORMAT},
             )
         except PortalUnreachable as exc:
-            if exc.details.get("status") == 404:
+            if (exc.details or {}).get("status") == 404:
                 return None
             raise
         text = _body_text(body.get("payload") or {})

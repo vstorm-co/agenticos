@@ -196,7 +196,7 @@ from app.services.sandbox_workspace import (
     SandboxWorkspaceService,
 )
 from app.services.skill_proposal import SkillProposalService
-from app.services.skill_workspace import MaterialisedSkills, collect_changes
+from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
@@ -1287,6 +1287,28 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
 _CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
 
 
+_SKILLS_BRIEFING = (
+    f"Your skills are also files, under `{SKILLS_ROOT}/<name>/` - `SKILL.md` and each "
+    "of the skill's resources beside it. Read and run them there. A skill whose own "
+    "text names a different directory is out of date; this is where the files are."
+)
+
+
+def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
+    """The spec told where this run's skills were written.
+
+    Nothing else tells it. The path was only ever discoverable from a skill's own
+    body, which made every skill authored against the old root the model's sole
+    authority for a location the platform had since changed - and a body that
+    still names it sends the model to a directory that is not there. Said once,
+    by the side that chooses the path, that text is merely stale.
+
+    Appended like the workspace briefing, and only when something was actually
+    materialised: a run whose every write was refused has no files to point at.
+    """
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{_SKILLS_BRIEFING}"})
+
+
 class PersonalServiceGap(BaseModel):
     """One personal MCP service a turn cannot reach, as a surface draws it.
 
@@ -2266,6 +2288,8 @@ class AgentRunnerService:
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
             materialised = await materialise_skills(workspace.backend, resources["skills"])
+            if materialised.written:
+                spec = _with_skills_briefing(spec)
             # After the skills are written, so materialising them does not read as
             # the turn's own output.
             started_with = await workspace_snapshot(workspace.backend)
@@ -3849,6 +3873,7 @@ class AgentRunnerService:
             token_secret_id=token_secret_id,
             service_name=environment.service_name or (base.service_name if base else None),
             environment=environment.name,
+            content=base.content if base else "full",
         )
         return spec.model_copy(update={"observability": merged})
 
