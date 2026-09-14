@@ -57,6 +57,16 @@ def _document_is_unaddressed(doc: DocumentInfo) -> bool:
 
 class BaseVectorStore(ABC):
     @abstractmethod
+    async def _ensure_collection(self, name: str) -> None:
+        """Create the collection's backing objects if they do not already exist.
+
+        `create_collection` below is the one concrete method every subclass
+        shares, and it calls this; declaring it abstract here is what makes a
+        subclass that forgets to implement it fail at class definition rather
+        than at the first `create_collection` call.
+        """
+
+    @abstractmethod
     async def insert_document(self, collection_name: str, document: Document) -> None:
         pass
 

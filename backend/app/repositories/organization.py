@@ -116,7 +116,7 @@ async def member_counts_for(db: AsyncSession, org_ids: list[UUID]) -> dict[UUID,
         .where(OrganizationMember.organization_id.in_(org_ids))
         .group_by(OrganizationMember.organization_id)
     )
-    return dict(result.all())
+    return dict(result.tuples().all())
 
 
 async def list_owned_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
@@ -386,3 +386,65 @@ async def admin_list_with_counts(
         (organization, int(members), int(agents), owner_id, owner_email, owner_name)
         for organization, members, agents, owner_id, owner_email, owner_name in rows
     ], total
+
+
+async def admin_get_with_counts(db: AsyncSession, org_id: UUID) -> AdminOrganizationRow | None:
+    """One organization with the size, agents and owner `admin_list_with_counts` carries.
+
+    The per-tenant view behind the deployment admin's listing (#1245): cross-tenant
+    by construction and reached only behind the `is_app_admin` gate, it answers
+    "what is this tenant" for an admin who belongs to none of them. It reaches the
+    same three facts the listing does - member count, agent count, the earliest
+    owner - and nothing a tenant keeps to itself.
+    """
+    member_counts = (
+        select(
+            OrganizationMember.organization_id,
+            func.count(OrganizationMember.user_id).label("member_count"),
+        )
+        .where(OrganizationMember.organization_id == org_id)
+        .group_by(OrganizationMember.organization_id)
+        .subquery()
+    )
+    agent_counts = (
+        select(Agent.organization_id, func.count(Agent.id).label("agent_count"))
+        .where(Agent.organization_id == org_id)
+        .group_by(Agent.organization_id)
+        .subquery()
+    )
+    owners = (
+        select(
+            OrganizationMember.organization_id,
+            User.id.label("owner_user_id"),
+            User.email.label("owner_email"),
+            User.full_name.label("owner_name"),
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == org_id,
+            OrganizationMember.role == OrgRole.OWNER.value,
+        )
+        .distinct(OrganizationMember.organization_id)
+        .order_by(OrganizationMember.organization_id, OrganizationMember.joined_at)
+        .subquery()
+    )
+    row = (
+        await db.execute(
+            select(
+                Organization,
+                func.coalesce(member_counts.c.member_count, 0),
+                func.coalesce(agent_counts.c.agent_count, 0),
+                owners.c.owner_user_id,
+                owners.c.owner_email,
+                owners.c.owner_name,
+            )
+            .outerjoin(member_counts, member_counts.c.organization_id == Organization.id)
+            .outerjoin(agent_counts, agent_counts.c.organization_id == Organization.id)
+            .outerjoin(owners, owners.c.organization_id == Organization.id)
+            .where(Organization.id == org_id)
+        )
+    ).first()
+    if row is None:
+        return None
+    organization, members, agents, owner_id, owner_email, owner_name = row
+    return organization, int(members), int(agents), owner_id, owner_email, owner_name

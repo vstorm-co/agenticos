@@ -1,5 +1,5 @@
 ---
-source_sha: "b21adcea79d5"
+source_sha: "bd9c21e1a80b"
 ---
 
 # Zbuduj bazę wiedzy { #set-up-a-knowledge-base }
@@ -25,8 +25,9 @@ czy do organizacji.
     porównywałoby więc wektory, które nie znaczą tego samego.
 
     Zmiana zdania później oznacza utworzenie nowej kolekcji i zaingestowanie
-    wszystkiego od nowa. Zostaw wartość domyślną wdrożenia, chyba że masz powód,
-    a jeśli go masz, zobacz
+    wszystkiego od nowa. Formularz oferuje modele, które serwuje wybrany
+    provider, i preselekcjonuje pierwszy z nich; zostaw go, chyba że masz powód,
+    by tego nie robić, a jeśli go masz, zobacz
     [Wybór modelu](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
 
 W sekcji **Embeddings** wybierz providera, który serwuje model, oraz klucz w

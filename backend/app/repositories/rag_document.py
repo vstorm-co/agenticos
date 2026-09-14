@@ -4,11 +4,12 @@ Contains database operations for RAGDocument entities.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.rag_document import DocumentStatus, RAGDocument
@@ -211,13 +212,16 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
     the column exists: `a/readme.md` and `b/readme.md` in one bucket share a
     basename, and matching by name would delete the other file's row.
     """
-    result = await db.execute(
-        sql_delete(RAGDocument).where(
-            RAGDocument.collection_name == collection_name,
-            RAGDocument.source_path == source_path,
-            RAGDocument.status == DocumentStatus.ERROR,
-            RAGDocument.vector_document_id.is_(None),
-        )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            sql_delete(RAGDocument).where(
+                RAGDocument.collection_name == collection_name,
+                RAGDocument.source_path == source_path,
+                RAGDocument.status == DocumentStatus.ERROR,
+                RAGDocument.vector_document_id.is_(None),
+            )
+        ),
     )
     await db.flush()
     return int(result.rowcount or 0)

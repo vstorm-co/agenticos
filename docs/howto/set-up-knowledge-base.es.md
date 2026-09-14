@@ -1,5 +1,5 @@
 ---
-source_sha: "b21adcea79d5"
+source_sha: "bd9c21e1a80b"
 ---
 
 # Monta una base de conocimiento { #set-up-a-knowledge-base }
@@ -25,8 +25,9 @@ o de la organización.
     seguiría comparando vectores que no significan lo mismo.
 
     Cambiar de idea más adelante significa crear una colección nueva y volver a
-    ingerirlo todo. Déjalo en el valor por defecto del deployment salvo que
-    tengas un motivo, y si lo tienes, consulta
+    ingerirlo todo. El formulario ofrece los modelos que sirve el provider
+    elegido y preselecciona el primero; déjalo así salvo que tengas un motivo
+    para no hacerlo, y si lo tienes, consulta
     [Elegir un modelo](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
 
 En **Embeddings**, elige el provider que sirve el modelo y el secreto del vault

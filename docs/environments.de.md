@@ -1,5 +1,5 @@
 ---
-source_sha: "5f82d4791ee1"
+source_sha: "c4a41dd69a21"
 ---
 
 # Umgebungen { #environments }
@@ -87,6 +87,14 @@ Projekt, getaggt mit dem Namen der Umgebung.
 Das hält ein Staging-Experiment aus dem Dashboard heraus, das jemand auf
 Produktionsvorfälle hin beobachtet — und es geht pro Umgebung statt pro
 Deployment, weil die beiden wirklich verschiedene Projekte sind.
+
+Wohin die Traces gehen, gehört der Umgebung; *wie viel sie tragen*, dem Agent.
+Der [observability](reference/spec.md#observability)-Block eines Agents hat einen
+`content`-Modus: `full` zeichnet die Nachricht, die Ausgabe des Modells und jedes
+Tool-Argument auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen. Bei einem
+Projekt über Gesundheits-, Rechts- oder HR-Daten ist `none` das, was eine Kopie
+der geschützten Inhalte davon abhält, die Maschine zu verlassen. Das Token der
+Umgebung leitet den Run um, überschreibt diese Wahl aber nicht.
 
 ## Was die Standardumgebung nicht ist { #what-the-default-environment-is-not }
 

@@ -664,3 +664,75 @@ class TestBlockingWorkRunsOffTheLoop:
         names = sorted(f.name for f in rag_tasks._walk_files(tmp_path))
 
         assert names == ["a.md", "b.md"]  # recursive, no hidden files, no directories
+
+
+class TestASyncLogPassedInIsNotLeftRunning:
+    """`trigger_sync` creates the `SyncLog` before dispatching the flow and hands
+    it that log's id; a flow that refuses before the log is ever read again -
+    an unknown connector, or a source whose collection was cleared between
+    `trigger_sync`'s check and this flow actually running - must complete that
+    log as errored rather than leave it `running` forever with nothing left to
+    ever finish it."""
+
+    @staticmethod
+    def _source(**overrides: Any) -> MagicMock:
+        source = MagicMock(
+            connector_type="gdrive", collection_name="docs", config={}, organization_id=uuid.uuid4()
+        )
+        for key, value in overrides.items():
+            setattr(source, key, value)
+        return source
+
+    @staticmethod
+    @asynccontextmanager
+    async def _refusing(*, source: MagicMock) -> Any:
+        sources = MagicMock(
+            get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
+        )
+        sync_svc = MagicMock(complete_sync=AsyncMock())
+
+        @asynccontextmanager
+        async def _db() -> Any:
+            yield MagicMock()
+
+        with (
+            patch.object(rag_tasks, "get_worker_db_context", new=_db),
+            patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+            patch("app.services.rag_sync.RAGSyncService", return_value=sync_svc),
+        ):
+            yield sources, sync_svc
+
+    async def test_an_unknown_connector_completes_the_passed_in_log_as_errored(self):
+        log_id = str(uuid.uuid4())
+        source = self._source(connector_type="not_a_real_connector")
+        async with self._refusing(source=source) as (sources, sync_svc):
+            answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=log_id)
+
+        assert answer["status"] == "error"
+        sync_svc.complete_sync.assert_awaited_once()
+        assert sync_svc.complete_sync.await_args.args[0] == log_id
+        assert sync_svc.complete_sync.await_args.kwargs["status"] == "error"
+        sources.update_after_sync.assert_awaited_once()
+
+    async def test_a_source_with_no_collection_completes_the_passed_in_log_as_errored(self):
+        log_id = str(uuid.uuid4())
+        source = self._source(collection_name=None)
+        async with self._refusing(source=source) as (_sources, sync_svc):
+            answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=log_id)
+
+        assert answer["status"] == "error"
+        sync_svc.complete_sync.assert_awaited_once()
+        assert sync_svc.complete_sync.await_args.args[0] == log_id
+        assert sync_svc.complete_sync.await_args.kwargs["status"] == "error"
+
+    async def test_a_scheduler_dispatch_with_no_log_yet_tries_to_complete_none(self):
+        """No `sync_log_id` means no log was ever created for this attempt - the
+        source's own `last_sync_status` is still set, but there is nothing to
+        complete, and the call must not be made with a log id of `None`."""
+        source = self._source(collection_name=None)
+        async with self._refusing(source=source) as (sources, sync_svc):
+            answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=None)
+
+        assert answer["status"] == "error"
+        sync_svc.complete_sync.assert_not_awaited()
+        sources.update_after_sync.assert_awaited_once()

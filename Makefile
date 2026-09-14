@@ -318,7 +318,10 @@ lint-backend:
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
 	python3 scripts/check_backticks.py
-	python3 scripts/check_routes.py
+	# Through the pinned interpreter, not whatever `python3` resolves to on the
+	# host: the isinstance union check below needs 3.10+, and a system Python
+	# older than the backend's own pin crashes here with a bare TypeError.
+	uv run --directory backend python3 ../scripts/check_routes.py
 	python3 scripts/check_comments.py
 	python3 scripts/check_docs_paragraphs.py
 	python3 scripts/check_docs_i18n.py

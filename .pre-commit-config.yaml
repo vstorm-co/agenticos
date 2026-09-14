@@ -131,10 +131,12 @@ repos:
         types: [python]
         pass_filenames: false
       # A route module holds routers, not helpers. Anything else needs a
-      # `# routes-helper: <reason>` marker.
+      # `# routes-helper: <reason>` marker. Through the pinned interpreter -
+      # the isinstance union check inside needs 3.10+, and `language: system`
+      # otherwise runs whatever `python3` the host has on its PATH.
       - id: check-routes
         name: routes hold only routers
-        entry: python3 scripts/check_routes.py
+        entry: uv run --no-sync --directory backend python3 ../scripts/check_routes.py
         language: system
         types: [python]
         pass_filenames: false

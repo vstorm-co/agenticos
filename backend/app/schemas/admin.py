@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from app.schemas.base import BaseSchema
@@ -48,3 +49,26 @@ class AdminOrganizationRead(BaseSchema):
 class AdminOrganizationList(BaseSchema):
     items: list[AdminOrganizationRead]
     total: int
+
+
+class AdminOrganizationMember(BaseSchema):
+    """One member of a tenant, as the deployment admin inspecting it sees them."""
+
+    user_id: UUID
+    email: str
+    name: str | None = None
+    role: str
+
+
+class AdminOrganizationDetail(AdminOrganizationRead):
+    """One organization in full, for the deployment admin's per-tenant page (#1245).
+
+    Metadata only, and deliberately so: the members and their roles, the size, the
+    owner and the budget - never the tenant's agents, conversations or secrets,
+    which the tenant boundary in `docs/architecture.md` keeps to the tenant. The
+    read is behind the `is_app_admin` gate and is itself recorded in the audit
+    trail.
+    """
+
+    members: list[AdminOrganizationMember]
+    monthly_budget_usd: Decimal | None = None

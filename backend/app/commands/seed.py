@@ -29,7 +29,7 @@ except ImportError:
 
 def random_email() -> str:
     """Generate a random email address."""
-    if HAS_FAKER:
+    if fake is not None:
         return str(fake.email())
     random_str = "".join(random.choices(string.ascii_lowercase, k=8))
     return f"{random_str}@example.com"
@@ -37,7 +37,7 @@ def random_email() -> str:
 
 def random_name() -> str:
     """Generate a random full name."""
-    if HAS_FAKER:
+    if fake is not None:
         return str(fake.name())
     first_names = ["John", "Jane", "Bob", "Alice", "Charlie", "Diana", "Eve", "Frank"]
     last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
