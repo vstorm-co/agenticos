@@ -149,13 +149,18 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    # Valkey, not Redis: Redis is RSALv2/SSPLv1 from 7.4 and neither is an
+    # open-source licence, which is a component nobody should meet for the
+    # first time in a security review. Valkey is the BSD-3-Clause fork of
+    # Redis 7.2 and speaks the same protocol, so the service name, the port
+    # and every `REDIS_*` setting stay as they are (docs/licenses.md).
+    image: valkey/valkey:8-alpine
     volumes:
       - redis_data:/data
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

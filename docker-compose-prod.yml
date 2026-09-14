@@ -184,21 +184,21 @@ services:
           memory: 2G
 
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:8-alpine
     # A cache with no ceiling is a cache that grows until the container is
     # killed, and this one holds rate-limit buckets, channel dedupe claims and
     # membership answers - all of which are rebuildable, none of which is worth
     # an OOM. `allkeys-lru` because everything here has a TTL anyway; the policy
     # only decides what goes first if one is ever forgotten.
     command: >-
-      redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       --maxmemory 384mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
       - data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "valkey-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

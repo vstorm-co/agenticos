@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { InlineLocalService } from "@/components/kb/inline-local-service";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
@@ -12,13 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useSecrets } from "@/hooks";
+import { useLocalServices, useSecrets } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import type { EmbeddingModels } from "@/types";
 import { useTranslations } from "next-intl";
-
-/** Sentinel for "the deployment's key" - a Select item may not be empty. */
-export const DEPLOYMENT_KEY = "__deployment__";
 
 /**
  * Which providers this build can embed through, and what each serves.
@@ -47,29 +45,45 @@ export function useEmbeddingProviders() {
  * provider without changing the key produces a collection holding an OpenRouter
  * key and an OpenAI address, which the provider refuses after the key has
  * already reached it. So choosing a provider here clears a key that belongs to
- * another one, and the deployment's key is offered only where it applies.
+ * another one. There is no deployment-wide key on offer: every collection pays
+ * with a vault key of its own, and the picker is empty until one is chosen.
+ *
+ * A keyless provider - an Ollama on the deployment's own network - asks a
+ * different question: not whose key, but *which server*. It is drawn as a select
+ * over the local services registered for that provider, the organization's own
+ * and the deployment-wide ones, with the same way to add one in place.
  */
 export function EmbeddingProviderFields({
   models,
   provider,
   secretId,
+  endpointId,
   onProvider,
   onSecretId,
+  onEndpointId,
   idPrefix,
 }: {
   models: EmbeddingModels;
   provider: string;
-  /** The chosen vault key, or null for the deployment's. */
+  /** The chosen vault key, or null while none is. */
   secretId: string | null;
+  /** The chosen local service for a keyless provider, or null while none is. */
+  endpointId: string | null;
   onProvider: (provider: string) => void;
   onSecretId: (secretId: string | null) => void;
+  onEndpointId: (endpointId: string | null) => void;
   /** So two of these on one screen do not share an input id. */
   idPrefix: string;
 }) {
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
   const entry = models.providers.find((item) => item.provider === provider);
+  const keyless = entry?.keyless === true;
+  const { services } = useLocalServices(keyless);
   const keys = secrets.filter((secret) => secret.purpose === provider);
+  const servers = services.filter(
+    (service) => service.kind === "embedding" && service.provider === provider && service.is_active,
+  );
 
   return (
     <>
@@ -79,10 +93,11 @@ export function EmbeddingProviderFields({
           value={provider}
           onValueChange={(next) => {
             onProvider(next);
-            // A key for the provider being left behind would be sent to the new
-            // one's address, which is the failure this whole field exists to
-            // prevent. Cleared rather than kept and refused on save.
+            // A key or a server chosen for the provider being left behind would
+            // be sent to the new one's address, which is the failure this whole
+            // field exists to prevent. Cleared rather than kept and refused on save.
             if (secretId !== null) onSecretId(null);
+            if (endpointId !== null) onEndpointId(null);
           }}
         >
           <SelectTrigger id={`${idPrefix}-provider`}>
@@ -97,46 +112,65 @@ export function EmbeddingProviderFields({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-key`}>{t("key")}</Label>
-        <Select
-          value={secretId ?? DEPLOYMENT_KEY}
-          onValueChange={(value) => onSecretId(value === DEPLOYMENT_KEY ? null : value)}
-        >
-          <SelectTrigger id={`${idPrefix}-key`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {/* Only where it applies. The deployment has one key and it belongs
-                to one provider; offering it elsewhere offers a collection that
-                cannot index its first document. */}
-            {entry?.deployment_key === true && (
-              <SelectItem value={DEPLOYMENT_KEY} textValue={t("deploymentKey")}>
-                <ProviderRow provider={provider} name={t("deploymentKey")} />
-              </SelectItem>
-            )}
-            {keys.map((secret) => (
-              <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
-                <ProviderRow provider={provider} name={secret.name} hint={secret.hint} />
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-muted-foreground text-xs">
-          {entry?.deployment_key === true ? t("keyHereBillsEmbeddings") : t("keyRequiredHere")}
-        </p>
-        {/* Rather than only telling somebody to go and add one: a picker with
+      {keyless ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-server`}>{t("server")}</Label>
+          <Select value={endpointId ?? ""} onValueChange={onEndpointId}>
+            <SelectTrigger id={`${idPrefix}-server`}>
+              <SelectValue placeholder={t("chooseServer")} />
+            </SelectTrigger>
+            <SelectContent>
+              {servers.map((service) => (
+                <SelectItem key={service.id} value={service.id} textValue={service.name}>
+                  <ProviderRow
+                    provider={provider}
+                    name={
+                      service.organization_id === null
+                        ? t("deploymentWideNamed", { name: service.name })
+                        : service.name
+                    }
+                  />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {t("keylessProvider", { provider: entry.name })}
+          </p>
+          <InlineLocalService kind="embedding" provider={provider} onCreated={onEndpointId} />
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-key`}>{t("key")}</Label>
+          {/* Controlled throughout: an empty string is how Radix is told "nothing
+            chosen, show the placeholder", where `undefined` would flip the
+            select to uncontrolled and leave the last key on the trigger. */}
+          <Select value={secretId ?? ""} onValueChange={onSecretId}>
+            <SelectTrigger id={`${idPrefix}-key`}>
+              <SelectValue placeholder={t("chooseKey")} />
+            </SelectTrigger>
+            <SelectContent>
+              {keys.map((secret) => (
+                <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                  <ProviderRow provider={provider} name={secret.name} hint={secret.hint} />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">{t("keyRequiredHere")}</p>
+          {/* Rather than only telling somebody to go and add one: a picker with
             nothing in it and no way to fill it is a dead end, and the answer to
             "add a key in the vault" is a form, not a sentence. Unconditional
             because the permission is its own decision to make - it says who has
             to add the key rather than rendering a gap. */}
-        <InlineSecret
-          kind="api_key"
-          purpose={provider}
-          suggestedName={t("embeddingsKeyName", { provider: entry?.name ?? provider })}
-          onCreated={onSecretId}
-        />
-      </div>
+          <InlineSecret
+            kind="api_key"
+            purpose={provider}
+            suggestedName={t("embeddingsKeyName", { provider: entry?.name ?? provider })}
+            onCreated={onSecretId}
+          />
+        </div>
+      )}
     </>
   );
 }

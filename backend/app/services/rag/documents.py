@@ -543,7 +543,9 @@ class PdfParserFactory:
     ) -> BaseDocumentParser:
         if parser_name == "llamaparse":
             if not settings or not settings.pdf_parser.api_key:
-                raise ValueError("LlamaParse requires LLAMAPARSE_API_KEY to be set")
+                raise ValueError(
+                    "LlamaParse needs the collection's vault key, and none was resolved"
+                )
             return LlamaParseParser(
                 api_key=settings.pdf_parser.api_key,
                 tier=settings.pdf_parser.tier,
