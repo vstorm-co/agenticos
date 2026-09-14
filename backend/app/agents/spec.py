@@ -410,12 +410,13 @@ class ObservabilitySpec(BaseModel):
             "span keeps the shape of the exchange while an email, a token or a key "
             "is scrubbed before it leaves for Logfire. Default 'full', so an agent "
             "that says nothing traces as it always did. For a deployment whose runs "
-            "touch health, legal or HR data, 'none' keeps every copy of the "
-            "protected content off the Logfire project, and 'redacted' is the "
-            "middle ground that keeps a debuggable trace without the raw PII. "
-            "'redacted' needs a per-agent token: with none, the content is "
-            "suppressed as 'none' would, since there is no client project for the "
-            "scrubbed trace to land in."
+            "touch health, legal or HR data, 'none' keeps the protected content "
+            "out of the Logfire project, and 'redacted' is the middle ground that "
+            "keeps a debuggable trace without the raw PII. Both govern only what "
+            "reaches Logfire, not where the content otherwise lives. 'redacted' "
+            "needs a Logfire token to scrub into - the agent's own or the one its "
+            "environment carries; with neither, it is suppressed as 'none' would "
+            "be, since there is no project for the scrubbed trace to land in."
         ),
     )
 

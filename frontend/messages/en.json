@@ -518,7 +518,7 @@
     "traceContentFull": "Full — messages, output and tool calls",
     "traceContentRedacted": "Redacted — content with PII scrubbed",
     "traceContentNone": "None — timing and cost only",
-    "traceContentHint": "\"None\" sends no message text or tool arguments; \"Redacted\" keeps them but runs the PII filter over them first, so an email, a token or a key is scrubbed before it reaches Logfire. Either suits a project over health, legal or HR data; \"Redacted\" needs the agent's own token, falling back to \"None\" without one.",
+    "traceContentHint": "\"None\" sends no message text or tool arguments; \"Redacted\" keeps them but runs the PII filter over them first, so an email, a token or a key is scrubbed before it reaches Logfire. Both govern only what reaches Logfire, not where the content otherwise lives. Either suits a project over health, legal or HR data; \"Redacted\" needs a Logfire token — the agent's own or its environment's — falling back to \"None\" with neither.",
     "serverCount": "{count, plural, =1 {1 server} other {# servers}}",
     "servesVersion": "serves v{version}",
     "serviceName": "Service name",

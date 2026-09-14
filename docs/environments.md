@@ -86,12 +86,14 @@ mode:
   first, so a span keeps the shape of the exchange while an email, a token or a
   key is scrubbed before it leaves for Logfire.
 
-For a project over health, legal or HR data, `none` keeps every copy of the
-protected content off the machine, and `redacted` is the middle ground that
-keeps a debuggable trace without the raw PII. `redacted` needs the agent's own
-token, though — without a project to send the scrubbed trace to, it falls back
-to suppressing content as `none` would. The environment's token redirects the
-run but does not override the choice of how much it carries.
+For a project over health, legal or HR data, `none` keeps the protected content
+out of the Logfire project, and `redacted` is the middle ground that keeps a
+debuggable trace without the raw PII. Both govern only what reaches Logfire: the
+prompt is still stored with the conversation and sent to the model, so neither is
+a control over where the content otherwise lives. `redacted` needs a Logfire
+token to scrub into — the agent's own or the one its environment carries; with
+neither, it falls back to suppressing content as `none` would. The environment's
+token redirects the run but does not override the choice of how much it carries.
 
 ## What the default environment is not
 

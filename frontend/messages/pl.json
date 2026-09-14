@@ -2689,7 +2689,7 @@
     "traceContentFull": "Pełna — wiadomości, wyjście i wywołania narzędzi",
     "traceContentRedacted": "Zredagowana — treść z usuniętym PII",
     "traceContentNone": "Brak — tylko czas i koszt",
-    "traceContentHint": "„Brak\" nie wysyła treści wiadomości ani argumentów narzędzi; „Zredagowana\" zachowuje je, ale najpierw przepuszcza przez filtr PII, więc email, token lub klucz zostają usunięte, zanim trafią do Logfire. Obie pasują do projektu na danych medycznych, prawnych lub HR; „Zredagowana\" wymaga własnego tokena agenta, a bez niego wraca do „Brak\".",
+    "traceContentHint": "„Brak\" nie wysyła treści wiadomości ani argumentów narzędzi; „Zredagowana\" zachowuje je, ale najpierw przepuszcza przez filtr PII, więc email, token lub klucz zostają usunięte, zanim trafią do Logfire. Obie decydują tylko o tym, co trafia do Logfire, nie o tym, gdzie treść jest przechowywana poza nim. Obie pasują do projektu na danych medycznych, prawnych lub HR; „Zredagowana\" wymaga tokena Logfire — własnego agenta lub jego środowiska — a bez żadnego wraca do „Brak\".",
     "serverCount": "{count, plural, =1 {1 serwer} few {# serwery} many {# serwerów} other {# serwera}}",
     "servesVersion": "obsługuje v{version}",
     "serviceName": "Nazwa usługi",
