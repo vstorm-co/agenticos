@@ -310,12 +310,14 @@ class TestEditing:
 class TestResolvingForARun:
     async def test_the_default_is_taken_when_the_spec_names_none(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=row))
 
         resolved = await service.resolve(_ctx(), None)
 
-        assert resolved.token == "tok"
+        assert resolved.token == "tok-12345678"
         assert resolved.kind == "docker"
 
     async def test_an_organization_with_no_connection_is_told_what_to_do(self, monkeypatch):
@@ -382,7 +384,7 @@ class TestResolvingForARun:
                 row.secret_id,
                 AwsCredentialsSecret(
                     aws_access_key_id="AKIA0000",
-                    aws_secret_access_key="x",
+                    aws_secret_access_key="x-secret-access",
                     region_name="eu-west-1",
                 ),
             ),
@@ -406,7 +408,9 @@ class TestReadingThePolicy:
         """The runtime allowlist is its boot configuration, so a copy here would
         disagree the first time somebody restarted it with a different limit."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, _Response(200, {"runtimes": [{"alias": "python"}]}))
 
@@ -418,20 +422,24 @@ class TestReadingThePolicy:
     async def test_the_token_is_sent_as_a_header_and_not_in_the_url(self, monkeypatch):
         """A token in a query string reaches every access log on the way."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         seen = _serve(monkeypatch, _Response(200, {"runtimes": []}))
 
         await service.policy(_ctx(), row.id)
 
-        assert seen["headers"] == {"X-Sandbox-Token": "tok"}
-        assert "tok" not in seen["url"]
+        assert seen["headers"] == {"X-Sandbox-Token": "tok-12345678"}
+        assert "tok-12345678" not in seen["url"]
 
     async def test_daytona_publishes_no_policy_of_its_own(self, monkeypatch):
         """What it allows is an account setting on their side, so there is
         nothing to proxy and nothing to invent."""
         row = _row(kind="daytona", base_url=None)
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
         policy = await service.policy(_ctx(), row.id)
@@ -445,7 +453,9 @@ class TestReadingThePolicy:
         """ "No runtimes" and "unreachable" are different problems, and only one
         of them is fixed in this form."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, OSError("connection refused"))
 
@@ -456,7 +466,9 @@ class TestReadingThePolicy:
 
     async def test_a_refused_token_is_reported_as_the_credential(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, _Response(401))
 
@@ -467,7 +479,9 @@ class TestReadingThePolicy:
 
     async def test_any_other_status_is_reported_with_its_number(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, _Response(503))
 
@@ -483,7 +497,9 @@ class TestReadingThePolicy:
         500 - the one outcome the rest of these messages exist to avoid.
         """
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, _NotJson())
 
@@ -552,13 +568,13 @@ class TestWhatThisDeploymentCanAlreadySee:
         monkeypatch.setattr(
             sandbox_connection_repo, "list_for_organization", AsyncMock(return_value=[])
         )
-        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx-local")
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx-local-key")
         _serve(monkeypatch, _Response(200, {}))
 
         local = await service.local_service(_ctx())
 
         assert local.token_available is True
-        assert "sbx-local" not in repr(local)
+        assert "sbx-local-key" not in repr(local)
 
     async def test_a_connection_already_pointing_there_is_named(self, monkeypatch):
         """So the dialog can say "you already registered this" instead of letting
@@ -639,9 +655,9 @@ class TestStoringTheLocalToken:
         """Purpose `sandboxd`, so the connection form's own picker offers it and a
         Daytona key is not offered for a container service."""
         service = _service(monkeypatch)
-        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx")
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx-12345")
         monkeypatch.setattr(organization_secret_repo, "get_by_name", AsyncMock(return_value=None))
-        created = MagicMock(id=uuid.uuid4(), hint="sbx")
+        created = MagicMock(id=uuid.uuid4(), hint="sbx-12345")
         # Assigned rather than passed: `MagicMock(name=...)` names the mock
         # instead of setting the attribute, and the answer is now a model whose
         # `name` has to be a string.
@@ -657,7 +673,7 @@ class TestStoringTheLocalToken:
         token resolves and then 401s on every session - the same failure this
         exists to prevent, reached from the other side."""
         service = _service(monkeypatch)
-        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx-new")
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx-new-key")
         existing = MagicMock(id=uuid.uuid4())
         monkeypatch.setattr(
             organization_secret_repo, "get_by_name", AsyncMock(return_value=existing)
@@ -697,7 +713,7 @@ class TestTestingAnAddressBeforeItIsSaved:
 
     async def test_the_runtimes_come_from_the_service_at_that_address(self, monkeypatch):
         secret_id = uuid.uuid4()
-        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok-12345678")))
         seen = _serve(monkeypatch, _Response(200, {"runtimes": [{"alias": "python"}]}))
 
         policy = await service.probe_policy(
@@ -710,15 +726,15 @@ class TestTestingAnAddressBeforeItIsSaved:
 
     async def test_the_token_is_a_header_here_too(self, monkeypatch):
         secret_id = uuid.uuid4()
-        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok-12345678")))
         seen = _serve(monkeypatch, _Response(200, {"runtimes": []}))
 
         await service.probe_policy(
             _ctx(), SandboxProbeRequest(base_url="http://sandboxd:8080", secret_id=secret_id)
         )
 
-        assert seen["headers"] == {"X-Sandbox-Token": "tok"}
-        assert "tok" not in seen["url"]
+        assert seen["headers"] == {"X-Sandbox-Token": "tok-12345678"}
+        assert "tok-12345678" not in seen["url"]
 
     async def test_this_deployments_own_service_can_be_tested_with_its_own_token(self, monkeypatch):
         """The commonest path through the dialog names no key at all.
@@ -779,7 +795,7 @@ class TestTestingAnAddressBeforeItIsSaved:
                 secret_id,
                 AwsCredentialsSecret(
                     aws_access_key_id="AKIA0000",
-                    aws_secret_access_key="x",
+                    aws_secret_access_key="x-secret-access",
                     region_name="eu-west-1",
                 ),
             ),
@@ -794,7 +810,7 @@ class TestTestingAnAddressBeforeItIsSaved:
 
     async def test_an_address_that_does_not_answer_is_reported_as_the_address(self, monkeypatch):
         secret_id = uuid.uuid4()
-        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok-12345678")))
         _serve(monkeypatch, OSError("no route to host"))
 
         with pytest.raises(BadRequestError) as refused:
@@ -822,7 +838,7 @@ class TestTestingAnAddressBeforeItIsSaved:
         session not found" would be confident about the wrong thing.
         """
         secret_id = uuid.uuid4()
-        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok-12345678")))
         _serve(monkeypatch, _Response(404))
 
         with pytest.raises(NotFoundError) as refused:
@@ -861,7 +877,9 @@ class TestReadingTheSessions:
 
     async def test_another_tenants_sandboxes_are_dropped_before_the_response(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
@@ -890,7 +908,9 @@ class TestReadingTheSessions:
         """Something else opened it against the same service. Showing it would be
         showing a container this organization has no claim to."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
@@ -903,7 +923,9 @@ class TestReadingTheSessions:
         """Parsing the scope key back out would make its format a schema, and the
         first change to it would mislabel every row."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         ctx = _ctx()
         agent_id, conversation_id = uuid.uuid4(), uuid.uuid4()
@@ -933,7 +955,9 @@ class TestReadingTheSessions:
         lands on an empty sidebar dressed as the conversation - and this listing is
         organization-wide, so that is most of its rows."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         ctx = _ctx()
         mine, theirs = uuid.uuid4(), uuid.uuid4()
@@ -990,7 +1014,9 @@ class TestReadingTheSessions:
     async def test_a_run_scoped_sandbox_keeps_its_id_and_nothing_else(self, monkeypatch):
         """It has no row by design, so an unmatched session is normal."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
@@ -1014,7 +1040,9 @@ class TestReadingTheSessions:
         daemon's mapping rather than the mapping being passed on, so the label is
         dropped once rather than by every caller remembering to (#562)."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
@@ -1033,7 +1061,9 @@ class TestReadingTheSessions:
         """The service pays a daemon round trip per sandbox for it, so a listing
         page must not do it on load."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
@@ -1046,7 +1076,9 @@ class TestReadingTheSessions:
 
     async def test_daytona_holds_no_sessions_of_ours_to_enumerate(self, monkeypatch):
         row = _row(kind="daytona", base_url=None)
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
         listing = await service.sessions(_ctx(), row.id)
@@ -1056,7 +1088,9 @@ class TestReadingTheSessions:
 
     async def test_a_service_that_did_not_answer_is_reported(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, OSError("connection refused"))
 
@@ -1070,7 +1104,9 @@ class TestReadingTheSessions:
         ceiling can still see the host is full of another tenant's work. Taken
         before the filter, so they count every tenant while the rows count one."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
@@ -1108,7 +1144,9 @@ class TestReadingTheSessions:
         reads `running` while `alive` is false - `state`, not `alive`, is what the
         resident ceiling counts, or a full host would look like it had room."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
@@ -1138,7 +1176,9 @@ class TestReadingTheSessions:
         """It enforces no ceilings of ours, so there is nothing to be a numerator
         for; both counts default to `None` the way the ceilings already do."""
         row = _row(kind="daytona", base_url=None)
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
         listing = await service.sessions(_ctx(), row.id)
@@ -1157,7 +1197,9 @@ class TestSamplingOneSandbox:
 
     async def test_the_memory_of_one_session_comes_back(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         ctx = _ctx()
         seen = _serve(
@@ -1190,7 +1232,9 @@ class TestSamplingOneSandbox:
 
     async def test_another_organizations_sandbox_reads_as_missing(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, _Response(200, {"session_id": "theirs", "tenant": str(uuid.uuid4())}))
 
@@ -1199,7 +1243,9 @@ class TestSamplingOneSandbox:
 
     async def test_a_session_that_reported_nothing_is_an_empty_answer(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         ctx = _ctx()
         _serve(
@@ -1213,7 +1259,9 @@ class TestSamplingOneSandbox:
 
     async def test_daytona_reports_no_memory_of_ours(self, monkeypatch):
         row = _row(kind="daytona", base_url=None)
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
         assert await service.session_usage(_ctx(), row.id, "any") == SandboxSessionUsage()
@@ -1224,7 +1272,9 @@ class TestReadingOneSessionsActivity:
         """The log names every path read and command run. That is a description of
         somebody's work even with no contents in it."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, _Response(200, {"session_id": "theirs", "tenant": str(uuid.uuid4())}))
 
@@ -1233,7 +1283,9 @@ class TestReadingOneSessionsActivity:
 
     async def test_our_own_session_comes_back_with_its_log(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         ctx = _ctx()
         seen = _serve(
@@ -1258,7 +1310,9 @@ class TestReadingOneSessionsActivity:
 
     async def test_polling_asks_only_for_what_it_does_not_have(self, monkeypatch):
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         ctx = _ctx()
         seen = _serve(
@@ -1276,7 +1330,9 @@ class TestReadingOneSessionsActivity:
     async def test_a_session_the_service_forgot_is_a_404_rather_than_a_500(self, monkeypatch):
         """Reaped between the listing and the click, which is ordinary."""
         row = _row()
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         _serve(monkeypatch, _Response(404))
 
@@ -1285,7 +1341,9 @@ class TestReadingOneSessionsActivity:
 
     async def test_daytona_has_no_activity_log_of_ours(self, monkeypatch):
         row = _row(kind="daytona", base_url=None)
-        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        service = _service(
+            monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok-12345678"))
+        )
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
         log = await service.session_events(_ctx(), row.id, "any")

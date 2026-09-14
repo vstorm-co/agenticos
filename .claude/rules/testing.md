@@ -1,6 +1,6 @@
 ---
 description: Testing standards, the four layers, anyio patterns, the 100% platform gate
-globs:
+paths:
   [
     "backend/tests/**/*.py",
     "tests/**/*.py",
@@ -8,6 +8,7 @@ globs:
     "**/conftest.py",
     "frontend/src/**/*.test.ts",
     "frontend/src/**/*.test.tsx",
+    "frontend/e2e/**/*.ts",
   ]
 ---
 
