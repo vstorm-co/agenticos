@@ -103,6 +103,10 @@ def _service(monkeypatch, *, secret: Any = None) -> SandboxConnectionService:
     """
     db = MagicMock()
     db.flush = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mock must await and answer the head read with an empty chain.
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
     service = SandboxConnectionService(db)
     resolved = {} if secret is None else {secret[0]: secret[1]}
     service.secrets = MagicMock()
