@@ -453,6 +453,8 @@ export const qk = {
     // whatever it is narrowed to; under a bare key whichever mounted first
     // filled the cache and the other rendered its answer.
     organizations: (params: Record<string, string>) => ["admin", "organizations", params] as const,
+    // One tenant in full, for the per-tenant page the admin drawer links to (#1245).
+    organizationDetail: (orgId: string) => ["admin", "organizations", orgId, "detail"] as const,
     // This deployment's own identity and access policy, as its administrator
     // edits it. Distinct from `branding.notice()` below, which is the same row
     // read by everybody: invalidating one must not refetch the other, since the

@@ -1,5 +1,11 @@
 # Security
 
+**English** · [Polski](SECURITY.pl.md) · [Deutsch](SECURITY.de.md) · [Español](SECURITY.es.md)
+
+> [!IMPORTANT]
+> The English text is the authoritative one. A translation is a convenience, and
+> where the two disagree, report the vulnerability against what this file says.
+
 ## Reporting a vulnerability
 
 Email: **kacper.wlodarczyk@vstorm.co** (or open a private security advisory on the repo). Please include:

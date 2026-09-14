@@ -50,19 +50,29 @@ or a resolved row.
 
 from __future__ import annotations
 
-import csv
-import io
 import json
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.core.audit import record_audit
-from app.core.exceptions import ExportTooLargeError, ValidationError
 from app.core.permissions import Perm, Scope
 from app.repositories import agent_run_repo
 from app.repositories.agent_run import ApprovalFilters, RunFilters
+from app.services.exporting import (
+    MAX_EXPORT_ROWS,
+    ExportResult,
+    guard_cap,
+    require_range,
+    stamp,
+)
+from app.services.exporting import (
+    cell as _cell,
+)
+from app.services.exporting import (
+    csv_document as _write,
+)
 from app.services.spend import month_start
 
 if TYPE_CHECKING:
@@ -71,19 +81,6 @@ if TYPE_CHECKING:
     from app.core.permissions import AuthContext
     from app.db.models.agent_run import AgentRun
     from app.repositories.agent_run import AgentSpendRow, ApprovalRow
-
-# The most rows one export may return. A bulk read of `agent_runs` has no natural
-# ceiling, so this is the one by design: the whole body is built in memory on the
-# request's session, and a cap is what keeps that bounded and lets the audit entry
-# commit before the response is written. Above it the request is refused, never
-# trimmed - see `ExportTooLargeError`.
-MAX_EXPORT_ROWS = 10_000
-
-# A leading one of these turns a CSV cell into a formula in Excel and Sheets, so a
-# value that opens with one is prefixed with a quote. The same set the ratings
-# export guards against; a cost or an id never starts with one, but a tool
-# argument, an agent name or a decision note can.
-_CSV_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 _RUNS_HEADER = [
     "run_id",
@@ -136,57 +133,6 @@ _SPEND_HEADER = [
 ]
 
 
-@dataclass(frozen=True)
-class ExportResult:
-    """A finished CSV body and the name it should download as.
-
-    Attributes:
-        content: The whole CSV, header row included.
-        filename: What the browser saves it as, stamped with the export instant.
-        row_count: How many data rows it holds, for the audit entry and the tests.
-    """
-
-    content: str
-    filename: str
-    row_count: int
-
-
-def _escape(value: str) -> str:
-    """Neutralise a cell a spreadsheet would otherwise read as a formula."""
-    if value and value[0] in _CSV_INJECTION_PREFIXES:
-        return "'" + value
-    return value
-
-
-def _cell(value: object) -> str:
-    """One value as text, with `None` an empty cell rather than the word "None".
-
-    The injection guard runs on strings alone. A number rendered as text stays a
-    number a spreadsheet can sum, so a negative `cost_usd` exports as `-1.50` and
-    not the quoted `'-1.50` a leading `-` would otherwise earn - the guard exists
-    for a tool argument or an agent name, never for a figure.
-    """
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, str):
-        return _escape(value)
-    return str(value)
-
-
-def _write(header: list[str], rows: list[list[object]]) -> str:
-    """Header plus rows as one RFC 4180 document, quoting and escaping via `csv`."""
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(header)
-    for row in rows:
-        writer.writerow([_cell(value) for value in row])
-    return buffer.getvalue()
-
-
 class RunExportService:
     """CSV exports of run history, approvals and spend, gated and audited.
 
@@ -211,52 +157,6 @@ class RunExportService:
             return None
         return ctx.subject_id
 
-    def _require_range(
-        self, start: datetime | None, end: datetime | None
-    ) -> tuple[datetime, datetime]:
-        """The window, or a refusal naming the bound that is missing.
-
-        Returns the two bounds narrowed to non-null, so a caller that needs a
-        concrete window (the spend query does) reads it off the result rather
-        than re-checking what this already proved.
-
-        Raises:
-            ValidationError: When either end is absent. A range is what bounds the
-                read; without one an export is the whole table.
-        """
-        if start is None or end is None:
-            missing = [name for name, value in (("from", start), ("to", end)) if value is None]
-            raise ValidationError(
-                message="An export needs a date range - pass both a start and an end.",
-                details={"missing": missing},
-            )
-        return start, end
-
-    def _guard_cap(self, total: int, *, remedy: str) -> None:
-        """Refuse above the row cap rather than truncate to it.
-
-        The `remedy` is the one sentence of advice that actually shrinks *this*
-        export's match: narrowing the date range for runs and approvals, whose
-        rows scale with the window, but not for spend, whose rows are agents and
-        do not - so a caller is never sent to a control that would not help.
-
-        Raises:
-            ExportTooLargeError: When the match exceeds :data:`MAX_EXPORT_ROWS`.
-                The message names both numbers and carries the export's own remedy.
-        """
-        if total > MAX_EXPORT_ROWS:
-            raise ExportTooLargeError(
-                message=(
-                    f"This export matches {total} rows, more than the "
-                    f"{MAX_EXPORT_ROWS} an export may return. {remedy}"
-                ),
-                details={"row_count": total, "max_rows": MAX_EXPORT_ROWS},
-            )
-
-    @staticmethod
-    def _stamp(kind: str, now: datetime) -> str:
-        return f"{kind}_export_{now.strftime('%Y%m%d_%H%M%S')}.csv"
-
     async def export_runs(
         self,
         ctx: AuthContext,
@@ -274,7 +174,7 @@ class RunExportService:
         `filters` is mandatory here where it is optional there, and the caller's
         `user_id` is overwritten with their own when the `Scope.OWN` floor binds.
         """
-        self._require_range(filters.started_from, filters.started_to)
+        require_range(filters.started_from, filters.started_to)
         floor = self._own_floor(ctx)
         applied = filters if floor is None else replace(filters, user_id=floor)
 
@@ -288,7 +188,7 @@ class RunExportService:
             skip=0,
             limit=MAX_EXPORT_ROWS,
         )
-        self._guard_cap(total, remedy="Narrow the date range and try again.")
+        guard_cap(total, remedy="Narrow the date range and try again.")
 
         content = _write(_RUNS_HEADER, [_run_row(run) for run in items])
         now = datetime.now(UTC)
@@ -308,7 +208,7 @@ class RunExportService:
             },
         )
         return ExportResult(
-            content=content, filename=self._stamp("runs", now), row_count=len(items)
+            content=content, filename=stamp("runs", now, "csv"), row_count=len(items)
         )
 
     async def export_approvals(
@@ -324,7 +224,7 @@ class RunExportService:
         there is no `Scope.OWN` floor to apply - an approver sees the whole queue.
         The two emails are kept because the queue already resolves them on screen.
         """
-        self._require_range(filters.created_from, filters.created_to)
+        require_range(filters.created_from, filters.created_to)
 
         items, total = await agent_run_repo.list_approvals(
             self.db,
@@ -334,7 +234,7 @@ class RunExportService:
             skip=0,
             limit=MAX_EXPORT_ROWS,
         )
-        self._guard_cap(total, remedy="Narrow the date range and try again.")
+        guard_cap(total, remedy="Narrow the date range and try again.")
 
         content = _write(_APPROVALS_HEADER, [_approval_row(row) for row in items])
         now = datetime.now(UTC)
@@ -352,7 +252,7 @@ class RunExportService:
             },
         )
         return ExportResult(
-            content=content, filename=self._stamp("approvals", now), row_count=len(items)
+            content=content, filename=stamp("approvals", now, "csv"), row_count=len(items)
         )
 
     async def export_spend(
@@ -371,7 +271,7 @@ class RunExportService:
         asked for. The `Scope.OWN` floor pins the sums to the caller's own runs when
         it binds.
         """
-        since, until = self._require_range(since, until)
+        since, until = require_range(since, until)
         floor = self._own_floor(ctx)
 
         rows = await agent_run_repo.spend_by_agent(
@@ -382,7 +282,7 @@ class RunExportService:
             month_since=month_start(),
             user_id=floor,
         )
-        self._guard_cap(
+        guard_cap(
             len(rows),
             remedy="A spend export is one row per agent, so a narrower window will not shorten it.",
         )
@@ -403,7 +303,7 @@ class RunExportService:
             },
         )
         return ExportResult(
-            content=content, filename=self._stamp("spend", now), row_count=len(rows)
+            content=content, filename=stamp("spend", now, "csv"), row_count=len(rows)
         )
 
 

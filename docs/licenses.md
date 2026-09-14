@@ -291,8 +291,9 @@ Before a release is cut, and as evidence attached to it:
 - Decisions live in `licenses/policy.toml` and `licenses/components.toml`; the check
   fails on anything without one, and on a decision made about a licence that has
   since changed.
-- Three findings are open and tracked: PyMuPDF's AGPL, the Redis image's RSALv2/SSPL
-  terms, and the sandbox runtime built at the deployment.
+- One finding is open and tracked: the sandbox runtime built at the deployment.
+  Two more were settled rather than left open - PyMuPDF's AGPL, reviewed and kept,
+  with a section of its own, and the Redis image, replaced by Valkey.
 - Model weights and hosted providers are chosen per deployment under the
   publisher's or provider's terms; this page says what to check, the deployment
   records what it chose.

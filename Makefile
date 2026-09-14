@@ -1,4 +1,4 @@
-.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build presentation
+.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -317,15 +317,16 @@ lint-backend:
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
-	# Through the pinned interpreter for all four, not whatever `python3`
+	# Through the pinned interpreter for all five, not whatever `python3`
 	# resolves to on the host: `check_routes.py`'s isinstance union check
 	# needs 3.10+, and a system Python older than the backend's own pin
-	# crashed it with a bare TypeError while the other three happened to
+	# crashed it with a bare TypeError while the others happened to
 	# still work - until the next one written this way needs 3.10+ too.
 	uv run --directory backend python3 ../scripts/check_backticks.py
 	uv run --directory backend python3 ../scripts/check_routes.py
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
+	uv run --directory backend python3 ../scripts/check_docs_i18n.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -571,7 +572,7 @@ test-e2e:
 #     laptop is the database with your own work in it.
 CHECK_DB_PORT ?= 5432
 
-check: lint test db-check test-frontend-cov build-frontend docs-build audit licenses-check
+check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
 	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
@@ -596,6 +597,16 @@ docs:
 # would otherwise ship.
 docs-build:
 	uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
+
+# The translation guard carries its own copy of the `toc` extension's slug rule,
+# because it runs under the system interpreter with no virtualenv. A copy that
+# has drifted fails silently: the gate then compares anchors the build never
+# emits. Checking that needs the renderer, which only the `docs` group installs -
+# under `make test` the check skips for want of `pymdownx`, so it runs here,
+# beside the build that shares the group.
+docs-slug-check:
+	uv run --directory backend --group docs pytest -q \
+		tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
 
 # The client presentation is `docs/presentation/index.html` - a published page,
 # and the only copy. This renders the same file to a PDF for sending, and checks

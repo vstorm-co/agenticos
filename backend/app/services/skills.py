@@ -699,6 +699,12 @@ class SkillService:
             raise NotFoundError(message="File not found", details={"resource_id": str(resource_id)})
         name = resource.name
         await skill_repo.delete_resource(self.db, resource)
+        # `skill.resources` was loaded with the skill and still holds the row just deleted;
+        # the version bump below refreshes the skill and SQLAlchemy refuses to refresh a
+        # collection carrying a deleted instance ("Instance ... has been deleted"), which
+        # answered every DELETE of a resource with a 500 and rolled the delete back
+        # (2026-09-14). Expiring the collection makes the refresh reload it from the table.
+        self.db.expire(skill, ["resources"])
         await self._bump_version(skill)
         await record_audit(
             self.db,

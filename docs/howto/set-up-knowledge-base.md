@@ -20,8 +20,9 @@ yours or the organization's.
     do not mean the same thing.
 
     Changing your mind later means creating a new collection and re-ingesting
-    everything. Leave it at the deployment default unless you have a reason, and
-    if you have one, see [Choosing a model](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
+    everything. The form offers the models the chosen provider serves and
+    preselects the first; take it unless you have a reason not to, and if you
+    have one, see [Choosing a model](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
 
 Under **Embeddings**, choose the provider that serves the model and the vault
 key that pays for it. Both are required: there is no deployment-wide embedding

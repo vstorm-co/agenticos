@@ -3849,6 +3849,7 @@ class AgentRunnerService:
             token_secret_id=token_secret_id,
             service_name=environment.service_name or (base.service_name if base else None),
             environment=environment.name,
+            content=base.content if base else "full",
         )
         return spec.model_copy(update={"observability": merged})
 

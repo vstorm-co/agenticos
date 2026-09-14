@@ -55,7 +55,11 @@ class TestVerification:
 
         assert response.status_code == 200
 
-    async def test_a_bot_without_a_signing_secret_refuses_and_names_the_fix(self):
+    async def test_a_bot_without_a_signing_secret_is_refused(self):
+        """No secret is not a bot that skips verification - it is an
+        unauthenticated endpoint that runs an agent on somebody's budget. It is
+        refused 403, as Telegram and Mattermost are, rather than a bodiless 500
+        to Slack's retrier (#555)."""
         bot = MagicMock()
 
         with (
@@ -66,8 +70,7 @@ class TestVerification:
                 uuid.uuid4(), _request({"type": "event_callback"}), _bot_service(bot)
             )
 
-        assert refused.value.status_code == 500
-        assert "signing secret" in refused.value.detail
+        assert refused.value.status_code == 403
 
     async def test_a_bad_signature_is_refused_before_anything_is_processed(self):
         bot = MagicMock()

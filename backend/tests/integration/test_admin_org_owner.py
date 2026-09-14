@@ -18,10 +18,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 
+from app.core.exceptions import NotFoundError
 from app.core.permissions import OrgRoleName
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.services.admin import AdminService
@@ -125,6 +129,61 @@ class TestTheOwnerColumn:
         row = _row(result["items"], organization)
         assert (row["owner_user_id"], row["owner_email"], row["owner_name"]) == (None, None, None)
         assert row["member_count"] == 1
+
+
+class TestTheDetail:
+    """One tenant the deployment admin can open without joining it (#1245)."""
+
+    async def test_it_carries_the_members_owner_budget_and_size(self, db) -> None:
+        organization = await _org(db, "Acme")
+        organization.monthly_budget_usd = Decimal("50.000000")
+        await db.flush()
+        owner = await _user(db, full_name="Ada Owner")
+        member = await _user(db, full_name="Bo Member")
+        await _join(db, organization, owner, OrgRoleName.OWNER.value, NOW)
+        await _join(db, organization, member, OrgRoleName.MEMBER.value, NOW + timedelta(days=1))
+        # The reader belongs to none of it - the common case, since the admin is a
+        # member of no tenant's personal organization.
+        admin = await _user(db)
+
+        detail = await AdminService(db).get_organization_detail(
+            organization.id, actor_user_id=admin.id
+        )
+
+        assert detail["name"] == "Acme"
+        assert detail["member_count"] == 2
+        assert detail["agent_count"] == 0
+        assert detail["owner_user_id"] == owner.id
+        assert detail["monthly_budget_usd"] == Decimal("50.000000")
+        roles = {(row["email"], row["role"]) for row in detail["members"]}
+        assert (owner.email, OrgRoleName.OWNER.value) in roles
+        assert (member.email, OrgRoleName.MEMBER.value) in roles
+
+    async def test_the_cross_tenant_read_is_audited(self, db) -> None:
+        organization = await _org(db, "Beta")
+        admin = await _user(db)
+
+        await AdminService(db).get_organization_detail(organization.id, actor_user_id=admin.id)
+
+        entries = (
+            (
+                await db.execute(
+                    select(AppAdminAuditLog).where(
+                        AppAdminAuditLog.action == "admin.organization.read",
+                        AppAdminAuditLog.organization_id == organization.id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(entries) == 1
+        assert entries[0].actor_user_id == admin.id
+        assert entries[0].target_id == str(organization.id)
+
+    async def test_a_missing_organization_is_not_found(self, db) -> None:
+        with pytest.raises(NotFoundError):
+            await AdminService(db).get_organization_detail(uuid.uuid4(), actor_user_id=uuid.uuid4())
 
 
 async def _owned_by(db, organization: Organization, email: str) -> User:
