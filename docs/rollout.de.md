@@ -1,5 +1,5 @@
 ---
-source_sha: "5eec786139c5"
+source_sha: "4d21c4c93ebc"
 ---
 
 # Die Einführung { #rolling-it-out }
@@ -102,6 +102,7 @@ Grund, warum diese Architektur gewählt wurde.
 | Können wir beweisen, was passiert ist? | Jeder Run, jede Approval, jede Schlüsselrotation steht in der [Audit-Spur](governance.md#audit) — auch fehlgeschlagene Runs |
 | Wo liegen die Zugangsdaten? | In [einem Vault](secrets.md), pro Organisation versiegelt. Keine API-Antwort, keine Logzeile und kein Audit-Eintrag trägt je einen Schlüssel im Klartext |
 | Können wir den Code lesen? | Ja. Damit endet das Gespräch meistens |
+| Was steckt darin, und unter welchen Lizenzen? | Apache-2.0, aufgesetzt auf rund fünfhundert Pakete, die fast alle MIT, Apache-2.0 oder BSD sind. [Jedes einzelne ist mit seinem Nachweis aufgeführt](licenses.md), und die noch offenen Befunde stehen zuerst, statt weggemittelt zu werden. Eine Komponente, der PDF-Parser, ist AGPL-3.0: Ein Deployment, das die Plattform verändert und über ein Netzwerk ausliefert, schuldet seinen Nutzern den veränderten Quellcode, und [diese Entscheidung hat einen eigenen Abschnitt](licenses.md#the-agpl-component) |
 
 ## Drei Arten, wie das schiefgeht { #three-ways-this-goes-wrong }
 

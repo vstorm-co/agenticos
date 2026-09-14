@@ -1,5 +1,5 @@
 ---
-source_sha: "5eec786139c5"
+source_sha: "4d21c4c93ebc"
 ---
 
 # La puesta en marcha { #rolling-it-out }
@@ -100,6 +100,7 @@ que se eligió esta arquitectura.
 | ¿Podemos demostrar qué ocurrió? | Cada run, cada aprobación, cada rotación de un secreto está en el [registro de auditoría](governance.md#audit) — incluidos los runs que fallaron |
 | ¿Dónde están las credenciales? | En [un único vault](secrets.md), sellado por organización. Ninguna respuesta de la API, línea de log ni entrada de auditoría lleva jamás una clave en claro |
 | ¿Podemos leer el código? | Sí. Ahí suele terminar la conversación |
+| ¿De qué está hecho, y bajo qué licencias? | Apache-2.0, encima de unos quinientos paquetes que son casi todos MIT, Apache-2.0 o BSD. [Cada uno está listado con su evidencia](licenses.md), y los hallazgos todavía abiertos aparecen primero en lugar de diluirse en la media. Un componente, el parser de PDF, es AGPL-3.0: un despliegue que modifique la plataforma y la sirva por red les debe a sus usuarios el código fuente modificado, y [esa decisión tiene su propia sección](licenses.md#the-agpl-component) |
 
 ## Tres formas en que esto sale mal { #three-ways-this-goes-wrong }
 

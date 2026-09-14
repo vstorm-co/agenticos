@@ -243,6 +243,31 @@ def test_a_root_file_records_its_fingerprint_in_a_comment(repository: Path) -> N
     assert guard.stale() == []
 
 
+def test_where_the_fingerprint_goes_does_not_depend_on_how_the_path_was_typed(
+    repository: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A relative path names the same file as an absolute one, and must be answered so.
+
+    `--update README.pl.md` typed at a shell gives a path whose parent is `.`; the
+    same file reached through `root_pages()` is absolute. Deciding on the parent
+    without resolving it first put front matter in one and a comment in the other,
+    so the file ended up carrying two fingerprints that disagreed - and the front
+    matter renders as a table above the project's name, which is the thing the
+    comment exists to avoid.
+    """
+    _readme(repository, _README)
+    translated = repository / "README.pl.md"
+    translated.write_text("# Projekt\n", encoding="utf-8")
+    monkeypatch.chdir(repository)
+
+    guard.update([Path("README.pl.md")])
+
+    text = translated.read_text(encoding="utf-8")
+    assert text.startswith("<!-- source_sha:")
+    assert not text.startswith("---")
+    assert guard.stale() == []
+
+
 def test_a_root_translation_that_stops_halfway_is_reported(repository: Path) -> None:
     _readme(repository, _README)
     (repository / "README.pl.md").write_text("# Projekt\n\nTekst.\n", encoding="utf-8")

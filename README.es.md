@@ -1,8 +1,4 @@
----
-source_sha: "8917e47dd6b9"
----
-
-<!-- source_sha: 8917e47dd6b9 -->
+<!-- source_sha: 191696f072e5 -->
 
 <div align="center">
 
@@ -576,6 +572,9 @@ Míralos todos en **[oss.vstorm.co](https://oss.vstorm.co)**.
 ## Licencia
 
 Apache License 2.0 - consulta [`LICENSE`](LICENSE) y [`NOTICE`](NOTICE).
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lista cada componente que
+llevan las imágenes y su licencia; la revisión de a qué obligan esas licencias, y
+los hallazgos todavía abiertos, está en [la documentación](https://vstorm-co.github.io/agenticos/licenses/).
 
 Apache-2.0 en vez de MIT porque AgenticOS está pensado para desplegarse dentro de
 otras empresas: la concesión explícita de patentes es la parte por la que

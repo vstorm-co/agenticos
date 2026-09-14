@@ -17,6 +17,49 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.412] - 2026-09-14
+
+### Added
+
+- **A licence review of everything the images ship, with generated notices and a
+  check.** `THIRD_PARTY_NOTICES.md` is generated from the two lockfiles by
+  `scripts/license_inventory.py` and lists every distribution in either image with
+  its SPDX licence, source and the evidence the licence was read from. Decisions
+  live in `licenses/policy.toml` (overrides with evidence, review entries for
+  copyleft and share-alike components) and `licenses/components.toml` (images,
+  Debian packages, fonts, glyphs, data files, compose services). `make
+  licenses-check` runs in the `security` job and `make check`: stale notices, a
+  component with no readable licence, a copyleft component with no decision, or a
+  decision about a licence that has since changed all fail it; tracked open
+  findings pass and are counted, and so does a package that ships no licence
+  file without an author to attribute or a text to place beside it. Both images
+  now carry their licence files: the backend image `LICENSE`, `NOTICE`, the
+  notices and the texts of the licences nine wheels declare but do not ship; the
+  frontend image every package's own licence file under `/app/licenses/`, which
+  the standalone build had been dropping, a `NOTICE` and the licence text for a
+  package that publishes none (`@img/sharp-libvips-linux-*` ships an LGPL
+  library with no copy of the LGPL), the fonts' OFL and the brand-mark
+  attributions. `docs/licenses.md` is the review: scope, obligations per licence
+  family and how each is met, hosted-provider terms and model-weight licences as
+  deployment-time decisions, the maintenance workflow and a release checklist.
+  One finding is open and tracked - `redis:7` resolves to Redis 7.4 under
+  RSALv2/SSPLv1 (#1603) - and one is a deployment-time review, the sandbox
+  runtime built at the deployment. The third is settled here: `pymupdf`, the
+  default PDF parser, is AGPL-3.0-only and is kept, so the backend image as a
+  whole is conveyed under AGPL-3.0 terms. Running an unmodified release owes
+  nothing, because this repository is public and Apache-2.0; a deployment that
+  modifies the platform and serves it over a network owes its users the modified
+  source under section 13, and `docs/licenses.md` gives the three exits for a
+  deployment that cannot take those terms. (#1600, #1602)
+
+### Fixed
+
+- **Three prose lines in `docs/code-review.md` rendered as headings.** Each
+  started at column zero with an issue reference, and Python-Markdown's ATX rule
+  does not require a space after the hashes, so the published page carried three
+  `<h1>`s nobody wrote - in the table of contents and in the search index. The
+  built page now has the 14 headings the file declares. (#1605)
+
 ## [0.0.411] - 2026-09-13
 
 ### Security

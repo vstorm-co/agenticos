@@ -1,5 +1,5 @@
 ---
-source_sha: "6f2d3f0082af"
+source_sha: "8731ded97d2a"
 ---
 
 # Automatyczny przegląd pull requestów { #automated-pull-request-review }
@@ -236,8 +236,8 @@ rozsądnie:
 
 Komentarz `broken` niesie to, co wypisał Codex, w bloku `<details>`. `publish`
 odczytuje to z logu joba tego właśnie runa i dlatego ten job ma `actions: read`
-— stderr kroku `uses:` nie trafia nigdzie indziej, a przez cały czas trwania
-#311 jedyna linia, która miała znaczenie, leżała na dnie zielonego joba: { #311-the-one-line-that-mattered-was-sitting-at-the-bottom-of-a-green-job }
+— stderr kroku `uses:` nie trafia nigdzie indziej, a przez cały czas
+trwania #311 jedyna linia, która miała znaczenie, leżała na dnie zielonego joba:
 
 ```text
 ERROR: stream disconnected before completion: Your project has reached its
@@ -254,8 +254,7 @@ Trzy rzeczy, które warto wiedzieć, zanim się to zmieni.
 **Czerwony, nie neutralny.** Ten check jest doradczy i nie jest wymagany, więc
 czerwony znacznik nikogo nie kosztuje merge'a; sprawia tylko, że awaria staje
 się widoczna na stronie, którą ktoś i tak czyta. Neutralne zakończenie
-renderuje się jako szary ptaszek, a
-#311 dotyczył właśnie tego. { #311-was-about }
+renderuje się jako szary ptaszek, a #311 dotyczył właśnie tego.
 
 **`Review the diff` nadal niesie `continue-on-error`, a job zamiast tego wywala
 się na swoim ostatnim kroku.** Wywalenie się na kroku Codeksa pominęłoby dwa
@@ -488,11 +487,10 @@ await task       # not flagged, correctly
 ```
 
 Do czasu #229 wiązała się z tym luka, o której warto wiedzieć, bo jest ona
-dokładnie tym, co kosztowałoby wykluczenie opisane w
-#220: ruff był wycelowany w `app tests cli`, więc `backend/alembic/` { #220-would-have-cost-ruff-was-pointed-at-app-tests-cli-so-backendalembic }
-
-(9 plików) i repozytorialne `scripts/` (3) leżały poza jego zasięgiem, a dla tej
-klasy błędów CodeQL był ich jedynym czytelnikiem. Zamknęło ją #229 —
+dokładnie tym, co kosztowałoby wykluczenie opisane w #220: ruff był wycelowany
+w `app tests cli`, więc `backend/alembic/` (9 plików) i repozytorialne
+`scripts/` (3) leżały poza jego zasięgiem, a dla tej klasy błędów CodeQL był
+ich jedynym czytelnikiem. Zamknęło ją #229 —
 `make lint-backend` i hook pre-commit uruchamiają teraz `ruff check . ../scripts`
 z `backend/`, więc czytany jest każdy śledzony plik Pythona, a B018/B015
 pokrywają całe drzewo, a nie trzy czwarte niego.

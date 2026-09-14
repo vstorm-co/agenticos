@@ -291,8 +291,14 @@ def records_in_a_comment(translation: Path) -> bool:
     top of the file and a reader would meet it before the project's name. The
     site's own pages keep front matter: `mkdocs` parses it, and the build hook
     reads the fingerprint back out of `page.meta`.
+
+    Resolved first, because otherwise the answer depends on how the caller spelled
+    the path rather than on which file it is: `README.pl.md` typed on the command
+    line has `.` for a parent and would be handed front matter, while the same file
+    reached through `root_pages()` is absolute and would be handed a comment. That
+    is one file with two fingerprints in it, disagreeing.
     """
-    return translation.parent == REPO_ROOT
+    return translation.resolve().parent == REPO_ROOT
 
 
 def recorded_fingerprint(translation: Path) -> str | None:
