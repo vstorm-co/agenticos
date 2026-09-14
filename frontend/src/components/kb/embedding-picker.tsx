@@ -46,6 +46,10 @@ export function useEmbeddingProviders() {
  * already reached it. So choosing a provider here clears a key that belongs to
  * another one. There is no deployment-wide key on offer: every collection pays
  * with a vault key of its own, and the picker is empty until one is chosen.
+ *
+ * A keyless provider - an Ollama on the deployment's own network - is the one
+ * exception, and it is drawn as one: no key select, because the server refuses
+ * a key named for it, and a sentence saying why there is nothing to choose.
  */
 export function EmbeddingProviderFields({
   models,
@@ -95,36 +99,42 @@ export function EmbeddingProviderFields({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-key`}>{t("key")}</Label>
-        {/* Controlled throughout: an empty string is how Radix is told "nothing
+      {entry?.keyless === true ? (
+        <p className="text-muted-foreground text-xs">
+          {t("keylessProvider", { provider: entry.name })}
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-key`}>{t("key")}</Label>
+          {/* Controlled throughout: an empty string is how Radix is told "nothing
             chosen, show the placeholder", where `undefined` would flip the
             select to uncontrolled and leave the last key on the trigger. */}
-        <Select value={secretId ?? ""} onValueChange={onSecretId}>
-          <SelectTrigger id={`${idPrefix}-key`}>
-            <SelectValue placeholder={t("chooseKey")} />
-          </SelectTrigger>
-          <SelectContent>
-            {keys.map((secret) => (
-              <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
-                <ProviderRow provider={provider} name={secret.name} hint={secret.hint} />
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-muted-foreground text-xs">{t("keyRequiredHere")}</p>
-        {/* Rather than only telling somebody to go and add one: a picker with
+          <Select value={secretId ?? ""} onValueChange={onSecretId}>
+            <SelectTrigger id={`${idPrefix}-key`}>
+              <SelectValue placeholder={t("chooseKey")} />
+            </SelectTrigger>
+            <SelectContent>
+              {keys.map((secret) => (
+                <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                  <ProviderRow provider={provider} name={secret.name} hint={secret.hint} />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">{t("keyRequiredHere")}</p>
+          {/* Rather than only telling somebody to go and add one: a picker with
             nothing in it and no way to fill it is a dead end, and the answer to
             "add a key in the vault" is a form, not a sentence. Unconditional
             because the permission is its own decision to make - it says who has
             to add the key rather than rendering a gap. */}
-        <InlineSecret
-          kind="api_key"
-          purpose={provider}
-          suggestedName={t("embeddingsKeyName", { provider: entry?.name ?? provider })}
-          onCreated={onSecretId}
-        />
-      </div>
+          <InlineSecret
+            kind="api_key"
+            purpose={provider}
+            suggestedName={t("embeddingsKeyName", { provider: entry?.name ?? provider })}
+            onCreated={onSecretId}
+          />
+        </div>
+      )}
     </>
   );
 }

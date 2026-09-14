@@ -33,6 +33,7 @@ const MODELS = {
     {
       provider: "openrouter",
       name: "OpenRouter",
+      keyless: false,
       models: [
         { model: "text-embedding-3-small", dim: 1536 },
         { model: "text-embedding-3-large", dim: 3072 },
@@ -41,6 +42,15 @@ const MODELS = {
     {
       provider: "openai",
       name: "OpenAI",
+      keyless: false,
+      models: [{ model: "text-embedding-3-small", dim: 1536 }],
+    },
+    // A keyless endpoint on the deployment's own network that happens to serve
+    // this model at this width: a move the server accepts with no key.
+    {
+      provider: "ollama",
+      name: "Ollama",
+      keyless: true,
       models: [{ model: "text-embedding-3-small", dim: 1536 }],
     },
     // Serves the same model at another width, which is another space: offering
@@ -48,6 +58,7 @@ const MODELS = {
     {
       provider: "elsewhere",
       name: "Elsewhere",
+      keyless: false,
       models: [{ model: "text-embedding-3-small", dim: 3072 }],
     },
   ],
@@ -142,6 +153,19 @@ describe("what this dialog will and will not change", () => {
     expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a key");
     await userEvent.click(screen.getByLabelText("Key"));
     expect(screen.queryByRole("option", { name: /Deployment key/ })).toBeNull();
+  });
+
+  it("moving to a keyless provider hides the key and sends the provider alone", async () => {
+    show();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+
+    expect(screen.queryByLabelText("Key")).toBeNull();
+    expect(screen.getByText(/Ollama runs on the deployment's own network/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(save.mock.calls[0]?.[0]).toEqual({ embedding_provider: "ollama" });
   });
 
   it("sends the key chosen for the new provider", async () => {

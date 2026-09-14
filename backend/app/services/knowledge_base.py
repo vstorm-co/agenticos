@@ -65,6 +65,38 @@ def _derive_collection_name(name: str) -> str:
     return f"{slug[:_DERIVED_SLUG_LENGTH]}_{secrets.token_hex(_DERIVED_SUFFIX_BYTES)}"
 
 
+def _check_provider_fits_scope(
+    provider: embedding_providers.EmbeddingProviderEntry, *, organization_id: UUID | None
+) -> None:
+    """Refuse a keyed provider for a collection that has no vault to pay it from.
+
+    An app-scoped collection belongs to no organization, so there is no vault
+    it could name a key from and no deployment-wide key either; the one way it
+    can embed is through a keyless endpoint on the deployment's own network
+    (#1631). Refused here, on the control that chose the provider, rather than
+    discovered on the first document that fails to index.
+    """
+    if organization_id is None and not provider.keyless:
+        raise refused_field(
+            "embedding_provider",
+            f"An app-scoped collection belongs to no organization and has no vault to hold a "
+            f"key for {provider.name}. Choose a keyless provider on the deployment's own "
+            "network, or create the collection inside an organization.",
+        )
+
+
+def _refuse_key_for_keyless(
+    provider: embedding_providers.EmbeddingProviderEntry, *, secret_id: UUID | None
+) -> None:
+    """A keyless endpoint takes no credential, so a key chosen for it is a mistake to name."""
+    if secret_id is not None:
+        raise refused_field(
+            "embedding_secret_id",
+            f"{provider.name} takes no key: it is a keyless endpoint on the deployment's own "
+            "network, and nothing is billed for its embeddings.",
+        )
+
+
 def _no_knowledge_base(kb_id: UUID) -> NotFoundError:
     """The one refusal for a base that is absent, and for one out of reach.
 
@@ -373,18 +405,17 @@ class KnowledgeBaseService:
             provider = embedding_providers.require(
                 data.embedding_provider, model=embedding_model, dim=embedding_dim
             )
+            _check_provider_fits_scope(provider, organization_id=org_id)
             embedding_secret_id = data.embedding_secret_id
-            # An app-scoped collection has no organization vault to hold a key,
-            # so it is the one shape allowed to exist keyless - and until a
-            # deployment-level credential exists it cannot index or search, which
-            # the resolver says on the first attempt (#1631).
-            if embedding_secret_id is None and org_id is not None:
+            if provider.keyless:
+                _refuse_key_for_keyless(provider, secret_id=embedding_secret_id)
+            elif embedding_secret_id is None:
                 raise refused_field(
                     "embedding_secret_id",
                     f"Choose the vault key that pays for this collection's embeddings on "
                     f"{provider.name}; there is no deployment-wide key to fall back to.",
                 )
-            if embedding_secret_id is not None:
+            else:
                 await self._check_embedding_secret(
                     embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
                 )
@@ -518,7 +549,14 @@ class KnowledgeBaseService:
             model=kb.embedding_model,
             dim=kb.embedding_dim,
         )
-        if data.embedding_secret_id is not None:
+        if data.embedding_provider is not None:
+            _check_provider_fits_scope(provider, organization_id=kb.organization_id)
+        if provider.keyless:
+            # A key the row still holds from the provider it left is not
+            # refused: the resolver never opens it for a keyless endpoint, and a
+            # move back to a keyed provider checks it against that one.
+            _refuse_key_for_keyless(provider, secret_id=data.embedding_secret_id)
+        elif data.embedding_secret_id is not None:
             await self._check_embedding_secret(
                 data.embedding_secret_id,
                 ctx=ctx,

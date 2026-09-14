@@ -8,6 +8,11 @@ from app.core.exceptions import ConfigurationError
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
 
+# What a keyless endpoint is sent as its bearer token. The OpenAI SDK refuses to
+# build a client on an empty key and Ollama reads none, so the value only has to
+# be non-empty and obviously not a secret.
+_KEYLESS_PLACEHOLDER = "keyless"
+
 
 def _chunk_texts(document: Document) -> list[str]:
     return [
@@ -41,22 +46,28 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         api_key: str = "",
         base_url: str | None = None,
         key_origin: str | None = None,
+        keyless: bool = False,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
         Args:
             model: The OpenAI embedding model name (e.g., 'text-embedding-3-small').
-            api_key: API key for `base_url`. Absent, embedding is unavailable.
+            api_key: API key for `base_url`. Absent, embedding is unavailable -
+                unless the endpoint is `keyless`.
             base_url: Override base URL (e.g. OpenRouter-compatible endpoint).
             key_origin: Where `api_key` came from, said in words, for the
                 refusal below. A per-collection caller passes what
                 `ResolvedEmbeddings.describe` built; a caller with no collection
                 in hand passes nothing, and has no key either.
+            keyless: The endpoint takes no credential - an Ollama server on the
+                deployment's own network. The SDK still insists on a non-empty
+                key, so a placeholder goes on the wire and the server ignores it.
         """
         self.model = model
         self._api_key = api_key
         self._base_url = base_url
         self._key_origin = key_origin
+        self._keyless = keyless
         self._client: OpenAI | None = None
 
     @property
@@ -83,6 +94,9 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         refusal says so rather than advising a variable that does not exist.
         """
         if self._client is None:
+            if self._keyless:
+                self._client = OpenAI(api_key=_KEYLESS_PLACEHOLDER, base_url=self._base_url)
+                return self._client
             if not self._api_key:
                 details: dict[str, str] = {
                     "model": self.model,
@@ -140,12 +154,15 @@ class EmbeddingService:
         expected_dim: int | None = None,
         key_origin: str | None = None,
         base_url: str | None = None,
+        keyless: bool = False,
     ) -> None:
         """One model, one endpoint, one credential, one expected width.
 
         `api_key` is the collection's vault key, passed by the per-collection
         caller (see `embedding_resolution`); there is no deployment-wide key to
-        default to, so a service built without one refuses on first use.
+        default to, so a service built without one refuses on first use - unless
+        `keyless` says the endpoint wants none, which only a per-collection
+        caller resolving a keyless provider can say.
         `expected_dim` defaults to the config's derived width; a collection
         passes the width its table was actually created at, which a later
         catalog change must not overrule. `key_origin` says in words where
@@ -165,6 +182,7 @@ class EmbeddingService:
             api_key=api_key or "",
             base_url=base_url,
             key_origin=key_origin,
+            keyless=keyless,
         )
 
     def embed_query(self, query: str) -> list[float]:

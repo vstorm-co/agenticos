@@ -30,17 +30,18 @@ that way and the software cooperates:
 |---|---|
 | The chat model | An `ollama` or `litellm` profile - keyless, pointed at an endpoint you host. Any of the 27 providers with a `base_url` also takes a gateway of yours |
 | Document parsing | `pymupdf`, the default, runs in the worker. LiteParse OCR is a sidecar you host (`LITEPARSE_OCR_SERVER_URL`). LlamaParse is a per-collection choice that needs a key; without both, nothing is parsed off-site |
+| Embeddings | An Ollama you host, named by `EMBEDDING_OLLAMA_BASE_URL`, chosen per collection as the `ollama` provider. Keyless, and the only provider an app-scoped collection may use |
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |
 | Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch`, `browser_use` or `memory_mem0` capability, no MCP connection |
 | Mail | Your own SMTP relay |
 | Speech and images | Profiles on a provider you host, or no such profile |
 
-The one thing that cannot stay local today is **embeddings**: the embedding
-catalog names OpenRouter and OpenAI, so a knowledge base sends its chunks and
-queries to one of them. A deployment that must keep documents on its own
-hardware does not use the knowledge base until a self-hosted embedding entry
-exists ([#1632](https://github.com/vstorm-co/agenticos/issues/1632)); context
-files and attachments, which are not embedded, are unaffected.
+Embeddings included: the catalog names OpenRouter and OpenAI, which a
+collection reaches with a vault key, and `ollama`, which is offered only where
+`EMBEDDING_OLLAMA_BASE_URL` names a server the deployment runs. A collection on
+`ollama` sends its chunks and queries nowhere but that host, and pays nobody.
+A deployment that must keep documents on its own hardware creates every
+collection there.
 
 ## Who is responsible for what
 
@@ -107,7 +108,7 @@ complete list of destinations, with the configuration that decides each.
 | Destination | What is sent | Decided by | Location and terms |
 |---|---|---|---|
 | The chat model | The conversation so far, attachments pasted or described, retrieved chunks, tool results | A [model profile](models.md#a-model-profile): `provider`, `model`, `base_url` and a sealed key. Twenty-seven providers; `ollama` and `litellm` are keyless and reached at an endpoint you host, and `openai`, `anthropic`, `google`, `huggingface` and others accept a `base_url`, so an EU endpoint or a gateway is a field, not a fork | The provider's. Verify per profile |
-| The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection, and only there: `embedding_provider` (`openrouter` or `openai`, from the catalog) and the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a collection without one refuses to index or search | The provider's. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
+| The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection, and only there: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog) and, for the first two, the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a keyed collection without one refuses to index or search. `ollama` is keyless and reached at `EMBEDDING_OLLAMA_BASE_URL`, a host you run | The provider's, or your own host. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | The whole document | A collection whose `pdf_parser` is `llamaparse` **and** a key - the collection's own `llamaparse_secret_id`, or `LLAMAPARSE_API_KEY` for the deployment. The default `pymupdf` parses in the worker | LlamaCloud's, if used |
 | An image-description model | Images inside documents | A collection's `image_description_model` | That model provider's |
 | Web research | The search query the agent composed | `web_research.method` on the spec: `duckduckgo` (no key), `tavily`, `brave` or `exa` (a `search` secret each), or `native`, where the chat model provider searches | The search vendor's, or the model provider's |
@@ -229,7 +230,7 @@ uv run agenticos cmd doctor
 uv run agenticos cmd vault-rotate --dry-run
 
 # 3. The settings that decide what leaves. Empty is the quiet answer.
-env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|LLAMAPARSE_API_KEY|LITEPARSE_OCR_SERVER_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
+env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|LLAMAPARSE_API_KEY|LITEPARSE_OCR_SERVER_URL|EMBEDDING_OLLAMA_BASE_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
   | sed -E 's/(KEY|TOKEN)=.+/\1=<set>/'
 ```
 
@@ -318,10 +319,6 @@ deployment until each closes.
 - No self-service view of one's own memory - [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 - The HIPAA and SOC 2 controls matrix - [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
-- No self-hosted embedding provider in the catalog, so a knowledge base always
-  reaches OpenRouter or OpenAI - [#1632](https://github.com/vstorm-co/agenticos/issues/1632).
-- An app-scoped collection has no vault to hold an embedding key, so it cannot
-  index or search - [#1631](https://github.com/vstorm-co/agenticos/issues/1631).
 
 **In the deployment, decided by its operator:** the agreements, locations,
 training exclusions, retention schedule, backup expiry, disk encryption, sandbox

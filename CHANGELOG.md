@@ -34,12 +34,22 @@ Two things are versioned separately from this file and worth knowing about:
   resolution says which of six situations it landed on - a key never chosen,
   no vault to choose one from, the chosen secret missing, unusable or of the
   wrong kind, or a provider this build no longer offers - each with its own
-  remedy. App-scoped collections have no vault and so no key; they can be
-  created but cannot index or search until a deployment-level credential
-  exists (#1631). (#1596)
+  remedy. (#1596)
 
 ### Added
 
+- **A self-hosted embedding provider.** `ollama` is in `embedding_providers.json`
+  as a keyless entry: set `EMBEDDING_OLLAMA_BASE_URL` to the OpenAI-compatible
+  root of an Ollama the deployment runs and a collection can embed through it
+  with no vault key, so a knowledge base can stay on the deployment's own
+  hardware. The entry is not offered while the setting is empty, the form asks
+  for no key on it, and a key named for it is refused. Five of Ollama's
+  embedding models are catalogued with their widths. (#1632)
+- **An app-scoped collection embeds through a keyless provider, or not at all.**
+  It belongs to no organization and so has no vault to hold a key; choosing
+  OpenRouter or OpenAI for one is now refused where the provider is chosen,
+  at creation and on a move, instead of producing a collection that fails on
+  its first document. (#1631)
 - **`docs/data-protection.md`** - where personal data lives, what leaves the
   deployment and under which setting, the controls with their proof or their
   open issue, what deletion reaches, and a reproducible verification checklist

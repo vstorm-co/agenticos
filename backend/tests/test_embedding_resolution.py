@@ -220,6 +220,62 @@ class TestCredentialDegradation:
         secrets.get.assert_not_called()
 
 
+class TestAKeylessProvider:
+    """An endpoint on the deployment's own network wants no credential (#1632)."""
+
+    _OLLAMA = "http://ollama:11434/v1"
+
+    async def _resolve_on_ollama(self, kb):
+        with patch(
+            "app.services.rag.embedding_providers.settings",
+            MagicMock(EMBEDDING_OLLAMA_BASE_URL=self._OLLAMA),
+        ):
+            return await _resolve(kb, _sealed_key_row("sk-left-behind"))
+
+    async def test_resolves_to_no_key_and_the_deployments_address_without_opening_the_vault(
+        self,
+    ):
+        resolved, secrets = await self._resolve_on_ollama(_kb(provider="ollama"))
+
+        assert resolved is not None
+        assert resolved.api_key == ""
+        assert resolved.base_url == self._OLLAMA
+        assert resolved.key_source is EmbeddingKeySource.KEYLESS
+        assert not resolved.key_source.is_degraded
+        secrets.get.assert_not_called()
+
+    async def test_a_key_left_over_from_a_keyed_provider_stays_sealed(self):
+        """Moving to a keyless provider leaves the row's key where it is; the
+        resolver must not unseal a credential nothing will send."""
+        resolved, secrets = await self._resolve_on_ollama(
+            _kb(secret_id=uuid.uuid4(), provider="ollama")
+        )
+
+        assert resolved is not None
+        assert resolved.api_key == ""
+        assert resolved.key_source is EmbeddingKeySource.KEYLESS
+        secrets.get.assert_not_called()
+
+    async def test_an_app_scoped_collection_embeds_through_it(self):
+        """The one way a collection with no vault can embed (#1631)."""
+        resolved, _ = await self._resolve_on_ollama(_kb(provider="ollama", organization_id=None))
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.KEYLESS
+
+    async def test_it_is_unknown_where_the_deployment_names_no_address(self):
+        """Unset, the entry is not offered - so a row recorded against it reads
+        as a provider this build does not have, which is what it is."""
+        with patch(
+            "app.services.rag.embedding_providers.settings",
+            MagicMock(EMBEDDING_OLLAMA_BASE_URL=""),
+        ):
+            resolved, _ = await _resolve(_kb(provider="ollama"))
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.PROVIDER_UNKNOWN
+
+
 class TestSayingWhichKeyPaid:
     """A degradation nobody can see is a degradation nobody can fix.
 
@@ -245,6 +301,7 @@ class TestSayingWhichKeyPaid:
         to, that is a collection that cannot index, and the flow log says so."""
         degraded = {source for source in EmbeddingKeySource if source.is_degraded}
 
+        assert EmbeddingKeySource.KEYLESS not in degraded
         assert degraded == {
             EmbeddingKeySource.NONE_CHOSEN,
             EmbeddingKeySource.NO_VAULT,

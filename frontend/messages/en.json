@@ -2052,6 +2052,7 @@
     "json": "JSON",
     "key": "Key",
     "keyRequiredHere": "Embeddings bill this key, and it has to be one for the chosen provider. There is no deployment-wide key to fall back to.",
+    "keylessProvider": "{provider} runs on the deployment's own network and takes no key. Nothing is billed for these embeddings, and nothing leaves the deployment.",
     "knowledgeBase": "Knowledge base",
     "knowledgeBasesAlreadyUsing": "Knowledge bases already using it keep their own copy - this only removes the one nothing is syncing from.",
     "leaveEmptyAutoGenerate": "Leave empty to auto-generate",

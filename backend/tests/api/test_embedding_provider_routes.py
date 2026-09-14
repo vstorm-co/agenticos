@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -109,6 +109,26 @@ class TestWhatTheCatalogOffers:
 
         assert "default_provider" not in body
         assert all("deployment_key" not in entry for entry in body["providers"])
+
+    async def test_each_provider_says_whether_it_takes_a_key(self, client: AsyncClient):
+        """The form hides the key select for a keyless endpoint rather than
+        asking for a key nothing will send, so the answer carries the flag."""
+        body = (await client.get(f"{_V1}/rag/embedding-models")).json()
+
+        assert all(entry["keyless"] is False for entry in body["providers"])
+
+    async def test_a_keyless_provider_is_offered_where_the_deployment_names_its_address(
+        self, client: AsyncClient
+    ):
+        with patch(
+            "app.services.rag.embedding_providers.settings",
+            MagicMock(EMBEDDING_OLLAMA_BASE_URL="http://ollama:11434/v1"),
+        ):
+            body = (await client.get(f"{_V1}/rag/embedding-models")).json()
+
+        ollama = next(entry for entry in body["providers"] if entry["provider"] == "ollama")
+        assert ollama["keyless"] is True
+        assert {model["model"] for model in ollama["models"]} >= {"nomic-embed-text", "bge-m3"}
 
 
 class TestMovingACollection:

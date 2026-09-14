@@ -325,6 +325,14 @@ class Settings(BaseSettings):
     # width, so changing it mid-life invalidates every existing collection.
     # ingestion_config guards both directions of that mistake.
     EMBEDDING_MODEL: str = "text-embedding-3-large"
+    # The one embedding provider that is an address rather than a credential:
+    # an Ollama server on the deployment's own network, reached through its
+    # OpenAI-compatible root (`http://ollama:11434/v1`). Empty, the `ollama`
+    # catalog entry is not offered at all; set, a collection may embed through
+    # it with no vault key, and an app-scoped collection - which has no vault -
+    # may embed only this way. Plain http is expected here: the address names a
+    # host the deployment runs, not a vendor across the internet.
+    EMBEDDING_OLLAMA_BASE_URL: str = ""
 
     # Cloud-parser credential and OCR sidecar. Which parser a collection uses
     # is per-collection configuration; these say only how to reach the tools.

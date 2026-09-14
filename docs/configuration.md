@@ -372,9 +372,12 @@ There is no embedding credential in the environment. Every collection names the
 provider it embeds through and the organization vault key that pays for it, the
 way a chat model is keyed per organization; see
 [File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+The one address that is a setting is an Ollama the deployment runs itself,
+because a catalog file cannot know where that is.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `EMBEDDING_OLLAMA_BASE_URL` | (empty) | The OpenAI-compatible root of an Ollama server on the deployment's own network, e.g. `http://ollama:11434/v1`. Set, the `ollama` embedding provider is offered: keyless, so a collection on it names no vault key, and the only provider an app-scoped collection may embed through. Empty, the entry is not offered at all |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is preselected with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
 
 ### Document parsing — configured per collection, not here

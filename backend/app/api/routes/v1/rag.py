@@ -106,6 +106,7 @@ async def list_embedding_models() -> Any:
                 "provider": entry.provider,
                 "name": entry.name,
                 "models": [{"model": model.model, "dim": model.dim} for model in entry.models],
+                "keyless": entry.keyless,
             }
             for entry in embedding_providers.providers()
         ],

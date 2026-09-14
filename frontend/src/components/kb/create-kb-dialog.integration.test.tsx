@@ -59,6 +59,7 @@ const EMBEDDING_MODELS = {
     {
       provider: "openrouter",
       name: "OpenRouter",
+      keyless: false,
       models: [
         { model: "text-embedding-3-large", dim: 3072 },
         { model: "text-embedding-3-small", dim: 1536 },
@@ -67,7 +68,16 @@ const EMBEDDING_MODELS = {
     {
       provider: "openai",
       name: "OpenAI",
+      keyless: false,
       models: [{ model: "text-embedding-3-small", dim: 1536 }],
+    },
+    // An Ollama on the deployment's own network: offered only where the
+    // deployment named its address, and paid by nobody.
+    {
+      provider: "ollama",
+      name: "Ollama",
+      keyless: true,
+      models: [{ model: "nomic-embed-text", dim: 768 }],
     },
   ],
 };
@@ -275,6 +285,34 @@ describe("choosing the provider", () => {
 
     expect(await screen.findByRole("option", { name: /OpenAI prod/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /OpenRouter prod/ })).toBeNull();
+  });
+
+  it("asks for no key on a keyless provider, and says why", async () => {
+    // The server refuses a key named for an Ollama, so the select would offer
+    // only a mistake. The sentence in its place is what a reader needs: nothing
+    // pays, nothing leaves.
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+
+    expect(screen.queryByLabelText("Key")).toBeNull();
+    expect(screen.getByText(/Ollama runs on the deployment's own network/)).toBeVisible();
+  });
+
+  it("posts a keyless provider with no key", async () => {
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Local");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body.embedding_provider).toBe("ollama");
+    expect(body.embedding_model).toBe("nomic-embed-text");
+    expect(body).not.toHaveProperty("embedding_secret_id");
   });
 
   it("forgets a key chosen for the provider being left behind", async () => {

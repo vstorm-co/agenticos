@@ -18,8 +18,13 @@ into a refusal naming the collection and the reason, at the moment somebody
 tries to index or search it; nothing is refused at resolution, because *whose
 key pays* must never decide *whether the row can be read*.
 
+The one provider that wants no key is `ollama`, an endpoint on the deployment's
+own network (#1632): a collection embedding through it resolves to `KEYLESS`,
+which is not a degradation, and is how an app-scoped collection - which has no
+vault - embeds at all (#1631).
+
 What the resolution must not do is stay quiet about itself. Every
-:class:`EmbeddingKeySource` value but one is a collection asking for a key and
+:class:`EmbeddingKeySource` value but two is a collection asking for a key and
 not getting it, and a `logger.warning` in this module reaches neither the flow
 log a worker's operator reads nor the error the upload leaves on the document
 row. So the source travels *with* the resolution, and both surfaces name it.
@@ -47,22 +52,25 @@ logger = logging.getLogger(__name__)
 class EmbeddingKeySource(StrEnum):
     """Which credential a collection's embeddings actually went out on.
 
-    One means a key was found - the collection's own. The others mean no key
-    was, and telling them apart is the difference between "choose a key", "this
-    collection has no vault to choose one from", "the key you chose is gone",
-    "the key you chose cannot be opened", "the vault entry you chose is not an
-    API key" and "the provider this collection recorded no longer exists", which
-    is the whole of what an operator needs from the message - each names a
-    different remedy.
+    Two mean the request can go out - on the collection's own key, or on none
+    because the provider is a keyless endpoint on the deployment's own network.
+    The others mean a key was needed and not found, and telling them apart is
+    the difference between "choose a key", "this collection has no vault to
+    choose one from", "the key you chose is gone", "the key you chose cannot be
+    opened", "the vault entry you chose is not an API key" and "the provider
+    this collection recorded no longer exists", which is the whole of what an
+    operator needs from the message - each names a different remedy.
 
-    `NO_VAULT` is an app-scoped collection: it belongs to no organization, so
-    there is no vault it could name a key from, and there is no deployment-wide
-    key either (#1631). `PROVIDER_UNKNOWN` is a catalog entry removed from
+    `NO_VAULT` is an app-scoped collection on a keyed provider: it belongs to no
+    organization, so there is no vault it could name a key from, and there is
+    no deployment-wide key either - it can embed only through a keyless
+    provider (#1631). `PROVIDER_UNKNOWN` is a catalog entry removed from
     `embedding_providers.json` under a collection that was using it; the key it
     holds was stored for the provider that is gone, so it stays sealed.
     """
 
     ORGANIZATION = "organization"
+    KEYLESS = "keyless"
     NONE_CHOSEN = "none_chosen"
     NO_VAULT = "no_vault"
     SECRET_MISSING = "secret_missing"
@@ -77,19 +85,25 @@ class EmbeddingKeySource(StrEnum):
 
     @property
     def is_degraded(self) -> bool:
-        """True when the collection did not get a key to embed on."""
-        return self is not EmbeddingKeySource.ORGANIZATION
+        """True when the collection needed a key and did not get one."""
+        return self not in _CAN_EMBED
 
+
+_CAN_EMBED = frozenset({EmbeddingKeySource.ORGANIZATION, EmbeddingKeySource.KEYLESS})
 
 _EXPLANATIONS = {
     EmbeddingKeySource.ORGANIZATION: "the vault key the collection chose",
+    EmbeddingKeySource.KEYLESS: (
+        "no key, because the provider is a keyless endpoint on the deployment's own network"
+    ),
     EmbeddingKeySource.NONE_CHOSEN: (
         "no key at all, because the collection names no vault key - choose one for its "
         "provider from the organization's vault"
     ),
     EmbeddingKeySource.NO_VAULT: (
         "no key at all, because an app-scoped collection belongs to no organization and so "
-        "has no vault to hold one, and there is no deployment-wide embedding key (#1631)"
+        "has no vault to hold one - move it to a keyless provider on the deployment's own "
+        "network, the one way such a collection can embed (#1631)"
     ),
     EmbeddingKeySource.SECRET_MISSING: (
         "no key at all, because the vault key the collection chose is no longer in this "
@@ -184,6 +198,11 @@ async def embeddings_for_collection(
                 extra={"collection": collection_name, "provider": kb.embedding_provider},
             )
             api_key, key_source, base_url = "", EmbeddingKeySource.PROVIDER_UNKNOWN, ""
+        elif provider.keyless:
+            # Whatever key the row may still hold from a keyed provider it left
+            # is not opened: this endpoint takes none, and unsealing a credential
+            # nothing will send is a read of the vault for no reason.
+            api_key, key_source, base_url = "", EmbeddingKeySource.KEYLESS, provider.base_url
         else:
             api_key, key_source = await _api_key_for(db, kb)
             base_url = provider.base_url

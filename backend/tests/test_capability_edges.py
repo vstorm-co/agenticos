@@ -237,6 +237,27 @@ class TestEmbeddingCredential:
         provider = OpenAIEmbeddingProvider(model="m", api_key="sk-test", base_url="https://x/v1")
         assert provider.client is provider.client
 
+    def test_a_keyless_endpoint_gets_a_client_with_no_key_and_no_refusal(self):
+        """An Ollama on the deployment's own network takes no credential, and
+        the SDK refuses to build on an empty one - so a placeholder goes on the
+        wire, and it is visibly not a secret (#1632)."""
+        provider = OpenAIEmbeddingProvider(
+            model="nomic-embed-text", base_url="http://ollama:11434/v1", keyless=True
+        )
+
+        client = provider.client
+
+        assert client.api_key == "keyless"
+        assert str(client.base_url).startswith("http://ollama:11434/v1")
+        assert provider.client is client
+
+    def test_the_service_passes_keyless_through_to_the_client(self):
+        service = EmbeddingService(
+            settings=app_settings.rag, base_url="http://ollama:11434/v1", keyless=True
+        )
+
+        assert service.provider.client.api_key == "keyless"
+
     def test_a_collection_nobody_has_uploaded_to_reports_as_empty(self):
         """The second half of the reported 500 on `/rag/collections/{name}/info`.
 

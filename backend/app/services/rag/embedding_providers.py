@@ -27,20 +27,30 @@ released this quarter should not be a diff in three modules. What interprets an
 entry stays here.
 
 An entry states what the provider's own documentation states it serves through an
-OpenAI-compatible `/embeddings` route. Two are listed today, and a third is one
+OpenAI-compatible `/embeddings` route. Three are listed today, and a fourth is one
 file entry: the models nobody can reach - `voyage-3`, the `bge-*` and
 `all-MiniLM-*` sentence-transformer weights - were offered by the create form for
 months on the strength of a width map, and the width of a model this build cannot
 call is not an answer to "can I use it".
+
+One of the three is not a vendor. `ollama` is an endpoint on the deployment's own
+network, reached through Ollama's OpenAI-compatible root, and it takes no
+credential - so the file holds no address for it and `providers()` fills one in
+from `EMBEDDING_OLLAMA_BASE_URL`, offering the entry only while that setting is
+set. It is what lets a knowledge base stay on the deployment's own hardware
+(#1632), and the one way an app-scoped collection, which has no vault to hold a
+key, can embed at all (#1631).
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from pydantic import TypeAdapter
 
 from app.core import catalog
+from app.core.config import settings
 from app.core.field_errors import refused_field
 
 
@@ -54,36 +64,86 @@ class EmbeddingModelEntry:
 
 @dataclass(frozen=True)
 class EmbeddingProviderEntry:
-    """One provider that can embed, as the catalog file states it."""
+    """One provider a collection may embed through, with its address resolved."""
 
     provider: str
     name: str
-    # The OpenAI-compatible root the `/embeddings` call is made against.
+    # The OpenAI-compatible root the `/embeddings` call is made against. For a
+    # keyless provider this is the deployment's own setting, not the file's.
     base_url: str
     models: tuple[EmbeddingModelEntry, ...]
+    # An endpoint on the deployment's own network that takes no credential. A
+    # collection embedding through one names no vault key, and an app-scoped
+    # collection - which has no vault - may embed only through one (#1631).
+    keyless: bool
 
     def serves(self, model: str, dim: int) -> bool:
         """Whether this provider answers for `model` at exactly `dim`."""
         return any(entry.model == model and entry.dim == dim for entry in self.models)
 
 
-CATALOG: tuple[EmbeddingProviderEntry, ...] = catalog.load(
-    "embedding_providers.json", TypeAdapter(tuple[EmbeddingProviderEntry, ...])
+@dataclass(frozen=True)
+class CatalogEntry:
+    """One provider as the catalog file states it, before the deployment has a say.
+
+    A keyless entry carries no address: the file cannot know where somebody's
+    Ollama runs, so `base_url` is null there and `providers()` reads it from the
+    setting `_DEPLOYMENT_ADDRESSES` names. A keyed entry's address is the
+    vendor's and is the file's to state.
+    """
+
+    provider: str
+    name: str
+    base_url: str | None
+    keyless: bool
+    models: tuple[EmbeddingModelEntry, ...]
+
+
+CATALOG: tuple[CatalogEntry, ...] = catalog.load(
+    "embedding_providers.json", TypeAdapter(tuple[CatalogEntry, ...])
 )
+
+# Where a keyless provider is reached, per deployment. Read at call time rather
+# than at import so a test - or a process that loads settings late - sees the
+# value the deployment actually has.
+_DEPLOYMENT_ADDRESSES: dict[str, Callable[[], str]] = {
+    "ollama": lambda: settings.EMBEDDING_OLLAMA_BASE_URL,
+}
+
+
+def _offered(entry: CatalogEntry) -> EmbeddingProviderEntry | None:
+    if entry.keyless:
+        address = _DEPLOYMENT_ADDRESSES[entry.provider]().strip()
+        if not address:
+            return None
+    else:
+        address = entry.base_url or ""
+    return EmbeddingProviderEntry(
+        provider=entry.provider,
+        name=entry.name,
+        base_url=address,
+        models=entry.models,
+        keyless=entry.keyless,
+    )
 
 
 def providers() -> tuple[EmbeddingProviderEntry, ...]:
-    """Every provider a collection may embed through, in catalog order."""
-    return CATALOG
+    """Every provider a collection may embed through, in catalog order.
+
+    A keyless entry is offered only while the deployment names its address: an
+    entry with nowhere to send the request is a collection that cannot index its
+    first document, and the form would offer it anyway.
+    """
+    return tuple(offered for entry in CATALOG if (offered := _offered(entry)) is not None)
 
 
 def get(provider: str) -> EmbeddingProviderEntry | None:
     """One provider, or None for an id this deployment does not offer."""
-    return next((entry for entry in CATALOG if entry.provider == provider), None)
+    return next((entry for entry in providers() if entry.provider == provider), None)
 
 
 def first() -> EmbeddingProviderEntry:
-    """The catalog's first entry - what a collection created with no say gets.
+    """The first provider offered - what a collection created with no say gets.
 
     `POST /rag/collections/{name}` takes no provider, so the knowledge base it
     records needs one to be readable at all; it waits for a key through
@@ -92,7 +152,7 @@ def first() -> EmbeddingProviderEntry:
     `tests/test_embedding_providers.py` pins which entry this is, so reordering
     the catalog is a decision about stored rows rather than an accident.
     """
-    return CATALOG[0]
+    return providers()[0]
 
 
 def require(provider: str, *, model: str, dim: int) -> EmbeddingProviderEntry:
@@ -106,7 +166,7 @@ def require(provider: str, *, model: str, dim: int) -> EmbeddingProviderEntry:
     """
     entry = get(provider)
     if entry is None:
-        offered = ", ".join(item.provider for item in CATALOG)
+        offered = ", ".join(item.provider for item in providers())
         raise refused_field(
             "embedding_provider",
             f"'{provider}' is not an embedding provider this build offers. Choose one of: {offered}.",

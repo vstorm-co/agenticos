@@ -212,6 +212,40 @@ class TestTheCollectionsKeyPays:
 
         assert embedder.provider._base_url == "https://api.openai.com/v1"
 
+    async def test_a_keyless_collection_gets_a_client_for_the_deployments_own_endpoint(self):
+        """An Ollama collection (#1632): the flow's embedder is built for the
+        address the deployment named, with no vault opened and no refusal for
+        the key it does not have - and nothing said in the flow log, because a
+        keyless resolution is not a degraded one."""
+        with (
+            patch(
+                "app.services.rag.embedding_providers.settings",
+                MagicMock(EMBEDDING_OLLAMA_BASE_URL="http://ollama:11434/v1"),
+            ),
+            patch(f"{_RESOLUTION}.knowledge_base_repo") as bases,
+            patch(f"{_RESOLUTION}.get_db_context") as db_ctx,
+            patch(f"{_RESOLUTION}.organization_secret_repo") as secrets,
+        ):
+            bases.get_for_collection = AsyncMock(
+                return_value=MagicMock(
+                    collection_name="handbook",
+                    embedding_model="nomic-embed-text",
+                    embedding_dim=768,
+                    embedding_secret_id=None,
+                    embedding_provider="ollama",
+                    organization_id=None,
+                )
+            )
+            db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+            secrets.get = AsyncMock()
+            embedder, dim = await (await _store())._for_collection("handbook")
+
+        assert dim == 768
+        assert embedder.provider._base_url == "http://ollama:11434/v1"
+        assert embedder.provider._keyless is True
+        secrets.get.assert_not_called()
+
     async def test_a_collection_that_chose_no_key_refuses_and_says_to_choose_one(self):
         """There is no deployment key to fall back to. The refusal names the
         collection and tells the reader what to do, instead of advising a

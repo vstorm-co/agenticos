@@ -31,6 +31,10 @@ provider; if the organization has none yet, the form beside the picker stores
 one. The provider and the key can be changed later, the model cannot - see
 [File processing](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
+If the deployment runs an Ollama (`EMBEDDING_OLLAMA_BASE_URL`), **Ollama** is
+in the provider list too. It takes no key: choose it and one of its models, and
+the collection's documents never leave the deployment's own network.
+
 A knowledge base created against a collection name that already exists adopts
 that collection's provider and key instead - a missing one included, because
 every row on one collection has to embed the same way. Give such a collection

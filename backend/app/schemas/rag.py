@@ -224,6 +224,9 @@ class EmbeddingProviderEntry(BaseSchema):
     provider: str
     name: str
     models: list[EmbeddingModelEntry]
+    # An endpoint on the deployment's own network that takes no key, so the form
+    # asks for none - and the only kind an app-scoped collection may embed through.
+    keyless: bool
 
 
 class EmbeddingModelsResponse(BaseSchema):

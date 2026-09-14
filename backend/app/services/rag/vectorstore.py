@@ -234,7 +234,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.session import agent_vector_engine, vector_engine
-from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
+from app.services.embedding_resolution import (
+    EmbeddingKeySource,
+    ResolvedEmbeddings,
+    embeddings_for_collection,
+)
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 
@@ -374,6 +378,7 @@ class PgVectorStore(BaseVectorStore):
                 # the key, because moving a collection to another provider must
                 # not be answered by a client already built for the old one.
                 base_url=resolved.base_url,
+                keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
             )
             self._services[cache_key] = service
         return service, resolved.dim

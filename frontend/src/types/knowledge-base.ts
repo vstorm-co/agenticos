@@ -182,6 +182,12 @@ export interface EmbeddingProvider {
   provider: string;
   name: string;
   models: { model: string; dim: number }[];
+  /**
+   * An endpoint on the deployment's own network that takes no key - an Ollama.
+   * The picker asks for no key, and it is the only kind of provider an
+   * app-scoped collection may embed through.
+   */
+  keyless: boolean;
 }
 
 export interface EmbeddingModels {

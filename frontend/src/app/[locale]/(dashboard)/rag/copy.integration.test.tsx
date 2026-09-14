@@ -150,6 +150,7 @@ function serve() {
           {
             provider: "openrouter",
             name: "OpenRouter",
+            keyless: false,
             models: [{ model: "text-embedding-3-large", dim: 3072 }],
           },
         ],
