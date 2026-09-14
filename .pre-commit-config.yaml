@@ -70,13 +70,23 @@ repos:
     hooks:
       - id: codespell
         additional_dependencies: [tomli]
-        # `skip` in .codespellrc governs codespell's own directory walk; it does
-        # not apply to paths pre-commit hands it explicitly. The Polish message
-        # catalog has to be excluded here or every entry reads as a misspelling,
-        # and the MCP registry snapshot carries 5,703 publishers' own
-        # descriptions - their typos are not ours to correct, and a `--fetch`
-        # would bring every one of them back.
-        exclude: ^(frontend/messages/pl\.json|backend/app/core/catalog/mcp_registry\.json)$
+        # Only the `./`-prefixed entries of `skip` in .codespellrc need repeating
+        # here. That prefix is how codespell names a file during its own
+        # directory walk, so those patterns never match the bare relative path
+        # pre-commit hands it; the plain globs beside them - `*.pl.md`, `*.de.md`,
+        # `*.es.md` - match either way, which is what covers every translated
+        # page and the translated `README` and policy files in the repository
+        # root. What is listed below is therefore the message catalog, the one
+        # English page whose glossary states each term in four languages, and the
+        # MCP registry snapshot, which carries 5,703 publishers' own descriptions
+        # - their typos are not ours to correct, and a `--fetch` would bring every
+        # one of them back.
+        exclude: |
+          (?x)^(
+            frontend/messages/pl\.json|
+            backend/app/core/catalog/mcp_registry\.json|
+            docs/howto/translate\.md
+          )$
 
   - repo: https://github.com/google/yamlfmt
     rev: v0.21.0
@@ -140,6 +150,16 @@ repos:
       - id: check-docs-paragraphs
         name: no wall-of-text paragraphs
         entry: python3 scripts/check_docs_paragraphs.py
+        language: system
+        types: [markdown]
+        pass_filenames: false
+      # A page with no translation, or a translation made from an English
+      # revision that has since moved on. Reads the whole of `docs/` rather than
+      # the changed files: editing one English page makes three translations
+      # stale, and none of those three is in the commit.
+      - id: check-docs-i18n
+        name: translations current
+        entry: python3 scripts/check_docs_i18n.py
         language: system
         types: [markdown]
         pass_filenames: false
