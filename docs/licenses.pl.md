@@ -1,5 +1,5 @@
 ---
-source_sha: "ea6a9d764b38"
+source_sha: "097a2caa4c8d"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -10,9 +10,10 @@ source_sha: "ea6a9d764b38"
     swoją licencją i dowodem na nią, a każde zobowiązanie, które te licencje
     nakładają, jest albo spełnione w sposób nazwany na tej stronie, albo zapisane
     jako otwarte ustalenie z issue, które je trzyma. Nie mówi ona „wszystkie
-    licencje są zgodne”: w chwili pisania otwarte są dwa ustalenia i są wypisane
-    poniżej, a nie uśrednione. Trzecie, komponent na AGPL, zostało przejrzane
-    i utrzymane; ta decyzja ma własną sekcję.
+    licencje są zgodne”: w chwili pisania otwarte jest jedno ustalenie i jest
+    wypisane poniżej, a nie uśrednione. Dwa kolejne zostały przejrzane
+    i rozstrzygnięte — komponent na AGPL, który ma własną sekcję, i obraz Redisa,
+    który został wymieniony.
 
 Sam AgenticOS jest na Apache-2.0 (`LICENSE`, `NOTICE`). To, co faktycznie
 uruchamia wdrożenie, to ten kod plus mniej więcej pięćset pakietów stron
@@ -80,7 +81,7 @@ noty; `make licenses-check`, uruchamiany przez job `security` i przez
 - decyzja wymienia komponent, którego lockfile'e już nie rozwiązują.
 
 Otwarte ustalenie, które jest śledzone, nie wywala checku. Linia werdyktu je
-zlicza: `LICENSES: REVIEWED - 518 components, 2 open finding(s)`.
+zlicza: `LICENSES: REVIEWED - 518 components, 1 open finding(s)`.
 
 !!! warning "Nieznane u skanera to pytanie, a nie zgoda"
 
@@ -177,13 +178,18 @@ Nic innego w żadnym z obrazów nie niesie copyleftu sięgającego poza własne 
 Każde ma issue; każde zostanie na tej liście, i na początku not, dopóki issue się
 nie zamknie i wpis w policy nie przejdzie na `accepted` albo komponentu nie będzie.
 
-**`redis:7-alpine` to Redis 7.4, na RSALv2 albo SSPLv1** —
-[#1603](https://github.com/vstorm-co/agenticos/issues/1603). Żadna z nich nie jest
-licencją zatwierdzoną przez OSI. RSALv2 pozwala uruchamiać Redisa wewnątrz własnej
-aplikacji, czyli robić to, co robi ten stos, a obraz pobiera operator, zamiast być
-redystrybuowanym stąd. Ustalenie jest takie, że domyślna ścieżka compose startuje
-komponent nieotwarty, nic o tym nie mówiąc; prawdopodobnym zastępnikiem jest
-Valkey (BSD-3-Clause).
+Jedno ustalenie zostało zamknięte przez wymianę komponentu, a nie przez jego
+przyjęcie. `redis:7-alpine` rozwiązuje się do Redisa 7.4, a od 7.4.0 Redis jest na
+RSALv2 albo SSPL-1.0, a nie BSD-3-Clause — żadna z nich nie jest zatwierdzona
+przez OSI. Nic przez to nie zostało złamane: obraz pobiera operator, zamiast być
+redystrybuowanym stąd, a RSALv2 pozwala uruchamiać Redisa wewnątrz własnej
+aplikacji, czyli robić to, co robi ten stos. Ustalenie było takie, że domyślne
+`docker compose up` startowało komponent nieotwarty, nic o tym nie mówiąc.
+
+[#1603](https://github.com/vstorm-co/agenticos/issues/1603) wymieniło go na
+`valkey/valkey:8-alpine`, fork Redisa 7.2 spod Linux Foundation na BSD-3-Clause.
+Valkey mówi tym samym protokołem, więc nazwa usługi, port, schemat URL-i `redis://`
+i każde ustawienie `REDIS_*` pozostają bez zmian.
 
 **Runtime `workbench` sandboksa jest budowany na wdrożeniu** z
 `sandbox_runtimes.json`: Python, Node, LibreOffice, `poppler-utils` (GPL) i lista
@@ -302,9 +308,10 @@ Zanim wydanie zostanie wycięte, i jako dowód do niego dołączony:
 - Decyzje mieszkają w `licenses/policy.toml` i `licenses/components.toml`; check
   wywala się na wszystkim, co nie ma decyzji, i na decyzji podjętej o licencji,
   która od tego czasu się zmieniła.
-- Otwarte i śledzone są dwa ustalenia: warunki RSALv2/SSPL obrazu Redisa
-  i runtime sandboksa budowany na wdrożeniu. AGPL PyMuPDF-a nie jest jednym
-  z nich — został przejrzany i utrzymany, i ma własną sekcję.
+- Otwarte i śledzone jest jedno ustalenie: runtime sandboksa budowany na
+  wdrożeniu. Dwa kolejne zostały rozstrzygnięte, a nie zostawione otwarte — AGPL
+  PyMuPDF-a, przejrzany i utrzymany, z własną sekcją, oraz obraz Redisa,
+  wymieniony na Valkey.
 - Wagi modeli i hostowani providerzy są wybierani per wdrożenie na warunkach
   wydawcy albo providera; ta strona mówi, co sprawdzić, a wdrożenie zapisuje, co
   wybrało.

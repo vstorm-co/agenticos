@@ -1,5 +1,5 @@
 ---
-source_sha: "4b2b3dcb65c8"
+source_sha: "4438f1c9409f"
 ---
 
 # Konfiguracja { #configuration }
@@ -161,6 +161,13 @@ Właściwości wyliczane:
 - `DATABASE_URL_SYNC` -- synchroniczny connection string dla Alembica
 
 ## Redis { #redis }
+
+Pliki compose uruchamiają **Valkey** (`valkey/valkey:8-alpine`), fork Redisa 7.2 na
+BSD-3-Clause, a nie samego Redisa, który od 7.4.0 jest na RSALv2 albo SSPL-1.0 —
+żadna z nich nie jest licencją open source ([licencje](licenses.md)). Mówi tym samym
+protokołem na tym samym porcie, więc ustawienia poniżej, schemat `redis://` i nazwa
+usługi `redis` pozostają bez zmian, a wdrożenie, które skieruje je zamiast tego na
+zarządzanego Redisa, Valkey albo Elasticache, działa dokładnie tak jak wcześniej.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|

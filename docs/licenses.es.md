@@ -1,5 +1,5 @@
 ---
-source_sha: "ea6a9d764b38"
+source_sha: "097a2caa4c8d"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -10,10 +10,10 @@ source_sha: "ea6a9d764b38"
     licencia y con la evidencia de esa licencia, y toda obligación que imponen
     esas licencias o bien se cumple de una forma que esta página nombra, o bien
     queda registrada como hallazgo abierto con una issue detrás. No dice "todas
-    las licencias cumplen": hay dos hallazgos abiertos mientras esto se escribe,
-    y están listados más abajo en lugar de diluirse en la media. Un tercero, el
-    componente AGPL, se revisó y se mantuvo; esa decisión tiene una sección
-    propia.
+    las licencias cumplen": hay un hallazgo abierto mientras esto se escribe, y
+    está listado más abajo en lugar de diluirse en la media. Otros dos se
+    revisaron y se zanjaron — el componente AGPL, que tiene una sección propia, y
+    la imagen de Redis, que se sustituyó.
 
 AgenticOS en sí es Apache-2.0 (`LICENSE`, `NOTICE`). Lo que un despliegue ejecuta
 de verdad es ese código más unos quinientos paquetes de terceros, dos imágenes
@@ -87,7 +87,7 @@ en memoria y falla cuando:
 
 Un hallazgo abierto del que se hace seguimiento no hace fallar la comprobación. La
 línea del veredicto lo cuenta:
-`LICENSES: REVIEWED - 518 components, 2 open finding(s)`.
+`LICENSES: REVIEWED - 518 components, 1 open finding(s)`.
 
 !!! warning "El «desconocido» de un escáner es una pregunta, no una aprobación"
 
@@ -190,13 +190,18 @@ Cada uno tiene una issue; cada uno seguirá en esta lista, y a la cabeza de los
 avisos, hasta que la issue se cierre y la entrada de la política pase a `accepted`,
 o hasta que el componente desaparezca.
 
-**`redis:7-alpine` es Redis 7.4, bajo RSALv2 o SSPLv1** —
-[#1603](https://github.com/vstorm-co/agenticos/issues/1603). Ninguna de las dos es
-una licencia aprobada por la OSI. RSALv2 permite ejecutar Redis dentro de tu propia
-aplicación, que es lo que hace este stack, y la imagen la descarga el operador en
-lugar de redistribuirse aquí. El hallazgo es que el camino de compose por defecto
-arranca un componente no abierto sin decirlo; Valkey (BSD-3-Clause) es el sustituto
-probable.
+Un hallazgo se cerró sustituyendo el componente, no aceptándolo. `redis:7-alpine`
+resuelve a Redis 7.4, y desde 7.4.0 Redis está bajo RSALv2 o SSPL-1.0 en lugar de
+BSD-3-Clause — ninguna de las dos está aprobada por la OSI. Nada se incumplía por
+ello: la imagen la descarga el operador en lugar de redistribuirse aquí, y RSALv2
+permite ejecutar Redis dentro de tu propia aplicación, que es lo que hace este
+stack. El hallazgo era que un `docker compose up` por defecto arrancaba un
+componente no abierto sin decirlo.
+
+[#1603](https://github.com/vstorm-co/agenticos/issues/1603) lo cambió por
+`valkey/valkey:8-alpine`, el fork de Redis 7.2 de la Linux Foundation bajo
+BSD-3-Clause. Valkey habla el mismo protocolo, así que el nombre del servicio, el
+puerto, el esquema de URL `redis://` y todos los ajustes `REDIS_*` no cambian.
 
 **El runtime `workbench` de la sandbox se construye en el despliegue** a partir de
 `sandbox_runtimes.json`: Python, Node, LibreOffice, `poppler-utils` (GPL) y una
@@ -322,10 +327,10 @@ Antes de cortar una release, y como evidencia adjunta a ella:
 - Las decisiones viven en `licenses/policy.toml` y `licenses/components.toml`; la
   comprobación falla ante cualquier cosa que no tenga una, y ante una decisión
   tomada sobre una licencia que ha cambiado desde entonces.
-- Hay dos hallazgos abiertos y de los que se hace seguimiento: los términos
-  RSALv2/SSPL de la imagen de Redis, y el runtime de la sandbox construido en el
-  despliegue. La AGPL de PyMuPDF no es uno de ellos — se revisó y se mantuvo, y
-  tiene una sección propia.
+- Hay un hallazgo abierto y del que se hace seguimiento: el runtime de la sandbox
+  construido en el despliegue. Otros dos se zanjaron en lugar de quedarse abiertos
+  — la AGPL de PyMuPDF, revisada y mantenida, con una sección propia, y la imagen
+  de Redis, sustituida por Valkey.
 - Los pesos de modelos y los providers alojados se eligen por despliegue bajo los
   términos de quien los publica o los presta; esta página dice qué comprobar, y el
   despliegue registra qué eligió.

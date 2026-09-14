@@ -1,5 +1,5 @@
 ---
-source_sha: "ea6a9d764b38"
+source_sha: "097a2caa4c8d"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -10,10 +10,10 @@ source_sha: "ea6a9d764b38"
     ihrer Lizenz und dem Nachweis dafür aufgeführt; jede Pflicht, die diese
     Lizenzen auferlegen, ist entweder auf eine Weise erfüllt, die diese Seite
     benennt, oder als offener Befund mit einem Issue dahinter festgehalten. Sie
-    sagt nicht "alle Lizenzen sind konform": Zum Zeitpunkt des Schreibens sind zwei
-    Befunde offen, und sie stehen unten, statt weggemittelt zu werden. Ein dritter,
-    die AGPL-Komponente, wurde geprüft und behalten; diese Entscheidung hat einen
-    eigenen Abschnitt.
+    sagt nicht "alle Lizenzen sind konform": Zum Zeitpunkt des Schreibens ist ein
+    Befund offen, und er steht unten, statt weggemittelt zu werden. Zwei weitere
+    wurden geprüft und abgeschlossen - die AGPL-Komponente, die einen eigenen
+    Abschnitt hat, und das Redis-Image, das ersetzt wurde.
 
 AgenticOS selbst ist Apache-2.0 (`LICENSE`, `NOTICE`). Was ein Deployment
 tatsächlich ausführt, ist dieser Code plus rund fünfhundert Drittanbieter-Pakete,
@@ -88,7 +88,7 @@ ausführen, generiert sie im Speicher neu und schlägt fehl, wenn:
 
 Ein offener Befund, der verfolgt wird, lässt die Prüfung nicht fehlschlagen. Die
 Urteilszeile zählt ihn mit:
-`LICENSES: REVIEWED - 518 components, 2 open finding(s)`.
+`LICENSES: REVIEWED - 518 components, 1 open finding(s)`.
 
 !!! warning "Das Unbekannte eines Scanners ist eine Frage, keine Freigabe"
 
@@ -192,13 +192,17 @@ Zu jedem gibt es ein Issue; jeder bleibt in dieser Liste und zuoberst in den
 Notices, bis das Issue schließt und der Policy-Eintrag auf `accepted` wechselt
 oder die Komponente verschwunden ist.
 
-**`redis:7-alpine` ist Redis 7.4, unter RSALv2 oder SSPLv1** -
-[#1603](https://github.com/vstorm-co/agenticos/issues/1603). Keine von beiden ist
-eine OSI-anerkannte Lizenz. RSALv2 erlaubt es, Redis innerhalb der eigenen
-Anwendung zu betreiben - genau das tut dieser Stack -, und das Image wird vom
-Betreiber gezogen statt hier weitergegeben. Der Befund ist, dass der
-voreingestellte Compose-Pfad eine nicht offene Komponente startet, ohne das zu
-sagen; Valkey (BSD-3-Clause) ist der wahrscheinliche Ersatz.
+Ein Befund wurde geschlossen, indem die Komponente ersetzt statt akzeptiert wurde.
+`redis:7-alpine` löst auf Redis 7.4 auf, und ab 7.4.0 steht Redis unter RSALv2 oder
+SSPL-1.0 statt unter BSD-3-Clause - keine von beiden ist OSI-anerkannt. Gebrochen
+wurde dadurch nichts: Das Image wird vom Betreiber gezogen statt hier
+weitergegeben, und RSALv2 erlaubt es, Redis innerhalb der eigenen Anwendung zu
+betreiben - genau das tut dieser Stack. Der Befund war, dass das voreingestellte
+`docker compose up` eine nicht offene Komponente startete, ohne das zu sagen.
+[#1603](https://github.com/vstorm-co/agenticos/issues/1603) hat es gegen
+`valkey/valkey:8-alpine` getauscht, den Linux-Foundation-Fork von Redis 7.2 unter
+BSD-3-Clause. Valkey spricht dasselbe Protokoll, sodass der Dienstname, der Port,
+das `redis://`-URL-Schema und jede `REDIS_*`-Einstellung unverändert bleiben.
 
 **Die Sandbox-Runtime `workbench` wird beim Deployment gebaut**, aus
 `sandbox_runtimes.json`: Python, Node, LibreOffice, `poppler-utils` (GPL) und eine
@@ -326,10 +330,10 @@ Bevor ein Release geschnitten wird, und als Nachweis, der daran hängt:
 - Die Entscheidungen stehen in `licenses/policy.toml` und
   `licenses/components.toml`; die Prüfung schlägt bei allem fehl, das keine hat,
   und bei einer Entscheidung über eine Lizenz, die sich seither geändert hat.
-- Zwei Befunde sind offen und werden verfolgt: die RSALv2/SSPL-Bedingungen des
-  Redis-Images und die beim Deployment gebaute Sandbox-Runtime. Die AGPL von
-  PyMuPDF gehört nicht dazu - sie wurde geprüft und behalten und hat einen eigenen
-  Abschnitt.
+- Ein Befund ist offen und wird verfolgt: die beim Deployment gebaute
+  Sandbox-Runtime. Zwei weitere wurden erledigt, statt offen zu bleiben - die AGPL
+  von PyMuPDF, geprüft und behalten, mit einem eigenen Abschnitt, und das
+  Redis-Image, ersetzt durch Valkey.
 - Modellgewichte und gehostete Provider werden pro Deployment zu den Bedingungen
   des Herausgebers oder des Providers gewählt; diese Seite sagt, was zu prüfen
   ist, das Deployment hält fest, was es gewählt hat.

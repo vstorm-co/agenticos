@@ -1,5 +1,5 @@
 ---
-source_sha: "4b2b3dcb65c8"
+source_sha: "4438f1c9409f"
 ---
 
 # Configuración { #configuration }
@@ -165,6 +165,14 @@ Propiedades calculadas:
 - `DATABASE_URL_SYNC` -- cadena de conexión síncrona, para Alembic
 
 ## Redis { #redis }
+
+Los archivos compose ejecutan **Valkey** (`valkey/valkey:8-alpine`), el fork
+BSD-3-Clause de Redis 7.2, en lugar del propio Redis, que desde 7.4.0 está bajo
+RSALv2 o SSPL-1.0 — ninguna de las dos es una licencia de código abierto
+([licencias](licenses.md)). Habla el mismo protocolo en el mismo puerto, así que
+los ajustes de abajo, el esquema `redis://` y el nombre de servicio `redis` no
+cambian, y un despliegue que en su lugar apunte todo esto a un Redis, un Valkey o
+un Elasticache gestionados funciona exactamente igual que antes.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
