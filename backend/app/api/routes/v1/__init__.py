@@ -13,6 +13,7 @@ from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_mcp_connections
 from app.api.routes.v1 import org_mcp_connections
+from app.api.routes.v1 import local_services
 from app.api.routes.v1 import sandbox_connections
 from app.api.routes.v1 import agent
 from app.api.routes.v1 import rag
@@ -102,6 +103,7 @@ v1_router.include_router(
 v1_router.include_router(
     sandbox_connections.router, prefix="/sandbox-connections", tags=["sandbox-connections"]
 )
+v1_router.include_router(local_services.router, prefix="/local-services", tags=["local-services"])
 v1_router.include_router(
     agent_workspaces.router, prefix="/sandbox-workspaces", tags=["sandbox-workspaces"]
 )

@@ -87,6 +87,7 @@ from app.services.impersonation import ImpersonationService
 from app.services.ws_auth import authenticate_socket_token
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.local_service import LocalServiceService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
@@ -138,6 +139,13 @@ def get_sandbox_connection_service(db: DBSession) -> SandboxConnectionService:
 
 
 SandboxConnectionSvc = Annotated[SandboxConnectionService, Depends(get_sandbox_connection_service)]
+
+
+def get_local_service_service(db: DBSession) -> LocalServiceService:
+    return LocalServiceService(db)
+
+
+LocalServiceSvc = Annotated[LocalServiceService, Depends(get_local_service_service)]
 
 
 def get_conversation_share_service(db: DBSession) -> ConversationShareService:

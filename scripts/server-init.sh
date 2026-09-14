@@ -57,11 +57,6 @@ SITE_DOMAIN=$(ask "Site hostname" "")
 API_DOMAIN=$(ask "API hostname" "")
 ACME_EMAIL=$(ask "Address for Let's Encrypt expiry notices" "")
 
-say "The one key the deployment itself needs"
-echo "  Every collection embeds through OpenRouter. Chat models are not set here -"
-echo "  each organization stores its own provider keys in the vault."
-OPENROUTER_API_KEY=$(ask "OPENROUTER_API_KEY" "")
-
 say "Reverse proxy"
 echo "  traefik - the containers carry labels an existing Traefik discovers."
 echo "  nginx   - both ports on the loopback, and a proxy on the host reaches them."
@@ -89,7 +84,7 @@ echo "  SECRET_KEY, API_KEY, VAULT_MASTER_KEY, POSTGRES_PASSWORD, REDIS_PASSWORD
 # mangled, and a corrupted VAULT_MASTER_KEY is a vault nobody can open.
 say "Writing $ENV_FILE"
 SITE_DOMAIN="$SITE_DOMAIN" API_DOMAIN="$API_DOMAIN" ACME_EMAIL="$ACME_EMAIL" PROXY="$PROXY" \
-OPENROUTER_API_KEY="$OPENROUTER_API_KEY" UVICORN_WORKERS="$UVICORN_WORKERS" \
+UVICORN_WORKERS="$UVICORN_WORKERS" \
 SECRET_KEY="$SECRET_KEY" API_KEY="$API_KEY" VAULT_MASTER_KEY="$VAULT_MASTER_KEY" \
 POSTGRES_PASSWORD="$POSTGRES_PASSWORD" REDIS_PASSWORD="$REDIS_PASSWORD" \
 python3 - "$EXAMPLE" "$ENV_FILE" <<'PY'
@@ -107,7 +102,6 @@ settings = {
     "VAULT_MASTER_KEY": os.environ["VAULT_MASTER_KEY"],
     "POSTGRES_PASSWORD": os.environ["POSTGRES_PASSWORD"],
     "REDIS_PASSWORD": os.environ["REDIS_PASSWORD"],
-    "OPENROUTER_API_KEY": os.environ["OPENROUTER_API_KEY"],
     "FRONTEND_URL": f"https://{site}",
     "PUBLIC_BASE_URL": f"https://{api}",
     "PUBLIC_SITE_URL": f"https://{site}",

@@ -51,8 +51,16 @@ export interface IngestionConfig {
   pdf_parser: PdfParser;
   ocr: boolean;
   llamaparse_tier: LlamaParseTier;
-  /** The org vault key LlamaParse is billed to; null = the deployment's key. */
+  /**
+   * The org vault key LlamaParse is billed to. There is no deployment key: a
+   * collection parsing with LlamaParse is refused until it names one.
+   */
   llamaparse_secret_id?: string | null;
+  /**
+   * The OCR server LiteParse sends pages to - a local service of kind `ocr`.
+   * Null runs the Tesseract bundled with the worker.
+   */
+  ocr_endpoint_id?: string | null;
   /**
    * Whether LiteParse decides per document if OCR is worth running.
    *
@@ -120,6 +128,11 @@ export interface KnowledgeBase {
    */
   embedding_provider: string;
   embedding_secret_id: string | null;
+  /**
+   * The server a keyless provider is reached at - a local service of kind
+   * `embedding`. Null for a keyed provider, whose address is the vendor's.
+   */
+  embedding_endpoint_id: string | null;
   created_at: string;
   updated_at: string | null;
   /**
@@ -154,26 +167,31 @@ export interface CreateKnowledgeBaseInput {
   ingestion_config?: IngestionConfig;
   /**
    * Frozen at creation: the vector column is created at this model's width.
-   * Omit for the deployment default.
+   * One the chosen provider serves; there is no deployment default.
    */
   embedding_model?: string;
-  /** Whose endpoint serves it; omit for the deployment key's own provider. */
+  /** Whose endpoint serves it. Required for a new collection - there is no deployment default. */
   embedding_provider?: string;
-  /** The org vault key that pays for embeddings; omit for the deployment key. */
+  /**
+   * The org vault key that pays for embeddings. Required for a personal or
+   * organization collection on a keyed provider; there is no deployment-wide
+   * key to fall back to.
+   */
   embedding_secret_id?: string;
+  /** The local service a keyless provider is reached at. Required for one. */
+  embedding_endpoint_id?: string;
 }
 
-/** What a collection's embeddings may be re-pointed at after the fact. */
+/**
+ * What a collection's embeddings may be re-pointed at after the fact.
+ *
+ * A null key means "leave the key alone": a collection is never left without
+ * one, because there is no deployment-wide key to fall back to.
+ */
 export interface EmbeddingProviderInput {
   embedding_provider?: string;
   embedding_secret_id?: string;
-  /**
-   * Go back to the deployment's key.
-   *
-   * Its own flag because a null `embedding_secret_id` means "leave the key
-   * alone" on a partial update, and both have to be sayable.
-   */
-  clear_embedding_secret?: boolean;
+  embedding_endpoint_id?: string;
 }
 
 /** One provider a collection can embed through, from `GET /rag/embedding-models`. */
@@ -181,13 +199,15 @@ export interface EmbeddingProvider {
   provider: string;
   name: string;
   models: { model: string; dim: number }[];
-  /** Whether this deployment's own key pays here. */
-  deployment_key: boolean;
+  /**
+   * An endpoint on the deployment's own network that takes no key - an Ollama.
+   * The picker asks for no key, and it is the only kind of provider an
+   * app-scoped collection may embed through.
+   */
+  keyless: boolean;
 }
 
 export interface EmbeddingModels {
-  default: string;
-  default_provider: string;
   providers: EmbeddingProvider[];
 }
 

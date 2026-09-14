@@ -17,6 +17,65 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.414] - 2026-09-14
+
+### Added
+
+- **Local services: the servers on the deployment's own network a collection
+  may be pointed at.** A row per organization - or per deployment, registered
+  by its administrator and offered to every organization - of kind `embedding`
+  (an Ollama, reached through its OpenAI-compatible root) or `ocr` (a LiteParse
+  OCR server), with `base_url` validated the way a sandbox host's is. Managed
+  under Knowledge → Integrations behind `connections:manage`, on
+  `/local-services`; migration `0078_local_services`. (#1632)
+- **A self-hosted embedding provider.** `ollama` is in `embedding_providers.json`
+  as a keyless entry with no address of its own: a collection on it names a
+  local service (`embedding_endpoint_id`) where a keyed collection names the
+  vault key, so a knowledge base can stay on the deployment's own hardware. The
+  form asks for a server rather than a key, a key named for it is refused, and
+  five of Ollama's embedding models are catalogued with their widths. (#1632)
+- **An app-scoped collection embeds through a keyless provider, or not at all.**
+  It belongs to no organization and so has no vault to hold a key; it names a
+  deployment-wide local service instead, and choosing OpenRouter or OpenAI for
+  one is refused where the provider is chosen, at creation and on a move,
+  instead of producing a collection that fails on its first document. (#1631)
+- **An OCR server is a per-collection choice.** `ingestion_config.ocr_endpoint_id`
+  names a local service of kind `ocr`; nothing named runs the Tesseract bundled
+  with the worker.
+- **`docs/data-protection.md`** - where personal data lives, what leaves the
+  deployment and under which setting, the controls with their proof or their
+  open issue, what deletion reaches, and a reproducible verification checklist
+  for one deployment. Linked from the security-review table, `SECURITY.md` and
+  the topic map. (#1596)
+
+### Changed
+
+- **Embeddings are paid for with the collection's vault key, and nothing else.**
+  `OPENROUTER_API_KEY` is gone: it was a deployment-wide fallback for one
+  provider, left over from when `openrouter.ai` was hardcoded, and the only
+  reason the catalog carried a `deployment_key` flag, the resolver two fallback
+  states and the form a "Deployment key" row. A new personal or organization
+  collection names its provider from `embedding_providers.json` and the vault
+  key that pays, or is refused on that field; a collection whose key is missing,
+  unusable or never chosen refuses to index or search with a message naming the
+  collection and the reason, and the ingestion flow log says so. A key can be
+  replaced but no longer cleared (`clear_embedding_secret` is removed), because
+  there is nothing to fall back to. `scripts/server-init.sh` no longer asks for
+  the key and `docs/deploy.md` no longer lists it as a prerequisite. The
+  resolution says which of six situations it landed on - a key never chosen,
+  no vault to choose one from, the chosen secret missing, unusable or of the
+  wrong kind, or a provider this build no longer offers - each with its own
+  remedy. (#1596)
+
+### Removed
+
+- **`EMBEDDING_MODEL`, `LLAMAPARSE_API_KEY` and `LITEPARSE_OCR_SERVER_URL` are
+  gone.** Each was one value for every tenant, set where no tenant could see it.
+  The model is chosen from what the collection's provider serves; a LlamaParse
+  key is the vault entry the collection names, and a collection on LlamaParse
+  without one is refused at the form; an OCR server is a local service the
+  collection names. `GET /rag/embedding-models` no longer answers a `default`.
+
 ## [0.0.413] - 2026-09-14
 
 ### Changed
