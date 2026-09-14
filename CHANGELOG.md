@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.422] - 2026-09-14
+
+### Fixed
+
+- **The exposure form described a channel lookup differently from the model.**
+  Its checklist still read each tool's short hand-typed blurb from the catalog
+  while the Toolbox panel served the real, docstring-derived description, so the
+  two disagreed about the same tool. Both now read `tool_contracts()`. Two things
+  had to come with it: the real description arrives wrapped in `<summary>` and
+  `<returns>` markup for the model's benefit, which would have rendered as literal
+  tags in a checkbox label, and the fallback tested whether a tool's id was in the
+  contracts rather than whether it had a description, so a tool without a
+  docstring would have rendered blank. (#1473)
+
+### Added
+
+- **A guard against the blurb and the description drifting again.** Every
+  capability's declared tool description is asserted to be a prefix of the one its
+  built toolset serves. `capability_contracts.py` had never been listed in the
+  platform layer's coverage and typing gates either, and now is. (#1473)
+
 ## [0.0.421] - 2026-09-14
 
 ### Fixed
