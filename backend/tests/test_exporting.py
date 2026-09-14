@@ -7,7 +7,7 @@ in each export's own suite.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -88,6 +88,17 @@ class TestRequireRange:
         with pytest.raises(ValidationError) as excinfo:
             exporting.require_range(None, None)
         assert excinfo.value.details == {"missing": ["from", "to"]}
+
+    def test_a_reversed_range_is_refused(self):
+        """`from` after `to` is an impossible predicate - it would return a
+        silently-empty file and record a misleading export, so it is refused."""
+        earlier = _WHEN - timedelta(days=1)
+        with pytest.raises(ValidationError):
+            exporting.require_range(_WHEN, earlier)
+
+    def test_a_zero_width_range_is_allowed(self):
+        # `from == to` is a valid instant-wide window, not a reversal.
+        assert exporting.require_range(_WHEN, _WHEN) == (_WHEN, _WHEN)
 
 
 class TestGuardCap:

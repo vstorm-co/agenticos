@@ -44,23 +44,28 @@ async def list_in_window_for_org(
     until: datetime,
     limit: int,
 ) -> tuple[list[AppAdminAuditLog], int]:
-    """One organization's entries in a half-open date window, newest first, and the
+    """One organization's entries in a closed date window, newest first, and the
     total in that window.
 
-    The total is a separate count, not `len(items)`: the caller caps the fetch at
-    `limit` and refuses above the count, so it has to know the whole match before
-    reading a bounded slice of it. Both narrow to the same window and organization.
+    The total is `count(*) OVER()` on the same statement as the rows, not a
+    separate query: the caller caps the fetch at `limit` and refuses above the
+    total, and two statements under READ COMMITTED could see different snapshots -
+    a count of 10,000 then a select over 10,001 - so the export would truncate to
+    the cap where it promised to refuse. A window function is evaluated before the
+    LIMIT, so the total is the whole match and the rows are its first `limit`, from
+    one snapshot.
     """
     where = (
         AppAdminAuditLog.organization_id == organization_id,
         AppAdminAuditLog.created_at >= since,
         AppAdminAuditLog.created_at <= until,
     )
-    total = await db.scalar(select(func.count()).select_from(AppAdminAuditLog).where(*where))
     result = await db.execute(
-        select(AppAdminAuditLog)
+        select(AppAdminAuditLog, func.count().over().label("total"))
         .where(*where)
         .order_by(AppAdminAuditLog.created_at.desc())
         .limit(limit)
     )
-    return list(result.scalars().all()), total or 0
+    rows = result.all()
+    total = rows[0].total if rows else 0
+    return [row[0] for row in rows], total

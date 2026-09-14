@@ -122,14 +122,21 @@ def require_range(start: datetime | None, end: datetime | None) -> tuple[datetim
     window reads it off the result rather than re-checking what this already proved.
 
     Raises:
-        ValidationError: When either end is absent. A range is what bounds the read;
-            without one an export is the whole table.
+        ValidationError: When either end is absent, or when the start is later than
+            the end. A range is what bounds the read; without one an export is the
+            whole table, and a reversed one is an impossible predicate that returns
+            a silently-empty file and records a misleading export.
     """
     if start is None or end is None:
         missing = [name for name, value in (("from", start), ("to", end)) if value is None]
         raise ValidationError(
             message="An export needs a date range - pass both a start and an end.",
             details={"missing": missing},
+        )
+    if start > end:
+        raise ValidationError(
+            message="An export's start must be on or before its end.",
+            details={"from": start.isoformat(), "to": end.isoformat()},
         )
     return start, end
 

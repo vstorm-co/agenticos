@@ -108,6 +108,23 @@ async def test_jsonl_keeps_details_a_nested_object_through_jsonb(db) -> None:
     assert record["details"] == {"version": 3}
 
 
+async def test_the_total_is_the_whole_window_not_the_limited_slice(db) -> None:
+    """`count(*) OVER()` counts the full match before the LIMIT, so the cap guard
+    sees the real total and refuses rather than truncating - and both come from one
+    snapshot, not a count and a select that could disagree."""
+    owner = await _user(db)
+    org = await _org(db, owner)
+    for offset in range(3):
+        await _entry(db, org, owner, action="agent.published", when=_NOW - timedelta(hours=offset))
+
+    entries, total = await audit_log_repo.list_in_window_for_org(
+        db, organization_id=org.id, since=_FROM, until=_TO, limit=1
+    )
+
+    assert len(entries) == 1
+    assert total == 3
+
+
 async def test_reading_the_trail_is_itself_recorded(db) -> None:
     owner = await _user(db)
     org = await _org(db, owner)
