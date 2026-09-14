@@ -444,7 +444,8 @@ test-security:
 # it does not gate, which is why `check` never reaches it and test_ci_parity.py
 # names it in CI_ONLY_TARGETS.
 security-report:
-	cd backend && uv run pytest tests/ -m security -p no:randomly -p no:cacheprovider --no-cov --collect-only -q 2>/dev/null | grep '::' | sort > security-tests.txt || true
+	cd backend && uv run pytest tests/ -m security -p no:randomly -p no:cacheprovider --no-cov --collect-only -q > $${TMPDIR:-/tmp}/security-collect.txt 2>&1 || { echo "security-marker collection failed:"; cat $${TMPDIR:-/tmp}/security-collect.txt; exit 1; }
+	grep '::' $${TMPDIR:-/tmp}/security-collect.txt | sort > backend/security-tests.txt || true
 	@count=$$(wc -l < backend/security-tests.txt | tr -d ' '); \
 	echo "$$count tests carry the security marker -> backend/security-tests.txt"; \
 	if [ -n "$$GITHUB_STEP_SUMMARY" ]; then \
