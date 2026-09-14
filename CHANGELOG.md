@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.420] - 2026-09-14
+
+### Fixed
+
+- **A registry entry with a namespaced key prefilled a tool prefix the form
+  refuses.** Connecting an MCP server from the catalog seeded the Tool prefix
+  field with the raw registry key, so `com.snitcher/snitcher` met a name pattern
+  of lowercase letters, digits and hyphens and could never be submitted. HubSpot
+  worked only because its key is already a valid name. The three places that
+  seeded from the key now slug it - the segment after the last slash, lower-cased
+  and hyphenated, bounded to 32 characters - and a key with nothing usable in it
+  leaves the field blank rather than prefilling a refusal. (#1628)
+
 ## [0.0.419] - 2026-09-14
 
 ### Security
