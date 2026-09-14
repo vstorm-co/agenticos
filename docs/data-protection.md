@@ -29,19 +29,19 @@ that way and the software cooperates:
 | Concern | The local answer |
 |---|---|
 | The chat model | An `ollama` or `litellm` profile - keyless, pointed at an endpoint you host. Any of the 27 providers with a `base_url` also takes a gateway of yours |
-| Document parsing | `pymupdf`, the default, runs in the worker. LiteParse OCR is a sidecar you host (`LITEPARSE_OCR_SERVER_URL`). LlamaParse is a per-collection choice that needs a key; without both, nothing is parsed off-site |
-| Embeddings | An Ollama you host, named by `EMBEDDING_OLLAMA_BASE_URL`, chosen per collection as the `ollama` provider. Keyless, and the only provider an app-scoped collection may use |
+| Document parsing | `pymupdf`, the default, runs in the worker. LiteParse OCR runs in the worker too, or at an OCR server you register as a local service. LlamaParse is a per-collection choice that needs a vault key; without one, nothing is parsed off-site |
+| Embeddings | An Ollama you host, registered as a local service under Knowledge → Integrations and chosen per collection as the `ollama` provider. Keyless, and the only provider an app-scoped collection may use |
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |
 | Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch`, `browser_use` or `memory_mem0` capability, no MCP connection |
 | Mail | Your own SMTP relay |
 | Speech and images | Profiles on a provider you host, or no such profile |
 
 Embeddings included: the catalog names OpenRouter and OpenAI, which a
-collection reaches with a vault key, and `ollama`, which is offered only where
-`EMBEDDING_OLLAMA_BASE_URL` names a server the deployment runs. A collection on
-`ollama` sends its chunks and queries nowhere but that host, and pays nobody.
-A deployment that must keep documents on its own hardware creates every
-collection there.
+collection reaches with a vault key, and `ollama`, which a collection reaches
+at a local service - a row naming a server the organization or the deployment
+runs. A collection on `ollama` sends its chunks and queries nowhere but that
+host, and pays nobody. A deployment that must keep documents on its own
+hardware creates every collection there.
 
 ## Who is responsible for what
 
@@ -108,8 +108,9 @@ complete list of destinations, with the configuration that decides each.
 | Destination | What is sent | Decided by | Location and terms |
 |---|---|---|---|
 | The chat model | The conversation so far, attachments pasted or described, retrieved chunks, tool results | A [model profile](models.md#a-model-profile): `provider`, `model`, `base_url` and a sealed key. Twenty-seven providers; `ollama` and `litellm` are keyless and reached at an endpoint you host, and `openai`, `anthropic`, `google`, `huggingface` and others accept a `base_url`, so an EU endpoint or a gateway is a field, not a fork | The provider's. Verify per profile |
-| The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection, and only there: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog) and, for the first two, the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a keyed collection without one refuses to index or search. `ollama` is keyless and reached at `EMBEDDING_OLLAMA_BASE_URL`, a host you run | The provider's, or your own host. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
-| LlamaCloud | The whole document | A collection whose `pdf_parser` is `llamaparse` **and** a key - the collection's own `llamaparse_secret_id`, or `LLAMAPARSE_API_KEY` for the deployment. The default `pymupdf` parses in the worker | LlamaCloud's, if used |
+| The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection, and only there: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog) and, for the first two, the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a keyed collection without one refuses to index or search. `ollama` is keyless and reached at the local service the collection names (`embedding_endpoint_id`), a host you run | The provider's, or your own host. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
+| LlamaCloud | The whole document | A collection whose `pdf_parser` is `llamaparse`; it must name a vault key (`llamaparse_secret_id`), there is no deployment key. The default `pymupdf` parses in the worker | LlamaCloud's, if used |
+| An OCR server | Rendered pages of a document | A collection whose `pdf_parser` is `liteparse` **and** whose `ocr_endpoint_id` names a local service; with none, OCR runs in the worker | Your own host - a local service is on the deployment's network by construction |
 | An image-description model | Images inside documents | A collection's `image_description_model` | That model provider's |
 | Web research | The search query the agent composed | `web_research.method` on the spec: `duckduckgo` (no key), `tavily`, `brave` or `exa` (a `search` secret each), or `native`, where the chat model provider searches | The search vendor's, or the model provider's |
 | Web fetch and browser use | The URL; for browser use, the whole task | The capability on the spec; browser use also needs a CDP endpoint you name | The site fetched; the browser host |
@@ -230,7 +231,7 @@ uv run agenticos cmd doctor
 uv run agenticos cmd vault-rotate --dry-run
 
 # 3. The settings that decide what leaves. Empty is the quiet answer.
-env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|LLAMAPARSE_API_KEY|LITEPARSE_OCR_SERVER_URL|EMBEDDING_OLLAMA_BASE_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
+env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
   | sed -E 's/(KEY|TOKEN)=.+/\1=<set>/'
 ```
 
@@ -254,8 +255,15 @@ ORDER BY 1, 2;
 -- Collections: who embeds them, and which parse off-site.
 SELECT name, embedding_provider, embedding_model,
        ingestion_config ->> 'pdf_parser' AS pdf_parser,
-       ingestion_config ->> 'llamaparse_secret_id' IS NOT NULL AS own_llamaparse_key
+       ingestion_config ->> 'llamaparse_secret_id' IS NOT NULL AS llamaparse_key,
+       embedding_endpoint_id, ingestion_config ->> 'ocr_endpoint_id' AS ocr_endpoint_id
 FROM knowledge_bases ORDER BY 1;
+
+-- The servers on your own network collections may be pointed at. Every address
+-- here should be one you run.
+SELECT o.name AS organization, s.kind, s.provider, s.name, s.base_url, s.is_active
+FROM local_services s LEFT JOIN organizations o ON o.id = s.organization_id
+ORDER BY 1 NULLS FIRST, 2, 4;
 
 SELECT scope, name, url, auth_type FROM mcp_connections WHERE is_enabled ORDER BY 1, 2;
 SELECT name, connector_type, collection_name FROM sync_sources WHERE is_active ORDER BY 2, 1;

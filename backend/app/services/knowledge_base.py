@@ -10,11 +10,13 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.models.local_service import LocalServiceKind
 from app.db.models.resource_grant import Visibility
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import (
     collection_teardown_repo,
     knowledge_base_repo,
+    local_service_repo,
     organization_secret_repo,
     rag_document_repo,
     resource_grant_repo,
@@ -34,7 +36,6 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     chosen_embedding,
     deployment_defaults,
-    deployment_embedding,
 )
 from app.services.rag import embedding_providers
 
@@ -82,6 +83,18 @@ def _check_provider_fits_scope(
             f"An app-scoped collection belongs to no organization and has no vault to hold a "
             f"key for {provider.name}. Choose a keyless provider on the deployment's own "
             "network, or create the collection inside an organization.",
+        )
+
+
+def _refuse_endpoint_for_keyed(
+    provider: embedding_providers.EmbeddingProviderEntry, *, endpoint_id: UUID | None
+) -> None:
+    """A vendor's address is the catalog's; a local service named for one is a mistake to record."""
+    if endpoint_id is not None:
+        raise refused_field(
+            "embedding_endpoint_id",
+            f"{provider.name} is reached at its own address; a local service applies only to "
+            "a keyless provider on the deployment's own network.",
         )
 
 
@@ -212,13 +225,17 @@ class KnowledgeBaseService:
         The row names no vault key, because that route takes none: the
         collection exists and can be read, and refuses to index or search until
         `PATCH /kb/{id}` gives it a provider and a key. There is no
-        deployment-wide key it could embed on instead.
+        deployment-wide key it could embed on instead. The model is the first
+        the first catalogued provider serves, for the same reason the provider
+        is: the route offers no choice, and a row has to record something its
+        vector column can be created at.
         """
         existing = await knowledge_base_repo.get_by_collection_name(self.db, collection_name)
         if existing:
             return existing
         scope = KBScope.ORG.value if organization_id else KBScope.PERSONAL.value
-        embedding_model, embedding_dim = deployment_embedding()
+        provider = embedding_providers.first()
+        built_with = provider.models[0]
         return await knowledge_base_repo.create(
             self.db,
             name=collection_name,
@@ -231,9 +248,9 @@ class KnowledgeBaseService:
             # only by roles whose `collections:view` spans the organization.
             visibility=Visibility.ORG.value if scope == KBScope.ORG.value else None,
             ingestion_config=deployment_defaults().model_dump(mode="json"),
-            embedding_model=embedding_model,
-            embedding_dim=embedding_dim,
-            embedding_provider=embedding_providers.first().provider,
+            embedding_model=built_with.model,
+            embedding_dim=built_with.dim,
+            embedding_provider=provider.provider,
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
@@ -394,6 +411,7 @@ class KnowledgeBaseService:
                 shared.embedding_provider, model=embedding_model, dim=embedding_dim
             )
             embedding_secret_id = shared.embedding_secret_id
+            embedding_endpoint_id = shared.embedding_endpoint_id
         else:
             embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
             if data.embedding_provider is None:
@@ -407,15 +425,26 @@ class KnowledgeBaseService:
             )
             _check_provider_fits_scope(provider, organization_id=org_id)
             embedding_secret_id = data.embedding_secret_id
+            embedding_endpoint_id = data.embedding_endpoint_id
             if provider.keyless:
                 _refuse_key_for_keyless(provider, secret_id=embedding_secret_id)
-            elif embedding_secret_id is None:
-                raise refused_field(
-                    "embedding_secret_id",
-                    f"Choose the vault key that pays for this collection's embeddings on "
-                    f"{provider.name}; there is no deployment-wide key to fall back to.",
+                if embedding_endpoint_id is None:
+                    raise refused_field(
+                        "embedding_endpoint_id",
+                        f"Choose the local service {provider.name} answers at; the catalog "
+                        "holds no address for a server the deployment runs itself.",
+                    )
+                await self._check_embedding_endpoint(
+                    embedding_endpoint_id, organization_id=org_id, provider=provider
                 )
             else:
+                _refuse_endpoint_for_keyed(provider, endpoint_id=embedding_endpoint_id)
+                if embedding_secret_id is None:
+                    raise refused_field(
+                        "embedding_secret_id",
+                        f"Choose the vault key that pays for this collection's embeddings on "
+                        f"{provider.name}; there is no deployment-wide key to fall back to.",
+                    )
                 await self._check_embedding_secret(
                     embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
                 )
@@ -432,6 +461,7 @@ class KnowledgeBaseService:
             embedding_dim=embedding_dim,
             embedding_provider=provider.provider,
             embedding_secret_id=embedding_secret_id,
+            embedding_endpoint_id=embedding_endpoint_id,
         )
 
     async def _shared_embedding(
@@ -468,6 +498,7 @@ class KnowledgeBaseService:
             "embedding_model": (data.embedding_model, held.embedding_model),
             "embedding_provider": (data.embedding_provider, held.embedding_provider),
             "embedding_secret_id": (data.embedding_secret_id, held.embedding_secret_id),
+            "embedding_endpoint_id": (data.embedding_endpoint_id, held.embedding_endpoint_id),
         }
         for field, (wanted, existing) in asked.items():
             if wanted is not None and wanted != existing:
@@ -556,15 +587,25 @@ class KnowledgeBaseService:
             # refused: the resolver never opens it for a keyless endpoint, and a
             # move back to a keyed provider checks it against that one.
             _refuse_key_for_keyless(provider, secret_id=data.embedding_secret_id)
-        elif data.embedding_secret_id is not None:
-            await self._check_embedding_secret(
-                data.embedding_secret_id,
-                ctx=ctx,
-                organization_id=kb.organization_id,
-                provider=provider,
-            )
-        elif data.embedding_provider is not None:
-            await self._check_kept_secret(kb, provider=provider)
+            if data.embedding_endpoint_id is not None:
+                await self._check_embedding_endpoint(
+                    data.embedding_endpoint_id,
+                    organization_id=kb.organization_id,
+                    provider=provider,
+                )
+            elif data.embedding_provider is not None:
+                await self._check_kept_endpoint(kb, provider=provider)
+        else:
+            _refuse_endpoint_for_keyed(provider, endpoint_id=data.embedding_endpoint_id)
+            if data.embedding_secret_id is not None:
+                await self._check_embedding_secret(
+                    data.embedding_secret_id,
+                    ctx=ctx,
+                    organization_id=kb.organization_id,
+                    provider=provider,
+                )
+            elif data.embedding_provider is not None:
+                await self._check_kept_secret(kb, provider=provider)
         return await knowledge_base_repo.update(
             self.db,
             db_kb=kb,
@@ -573,6 +614,54 @@ class KnowledgeBaseService:
             ingestion_config=None if config is None else config.model_dump(mode="json"),
             embedding_provider=data.embedding_provider,
             embedding_secret_id=data.embedding_secret_id,
+            embedding_endpoint_id=data.embedding_endpoint_id,
+        )
+
+    async def _check_embedding_endpoint(
+        self,
+        endpoint_id: UUID,
+        *,
+        organization_id: UUID | None,
+        provider: embedding_providers.EmbeddingProviderEntry,
+    ) -> None:
+        """Refuse a local service this collection may not name, or one of the wrong shape.
+
+        Visible means the organization's own or the deployment's; an app-scoped
+        collection, with no organization, sees the deployment's alone. A service
+        another organization registered is phrased as one that does not exist,
+        so a refusal cannot enumerate another tenant's hosts.
+        """
+        row = await local_service_repo.get_visible(
+            self.db, endpoint_id, organization_id=organization_id
+        )
+        if row is None:
+            raise refused_field(
+                "embedding_endpoint_id", "That local service is not one this collection may name."
+            )
+        if row.kind != LocalServiceKind.EMBEDDING.value or row.provider != provider.provider:
+            raise refused_field(
+                "embedding_endpoint_id",
+                f"'{row.name}' is a {row.provider} {row.kind} service, and this collection "
+                f"embeds through {provider.name}.",
+            )
+        if not row.is_active:
+            raise refused_field(
+                "embedding_endpoint_id",
+                f"'{row.name}' is turned off. Turn it on under Knowledge, or choose another.",
+            )
+
+    async def _check_kept_endpoint(
+        self, kb: KnowledgeBase, *, provider: embedding_providers.EmbeddingProviderEntry
+    ) -> None:
+        """Moving onto a keyless provider needs its address, in the same request or already on the row."""
+        if kb.embedding_endpoint_id is None:
+            raise refused_field(
+                "embedding_endpoint_id",
+                f"Moving to {provider.name} needs the local service it answers at, in the "
+                "same request.",
+            )
+        await self._check_embedding_endpoint(
+            kb.embedding_endpoint_id, organization_id=kb.organization_id, provider=provider
         )
 
     async def _check_kept_secret(
@@ -618,6 +707,7 @@ class KnowledgeBaseService:
         service = IngestionConfigService(self.db)
         await service.resolved_image_model(ctx.organization_id, chosen)
         await service.check_llamaparse_secret(ctx.organization_id, chosen)
+        await service.check_ocr_endpoint(ctx.organization_id, chosen)
         return chosen
 
     async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:

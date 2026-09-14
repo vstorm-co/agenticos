@@ -35,21 +35,36 @@ Two things are versioned separately from this file and worth knowing about:
   no vault to choose one from, the chosen secret missing, unusable or of the
   wrong kind, or a provider this build no longer offers - each with its own
   remedy. (#1596)
+- **`EMBEDDING_MODEL`, `LLAMAPARSE_API_KEY` and `LITEPARSE_OCR_SERVER_URL` are
+  gone.** Each was one value for every tenant, set where no tenant could see it.
+  The model is chosen from what the collection's provider serves; a LlamaParse
+  key is the vault entry the collection names, and a collection on LlamaParse
+  without one is refused at the form; an OCR server is a local service the
+  collection names. `GET /rag/embedding-models` no longer answers a `default`.
 
 ### Added
 
+- **Local services: the servers on the deployment's own network a collection
+  may be pointed at.** A row per organization - or per deployment, registered
+  by its administrator and offered to every organization - of kind `embedding`
+  (an Ollama, reached through its OpenAI-compatible root) or `ocr` (a LiteParse
+  OCR server), with `base_url` validated the way a sandbox host's is. Managed
+  under Knowledge → Integrations behind `connections:manage`, on
+  `/local-services`; migration `0078_local_services`. (#1632)
 - **A self-hosted embedding provider.** `ollama` is in `embedding_providers.json`
-  as a keyless entry: set `EMBEDDING_OLLAMA_BASE_URL` to the OpenAI-compatible
-  root of an Ollama the deployment runs and a collection can embed through it
-  with no vault key, so a knowledge base can stay on the deployment's own
-  hardware. The entry is not offered while the setting is empty, the form asks
-  for no key on it, and a key named for it is refused. Five of Ollama's
-  embedding models are catalogued with their widths. (#1632)
+  as a keyless entry with no address of its own: a collection on it names a
+  local service (`embedding_endpoint_id`) where a keyed collection names the
+  vault key, so a knowledge base can stay on the deployment's own hardware. The
+  form asks for a server rather than a key, a key named for it is refused, and
+  five of Ollama's embedding models are catalogued with their widths. (#1632)
 - **An app-scoped collection embeds through a keyless provider, or not at all.**
-  It belongs to no organization and so has no vault to hold a key; choosing
-  OpenRouter or OpenAI for one is now refused where the provider is chosen,
-  at creation and on a move, instead of producing a collection that fails on
-  its first document. (#1631)
+  It belongs to no organization and so has no vault to hold a key; it names a
+  deployment-wide local service instead, and choosing OpenRouter or OpenAI for
+  one is refused where the provider is chosen, at creation and on a move,
+  instead of producing a collection that fails on its first document. (#1631)
+- **An OCR server is a per-collection choice.** `ingestion_config.ocr_endpoint_id`
+  names a local service of kind `ocr`; nothing named runs the Tesseract bundled
+  with the worker.
 - **`docs/data-protection.md`** - where personal data lives, what leaves the
   deployment and under which setting, the controls with their proof or their
   open issue, what deletion reaches, and a reproducible verification checklist

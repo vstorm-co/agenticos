@@ -52,12 +52,29 @@ def _ctx(
     )
 
 
-def _ollama_offered():
-    """A deployment that runs an Ollama, so the keyless provider is in the catalog."""
-    return patch(
-        "app.services.rag.embedding_providers.settings",
-        MagicMock(EMBEDDING_OLLAMA_BASE_URL="http://ollama:11434/v1"),
+def _local_service(
+    *,
+    organization_id: uuid.UUID | None = None,
+    kind: str = "embedding",
+    provider: str = "ollama",
+    active: bool = True,
+) -> MagicMock:
+    """A `local_services` row, as the create and move paths look one up."""
+    row = MagicMock(
+        id=uuid.uuid4(),
+        organization_id=organization_id,
+        kind=kind,
+        provider=provider,
+        base_url="http://ollama:11434/v1",
+        is_active=active,
     )
+    row.name = "GPU box"
+    return row
+
+
+def _service_visible(row: MagicMock | None):
+    """What the collection may name: the row, or nothing - another tenant's is nothing."""
+    return patch("app.repositories.local_service_repo.get_visible", new=AsyncMock(return_value=row))
 
 
 @pytest.fixture
@@ -274,7 +291,12 @@ class TestKBAccessControl:
 
     @pytest.mark.anyio
     async def test_non_app_admin_cannot_create_app_kb(self, mock_db):
-        data = KnowledgeBaseCreate(name="Global KB", scope="app", collection_name="global")
+        data = KnowledgeBaseCreate(
+            name="Global KB",
+            scope="app",
+            collection_name="global",
+            embedding_model="text-embedding-3-small",
+        )
 
         svc = KnowledgeBaseService(mock_db)
         with pytest.raises(AuthorizationError):
@@ -285,17 +307,19 @@ class TestKBAccessControl:
         """An app-scoped collection has no organization vault to hold a key, so
         the one provider it may embed through is a keyless one on the
         deployment's own network (#1631)."""
+        service = _local_service()
         data = KnowledgeBaseCreate(
             name="Global KB",
             scope="app",
             collection_name="global",
             embedding_model="nomic-embed-text",
             embedding_provider="ollama",
+            embedding_endpoint_id=service.id,
         )
         mock_kb = MagicMock()
 
         with (
-            _ollama_offered(),
+            _service_visible(service),
             patch(
                 "app.repositories.knowledge_base_repo.create",
                 new=AsyncMock(return_value=mock_kb),
@@ -307,6 +331,7 @@ class TestKBAccessControl:
         assert result is mock_kb
         assert created.call_args.kwargs["embedding_provider"] == "ollama"
         assert created.call_args.kwargs["embedding_secret_id"] is None
+        assert created.call_args.kwargs["embedding_endpoint_id"] == service.id
 
     @pytest.mark.anyio
     async def test_an_app_kb_on_a_keyed_provider_is_refused_where_the_provider_was_chosen(
@@ -315,7 +340,11 @@ class TestKBAccessControl:
         """Before this, the row was created and failed on its first document
         with advice about a vault it has not got (#1631)."""
         data = KnowledgeBaseCreate(
-            name="Global KB", scope="app", collection_name="global", embedding_provider="openrouter"
+            name="Global KB",
+            scope="app",
+            collection_name="global",
+            embedding_model="text-embedding-3-small",
+            embedding_provider="openrouter",
         )
 
         with (
@@ -339,6 +368,7 @@ class TestKBAccessControl:
             name="Team KB",
             scope="org",
             collection_name="team",
+            embedding_model="text-embedding-3-small",
             embedding_provider="openrouter",
             embedding_secret_id=secret.id,
         )
@@ -873,6 +903,7 @@ class TestBindingAnEmbeddingSecret:
             name="Team KB",
             scope="org",
             collection_name="team",
+            embedding_model="text-embedding-3-small",
             embedding_provider="openrouter",
             embedding_secret_id=secret.id,
         )
@@ -902,6 +933,7 @@ class TestBindingAnEmbeddingSecret:
             name="Team KB",
             scope="org",
             collection_name="team",
+            embedding_model="text-embedding-3-small",
             embedding_provider="openrouter",
             embedding_secret_id=secret.id,
         )
@@ -964,7 +996,13 @@ class TestWhoServesTheEmbeddingModel:
             pytest.raises(BadRequestError) as exc,
         ):
             await KnowledgeBaseService(mock_db).create(
-                KnowledgeBaseCreate(name="KB", scope="org", collection_name="kb"), ctx=_ctx()
+                KnowledgeBaseCreate(
+                    name="KB",
+                    scope="org",
+                    collection_name="kb",
+                    embedding_model="text-embedding-3-small",
+                ),
+                ctx=_ctx(),
             )
 
         assert exc.value.details["fields"][0]["field"] == "embedding_provider"
@@ -978,7 +1016,11 @@ class TestWhoServesTheEmbeddingModel:
         there is no deployment key it could embed on instead - so the form's
         key select is the field the refusal marks."""
         data = KnowledgeBaseCreate(
-            name="KB", scope="org", collection_name="kb", embedding_provider="openrouter"
+            name="KB",
+            scope="org",
+            collection_name="kb",
+            embedding_model="text-embedding-3-small",
+            embedding_provider="openrouter",
         )
 
         with (
@@ -1023,6 +1065,7 @@ class TestWhoServesTheEmbeddingModel:
             name="KB",
             scope="org",
             collection_name="kb",
+            embedding_model="text-embedding-3-small",
             embedding_provider="openrouter",
             embedding_secret_id=secret.id,
         )
@@ -1122,6 +1165,7 @@ class TestWhoServesTheEmbeddingModel:
             embedding_dim=768,
             embedding_provider="ollama",
             embedding_secret_id=secret_id,
+            embedding_endpoint_id=None,
         )
 
     @pytest.mark.anyio
@@ -1131,6 +1175,32 @@ class TestWhoServesTheEmbeddingModel:
         """An Ollama on the deployment's own network is paid by nobody, so the
         rule that a new organization collection must name a key does not apply
         to it (#1632)."""
+        service = _local_service(organization_id=uuid.uuid4())
+        data = KnowledgeBaseCreate(
+            name="Local",
+            scope="org",
+            collection_name="local",
+            embedding_model="nomic-embed-text",
+            embedding_provider="ollama",
+            embedding_endpoint_id=service.id,
+        )
+
+        with (
+            _service_visible(service),
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+        assert created.call_args.kwargs["embedding_provider"] == "ollama"
+        assert created.call_args.kwargs["embedding_secret_id"] is None
+        assert created.call_args.kwargs["embedding_endpoint_id"] == service.id
+
+    @pytest.mark.anyio
+    async def test_a_keyless_provider_without_a_local_service_is_refused_on_that_field(
+        self, mock_db, unclaimed_collection_name
+    ):
+        """The catalog holds no address for a server the deployment runs, so a
+        keyless collection has to say where - the way a keyed one says who pays."""
         data = KnowledgeBaseCreate(
             name="Local",
             scope="org",
@@ -1140,13 +1210,73 @@ class TestWhoServesTheEmbeddingModel:
         )
 
         with (
-            _ollama_offered(),
             patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+            pytest.raises(BadRequestError) as exc,
         ):
             await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
 
-        assert created.call_args.kwargs["embedding_provider"] == "ollama"
-        assert created.call_args.kwargs["embedding_secret_id"] is None
+        assert exc.value.details["fields"][0]["field"] == "embedding_endpoint_id"
+        created.assert_not_called()
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("row", "reason"),
+        [
+            (None, "not one this collection may name"),
+            (_local_service(kind="ocr", provider="liteparse"), "embeds through Ollama"),
+            (_local_service(active=False), "turned off"),
+        ],
+        ids=["invisible", "wrong-kind", "paused"],
+    )
+    async def test_a_local_service_it_may_not_use_is_refused_on_the_field(
+        self, mock_db, unclaimed_collection_name, row, reason
+    ):
+        """Another tenant's service reads as one that does not exist, so a
+        refusal cannot enumerate their hosts."""
+        data = KnowledgeBaseCreate(
+            name="Local",
+            scope="org",
+            collection_name="local",
+            embedding_model="nomic-embed-text",
+            embedding_provider="ollama",
+            embedding_endpoint_id=uuid.uuid4(),
+        )
+
+        with (
+            _service_visible(row),
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+            pytest.raises(BadRequestError, match=reason) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_endpoint_id"
+        created.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_local_service_named_for_a_keyed_provider_is_refused(
+        self, mock_db, unclaimed_collection_name
+    ):
+        """A vendor is reached at the catalog's address; recording a local
+        service beside it would be a claim about where the data goes that
+        nothing acts on."""
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="kb",
+            embedding_model="text-embedding-3-small",
+            embedding_provider="openrouter",
+            embedding_secret_id=uuid.uuid4(),
+            embedding_endpoint_id=uuid.uuid4(),
+        )
+
+        with (
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_endpoint_id"
+        created.assert_not_called()
 
     @pytest.mark.anyio
     async def test_a_key_named_for_a_keyless_provider_is_refused_on_the_key(
@@ -1164,7 +1294,6 @@ class TestWhoServesTheEmbeddingModel:
         )
 
         with (
-            _ollama_offered(),
             patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
             pytest.raises(BadRequestError) as exc,
         ):
@@ -1181,9 +1310,10 @@ class TestWhoServesTheEmbeddingModel:
         leaves it sealed for the same reason."""
         kb = self._local_row(organization_id=uuid.uuid4(), secret_id=uuid.uuid4())
         kb.embedding_provider = "openai"
+        service = _local_service(organization_id=kb.organization_id)
 
         with (
-            _ollama_offered(),
+            _service_visible(service),
             patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
             patch(
                 "app.repositories.knowledge_base_repo.update", new=AsyncMock(return_value=kb)
@@ -1191,18 +1321,82 @@ class TestWhoServesTheEmbeddingModel:
             patch("app.repositories.organization_secret_repo.get", new=AsyncMock()) as vault,
         ):
             await KnowledgeBaseService(mock_db).update(
+                kb.id,
+                KnowledgeBaseUpdate(embedding_provider="ollama", embedding_endpoint_id=service.id),
+                ctx=_ctx(),
+            )
+
+        assert updated.call_args.kwargs["embedding_provider"] == "ollama"
+        assert updated.call_args.kwargs["embedding_endpoint_id"] == service.id
+        vault.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_moving_to_a_keyless_provider_needs_its_service_in_the_same_request(
+        self, mock_db
+    ):
+        """Unless the row already names one for it - a move back."""
+        kb = self._local_row(organization_id=uuid.uuid4())
+        kb.embedding_provider = "openai"
+
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.update", new=AsyncMock()) as updated,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).update(
+                kb.id, KnowledgeBaseUpdate(embedding_provider="ollama"), ctx=_ctx()
+            )
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_endpoint_id"
+        updated.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_moving_back_onto_a_keyless_provider_reuses_the_service_the_row_holds(
+        self, mock_db
+    ):
+        kb = self._local_row(organization_id=uuid.uuid4())
+        kb.embedding_provider = "openai"
+        service = _local_service(organization_id=kb.organization_id)
+        kb.embedding_endpoint_id = service.id
+
+        with (
+            _service_visible(service),
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.knowledge_base_repo.update", new=AsyncMock(return_value=kb)
+            ) as updated,
+        ):
+            await KnowledgeBaseService(mock_db).update(
                 kb.id, KnowledgeBaseUpdate(embedding_provider="ollama"), ctx=_ctx()
             )
 
         assert updated.call_args.kwargs["embedding_provider"] == "ollama"
-        vault.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_local_service_cannot_be_given_to_a_collection_on_a_keyed_provider(
+        self, mock_db
+    ):
+        kb = self._local_row(organization_id=uuid.uuid4())
+        kb.embedding_provider = "openai"
+        kb.embedding_model, kb.embedding_dim = "text-embedding-3-small", 1536
+
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.update", new=AsyncMock()) as updated,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).update(
+                kb.id, KnowledgeBaseUpdate(embedding_endpoint_id=uuid.uuid4()), ctx=_ctx()
+            )
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_endpoint_id"
+        updated.assert_not_called()
 
     @pytest.mark.anyio
     async def test_moving_to_a_keyless_provider_with_a_key_in_hand_is_refused(self, mock_db):
         kb = self._local_row(organization_id=uuid.uuid4())
 
         with (
-            _ollama_offered(),
             patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
             patch("app.repositories.knowledge_base_repo.update", new=AsyncMock()) as updated,
             pytest.raises(BadRequestError) as exc,
@@ -1225,7 +1419,6 @@ class TestWhoServesTheEmbeddingModel:
         kb.embedding_model, kb.embedding_dim = "text-embedding-3-small", 1536
 
         with (
-            _ollama_offered(),
             patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
             patch("app.repositories.knowledge_base_repo.update", new=AsyncMock()) as updated,
             pytest.raises(BadRequestError) as exc,

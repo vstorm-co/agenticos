@@ -239,5 +239,4 @@ class EmbeddingModelsResponse(BaseSchema):
     document would fail to index.
     """
 
-    default: str
     providers: list[EmbeddingProviderEntry]

@@ -214,15 +214,12 @@ class TestTheCollectionsKeyPays:
 
     async def test_a_keyless_collection_gets_a_client_for_the_deployments_own_endpoint(self):
         """An Ollama collection (#1632): the flow's embedder is built for the
-        address the deployment named, with no vault opened and no refusal for
+        address of the local service it names, with no vault opened and no refusal for
         the key it does not have - and nothing said in the flow log, because a
         keyless resolution is not a degraded one."""
         with (
-            patch(
-                "app.services.rag.embedding_providers.settings",
-                MagicMock(EMBEDDING_OLLAMA_BASE_URL="http://ollama:11434/v1"),
-            ),
             patch(f"{_RESOLUTION}.knowledge_base_repo") as bases,
+            patch(f"{_RESOLUTION}.local_service_repo") as services,
             patch(f"{_RESOLUTION}.get_db_context") as db_ctx,
             patch(f"{_RESOLUTION}.organization_secret_repo") as secrets,
         ):
@@ -233,8 +230,12 @@ class TestTheCollectionsKeyPays:
                     embedding_dim=768,
                     embedding_secret_id=None,
                     embedding_provider="ollama",
+                    embedding_endpoint_id=uuid.uuid4(),
                     organization_id=None,
                 )
+            )
+            services.get_visible = AsyncMock(
+                return_value=MagicMock(base_url="http://ollama:11434/v1", is_active=True)
             )
             db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)

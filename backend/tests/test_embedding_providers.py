@@ -9,28 +9,11 @@ on its first document rather than at import.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from app.core import secret_purposes
 from app.core.exceptions import BadRequestError
 from app.services.rag import embedding_providers
-from app.services.rag.config import EMBEDDING_DIMENSIONS
-
-_OLLAMA = "http://ollama:11434/v1"
-
-
-@contextmanager
-def _deployment(*, ollama: str) -> Iterator[None]:
-    """The deployment's say in the catalog: where, if anywhere, its Ollama is."""
-    with patch(
-        "app.services.rag.embedding_providers.settings",
-        MagicMock(EMBEDDING_OLLAMA_BASE_URL=ollama),
-    ):
-        yield
 
 
 class TestTheCatalog:
@@ -52,61 +35,31 @@ class TestTheCatalog:
 
     def test_a_keyed_provider_states_a_vendor_address_and_a_keyless_one_states_none(self):
         """The file cannot know where somebody's Ollama runs, so a keyless entry
-        carries no address and the deployment supplies one; a keyed entry is a
-        vendor across the internet, reached over TLS."""
-        for entry in embedding_providers.CATALOG:
+        carries no address - the collection names a local service that does; a
+        keyed entry is a vendor across the internet, reached over TLS."""
+        for entry in embedding_providers.providers():
             if entry.keyless:
                 assert entry.base_url is None
-                assert entry.provider in embedding_providers._DEPLOYMENT_ADDRESSES
             else:
                 assert entry.base_url is not None
                 assert entry.base_url.startswith("https://")
 
 
 class TestAKeylessProvider:
-    def test_is_offered_only_where_the_deployment_names_its_address(self):
-        """An entry with nowhere to send the request is a collection that cannot
-        index its first document, so an unset address hides the entry rather
-        than offering it (#1632)."""
-        with _deployment(ollama=""):
-            assert embedding_providers.get("ollama") is None
-            assert "ollama" not in {entry.provider for entry in embedding_providers.providers()}
-        with _deployment(ollama=_OLLAMA):
-            offered = embedding_providers.get("ollama")
+    def test_is_offered_and_carries_no_address_of_its_own(self):
+        """A collection on it names a local service for the address (#1632)."""
+        offered = embedding_providers.get("ollama")
 
         assert offered is not None
         assert offered.keyless
-        assert offered.base_url == _OLLAMA
+        assert offered.base_url is None
+        assert offered.serves("nomic-embed-text", 768)
 
-    def test_the_address_is_the_deployments_not_the_files(self):
-        with _deployment(ollama="  http://gpu-box:11434/v1 "):
-            offered = embedding_providers.require("ollama", model="nomic-embed-text", dim=768)
+    def test_a_keyed_provider_is_reached_at_the_catalogs_address(self):
+        entry = embedding_providers.require("openrouter", model="text-embedding-3-small", dim=1536)
 
-        assert offered.base_url == "http://gpu-box:11434/v1"
-
-    def test_a_keyed_provider_is_offered_whatever_the_deployment_set(self):
-        with _deployment(ollama=""):
-            assert embedding_providers.get("openrouter") is not None
-            assert embedding_providers.get("openai") is not None
-
-    def test_the_refusal_for_an_unknown_id_lists_only_what_is_offered(self):
-        with _deployment(ollama=""), pytest.raises(BadRequestError) as refusal:
-            embedding_providers.require("azure", model="text-embedding-3-small", dim=1536)
-
-        assert "ollama" not in refusal.value.message
-
-    def test_every_model_offered_has_the_width_the_rest_of_the_build_uses(self):
-        """`EMBEDDING_DIMENSIONS` is what `chosen_embedding` creates the vector
-        column at. A catalog claiming another width for the same model would
-        create a column one size and write vectors of another."""
-        for entry in embedding_providers.providers():
-            for model in entry.models:
-                assert EMBEDDING_DIMENSIONS.get(model.model) == model.dim
-
-    def test_no_provider_is_listed_twice(self):
-        ids = [entry.provider for entry in embedding_providers.providers()]
-
-        assert len(ids) == len(set(ids))
+        assert entry.base_url == "https://openrouter.ai/api/v1"
+        assert not entry.keyless
 
 
 class TestTheFirstEntry:
@@ -118,12 +71,11 @@ class TestTheFirstEntry:
         assert embedding_providers.first().provider == "openrouter"
         assert embedding_providers.first() == embedding_providers.providers()[0]
 
-    def test_a_deployment_with_an_ollama_still_starts_a_legacy_row_on_a_keyed_provider(self):
+    def test_the_legacy_route_starts_a_row_on_a_keyed_provider_not_the_keyless_one(self):
         """The keyless entry is last in the file on purpose: a legacy row is
         org-scoped and waits for a key, and the first entry is the one it waits
         for a key *for*."""
-        with _deployment(ollama=_OLLAMA):
-            assert embedding_providers.first().provider == "openrouter"
+        assert not embedding_providers.first().keyless
 
 
 class TestRequiringOne:

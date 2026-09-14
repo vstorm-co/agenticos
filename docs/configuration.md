@@ -9,7 +9,7 @@ Settings are defined in `app/core/config.py` and accessed via the global
 ```python
 from app.core.config import settings
 
-print(settings.EMBEDDING_MODEL)
+print(settings.MAX_UPLOAD_SIZE_MB)
 print(settings.DEBUG)
 ```
 
@@ -368,17 +368,16 @@ compose file here pins.
 
 ### Embeddings
 
-There is no embedding credential in the environment. Every collection names the
-provider it embeds through and the organization vault key that pays for it, the
-way a chat model is keyed per organization; see
+Nothing here. Every collection names the provider it embeds through, the model,
+and either the organization vault key that pays for it or - for the keyless
+`ollama` provider - a **local service**, a row under Knowledge → Integrations
+that says where the deployment's or the organization's Ollama answers. See
 [File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
-The one address that is a setting is an Ollama the deployment runs itself,
-because a catalog file cannot know where that is.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EMBEDDING_OLLAMA_BASE_URL` | (empty) | The OpenAI-compatible root of an Ollama server on the deployment's own network, e.g. `http://ollama:11434/v1`. Set, the `ollama` embedding provider is offered: keyless, so a collection on it names no vault key, and the only provider an app-scoped collection may embed through. Empty, the entry is not offered at all |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is preselected with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
+There used to be two variables. `EMBEDDING_MODEL` preselected a model for new
+collections and is gone: the form offers the models the chosen provider serves.
+`EMBEDDING_OLLAMA_BASE_URL` named one Ollama for the whole deployment and is a
+local service now, per organization or deployment-wide.
 
 ### Document parsing — configured per collection, not here
 
@@ -395,12 +394,14 @@ different answers on the same deployment. `PDF_PARSER`, `CHAT_PDF_PARSER`,
 `RAG_ENABLE_OCR`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` and
 `RAG_CHUNKING_STRATEGY` were removed; setting them now does nothing.
 
-What stays here is what a tenant must not choose:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LLAMAPARSE_API_KEY` | (empty) | Fallback LlamaParse key for collections that chose no vault key of their own |
-| `LITEPARSE_OCR_SERVER_URL` | (empty) | HTTP OCR server; an address on the deployment's own network |
+Two things that used to stay here are rows in the product now. A LlamaParse
+key is a vault entry the collection's ingestion configuration names
+(`llamaparse_secret_id`), and a collection on LlamaParse without one is refused
+at the form - `LLAMAPARSE_API_KEY` is gone. An OCR server LiteParse sends pages
+to is a local service of kind `ocr` under Knowledge → Integrations, chosen per
+collection (`ocr_endpoint_id`), registered by an organization operator or, for
+every organization, by the deployment's administrator - `LITEPARSE_OCR_SERVER_URL`
+is gone too. Neither was visible to the tenant whose documents it decided about.
 
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
 belongs to no collection, so there is no stored configuration to read.

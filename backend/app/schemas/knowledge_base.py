@@ -52,13 +52,23 @@ class KnowledgeBaseCreate(BaseSchema):
             "then supplies."
         ),
     )
+    embedding_endpoint_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Where a keyless provider is reached: a local service of kind "
+            "`embedding` whose provider is the chosen one - the organization's own "
+            "or the deployment's. Required for a keyless provider, refused for a "
+            "keyed one; an app-scoped collection may name only a deployment-wide "
+            "service."
+        ),
+    )
     ingestion_config: IngestionConfig | None = Field(
         default=None,
         description=(
             "How documents put into this collection are parsed, chunked and "
             "described. Omit to inherit this deployment's defaults. The embedding "
-            "model is deliberately not here: it is recorded from the deployment at "
-            "creation and cannot be changed afterwards."
+            "model is deliberately not here: it is recorded at creation and cannot "
+            "be changed afterwards."
         ),
     )
 
@@ -101,6 +111,14 @@ class KnowledgeBaseUpdate(BaseSchema):
             "no deployment-wide key to fall back to."
         ),
     )
+    embedding_endpoint_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The local service a keyless provider is reached at from now on. Must "
+            "be of kind `embedding` and for the provider the collection ends up "
+            "on. Null leaves it alone."
+        ),
+    )
 
 
 class KnowledgeBaseRead(BaseSchema, TimestampSchema):
@@ -123,6 +141,7 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     # Editable, unlike the two above - see `KnowledgeBaseUpdate`.
     embedding_provider: str
     embedding_secret_id: UUID | None = None
+    embedding_endpoint_id: UUID | None = None
     # Derived per request from `rag_documents`, not stored. Defaulted rather than
     # required so the single-row responses - create, read, update - stay
     # constructible straight from the ORM row, which is what they are: a

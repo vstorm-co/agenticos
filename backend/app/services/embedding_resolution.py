@@ -18,10 +18,11 @@ into a refusal naming the collection and the reason, at the moment somebody
 tries to index or search it; nothing is refused at resolution, because *whose
 key pays* must never decide *whether the row can be read*.
 
-The one provider that wants no key is `ollama`, an endpoint on the deployment's
-own network (#1632): a collection embedding through it resolves to `KEYLESS`,
-which is not a degradation, and is how an app-scoped collection - which has no
-vault - embeds at all (#1631).
+The one provider that wants no key is `ollama`, a server on the deployment's own
+network (#1632). The catalog holds no address for it; the collection names a
+local service (`local_services`) that does, and resolves to `KEYLESS` with that
+address - not a degradation, and how an app-scoped collection, which has no
+vault, embeds at all (#1631).
 
 What the resolution must not do is stay quiet about itself. Every
 :class:`EmbeddingKeySource` value but two is a collection asking for a key and
@@ -43,7 +44,7 @@ from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.session import get_db_context
-from app.repositories import knowledge_base_repo, organization_secret_repo
+from app.repositories import knowledge_base_repo, local_service_repo, organization_secret_repo
 from app.services.rag import embedding_providers
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,9 @@ class EmbeddingKeySource(StrEnum):
     provider (#1631). `PROVIDER_UNKNOWN` is a catalog entry removed from
     `embedding_providers.json` under a collection that was using it; the key it
     holds was stored for the provider that is gone, so it stays sealed.
+    `ENDPOINT_MISSING` and `ENDPOINT_PAUSED` are a keyless collection whose local
+    service was deleted (the column is `SET NULL`) or turned off - the two
+    remedies differ, so the two are told apart.
     """
 
     ORGANIZATION = "organization"
@@ -77,6 +81,8 @@ class EmbeddingKeySource(StrEnum):
     SECRET_UNUSABLE = "secret_unusable"
     SECRET_WRONG_KIND = "secret_wrong_kind"
     PROVIDER_UNKNOWN = "provider_unknown"
+    ENDPOINT_MISSING = "endpoint_missing"
+    ENDPOINT_PAUSED = "endpoint_paused"
 
     @property
     def explanation(self) -> str:
@@ -94,7 +100,7 @@ _CAN_EMBED = frozenset({EmbeddingKeySource.ORGANIZATION, EmbeddingKeySource.KEYL
 _EXPLANATIONS = {
     EmbeddingKeySource.ORGANIZATION: "the vault key the collection chose",
     EmbeddingKeySource.KEYLESS: (
-        "no key, because the provider is a keyless endpoint on the deployment's own network"
+        "no key, at the local service the collection names on the deployment's own network"
     ),
     EmbeddingKeySource.NONE_CHOSEN: (
         "no key at all, because the collection names no vault key - choose one for its "
@@ -118,6 +124,14 @@ _EXPLANATIONS = {
     EmbeddingKeySource.PROVIDER_UNKNOWN: (
         "no key at all, because that provider is no longer in this build's catalog - move the "
         "collection to one that is, and give it a key for that one"
+    ),
+    EmbeddingKeySource.ENDPOINT_MISSING: (
+        "no address, because the local service the collection named is gone - choose another "
+        "under Knowledge, or register one"
+    ),
+    EmbeddingKeySource.ENDPOINT_PAUSED: (
+        "no address, because the local service the collection names is turned off - turn it "
+        "on under Knowledge, or choose another"
     ),
 }
 
@@ -202,10 +216,11 @@ async def embeddings_for_collection(
             # Whatever key the row may still hold from a keyed provider it left
             # is not opened: this endpoint takes none, and unsealing a credential
             # nothing will send is a read of the vault for no reason.
-            api_key, key_source, base_url = "", EmbeddingKeySource.KEYLESS, provider.base_url
+            api_key = ""
+            base_url, key_source = await _endpoint_for(db, kb)
         else:
             api_key, key_source = await _api_key_for(db, kb)
-            base_url = provider.base_url
+            base_url = provider.base_url or ""
         return ResolvedEmbeddings(
             model=kb.embedding_model,
             # The recorded width, not a fresh lookup: the table was created at
@@ -216,6 +231,27 @@ async def embeddings_for_collection(
             base_url=base_url,
             provider=kb.embedding_provider,
         )
+
+
+async def _endpoint_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, EmbeddingKeySource]:
+    """Where a keyless collection's provider answers, or nowhere - and which.
+
+    The row is read within what the collection may name - its organization's
+    services and the deployment's - so a service id that leaked from another
+    tenant resolves to nothing rather than to their host. Degrades like the key
+    lookup: the address travels with the reason, and the client refuses.
+    """
+    if kb.embedding_endpoint_id is None:
+        return "", EmbeddingKeySource.ENDPOINT_MISSING
+    row = await local_service_repo.get_visible(
+        db, kb.embedding_endpoint_id, organization_id=kb.organization_id
+    )
+    if row is None:
+        logger.warning("embedding_endpoint_missing", extra={"collection": kb.collection_name})
+        return "", EmbeddingKeySource.ENDPOINT_MISSING
+    if not row.is_active:
+        return "", EmbeddingKeySource.ENDPOINT_PAUSED
+    return row.base_url, EmbeddingKeySource.KEYLESS
 
 
 async def _api_key_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, EmbeddingKeySource]:

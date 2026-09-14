@@ -36,6 +36,7 @@ def _kb(
     secret_id: uuid.UUID | None = None,
     organization_id: uuid.UUID | None = _ORG,
     provider: str = "openrouter",
+    endpoint_id: uuid.UUID | None = None,
 ):
     return MagicMock(
         collection_name="handbook",
@@ -44,7 +45,13 @@ def _kb(
         embedding_secret_id=secret_id,
         organization_id=organization_id,
         embedding_provider=provider,
+        embedding_endpoint_id=endpoint_id,
     )
+
+
+def _local_service(*, base_url: str = "http://ollama:11434/v1", active: bool = True):
+    """A `local_services` row of kind `embedding`, as the resolver reads it."""
+    return MagicMock(base_url=base_url, is_active=active, kind="embedding", provider="ollama")
 
 
 def _openai_key_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
@@ -67,8 +74,9 @@ def _sealed_key_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
     )
 
 
-async def _resolve(kb, secret_row=None):
-    """Run the resolver against one KB row and an optional vault row.
+async def _resolve(kb, secret_row=None, endpoint_row=None):
+    """Run the resolver against one KB row, an optional vault row and an
+    optional local-service row.
 
     Returns the resolution and the secret-repo mock, so a test can assert the
     vault was - or was not - consulted.
@@ -77,11 +85,13 @@ async def _resolve(kb, secret_row=None):
         patch(f"{_MODULE}.get_db_context") as db_ctx,
         patch(f"{_MODULE}.knowledge_base_repo") as kbs,
         patch(f"{_MODULE}.organization_secret_repo") as secrets,
+        patch(f"{_MODULE}.local_service_repo") as services,
     ):
         db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
         kbs.get_for_collection = AsyncMock(return_value=kb)
         secrets.get = AsyncMock(return_value=secret_row)
+        services.get_visible = AsyncMock(return_value=endpoint_row)
         return await embeddings_for_collection("handbook"), secrets
 
 
@@ -221,25 +231,19 @@ class TestCredentialDegradation:
 
 
 class TestAKeylessProvider:
-    """An endpoint on the deployment's own network wants no credential (#1632)."""
+    """A server on the deployment's own network wants no credential (#1632); the
+    collection names the local service that carries its address."""
 
-    _OLLAMA = "http://ollama:11434/v1"
-
-    async def _resolve_on_ollama(self, kb):
-        with patch(
-            "app.services.rag.embedding_providers.settings",
-            MagicMock(EMBEDDING_OLLAMA_BASE_URL=self._OLLAMA),
-        ):
-            return await _resolve(kb, _sealed_key_row("sk-left-behind"))
-
-    async def test_resolves_to_no_key_and_the_deployments_address_without_opening_the_vault(
-        self,
-    ):
-        resolved, secrets = await self._resolve_on_ollama(_kb(provider="ollama"))
+    async def test_resolves_to_no_key_and_the_services_address_without_opening_the_vault(self):
+        resolved, secrets = await _resolve(
+            _kb(provider="ollama", endpoint_id=uuid.uuid4()),
+            _sealed_key_row("sk-left-behind"),
+            _local_service(base_url="http://gpu-box:11434/v1"),
+        )
 
         assert resolved is not None
         assert resolved.api_key == ""
-        assert resolved.base_url == self._OLLAMA
+        assert resolved.base_url == "http://gpu-box:11434/v1"
         assert resolved.key_source is EmbeddingKeySource.KEYLESS
         assert not resolved.key_source.is_degraded
         secrets.get.assert_not_called()
@@ -247,8 +251,10 @@ class TestAKeylessProvider:
     async def test_a_key_left_over_from_a_keyed_provider_stays_sealed(self):
         """Moving to a keyless provider leaves the row's key where it is; the
         resolver must not unseal a credential nothing will send."""
-        resolved, secrets = await self._resolve_on_ollama(
-            _kb(secret_id=uuid.uuid4(), provider="ollama")
+        resolved, secrets = await _resolve(
+            _kb(secret_id=uuid.uuid4(), provider="ollama", endpoint_id=uuid.uuid4()),
+            _sealed_key_row("sk-left-behind"),
+            _local_service(),
         )
 
         assert resolved is not None
@@ -256,24 +262,42 @@ class TestAKeylessProvider:
         assert resolved.key_source is EmbeddingKeySource.KEYLESS
         secrets.get.assert_not_called()
 
-    async def test_an_app_scoped_collection_embeds_through_it(self):
+    async def test_an_app_scoped_collection_embeds_through_the_deployments_service(self):
         """The one way a collection with no vault can embed (#1631)."""
-        resolved, _ = await self._resolve_on_ollama(_kb(provider="ollama", organization_id=None))
+        resolved, _ = await _resolve(
+            _kb(provider="ollama", organization_id=None, endpoint_id=uuid.uuid4()),
+            None,
+            _local_service(),
+        )
 
         assert resolved is not None
         assert resolved.key_source is EmbeddingKeySource.KEYLESS
 
-    async def test_it_is_unknown_where_the_deployment_names_no_address(self):
-        """Unset, the entry is not offered - so a row recorded against it reads
-        as a provider this build does not have, which is what it is."""
-        with patch(
-            "app.services.rag.embedding_providers.settings",
-            MagicMock(EMBEDDING_OLLAMA_BASE_URL=""),
-        ):
-            resolved, _ = await _resolve(_kb(provider="ollama"))
+    async def test_a_collection_naming_no_service_says_so(self):
+        resolved, _ = await _resolve(_kb(provider="ollama"))
 
         assert resolved is not None
-        assert resolved.key_source is EmbeddingKeySource.PROVIDER_UNKNOWN
+        assert resolved.base_url == ""
+        assert resolved.key_source is EmbeddingKeySource.ENDPOINT_MISSING
+        assert resolved.key_source.is_degraded
+
+    async def test_a_service_that_was_deleted_or_is_anothers_reads_as_gone(self):
+        """`SET NULL` on delete makes the first the same as naming none; a service
+        id from another tenant is invisible and so the same again."""
+        resolved, _ = await _resolve(_kb(provider="ollama", endpoint_id=uuid.uuid4()), None, None)
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.ENDPOINT_MISSING
+
+    async def test_a_service_turned_off_is_told_apart_from_one_that_is_gone(self):
+        """The remedies differ: turn it on, or choose another."""
+        resolved, _ = await _resolve(
+            _kb(provider="ollama", endpoint_id=uuid.uuid4()), None, _local_service(active=False)
+        )
+
+        assert resolved is not None
+        assert resolved.key_source is EmbeddingKeySource.ENDPOINT_PAUSED
+        assert "turned off" in resolved.key_source.explanation
 
 
 class TestSayingWhichKeyPaid:
@@ -309,6 +333,8 @@ class TestSayingWhichKeyPaid:
             EmbeddingKeySource.SECRET_UNUSABLE,
             EmbeddingKeySource.SECRET_WRONG_KIND,
             EmbeddingKeySource.PROVIDER_UNKNOWN,
+            EmbeddingKeySource.ENDPOINT_MISSING,
+            EmbeddingKeySource.ENDPOINT_PAUSED,
         }
 
     def test_every_source_has_a_sentence_of_its_own(self):

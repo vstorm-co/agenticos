@@ -234,7 +234,11 @@ class TestKnowledgeBaseCreate:
             pytest.raises(BadRequestError) as refused,
         ):
             await service.create(
-                KnowledgeBaseCreate(name="Handbook", collection_name="documents"),
+                KnowledgeBaseCreate(
+                    name="Handbook",
+                    collection_name="documents",
+                    embedding_model="text-embedding-3-small",
+                ),
                 ctx=self._ctx(),
             )
 
@@ -259,6 +263,7 @@ class TestKnowledgeBaseCreate:
                 KnowledgeBaseCreate(
                     name="Handbook",
                     collection_name="documents_archive",
+                    embedding_model="text-embedding-3-small",
                     embedding_provider="openrouter",
                     embedding_secret_id=uuid.uuid4(),
                 ),
