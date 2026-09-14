@@ -15,7 +15,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
+from app.core.audit import chain_hash
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.organization import Organization, OrganizationMember
@@ -59,16 +61,38 @@ async def _org(db, owner: User) -> Organization:
 
 
 async def _entry(db, org: Organization, actor: User, *, action: str, when: datetime) -> None:
+    """One entry, seeded at a chosen `created_at` and linked into its chain.
+
+    Not `record_audit`, which stamps `created_at` itself and so cannot place an
+    entry outside the window these tests need. Built directly instead, but with
+    the same `prev_hash`/`entry_hash` the recorder would have written: the column
+    is `NOT NULL` (#1622), and a row seeded with a hash that does not link would
+    make `audit-verify` call an untampered trail broken.
+    """
+    head = await db.execute(
+        select(AppAdminAuditLog.entry_hash)
+        .where(AppAdminAuditLog.organization_id == org.id)
+        .order_by(AppAdminAuditLog.seq.desc())
+        .limit(1)
+    )
+    prev_hash = head.scalar_one_or_none()
+    fields = {
+        "actor_user_id": actor.id,
+        "impersonator_user_id": None,
+        "organization_id": org.id,
+        "action": action,
+        "target_type": "agent",
+        "target_id": str(uuid.uuid4()),
+        "details": {"version": 3},
+        "ip_address": None,
+        "created_at": when,
+    }
     db.add(
         AppAdminAuditLog(
             id=uuid.uuid4(),
-            actor_user_id=actor.id,
-            organization_id=org.id,
-            action=action,
-            target_type="agent",
-            target_id=str(uuid.uuid4()),
-            details={"version": 3},
-            created_at=when,
+            prev_hash=prev_hash,
+            entry_hash=chain_hash(prev_hash=prev_hash, **fields),
+            **fields,
         )
     )
     await db.flush()
