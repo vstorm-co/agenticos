@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.424] - 2026-09-14
+
+### Added
+
+- **A written plan for the notification center, before any of it is built.**
+  `docs/design/notification-center-plan.md` sets out ten decisions grounded in the
+  code that exists: a code-defined event catalog reusing the agent spec's
+  `AlertAudience` shape rather than stretching `NotificationSpec` to cover events
+  that are not about one agent; a per-recipient row plus a separate deliveries
+  table for the retryable side channels; why the announcement composer gates on
+  app-admin rather than on any permission. With a phased breakdown, an explicit
+  out-of-scope list and the open questions that do not block starting. Repository
+  only, like the rest of `docs/design/`. (#1598)
+
 ## [0.0.423] - 2026-09-14
 
 ### Added
