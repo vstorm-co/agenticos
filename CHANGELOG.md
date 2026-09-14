@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.429] - 2026-09-15
+
+### Fixed
+
+- **`make check` depended on whichever `python3` the host happened to have.**
+  One guard script had already been pinned to the backend interpreter after it
+  crashed outright on a machine whose system Python predates 3.10; the other four
+  and the dependency audit were still invoked as a bare `python3`, surviving only
+  because none of them happens to use 3.10-only syntax yet. All of them now run
+  under the interpreter `backend/.python-version` names, in the Makefile and in
+  pre-commit alike, and a test refuses the next target written the fragile way.
+
 ## [0.0.428] - 2026-09-14
 
 ### Fixed
