@@ -1,5 +1,5 @@
 ---
-source_sha: 88fd384cb2a0
+source_sha: "88fd384cb2a0"
 ---
 
 # Versionshinweise { #release-notes }

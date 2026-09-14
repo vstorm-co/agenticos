@@ -1,5 +1,5 @@
 ---
-source_sha: c8b11ff21e6a
+source_sha: "c8b11ff21e6a"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }

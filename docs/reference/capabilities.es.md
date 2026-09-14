@@ -1,5 +1,5 @@
 ---
-source_sha: 82fcf03671a3
+source_sha: "82fcf03671a3"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }

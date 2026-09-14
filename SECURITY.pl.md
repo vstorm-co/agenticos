@@ -1,3 +1,7 @@
+---
+source_sha: "5bb89334b619"
+---
+
 <!-- source_sha: 5bb89334b619 -->
 
 # Bezpieczeństwo

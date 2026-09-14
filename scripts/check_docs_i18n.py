@@ -32,7 +32,8 @@ dead fragment as the top of the page and says nothing.
 All of these are reported as a defect. `--update` records the fingerprint after a
 page has genuinely been retranslated - it is the last step of doing the work, not
 a way of making this guard quiet, and running it over a page nobody retranslated
-is how a stale translation stops being visible.
+is how a stale translation stops being visible. It therefore takes the paths of
+the translations you retranslated, and touches only those.
 
 `docs/howto/translate.md` is the workflow this enforces.
 """
@@ -186,17 +187,35 @@ def orphaned() -> list[str]:
     return sorted(_name(page) for page in stranded)
 
 
-def update() -> int:
-    """Record the current English fingerprint on every translation that exists."""
+def update(translations: list[Path]) -> int:
+    """Record the current English fingerprint on the named translations.
+
+    Named, rather than all of them. Stamping every stale translation is the one
+    move this whole design exists to prevent: change two English pages, retranslate
+    one, and a blanket `--update` marks both current - the untouched page keeps
+    its old text, loses its reader-facing notice, and the gate never mentions it
+    again. So the translator says which files they actually retranslated, and
+    nothing else is touched.
+    """
     written = 0
-    for page in translatable():
-        current = fingerprint(page)
-        for locale in LOCALES:
-            translation = translation_of(page, locale)
-            if translation.exists() and recorded_fingerprint(translation) != current:
-                record_fingerprint(translation, current)
-                written += 1
-    print(f"Recorded the English fingerprint on {written} translation(s).")
+    for translation in translations:
+        if locale_of(translation) is None:
+            print(f"{translation} is not a translation - pass `<page>.<locale>.md`.")
+            return 1
+        source = english_source(translation)
+        if not source.exists():
+            print(f"{translation} translates {source}, which does not exist.")
+            return 1
+        if not translation.exists():
+            print(f"{translation} does not exist.")
+            return 1
+        current = fingerprint(source)
+        written += recorded_fingerprint(translation) != current
+        record_fingerprint(translation, current)
+    print(
+        f"Stamped {len(translations)} translation(s); "
+        f"{written} of them were recording an older revision."
+    )
     return 0
 
 
@@ -243,9 +262,11 @@ def report() -> int:
             print(f"  {translation}")
         print()
     print("Translate the page, pin each heading's English anchor - or, in a repository")
-    print("file, rewrite its own in-page links - then `python3 scripts/check_docs_i18n.py")
-    print("--update` to record the English revision it now matches.")
-    print("docs/howto/translate.md has the workflow.")
+    print("file, rewrite its own in-page links - then record the revision it now matches:")
+    print()
+    print("  python3 scripts/check_docs_i18n.py --update <page>.<locale>.md")
+    print()
+    print("Name only the files you retranslated. docs/howto/translate.md has the workflow.")
     return 1
 
 
@@ -267,8 +288,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--update",
-        action="store_true",
-        help="record the current English fingerprint on every existing translation",
+        nargs="+",
+        type=Path,
+        metavar="TRANSLATION",
+        help="record the current English fingerprint on the named `<page>.<locale>.md` files",
     )
     parser.add_argument(
         "--anchors",
@@ -279,7 +302,7 @@ def main() -> int:
     arguments = parser.parse_args()
     if arguments.anchors is not None:
         return show_anchors(arguments.anchors)
-    return update() if arguments.update else report()
+    return update(arguments.update) if arguments.update else report()
 
 
 if __name__ == "__main__":

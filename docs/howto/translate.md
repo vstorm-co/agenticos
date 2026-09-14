@@ -36,15 +36,16 @@ it is the point of the whole arrangement:
 
 ```markdown
 ---
-source_sha: 4f2b9c1ad07e
+source_sha: "4f2b9c1ad07e"
 ---
 
 # Instalacja
 ```
 
 That is the first twelve hex characters of the SHA-256 of `install.md` as it
-stood when the page was translated. `scripts/docs_i18n.py` computes it, and two
-things read it back.
+stood when the page was translated, taken from the text with its line endings
+normalized so that a Windows checkout answers the same as CI.
+`scripts/docs_i18n.py` computes it, and two things read it back.
 
 `python3 scripts/check_docs_i18n.py` runs in `make lint` and fails the build on a
 page with no translation, a translation whose fingerprint no longer matches its
@@ -58,11 +59,16 @@ and nothing distinguishes it from a page somebody actually translated.
 
 !!! warning "`--update` is the last step of translating, not a way to go quiet"
 
-    `python3 scripts/check_docs_i18n.py --update` stamps the current English
-    fingerprint onto every translation that exists. Run it after you have
-    retranslated a page. Run it over a page nobody retranslated and you have
-    hidden a stale translation from both the gate and the reader, which is the
-    one failure this design exists to prevent.
+    `python3 scripts/check_docs_i18n.py --update docs/install.pl.md` stamps the
+    current English fingerprint onto that file. **Name the files you actually
+    retranslated**, and nothing else is touched - stamping a page nobody
+    retranslated hides a stale translation from both the gate and the reader,
+    which is the one failure this design exists to prevent.
+
+    That is why it takes paths rather than updating everything it finds. Change
+    two English pages, retranslate one, and a blanket update would mark both
+    current: the untouched page keeps its old text, loses its notice, and is
+    never mentioned again.
 
 ## Every heading pins its English anchor
 
@@ -229,7 +235,9 @@ them because GitHub renders those files and MkDocs does not.
 **The fingerprint goes in a comment, not front matter.** GitHub renders a `---`
 block as a table, so a reader would meet `source_sha` before the project's name.
 `--update` writes `<!-- source_sha: 4f2b9c1ad07e -->` on the first line instead,
-and reads it back from there.
+and reads it back from there. In a page of the site the value is quoted, because
+about one fingerprint in 281 is all decimal digits and YAML would read that as a
+number.
 
 **Headings cannot pin an anchor.** `{ #permissions }` is `attr_list`, which is a
 Python-Markdown extension; GitHub has no equivalent and prints the braces.
@@ -280,7 +288,8 @@ knowing before somebody reports it as a bug.
 3. Check every relative link still resolves. A link to `../mcp.md` from a
    translated page resolves to the translated `mcp.md` automatically; a link
    written to `../mcp.pl.md` is wrong and fails the build.
-4. `python3 scripts/check_docs_i18n.py --update`.
+4. `python3 scripts/check_docs_i18n.py --update <page>.<locale>.md` - the file
+   you just translated, and no others.
 5. `make docs-build` - it runs `--strict`, so a dead link fails it.
 6. `python3 scripts/check_docs_paragraphs.py` - the 115-word paragraph limit
    applies in every language, and a translation that merges two English

@@ -1,5 +1,5 @@
 ---
-source_sha: 395f13f5fc74
+source_sha: "395f13f5fc74"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }

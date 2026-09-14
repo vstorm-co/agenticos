@@ -6,8 +6,8 @@ page of the site, in an HTML comment for one of the files GitHub renders, which
 show a `---` block as a table. That one number is what tells a stale translation
 from a current one, and three things read it: the build hook that stamps a notice
 on a page whose English source has moved on, the `make lint` gate that refuses to
-let one ship unnoticed, and `--update`, which records it once a page has actually
-been retranslated.
+let one ship unnoticed, and `--update`, which records it on the pages a translator
+names once they have actually been retranslated.
 
 All three have to agree on what the fingerprint means, so it is defined here and
 only here. The rule is deliberately blunt - any edit to the English page, down to
@@ -51,7 +51,13 @@ ROOT_PAGES = ("README.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md
 
 _SUFFIX = re.compile(r"\.(?P<locale>[a-z]{2})\.md$")
 _FRONT_MATTER = re.compile(r"\A---\n(?P<body>.*?)\n---\n", re.DOTALL)
-_KEY = re.compile(rf"^{FINGERPRINT_KEY}:\s*(?P<value>\S+)\s*$", re.MULTILINE)
+# The value is written quoted and read back either way, because a fingerprint is
+# twelve hex characters and about one in 281 of them is all decimal digits. YAML
+# reads that as an integer, `page.meta` then hands the build hook an int where
+# `fingerprint()` returns a str, and a perfectly current page gets stamped
+# "this translation is outdated" - on the site only, while the guard, which reads
+# the raw text, says it is fine.
+_KEY = re.compile(rf"^{FINGERPRINT_KEY}:\s*[\"']?(?P<value>[^\"'\s]+)[\"']?\s*$", re.MULTILINE)
 _COMMENT = re.compile(rf"<!--\s*{FINGERPRINT_KEY}:\s*(?P<value>\S+)\s*-->")
 
 _FENCE = re.compile(r"^\s*(```|~~~)")
@@ -212,9 +218,17 @@ def root_pages() -> list[Path]:
 
 
 def fingerprint(source: Path) -> str:
-    """The fingerprint of an English page's current text."""
-    digest = hashlib.sha256(source.read_bytes()).hexdigest()
-    return digest[:FINGERPRINT_LENGTH]
+    """The fingerprint of an English page's current text.
+
+    Hashed from the text with its line endings normalized, not from the bytes on
+    disk, so the answer is a property of the tracked revision rather than of the
+    checkout. Git's `core.autocrlf` writes CRLF on Windows; hashing bytes there
+    would report every translation on the branch stale, and `--update` would then
+    record hashes that go wrong again the moment Git normalizes the files back to
+    LF for the commit. On an LF checkout this is byte for byte what it always was.
+    """
+    text = source.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:FINGERPRINT_LENGTH]
 
 
 def records_in_a_comment(translation: Path) -> bool:
@@ -251,14 +265,11 @@ def record_fingerprint(translation: Path, value: str) -> None:
         )
         translation.write_text(updated, encoding="utf-8")
         return
+    quoted = f'{FINGERPRINT_KEY}: "{value}"'
     front_matter = _FRONT_MATTER.match(text)
     if front_matter is None:
-        translation.write_text(f"---\n{FINGERPRINT_KEY}: {value}\n---\n\n{text}", encoding="utf-8")
+        translation.write_text(f"---\n{quoted}\n---\n\n{text}", encoding="utf-8")
         return
     body = front_matter.group("body")
-    updated = (
-        _KEY.sub(f"{FINGERPRINT_KEY}: {value}", body)
-        if _KEY.search(body)
-        else f"{body}\n{FINGERPRINT_KEY}: {value}"
-    )
+    updated = _KEY.sub(quoted, body) if _KEY.search(body) else f"{body}\n{quoted}"
     translation.write_text(f"---\n{updated}\n---\n{text[front_matter.end() :]}", encoding="utf-8")

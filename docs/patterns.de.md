@@ -1,5 +1,5 @@
 ---
-source_sha: 141e97d23d12
+source_sha: "141e97d23d12"
 ---
 
 # Code-Patterns { #code-patterns }

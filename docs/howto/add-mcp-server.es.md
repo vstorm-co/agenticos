@@ -1,5 +1,5 @@
 ---
-source_sha: 34c34d991836
+source_sha: "34c34d991836"
 ---
 
 # Añade un servidor al catálogo MCP { #add-a-server-to-the-mcp-catalog }

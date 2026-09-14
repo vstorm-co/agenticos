@@ -1,5 +1,5 @@
 ---
-source_sha: c77ba9c268b8
+source_sha: "c77ba9c268b8"
 ---
 
 # Añade un sync connector { #add-a-sync-connector }

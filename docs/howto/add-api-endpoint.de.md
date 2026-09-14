@@ -1,5 +1,5 @@
 ---
-source_sha: 4ad2bb97f109
+source_sha: "4ad2bb97f109"
 ---
 
 # Einen API-Endpunkt hinzufügen { #add-an-api-endpoint }

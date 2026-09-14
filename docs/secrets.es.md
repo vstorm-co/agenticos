@@ -1,5 +1,5 @@
 ---
-source_sha: a4432cd987e3
+source_sha: "a4432cd987e3"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }

@@ -1,5 +1,5 @@
 ---
-source_sha: 8be06480f8a4
+source_sha: "8be06480f8a4"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }

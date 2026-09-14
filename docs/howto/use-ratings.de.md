@@ -1,5 +1,5 @@
 ---
-source_sha: 883886c71472
+source_sha: "883886c71472"
 ---
 
 # Nachrichtenbewertungen nutzen { #use-message-ratings }

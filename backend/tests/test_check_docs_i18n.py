@@ -102,7 +102,7 @@ def test_a_translation_of_a_deleted_page_is_orphaned(docs: Path) -> None:
 def test_update_records_the_current_revision(docs: Path) -> None:
     source = _english(docs, "install.md")
     _translated(docs, "install.pl.md", "0" * 12)
-    assert guard.update() == 0
+    assert guard.update([docs / "install.pl.md"]) == 0
     assert guard.recorded_fingerprint(docs / "install.pl.md") == guard.fingerprint(source)
     assert guard.stale() == []
 
@@ -110,10 +110,83 @@ def test_update_records_the_current_revision(docs: Path) -> None:
 def test_update_adds_front_matter_to_a_translation_that_has_none(docs: Path) -> None:
     source = _english(docs, "install.md")
     (docs / "install.pl.md").write_text("# Tytuł\n\nTekst.\n", encoding="utf-8")
-    guard.update()
+    guard.update([docs / "install.pl.md"])
     translated = docs / "install.pl.md"
     assert guard.recorded_fingerprint(translated) == guard.fingerprint(source)
     assert translated.read_text(encoding="utf-8").endswith("# Tytuł\n\nTekst.\n")
+
+
+def test_update_leaves_a_translation_it_was_not_given(docs: Path) -> None:
+    """The failure the whole design exists to prevent, reached through `--update`.
+
+    Two English pages change, the translator retranslates one and records it. An
+    update that stamped everything stale would mark the other current too - it
+    keeps its old text, the reader's staleness notice disappears, and the gate
+    never mentions it again. So it is stamped only if it was named.
+    """
+    first, second = _english(docs, "a.md"), _english(docs, "b.md")
+    _translated(docs, "a.pl.md", guard.fingerprint(first))
+    _translated(docs, "b.pl.md", guard.fingerprint(second))
+    for page in (first, second):
+        page.write_text("# Title\n\nText, changed.\n", encoding="utf-8")
+
+    guard.update([docs / "a.pl.md"])
+
+    assert guard.stale() == [("b.md", "pl")]
+
+
+def test_update_refuses_a_path_that_is_not_a_translation(docs: Path) -> None:
+    _english(docs, "install.md")
+    assert guard.update([docs / "install.md"]) == 1
+
+
+def test_update_refuses_a_translation_of_a_page_that_is_not_there(docs: Path) -> None:
+    _translated(docs, "gone.pl.md", "0" * 12)
+    assert guard.update([docs / "gone.pl.md"]) == 1
+
+
+def test_a_fingerprint_of_only_digits_survives_yaml(docs: Path) -> None:
+    """A quoted fingerprint, because roughly one in 281 is all decimal digits.
+
+    Unquoted, YAML hands `page.meta` an integer while `fingerprint()` returns a
+    string, so the build hook stamps "this translation is outdated" on a page
+    that is current - on the site only, while this guard, which reads the raw
+    text, says it is fine.
+    """
+    yaml = pytest.importorskip("yaml")
+    source = _english(docs, "install.md")
+    (docs / "install.pl.md").write_text("# Tytuł\n", encoding="utf-8")
+    guard.record_fingerprint(docs / "install.pl.md", "123456789012")
+
+    front_matter = (docs / "install.pl.md").read_text(encoding="utf-8").split("---")[1]
+    assert yaml.safe_load(front_matter)["source_sha"] == "123456789012"
+    assert guard.recorded_fingerprint(docs / "install.pl.md") == "123456789012"
+
+    guard.update([docs / "install.pl.md"])
+    assert guard.recorded_fingerprint(docs / "install.pl.md") == guard.fingerprint(source)
+
+
+def test_an_unquoted_fingerprint_is_still_read(docs: Path) -> None:
+    """Quoting is new; a file written before it, or by hand, still has to work."""
+    source = _english(docs, "install.md")
+    (docs / "install.pl.md").write_text(
+        f"---\nsource_sha: {guard.fingerprint(source)}\n---\n\n# Tytuł\n", encoding="utf-8"
+    )
+    assert guard.stale() == []
+
+
+def test_the_fingerprint_does_not_depend_on_the_checkouts_line_endings(docs: Path) -> None:
+    """Git's `core.autocrlf` writes CRLF on Windows, and the tracked bytes are LF.
+
+    Hashing the bytes on disk would report every translation on the branch stale
+    there, and `--update` would record hashes that go wrong again as soon as Git
+    normalizes the files back for the commit.
+    """
+    text = "# Title\n\nOne line.\nAnother.\n"
+    unix, windows = docs / "a.md", docs / "b.md"
+    unix.write_bytes(text.encode("utf-8"))
+    windows.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+    assert guard.fingerprint(unix) == guard.fingerprint(windows)
 
 
 def test_working_notes_and_unpublished_pages_owe_no_translation(docs: Path) -> None:
@@ -162,7 +235,7 @@ def test_a_root_file_records_its_fingerprint_in_a_comment(repository: Path) -> N
     translated = repository / "README.pl.md"
     translated.write_text("# Projekt\n\n[skocz](#co-robi)\n\n## Co robi\n\nTekst.\n", "utf-8")
 
-    guard.update()
+    guard.update([translated])
 
     text = translated.read_text(encoding="utf-8")
     assert text.startswith(f"<!-- source_sha: {guard.fingerprint(source)} -->")

@@ -1,5 +1,5 @@
 ---
-source_sha: 9f2926284b34
+source_sha: "9f2926284b34"
 ---
 
 # Architektur { #architecture }

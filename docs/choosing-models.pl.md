@@ -1,5 +1,5 @@
 ---
-source_sha: 5d457ec305b9
+source_sha: "5d457ec305b9"
 ---
 
 # Wybór modelu { #choosing-a-model }

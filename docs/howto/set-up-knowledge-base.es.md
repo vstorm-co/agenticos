@@ -1,5 +1,5 @@
 ---
-source_sha: bdfb0e0fa929
+source_sha: "bdfb0e0fa929"
 ---
 
 # Monta una base de conocimiento { #set-up-a-knowledge-base }

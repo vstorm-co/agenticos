@@ -1,5 +1,5 @@
 ---
-source_sha: f5fcd6aff7b4
+source_sha: "f5fcd6aff7b4"
 ---
 
 # Pliki kontekstowe { #context-files }

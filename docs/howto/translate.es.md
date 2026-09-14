@@ -1,5 +1,5 @@
 ---
-source_sha: aabec5b77ee2
+source_sha: "1003a5cd4f2d"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -41,15 +41,16 @@ es el sentido de todo el montaje:
 
 ```markdown
 ---
-source_sha: 4f2b9c1ad07e
+source_sha: "4f2b9c1ad07e"
 ---
 
 # Instalacja
 ```
 
 Esos son los primeros doce caracteres hexadecimales del SHA-256 de `install.md`
-tal como estaba cuando se tradujo la página. `scripts/docs_i18n.py` la calcula, y
-dos cosas la vuelven a leer.
+tal como estaba cuando se tradujo la página, tomados del texto con los finales de
+línea normalizados, de modo que un checkout en Windows responde lo mismo que CI.
+`scripts/docs_i18n.py` la calcula, y dos cosas la vuelven a leer.
 
 `python3 scripts/check_docs_i18n.py` se ejecuta en `make lint` y hace fallar la
 build ante una página sin traducción, ante una traducción cuya huella ya no
@@ -64,11 +65,16 @@ distingue de una página que alguien sí tradujo.
 
 !!! warning "`--update` es el último paso de traducir, no una forma de callar la alarma"
 
-    `python3 scripts/check_docs_i18n.py --update` estampa la huella inglesa actual
-    sobre todas las traducciones que existan. Ejecútalo después de haber vuelto a
-    traducir una página. Ejecútalo sobre una página que nadie ha vuelto a traducir
-    y habrás ocultado una traducción obsoleta tanto a la puerta como al lector, que
-    es justo el único fallo que este diseño existe para evitar.
+    `python3 scripts/check_docs_i18n.py --update docs/install.pl.md` estampa la
+    huella inglesa actual sobre ese archivo. **Nombra los archivos que de verdad
+    has vuelto a traducir**, y no se toca nada más — estampar una página que nadie
+    ha vuelto a traducir oculta una traducción obsoleta tanto a la puerta como al
+    lector, que es justo el único fallo que este diseño existe para evitar.
+
+    Por eso acepta rutas en vez de actualizar todo lo que encuentra. Cambia dos
+    páginas inglesas, vuelve a traducir una, y una actualización general marcaría
+    las dos como al día: la página intacta conserva su texto viejo, pierde su
+    aviso y nadie vuelve a mencionarla.
 
 ## Cada encabezado fija su ancla inglesa { #every-heading-pins-its-english-anchor }
 
@@ -239,7 +245,9 @@ MkDocs no.
 **La huella va en un comentario, no en el front matter.** GitHub renderiza un
 bloque `---` como una tabla, así que un lector se encontraría `source_sha` antes
 que el nombre del proyecto. `--update` escribe en su lugar
-`<!-- source_sha: 4f2b9c1ad07e -->` en la primera línea, y la lee de ahí.
+`<!-- source_sha: 4f2b9c1ad07e -->` en la primera línea, y la lee de ahí. En una
+página del sitio el valor va entrecomillado, porque alrededor de una huella de
+cada 281 es toda de dígitos decimales y YAML la leería como un número.
 
 **Los encabezados no pueden fijar un ancla.** `{ #permissions }` es `attr_list`,
 que es una extensión de Python-Markdown; GitHub no tiene equivalente e imprime
@@ -293,7 +301,8 @@ log — pero conviene saberlo antes de que alguien lo reporte como un fallo.
 3. Comprueba que cada enlace relativo sigue resolviendo. Un enlace a `../mcp.md`
    desde una página traducida resuelve automáticamente al `mcp.md` traducido; un
    enlace escrito como `../mcp.pl.md` es incorrecto y hace fallar la build.
-4. `python3 scripts/check_docs_i18n.py --update`.
+4. `python3 scripts/check_docs_i18n.py --update <page>.<locale>.md` — el archivo
+   que acabas de traducir, y ningún otro.
 5. `make docs-build` — se ejecuta con `--strict`, así que un enlace muerto lo hace
    fallar.
 6. `python3 scripts/check_docs_paragraphs.py` — el límite de 115 palabras por

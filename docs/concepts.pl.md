@@ -1,5 +1,5 @@
 ---
-source_sha: 48d994ed75f4
+source_sha: "48d994ed75f4"
 ---
 
 # Koncepcje { #concepts }

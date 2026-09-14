@@ -1,5 +1,5 @@
 ---
-source_sha: d3a6a1847ec0
+source_sha: "d3a6a1847ec0"
 ---
 
 # Kod konsoli { #the-consoles-code }

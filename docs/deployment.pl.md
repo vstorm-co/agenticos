@@ -1,5 +1,5 @@
 ---
-source_sha: e5e660ee22ce
+source_sha: "e5e660ee22ce"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }

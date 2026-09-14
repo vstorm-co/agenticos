@@ -1,5 +1,5 @@
 ---
-source_sha: 35041987d0af
+source_sha: "35041987d0af"
 ---
 
 # Katalog uprawnień { #the-permission-catalog }

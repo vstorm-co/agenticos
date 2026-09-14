@@ -1,5 +1,5 @@
 ---
-source_sha: abac9cb95a88
+source_sha: "abac9cb95a88"
 ---
 
 # Dodawanie funkcji { #adding-a-feature }

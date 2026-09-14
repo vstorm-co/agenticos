@@ -1,5 +1,5 @@
 ---
-source_sha: bdfb0e0fa929
+source_sha: "bdfb0e0fa929"
 ---
 
 # Eine Knowledge Base einrichten { #set-up-a-knowledge-base }

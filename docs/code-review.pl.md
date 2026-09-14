@@ -1,5 +1,5 @@
 ---
-source_sha: 6f2d3f0082af
+source_sha: "6f2d3f0082af"
 ---
 
 # Automatyczny przegląd pull requestów { #automated-pull-request-review }

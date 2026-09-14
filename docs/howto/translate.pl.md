@@ -1,5 +1,5 @@
 ---
-source_sha: aabec5b77ee2
+source_sha: "1003a5cd4f2d"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -40,15 +40,16 @@ w nim jest sednem całego tego układu:
 
 ```markdown
 ---
-source_sha: 4f2b9c1ad07e
+source_sha: "4f2b9c1ad07e"
 ---
 
 # Instalacja
 ```
 
 To pierwsze dwanaście znaków szesnastkowych SHA-256 pliku `install.md` w stanie,
-w jakim był w chwili tłumaczenia strony. `scripts/docs_i18n.py` je wylicza,
-a dwie rzeczy je odczytują.
+w jakim był w chwili tłumaczenia strony, liczone z tekstu ze znormalizowanymi
+znakami końca linii, więc checkout na Windowsie odpowiada tak samo jak CI.
+`scripts/docs_i18n.py` je wylicza, a dwie rzeczy je odczytują.
 
 `python3 scripts/check_docs_i18n.py` działa w `make lint` i kładzie build na
 stronie bez tłumaczenia, na tłumaczeniu, którego odcisk palca nie pasuje już do
@@ -64,12 +65,17 @@ którą ktoś naprawdę przetłumaczył.
 
 !!! warning "`--update` jest ostatnim krokiem tłumaczenia, a nie sposobem na uciszenie"
 
-    `python3 scripts/check_docs_i18n.py --update` stempluje bieżący angielski
-    odcisk palca na każdym istniejącym tłumaczeniu. Uruchom to po tym, jak
-    przetłumaczyłeś stronę na nowo. Uruchom to na stronie, której nikt nie
-    przetłumaczył na nowo, a ukryłeś nieaktualne tłumaczenie zarówno przed bramką,
-    jak i przed czytelnikiem — czyli dokładnie tę jedną awarię, której zapobieganiu
-    ten projekt służy.
+    `python3 scripts/check_docs_i18n.py --update docs/install.pl.md` stempluje
+    bieżący angielski odcisk palca na tym pliku. **Wymień pliki, które naprawdę
+    przetłumaczyłeś na nowo**, a nic poza nimi nie zostanie tknięte —
+    ostemplowanie strony, której nikt nie przetłumaczył na nowo, ukrywa
+    nieaktualne tłumaczenie zarówno przed bramką, jak i przed czytelnikiem, czyli
+    dokładnie tę jedną awarię, której zapobieganiu ten projekt służy.
+
+    Dlatego przyjmuje ścieżki, zamiast aktualizować wszystko, co znajdzie. Zmień
+    dwie angielskie strony, przetłumacz jedną na nowo, a hurtowa aktualizacja
+    oznaczyłaby obie jako aktualne: nietknięta strona zachowuje swój stary tekst,
+    traci swoją notkę i nikt już o niej nie wspomni.
 
 ## Każdy nagłówek przypina swoją angielską kotwicę { #every-heading-pins-its-english-anchor }
 
@@ -240,7 +246,9 @@ MkDocs.
 **Odcisk palca idzie do komentarza, a nie do front mattera.** GitHub renderuje
 blok `---` jako tabelę, więc czytelnik spotkałby `source_sha` przed nazwą
 projektu. `--update` wpisuje zamiast tego `<!-- source_sha: 4f2b9c1ad07e -->`
-w pierwszej linii i stamtąd go odczytuje.
+w pierwszej linii i stamtąd go odczytuje. Na stronie serwisu wartość jest
+w cudzysłowie, bo mniej więcej jeden odcisk palca na 281 składa się z samych
+cyfr dziesiętnych, a YAML odczytałby to jako liczbę.
 
 **Nagłówki nie mogą przypiąć kotwicy.** `{ #permissions }` to `attr_list`, czyli
 rozszerzenie Python-Markdown; GitHub nie ma odpowiednika i drukuje klamry.
@@ -293,7 +301,8 @@ w swoim logu — ale warto o tym wiedzieć, zanim ktoś zgłosi to jako błąd.
 3. Sprawdź, czy każdy względny link nadal się rozwiązuje. Link do `../mcp.md`
    z przetłumaczonej strony rozwiązuje się automatycznie do przetłumaczonego
    `mcp.md`; link napisany jako `../mcp.pl.md` jest błędny i kładzie build.
-4. `python3 scripts/check_docs_i18n.py --update`.
+4. `python3 scripts/check_docs_i18n.py --update <page>.<locale>.md` — plik, który
+   właśnie przetłumaczyłeś, i żaden inny.
 5. `make docs-build` — uruchamia `--strict`, więc martwy link go kładzie.
 6. `python3 scripts/check_docs_paragraphs.py` — limit 115 słów na akapit
    obowiązuje w każdym języku, a tłumaczenie, które zlepia dwa angielskie akapity

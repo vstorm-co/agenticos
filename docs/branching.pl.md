@@ -1,5 +1,5 @@
 ---
-source_sha: c8b11ff21e6a
+source_sha: "c8b11ff21e6a"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }

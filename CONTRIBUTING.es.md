@@ -1,3 +1,7 @@
+---
+source_sha: "7cb876b5ef26"
+---
+
 <!-- source_sha: 7cb876b5ef26 -->
 
 # Contribuir a AgenticOS

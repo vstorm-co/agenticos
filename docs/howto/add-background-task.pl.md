@@ -1,5 +1,5 @@
 ---
-source_sha: 1b7f3c282f31
+source_sha: "1b7f3c282f31"
 ---
 
 # Dodaj zadanie w tle { #add-a-background-task }

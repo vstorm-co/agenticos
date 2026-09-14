@@ -114,7 +114,11 @@ def _translation_notice(page: Page, locale: str) -> str | None:
     if page.file.locale != locale:
         return _admonition(UNTRANSLATED[locale])
     source = english_source(Path(page.file.abs_src_path))
-    if page.meta.get(FINGERPRINT_KEY) != fingerprint(source):
+    # `str()` because YAML reads an all-digit fingerprint as an integer, and about
+    # one fingerprint in 281 is all digits. `record_fingerprint` quotes what it
+    # writes, so this only catches a value somebody typed in by hand - but the
+    # failure it prevents is a current page telling its reader it is out of date.
+    if str(page.meta.get(FINGERPRINT_KEY)) != fingerprint(source):
         return _admonition(OUT_OF_DATE[locale])
     return None
 

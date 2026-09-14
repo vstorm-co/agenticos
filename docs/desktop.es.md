@@ -1,5 +1,5 @@
 ---
-source_sha: 2a08473da582
+source_sha: "2a08473da582"
 ---
 
 # La aplicación de escritorio { #the-desktop-app }

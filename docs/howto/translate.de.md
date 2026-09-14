@@ -1,5 +1,5 @@
 ---
-source_sha: aabec5b77ee2
+source_sha: "1003a5cd4f2d"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -43,15 +43,16 @@ darin ist der Sinn der ganzen Anordnung:
 
 ```markdown
 ---
-source_sha: 4f2b9c1ad07e
+source_sha: "4f2b9c1ad07e"
 ---
 
 # Instalacja
 ```
 
 Das sind die ersten zwölf Hexzeichen des SHA-256 von `install.md`, so wie es zum
-Zeitpunkt der Übersetzung der Seite stand. `scripts/docs_i18n.py` berechnet ihn,
-und zwei Dinge lesen ihn zurück.
+Zeitpunkt der Übersetzung der Seite stand, genommen aus dem Text mit
+normalisierten Zeilenenden, sodass ein Checkout unter Windows dasselbe antwortet
+wie CI. `scripts/docs_i18n.py` berechnet ihn, und zwei Dinge lesen ihn zurück.
 
 `python3 scripts/check_docs_i18n.py` läuft in `make lint` und lässt den Build
 scheitern an einer Seite ohne Übersetzung, an einer Übersetzung, deren
@@ -67,12 +68,17 @@ Seite, die tatsächlich jemand übersetzt hat.
 
 !!! warning "`--update` ist der letzte Schritt des Übersetzens, kein Weg, still zu werden"
 
-    `python3 scripts/check_docs_i18n.py --update` stempelt den aktuellen
-    englischen Fingerabdruck auf jede vorhandene Übersetzung. Führen Sie es aus,
-    nachdem Sie eine Seite neu übersetzt haben. Führen Sie es über eine Seite aus,
-    die niemand neu übersetzt hat, und Sie haben eine veraltete Übersetzung
-    sowohl vor dem Tor als auch vor dem Leser versteckt, und genau das ist das
-    eine Versagen, das dieses Design verhindern soll.
+    `python3 scripts/check_docs_i18n.py --update docs/install.pl.md` stempelt den
+    aktuellen englischen Fingerabdruck auf diese Datei. **Nennen Sie die Dateien,
+    die Sie tatsächlich neu übersetzt haben**, und nichts sonst wird angefasst -
+    eine Seite zu stempeln, die niemand neu übersetzt hat, versteckt eine
+    veraltete Übersetzung sowohl vor dem Tor als auch vor dem Leser, und genau
+    das ist das eine Versagen, das dieses Design verhindern soll.
+
+    Deshalb nimmt es Pfade, statt alles zu aktualisieren, was es findet. Ändern
+    Sie zwei englische Seiten, übersetzen Sie eine neu, und eine pauschale
+    Aktualisierung würde beide als aktuell markieren: die unangetastete Seite
+    behält ihren alten Text, verliert ihren Hinweis und wird nie wieder erwähnt.
 
 ## Jede Überschrift pinnt ihren englischen Anker { #every-heading-pins-its-english-anchor }
 
@@ -246,7 +252,9 @@ Dateien rendert und MkDocs nicht.
 rendert einen `---`-Block als Tabelle, also träfe ein Leser `source_sha` vor dem
 Namen des Projekts. `--update` schreibt stattdessen
 `<!-- source_sha: 4f2b9c1ad07e -->` in die erste Zeile und liest ihn von dort
-zurück.
+zurück. Auf einer Seite der Site steht der Wert in Anführungszeichen, weil etwa
+ein Fingerabdruck von 281 nur aus Dezimalziffern besteht und YAML das als Zahl
+lesen würde.
 
 **Überschriften können keinen Anker pinnen.** `{ #permissions }` ist `attr_list`,
 eine Erweiterung von Python-Markdown; GitHub hat kein Gegenstück und druckt die
@@ -304,7 +312,8 @@ seinem Log -, aber es ist gut zu wissen, bevor es jemand als Fehler meldet.
    einer übersetzten Seite löst automatisch auf das übersetzte `mcp.md` auf; ein
    Link, der als `../mcp.pl.md` geschrieben ist, ist falsch und lässt den Build
    scheitern.
-4. `python3 scripts/check_docs_i18n.py --update`.
+4. `python3 scripts/check_docs_i18n.py --update <page>.<locale>.md` - die Datei,
+   die Sie gerade übersetzt haben, und keine andere.
 5. `make docs-build` - es läuft mit `--strict`, ein toter Link lässt es also
    scheitern.
 6. `python3 scripts/check_docs_paragraphs.py` - die Grenze von 115 Wörtern pro

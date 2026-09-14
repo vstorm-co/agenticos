@@ -1,5 +1,5 @@
 ---
-source_sha: 86db3a8931da
+source_sha: "86db3a8931da"
 ---
 
 # Twój pierwszy agent { #your-first-agent }

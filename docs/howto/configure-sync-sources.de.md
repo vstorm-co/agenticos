@@ -1,5 +1,5 @@
 ---
-source_sha: 482d37ce9407
+source_sha: "482d37ce9407"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }

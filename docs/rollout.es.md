@@ -1,5 +1,5 @@
 ---
-source_sha: 5eec786139c5
+source_sha: "5eec786139c5"
 ---
 
 # La puesta en marcha { #rolling-it-out }

@@ -1,5 +1,5 @@
 ---
-source_sha: 5f82d4791ee1
+source_sha: "5f82d4791ee1"
 ---
 
 # Środowiska { #environments }

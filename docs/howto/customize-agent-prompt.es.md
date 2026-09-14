@@ -1,5 +1,5 @@
 ---
-source_sha: d61a7f894dfb
+source_sha: "d61a7f894dfb"
 ---
 
 # Escribe las instrucciones de un agent { #write-an-agents-instructions }
