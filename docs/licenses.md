@@ -5,9 +5,10 @@
     Every component the two published images contain is listed with its licence
     and the evidence for it, every obligation those licences impose is either met
     in a way this page names or recorded as an open finding with an issue behind
-    it. It does not say "all licences are compliant": two findings are open at the
-    time of writing, and they are listed below rather than averaged away. A third,
-    the AGPL component, was reviewed and kept; that decision has a section of its own.
+    it. It does not say "all licences are compliant": one finding is open at the time
+    of writing, and it is listed below rather than averaged away. Two more were
+    reviewed and settled - the AGPL component, which has a section of its own, and
+    the Redis image, which was replaced.
 
 AgenticOS itself is Apache-2.0 (`LICENSE`, `NOTICE`). What a deployment actually
 runs is that code plus roughly five hundred third-party packages, two Debian-based
@@ -73,7 +74,7 @@ regenerates them in memory and fails when:
 - a decision names a component the lockfiles no longer resolve.
 
 An open finding that is tracked does not fail the check. The verdict line counts it:
-`LICENSES: REVIEWED - 518 components, 2 open finding(s)`.
+`LICENSES: REVIEWED - 518 components, 1 open finding(s)`.
 
 !!! warning "A scanner's unknown is a question, not an approval"
 
@@ -165,12 +166,16 @@ Nothing else in either image carries a copyleft that reaches beyond its own file
 Each has an issue; each will stay in this list, and first in the notices, until the
 issue closes and the policy entry moves to `accepted` or the component is gone.
 
-**`redis:7-alpine` is Redis 7.4, under RSALv2 or SSPLv1** -
-[#1603](https://github.com/vstorm-co/agenticos/issues/1603). Neither is an
-OSI-approved licence. RSALv2 permits running Redis inside your own application,
-which is what the stack does, and the image is pulled by the operator rather than
-redistributed here. The finding is that the default compose path starts a non-open
-component without saying so; Valkey (BSD-3-Clause) is the likely replacement.
+One finding was closed by replacing the component rather than by accepting it.
+`redis:7-alpine` resolves to Redis 7.4, and from 7.4.0 Redis is RSALv2 or SSPL-1.0
+rather than BSD-3-Clause - neither OSI-approved. Nothing was broken by it: the image
+is pulled by the operator rather than redistributed here, and RSALv2 permits running
+Redis inside your own application, which is what the stack does. The finding was that
+the default `docker compose up` started a non-open component without saying so.
+[#1603](https://github.com/vstorm-co/agenticos/issues/1603) swapped it for
+`valkey/valkey:8-alpine`, the Linux Foundation fork of Redis 7.2 under BSD-3-Clause.
+Valkey speaks the same protocol, so the service name, the port, the `redis://` URL
+scheme and every `REDIS_*` setting are unchanged.
 
 **The sandbox `workbench` runtime is built at the deployment** from
 `sandbox_runtimes.json`: Python, Node, LibreOffice, `poppler-utils` (GPL) and a list

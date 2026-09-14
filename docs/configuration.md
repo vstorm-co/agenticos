@@ -9,7 +9,7 @@ Settings are defined in `app/core/config.py` and accessed via the global
 ```python
 from app.core.config import settings
 
-print(settings.EMBEDDING_MODEL)
+print(settings.MAX_UPLOAD_SIZE_MB)
 print(settings.DEBUG)
 ```
 
@@ -158,6 +158,13 @@ Computed properties:
 - `DATABASE_URL_SYNC` -- sync connection string for Alembic
 
 ## Redis
+
+The compose files run **Valkey** (`valkey/valkey:8-alpine`), the BSD-3-Clause fork of
+Redis 7.2, rather than Redis itself, which has been RSALv2 or SSPL-1.0 since 7.4.0 -
+neither an open-source licence ([licences](licenses.md)). It speaks the same protocol
+on the same port, so the settings below, the `redis://` scheme and the `redis` service
+name are unchanged, and a deployment that points these at a managed Redis, Valkey or
+Elasticache instead works exactly as before.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -368,10 +375,16 @@ compose file here pins.
 
 ### Embeddings
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | The fallback embeddings credential, for collections that chose no vault key of their own — and the one a degraded choice falls back to. Not "every collection embeds on it": see [File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays) |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is built with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
+Nothing here. Every collection names the provider it embeds through, the model,
+and either the organization vault key that pays for it or - for the keyless
+`ollama` provider - a **local service**, a row under Knowledge → Integrations
+that says where the deployment's or the organization's Ollama answers. See
+[File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
+There used to be two variables. `EMBEDDING_MODEL` preselected a model for new
+collections and is gone: the form offers the models the chosen provider serves.
+`EMBEDDING_OLLAMA_BASE_URL` named one Ollama for the whole deployment and is a
+local service now, per organization or deployment-wide.
 
 ### Document parsing — configured per collection, not here
 
@@ -388,12 +401,14 @@ different answers on the same deployment. `PDF_PARSER`, `CHAT_PDF_PARSER`,
 `RAG_ENABLE_OCR`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` and
 `RAG_CHUNKING_STRATEGY` were removed; setting them now does nothing.
 
-What stays here is what a tenant must not choose:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LLAMAPARSE_API_KEY` | (empty) | Fallback LlamaParse key for collections that chose no vault key of their own |
-| `LITEPARSE_OCR_SERVER_URL` | (empty) | HTTP OCR server; an address on the deployment's own network |
+Two things that used to stay here are rows in the product now. A LlamaParse
+key is a vault entry the collection's ingestion configuration names
+(`llamaparse_secret_id`), and a collection on LlamaParse without one is refused
+at the form - `LLAMAPARSE_API_KEY` is gone. An OCR server LiteParse sends pages
+to is a local service of kind `ocr` under Knowledge → Integrations, chosen per
+collection (`ocr_endpoint_id`), registered by an organization operator or, for
+every organization, by the deployment's administrator - `LITEPARSE_OCR_SERVER_URL`
+is gone too. Neither was visible to the tenant whose documents it decided about.
 
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
 belongs to no collection, so there is no stored configuration to read.
@@ -1004,7 +1019,6 @@ stale and production's pipe ping goes unanswered.
 - [ ] `POSTGRES_PASSWORD` — a strong, unique password
 - [ ] `REDIS_PASSWORD` — a strong password
 - [ ] `CORS_ORIGINS` — only your actual frontend domain(s)
-- [ ] `OPENROUTER_API_KEY` — your production API key
 
 Email is deliberately **not** on this list: a deployment runs without it. But
 invitations, password resets and notifications all go silently unsent until

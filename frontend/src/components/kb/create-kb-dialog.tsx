@@ -58,6 +58,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [embeddingProvider, setEmbeddingProvider] = useState<string | null>(null);
   const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
+  const [embeddingEndpointId, setEmbeddingEndpointId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const { createKB } = useKnowledgeBases();
@@ -66,16 +67,17 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // model list and which vault keys can pay, so it is resolved before either -
   // and a model the chosen provider does not serve is not a model this
   // collection can be created with.
-  const provider = embeddingProvider ?? embeddingModels?.default_provider ?? "";
+  // No deployment default for either: the first provider the catalog lists is
+  // preselected so the model list has something to show, the first model that
+  // provider serves is preselected for the same reason, and the key or server
+  // beside them stays empty until somebody chooses one.
+  const provider = embeddingProvider ?? embeddingModels?.providers[0]?.provider ?? "";
   const providerEntry = embeddingModels?.providers.find((item) => item.provider === provider);
   const offered = providerEntry?.models ?? [];
-  const defaultModel =
-    offered.find((entry) => entry.model === embeddingModels?.default)?.model ??
-    offered[0]?.model ??
-    "";
+  const firstOffered = offered[0]?.model ?? "";
   const model = offered.some((entry) => entry.model === embeddingModel)
-    ? (embeddingModel ?? defaultModel)
-    : defaultModel;
+    ? (embeddingModel ?? firstOffered)
+    : firstOffered;
 
   // Nobody has chosen an ingestion configuration until it differs from what is
   // shown, and sending one they did not choose is not a harmless default: the
@@ -94,6 +96,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setEmbeddingModel(null);
     setEmbeddingProvider(null);
     setEmbeddingSecretId(null);
+    setEmbeddingEndpointId(null);
     setErrors({});
   };
 
@@ -110,11 +113,14 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       // The key is absent rather than undefined: "inherit the deployment's
       // defaults" is a thing the API is told by being told nothing.
       if (chosen) input.ingestion_config = ingestion;
-      if (model && model !== embeddingModels?.default) input.embedding_model = model;
-      if (provider && provider !== embeddingModels?.default_provider) {
-        input.embedding_provider = provider;
-      }
+      // The model, the provider and the key or server are always sent: the API
+      // has no deployment default for any of them, and a missing key comes back
+      // as a refusal on that field rather than as a collection that cannot
+      // index its first document.
+      if (model) input.embedding_model = model;
+      if (provider) input.embedding_provider = provider;
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
+      if (embeddingEndpointId) input.embedding_endpoint_id = embeddingEndpointId;
       const kb = await createKB(input);
       reset();
       onOpenChange(false);
@@ -131,7 +137,14 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "description", ...INGESTION_FORM_FIELDS],
+          fields: [
+            "name",
+            "description",
+            "embedding_provider",
+            "embedding_secret_id",
+            "embedding_endpoint_id",
+            ...INGESTION_FORM_FIELDS,
+          ],
         },
         tErrors,
       );
@@ -205,9 +218,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               <summary className="text-foreground flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
                 <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                 {t("embeddings")}
-                <span className="text-muted-foreground ml-auto text-xs">
-                  {model && model !== embeddingModels?.default ? model : t("deploymentDefault")}
-                </span>
+                {model && <span className="text-muted-foreground ml-auto text-xs">{model}</span>}
               </summary>
               <div className="space-y-4 border-t p-4">
                 <p className="text-muted-foreground text-xs">{t("frozenAtCreationCollection")}</p>
@@ -216,9 +227,9 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   // frozen at creation - the vector column is made at its width -
                   // so this is the one choice in the dialog nobody can revisit, and
                   // a failure that silently removes it is worth more than a
-                  // spinner. Either way the collection is created on the
-                  // deployment's default, which is what the message says rather
-                  // than leaving somebody to find out afterwards.
+                  // spinner. With no list there is no provider, model or key to
+                  // name, so the collection will be refused - which is what the
+                  // message says rather than leaving somebody to find out on submit.
                   modelsUnreadable ? (
                     <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
                   ) : (
@@ -230,10 +241,21 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       models={embeddingModels}
                       provider={provider}
                       secretId={embeddingSecretId}
+                      endpointId={embeddingEndpointId}
                       onProvider={setEmbeddingProvider}
                       onSecretId={setEmbeddingSecretId}
+                      onEndpointId={setEmbeddingEndpointId}
                       idPrefix="kb-new-embedding"
                     />
+                    {(errors.embedding_provider ??
+                      errors.embedding_secret_id ??
+                      errors.embedding_endpoint_id) !== undefined && (
+                      <p className="text-destructive text-xs">
+                        {errors.embedding_provider ??
+                          errors.embedding_secret_id ??
+                          errors.embedding_endpoint_id}
+                      </p>
+                    )}
                     <div className="space-y-1.5">
                       <Label htmlFor="kb-embedding-model">{t("model")}</Label>
                       {/*
@@ -258,13 +280,11 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                               // and typing a model id finds nothing.
                               textValue={entry.model}
                               // In the list rather than in the row: the trigger draws
-                              // whatever the row draws, and both of these are
-                              // comparisons against the other options.
+                              // whatever the row draws, and the width is a comparison
+                              // against the other options.
                               trailing={
                                 <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
-                                  {entry.model === embeddingModels.default
-                                    ? t("deploymentDefault")
-                                    : t("dimensions", { count: entry.dim })}
+                                  {t("dimensions", { count: entry.dim })}
                                 </span>
                               }
                             >
