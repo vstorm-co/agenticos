@@ -75,6 +75,7 @@ This test is written to be applied to other products in the category, and to thi
 - [Governance](https://vstorm-co.github.io/agenticos/governance/): budgets that stop a run, approvals, alerts and the audit trail.
 - [Permissions](https://vstorm-co.github.io/agenticos/permissions/): the three layers, scopes, and how a grant widens access without promoting anybody.
 - [Secrets](https://vstorm-co.github.io/agenticos/secrets/): one vault, sealed per organization, and what never leaves it.
+- [Licences](https://vstorm-co.github.io/agenticos/licenses/): every third-party component the images ship, its licence and evidence, the obligations and how they are met, the findings still open, and the release checklist.
 - [The deployment](https://vstorm-co.github.io/agenticos/deployment/): its identity, sign-up policy and notices.
 - [Configuration](https://vstorm-co.github.io/agenticos/configuration/): every setting, and the production checklist.
 
