@@ -70,11 +70,20 @@ separate detector. Some of them carry no `organization_id` at all —
 `deployment.settings_updated` and both impersonation actions pass none, since
 they are deployment-wide, and the column is nullable. See Decision 2.
 
-**Ingestion completes through two separate producers.** A connector sync
-completes in `services/sync_source.py`. An uploaded document completes
-through the worker flow, `worker/tasks/rag_tasks.py::ingest_document_flow`
-and its `_settle_document_row`. A trigger point wired to only one of them
-misses the other.
+**Ingestion completes through more than one worker-task path, but they share
+one service boundary.** An upload completes through
+`rag_tasks.py::ingest_document_flow` → `_run_ingestion`, which calls
+`RAGDocumentService.complete_ingestion`/`fail_ingestion` **directly** — not
+`_settle_document_row`, contrary to what an earlier draft of this plan
+claimed. A local-directory or connector-source sync instead goes through
+`_settle_document_row`, which calls the same two `RAGDocumentService`
+methods on a per-file basis. `services/sync_source.py` is a different
+layer — `SyncSourceService` manages sync *sources* (create/update/delete/
+trigger), not per-document completion. A trigger point wired to
+`_settle_document_row` alone — this plan's own earlier draft — misses every
+upload. The shared boundary both paths actually call through is
+`RAGDocumentService.complete_ingestion`/`fail_ingestion`, in
+`services/rag_document.py`. See Decision 1.
 
 **Permissions have three layers**, and only the first reaches across
 organizations. `users.is_app_admin` (`CurrentAppAdmin` in
@@ -137,15 +146,16 @@ means a developer adds a row when a new event ships, the same way
 per-organization routing UI is real scope the issue does not ask for and
 this plan does not add it.
 
-| Event | Producer | Occurrence id (Decision 3's dedup key) | Default audience | Content gated on | Mandatory |
+| Event | Producer | Occurrence id (Decision 3's dedup key) | Default audience | Content gated on (Decision 7) | Mandatory |
 |---|---|---|---|---|---|
 | `budget_exceeded` | `AgentRunnerService.finish` | the run id | `AlertSpec` (unchanged) | — | no |
-| `approval_requested` | `AgentRunnerService.finish` | the approval id | `AlertSpec` (unchanged) | `approvals:decide`, re-checked at read/send time (Decision 7) | no |
+| `approval_requested` | `AgentRunnerService.finish` | the approval id | `AlertSpec` (unchanged) | current `approvals:decide` | no |
 | `run_completed` | `AgentRunnerService.finish`, unattended surfaces only (not `WEB`) — the gap `docs/governance.md`'s Alerts section already names | the run id | `initiator` | — | no |
 | `run_failed` | same as above | the run id | `initiator` | — | no |
-| `ingestion_completed` / `ingestion_failed` | `services/sync_source.py` **and** `rag_tasks.py::_settle_document_row` | the sync attempt id / the document id | whoever started the sync or upload | `collections:view` on the target collection | no |
-| `security_event` | the `record_audit` call sites in section 0 | the `AppAdminAuditLog` id | `org_admins` when the entry carries an `organization_id` (`organization_secret.py`, `sandbox_connection.py`), otherwise deployment app admins (`impersonation.py`) | — | yes |
-| `configuration_changed` | same, for `deployment.settings_updated` | the `AppAdminAuditLog` id | deployment app admins (no organization — see Decision 2) | — | yes |
+| `ingestion_completed` / `ingestion_failed` | `RAGDocumentService.complete_ingestion`/`fail_ingestion` — the boundary both `rag_tasks.py::_run_ingestion` (uploads) and `_settle_document_row` (syncs) call through | `(document id, ingestion attempt)` — see Decision 2 | whoever started the sync or upload | current `collections:view` on the target collection | no |
+| `usage_report` / `agent_usage_report` | `worker/tasks/report_tasks.py` | `(organization id \| agent id, period, window start)` | `AlertSpec`/`_administrators` (unchanged) | — | no |
+| `security_event` | the `record_audit` call sites in section 0 | the `AppAdminAuditLog` id | `org_admins` when the entry carries an `organization_id` (`organization_secret.py`, `sandbox_connection.py`), otherwise deployment app admins (`impersonation.py`) | current owner/admin role in the row's organization, or current `is_app_admin` for an app-admin-audience row | yes |
+| `configuration_changed` | same, for `deployment.settings_updated` | the `AppAdminAuditLog` id | deployment app admins (no organization — see Decision 2) | current `is_app_admin` | yes |
 | `announcement` | the composer (Decision 5) | the announcement id | explicit, chosen by the sender | — | no |
 
 `run_completed` is deliberately scoped to the surfaces nobody is watching —
@@ -158,6 +168,30 @@ mandatory as an extension of the same rule the deployment already applies to
 the impersonation notice and to the organization's own budget cap
 (`docs/governance.md`, "the organization's cap ignores the spec entirely") —
 see Decision 4.
+
+**The occurrence id for ingestion is the document id plus the attempt, not
+the document id alone.** `RAGDocumentService.retry_ingestion(doc_id)` parses
+the same document again under the same id — it is a resubmission, not a new
+document — so a second failure would carry the same
+`(recipient_user_id, event_type, doc_id)` as the first and the unique
+constraint would silently drop the new notification, exactly when a person
+most wants to hear that the retry failed too. `RAGDocument` gains a small
+`ingestion_attempt` counter, bumped by `retry_ingestion`, and the occurrence
+id is `(doc_id, ingestion_attempt)` — stable across a genuine redelivery of
+the *same* attempt's outcome (Prefect retrying the flow itself), distinct
+across two different attempts a person asked for separately.
+
+**"Content gated on" is re-checked at both read and send time, for every
+row that has one — not only `approval_requested`.** Decision 7 states the
+general rule. The table above is what a developer adding an event consults
+to fill it in. A row with no gate (`budget_exceeded`, `run_completed`,
+`run_failed`, the report events, `announcement`) needs no recheck beyond the
+tenant/membership check every row gets.
+
+**The two report events carry no gate and no fresh-render step, because
+their content is a window aggregate, not a permission-dependent fact.**
+Decision 3 explains why re-deriving content at send time is right for
+`approval_requested` and wrong for these two.
 
 `AlertSpec`/`NotificationSpec` stay exactly as they are, unmodified, still
 gating `budget_exceeded` and `approval_requested`'s audience and their email.
@@ -177,18 +211,22 @@ organizations' security teams reading the same YAML field name.
 New table `notifications`: `id`, `organization_id` (**nullable** — see
 below), `recipient_user_id` (FK `users.id`, `ON DELETE CASCADE`: a hard-deleted
 user's inbox goes with them, the same as their other owned rows),
-`event_type` (`NotificationEventType`), `occurrence_id` (the id from
-Decision 1's table — an approval, a run, an audit-log row, a document),
-`summary` (plain text, pre-rendered at write time — never a raw comment or
-secret value), `context_url` (nullable, built the way
+`event_type` (`NotificationEventType`), `occurrence_id` (a string — the id
+from Decision 1's table, composite ids joined with `:`, e.g.
+`f"{doc_id}:{attempt}"` for ingestion or `f"{subject_id}:{period}:{window_start}"`
+for a report), `summary` (plain text, pre-rendered at write time — never a
+raw comment or secret value), `context_url` (nullable, built the way
 `NotificationService._link` already builds one, with `?org=<id>` so the
-reader lands in the right tenant), `read_at` (nullable), `created_at`. A
-unique constraint on `(recipient_user_id, event_type, occurrence_id)` is
-Decision 3's dedup guarantee, enforced by Postgres inside the same
-transaction rather than a separate cache. Two indexes carry the two read
-patterns: `(recipient_user_id, created_at DESC)` for the paginated inbox, and
-a partial index `(recipient_user_id) WHERE read_at IS NULL` for the unread
-count.
+reader lands in the right tenant), `in_app_visible` (boolean, the recipient's
+in-app preference for this `(event_type, channel=IN_APP)` at write time —
+see Decision 4), `read_at` (nullable), `created_at`. A unique constraint on
+`(recipient_user_id, event_type, occurrence_id)` is Decision 3's dedup
+guarantee, enforced by Postgres inside the same transaction rather than a
+separate cache. Two indexes carry the two read patterns:
+`(recipient_user_id, created_at DESC) WHERE in_app_visible` for the
+paginated inbox, and a partial index
+`(recipient_user_id) WHERE in_app_visible AND read_at IS NULL` for the
+unread count.
 
 `organization_id` is nullable because not every event has one.
 `configuration_changed` fires from `deployment.settings_updated`, which
@@ -212,6 +250,21 @@ that already knows what is and is not safe to show. An announcement's body
 is not squeezed into this column: Decision 5 gives it its own table, and
 `notifications.announcement_id` (nullable FK) is how one send's rows point
 back to it.
+
+**The row always exists. Whether it is shown is a separate, stored bit.**
+Decision 4 lets a person turn in-app off for an event type while leaving
+email on — but `notification_deliveries` (Decision 3) is a child of
+`notifications`, so an email-only preference cannot mean "write no
+`notifications` row" without leaving the email delivery with nothing to
+attach to. The write helper always creates the `notifications` row (it is
+also the dedup anchor, regardless of which channels end up active) and
+computes `in_app_visible` once, from the same preference lookup Decision 4
+already does for the in-app channel. The inbox listing, the unread count and
+mark-all-read all filter on `in_app_visible`, so an email-only row exists,
+dedupes and delivers exactly like any other, and is simply never returned by
+any of the three read paths. `notification_deliveries` for the `EMAIL`
+channel is unaffected by this column — it is created or not from the
+*email* preference alone, exactly as already designed.
 
 This is a new table, not a new use of `AppAdminAuditLog`. The audit log is
 immutable evidence with no per-reader state. A notification is read, marked
@@ -238,11 +291,23 @@ the guard exists to prevent, just one layer further out than the guard
 reaches. The write helper therefore runs its insert inside a **savepoint**
 (`async with db.begin_nested()`) when called from a context that cannot
 afford the outer transaction poisoned — `finish` is exactly such a context.
-A failure inside the savepoint rolls back to it, is logged, and the caller's
-transaction proceeds and commits normally. A notification that could not be
-recorded is a real gap (surfaced through the same delivery-visibility
-mechanism as a `skipped`/permanently-`failed` row below), never a failed run.
-Separately, the dedup insert itself uses `INSERT ... ON CONFLICT
+A failure inside the savepoint rolls back to it, and the caller's
+transaction proceeds and commits normally. **The savepoint's reach is
+narrower than "any failure is now safe", and this plan states that plainly
+rather than implying otherwise**: a `ROLLBACK TO SAVEPOINT` needs the
+underlying connection and outer transaction still alive to roll back *to* —
+a recoverable statement error (the constraint case, a data error) is exactly
+what it isolates. A lost connection or a dead transaction takes the whole
+request down regardless, savepoint or not, the same as it would for any
+other write in `finish`. And because the savepoint's whole point is that
+nothing gets persisted on this path, **the failure cannot be surfaced
+through `notification_deliveries`** — there is no row, in either table, for
+that query to return. It is instead a structured log line
+(`logger.error("notification_write_failed", extra={"event_type": ...,
+"occurrence_id": ...})`) at the point of rollback — an observable path
+distinct from, not folded into, the failed-deliveries view Decision 3
+defines for rows that *did* get written and then failed to send. Separately,
+the dedup insert itself uses `INSERT ... ON CONFLICT
 (recipient_user_id, event_type, occurrence_id) DO NOTHING` rather than a
 plain insert relying on the unique constraint to raise — the duplicate case
 this plan expects to happen routinely (a retried budget check, a redelivered
@@ -271,7 +336,7 @@ due to receive the notification on, created in the same transaction as the
 `notifications` row.
 
 **Every email this plan concerns itself with goes through this table —
-including the three existing agent-lifecycle emails.** Section 0 already
+including the four existing agent-lifecycle emails.** Section 0 already
 shows why "also write to the new tables, alongside the existing send" is the
 wrong shape: `budget_exceeded` and `approval_requested` fire `_send`/`spawn`
 *before* `finish`'s terminal commit, so a `notification_deliveries` row
@@ -289,28 +354,63 @@ it is not preference-gated and has no inbox row to anchor a channel
 preference to, and folding it in is not needed for anything this plan asks
 for.
 
-**Sending is a claim, not a poll.** The sweep flow,
+**Sending is a claim, not a poll — and the claim itself, not the outcome, is
+what consumes the retry bound.** The sweep flow,
 `notification_delivery_sweep`
 (`backend/app/worker/tasks/notification_tasks.py`), takes rows the way
 `repositories/agent_trigger.py::claim_due` already does: `SELECT ... WHERE
 status IN ('pending', 'failed') AND attempts < max AND (claimed_until IS
-NULL OR claimed_until <= now()) ... FOR UPDATE SKIP LOCKED`, stamping
-`claimed_at`/`claimed_until` before releasing the row back to `pending` (on
-failure, with `attempts` incremented) or `sent`. Two concurrent sweeps, or a
-sweep overlapping a crashed one, take disjoint rows the same way two
-concurrent trigger heartbeats already do — this is the concurrency and
-crash-recovery contract the review asked for, and it is an existing pattern
-in this codebase, not new infrastructure.
+NULL OR claimed_until <= now()) ... FOR UPDATE SKIP LOCKED`. The claiming
+update stamps `claimed_at`/`claimed_until` **and increments `attempts` right
+there**, not later when an outcome is recorded — the original shape of this
+decision incremented on failure only, which meant a worker that sent the
+email and then died before writing `sent` left the row looking exactly like
+a fresh `pending` row once its lease expired, retryable forever without ever
+tripping the bound. Incrementing at claim time means every claim — sent,
+failed, or the worker never came back — counts toward the same limit, so the
+row always reaches a terminal state.
+
+**Settling a row requires still holding its claim.** The update that marks a
+row `sent`/`failed`/`skipped` is conditioned on
+`WHERE id = :id AND claimed_at = :claimed_at` — the exact claim token this
+worker was issued. A worker whose lease expired and was reclaimed by another
+sweep run therefore cannot overwrite the second worker's outcome with its
+own late one. Its `UPDATE` matches zero rows and it discards the result.
+`claimed_until` is a fixed lease (proposed: two minutes) set well past
+`EmailService.send`'s own bounded timeout, so a hung provider call cannot
+hold a claim past its lease with nothing to show for it.
+
+**Provider acceptance followed by a crash is not solved by any of the
+above, and this plan says so rather than implying otherwise.** If the
+provider accepts the message and the worker dies before writing `sent`, the
+lease eventually expires and a second worker resends — a genuine duplicate
+delivery, not a bug in the claim mechanism, a gap in what a claim can
+guarantee without the provider's own help. Where the configured
+`EmailProvider` supports a client-supplied idempotency key, the delivery
+row's id is passed as one, and a resend the provider recognizes as already
+accepted is suppressed on its side. `SmtpEmailProvider`/`LogProvider`
+(`services/email/providers/`) do not support one today, and for a deployment
+on either, this plan accepts at-least-once, not exactly-once, delivery as a
+known, bounded limitation — the same trade `trigger_dedupe.py`'s own
+docstring already argues for: a rare duplicate costs less than a routinely
+dropped notification.
+
+Two concurrent sweeps, or a sweep overlapping a crashed one, take disjoint
+rows the same way two concurrent trigger heartbeats already do — this is the
+concurrency and crash-recovery contract the review asked for, and it is an
+existing pattern in this codebase, not new infrastructure.
 
 **A row's outcome is `SendResult.accepted`, not the absence of an
 exception.** `EmailService.send` already returns `SendResult(accepted=False,
 error=...)` on a provider rejection without raising —
 `NotificationService._deliver` discards that result today (section 0). The
 sweep inspects it. `accepted=True` marks the row `sent`. `accepted=False` or
-a raised exception marks it `failed` and bumps `attempts`, exhausting into a
-terminal `failed` past the bound. A recipient who has lost access since the
-row was queued (Decision 7) marks it `skipped` instead — a fact worth
-telling an app admin apart from a provider failure, not silently absent.
+a raised exception marks it `failed` — `attempts` is already incremented,
+from the claim above, so a row that keeps failing still exhausts into a
+terminal `failed` at the same bound a row that keeps disappearing without a
+recorded outcome does. A recipient who has lost access since the row was
+queued (Decision 7) marks it `skipped` instead — a fact worth telling an
+app admin apart from a provider failure, not silently absent.
 
 **A terminally `failed` row is visible, not only queryable.** Recording
 `status`/`last_error`/`attempts` on the row is not, by itself, the
@@ -321,26 +421,39 @@ plan set out to fix. A new `CurrentAppAdmin`-gated route,
 rows deployment-wide (event type, recipient, attempts, `last_error`,
 `notification_id` to trace back to its event) — one small, generic view
 rather than a bespoke one per event type, and app-admin-gated because a
-permanent mail failure is an operational concern, not a tenant one. This is
-the same visibility mechanism the savepoint failure above surfaces through,
-so one route covers both "the send failed" and "the write itself could not
-be recorded."
+permanent mail failure is an operational concern, not a tenant one. This
+covers a row that was written and then failed to send. It does not cover
+Decision 2's savepoint case — a write that never happened has no row for
+this view to return, which is why that case gets its own structured log
+line rather than a claim on covering it here too.
 
-**Rendering is dispatched by `event_type` at send time, not frozen at write
-time.** The delivery row names the event and the notification it belongs
-to. It does not carry an `EmailKey` or a rendering context. A small
-per-event-type renderer — one function per row of Decision 1's table —
-re-derives what to send when the sweep claims the row: for
+**Rendering re-derives at send time only for an event type with a
+Decision-1 content gate — everything else replays what was written.** The
+delivery row names the event and the notification it belongs to. It does
+not itself carry an `EmailKey` or a rendering context. For
+`approval_requested`, `ingestion_completed`/`ingestion_failed`,
+`security_event` and `configuration_changed` — the rows in Decision 1's
+table with a non-empty "Content gated on" — a small per-event-type renderer
+recomputes the gate fresh when the sweep claims the row: for
 `approval_requested` this recomputes the recipient's current
 `approvals:decide` status and picks `APPROVAL_REQUESTED` or
 `APPROVAL_PENDING` accordingly, exactly the split
 `NotificationService.approval_requested` already makes, but freshly, so a
 role change between queuing and sending is reflected rather than baked in
-(Decision 7). `budget_exceeded` and `agent_usage_report` keep their existing
-`EmailKey`s and context shape unchanged. Every other event type in Decision
-1's table renders through one shared `EmailKey.NOTIFICATION` template off the
-notification's own `summary`/`context_url`, since a bespoke template per new
-event type is not scope this plan takes on.
+(Decision 7). `budget_exceeded`, `run_completed`/`run_failed`,
+`usage_report`/`agent_usage_report` and `announcement` have no gate to
+re-derive and render from what `summary`/`context_url` already hold —
+frozen at write time, exactly as Decision 2 states. This matters beyond
+convenience for the two report events specifically: their content is a
+window aggregate ("this week's spend"), computed once when the report is
+generated, and *recomputing* it at send time — if a delayed retry pushed the
+send past the original window — would silently report a different period
+than the one the recipient was told they were reading. `budget_exceeded`
+and `agent_usage_report` additionally keep their existing `EmailKey`s and
+context shape unchanged. Every other ungated event type renders through one
+shared `EmailKey.NOTIFICATION` template off the frozen `summary`/
+`context_url`, since a bespoke template per new event type is not scope
+this plan takes on.
 
 **Deduplication is the database, not Redis.** The
 `(recipient_user_id, event_type, occurrence_id)` unique constraint from
@@ -486,20 +599,41 @@ covered the first:
   recipient whose app-admin status is revoked before the sweep claims their
   row is `skipped` on exactly the same basis.
 - **A role change, short of removal, can change what a still-current member
-  is allowed to see about an event they were correctly addressed on.** This
-  is not new to this plan — `NotificationService.approval_requested` already
-  recomputes who currently holds `approvals:decide` and sends one of two
-  emails depending on the answer. Decision 1's table names, per event type,
-  which permission (if any) content is gated on. Decision 3 re-derives it at
-  send time for email. The inbox does the same at read time: serializing a
-  `notification` row for `approval_requested` checks the reader's *current*
-  `approvals:decide` before including the queue link, falling back to the
-  no-link variant exactly as the email does, rather than trusting whatever
-  was true when the row was written.
+  is allowed to see about an event they were correctly addressed on — and
+  this applies to every gated event type in Decision 1's table, not only
+  `approval_requested`.** The first draft of this decision worked the
+  approval case as its only example and left the others (`security_event`'s
+  `org_admins` audience, `configuration_changed`'s app admins,
+  `ingestion_*`'s `collections:view`) implicitly ungated, which is exactly
+  what let a demoted organization admin go on reading security notices and
+  a revoked app admin go on reading global ones. The rule is table-driven,
+  not case-by-case: **`GET /notifications` re-checks the reader's *current*
+  standing on whatever Decision 1 names in "Content gated on" for that row's
+  `event_type`, before the row is returned.** Two shapes, not one:
+  - **Degrade, for `approval_requested`.** `NotificationService
+    .approval_requested` already recomputes who currently holds
+    `approvals:decide` and sends one of two emails depending on the answer —
+    this plan extends that, not invents it. A reader who still holds it sees
+    the queue link. A reader who no longer does sees the same no-link
+    variant the email already sends a non-decider, because there is
+    something true and useful to say either way ("a call is parked" is
+    informative regardless of who may act on it).
+  - **Exclude, for `security_event`, `configuration_changed` and
+    `ingestion_*`.** There is no equivalent partial truth for "you are no
+    longer an admin" or "you can no longer see this collection" — the row is
+    simply not returned to a reader who does not currently hold the named
+    gate, the same way a cross-tenant row is not returned. A demoted
+    organization admin stops seeing that organization's `security_event`
+    rows. A revoked app admin stops seeing `configuration_changed` rows and
+    the `org_admins`-less half of `security_event`, even for rows addressed
+    to them while they still held the status. This is the read-time half of
+    what the first bullet above already does at send time for the same two
+    event types.
 
 A notification already written is never rewritten by either check — it
 recorded a true fact about who was addressed when the event fired, and a
-later role change changes what is *rendered* from it, not the row itself.
+later role or app-admin-status change changes what is *rendered* or
+*returned* from it, not the row itself.
 
 ## Decision 8 — retention, ahead of #1420
 
@@ -524,14 +658,17 @@ retention has cleared the individual deliveries.
 ## Work breakdown
 
 1. **Schema** — `notifications` (nullable `organization_id`, `occurrence_id`,
-   `announcement_id`, the unique constraint and the two indexes from
-   Decision 2), `notification_deliveries` (`claimed_at`/`claimed_until`,
-   `status` including `skipped`), `notification_preferences`,
-   `announcements`, migration (next number after `0077`). Tests: cross-tenant
-   read refused, a recipient reads only their own rows, a null-organization
-   row is visible regardless of the caller's active organization, the unique
-   constraint rejects a duplicate `(recipient_user_id, event_type,
-   occurrence_id)` insert.
+   `in_app_visible`, `announcement_id`, the unique constraint and the two
+   indexes from Decision 2), `notification_deliveries` (`claimed_at`/
+   `claimed_until`, `status` including `skipped`), `notification_preferences`,
+   `announcements`, `rag_documents.ingestion_attempt` (new column, an
+   integer counter `retry_ingestion` bumps — Decision 1), migration (next
+   number after `0077`). Tests: cross-tenant read refused, a recipient reads
+   only their own rows, a null-organization row is visible regardless of the
+   caller's active organization, the unique constraint rejects a duplicate
+   `(recipient_user_id, event_type, occurrence_id)` insert, a second failed
+   `retry_ingestion` on the same document produces a distinct
+   `occurrence_id` from the first.
 2. **Identity-first resolution and the write path** — `NotificationEventType`,
    `NotificationChannel`, Decision 1's code-defined event table,
    `list_member_ids_by_role`/`list_app_admin_ids` (new, `select(User.id)`,
@@ -539,31 +676,46 @@ retention has cleared the individual deliveries.
    recipient ids into `notifications`/`notification_deliveries` rows inside
    the caller's transaction — `INSERT ... ON CONFLICT DO NOTHING` on the
    dedup constraint, wrapped in `db.begin_nested()` when called from a
-   context that cannot afford its own transaction poisoned (Decision 2) —
-   consulting Decision 4's one-authoritative-lookup preference rule per
-   channel and skipping the write entirely for a mandatory event type.
-   Tests: one event produces one row per resolved recipient, a duplicated
-   trigger produces one row via the unique constraint rather than two (and
-   raises nothing), an in-app row is written even when the recipient has
-   emailed off, a mandatory event type's row is written regardless of any
-   preference, and — the regression Decision 2's savepoint fix targets — a
+   context that cannot afford its own transaction poisoned (Decision 2),
+   computing `in_app_visible` and consulting Decision 4's
+   one-authoritative-lookup preference rule per channel, and skipping the
+   **preference lookup** entirely for a mandatory event type (both channels
+   always on — the row is still written. Nothing about "mandatory" ever
+   means "unwritten"). Tests: one event produces one row per resolved
+   recipient, a duplicated trigger produces one row via the unique
+   constraint rather than two (and raises nothing), an in-app row is written
+   even when the recipient has emailed off, a mandatory event type's row is
+   written regardless of any preference, all four `(in_app, email)`
+   preference combinations produce the schema-level state Decision 2/item 6
+   describe, and — the regression Decision 2's savepoint fix targets — a
    forced write failure inside the helper does not roll back the caller's
-   own transaction.
-3. **Migrate the three existing agent-lifecycle emails onto this path** —
-   `budget_exceeded`, `approval_requested` and `agent_usage_report` stop
-   calling `_send`/`spawn` directly and instead end in a
+   own transaction, instead producing the structured log line Decision 2
+   specifies.
+3. **Migrate the four existing agent-lifecycle emails onto this path** —
+   `budget_exceeded`, `approval_requested`, `agent_usage_report` and
+   `usage_report` stop calling `_send`/`spawn` directly and instead end in a
    `notifications`/`notification_deliveries` write, same trigger point, same
-   `AlertSpec`-resolved audience. Tests: no duplicate email is sent for one
-   event (the regression this review caught), the existing `EmailKey`s and
-   template context are unchanged, and the approval split is still made —
-   now at send time (item 4) rather than at write time.
+   `AlertSpec`/`_administrators`-resolved audience, with the report events'
+   occurrence id carrying `(subject id, period, window start)` (Decision 1).
+   Tests: no duplicate email is sent for one event (the regression this
+   review caught), the existing `EmailKey`s and context shape are unchanged,
+   the approval split is still made — now at send time (item 4) rather than
+   at write time — and a report resent after a delay renders the same
+   numbers it was generated with, not the window at send time.
 4. **Delivery sweep and failure visibility** — `notification_delivery_sweep`
    flow, modeled on `repositories/agent_trigger.py::claim_due` (`FOR UPDATE
-   SKIP LOCKED` plus a lease), the per-event-type render dispatch from
-   Decision 3, `SendResult.accepted` deciding `sent` vs `failed`, and the
-   `CurrentAppAdmin`-gated `GET /admin/notifications/deliveries?status=failed`
-   view. Tests: two concurrent sweep runs never both send the same row, a
-   crashed claim's lease expires and the row is retried, a failed send
+   SKIP LOCKED`, incrementing `attempts` in the same claiming update rather
+   than on outcome), the settle step's ownership check
+   (`WHERE id = :id AND claimed_at = :claimed_at`), the per-event-type
+   render dispatch from Decision 3 (re-deriving only for a gated event
+   type), `SendResult.accepted` deciding `sent` vs `failed`, a provider
+   idempotency key passed where the configured `EmailProvider` supports one,
+   and the `CurrentAppAdmin`-gated
+   `GET /admin/notifications/deliveries?status=failed` view. Tests: two
+   concurrent sweep runs never both send the same row, a worker that claims
+   a row and never returns still exhausts the retry bound (the regression
+   this review's lease finding targets), a settle attempt against an
+   already-reclaimed row's stale `claimed_at` updates nothing, a failed send
    retries up to the bound and then stops, a recipient who lost access
    since the row was queued is marked `skipped` and not sent, sending never
    raises into the triggering request, an organization admin is refused the
@@ -571,21 +723,28 @@ retention has cleared the individual deliveries.
    its `last_error`.
 5. **New trigger points** — `run_completed`/`run_failed` for unattended
    surfaces only (excluding `WEB`), ingestion completion/failure wired at
-   **both** `services/sync_source.py` and
-   `worker/tasks/rag_tasks.py::_settle_document_row`, and
-   `security_event`/`configuration_changed` wired at the existing
-   `record_audit` call sites named in section 0. Tests: each trigger point
-   produces the expected audience, a `WEB` run never produces a
-   `run_completed` row, an ingestion failure for one organization never
-   reaches another, and an upload's ingestion failure is covered alongside a
-   sync's.
+   `RAGDocumentService.complete_ingestion`/`fail_ingestion` — the shared
+   boundary both the upload path (`rag_tasks.py::_run_ingestion`) and the
+   sync paths (`_settle_document_row`) call through, per the correction in
+   section 0 — and `security_event`/`configuration_changed` wired at the
+   existing `record_audit` call sites named in section 0. Tests: each
+   trigger point produces the expected audience, a `WEB` run never produces
+   a `run_completed` row, an ingestion failure for one organization never
+   reaches another, an upload's ingestion failure is covered alongside a
+   sync's (through the one hook, not two), and a second failure on a retried
+   document produces a second notification rather than being suppressed by
+   the first's `occurrence_id`.
 6. **Preferences API and page** — extend
    `frontend/.../settings/notifications/page.tsx` with the new event
    types and channel toggles for the non-legacy `(event_type, channel)`
    pairs, and `GET`/`PATCH` on `notification_preferences`. Tests: turning
    email off for one event type leaves in-app untouched, an unset preference
    defaults to on, a mandatory event type's toggle is absent or disabled in
-   the UI and refused if called directly.
+   the UI and refused if called directly, and the inbox listing, unread
+   count and mark-all-read all agree on `in_app_visible` across the four
+   `(in-app on/off, email on/off)` combinations — an email-only row never
+   appears in any of the three, an in-app-only row appears in all three with
+   no delivery row to show for it.
 7. **Announcement composer** — the `CurrentAppAdmin`-gated route,
    `announcements` row, per-recipient `notifications` fan-out, audit entry.
    Tests: an organization admin is refused, an app admin's send reaches
@@ -653,7 +812,7 @@ retention has cleared the individual deliveries.
 
 ## Resolved in review
 
-Two automated review passes (Codex) against this plan. Outcomes below.
+Three automated review passes (Codex) against this plan. Outcomes below.
 `Resolved in review` still applies to a human reviewer's own decisions on
 top of these.
 
@@ -685,3 +844,46 @@ delivery tasks) is already gone now that delivery is sweep-only, and the
 remaining half (a bulk insert before the route returns) is judged low-risk
 at the scale this plan has evidence for. Revisit if a real deployment's
 organization count says otherwise.
+
+**Fixed, third pass** (this commit): two P1s and four P2s, verified against
+`feat/1598-notification-center` at `ce3e809b` before fixing. **Read-time
+authorization was incomplete** — Decision 7's re-check only worked the
+`approval_requested` case. A demoted organization admin or a revoked app
+admin could still read previously delivered `security_event`/
+`configuration_changed` rows. Decision 1's table now names a content gate
+for every event that needs one, and Decision 7 states the general,
+table-driven rule with its two shapes (degrade for approvals, exclude for
+admin-only content). **The claimed-delivery guarantee had two real gaps** —
+`attempts` incremented on a recorded outcome, not on the claim itself, so a
+worker that died between sending and recording could retry forever without
+exhausting the bound, and nothing stopped a reclaimed row's original,
+late-returning worker from overwriting a second worker's outcome. Decision
+3 now increments `attempts` at claim time and conditions the settling
+`UPDATE` on still holding the claim, and states plainly that provider
+acceptance followed by a crash is a known at-least-once limitation absent a
+provider-side idempotency key. **The ingestion producer this plan named was
+wrong** — uploads call `RAGDocumentService.complete_ingestion`/
+`fail_ingestion` directly, not `_settle_document_row`, which only sync paths
+call. Both sections 0 and 1 and work item 5 now name the shared service
+boundary instead. **The occurrence id for ingestion collided across
+retries** — `retry_ingestion` reuses the document id, so a second failure
+shared its predecessor's dedup key and was silently suppressed.
+`RAGDocument` gains an `ingestion_attempt` counter, folded into the
+occurrence id. **The two report events had no catalog entry**, despite
+Decision 3 already migrating them, and re-deriving their content at send
+time (right for a permission-gated event) would have silently changed what
+window a delayed report described. Decision 1 now catalogs them with a
+period-scoped occurrence id, and the render-dispatch rule in Decision 3 is
+scoped to gated events only. **Email-only preferences had no schema
+representation** — `notification_deliveries` is a child of `notifications`,
+so an in-app-off, email-on combination needed a row that would also,
+incidentally, show up in the inbox. `notifications.in_app_visible` closes
+that, checked by listing, unread count and mark-all-read alike. **The
+failed-deliveries view could not show a rolled-back write**, and the text
+claiming otherwise is now corrected — a savepoint rollback leaves no row in
+either table, so it gets a structured log line instead, and the savepoint's
+own reach is narrowed to recoverable statement errors, not a lost
+connection. **One direct contradiction** — work item 2 said "skip the
+write" for a mandatory event while its own test required the row to exist.
+Corrected to "skip the preference lookup", which is what Decision 4 always
+meant.
