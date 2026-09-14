@@ -1,5 +1,5 @@
 ---
-source_sha: "5740161792de"
+source_sha: "c11b215f6ac5"
 ---
 
 # Governance { #governance }
@@ -1343,6 +1343,34 @@ aterrizar sin auditar una mutación privilegiada.
 
 `audit:read` protege su lectura. Que un app admin se salte las reglas es exactamente
 lo que el rastro existe para exigir cuentas.
+
+El rastro también se mantiene honesto consigo mismo. Cada entrada se suma a una
+cadena de hashes por organización — lleva un hash sobre su propio contenido con el
+hash de la entrada anterior entretejido — de modo que editar, reordenar o insertar
+una entrada, o borrar una del medio, hace divergir todos los hashes posteriores.
+
+`agenticos cmd audit-verify` recorre cada cadena, recalcula los hashes y nombra la
+primera entrada que ya no coincide; sin argumento comprueba todas las cadenas,
+incluida la de todo el deployment, que guarda acciones sin organización — un cambio
+en los ajustes del deployment, una suplantación, la gestión de usuarios del app
+admin — y termina con un código distinto de cero si alguna cadena falla. Esto es
+**detección, no prevención** — un operador con la base de datos aún puede reescribir
+una fila y recalcular todos los hashes posteriores — así que una ejecución limpia es
+evidencia de que nadie manipuló sin reforjar también la cadena, no prueba de que las
+filas sean inmutables.
+
+Hay dos borrados que la cadena no puede detectar por sí sola, porque las filas que
+quedan siguen siendo internamente consistentes: recortar las entradas más nuevas de
+una cadena y borrar por completo la cadena de una organización — esto último
+simplemente la quita del conjunto que `audit-verify` recorre. Detectar cualquiera de
+los dos requiere un punto de control terminal por organización, guardado donde el
+operador de la base de datos no alcance; ese anclaje es un trabajo posterior
+planificado y, hasta que exista, una ejecución limpia no certifica que no se haya
+truncado nada.
+
+Dos escrituras auditadas para una misma organización no pueden bifurcar la cadena:
+cada una añade bajo un bloqueo por organización, así que se serializan en una sola
+línea en vez de extender ambas la misma cabeza.
 
 Una acción **suplantada** nombra a ambos. Cuando un app admin actúa como otra cuenta,
 el token de acceso lleva al administrador como claim `act`; cada entrada que registre
