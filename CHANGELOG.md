@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.436] - 2026-09-15
+
+### Changed
+
+- **Logfire 5 and Pydantic AI 2.43.** The agent-frameworks group, with the
+  third-party notices regenerated for the three versions that moved.
+- **`pydantic-ai-skills` is held below 2.0 until #1658.** That release makes a
+  clean break with no compatibility shims and the backend does not import against
+  it: `SkillsToolset` is gone, replaced by `SkillsCapability`, and
+  `parse_skill_md` moved out of the package root, so test collection fails on the
+  second and every startup would abort on the first. It is not a rename - 2.0
+  turns each skill into a deferred capability reached through `load_capability`,
+  replacing the three tools this platform publishes, documents and lets a spec
+  grant, so migrating begins with deciding what a published spec granting a tool
+  that no longer exists does. The constraint carries that reason in the manifest.
+
 ## [0.0.435] - 2026-09-15
 
 ### Added
