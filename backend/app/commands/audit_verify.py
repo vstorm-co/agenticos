@@ -10,7 +10,11 @@ It exits non-zero when any chain fails, so it can run in a scheduled job or a
 provisioning check and fail loudly rather than in a report nobody reads. What it
 proves is detection, not prevention: an operator with the database can rewrite a
 row and recompute every hash after it, so a clean run means no tampering by anyone
-who did not also re-forge the chain - not that the database is immutable.
+who did not also re-forge the chain - not that the database is immutable. It is
+also blind to two deletions the surviving rows stay consistent under: dropping the
+newest entries from a chain, and deleting an organization's chain outright (which
+just removes it from the set walked). Catching either needs a terminal checkpoint
+kept outside this table, which is left as a follow-up.
 """
 
 from __future__ import annotations

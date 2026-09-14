@@ -65,11 +65,13 @@ def chain_hash(
     """The hash that links one audit entry to the previous one in its chain.
 
     `SHA-256(prev_hash || canonical fields)`: the previous entry's hash folded in,
-    so changing any earlier entry, or reordering, inserting or deleting one,
-    diverges every hash after it - which is what `agenticos cmd audit-verify`
-    detects. The one definition, imported by `record_audit`, the backfill
-    migration and the verifier alike, because three copies of a hash function are
-    three chances for them to disagree and call an untampered trail broken.
+    so changing an earlier entry, or reordering, inserting or deleting one from the
+    middle, diverges every hash after it - which is what `agenticos cmd audit-verify`
+    detects. Dropping the newest entries or a whole organization's chain is the case
+    it cannot see on its own, since the survivors stay internally consistent. The
+    one definition, imported by `record_audit`, the backfill migration and the
+    verifier alike, because three copies of a hash function are three chances for
+    them to disagree and call an untampered trail broken.
 
     `created_at` is normalized to UTC and the payload is sorted, so the string
     hashed is the same whether the value was just built in Python or read back

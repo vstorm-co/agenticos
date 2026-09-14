@@ -5,9 +5,10 @@ bypass story in `docs/governance.md` leans on it - but a row is just a row, and 
 operator with the database could rewrite or delete one and leave nothing that says
 so. This gives each entry a place in a per-organization hash chain: `entry_hash`
 over the entry's canonical fields with the previous entry's hash folded in, so
-editing, reordering, inserting or dropping any entry diverges every hash after it -
-which `agenticos cmd audit-verify` recomputes and reports. Detection, not
-prevention (#1622).
+editing, reordering, inserting or interior-deleting an entry diverges every hash
+after it - which `agenticos cmd audit-verify` recomputes and reports. Detection,
+not prevention, and blind to the newest entries or a whole chain being dropped
+(#1622).
 
 Three columns, backfilled in the order that makes each safe:
 

@@ -125,7 +125,11 @@ class AuditService:
         Detection, not prevention: an operator with the database can rewrite a row
         and every hash after it, so a chain that verifies is evidence of no
         tampering by anyone who did not also recompute the chain, not proof of
-        none. `docs/governance.md` states the boundary (#1622).
+        none. It is also blind to a chain being truncated from the end - dropping
+        the newest entries leaves the surviving prefix internally consistent - and
+        to a whole organization's chain being deleted, which simply removes it from
+        the set walked here; catching either needs a checkpoint kept outside the
+        table. `docs/governance.md` states the boundary (#1622).
         """
         entries = await audit_log_repo.chain_for_org(self.db, organization_id=organization_id)
         prev_hash: str | None = None

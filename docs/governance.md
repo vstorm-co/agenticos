@@ -1285,8 +1285,8 @@ exists to hold to account.
 
 The trail keeps itself honest, too. Every entry joins a per-organization hash
 chain — each carries a hash over its own contents with the previous entry's hash
-folded in — so editing, reordering, inserting or deleting any entry diverges every
-hash after it.
+folded in — so editing, reordering or inserting an entry, or deleting one from the
+middle, diverges every hash after it.
 
 `agenticos cmd audit-verify` walks each chain, recomputes the hashes, and names
 the first entry that no longer matches; with no argument it checks every chain,
@@ -1295,6 +1295,14 @@ commands, and exits non-zero if any chain fails. This is **detection, not
 prevention** — an operator with the database can still rewrite a row and recompute
 every hash after it — so a clean run is evidence of no tampering by anyone who did
 not also re-forge the chain, not proof the rows are immutable.
+
+Two deletions the chain cannot catch on its own, because the surviving rows stay
+internally consistent: dropping the newest entries from a chain, and deleting an
+organization's chain outright — the latter simply removes it from the set
+`audit-verify` walks. Catching either needs a per-organization terminal checkpoint
+kept somewhere the database operator cannot reach; that anchor is a planned
+follow-up, and until it lands a clean run does not attest that nothing was
+truncated.
 
 Two audited writes for one organization cannot fork the chain: each appends under
 a per-organization lock, so they serialize into a single line rather than both
