@@ -17,50 +17,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Changed
-
-- **Embeddings are paid for with the collection's vault key, and nothing else.**
-  `OPENROUTER_API_KEY` is gone: it was a deployment-wide fallback for one
-  provider, left over from when `openrouter.ai` was hardcoded, and the only
-  reason the catalog carried a `deployment_key` flag, the resolver two fallback
-  states and the form a "Deployment key" row. A new personal or organization
-  collection names its provider from `embedding_providers.json` and the vault
-  key that pays, or is refused on that field; a collection whose key is missing,
-  unusable or never chosen refuses to index or search with a message naming the
-  collection and the reason, and the ingestion flow log says so. A key can be
-  replaced but no longer cleared (`clear_embedding_secret` is removed), because
-  there is nothing to fall back to. `scripts/server-init.sh` no longer asks for
-  the key and `docs/deploy.md` no longer lists it as a prerequisite. The
-  resolution says which of six situations it landed on - a key never chosen,
-  no vault to choose one from, the chosen secret missing, unusable or of the
-  wrong kind, or a provider this build no longer offers - each with its own
-  remedy. (#1596)
-- **`EMBEDDING_MODEL`, `LLAMAPARSE_API_KEY` and `LITEPARSE_OCR_SERVER_URL` are
-  gone.** Each was one value for every tenant, set where no tenant could see it.
-  The model is chosen from what the collection's provider serves; a LlamaParse
-  key is the vault entry the collection names, and a collection on LlamaParse
-  without one is refused at the form; an OCR server is a local service the
-  collection names. `GET /rag/embedding-models` no longer answers a `default`.
-
-## [0.0.413] - 2026-09-14
-
-### Changed
-
-- **The stack runs Valkey where it used to run Redis.** `redis:7-alpine`
-  resolves to Redis 7.4, and from 7.4.0 Redis is RSALv2 or SSPL-1.0 rather than
-  BSD-3-Clause - neither an OSI-approved licence. Nothing was broken by it: the
-  image is pulled by the operator rather than redistributed here, and RSALv2
-  permits running Redis inside your own application. But the default `docker
-  compose up` started a non-open component without saying so. Every compose file
-  and every CI service now uses `valkey/valkey:8-alpine`, the Linux Foundation
-  fork of Redis 7.2 under BSD-3-Clause. It speaks the same protocol on the same
-  port, so the service name, the `redis://` scheme, the `redis_data` volume and
-  every `REDIS_*` setting are unchanged, and so is the client - only the image,
-  the server binary and the CLI in the healthchecks differ. A deployment on a
-  managed Redis, Valkey or Elasticache is unaffected. The licence review drops
-  to one open finding. (#1603)
-
-## [0.0.412] - 2026-09-14
+## [0.0.414] - 2026-09-14
 
 ### Added
 
@@ -90,6 +47,57 @@ Two things are versioned separately from this file and worth knowing about:
   open issue, what deletion reaches, and a reproducible verification checklist
   for one deployment. Linked from the security-review table, `SECURITY.md` and
   the topic map. (#1596)
+
+### Changed
+
+- **Embeddings are paid for with the collection's vault key, and nothing else.**
+  `OPENROUTER_API_KEY` is gone: it was a deployment-wide fallback for one
+  provider, left over from when `openrouter.ai` was hardcoded, and the only
+  reason the catalog carried a `deployment_key` flag, the resolver two fallback
+  states and the form a "Deployment key" row. A new personal or organization
+  collection names its provider from `embedding_providers.json` and the vault
+  key that pays, or is refused on that field; a collection whose key is missing,
+  unusable or never chosen refuses to index or search with a message naming the
+  collection and the reason, and the ingestion flow log says so. A key can be
+  replaced but no longer cleared (`clear_embedding_secret` is removed), because
+  there is nothing to fall back to. `scripts/server-init.sh` no longer asks for
+  the key and `docs/deploy.md` no longer lists it as a prerequisite. The
+  resolution says which of six situations it landed on - a key never chosen,
+  no vault to choose one from, the chosen secret missing, unusable or of the
+  wrong kind, or a provider this build no longer offers - each with its own
+  remedy. (#1596)
+
+### Removed
+
+- **`EMBEDDING_MODEL`, `LLAMAPARSE_API_KEY` and `LITEPARSE_OCR_SERVER_URL` are
+  gone.** Each was one value for every tenant, set where no tenant could see it.
+  The model is chosen from what the collection's provider serves; a LlamaParse
+  key is the vault entry the collection names, and a collection on LlamaParse
+  without one is refused at the form; an OCR server is a local service the
+  collection names. `GET /rag/embedding-models` no longer answers a `default`.
+
+## [0.0.413] - 2026-09-14
+
+### Changed
+
+- **The stack runs Valkey where it used to run Redis.** `redis:7-alpine`
+  resolves to Redis 7.4, and from 7.4.0 Redis is RSALv2 or SSPL-1.0 rather than
+  BSD-3-Clause - neither an OSI-approved licence. Nothing was broken by it: the
+  image is pulled by the operator rather than redistributed here, and RSALv2
+  permits running Redis inside your own application. But the default `docker
+  compose up` started a non-open component without saying so. Every compose file
+  and every CI service now uses `valkey/valkey:8-alpine`, the Linux Foundation
+  fork of Redis 7.2 under BSD-3-Clause. It speaks the same protocol on the same
+  port, so the service name, the `redis://` scheme, the `redis_data` volume and
+  every `REDIS_*` setting are unchanged, and so is the client - only the image,
+  the server binary and the CLI in the healthchecks differ. A deployment on a
+  managed Redis, Valkey or Elasticache is unaffected. The licence review drops
+  to one open finding. (#1603)
+
+## [0.0.412] - 2026-09-14
+
+### Added
+
 - **A licence review of everything the images ship, with generated notices and a
   check.** `THIRD_PARTY_NOTICES.md` is generated from the two lockfiles by
   `scripts/license_inventory.py` and lists every distribution in either image with
