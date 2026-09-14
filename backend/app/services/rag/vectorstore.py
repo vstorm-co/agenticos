@@ -234,7 +234,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.session import agent_vector_engine, vector_engine
-from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
+from app.services.embedding_resolution import (
+    EmbeddingKeySource,
+    ResolvedEmbeddings,
+    embeddings_for_collection,
+)
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 
@@ -307,8 +311,9 @@ class PgVectorStore(BaseVectorStore):
         # one construction that forgot it - the worker that ingests every
         # uploaded document - silently ignored every collection's chosen key
         # and model for as long as nobody read the bill (#306). A collection
-        # outside the KB table still gets the deployment defaults, but that is
-        # now the resolver answering None rather than nobody asking.
+        # outside the KB table gets this store's own keyless embedder, which
+        # refuses on first use - the resolver answering None rather than nobody
+        # asking.
         self._resolver = resolver
         self._services: dict[tuple[str, str, str, str], EmbeddingService] = {}
         self.async_session = async_sessionmaker(engine, expire_on_commit=False)
@@ -373,6 +378,7 @@ class PgVectorStore(BaseVectorStore):
                 # the key, because moving a collection to another provider must
                 # not be answered by a client already built for the old one.
                 base_url=resolved.base_url,
+                keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
             )
             self._services[cache_key] = service
         return service, resolved.dim

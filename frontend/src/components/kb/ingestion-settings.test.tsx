@@ -139,6 +139,74 @@ describe("IngestionSettings", () => {
     expect(screen.getByRole("option", { name: /····9999/ })).toBeInTheDocument();
   });
 
+  it("offers no deployment key: the LlamaParse key reads as empty until one is chosen", async () => {
+    // There is no deployment-wide LlamaParse key any more, so there is nothing
+    // for "none chosen" to stand in for; the server refuses a LlamaParse
+    // collection without one, on this field.
+    show({ pdf_parser: "llamaparse" });
+
+    const key = screen.getByLabelText("LlamaParse key");
+    expect(key).toHaveTextContent("Choose a key");
+    await userEvent.click(key);
+    expect(screen.queryByRole("option", { name: /Deployment key/ })).toBeNull();
+  });
+
+  it("offers LiteParse the OCR servers registered for it, behind the built-in Tesseract", async () => {
+    // Only the `ocr` rows: an embedding server is somewhere to embed, not
+    // somewhere to send a page. A deployment-wide row is marked as such.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions")
+        return { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] };
+      if (path === "/local-services")
+        return {
+          items: [
+            {
+              id: "ls-1",
+              organization_id: "org-1",
+              kind: "embedding",
+              provider: "ollama",
+              name: "GPU box",
+              base_url: "http://ollama:11434/v1",
+              is_active: true,
+              created_at: "",
+              updated_at: null,
+            },
+            {
+              id: "ls-2",
+              organization_id: null,
+              kind: "ocr",
+              provider: "liteparse",
+              name: "OCR box",
+              base_url: "http://ocr:8000",
+              is_active: true,
+              created_at: "",
+              updated_at: null,
+            },
+          ],
+          total: 2,
+        };
+      return { items: [], total: 0 };
+    });
+    const onChange = show({ pdf_parser: "liteparse" });
+
+    const server = await screen.findByLabelText("OCR server");
+    expect(server).toHaveTextContent("Built-in Tesseract");
+    await userEvent.click(server);
+    expect(await screen.findByRole("option", { name: /OCR box \(deployment\)/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /GPU box/ })).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: /OCR box/ }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ pdf_parser: "liteparse", ocr_endpoint_id: "ls-2" }),
+    );
+  });
+
+  it("offers no OCR server to a parser that sends pages nowhere", () => {
+    show();
+
+    expect(screen.queryByLabelText("OCR server")).toBeNull();
+  });
+
   it("offers OCR language and a timeout to the parser that reads them", () => {
     show({ pdf_parser: "liteparse" });
 

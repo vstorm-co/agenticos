@@ -12,7 +12,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from mcp.shared.auth import OAuthMetadata, OAuthToken
-from pydantic import AnyUrl
+from pydantic import AnyUrl, ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
@@ -3548,8 +3548,9 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
     @pytest.mark.anyio
     async def test_an_unreadable_token_response_does_not_echo_its_input(self, monkeypatch, caplog):
         """A pydantic `ValidationError` echoes the input it rejected, and here
-        that input is the token payload - so a server that names the field
-        wrongly used to have its own tokens read back to the browser."""
+        that input is the token payload - so it reaches neither the browser nor
+        the log. The refusal names the class; the log names the failing field and
+        its error type, never the value (#1626)."""
 
         async def fake_send(client, request):
             return httpx.Response(200, json={"token": "at-secret-9f2c"}, request=request)
@@ -3566,7 +3567,22 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         shown = str(exc_info.value)
         assert "at-secret-9f2c" not in shown
         assert "ValidationError" in shown
-        assert "at-secret-9f2c" in caplog.text
+        # The token must not reach the log, but the failure is still described.
+        assert "at-secret-9f2c" not in caplog.text
+        assert "unreadable token response" in caplog.text
+
+    def test_validation_detail_names_the_field_not_the_value(self):
+        """The sanitized detail says which field failed and how, not what was in it."""
+        with pytest.raises(ValidationError) as exc_info:
+            mcp_oauth.OAuthToken.model_validate_json('{"token": "at-secret-9f2c"}')
+        detail = mcp_oauth._validation_detail(exc_info.value)
+        assert "at-secret-9f2c" not in detail
+        assert "access_token" in detail
+        assert "missing" in detail
+
+    def test_validation_detail_falls_back_to_the_class_for_a_plain_value_error(self):
+        """The caller catches the wider `ValueError`; a non-validation one names its class."""
+        assert mcp_oauth._validation_detail(ValueError("boom")) == "ValueError"
 
 
 class TestAUrlNoRequestCanBeBuiltFor:

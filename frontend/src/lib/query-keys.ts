@@ -384,6 +384,10 @@ export const qk = {
     // showing every decided proposal must not overwrite it in the cache.
     list: (status: string) => ["skill-changes", "list", status] as const,
   },
+  localServices: {
+    all: () => ["local-services"] as const,
+    list: () => ["local-services", "list"] as const,
+  },
   sandboxConnections: {
     all: () => ["sandbox-connections"] as const,
     list: () => ["sandbox-connections", "list"] as const,
