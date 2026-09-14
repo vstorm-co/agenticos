@@ -431,6 +431,30 @@ test-cov:
 	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
 	@echo "Open backend/htmlcov/index.html"
 
+# Just the refusal tests, by the `security` marker. This is a report, not a gate:
+# `make check` still runs everything. `--no-cov` because a subset never meets the
+# 100% bar, and `-p no:randomly` so the printed list is stable to read and diff.
+# The CI security-report step runs this same selection with `--collect-only`.
+test-security:
+	uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
+
+# The list of refusal tests written to backend/security-tests.txt, and appended to
+# the CI job summary when one is present. Collection only - no database, no run -
+# so it is the cheap step CI calls with `if: always()`. Informational: it lists,
+# it does not gate, which is why `check` never reaches it and test_ci_parity.py
+# names it in CI_ONLY_TARGETS.
+security-report:
+	cd backend && uv run pytest tests/ -m security -p no:randomly -p no:cacheprovider --no-cov --collect-only -q 2>/dev/null | grep '::' | sort > security-tests.txt || true
+	@count=$$(wc -l < backend/security-tests.txt | tr -d ' '); \
+	echo "$$count tests carry the security marker -> backend/security-tests.txt"; \
+	if [ -n "$$GITHUB_STEP_SUMMARY" ]; then \
+	  { echo "## Security refusal tests"; echo; \
+	    echo "$$count tests carry the security marker. Run them with: make test-security"; echo; \
+	    echo '<details><summary>The list</summary>'; echo; echo '```'; \
+	    cat backend/security-tests.txt; echo '```'; echo; echo '</details>'; \
+	  } >> "$$GITHUB_STEP_SUMMARY"; \
+	fi
+
 # Everything, including template-inherited subsystems. Informational: those are
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.

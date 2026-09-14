@@ -90,6 +90,11 @@ CI_ONLY_TARGETS = {
     # Informational, `if: always()`, and reported at `--cov-fail-under=0`. It
     # gates nothing, so requiring it locally would only cost a second suite run.
     "coverage-all",
+    # Writes the security refusal-test list to the job summary and an artifact
+    # (#1417). Informational and `if: always()`; the `security` marker is held by
+    # `tests/test_security_marker.py`, which `make test` already runs, so the
+    # report itself gates nothing.
+    "security-report",
 }
 
 _MAKE_INVOCATION = re.compile(r"^make\s+([a-z][a-z0-9-]*)((?:\s+[A-Z_]+=\S+)*)$")

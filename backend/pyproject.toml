@@ -724,6 +724,13 @@ unresolved-import = "error"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `--strict-markers` turns a marker that is not registered below into an error
+# rather than a warning, so a misspelled marker name fails the run instead of
+# silently dropping the test from `-m security`.
+addopts = "--strict-markers"
+markers = [
+    "security: a refusal or security-boundary test. Collected as a set so the security report can show the refusals rather than assert them (#1417) — tenant isolation, permission and grant refusals, a budget checked before the model call, an approval decided once, secret confidentiality, spec publish validation, channel sender identity, constant-time credential compare, webhook HMAC and rate limits. It is a label for the report, not a second gate: `make check` still runs everything.",
+]
 
 
 
