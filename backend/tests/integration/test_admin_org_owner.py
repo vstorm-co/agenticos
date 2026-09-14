@@ -159,6 +159,7 @@ class TestTheDetail:
         assert (owner.email, OrgRoleName.OWNER.value) in roles
         assert (member.email, OrgRoleName.MEMBER.value) in roles
 
+    @pytest.mark.security
     async def test_the_cross_tenant_read_is_audited(self, db) -> None:
         organization = await _org(db, "Beta")
         admin = await _user(db)

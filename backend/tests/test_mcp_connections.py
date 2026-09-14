@@ -3436,6 +3436,7 @@ class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
     """The two ways a hand-registered client arrives malformed, both refused by
     the schema so the caller hears about it on submit rather than at consent."""
 
+    @pytest.mark.security
     def test_a_secret_with_no_client_id_is_refused(self):
         """`_oauth_start` would register dynamically and overwrite the secret, so
         the caller would consent against a client they never named."""
@@ -3443,6 +3444,7 @@ class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
             McpOAuthStart(name="hubspot", url="https://srv/mcp", client_secret="operators-secret")
         assert "client_id" in str(excinfo.value)
 
+    @pytest.mark.security
     def test_a_truncated_secret_is_refused_at_submission(self):
         """The repository-wide credential floor: the secret is not used until the
         callback, so without this a bad paste passes start, takes the operator
