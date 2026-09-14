@@ -1496,12 +1496,14 @@ neu geschmiedet hat, kein Beweis, dass die Zeilen unveränderlich sind.
 
 Zwei Löschungen kann die Kette von sich aus nicht erkennen, weil die verbleibenden
 Zeilen intern konsistent bleiben: das Abschneiden der neuesten Einträge einer Kette
-und das vollständige Löschen der Kette einer Organisation — Letzteres entfernt sie
-einfach aus der Menge, die `audit-verify` abläuft. Beides zu erkennen erfordert
-einen organisationsweiten Abschluss-Checkpoint, der dort aufbewahrt wird, wo der
-Datenbank-Operator nicht hinreicht; dieser Anker ist eine geplante Folgearbeit, und
-bis es ihn gibt, bescheinigt ein sauberer Lauf nicht, dass nichts abgeschnitten
-wurde.
+und das vollständige Löschen der Kette einer Organisation. Diese fängt stattdessen
+ein **Checkpoint** ab — eine organisationsweite Höchstmarke, die `record_audit` neben
+jedem Eintrag vorrückt, unter einem Datenbank-Trigger, der ihr Zurückgehen oder
+Löschen verbietet. `audit-verify` meldet eine Kette, deren Kopf hinter ihrem
+Checkpoint liegt, oder einen Checkpoint, dessen Kette weg ist. Ein Postgres-Superuser
+kann diesen Trigger dennoch entfernen und sowohl die Einträge als auch den Checkpoint
+löschen; diese letzte Lücke zu schließen erfordert einen Checkpoint außerhalb dieser
+Datenbank, was eine geplante Folgearbeit bleibt.
 
 Zwei auditierte Schreibvorgänge für eine Organisation können die Kette nicht
 aufspalten: jeder hängt unter einer organisationsbezogenen Sperre an, sodass sie

@@ -1309,11 +1309,13 @@ not also re-forge the chain, not proof the rows are immutable.
 
 Two deletions the chain cannot catch on its own, because the surviving rows stay
 internally consistent: dropping the newest entries from a chain, and deleting an
-organization's chain outright — the latter simply removes it from the set
-`audit-verify` walks. Catching either needs a per-organization terminal checkpoint
-kept somewhere the database operator cannot reach; that anchor is a planned
-follow-up, and until it lands a clean run does not attest that nothing was
-truncated.
+organization's chain outright. These are caught instead by a **checkpoint** — a
+per-organization high-water mark `record_audit` advances beside every entry, under
+a database trigger that forbids it moving backwards or being deleted. `audit-verify`
+flags a chain whose head is behind its checkpoint, or a checkpoint whose chain is
+gone. A Postgres superuser can still drop that trigger and delete both the entries
+and the checkpoint; closing that last gap needs a checkpoint kept outside this
+database, which remains a planned follow-up.
 
 Two audited writes for one organization cannot fork the chain: each appends under
 a per-organization lock, so they serialize into a single line rather than both

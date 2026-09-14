@@ -1373,12 +1373,15 @@ filas sean inmutables.
 
 Hay dos borrados que la cadena no puede detectar por sí sola, porque las filas que
 quedan siguen siendo internamente consistentes: recortar las entradas más nuevas de
-una cadena y borrar por completo la cadena de una organización — esto último
-simplemente la quita del conjunto que `audit-verify` recorre. Detectar cualquiera de
-los dos requiere un punto de control terminal por organización, guardado donde el
-operador de la base de datos no alcance; ese anclaje es un trabajo posterior
-planificado y, hasta que exista, una ejecución limpia no certifica que no se haya
-truncado nada.
+una cadena y borrar por completo la cadena de una organización. En su lugar los
+detecta un **checkpoint** — una marca de nivel máximo por organización que
+`record_audit` avanza junto a cada entrada, bajo un trigger de base de datos que le
+prohíbe retroceder o ser borrado. `audit-verify` señala una cadena cuya cabeza está
+por detrás de su checkpoint, o un checkpoint cuya cadena ha desaparecido.
+
+Un superusuario de Postgres aún puede eliminar ese trigger y borrar tanto las
+entradas como el checkpoint; cerrar esa última brecha requiere un checkpoint guardado
+fuera de esta base de datos, lo que sigue siendo un trabajo posterior planificado.
 
 Dos escrituras auditadas para una misma organización no pueden bifurcar la cadena:
 cada una añade bajo un bloqueo por organización, así que se serializan en una sola

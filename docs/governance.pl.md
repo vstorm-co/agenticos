@@ -1410,11 +1410,13 @@ wiersze są niezmienne.
 
 Dwóch usunięć łańcuch nie wychwyci sam z siebie, bo pozostałe wiersze zostają
 wewnętrznie spójne: odcięcia najnowszych wpisów z łańcucha oraz usunięcia całego
-łańcucha organizacji — to drugie po prostu usuwa go ze zbioru, który `audit-verify`
-przechodzi. Wychwycenie któregokolwiek wymaga końcowego punktu kontrolnego per
-organizacja, trzymanego tam, gdzie operator bazy nie sięga; ta kotwica to
-planowane działanie następcze, a dopóki nie powstanie, czysty przebieg nie
-poświadcza, że nic nie zostało obcięte.
+łańcucha organizacji. Te wychwytuje **checkpoint** — wskaźnik najwyższego stanu per
+organizacja, który `record_audit` posuwa naprzód przy każdym wpisie, pod triggerem
+bazy zabraniającym cofnięcia go lub usunięcia. `audit-verify` flaguje łańcuch,
+którego głowa jest poniżej checkpointu, albo checkpoint, którego łańcuch zniknął.
+Superużytkownik Postgresa wciąż może zrzucić ten trigger i skasować i wpisy, i
+checkpoint; domknięcie tej ostatniej luki wymaga checkpointu trzymanego poza tą bazą,
+co pozostaje planowanym działaniem następczym.
 
 Dwa audytowane zapisy dla jednej organizacji nie mogą rozwidlić łańcucha: każdy
 dopisuje pod blokadą per organizacja, więc szeregują się w jedną linię, zamiast
