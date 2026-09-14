@@ -22,6 +22,7 @@ is the shape of the tools and never a result.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -157,9 +158,15 @@ async def tool_contracts() -> dict[str, dict[str, ToolContract]]:
     """Every capability's tools, keyed by capability id then tool id.
 
     Cached for the process: capabilities are registered at import and the answer
-    changes on redeploy, not between requests. A capability that fails to build is
-    logged and skipped rather than failing the catalog - the Builder can still
-    offer it, with one fewer thing to read.
+    changes on redeploy, not between requests. The build runs under a lock so two
+    requests hitting a cold process (right after a restart) build it once rather
+    than racing to do the same whole-catalog work.
+
+    A capability that fails to build is logged and skipped rather than failing the
+    catalog - the Builder can still offer it, with one fewer thing to read - but a
+    build that could not complete every capability is not cached. A transient
+    failure at cold start (a resource not yet warm) is then retried on the next
+    call rather than frozen as an empty contract set until the next redeploy.
 
     Async because the tools have to be *asked for* rather than read off the
     toolset: a capability that filters or wraps its tools - `subagents` offers
@@ -172,18 +179,30 @@ async def tool_contracts() -> dict[str, dict[str, ToolContract]]:
     global _CACHED
     if _CACHED is not None:
         return _CACHED
-    contracts: dict[str, dict[str, ToolContract]] = {}
-    for definition in all_capabilities():
-        try:
-            contracts[definition.id] = await _contracts_for(definition)
-        except Exception:
-            logger.exception("Could not read the tool contracts for capability %s", definition.id)
-            contracts[definition.id] = {}
-    _CACHED = contracts
-    return contracts
+    async with _LOCK:
+        # Re-check under the lock: a coroutine that raced us here may have built
+        # the catalog while we waited, and rebuilding it is the duplicated
+        # cold-start work the lock exists to prevent.
+        if _CACHED is not None:
+            return _CACHED
+        contracts: dict[str, dict[str, ToolContract]] = {}
+        complete = True
+        for definition in all_capabilities():
+            try:
+                contracts[definition.id] = await _contracts_for(definition)
+            except Exception:
+                logger.exception(
+                    "Could not read the tool contracts for capability %s", definition.id
+                )
+                contracts[definition.id] = {}
+                complete = False
+        if complete:
+            _CACHED = contracts
+        return contracts
 
 
 _CACHED: dict[str, dict[str, ToolContract]] | None = None
+_LOCK = asyncio.Lock()
 
 
 async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
