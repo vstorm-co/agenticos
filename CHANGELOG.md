@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.431] - 2026-09-15
+
+### Added
+
+- **An MCP server can be connected with a client the operator registered by
+  hand.** Most servers register this app dynamically, but HubSpot's remote server
+  publishes no registration endpoint and hands out client credentials only through
+  an auth app created in the account, so there was no way to tell the flow about
+  them. `client_id` and `client_secret` can now be supplied at OAuth start; the
+  secret is sealed into the pending payload with the rest of the flow state and
+  never read back over the API. (#1620)
+
+### Fixed
+
+- **Three ways a pre-registered client failed after consent rather than before
+  it.** A `client_secret` with no `client_id` was accepted and then discarded,
+  because the flow registers dynamically whenever the id is absent - so the caller
+  consented against a client they never named. A truncated secret passed the start
+  and failed the token exchange, since the secret is not used until the callback;
+  it now meets the same eight-character floor as every other credential. And a
+  client registered for `client_secret_basic` completed consent and could never
+  exchange or refresh, because this flow only ever puts the secret in the form
+  body - a server whose metadata allows no such method is refused at start
+  instead. A server that names no method is taken as accepting it, which is what
+  RFC 8414 leaves open and what the servers this exists for actually do. (#1620)
+
 ## [0.0.430] - 2026-09-15
 
 ### Added
