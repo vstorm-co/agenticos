@@ -464,18 +464,21 @@ def _instrument(
     runs untraced and an agent that does not run - publishing is where a missing
     secret is refused, and a run is far too late.
 
-    `content="none"` is enforced even when no per-agent exporter attaches. The
-    deployment instruments Pydantic AI globally with content on, so an agent that
-    asked for no content but has no token - or whose token has gone, or whose
-    traces the environment routes - would otherwise leak its prompts to the
-    operator's project through that global default. `suppress_content` pins it to
-    a content-free instrumentation instead.
+    A content mode other than `full` is enforced even when no per-agent exporter
+    attaches. The deployment instruments Pydantic AI globally with content on, so
+    an agent that asked for no content or for redaction but has no token - or whose
+    token has gone, or whose traces the environment routes - would otherwise leak
+    its prompts to the operator's project through that global default.
+    `suppress_content` pins it to a content-free instrumentation instead. Redaction
+    rides on a per-agent tracer provider that cannot be added to the global one
+    here, so without a token `redacted` degrades to `none`: content is suppressed
+    rather than exported unscrubbed.
     """
     observability = spec.observability
     if observability is None:
         return
 
-    want_content = observability.content != "none"
+    content = observability.content
     attached = False
     if observability.token_secret_id is not None:
         secret = secrets.get(observability.token_secret_id)
@@ -485,7 +488,7 @@ def _instrument(
                 token=secret.api_key.get_secret_value(),
                 service_name=observability.service_name or spec.name,
                 environment=observability.environment,
-                include_content=want_content,
+                content=content,
             )
         else:
             logger.warning(
@@ -493,5 +496,5 @@ def _instrument(
                 extra={"agent_id": str(agent_id) if agent_id else None},
             )
 
-    if not attached and not want_content:
+    if not attached and content != "full":
         suppress_content(agent)

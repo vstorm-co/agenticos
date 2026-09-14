@@ -9,8 +9,18 @@ write token never leaves the vault path it came in on.
 import uuid
 from unittest.mock import MagicMock, patch
 
+import logfire
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic_ai import Agent
+from pydantic_ai.models.test import TestModel
+
 from app.agents.factory import _instrument
-from app.agents.observability import instrument_agent, suppress_content
+from app.agents.observability import (
+    _RedactingSpanProcessor,
+    instrument_agent,
+    suppress_content,
+)
 from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.secret_kinds import ApiKeySecret
 
@@ -56,7 +66,7 @@ class TestInstrumentation:
         with patch(f"{MODULE}.instrument_agent") as instrument:
             _instrument(MagicMock(), spec, {secret_id: _secret()}, agent_id=None)
 
-        assert instrument.call_args.kwargs["include_content"] is True
+        assert instrument.call_args.kwargs["content"] == "full"
 
     def test_none_content_instruments_without_message_text(self):
         """`none` is the switch a deployment over health, legal or HR data needs:
@@ -71,7 +81,22 @@ class TestInstrumentation:
         with patch(f"{MODULE}.instrument_agent") as instrument:
             _instrument(MagicMock(), spec, {secret_id: _secret()}, agent_id=None)
 
-        assert instrument.call_args.kwargs["include_content"] is False
+        assert instrument.call_args.kwargs["content"] == "none"
+
+    def test_redacted_content_reaches_the_instrumentation(self):
+        """`redacted` is the middle ground the security programme asked for: the
+        content is traced but its PII is scrubbed before export, so the mode has
+        to reach the instrumentation the same way `none` does (#1616)."""
+        secret_id = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(token_secret_id=secret_id, content="redacted"),
+        )
+
+        with patch(f"{MODULE}.instrument_agent") as instrument:
+            _instrument(MagicMock(), spec, {secret_id: _secret()}, agent_id=None)
+
+        assert instrument.call_args.kwargs["content"] == "redacted"
 
     def test_the_agent_names_itself_when_no_service_name_was_given(self):
         """A blank service name in Logfire is a project nobody can read."""
@@ -178,6 +203,22 @@ class TestInstrumentation:
         instrument.assert_not_called()
         suppress.assert_not_called()
 
+    def test_redacted_without_a_token_suppresses_rather_than_leaks(self):
+        """Redaction rides on a per-agent tracer provider, so with no token there
+        is nowhere to attach it - and exporting content unscrubbed to the
+        operator's project is the leak `redacted` exists to prevent. It degrades to
+        `none`: content is suppressed on the deployment's own instrumentation."""
+        spec = AgentSpec(name="a", observability=ObservabilitySpec(content="redacted"))
+
+        with (
+            patch(f"{MODULE}.instrument_agent") as instrument,
+            patch(f"{MODULE}.suppress_content") as suppress,
+        ):
+            _instrument(MagicMock(), spec, {}, agent_id=None)
+
+        instrument.assert_not_called()
+        suppress.assert_called_once()
+
 
 class TestContentReachesLogfire:
     """The content decision has to reach the instrumentation call, not stop at
@@ -187,15 +228,15 @@ class TestContentReachesLogfire:
     def test_none_turns_off_content_on_the_instrumentation(self):
         instance = MagicMock()
         # A token unique to this test: the module caches instances per
-        # (token, service, environment), so a shared one would reuse a prior
-        # test's configure() and never call this mock.
+        # (token, service, environment, redact), so a shared one would reuse a
+        # prior test's configure() and never call this mock.
         with patch("app.agents.observability.logfire.configure", return_value=instance):
             attached = instrument_agent(
                 MagicMock(),
                 token="pylf_v1_eu_none_case",
                 service_name="acme",
                 environment="prod",
-                include_content=False,
+                content="none",
             )
 
         assert attached is True
@@ -212,6 +253,45 @@ class TestContentReachesLogfire:
             )
 
         assert instance.instrument_pydantic_ai.call_args.kwargs["include_content"] is True
+
+    def test_redacted_keeps_content_on_but_attaches_the_scrubbing_processor(self):
+        """`redacted` traces the content - `include_content` stays on - and adds
+        the span processor that removes its PII before export. `full` and `none`
+        add no processor."""
+        instance = MagicMock()
+        with patch(
+            "app.agents.observability.logfire.configure", return_value=instance
+        ) as configure:
+            instrument_agent(
+                MagicMock(),
+                token="pylf_v1_eu_redacted_case",
+                service_name="acme",
+                environment="prod",
+                content="redacted",
+            )
+
+        assert instance.instrument_pydantic_ai.call_args.kwargs["include_content"] is True
+        processors = configure.call_args.kwargs["additional_span_processors"]
+        assert len(processors) == 1
+        assert isinstance(processors[0], _RedactingSpanProcessor)
+
+    def test_full_attaches_no_span_processor(self):
+        """The scrubbing rides only on a redacted instance; a `full` run must not
+        pay for a processor it does not need, and must not be keyed together with
+        a redacted one."""
+        instance = MagicMock()
+        with patch(
+            "app.agents.observability.logfire.configure", return_value=instance
+        ) as configure:
+            instrument_agent(
+                MagicMock(),
+                token="pylf_v1_eu_full_noproc",
+                service_name="acme",
+                environment="prod",
+                content="full",
+            )
+
+        assert configure.call_args.kwargs["additional_span_processors"] is None
 
     def test_suppress_content_pins_the_agent_to_content_free_default_tracing(self):
         """Uses the default (deployment) instance, so timing and cost still land
@@ -276,3 +356,155 @@ class TestSpec:
     def test_an_ordinary_slug_is_accepted(self):
         spec = ObservabilitySpec(organization="vstorm", project="agenticos-eu")
         assert (spec.organization, spec.project) == ("vstorm", "agenticos-eu")
+
+    def test_redacted_is_an_additive_third_mode(self):
+        """Widening the Literal is additive, so a stored `full`/`none` spec still
+        loads and no migration is owed - and `redacted` round-trips through YAML."""
+        assert ObservabilitySpec(content="redacted").content == "redacted"
+        loaded = AgentSpec.from_yaml(
+            "name: Support\nobservability:\n  token_secret_id: null\n  content: redacted\n"
+        )
+        assert loaded.observability is not None
+        assert loaded.observability.content == "redacted"
+        assert loaded == AgentSpec.from_yaml(loaded.to_yaml())
+
+
+class TestRedactionReachesTheExporter:
+    """The property that matters for `redacted`: a planted email or token is gone
+    from a span's content by the time it is exported, while the shape of the
+    exchange survives. Pinned against the real Pydantic AI + Logfire pipeline so a
+    version that renames the content attributes fails here rather than leaking
+    silently (#1616)."""
+
+    @staticmethod
+    def _run_and_capture(content: str, prompt: str) -> InMemorySpanExporter:
+        real_configure = logfire.configure
+        capture = InMemorySpanExporter()
+
+        def configure(**kwargs: object) -> logfire.Logfire:
+            # Attach the real redaction processor exactly as instrument_agent asks
+            # for it, then capture in memory instead of shipping to Logfire.
+            processors = list(kwargs.get("additional_span_processors") or [])
+            return real_configure(
+                local=True,
+                send_to_logfire=False,
+                console=False,
+                additional_span_processors=[*processors, SimpleSpanProcessor(capture)],
+            )
+
+        agent: Agent[None, str] = Agent(TestModel(custom_output_text="acknowledged"))
+        with patch("app.agents.observability.logfire.configure", side_effect=configure):
+            # A token unique per content mode: the module caches instances, and a
+            # shared key would reuse another test's real configure.
+            attached = instrument_agent(
+                agent,
+                token=f"pylf_v1_eu_capture_{content}",
+                service_name="capture",
+                environment="prod",
+                content=content,
+            )
+        assert attached is True
+        agent.run_sync(prompt)
+        return capture
+
+    def test_a_redacted_run_carries_the_shape_but_not_the_pii(self):
+        prompt = "email planted@example.com, key sk-abcdef0123456789ABCDEF, thanks"
+        capture = self._run_and_capture("redacted", prompt)
+
+        content_values = [
+            value
+            for span in capture.get_finished_spans()
+            for name, value in (span.attributes or {}).items()
+            if name in _RedactingSpanProcessor._CONTENT_ATTRIBUTES and isinstance(value, str)
+        ]
+        # The content attributes are still present - the trace keeps its shape...
+        assert content_values
+        blob = "\n".join(content_values)
+        # ...but the planted PII has been scrubbed out of every one of them.
+        assert "planted@example.com" not in blob
+        assert "sk-abcdef0123456789ABCDEF" not in blob
+        assert "[EMAIL_REDACTED]" in blob
+        assert "[API_KEY_REDACTED]" in blob
+        # The ordinary words survive, so the trace is still debuggable - the whole
+        # point of `redacted` over `none`.
+        assert "thanks" in blob
+
+    def test_a_full_run_carries_the_pii_unchanged(self):
+        """The control: without redaction the same planted values reach the
+        exporter, which is what `redacted` and `none` exist to stop."""
+        prompt = "email planted@example.com please"
+        capture = self._run_and_capture("full", prompt)
+
+        blob = "\n".join(
+            value
+            for span in capture.get_finished_spans()
+            for value in (span.attributes or {}).values()
+            if isinstance(value, str)
+        )
+        assert "planted@example.com" in blob
+
+    def test_a_none_run_carries_neither(self):
+        """`none` strips the message text out of the content attributes, so a span
+        keeps the shape of the exchange but neither the PII nor the ordinary words
+        - the distinction from `redacted`, which keeps the scrubbed words."""
+        prompt = "email planted@example.com kindly"
+        capture = self._run_and_capture("none", prompt)
+
+        blob = "\n".join(
+            value
+            for span in capture.get_finished_spans()
+            for value in (span.attributes or {}).values()
+            if isinstance(value, str)
+        )
+        assert "planted@example.com" not in blob
+        # Even the ordinary prompt word is gone: `none` drops the text entirely,
+        # where `redacted` would keep "kindly" beside the scrubbed email.
+        assert "kindly" not in blob
+
+    def test_a_span_with_no_content_attributes_is_left_untouched(self):
+        """The processor only rewrites the attributes it recognises; a span that
+        carries none of them - or none at all - keeps its backing store."""
+        processor = _RedactingSpanProcessor()
+
+        blank = _FakeSpan(None)
+        processor.on_end(blank)  # must not raise
+
+        unrelated = _FakeSpan({"gen_ai.usage.input_tokens": 12, "http.method": "POST"})
+        before = unrelated._attributes
+        processor.on_end(unrelated)
+        assert unrelated._attributes is before
+
+    def test_matching_attributes_are_replaced_with_their_scrubbed_form(self):
+        """The write path directly: content attributes holding PII are swapped for
+        a fresh mapping carrying the scrubbed text, since the backing store refuses
+        in-place assignment. Two of them, so the second reuses the mapping the
+        first built rather than starting another."""
+        processor = _RedactingSpanProcessor()
+        span = _FakeSpan(
+            {
+                "gen_ai.input.messages": "reach me at planted@example.com",
+                "gen_ai.output.messages": "sure, sk-abcdef0123456789ABCDEF works",
+                "gen_ai.usage.input_tokens": 7,
+            }
+        )
+        before = span._attributes
+
+        processor.on_end(span)
+
+        result = span._attributes
+        assert result is not before
+        assert isinstance(result, dict)
+        assert result["gen_ai.input.messages"] == "reach me at [EMAIL_REDACTED]"
+        assert result["gen_ai.output.messages"] == "sure, [API_KEY_REDACTED] works"
+        # An unrelated attribute is carried across unchanged.
+        assert result["gen_ai.usage.input_tokens"] == 7
+
+
+class _FakeSpan:
+    """A stand-in for a `ReadableSpan`: `attributes` is what the processor reads,
+    `_attributes` the backing store it writes. A `MappingProxyType` would refuse
+    the write path a real span takes, so the two are kept as plain references."""
+
+    def __init__(self, attributes: dict[str, object] | None) -> None:
+        self.attributes = attributes
+        self._attributes = attributes

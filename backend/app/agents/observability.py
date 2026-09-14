@@ -19,15 +19,86 @@ reads a secret, logs one, or puts one in a span attribute.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import logfire
 from opentelemetry import trace
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from pydantic_ai import Agent as PydanticAgent
+
+from app.core.logging import PiiRedactionFilter
+
+if TYPE_CHECKING:
+    from app.agents.spec import TraceContent
 
 logger = logging.getLogger(__name__)
 
-_instances: dict[tuple[str, str, str], logfire.Logfire] = {}
+# Keyed on (token, service, environment, redact): a redacted run needs its own
+# Logfire instance because the scrubbing rides on that instance's tracer
+# provider, and a `full` or `none` agent sharing the (token, service,
+# environment) triple must not have its content scrubbed with it. `full` and
+# `none` still share one instance and differ only by the per-agent
+# `include_content` flag.
+_instances: dict[tuple[str, str, str, bool], logfire.Logfire] = {}
+
+
+class _RedactingSpanProcessor(SpanProcessor):
+    """Scrub message content out of a span before it is exported to Logfire.
+
+    The `redacted` trace-content mode records content and then removes the PII
+    from it, rather than dropping content wholesale the way `none` does. Pydantic
+    AI writes the message text, the model's output and every tool argument and
+    result into the span attributes below; this runs each through the same filter
+    the log pipeline uses (`PiiRedactionFilter`) as the span ends, before Logfire's
+    own batching exporter reads it.
+
+    `_CONTENT_ATTRIBUTES` is the fragile seam: the names are the ones Pydantic AI's
+    instrumentation emits at its pinned version, and a release that renames one
+    would silently start exporting the raw content again. `tests/test_agent_observability.py`
+    feeds a real run through this processor and asserts a planted email and token
+    are gone, so such a rename fails the build rather than leaking.
+    """
+
+    # Version 5 of Pydantic AI's instrumentation (the current default) carries a
+    # run's content in these attributes: the input/output messages and system
+    # instructions on model-request spans, the tool call arguments and result on
+    # tool spans, and the whole history on the agent-run span.
+    _CONTENT_ATTRIBUTES = (
+        "gen_ai.input.messages",
+        "gen_ai.output.messages",
+        "gen_ai.system_instructions",
+        "gen_ai.tool.call.arguments",
+        "gen_ai.tool.call.result",
+        "pydantic_ai.all_messages",
+    )
+
+    def __init__(self) -> None:
+        self._filter = PiiRedactionFilter()
+
+    def on_end(self, span: ReadableSpan) -> None:
+        """Replace each content attribute with its scrubbed form as the span ends.
+
+        A span's attributes are a read-only mapping and its backing store refuses
+        in-place assignment, so a changed set is written back as a fresh mapping -
+        the same object Logfire's exporter reads later, since the batch processor
+        only holds a reference to it.
+        """
+        attributes = span.attributes
+        if not attributes:
+            return
+        redacted: dict[str, Any] | None = None
+        for name in self._CONTENT_ATTRIBUTES:
+            value = attributes.get(name)
+            if not isinstance(value, str):
+                continue
+            scrubbed = self._filter.redact(value)
+            if scrubbed != value:
+                if redacted is None:
+                    redacted = dict(attributes)
+                redacted[name] = scrubbed
+        if redacted is not None:
+            span._attributes = redacted
+
 
 # What OpenTelemetry answers when nothing is tracing: a span whose context is all
 # zeroes. Formatting it would store `000…0` as a trace id and every link built
@@ -62,7 +133,7 @@ def instrument_agent(
     token: str,
     service_name: str,
     environment: str | None,
-    include_content: bool = True,
+    content: TraceContent = "full",
 ) -> bool:
     """Point one agent's traces at the Logfire project the token belongs to.
 
@@ -71,15 +142,20 @@ def instrument_agent(
     refusing to build it would turn an observability misconfiguration into an
     outage.
 
-    `include_content` is the spec's `content` mode made concrete: `False` (the
-    spec's `none`) records spans with timing, tokens, cost and tool names but no
-    message text or tool arguments, so a run over protected data leaves no copy
-    of it in the Logfire project. It is applied on the per-agent
-    `instrument_pydantic_ai` call rather than on the cached instance, because the
-    instance is shared across agents keyed on (token, service, environment) and
-    the content decision is one agent's.
+    `content` is the spec's trace-content mode. `none` records spans with timing,
+    tokens, cost and tool names but no message text or tool arguments, so a run
+    over protected data leaves no copy of it in the Logfire project. `redacted`
+    keeps the content but scrubs its PII on the way out, through a span processor
+    on this instance's tracer provider. The difference `include_content` cannot
+    express - a bool on `instrument_pydantic_ai` - is why the processor exists.
+
+    A redacted run needs its own Logfire instance: the scrubbing rides on the
+    instance's tracer provider, so it is keyed apart from the `full`/`none`
+    instance for the same (token, service, environment) triple, which would
+    otherwise scrub their content too.
     """
-    key = (token, service_name, environment or "")
+    redact = content == "redacted"
+    key = (token, service_name, environment or "", redact)
     instance = _instances.get(key)
     if instance is None:
         try:
@@ -90,6 +166,7 @@ def instrument_agent(
                 environment=environment or "",
                 send_to_logfire=True,
                 console=False,
+                additional_span_processors=[_RedactingSpanProcessor()] if redact else None,
             )
         except Exception:
             logger.exception("agent_logfire_configure_failed", extra={"service_name": service_name})
@@ -97,7 +174,7 @@ def instrument_agent(
         _instances[key] = instance
 
     try:
-        instance.instrument_pydantic_ai(agent, include_content=include_content)
+        instance.instrument_pydantic_ai(agent, include_content=content != "none")
     except Exception:
         logger.exception("agent_logfire_instrument_failed", extra={"service_name": service_name})
         return False

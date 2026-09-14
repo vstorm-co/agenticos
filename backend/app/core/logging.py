@@ -48,15 +48,15 @@ class PiiRedactionFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         """Redact PII from a record's message, its args, and its rendered traceback."""
         if isinstance(record.msg, str):
-            record.msg = self._redact(record.msg)
+            record.msg = self.redact(record.msg)
         if record.args:
             if isinstance(record.args, dict):
                 record.args = {
-                    k: self._redact(v) if isinstance(v, str) else v for k, v in record.args.items()
+                    k: self.redact(v) if isinstance(v, str) else v for k, v in record.args.items()
                 }
             elif isinstance(record.args, tuple):
                 record.args = tuple(
-                    self._redact(a) if isinstance(a, str) else a for a in record.args
+                    self.redact(a) if isinstance(a, str) else a for a in record.args
                 )
         # The traceback is the leak this filter exists for: `logger.exception` on a
         # provider SDK error carries the failing request - URL, bearer token and
@@ -67,12 +67,19 @@ class PiiRedactionFilter(logging.Filter):
         if record.exc_info and not record.exc_text:
             record.exc_text = logging.Formatter().formatException(record.exc_info)
         if record.exc_text:
-            record.exc_text = self._redact(record.exc_text)
+            record.exc_text = self.redact(record.exc_text)
         if record.stack_info:
-            record.stack_info = self._redact(record.stack_info)
+            record.stack_info = self.redact(record.stack_info)
         return True
 
-    def _redact(self, value: str) -> str:
+    def redact(self, value: str) -> str:
+        """Return `value` with every configured PII pattern replaced.
+
+        Public because the same scrub runs outside the log pipeline: the
+        `redacted` trace-content mode filters an agent's span content through
+        this before it leaves for Logfire, so both paths share one definition of
+        what a secret looks like.
+        """
         for pattern, replacement in self.PATTERNS:
             value = pattern.sub(replacement, value)
         return value

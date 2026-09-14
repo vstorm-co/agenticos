@@ -72,9 +72,12 @@ ApprovalMode = Literal["default", "required", "never"]
 
 # What a run's traces are allowed to carry. `full` is the default so nothing
 # stored changes behaviour; `none` keeps timing, tokens, cost and tool names but
-# no message text or tool arguments. A `redacted` middle ground - the same PII
-# filter the log pipeline runs, over message text - is a follow-up (#1616).
-TraceContent = Literal["full", "none"]
+# no message text or tool arguments. `redacted` is the middle ground: the content
+# is recorded, then run through the same PII filter the log pipeline uses before a
+# span is exported, so an email, a token or a key never reaches the Logfire
+# project. Widening the Literal is additive - a stored `full`/`none` spec is
+# unaffected, so no migration and no SPEC_VERSION bump.
+TraceContent = Literal["full", "redacted", "none"]
 
 _WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
@@ -402,10 +405,17 @@ class ObservabilitySpec(BaseModel):
         description=(
             "How much of a run each span carries. 'full' records the message, the "
             "model's output and every tool argument and result; 'none' records "
-            "timing, tokens, cost and tool names only. Default 'full', so an agent "
+            "timing, tokens, cost and tool names only; 'redacted' records the "
+            "content but runs it through the deployment's PII filter first, so a "
+            "span keeps the shape of the exchange while an email, a token or a key "
+            "is scrubbed before it leaves for Logfire. Default 'full', so an agent "
             "that says nothing traces as it always did. For a deployment whose runs "
-            "touch health, legal or HR data, 'none' is what keeps a copy of the "
-            "protected content from leaving the machine to the Logfire project."
+            "touch health, legal or HR data, 'none' keeps every copy of the "
+            "protected content off the Logfire project, and 'redacted' is the "
+            "middle ground that keeps a debuggable trace without the raw PII. "
+            "'redacted' needs a per-agent token: with none, the content is "
+            "suppressed as 'none' would, since there is no client project for the "
+            "scrubbed trace to land in."
         ),
     )
 
