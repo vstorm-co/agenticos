@@ -119,14 +119,21 @@ raising helper). Core rules, applied in order:
 The two entry points differ only in how they treat an **over-length item** (> 32 chars
 after trim) and **list cardinality**:
 
-- **`normalize_labels_strict`** (write path) **raises `ValueError`** on an item > 32
-  chars — inside a Pydantic `field_validator`, so it surfaces as a clean **422**, not a
-  DB error. Cardinality is capped by the schema `Field(max_length=…)` (10 categories, 20
-  tags), also a 422.
-- **`normalize_labels_query`** (filter path) is **tolerant**: it **drops** an item that
-  is over-length or empty rather than raising, and **caps the result to the same facet
-  bounds** (first 10 / first 20 after dedupe). It never raises and it never
-  **truncates** an item to 32 chars — truncation could turn an invalid label into a
+- **`normalize_labels_strict`** (write path) **raises `ValueError`** on an item that is
+  **> 32 chars *after folding*** — inside a Pydantic `field_validator`, so it surfaces as
+  a clean **422**, not a DB error. The length check is on the **final NFC + `casefold()`
+  value that will actually be stored**, not on the trimmed input, because `casefold()`
+  can *expand* text (`"ß"` → `"ss"`, `"İ"` → two code points): a 32-char input can fold
+  to a > 32-char value, and checking the pre-fold length would let it through to the
+  `String(32)` column as a DB error / 500 (round-three Finding 1). Cardinality is capped
+  by the schema `Field(max_length=…)` (10 categories, 20 tags), also a 422.
+- **`normalize_labels_query(values, *, max_items: int)`** (filter path) is **tolerant**:
+  it **drops** an item that is over-length (measured on the same folded value) or empty
+  rather than raising, and **caps the result to `max_items`** after dedupe. It takes the
+  cap as an explicit argument — the single helper cannot otherwise know whether it is
+  folding categories (10) or tags (20) (round-three Finding 1); the service passes
+  `max_items=10` for `category` and `max_items=20` for `tag`. It never raises and it
+  never **truncates** an item to 32 chars — truncation could turn an invalid label into a
   valid-but-unintended match (round-two Finding 2/3). A bad or oversized query param
   should quietly narrow to nothing on that item, not 400 the discovery page and not
   match something the caller never typed.
@@ -229,8 +236,9 @@ tag: Annotated[list[str], Query()] = [],
 ```
 
 The service normalizes the raw query params **once** with the tolerant
-`normalize_labels_query` (never the raising strict variant — round-two Finding 2), then
-threads the already-normalized, already-bounded lists into
+`normalize_labels_query` (never the raising strict variant — round-two Finding 2),
+passing `max_items=10` for `category` and `max_items=20` for `tag` (round-three
+Finding 1), then threads the already-normalized, already-bounded lists into
 `list_agents(ctx, ..., categories=..., tags=...)` → `agent_repo.list_visible`. The
 repository adds a `.where(...)` to **both** the data query and the count query, guarding
 on the **normalized** result (round-one Codex #1) so a blank param like `?tag=%20`
@@ -327,8 +335,11 @@ def downgrade() -> None:
   enough for the lock to matter, the escape hatch is a follow-up revision that builds the
   indexes concurrently outside the transaction (`op.execute` with autocommit); it is out
   of scope here.
-- Round-trip verified by `tests/test_migrations.py` (forwards/back) and
-  `make db-check` (model↔migration parity).
+- Round-trip verified at the chain level by `tests/test_migrations.py` (forwards/back)
+  and `make db-check` (model↔migration parity). The **per-revision** assertions
+  (empty-array default on a pre-existing row, GIN `amname`, downgrade drops both) need a
+  dedicated new integration test — `tests/test_migrations.py` does not exercise a single
+  revision's data/index state (round-three Finding 4; see §13).
 
 ## 8. Frontend
 
@@ -446,8 +457,25 @@ No findings rejected.
 
 ## 12. Implementation plan (ordered)
 
-Each step maps to files and notes the coverage/parity gate it must satisfy. Platform
-modules touched are under the 100% gate.
+Each step maps to files and notes the coverage/parity gate it must satisfy.
+
+**Which touched modules are actually under the 100% gate** (round-three Finding 3 —
+verified against `backend/pyproject.toml [tool.coverage.run] include` and
+`frontend/vitest.config.ts`). Only **`app/services/agent_registry.py`** among the backend
+files touched here is in the gate's `include` list. The model (`app/db/models/agent.py`),
+schema (`app/schemas/agent.py` — where the normalization helpers live), repository
+(`app/repositories/agent.py`) and route (`app/api/routes/v1/agents.py`) are **not** in
+`include`, so the gate does not measure them; the earlier "changes land in existing
+covered files" was wrong. On the frontend, `src/hooks/**`, `src/lib/**` and
+`src/components/agents/**` **are** gated (so the hook, the query-key helper and the new
+chips-input/editor components must reach 100% branch coverage), but the two
+`agents/**/page.tsx` files are **excluded** (pages are deliberately outside the gate).
+Consequence: `agent_registry.set_metadata`/`list_agents` must be 100%-covered; the new
+schema helpers and repository predicate must be **tested to full branch coverage anyway**
+(unit + integration) even though the gate will not enforce it; page-level facet/empty
+behavior is proven by integration tests, not the coverage number. This adds **no new
+module**, so `[tool.coverage.run] include` / `[[tool.ty.overrides]] include` stay as they
+are.
 
 1. **Model** — `backend/app/db/models/agent.py`
    - Add `categories` and `tags` `Mapped[list[str]]` = `mapped_column(ARRAY(String(32)),
@@ -470,10 +498,14 @@ modules touched are under the 100% gate.
    - `_fold_labels(values)`: trim + collapse internal whitespace, NFC-normalize +
      `casefold()`, drop empties, dedupe (first-seen order). The pure value-shaping core.
    - `normalize_labels_strict(values)` (write): calls `_fold_labels`, then **raises
-     `ValueError` on an item > 32 chars after trim** (round-one Codex #3 -> clean 422).
-   - `normalize_labels_query(values)` (filter): calls `_fold_labels`, **drops** an
-     over-length item (never raises, never truncates), then **caps** to 10 categories /
-     20 tags (round-two Findings 2, 3).
+     `ValueError` on an item whose *folded* value is > 32 chars** (round-one Codex #3 ->
+     clean 422). The check is on the stored (NFC + `casefold()`) value, not the trimmed
+     input, because `casefold()` can expand length (round-three Finding 1).
+   - `normalize_labels_query(values, *, max_items)` (filter): calls `_fold_labels`,
+     **drops** an over-length item (measured on the folded value; never raises, never
+     truncates), then **caps** to `max_items` (round-two Findings 2, 3). The cap is a
+     parameter, not hard-coded — the service passes 10 for categories, 20 for tags
+     (round-three Finding 1).
    - `AgentRead`: add `categories: list[str]` and `tags: list[str]` — **required**, no
      default (round-two Finding 4).
    - `AgentMetadataRequest(BaseSchema)`: `categories` (`max_length=10`), `tags`
@@ -481,8 +513,10 @@ modules touched are under the 100% gate.
      `normalize_labels_strict`.
 
 4. **Repository** — `backend/app/repositories/agent.py`
-   - `list_visible(...)` gains `categories: list[str] = []`, `tags: list[str] = []`
-     kw-only params. Apply `Agent.categories.op("&&")(categories)` /
+   - `list_visible(...)` gains `categories: Sequence[str] = ()`, `tags: Sequence[str] =
+     ()` kw-only params (immutable defaults, not `list[str] = []` — ruff bugbear `B006`
+     flags a mutable default argument; round-three Finding 9). Apply
+     `Agent.categories.op("&&")(categories)` /
      `Agent.tags.op("&&")(tags)` to **both** `query` and `count_query`, **only when the
      (already-normalized) list is non-empty** (Codex #1). Caller passes normalized lists.
 
@@ -490,20 +524,42 @@ modules touched are under the 100% gate.
    - `set_metadata(ctx, agent_id, *, categories, tags)` mirroring `set_avatar_color`:
      `self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)` then `agent_repo.update`.
    - `list_agents(...)`: accept `categories`/`tags`, **normalize them once** via the
-     tolerant `normalize_labels_query` (empty stays empty; over-length dropped; capped to
-     facet bounds — round-two Findings 2, 3), pass the normalized lists to `list_visible`.
+     tolerant `normalize_labels_query`, passing the per-facet cap explicitly
+     (`max_items=10` for categories, `max_items=20` for tags — round-three Finding 1;
+     empty stays empty, over-length dropped — round-two Findings 2, 3), then pass the
+     normalized, bounded lists to `list_visible`.
    - Add `categories=agent.categories, tags=agent.tags` to the hand-built `AgentRead(...)`
      (Codex #5).
+   - **Update the `_agent` unit-test mock** (`tests/test_agent_registry.py:125`): it is a
+     bare `MagicMock`, so `agent.categories` / `agent.tags` return `MagicMock`s (not
+     `list[str]`) and fail `AgentRead` validation once the hand-built row reads them. Set
+     `agent.categories = []` and `agent.tags = []` in the helper (round-three Finding 5).
    - (Clone unchanged — starts untagged, Codex #6; assert in tests.)
 
 6. **Routes** — `backend/app/api/routes/v1/agents.py`
    - `PATCH /agents/{id}/metadata` -> `set_agent_metadata` (no route gate), body
      `AgentMetadataRequest`, `response_model=AgentRead`.
    - `GET /agents`: add `category: Annotated[list[str], Query()] = []` and
-     `tag: ... = []`; thread into `service.list_agents`.
+     `tag: ... = []`; thread into `service.list_agents`. **Add `Annotated` to the
+     `from typing import` line** — the module currently imports only `Any`
+     (`agents.py:21`), so `Annotated` must be added or the route will not compile
+     (round-three Finding 9). (The FastAPI `Query()`-defaulted list param is the framework
+     idiom and is not the `B006` concern the repository signature is; if bugbear flags it,
+     it takes a scoped `# noqa: B006` with a reason, the way route defaults elsewhere do.)
 
 7. **Frontend types + hook + query key**
    - `src/types/agents.ts`: add `categories: string[]`, `tags: string[]` to `Agent`.
+     **The listing always fills them, but declare them `categories?: string[]` /
+     `tags?: string[]` (optional) to match the existing listing-filled fields**
+     (`channels?`, `shared_user_count?`, `budget_monthly_usd?` are all optional in this
+     interface even though the backend always sends them; round-three Finding 5). A
+     **required** field here would break every typed `Agent` fixture that constructs a
+     complete object and omits the listing-only fields — `agent-card.test.tsx`,
+     `agents-filter.integration.test.tsx`, `delegate-list.test.tsx`,
+     `subagents-section*.test.tsx`, `chat/agent-picker.test.tsx`. Render code reads them
+     as `agent.tags ?? []`. (This differs from the *backend* `AgentRead`, which is
+     required on purpose so a missed hand-built path fails loud — §4 Read; the frontend's
+     concern is fixture ergonomics, and the interface already chose optional there.)
    - `src/lib/query-keys.ts`: `agents.list(includeArchived, categories=[], tags=[])`
      keyed on sorted facet arrays (Codex #2). One shared canonicalizer returns a **sorted
      copy** (`[...arr].sort()`, never mutating React state) used for both the key and the
@@ -515,12 +571,35 @@ modules touched are under the 100% gate.
      `setMetadata` mutation -> `PATCH /agents/{id}/metadata`, invalidating `qk.agents.all()`.
 
 8. **Frontend UI**
-   - Chips-input editor component under `src/components/agents/` (built on `Input` +
-     `badge`), gated on `can(Perm.agentsEdit)` (not rendered otherwise); placed in the
-     detail page beside the avatar controls; autosaves via `setMetadata`.
+   - Chips-input editor component under `src/components/agents/` (new files, e.g.
+     `metadata-editor.tsx` + a reusable `chips-input.tsx`, built on `Input` + `badge`),
+     gated on `can(Perm.agentsEdit)` (not rendered otherwise); placed in the detail page
+     beside the avatar controls; autosaves via `setMetadata`. **Specify the interaction
+     up front** (round-three Finding 6): commit a chip on Enter and on blur; remove with
+     Backspace-on-empty and a per-chip ✕; a disabled/pending state while the mutation is
+     in flight; on failure surface the error and keep the local draft; the client sends
+     the **raw** typed values and **re-renders from the normalized `AgentRead` the
+     mutation returns** (so the server's fold/dedupe/clamp is what the user sees). The
+     10/20 count and 32-char limits are shown as `maxLength`/disabled-add affordances,
+     the server validator staying the backstop.
    - Category/tag chips on the agent card + detail header for display.
    - Facet control added to `galleryControls` in `agents/page.tsx`, driving the
-     server-side params.
+     server-side params. **Declare the source of facet choices** (round-three Finding 6):
+     the options are **not** derived from the current (already server-filtered) page —
+     that set shrinks as you filter and cannot show labels past the first page. For
+     FA-023's scope the facet is a **free-text / typed-token** control (the same chips
+     input, or a simple text token list); a managed per-org vocabulary to populate a
+     dropdown is the deferred join-table work (§15).
+   - **Fix the list page's filter-state logic for server-side facets** (round-three
+     Finding 2): `agents/page.tsx` currently derives "no agents exist" from
+     `agents.length === 0`, gates the **Clear filters** CTA on `agents.length > 0`, and
+     passes `total={agents.length}` to `AgentsCard`. Under a server facet a zero-match
+     query returns an empty page and would wrongly show "No agents yet" /
+     "Nobody has shared an agent" with **no way to clear the facet**. So: fold the active
+     category/tag selection into the "filters active" decision (empty-state copy and the
+     Clear-filters CTA), clear the facet in the existing `clearFilters` handler alongside
+     `setFilter("all")`/`setQuery("")`, and render the count from the server `total`
+     rather than `agents.length`. Covered by a zero-result facet test (§13).
 
 9. **i18n** — `frontend/messages/en.json`
    - Editor + filter labels under `pages.agents`; a create-form label under `agents`
@@ -531,7 +610,18 @@ modules touched are under the 100% gate.
 
 ## 13. Test plan
 
-Backend (anyio; 100% gate on platform modules — every new line/branch covered):
+**Layering (round-three Finding 7).** The api layer (`tests/api/`) runs the route over
+an **`AsyncMock` DB session** (`conftest.py` overrides `get_db_session` with
+`mock_db_session`), so it proves route→service wiring, parsing, status codes and
+permission gates — **not** SQL behavior. Anything that depends on the real `&&` operator,
+the GIN index, the filtered `count`, tenant isolation or grant composition therefore
+belongs in **`tests/integration/`** (a real Postgres), and service-logic assertions
+(authorization via `resolve_access`, the hand-built `AgentRead`, the tolerant-normalize
+call) belong in the **unit** layer (`tests/test_agent_registry.py`, repository mocked).
+The bullets below are grouped accordingly rather than all under `tests/api/`.
+
+Backend (anyio; the 100% gate covers only `agent_registry.py` here — see §12 intro; the
+schema helpers and repository predicate are still tested to full branch coverage):
 
 - **Unit — normalization helpers**: `_fold_labels` trims, collapses whitespace,
   case-folds, drops empties, dedupes preserving order, is idempotent, and **folds
@@ -544,25 +634,40 @@ Backend (anyio; 100% gate on platform modules — every new line/branch covered)
   count caps (11 categories / 21 tags) rejected; over-length item rejected 422;
   `AgentRead` **requires** `categories`/`tags` — a construction omitting them fails
   (round-two Finding 4).
-- **API — edit** (`tests/api/`): `PATCH /agents/{id}/metadata` sets, changes and clears
-  (empty list) both facets; persists across a re-fetch; duplicate/empty/mixed-case input
-  stored normalized. **Refusal**: a caller without `agents:edit` is refused; a Viewer
-  **with an `edit` grant** on that agent succeeds (grant widens, not promotes);
-  **cross-tenant** PATCH is a 404 even when the caller owns a same-named agent elsewhere.
-- **API — filter/discovery**: `GET /agents?tag=x` returns only matching visible agents;
-  `?category=a&tag=b` ANDs across facets, multiple `tag` ORs within the facet;
-  case-insensitive match; `?tag=%20` (blank) is a no-op that returns the full visible
-  list (Codex #1 regression); an **over-length query item is dropped, not a 500 and not a
+- **API — edit route** (`tests/api/`, DB mocked): `PATCH /agents/{id}/metadata` reaches
+  `set_metadata` with the parsed body and answers `AgentRead`; the route carries **no**
+  `require(...)` gate; a caller the service refuses gets the mapped status. Over-length /
+  over-count bodies are **422** at the schema (this is validator behavior, provable here
+  or as a schema unit test).
+- **Unit — service edit** (`tests/test_agent_registry.py`, repo mocked): `set_metadata`
+  calls `self.get(..., perm=AGENTS_EDIT)` (grant-aware `resolve_access`) then
+  `agent_repo.update`; a caller without `agents:edit` is refused and a Viewer **with an
+  `edit` grant** succeeds (grant widens, not promotes). `list_agents` passes the
+  tolerant-normalized, capped facet lists to `list_visible` and fills
+  `categories`/`tags` on the hand-built `AgentRead`.
+- **Integration — filter/discovery** (`tests/integration/`, real Postgres — the only
+  layer that runs the real `&&`/GIN/count): `?tag=x` returns only matching visible
+  agents; `?category=a&tag=b` ANDs across facets, multiple `tag` ORs within the facet;
+  case-insensitive match; `?tag=%20` (blank) is a no-op returning the full visible list
+  (Codex #1 regression); an **over-length query item is dropped, not a 500 and not a
   truncated match** (round-two Finding 2 regression); an over-supplied facet
   (> cap values) narrows without error (round-two Finding 3); `total` reflects the
-  filtered count.
-- **Tenant isolation on filter**: an agent in org B carrying tag `x` never appears in
-  org A's `?tag=x`; a private/ungranted agent in the caller's own org carrying `x` does
-  not appear for a caller who cannot see it (filter narrows the visible set only).
-- **Non-empty metadata round-trips every AgentRead path** (round-two Finding 4): a tagged
-  row shows its categories/tags through the **list** card, the **detail** response, and
-  the **metadata-mutation** response — the required fields never serialize as a false
-  `[]`.
+  filtered count; set/change/clear (empty list) and duplicate/empty/mixed-case input
+  round-trip **stored normalized** across a re-fetch.
+- **Integration — tenant isolation on filter**: an agent in org B carrying tag `x` never
+  appears in org A's `?tag=x`; a private/ungranted agent in the caller's own org carrying
+  `x` does not appear for a caller who cannot see it (filter narrows the visible set
+  only); a Viewer's `edit` grant lets them PATCH exactly one agent's metadata and a
+  **cross-tenant** PATCH is a 404 even when the caller owns a same-named agent elsewhere.
+- **Non-empty metadata round-trips every AgentRead path** (round-two Finding 4,
+  round-three Finding 8): a tagged row shows its categories/tags through the **list**
+  card, the **detail** response, and the **metadata-mutation** response — the required
+  fields never serialize as a false `[]`. The other routes that answer `AgentRead`
+  (create, draft-update, publish/rollback response, clone, avatar-color, archive/
+  unarchive) all serialize the **ORM row via `from_attributes`**, so they carry the
+  columns for free; add one representative **create-and-read-back** (and the
+  **avatar-color** response) assertion to guard against a future hand-built or unrefreshed
+  path silently regressing, rather than exhaustively re-testing each.
 - **Import/export** (round-two Finding 5, `tests/api/`): `GET /agents/{id}/spec.yaml`
   never contains categories/tags; importing a spec into an **already-tagged** target
   leaves its categories/tags **unchanged** (import touches only the draft); the exported
@@ -571,25 +676,48 @@ Backend (anyio; 100% gate on platform modules — every new line/branch covered)
 - **Route-gate contract**: `tests/api/test_platform_routes.py` — the new per-resource
   PATCH carries **no** `require(...)` gate; the collection `GET` keeps its
   `AGENTS_VIEW` gate.
-- **Migration/integration** (`test-integration` / `test_migrations.py`): columns exist
-  with empty-array default on a pre-existing row; GIN indexes present; up/down round-trip;
-  `make db-check` clean.
-- **Coverage-gate contract**: if any new module is added to the platform layer, keep
-  `[tool.coverage.run] include` and `[[tool.ty.overrides]] include` aligned
-  (`test_coverage_gate.py`). (No new module expected — changes land in existing covered
-  files.)
+- **Migration semantics** — needs a **new revision-specific test**, not the existing
+  `tests/test_migrations.py` (round-three Finding 4). That file only runs the whole chain
+  (`upgrade head`, `downgrade base`, the cycle, `current == head`); it never inserts a row
+  at a revision or inspects a column/index. Add a test (integration, real Postgres) that:
+  upgrades to **0077**, inserts a valid `agents` row, upgrades to **0078**, asserts both
+  arrays default to empty on that pre-existing row and both indexes exist **with
+  `amname = 'gin'`** (via `pg_index`/`pg_class`/`pg_am`), then downgrades to 0077 and
+  asserts the columns and indexes are gone. Separately, a model-built-schema integration
+  assertion verifies the two `Index(...)` entries are declared on `Agent.__table_args__`
+  (Codex #4 parity). `make db-check` clean and the existing full-chain `test_migrations.py`
+  still green cover the round-trip at the chain level.
+- **Coverage-gate contract**: no new module is added, so `[tool.coverage.run] include`
+  and `[[tool.ty.overrides]] include` stay unchanged (`test_coverage_gate.py` still
+  passes). Note the changes land in a **mix** of gated (`agent_registry.py`) and
+  **ungated** (`db/models/agent.py`, `schemas/agent.py`, `repositories/agent.py`,
+  `api/routes/v1/agents.py`) files — the ungated ones are not measured by the gate but
+  are still tested to full branch coverage here (round-three Finding 3). Run `make test`
+  (backend + gate), `make test-frontend-cov` (frontend gate) and a frontend build before
+  pushing.
 
-Frontend (`*.integration.test.tsx`, Testing Library vs. mocked API; 100% gate):
+Frontend (`*.integration.test.tsx`, Testing Library vs. mocked API; the gate covers
+`hooks/**`, `lib/**`, `components/agents/**` but **not** the `agents/**/page.tsx` files —
+round-three Finding 3, so the hook, query-key helper and chips-input/editor components
+reach 100% and the page behavior is proven by integration tests):
 
 - Editor control **absent** without the `agents:edit` role, **present** with it (not
   rendered-then-403) — the same role-level contract the avatar/draft controls hold
   (round-two Finding 1); the test does **not** assert a granted Viewer sees it.
 - Editing submits normalized categories/tags to `PATCH /agents/{id}/metadata` and shows
-  the resulting chips.
+  the resulting chips **from the returned `AgentRead`** (server-normalized, round-three
+  Finding 6); a rejected mutation surfaces the error and keeps the draft.
 - The facet control drives the request params and the query key changes with the facet
   (no stale cache, Codex #2); the filtered list renders only matching cards. Assert the
   repeated params reach the client as **tuple pairs** and that selecting a facet does not
   mutate the source array (round-two lower-severity item).
+- **Zero-result facet** (round-three Finding 2): a facet selection that matches nothing
+  shows the *filter-empty* copy (not "No agents yet"/"Nobody has shared an agent") and a
+  working **Clear filters** action that resets the facet; the count reflects the server
+  `total`.
+- **i18n validation** (round-three Finding 10): the new keys pass the repository's
+  message-catalog consistency check (en/pl parity as the rule requires), and the filter
+  and editor controls expose accessible names (assert by role/name, not by test id).
 - Assert on **data**, not chrome (empty-state trap).
 
 ## 14. Documentation
@@ -651,3 +779,34 @@ absent" test rather than the "granted Viewer sees editor" one the finding propos
 No first-round decision was overturned. Codex also re-confirmed the SQL authorization
 composition is tenant-safe: the `&&` predicates only narrow an already org- and
 grant-scoped query and cannot widen it.
+
+## 17. Plan review (gpt-5.6-sol)
+
+A third `codex exec` review (`gpt-5.6-sol`, read-only, medium effort) targeted the
+**implementation plan** specifically — step sequencing, migration numbering, whether each
+settled decision has a concrete step, missing files/steps, and test/coverage
+completeness. The run header confirmed `model: gpt-5.6-sol`. Each finding was verified
+against the actual code (alembic head, the named files/lines, the coverage config, the
+test layers) before a verdict. Codex explicitly **confirmed the migration numbering**:
+`0077_drop_allow_byo` is the current head, so `0078_agent_categories_tags` with
+`down_revision = "0077_drop_allow_byo"` is valid — matched independently against
+`backend/alembic/versions/`.
+
+| # | Sev | Finding | Verdict | Change |
+|---|---|---|---|---|
+| 1 | High | `normalize_labels_query(values)` cannot apply a per-facet cap (10 vs 20) without knowing the facet; and the strict length check "> 32 after trim" ignores that `casefold()` can *expand* a value past `String(32)`. | **Accepted (both parts)** | Verified: §3 capped "first 10 / first 20" with no facet arg; strict check said "after trim". Gave `normalize_labels_query(values, *, max_items)` (service passes 10/20) and moved the length check onto the **folded** value. §3, §4 filter, §12 steps 3–5. |
+| 2 | High | The list page derives empty-state, the Clear-filters CTA and the count from `agents.length`, so a zero-match **server** facet shows "No agents yet" with no way to clear. | **Accepted** | Verified `agents/page.tsx:177` (`agents.length === 0` empty copy, `agents.length > 0` CTA gate, `total={agents.length}`). §12 step 8 now folds the facet into the empty/clear/`total` logic; §13 adds a zero-result facet test. |
+| 3 | High | The plan claims the touched platform modules and frontend work are "under the 100% gate"; actually only `agent_registry.py` (backend) is in `include`, and the page files are excluded (frontend). | **Accepted** | Verified against `pyproject.toml` (only `agent_registry.py`; model/schema/repo/route absent) and `vitest.config.ts` (pages excluded). §12 intro and §13 rewritten to state the real gated set and to require full branch coverage of the ungated helpers/predicate anyway. |
+| 4 | Med | The named `test_migrations.py` proves only the whole-chain round-trip, not the per-revision defaults/index/preservation the plan asserts. | **Accepted** | Verified `test_migrations.py` has only `upgrade head` / `downgrade base` / cycle / current==head. §7 and §13 now call for a dedicated revision-specific integration test (insert at 0077 → upgrade → assert empty arrays + GIN `amname` → downgrade drops). |
+| 5 | Med | Making frontend `Agent.categories/tags` **required** breaks typed fixtures and the backend `_agent` MagicMock. | **Accepted** | Verified the TS `Agent` interface marks listing-filled fields optional and `agent-card.test.tsx` (+ others) build full objects; `_agent` (`test_agent_registry.py:125`) is a bare `MagicMock`. §12 step 7 now declares the TS fields **optional** (matching `channels?`/`shared_user_count?`); step 5 sets `agent.categories/tags = []` on the mock. |
+| 6 | Med | Editor/filter controls under-specified (commit/remove/failure behavior; source of filter choices). | **Accepted (scoped)** | Legitimate gaps. §12 step 8 now names the new component files, fixes the interaction (Enter/blur commit, ✕/Backspace remove, pending/failure, render from the normalized response) and declares the facet as free-text tokens (not page-derived), with a managed vocabulary deferred (§15). Did not over-specify beyond that. |
+| 7 | Med | Persistence, `&&` semantics, grants and tenant isolation were placed under `tests/api/`, but the api layer runs on a **mocked** DB session. | **Accepted** | Verified `conftest.py` overrides `get_db_session` with `mock_db_session` and `tests/api/*` monkeypatch repos; the rules put real-DB behavior in `tests/integration/`. §13 regrouped: route wiring/422 in api, service authorization/hand-built read in unit, real `&&`/GIN/count/tenant in integration. |
+| 8 | Med | The round-trip test names only list/detail/metadata responses, but create/draft/clone/avatar/… also serialize `AgentRead`. | **Accepted (minor)** | Those are `from_attributes` ORM paths that carry the columns for free (§4), so the risk is low; §13 adds a representative create-read-back + avatar-color assertion as a guard rather than exhaustive re-testing. |
+| 9 | Low | Route step uses `Annotated` but `agents.py` imports only `Any`; and `list_visible(..., list[str] = [])` is a `B006` mutable-default. | **Accepted (both)** | Verified `agents.py:21` imports only `Any`, and ruff selects bugbear `B`. §12 step 6 adds the `Annotated` import (and notes the FastAPI `Query()` list default idiom); step 4 uses `Sequence[str] = ()`. |
+| 10 | Low | i18n step lacks a validation/verification substep. | **Accepted** | §13 frontend now asserts the message-catalog consistency check (en/pl parity) and accessible names on the new controls. |
+
+No design-level decision was overturned; every change above is to the plan's steps and
+tests, not to the settled design. The core decision (record metadata over `AgentSpec`),
+the strict-vs-query split, required backend `AgentRead` fields, GIN on model + migration,
+the `list_visible` filter params, the React Query key shape, and the import/export
+contract all stand.
