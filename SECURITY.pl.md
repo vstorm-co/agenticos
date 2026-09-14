@@ -2,7 +2,7 @@
 source_sha: "5bb89334b619"
 ---
 
-<!-- source_sha: 5bb89334b619 -->
+<!-- source_sha: 49074c4c262a -->
 
 # Bezpieczeństwo
 
@@ -51,6 +51,7 @@ Celujemy w potwierdzenie w ciągu 48h i wypuszczenie poprawki w ciągu 7 dni dla
 - **Sekrety** — czytane ze środowiska przez `pydantic-settings`. Nigdy nie commitowane. Zobacz `backend/.env.example` oraz [Konfigurację](docs/configuration.pl.md).
 - **Log audytu** — działania administratora aplikacji (aktualizacje użytkowników, usunięcia, impersonacje) zapisywane w tabeli `app_admin_audit_logs` wraz z aktorem, IP i migawką ładunku. Działania na poziomie organizacji, które zmieniają dostęp albo wydają pieniądze, mają własny ślad, bramkowany uprawnieniem `audit:read` — zobacz [Governance](docs/governance.pl.md).
 - **Dokumenty RAG** — wgrane pliki są ograniczone do organizacji. Nie ma publicznego endpointu do odczytu; całe wyszukiwanie odbywa się po stronie serwera w trakcie czatu.
+- **Dane osobowe** — gdzie leżą, co opuszcza wdrożenie i przy jakim ustawieniu, co obejmuje usunięcie, a czego nie obejmuje, z nazwanymi otwartymi lukami: [Ochrona danych](docs/data-protection.pl.md).
 
 ### Lista kontrolna hardeningu na produkcję
 

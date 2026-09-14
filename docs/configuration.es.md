@@ -1,5 +1,5 @@
 ---
-source_sha: "4438f1c9409f"
+source_sha: "1a26fb09fa79"
 ---
 
 # Configuración { #configuration }
@@ -13,7 +13,7 @@ global `settings`:
 ```python
 from app.core.config import settings
 
-print(settings.EMBEDDING_MODEL)
+print(settings.MAX_UPLOAD_SIZE_MB)
 print(settings.DEBUG)
 ```
 
@@ -389,10 +389,17 @@ fija cada archivo compose de aquí.
 
 ### Embeddings { #embeddings }
 
-| Variable | Por defecto | Descripción |
-|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | La credencial de embeddings de reserva, para las colecciones que no eligieron una clave propia del vault — y aquella a la que recurre una elección degradada. No es "todas las colecciones hacen embeddings con ella": ver [Procesamiento de archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays) |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | Con qué se construye una colección **nueva**. El ancho queda registrado en la fila y no cambia después, así que cambiar esto no invalida las colecciones existentes: siguen haciendo embeddings con el modelo con el que se crearon |
+Nada aquí. Cada colección nombra el provider a través del cual genera sus
+embeddings, el modelo, y o bien la clave del vault de la organización que lo
+paga o bien — para el provider sin clave `ollama` — un **servicio local**, una
+fila bajo Knowledge → Integrations que dice dónde responde el Ollama del
+deployment o de la organización. Consulta [Procesamiento de archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
+Antes había aquí dos variables. `EMBEDDING_MODEL` preseleccionaba un modelo para
+las colecciones nuevas y ha desaparecido: el formulario ofrece los modelos que
+sirve el provider elegido. `EMBEDDING_OLLAMA_BASE_URL` nombraba un único Ollama
+para todo el deployment y ahora es un servicio local, por organización o de todo
+el deployment.
 
 ### Parseo de documentos — se configura por colección, no aquí { #document-parsing-configured-per-collection-not-here }
 
@@ -409,12 +416,16 @@ quieren respuestas distintas en el mismo despliegue. `PDF_PARSER`, `CHAT_PDF_PAR
 `RAG_ENABLE_OCR`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` y `RAG_CHUNKING_STRATEGY` se
 eliminaron; fijarlas ahora no hace nada.
 
-Lo que se queda aquí es lo que un tenant no debe elegir:
-
-| Variable | Por defecto | Descripción |
-|----------|---------|-------------|
-| `LLAMAPARSE_API_KEY` | (empty) | Clave de LlamaParse de reserva, para las colecciones que no eligieron una clave propia del vault |
-| `LITEPARSE_OCR_SERVER_URL` | (empty) | Servidor de OCR por HTTP; una dirección en la propia red del despliegue |
+Dos cosas que antes se quedaban aquí son ahora filas en el producto. Una clave
+de LlamaParse es una entrada del vault que nombra la configuración de ingesta de
+la colección (`llamaparse_secret_id`), y una colección en LlamaParse sin ella se
+rechaza ya en el formulario: `LLAMAPARSE_API_KEY` ha desaparecido. Un servidor de
+OCR al que LiteParse envía páginas es un servicio local de tipo `ocr` bajo
+Knowledge → Integrations, elegido por colección (`ocr_endpoint_id`), registrado
+por el operador de una organización o — para todas las organizaciones — por el
+administrador del deployment; `LITEPARSE_OCR_SERVER_URL` también ha
+desaparecido. Ninguna de las dos era visible para el tenant sobre cuyos
+documentos decidía.
 
 Los adjuntos del chat se leen con PyMuPDF y no son configurables: un adjunto no
 pertenece a ninguna colección, así que no hay configuración guardada que leer.
@@ -1043,7 +1054,6 @@ queda viejo y el ping por tubería de producción se queda sin respuesta.
 - [ ] `POSTGRES_PASSWORD` — una contraseña fuerte y única
 - [ ] `REDIS_PASSWORD` — una contraseña fuerte
 - [ ] `CORS_ORIGINS` — solo el dominio o los dominios reales de tu frontend
-- [ ] `OPENROUTER_API_KEY` — tu clave de API de producción
 
 El correo a propósito **no** está en esta lista: un despliegue funciona sin él. Pero
 las invitaciones, los restablecimientos de contraseña y las notificaciones se quedan

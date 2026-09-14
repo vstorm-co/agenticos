@@ -1,5 +1,5 @@
 ---
-source_sha: "4d21c4c93ebc"
+source_sha: "e2011b4848b5"
 ---
 
 # La puesta en marcha { #rolling-it-out }
@@ -99,6 +99,7 @@ que se eligió esta arquitectura.
 | ¿Qué impide que un agent haga daño? | Nada con efectos secundarios se ejecuta sin [aprobación](governance.md#approvals) cuando la exiges, y una aprobación se decide exactamente una vez |
 | ¿Podemos demostrar qué ocurrió? | Cada run, cada aprobación, cada rotación de un secreto está en el [registro de auditoría](governance.md#audit) — incluidos los runs que fallaron |
 | ¿Dónde están las credenciales? | En [un único vault](secrets.md), sellado por organización. Ninguna respuesta de la API, línea de log ni entrada de auditoría lleva jamás una clave en claro |
+| ¿Cumple el RGPD? | Lo cumple un despliegue, o no lo cumple; el código se puede desplegar dentro de uno que sí. [Protección de datos](data-protection.md) asigna cada almacén, cada destino y cada control a un mecanismo, una prueba o una incidencia abierta, y enumera lo que el propio despliegue tiene que decidir |
 | ¿Podemos leer el código? | Sí. Ahí suele terminar la conversación |
 | ¿De qué está hecho, y bajo qué licencias? | Apache-2.0, encima de unos quinientos paquetes que son casi todos MIT, Apache-2.0 o BSD. [Cada uno está listado con su evidencia](licenses.md), y los hallazgos todavía abiertos aparecen primero en lugar de diluirse en la media. Un componente, el parser de PDF, es AGPL-3.0: un despliegue que modifique la plataforma y la sirva por red les debe a sus usuarios el código fuente modificado, y [esa decisión tiene su propia sección](licenses.md#the-agpl-component) |
 

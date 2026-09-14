@@ -1,5 +1,5 @@
 ---
-source_sha: "6f2247bf1919"
+source_sha: "ff2d54edf633"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -31,7 +31,7 @@ ha ejecutado.
 | **Docker** | Engine 24+ con el plugin Compose (2.24 o posterior), y tu usuario en el grupo `docker`. En el host no se construye nada: las imágenes se descargan de GHCR |
 | **Dos nombres de host** | uno para el sitio, otro para la API — ver [por qué dos](#why-two-hostnames) |
 | **Un proxy inverso** | [Traefik](#option-a-traefik) o [Nginx](#option-b-nginx). Termina el TLS |
-| **Una clave de OpenRouter** | cada colección hace sus embeddings a través de ella. Los modelos de chat se configuran por organización, en el producto |
+| **Ninguna clave de provider** | los modelos de chat y los embeds llevan ambos su clave por organización, en el vault del producto. El entorno no guarda credenciales para ninguno de los dos — consulta [Protección de datos](data-protection.md#nothing-leaves-by-default) |
 
 El host también necesita los puertos 80 y 443 abiertos, y nada más. Postgres,
 Redis y la API de Prefect no se publican en ninguna interfaz.
@@ -115,9 +115,10 @@ bash scripts/server-init.sh
 ```
 
 `server-init.sh` escribe `backend/.env`: genera los cinco secretos, pide los dos
-nombres de host, una dirección para Let's Encrypt y la clave de OpenRouter, y
-deriva las URL públicas y el origen CORS de lo que le hayas dado. Se niega a
-sobrescribir un archivo existente.
+nombres de host y una dirección para Let's Encrypt, y deriva las URL públicas y
+el origen CORS de lo que le hayas dado. No pide ninguna clave de provider: esas
+viven en el vault de cada organización. Se niega a sobrescribir un archivo
+existente.
 
 El clon es donde viven los archivos de compose y ese archivo de entorno; de él no
 se ejecuta ningún código. Lo que se ejecuta son las dos imágenes que publica el

@@ -1,5 +1,5 @@
 ---
-source_sha: "3e0f132dff72"
+source_sha: "6fcf1f4dbc8e"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -373,7 +373,7 @@ Parser:
 |--------|-----------|-------|
 | PyMuPDF | `.pdf` | nichts |
 | LiteParse | `.pdf`; Bilder (`.png`, `.jpg`, `.tiff`, `.svg`, …); Office-Formate (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **nur für Office-Formate** — Bilder werden nativ konvertiert |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, Bilder | `LLAMAPARSE_API_KEY` |
+| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, Bilder | Ein LlamaParse-Schlüssel im Vault der Organisation, von der Collection benannt (`llamaparse_secret_id`). Einen Deployment-Schlüssel gibt es nicht |
 
 Das Dockerfile des Backends installiert LibreOffice und Tesseract, Office-Formate
 und OCR funktionieren im Container also von Haus aus. Läuft das Backend außerhalb
@@ -505,9 +505,9 @@ Alle drei werden **pro Collection** entschieden, nicht pro Deployment, von
 
 | | |
 |---|---|
-| **Modell und Breite** | Bei der Erstellung auf der Wissensdatenbank festgehalten (`embedding_model`, `embedding_dim`) und danach nie geändert — `PgVectorStore` schreibt `embedding vector(N)` ein einziges Mal, ein zweites Modell lässt sich also entweder nicht schreiben oder wird still gegen Vektoren aus einem anderen Raum verglichen. `EMBEDDING_MODEL` entscheidet nur, womit eine *neue* Collection gebaut wird. |
+| **Modell und Breite** | Bei der Erstellung auf der Wissensdatenbank festgehalten (`embedding_model`, `embedding_dim`) und danach nie geändert — `PgVectorStore` schreibt `embedding vector(N)` ein einziges Mal, ein zweites Modell lässt sich also entweder nicht schreiben oder wird still gegen Vektoren aus einem anderen Raum verglichen. Eine neue Collection wählt eines der Models, die ihr Provider bereitstellt; einen Deployment-Standard gibt es nicht. |
 | **Provider** | Welcher OpenAI-kompatible Endpunkt dieses Modell bedient (`embedding_provider`). **Änderbar**, anders als das Modell: dasselbe Modell in derselben Breite erzeugt Vektoren im selben Raum, von wo aus es auch bedient wird, `PATCH /kb/{id}` verschiebt eine Collection also zwischen Providern und lässt alles bereits Indexierte gültig. |
-| **Zugangsdaten** | Der auf der Collection gewählte Vault-Schlüssel (`embedding_secret_id`), der der Organisation in Rechnung gestellt wird und der ein Schlüssel **für diesen Provider** sein muss. Eine Collection auf dem Provider, zu dem der eigene Schlüssel des Deployments gehört, darf stattdessen über `OPENROUTER_API_KEY` einbetten. |
+| **Zugangsdaten** | Der auf der Collection gewählte Vault-Schlüssel (`embedding_secret_id`), der der Organisation in Rechnung gestellt wird und der ein Schlüssel **für diesen Provider** sein muss. Einen deploymentweiten Embedding-Schlüssel gibt es nicht: Eine neue persönliche oder Organisations-Collection muss einen benennen, und eine Collection ohne brauchbaren Schlüssel verweigert Indexierung und Suche, bis sie einen hat. Der Provider `ollama` ist **schlüssellos** — ein Ollama im Netz des Deployments selbst — eine Collection auf ihm benennt also keinen Schlüssel und wird abgelehnt, wenn sie es versucht; sie benennt stattdessen einen **lokalen Dienst** (`embedding_endpoint_id`), eine Zeile unter Knowledge → Integrations, die die Adresse trägt, den eigenen der Organisation oder einen deploymentweiten, den der App-Administrator registriert hat. Eine **app-scoped** Collection gehört zu keiner Organisation und hat damit keinen Vault, aus dem sie einen Schlüssel benennen könnte; sie darf nur über einen schlüssellosen Provider an einem deploymentweiten Dienst einbetten, und die Wahl eines Providers mit Schlüssel wird für sie dort abgelehnt, wo der Provider gewählt wurde. |
 
 Auf welche Wissensdatenbank sich der Name einer Collection auflöst, ist selbst
 eine Tenant-Frage. `collection_name` ist indiziert, aber **nicht eindeutig** —
@@ -565,27 +565,23 @@ Ein Schlüssel, den sie nicht sehen können, wird als einer abgelehnt, den der
 Vault nicht hält, damit die Ablehnung nicht die privaten Secrets anderer
 aufzählen kann.
 
-Zur Embedding-Zeit wird nichts abgelehnt: ein gewählter Schlüssel, der seither
-gelöscht wurde, nicht entsiegelt werden kann oder keinen API-Schlüssel hält,
-fällt auf den des Deployments zurück, denn *wessen Schlüssel zahlt* darf nie
-entscheiden, *ob Dokumente gefunden werden können*.
+Zur Embedding-Zeit lehnt der Resolver nichts ab: ein gewählter Schlüssel, der
+seither gelöscht wurde, nicht entsiegelt werden kann oder keinen API-Schlüssel
+hält, löst sich auf *keinen* Schlüssel auf, denn *wessen Schlüssel zahlt* darf
+nie entscheiden, *ob die Zeile der Collection gelesen werden kann*. Der
+Embedding-Client verweigert dann die Indexierung oder die Suche mit einer
+Meldung, die die Collection, ihren Provider und den eingetretenen Fall nennt —
+es gibt keinen deploymentweiten Schlüssel, auf den zurückzufallen wäre, die
+Ablehnung rät also nie zu einer Variablen.
 
-**Dieser Rückfall endet bei dem Provider, zu dem der Schlüssel des Deployments
-gehört.** Eine Collection, die über jemand anderen einbettet, löst sich auf
-*keinen* Schlüssel auf statt auf den einer anderen Partei — die Anfrage würde am
-anderen Ende ohnehin abgelehnt, nachdem sie die Zugangsdaten schon dorthin
-getragen hat — und die Ablehnung nennt dann Collection und Provider, statt eine
-Variable zu nennen, die nicht geholfen hätte.
-
-Dieser Rückfall wird angekündigt statt angenommen. Die Auflösung trägt mit, auf
-welcher der fünf Quellen sie gelandet ist, die Ingestion schreibt die
-verschlechterten Fälle in das Log des Prefect-Runs, und ein Deployment ohne
-eigenen Schlüssel scheitert mit einer Meldung, die die Collection nennt und
-welchen Schlüssel es versucht hat — nicht mit dem Rat, eine Variable zu setzen,
-zu einer Collection, die bereits einen Schlüssel hatte. Vor #306 war der
+Diese Verschlechterung wird angekündigt statt angenommen. Die Auflösung trägt
+mit, auf welcher der fünf Quellen sie gelandet ist, und die Ingestion schreibt
+jeden verschlechterten Fall in das Log des Prefect-Runs, eine Collection, die
+schlicht keinen Schlüssel benennt, eingeschlossen. Vor Issue #306 war der
 Ingestion-Worker der eine Aufrufer, der den Resolver überhaupt nie fragte, jedes
-hochgeladene Dokument wurde also mit Modell und Schlüssel des Deployments
-eingebettet, was seine Collection auch gewählt hatte.
+hochgeladene Dokument wurde also mit dem Model des Deployments und einem
+deploymentweiten Schlüssel eingebettet, was seine Collection auch gewählt hatte;
+diesen Schlüssel gibt es nicht mehr.
 
 ### Vektorspeicher { #vector-storage }
 Vektoren werden in **pgvector** gespeichert, in der vorhandenen

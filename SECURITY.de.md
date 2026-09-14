@@ -2,7 +2,7 @@
 source_sha: "5bb89334b619"
 ---
 
-<!-- source_sha: 5bb89334b619 -->
+<!-- source_sha: 49074c4c262a -->
 
 # Sicherheit
 
@@ -52,6 +52,7 @@ Wir streben an, innerhalb von 48h zu bestätigen und bei Problemen hoher Schwere
 - **Secrets** — über `pydantic-settings` aus der Umgebung gelesen. Nie eingecheckt. Siehe `backend/.env.example` und [Konfiguration](docs/configuration.de.md).
 - **Audit-Log** — App-Admin-Aktionen (Benutzeränderungen, Löschungen, Impersonationen) werden in der Tabelle `app_admin_audit_logs` mit Akteur + IP + Payload-Schnappschuss festgehalten. Aktionen auf Organisationsebene, die Zugriff ändern oder Geld ausgeben, haben ihre eigene Spur, gegatet durch `audit:read` — siehe [Governance](docs/governance.de.md).
 - **RAG-Dokumente** — Datei-Uploads sind je Org gescoped. Kein öffentlicher Lese-Endpunkt; das gesamte Retrieval passiert serverseitig während des Chats.
+- **Personenbezogene Daten** — wo sie liegen, was das Deployment verlässt und unter welcher Einstellung, was das Löschen erreicht und was nicht, mit den offenen Lücken beim Namen genannt: [Datenschutz](docs/data-protection.de.md).
 
 ### Härtungs-Checkliste für die Produktion
 

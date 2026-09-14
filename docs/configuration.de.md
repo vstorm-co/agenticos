@@ -1,5 +1,5 @@
 ---
-source_sha: "4438f1c9409f"
+source_sha: "1a26fb09fa79"
 ---
 
 # Konfiguration { #configuration }
@@ -13,7 +13,7 @@ Objekt `settings` gelesen:
 ```python
 from app.core.config import settings
 
-print(settings.EMBEDDING_MODEL)
+print(settings.MAX_UPLOAD_SIZE_MB)
 print(settings.DEBUG)
 ```
 
@@ -401,10 +401,17 @@ worauf jede Compose-Datei hier pinnt.
 
 ### Embeddings { #embeddings }
 
-| Variable | Standard | Beschreibung |
-|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | Die Zugangsinformation, auf die Embeddings zurückfallen, für Collections, die keinen eigenen Vault-Key gewählt haben — und die, auf die eine herabgestufte Wahl zurückfällt. Nicht „jede Collection embedded damit“: siehe [Dateiverarbeitung](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays) |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | Womit eine **neue** Collection gebaut wird. Die Breite wird auf der Zeile festgehalten und ändert sich danach nie, eine Änderung hier entwertet bestehende Collections also nicht — sie embedden weiter mit dem Modell, mit dem sie erstellt wurden |
+Nichts hier. Jede Collection benennt selbst den Provider, über den sie embeddet,
+das Model, und entweder den Vault-Schlüssel der Organisation, der dafür zahlt,
+oder — beim schlüssellosen Provider `ollama` — einen **lokalen Dienst**, eine
+Zeile unter Knowledge → Integrations, die sagt, wo das Ollama des Deployments
+oder der Organisation antwortet. Siehe [Dateiverarbeitung](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
+Früher standen hier zwei Variablen. `EMBEDDING_MODEL` wählte für neue Collections
+ein Model vor und ist weg: Das Formular bietet die Models an, die der gewählte
+Provider bereitstellt. `EMBEDDING_OLLAMA_BASE_URL` benannte ein Ollama für das
+ganze Deployment und ist jetzt ein lokaler Dienst, pro Organisation oder
+deploymentweit.
 
 ### Dokument-Parsing — je Collection konfiguriert, nicht hier { #document-parsing-configured-per-collection-not-here }
 
@@ -423,12 +430,16 @@ Markdown-Notizen wollen auf demselben Deployment unterschiedliche Antworten.
 `RAG_CHUNK_OVERLAP` und `RAG_CHUNKING_STRATEGY` wurden entfernt; sie zu setzen
 bewirkt heute nichts.
 
-Was hier bleibt, ist das, was ein Tenant nicht wählen darf:
-
-| Variable | Standard | Beschreibung |
-|----------|---------|-------------|
-| `LLAMAPARSE_API_KEY` | (empty) | LlamaParse-Key, auf den Collections zurückfallen, die keinen eigenen Vault-Key gewählt haben |
-| `LITEPARSE_OCR_SERVER_URL` | (empty) | HTTP-OCR-Server; eine Adresse im eigenen Netz des Deployments |
+Zwei Dinge, die früher hier blieben, sind jetzt Zeilen im Produkt. Ein
+LlamaParse-Schlüssel ist ein Vault-Eintrag, den die Ingestion-Konfiguration der
+Collection benennt (`llamaparse_secret_id`), und eine Collection auf LlamaParse
+ohne einen wird schon am Formular abgelehnt — `LLAMAPARSE_API_KEY` ist weg. Ein
+OCR-Server, an den LiteParse Seiten schickt, ist ein lokaler Dienst der Art `ocr`
+unter Knowledge → Integrations, pro Collection gewählt (`ocr_endpoint_id`),
+registriert vom Betreiber einer Organisation oder — für jede Organisation — vom
+Administrator des Deployments; `LITEPARSE_OCR_SERVER_URL` ist ebenfalls weg.
+Keine von beiden war für den Tenant sichtbar, über dessen Dokumente sie
+entschied.
 
 Chat-Anhänge werden mit PyMuPDF gelesen und sind nicht konfigurierbar: Ein Anhang
 gehört zu keiner Collection, es gibt also keine gespeicherte Konfiguration zu
@@ -1106,7 +1117,6 @@ Reload-Supervisors wird schal und der Pipe-Ping der Produktion bleibt unbeantwor
 - [ ] `POSTGRES_PASSWORD` — ein starkes, eindeutiges Passwort
 - [ ] `REDIS_PASSWORD` — ein starkes Passwort
 - [ ] `CORS_ORIGINS` — nur Ihre tatsächlichen Frontend-Domains
-- [ ] `OPENROUTER_API_KEY` — Ihr Produktions-API-Key
 
 E-Mail steht bewusst **nicht** auf dieser Liste: Ein Deployment läuft auch ohne.
 Aber Einladungen, Passwort-Zurücksetzungen und Benachrichtigungen bleiben still

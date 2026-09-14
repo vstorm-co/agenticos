@@ -2,7 +2,7 @@
 source_sha: "5bb89334b619"
 ---
 
-<!-- source_sha: 5bb89334b619 -->
+<!-- source_sha: 49074c4c262a -->
 
 # Seguridad
 
@@ -52,6 +52,7 @@ Aspiramos a acusar recibo en 48h y a entregar un arreglo en 7 días para los pro
 - **Secretos** — se leen del entorno vía `pydantic-settings`. Nunca se confirman en el repositorio. Mira `backend/.env.example` y [Configuración](docs/configuration.es.md).
 - **Registro de auditoría** — las acciones de app-admin (actualizaciones de usuario, borrados, suplantaciones) quedan registradas en la tabla `app_admin_audit_logs` con el actor + la IP + una instantánea de la carga útil. Las acciones a nivel de organización que cambian el acceso o gastan dinero llevan su propio rastro, con una puerta sobre `audit:read` — mira [Governance](docs/governance.es.md).
 - **Documentos de RAG** — las subidas de archivos quedan acotadas por organización. No hay endpoint público de lectura; toda la recuperación ocurre en el servidor durante el chat.
+- **Datos personales** — dónde residen, qué sale del despliegue y bajo qué ajuste, qué alcanza el borrado y qué no, con las lagunas abiertas nombradas: [Protección de datos](docs/data-protection.es.md).
 
 ### Lista de endurecimiento para producción
 

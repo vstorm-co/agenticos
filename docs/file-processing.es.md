@@ -1,5 +1,5 @@
 ---
-source_sha: "3e0f132dff72"
+source_sha: "6fcf1f4dbc8e"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -362,7 +362,7 @@ parser de la colección. Más allá de esos, el conjunto sigue al parser:
 |--------|-----------|-------|
 | PyMuPDF | `.pdf` | nada |
 | LiteParse | `.pdf`; imágenes (`.png`, `.jpg`, `.tiff`, `.svg`, …); formatos ofimáticos (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **solo para los formatos ofimáticos** — las imágenes se convierten de forma nativa |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, imágenes | `LLAMAPARSE_API_KEY` |
+| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, imágenes | Una clave de LlamaParse en el vault de la organización, nombrada por la colección (`llamaparse_secret_id`). No hay clave de deployment |
 
 El Dockerfile del backend instala LibreOffice y Tesseract, así que los formatos
 ofimáticos y el OCR funcionan de serie en un contenedor. Si ejecutas el backend
@@ -490,9 +490,9 @@ Los tres se deciden **por colección**, no por deployment, en
 
 | | |
 |---|---|
-| **Modelo y anchura** | Se registran en la base de conocimiento al crearla (`embedding_model`, `embedding_dim`) y no cambian nunca después — `PgVectorStore` escribe `embedding vector(N)` una sola vez, así que un segundo modelo o no se puede escribir o se compara en silencio con vectores de otro espacio. `EMBEDDING_MODEL` decide únicamente con qué se construye una colección *nueva*. |
+| **Modelo y anchura** | Se registran en la base de conocimiento al crearla (`embedding_model`, `embedding_dim`) y no cambian nunca después — `PgVectorStore` escribe `embedding vector(N)` una sola vez, así que un segundo modelo o no se puede escribir o se compara en silencio con vectores de otro espacio. Una colección nueva elige uno de los modelos que sirve su provider; no hay valor por defecto del deployment. |
 | **Provider** | Qué endpoint compatible con OpenAI sirve ese modelo (`embedding_provider`). **Es modificable**, a diferencia del modelo: el mismo modelo con la misma anchura produce vectores del mismo espacio se sirva desde donde se sirva, así que `PATCH /kb/{id}` mueve una colección entre providers y deja válido todo lo ya indexado. |
-| **Credencial** | La clave del vault elegida en la colección (`embedding_secret_id`), que es lo que se le factura a la organización y que tiene que ser una clave **de ese provider**. Una colección en el provider al que pertenece la clave propia del deployment puede, en su lugar, generar embeddings con `OPENROUTER_API_KEY`. |
+| **Credencial** | La clave del vault elegida en la colección (`embedding_secret_id`), que es lo que se le factura a la organización y que tiene que ser una clave **de ese provider**. No hay clave de embeddings a nivel de deployment: una colección nueva personal o de organización tiene que nombrar una, y una colección sin clave utilizable rechaza indexar y buscar hasta que tenga una. El provider `ollama` es **sin clave** — un Ollama en la red del propio deployment — así que una colección en él no nombra ninguna clave y se rechaza si lo intenta; nombra en su lugar un **servicio local** (`embedding_endpoint_id`), una fila bajo Knowledge → Integrations que lleva la dirección, la propia de la organización o una de todo el deployment que haya registrado el administrador de la aplicación. Una colección **app-scoped** no pertenece a ninguna organización y por tanto no tiene vault del que nombrar una clave; solo puede generar embeddings a través de un provider sin clave en un servicio de todo el deployment, y elegir uno con clave se rechaza donde se eligió el provider. |
 
 Qué base de conocimiento resuelve un nombre de colección es cuestión de tenants.
 `collection_name` está indexado pero **no es único** — dos organizaciones pueden
@@ -544,26 +544,21 @@ vincular la clave **privada** de otro miembro aportando su UUID.
 Una clave que no pueden ver se rechaza como una que el vault no tiene, para que
 el rechazo no pueda enumerar los secretos privados de otra persona.
 
-En el momento de generar embeddings no se rechaza nada: una clave elegida que
-desde entonces se ha borrado, que no se puede abrir o que no contiene una clave
-de API cae a la del deployment, porque *qué clave paga* nunca debe decidir *si se
-pueden encontrar los documentos*.
+En el momento de generar embeddings el resolvedor no rechaza nada: una clave
+elegida que desde entonces se ha borrado, que no se puede abrir o que no contiene
+una clave de API resuelve a *ninguna* clave, porque *qué clave paga* nunca debe
+decidir *si se puede leer la fila de la colección*. El cliente de embeddings
+rechaza entonces la indexación o la búsqueda con un mensaje que nombra la
+colección, su provider y cuál de esos casos ocurrió — no hay clave de todo el
+deployment a la que caer, así que el rechazo nunca aconseja una variable.
 
-**Esa caída se detiene en el provider al que pertenece la clave del deployment.**
-Una colección que genera embeddings a través de cualquier otro resuelve a
-*ninguna* clave en vez de a la de otra persona — la petición se rechazaría en el
-otro extremo de todas formas, habiendo llevado ya la credencial hasta allí — y el
-rechazo dice entonces qué colección y qué provider, en lugar de nombrar una
-variable que no habría ayudado.
-
-Esa caída se anuncia en vez de darse por supuesta. La resolución lleva en cuál de
-las cinco fuentes cayó, la ingesta escribe las degradadas en el log del run de
-Prefect, y un deployment sin clave propia falla con un mensaje que nombra la
-colección y qué clave intentó — no con el consejo de definir una variable acerca
-de una colección que ya tenía clave. Antes de #306 el worker de ingesta era el
-único llamante que nunca preguntaba al resolvedor, así que cada documento subido
-se embebía con el modelo y la clave del deployment eligiera lo que eligiera su
-colección.
+Esa degradación se anuncia en vez de darse por supuesta. La resolución lleva en
+cuál de las cinco fuentes cayó, y la ingesta escribe cada caso degradado en el
+log del run de Prefect, incluida una colección que sencillamente no nombra
+ninguna clave. Antes de la incidencia #306 el worker de ingesta era el único
+llamante que nunca preguntaba al resolvedor, así que cada documento subido se
+embebía con el modelo del deployment y una clave de todo el deployment eligiera
+lo que eligiera su colección; esa clave ya no existe.
 
 ### Almacenamiento de vectores { #vector-storage }
 

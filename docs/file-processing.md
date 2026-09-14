@@ -520,8 +520,8 @@ variable.
 That degradation is announced rather than assumed. The resolution carries which
 of the five sources it landed on, and ingestion writes every degraded one into
 the Prefect run's log, a collection that simply names no key included. Before
-#306 the ingestion worker was the one caller that never asked the resolver at
-all, so every uploaded document was embedded with the deployment's model and a
+issue #306 the ingestion worker was the one caller that never asked the resolver
+at all, so every uploaded document was embedded with the deployment's model and a
 deployment-wide key whatever its collection had chosen; that key is gone.
 
 ### Vector storage

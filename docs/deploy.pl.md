@@ -1,5 +1,5 @@
 ---
-source_sha: "6f2247bf1919"
+source_sha: "ff2d54edf633"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -29,7 +29,7 @@ wdrożenie, którego nikt nie uruchomił.
 | **Docker** | Engine 24+ z wtyczką Compose (2.24 lub nowszą) i twój użytkownik w grupie `docker`. Nic nie jest budowane na hoście: obrazy są ściągane z GHCR |
 | **Dwie nazwy hostów** | jedna dla witryny, jedna dla API — zobacz [dlaczego dwie](#why-two-hostnames) |
 | **Reverse proxy** | [Traefik](#option-a-traefik) albo [Nginx](#option-b-nginx). To on terminuje TLS |
-| **Klucz OpenRouter** | każda kolekcja embeduje przez niego. Modele czatowe konfiguruje się per organizacja, w produkcie |
+| **Bez klucza providera** | modele czatowe i embedy są kluczowane per organizacja, w vaulcie produktu. Środowisko nie trzyma poświadczeń ani dla jednych, ani dla drugich — zobacz [Ochrona danych](data-protection.md#nothing-leaves-by-default) |
 
 Host potrzebuje też otwartych portów 80 i 443, i niczego więcej. Postgres, Redis i
 API Prefect nie są publikowane na żadnym interfejsie.
@@ -111,9 +111,9 @@ bash scripts/server-init.sh
 ```
 
 `server-init.sh` zapisuje `backend/.env`: generuje pięć sekretów, pyta o dwie
-nazwy hostów, o adres dla Let's Encrypt i o klucz OpenRouter, a publiczne URL-e i
-origin CORS wyprowadza z tego, co mu podałeś. Odmawia nadpisania istniejącego
-pliku.
+nazwy hostów i o adres dla Let's Encrypt, a publiczne URL-e i origin CORS
+wyprowadza z tego, co mu podałeś. O klucz providera nie pyta wcale: te mieszkają
+w vaulcie każdej organizacji. Odmawia nadpisania istniejącego pliku.
 
 Klon jest miejscem, gdzie mieszkają pliki Compose i ten plik env; żaden kod z
 niego nie działa. Tym, co działa, są dwa obrazy, które publikuje repozytorium.

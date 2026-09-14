@@ -1,5 +1,5 @@
 ---
-source_sha: "bdfb0e0fa929"
+source_sha: "b21adcea79d5"
 ---
 
 # Eine Knowledge Base einrichten { #set-up-a-knowledge-base }
@@ -28,6 +28,29 @@ der entscheidet, ob sie Ihnen gehört oder der Organisation.
     alles neu aufzunehmen. Belassen Sie es beim Standard des Deployments, sofern
     Sie keinen Grund haben, und wenn Sie einen haben, siehe
     [Ein Model wählen](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
+
+Unter **Embeddings** wählen Sie den Provider, der das Model bereitstellt, und das
+Secret im Vault, das dafür zahlt. Beides ist erforderlich: Es gibt keinen
+deploymentweiten Embedding-Schlüssel, also wird eine Collection ohne einen hier
+abgelehnt, statt angelegt zu werden und dann ihr erstes Dokument nicht
+indexieren zu können. Der Schlüssel muss einer für den gewählten Provider sein;
+hat die Organisation noch keinen, legt das Formular neben der Auswahl einen an.
+Provider und Schlüssel lassen sich später ändern, das Model nicht — siehe
+[Dateiverarbeitung](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
+**Ollama** steht ebenfalls in der Provider-Liste. Sie nimmt keinen Schlüssel:
+Wählen Sie sie, eines ihrer Models und den **Server**, unter dem sie antwortet —
+einen lokalen Dienst, registriert unter Knowledge → Integrations, den eigenen der
+Organisation oder einen, den der Administrator des Deployments für alle
+registriert hat — und die Dokumente der Collection verlassen das Netz des
+Deployments nie. Derselbe Tab hält die OCR-Server für LiteParse, gewählt in den
+Parsing-Einstellungen.
+
+Eine Knowledge Base, die auf einem bereits bestehenden Collection-Namen angelegt
+wird, übernimmt stattdessen Provider und Schlüssel jener Collection — einen
+fehlenden eingeschlossen, denn jede Zeile einer Collection muss auf dieselbe
+Weise embedden. Geben Sie einer solchen Collection den Schlüssel danach auf ihrer
+eigenen Seite.
 
 ## 2. Entscheiden, wie Dokumente gelesen werden { #2-decide-how-documents-are-read }
 

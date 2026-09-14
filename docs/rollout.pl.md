@@ -1,5 +1,5 @@
 ---
-source_sha: "4d21c4c93ebc"
+source_sha: "e2011b4848b5"
 ---
 
 # Wdrożenie u siebie { #rolling-it-out }
@@ -96,6 +96,7 @@ wybrano tę architekturę.
 | Co powstrzymuje agenta przed wyrządzeniem szkody? | Nic, co ma skutki uboczne, nie wykonuje się bez [approvalu](governance.md#approvals), gdy go wymagasz, a approval jest rozstrzygany dokładnie raz |
 | Czy możemy udowodnić, co się stało? | Każdy run, każdy approval, każda rotacja sekretu są w [śladzie audytowym](governance.md#audit) — łącznie z runami, które się nie powiodły |
 | Gdzie są poświadczenia? | W [jednym vaulcie](secrets.md), zapieczętowane per organizacja. Żadna odpowiedź API, linia logu ani wpis audytowy nigdy nie niesie klucza otwartym tekstem |
+| Czy to jest zgodne z RODO? | Zgodne jest wdrożenie albo nie jest; kod da się wdrożyć wewnątrz takiego, które jest. [Ochrona danych](data-protection.md) przypisuje każde miejsce przechowywania, każdy cel wysyłki i każdą kontrolę do mechanizmu, testu albo otwartego zgłoszenia, i wypisuje to, co samo wdrożenie musi rozstrzygnąć |
 | Czy możemy przeczytać kod? | Tak. Zwykle na tym rozmowa się kończy |
 | Z czego to się składa i na jakich licencjach? | Apache-2.0, a pod spodem około pięciuset pakietów, które niemal wszystkie są na MIT, Apache-2.0 albo BSD. [Każdy z nich jest wymieniony wraz z dowodem](licenses.md), a ustalenia wciąż otwarte są wypisane na początku, a nie uśrednione. Jeden komponent, parser PDF-ów, jest na AGPL-3.0: wdrożenie, które modyfikuje platformę i serwuje ją przez sieć, jest winne swoim użytkownikom zmodyfikowane źródła, a [ta decyzja ma własną sekcję](licenses.md#the-agpl-component) |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4438f1c9409f"
+source_sha: "1a26fb09fa79"
 ---
 
 # Konfiguracja { #configuration }
@@ -13,7 +13,7 @@ obiekt `settings`:
 ```python
 from app.core.config import settings
 
-print(settings.EMBEDDING_MODEL)
+print(settings.MAX_UPLOAD_SIZE_MB)
 print(settings.DEBUG)
 ```
 
@@ -381,10 +381,16 @@ przypina tutaj każdy plik compose.
 
 ### Embeddingi { #embeddings }
 
-| Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | Zapasowe poświadczenie do embeddingów, dla kolekcji, które nie wybrały własnego klucza z vaultu — i to, do którego cofa się zdegradowany wybór. Nie „każda kolekcja embeduje na nim”: zobacz [Przetwarzanie plików](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays) |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | Czym budowana jest **nowa** kolekcja. Szerokość jest zapisywana w wierszu i już się potem nie zmienia, więc zmiana tego ustawienia nie unieważnia istniejących kolekcji — one dalej embedują modelem, z którym zostały utworzone |
+Nic tutaj. Każda kolekcja sama wskazuje providera, przez którego embeduje,
+model, oraz albo klucz w vaulcie organizacji, który za to płaci, albo — dla
+bezkluczowego providera `ollama` — **usługę lokalną**, wiersz w
+Knowledge → Integrations mówiący, gdzie odpowiada Ollama wdrożenia albo
+organizacji. Zobacz [Przetwarzanie plików](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
+Były tu kiedyś dwie zmienne. `EMBEDDING_MODEL` preselekcjonowała model dla nowych
+kolekcji i została usunięta: formularz oferuje modele, które serwuje wybrany
+provider. `EMBEDDING_OLLAMA_BASE_URL` wskazywała jedną Ollamę dla całego
+wdrożenia, a teraz jest usługą lokalną, per organizacja albo ogólnowdrożeniową.
 
 ### Parsowanie dokumentów — konfigurowane per kolekcja, nie tutaj { #document-parsing-configured-per-collection-not-here }
 
@@ -401,12 +407,15 @@ różnych odpowiedzi na tym samym wdrożeniu. `PDF_PARSER`, `CHAT_PDF_PARSER`,
 `RAG_ENABLE_OCR`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` i
 `RAG_CHUNKING_STRATEGY` zostały usunięte; ustawienie ich teraz nic nie robi.
 
-To, co zostaje tutaj, to to, czego tenant nie może wybierać:
-
-| Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
-| `LLAMAPARSE_API_KEY` | (empty) | Zapasowy klucz LlamaParse dla kolekcji, które nie wybrały własnego klucza z vaultu |
-| `LITEPARSE_OCR_SERVER_URL` | (empty) | Serwer OCR po HTTP; adres we własnej sieci wdrożenia |
+Dwie rzeczy, które kiedyś tu zostawały, są teraz wierszami w produkcie. Klucz
+LlamaParse to wpis w vaulcie, wskazywany przez konfigurację ingestii kolekcji
+(`llamaparse_secret_id`), a kolekcja na LlamaParse bez niego jest odrzucana już
+przy formularzu — `LLAMAPARSE_API_KEY` zniknęła. Serwer OCR, do którego LiteParse
+wysyła strony, to usługa lokalna rodzaju `ocr` w Knowledge → Integrations,
+wybierana per kolekcja (`ocr_endpoint_id`), zarejestrowana przez operatora
+organizacji albo — dla wszystkich organizacji — przez administratora wdrożenia;
+`LITEPARSE_OCR_SERVER_URL` też zniknęła. Żadna z nich nie była widoczna dla
+tenanta, o którego dokumentach decydowała.
 
 Załączniki w czacie są czytane PyMuPDF-em i nie są konfigurowalne: załącznik nie
 należy do żadnej kolekcji, więc nie ma zapisanej konfiguracji do odczytania.
@@ -1039,7 +1048,6 @@ pipie w produkcji zostaje bez odpowiedzi.
 - [ ] `POSTGRES_PASSWORD` — silne, unikalne hasło
 - [ ] `REDIS_PASSWORD` — silne hasło
 - [ ] `CORS_ORIGINS` — wyłącznie twoje faktyczne domeny frontendu
-- [ ] `OPENROUTER_API_KEY` — twój produkcyjny klucz API
 
 E-mail celowo **nie** jest na tej liście: wdrożenie działa bez niego. Ale
 zaproszenia, resety haseł i powiadomienia po cichu nie są wysyłane, dopóki

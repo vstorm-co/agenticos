@@ -1,5 +1,5 @@
 ---
-source_sha: "bdfb0e0fa929"
+source_sha: "b21adcea79d5"
 ---
 
 # Monta una base de conocimiento { #set-up-a-knowledge-base }
@@ -28,6 +28,27 @@ o de la organización.
     ingerirlo todo. Déjalo en el valor por defecto del deployment salvo que
     tengas un motivo, y si lo tienes, consulta
     [Elegir un modelo](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
+
+En **Embeddings**, elige el provider que sirve el modelo y el secreto del vault
+que lo paga. Ambos son obligatorios: no hay clave de embeddings a nivel de
+deployment, así que una colección sin ella se rechaza aquí en lugar de crearse y
+quedarse sin poder indexar su primer documento. La clave tiene que ser una del
+provider elegido; si la organización todavía no tiene ninguna, el formulario
+junto al selector guarda una. El provider y la clave se pueden cambiar después,
+el modelo no — consulta [Procesamiento de archivos](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
+**Ollama** también está en la lista de providers. No toma clave: elígela, uno de
+sus modelos y el **servidor** donde responde — un servicio local registrado en
+Knowledge → Integrations, el propio de la organización o uno que el
+administrador del deployment haya registrado para todos — y los documentos de la
+colección no salen nunca de la red del propio deployment. La misma pestaña
+guarda los servidores OCR para LiteParse, que se eligen en los ajustes de
+parseo.
+
+Una knowledge base creada sobre un nombre de colección que ya existe adopta en
+su lugar el provider y la clave de esa colección — la ausencia de clave
+incluida, porque toda fila de una misma colección tiene que embeber igual. A esa
+colección dale la clave después, en su propia página.
 
 ## 2. Decide cómo se leen los documentos { #2-decide-how-documents-are-read }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "bdfb0e0fa929"
+source_sha: "b21adcea79d5"
 ---
 
 # Zbuduj bazę wiedzy { #set-up-a-knowledge-base }
@@ -28,6 +28,26 @@ czy do organizacji.
     wszystkiego od nowa. Zostaw wartość domyślną wdrożenia, chyba że masz powód,
     a jeśli go masz, zobacz
     [Wybór modelu](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
+
+W sekcji **Embeddings** wybierz providera, który serwuje model, oraz klucz w
+vault, który za niego płaci. Oba są wymagane: nie ma klucza embeddingowego na
+poziomie wdrożenia, więc kolekcja bez klucza jest tutaj odrzucana, zamiast
+powstać i zostać bez możliwości zaindeksowania pierwszego dokumentu. Klucz musi
+być kluczem wybranego providera; jeśli organizacja nie ma jeszcze żadnego,
+formularz obok listy go zapisze. Providera i klucz można zmienić później, modelu
+nie — zobacz [Przetwarzanie plików](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+
+Na liście providerów jest też **Ollama**. Nie bierze klucza: wybierz ją, jeden z
+jej modeli i **serwer**, pod którym odpowiada — usługę lokalną zarejestrowaną w
+Knowledge → Integrations, własną organizacji albo taką, którą administrator
+wdrożenia zarejestrował dla wszystkich — a dokumenty kolekcji nigdy nie opuszczą
+sieci samego wdrożenia. Ta sama zakładka trzyma serwery OCR dla LiteParse,
+wybierane w ustawieniach parsowania.
+
+Knowledge base utworzona na nazwie kolekcji, która już istnieje, przejmuje
+zamiast tego providera i klucz tamtej kolekcji — łącznie z brakiem klucza, bo
+każdy wiersz jednej kolekcji musi embedować tak samo. Takiej kolekcji nadaj
+klucz potem, na jej własnej stronie.
 
 ## 2. Zdecyduj, jak czytane są dokumenty { #2-decide-how-documents-are-read }
 

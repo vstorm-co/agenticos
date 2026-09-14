@@ -1,5 +1,5 @@
 ---
-source_sha: "6f2247bf1919"
+source_sha: "ff2d54edf633"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -31,7 +31,7 @@ niemand betrieben hat.
 | **Docker** | Engine 24+ mit dem Compose-Plugin (2.24 oder neuer), und Ihr Benutzer in der Gruppe `docker`. Auf dem Host wird nichts gebaut: die Images werden von GHCR geholt |
 | **Zwei Hostnamen** | einen für die Website, einen für die API — siehe [warum zwei](#why-two-hostnames) |
 | **Einen Reverse Proxy** | [Traefik](#option-a-traefik) oder [Nginx](#option-b-nginx). Er terminiert TLS |
-| **Einen OpenRouter-Key** | jede Collection embeddet darüber. Chat-Modelle werden pro Organisation im Produkt konfiguriert |
+| **Keinen Provider-Key** | Chat-Modelle und Embeds werden beide pro Organisation im Vault des Produkts hinterlegt. Die Umgebung hält für keines von beiden Zugangsdaten — siehe [Datenschutz](data-protection.md#nothing-leaves-by-default) |
 
 Der Host braucht außerdem die Ports 80 und 443 offen, und sonst nichts. Postgres,
 Redis und die Prefect-API sind auf keiner Schnittstelle veröffentlicht.
@@ -116,9 +116,10 @@ bash scripts/server-init.sh
 ```
 
 `server-init.sh` schreibt `backend/.env`: es erzeugt die fünf Secrets, fragt nach
-den beiden Hostnamen, nach einer Adresse für Let's Encrypt und nach dem
-OpenRouter-Key und leitet die öffentlichen URLs und den CORS-Origin aus Ihren
-Angaben ab. Eine bestehende Datei überschreibt es nicht.
+den beiden Hostnamen und nach einer Adresse für Let's Encrypt und leitet die
+öffentlichen URLs und den CORS-Origin aus Ihren Angaben ab. Nach einem
+Provider-Key fragt es nicht: die liegen im Vault der jeweiligen Organisation.
+Eine bestehende Datei überschreibt es nicht.
 
 Der Klon ist der Ort, an dem die Compose-Dateien und diese env-Datei liegen; von
 dort läuft kein Code. Was läuft, sind die beiden Images, die das Repository

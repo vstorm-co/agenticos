@@ -1,5 +1,5 @@
 ---
-source_sha: "4d21c4c93ebc"
+source_sha: "e2011b4848b5"
 ---
 
 # Die Einführung { #rolling-it-out }
@@ -101,6 +101,7 @@ Grund, warum diese Architektur gewählt wurde.
 | Was hindert einen Agent daran, Schaden anzurichten? | Nichts mit Nebenwirkung läuft ohne [Approval](governance.md#approvals), wenn Sie sie verlangen, und eine Approval wird genau einmal entschieden |
 | Können wir beweisen, was passiert ist? | Jeder Run, jede Approval, jede Schlüsselrotation steht in der [Audit-Spur](governance.md#audit) — auch fehlgeschlagene Runs |
 | Wo liegen die Zugangsdaten? | In [einem Vault](secrets.md), pro Organisation versiegelt. Keine API-Antwort, keine Logzeile und kein Audit-Eintrag trägt je einen Schlüssel im Klartext |
+| Ist es DSGVO-konform? | Ein Deployment ist es oder ist es nicht; der Code lässt sich innerhalb eines solchen betreiben. [Datenschutz](data-protection.md) bildet jeden Speicherort, jedes Ziel und jede Kontrolle auf einen Mechanismus, einen Test oder ein offenes Issue ab und führt auf, was das Deployment selbst entscheiden muss |
 | Können wir den Code lesen? | Ja. Damit endet das Gespräch meistens |
 | Was steckt darin, und unter welchen Lizenzen? | Apache-2.0, aufgesetzt auf rund fünfhundert Pakete, die fast alle MIT, Apache-2.0 oder BSD sind. [Jedes einzelne ist mit seinem Nachweis aufgeführt](licenses.md), und die noch offenen Befunde stehen zuerst, statt weggemittelt zu werden. Eine Komponente, der PDF-Parser, ist AGPL-3.0: Ein Deployment, das die Plattform verändert und über ein Netzwerk ausliefert, schuldet seinen Nutzern den veränderten Quellcode, und [diese Entscheidung hat einen eigenen Abschnitt](licenses.md#the-agpl-component) |
 

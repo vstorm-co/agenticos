@@ -1,5 +1,5 @@
 ---
-source_sha: "3e0f132dff72"
+source_sha: "6fcf1f4dbc8e"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -354,7 +354,7 @@ jaki parser ma kolekcja. Poza nimi zestaw idzie za parserem:
 |--------|-----------|-------|
 | PyMuPDF | `.pdf` | niczego |
 | LiteParse | `.pdf`; obrazy (`.png`, `.jpg`, `.tiff`, `.svg`, …); formaty biurowe (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **tylko dla formatów biurowych** — obrazy są konwertowane natywnie |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, obrazy | `LLAMAPARSE_API_KEY` |
+| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, obrazy | Klucz LlamaParse w vaulcie organizacji, wskazany przez kolekcję (`llamaparse_secret_id`). Nie ma klucza na poziomie wdrożenia |
 
 Dockerfile backendu instaluje LibreOffice i Tesseract, więc formaty biurowe i OCR
 działają w kontenerze od razu. Przy backendzie uruchomionym poza Dockerem upload
@@ -484,9 +484,9 @@ przez `app/services/embedding_resolution.py` w oparciu o katalog w
 
 | | |
 |---|---|
-| **Model i szerokość** | Zapisywane na bazie wiedzy przy tworzeniu (`embedding_model`, `embedding_dim`) i nigdy potem niezmieniane — `PgVectorStore` zapisuje `embedding vector(N)` raz, więc drugi model albo nie da się zapisać, albo jest po cichu porównywany z wektorami z innej przestrzeni. `EMBEDDING_MODEL` decyduje tylko o tym, z czym budowana jest *nowa* kolekcja. |
+| **Model i szerokość** | Zapisywane na bazie wiedzy przy tworzeniu (`embedding_model`, `embedding_dim`) i nigdy potem niezmieniane — `PgVectorStore` zapisuje `embedding vector(N)` raz, więc drugi model albo nie da się zapisać, albo jest po cichu porównywany z wektorami z innej przestrzeni. Nowa kolekcja wybiera jeden z modeli, które serwuje jej provider; nie ma wartości domyślnej wdrożenia. |
 | **Provider** | Który endpoint zgodny z OpenAI obsługuje ten model (`embedding_provider`). **Zmienialny**, inaczej niż model: ten sam model o tej samej szerokości produkuje wektory w tej samej przestrzeni niezależnie od tego, skąd jest serwowany, więc `PATCH /kb/{id}` przenosi kolekcję między providerami i zostawia wszystko, co już zaindeksowane, ważne. |
-| **Poświadczenie** | Klucz z vault wybrany na kolekcji (`embedding_secret_id`), czyli to, za co organizacja jest rozliczana i co musi być kluczem **dla tego providera**. Kolekcja u providera, do którego należy własny klucz wdrożenia, może zamiast tego embedować na `OPENROUTER_API_KEY`. |
+| **Poświadczenie** | Klucz z vault wybrany na kolekcji (`embedding_secret_id`), czyli to, za co organizacja jest rozliczana i co musi być kluczem **dla tego providera**. Nie ma klucza embeddingowego na poziomie wdrożenia: nowa kolekcja osobista albo organizacyjna musi wskazać klucz, a kolekcja bez używalnego klucza odmawia indeksowania i wyszukiwania, dopóki go nie dostanie. Provider `ollama` jest **bezkluczowy** — to Ollama w sieci samego wdrożenia — więc kolekcja u niego nie wskazuje żadnego klucza i zostaje odrzucona, jeśli spróbuje; zamiast tego wskazuje **usługę lokalną** (`embedding_endpoint_id`), wiersz w Knowledge → Integrations, który niesie adres, własny organizacji albo ogólnowdrożeniowy, zarejestrowany przez administratora aplikacji. Kolekcja **app-scoped** nie należy do żadnej organizacji, więc nie ma vaultu, z którego mogłaby wskazać klucz; może embedować wyłącznie przez providera bezkluczowego na usłudze ogólnowdrożeniowej, a wybór providera z kluczem jest dla niej odrzucany tam, gdzie provider był wybierany. |
 
 To, do której bazy wiedzy rozwiązuje się nazwa kolekcji, jest samo w sobie
 pytaniem o tenanta. `collection_name` jest indeksowane, ale **nieunikalne** — dwie
@@ -540,25 +540,22 @@ przyjmuje id, a id da się zgadnąć. Do czasu
 Klucz, którego nie może zobaczyć, jest odrzucany jako taki, którego vault nie ma,
 więc odmowa nie może wyliczyć cudzych prywatnych sekretów.
 
-W momencie embedowania nic nie jest odrzucane: wybrany klucz, który został
-w międzyczasie usunięty, którego nie da się odpieczętować albo który nie zawiera
-klucza API, spada na klucz wdrożenia, bo *czyj klucz płaci* nigdy nie może
-decydować o tym, *czy da się znaleźć dokumenty*.
+W momencie embedowania resolver niczego nie odrzuca: wybrany klucz, który
+został w międzyczasie usunięty, którego nie da się odpieczętować albo który nie
+zawiera klucza API, rozwiązuje się do *żadnego* klucza, bo *czyj klucz płaci*
+nigdy nie może decydować o tym, *czy da się odczytać wiersz kolekcji*. Klient
+embeddingowy odmawia wtedy indeksowania albo wyszukiwania komunikatem
+wskazującym kolekcję, jej providera i to, które z tych zdarzeń zaszło — nie ma
+klucza ogólnowdrożeniowego, na który można by spaść, więc odmowa nigdy nie radzi
+ustawić zmiennej.
 
-**Ten spadek zatrzymuje się na providerze, do którego należy klucz wdrożenia.**
-Kolekcja embedująca przez kogokolwiek innego rozwiązuje się do *żadnego* klucza,
-a nie do cudzego — request i tak zostałby odrzucony po drugiej stronie, dowiózłszy
-tam już poświadczenie — a odmowa mówi wtedy, o którą kolekcję i którego providera
-chodzi, zamiast wskazywać zmienną, która by nie pomogła.
-
-Ten spadek jest ogłaszany, a nie zakładany. Rozwiązanie niesie informację, na
-które z pięciu źródeł trafiło, ingestia wpisuje te gorsze do logu runu Prefecta,
-a wdrożenie bez własnego klucza kończy się błędem z komunikatem wskazującym
-kolekcję i klucz, którego próbowano — a nie radą, żeby ustawić zmienną,
-w sprawie kolekcji, która klucz już miała. Przed #306 worker ingestii był jedynym
-wywołującym, który nigdy nie pytał resolvera, więc każdy wgrany dokument był
-embedowany modelem i kluczem wdrożenia, niezależnie od tego, co wybrała jego
-kolekcja.
+To zejście jest ogłaszane, a nie zakładane. Rozwiązanie niesie informację, na
+które z pięciu źródeł trafiło, a ingestia wpisuje każde gorsze do logu runu
+Prefecta, łącznie z kolekcją, która po prostu nie wskazuje żadnego klucza. Przed
+zgłoszeniem #306 worker ingestii był jedynym wywołującym, który nigdy nie pytał
+resolvera, więc każdy wgrany dokument był embedowany modelem wdrożenia i kluczem
+ogólnowdrożeniowym, niezależnie od tego, co wybrała jego kolekcja; tamtego klucza
+już nie ma.
 
 ### Magazyn wektorów { #vector-storage }
 Wektory trzyma **pgvector**, korzystając z istniejącej bazy PostgreSQL.
