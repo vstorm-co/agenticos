@@ -233,8 +233,15 @@ def test_the_slug_derivation_matches_the_renderer() -> None:
     Python-Markdown, so it carries its own copy of the rule. A copy that has
     drifted fails in the one direction nothing else would catch: the gate
     compares two lists of anchors that the build never emits.
+
+    Needs the renderer, which lives in the `docs` dependency group rather than
+    `dev` - so this skips under `make test` and runs in CI's `docs` job, which
+    installs that group and calls it by name. Skipping quietly in the job that
+    cannot run it is the point; a test that skipped in *every* job would prove
+    nothing while looking like it did.
     """
     markdown = pytest.importorskip("markdown")
+    pytest.importorskip("pymdownx", reason="the docs group is not installed")
 
     def rendered(page: Path) -> list[str]:
         # `superfences` is not decoration here: without a fence extension a `#`
