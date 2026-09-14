@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.421] - 2026-09-14
+
+### Fixed
+
+- **A capability that failed to build once stayed broken until the next
+  redeploy.** `tool_contracts()` cached its whole-catalog build in a bare module
+  global with no lock: a transient failure during one capability's build cached an
+  empty contract set for it and, because the global was then set, every later call
+  returned that empty result for the life of the process. Two requests arriving
+  before the cache warmed also both built the whole catalog. The build now runs
+  under a lock with a re-check inside it, and only a build that completed every
+  capability is cached - a failure still degrades that one answer, and is retried
+  on the next call. Reached routinely since the exposures endpoint became a second
+  caller. (#1621)
+
 ## [0.0.420] - 2026-09-14
 
 ### Fixed
