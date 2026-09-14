@@ -45,7 +45,7 @@ Create or update PR description based on git diff.
 
 ### Verification
 
-[Example queries, commands, or steps to verify the changes work correctly. When the change is observable in Logfire (new/changed spans, MCP tool calls, telemetry), include deep-links to example traces you actually exercised — see Rules.]
+[Example queries, commands, or steps to verify the changes work correctly. When the change is observable through the project's own tracing/observability backend (new or changed spans, telemetry attributes, logged events — check whether the repo has one before assuming), include links or excerpts from example traces you actually produced — see Rules.]
 
 ### Linked Issues
 
@@ -69,11 +69,7 @@ Create or update PR description based on git diff.
 - Keep descriptions concise
 - Use present tense ("Add", "Update", "Remove")
 - Omit `Business Context` and `Linked Issues` sections when there's nothing to fill in — don't leave placeholders
-- **Include Logfire trace links for observable changes.** When the change produces or alters observability (new/changed spans, MCP tool responses, telemetry attributes), link to **example traces you actually exercised** in the `Verification` section — one per meaningful path (happy path + key error paths). Query the trace/span ids from Logfire (e.g. `mcp__logfire-360-compass-dev__query_run`) and build deep-links of the form:
-  ```
-  https://logfire-us.pydantic.dev/<org>/<project>?q=trace_id%3D%27<TRACE_ID>%27+and+span_id%3D%27<SPAN_ID>%27&spanId=<SPAN_ID>&traceId=<TRACE_ID>&env=-clear-&since=<ISO8601>&until=<ISO8601>
-  ```
-  Link the parent tool/operation span so nested spans are visible in the trace. Only link traces you genuinely produced — never fabricate ids.
+- **Include trace/log evidence for observable changes, when the repo has the means to produce it.** When the change produces or alters observability (new/changed spans, telemetry attributes, structured logs) and the project has a tracing or logging backend, link to or excerpt **example traces/log lines you actually produced** in the `Verification` section — one per meaningful path (happy path + key error paths), using that backend's own link format (e.g. a dashboard deep-link, a log query, a captured span tree). Only cite evidence you genuinely produced — never fabricate ids, URLs, or output. If the project has no such backend, or the change isn't observable through one, skip this and verify with the project's normal test/run commands instead.
 - **Attach diagrams for an architectural change.** When a change adds or reshapes a flow
   across components — a new tool or service path, a new gate, a state machine, a
   cross-channel behaviour — put images in the `Architecture` section rather than making the
@@ -84,7 +80,8 @@ Create or update PR description based on git diff.
   npx --yes @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -b white -s 2
   ```
   Keep the `.mmd` source in the scratchpad (it is not a committed artifact — a committed
-  architecture doc's diagram belongs in `docs/architecture/` instead), attach the PNGs per
+  architecture doc's diagram belongs wherever this repo keeps those instead, e.g.
+  `docs/architecture.md`, a `docs/architecture/` directory, or an ADR), attach the PNGs per
   step 3, and give every image real alt text after the `#`. Diagram the mechanism the PR
   actually changes, including its failure paths; a box-and-arrow restatement of the module
   tree earns nothing. Skip the section for a fix, a test-only change, or a one-file tweak.

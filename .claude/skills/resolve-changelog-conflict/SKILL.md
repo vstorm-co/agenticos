@@ -1,53 +1,67 @@
 ---
 name: resolve-changelog-conflict
-description: Resolve a merge conflict in CHANGELOG.md by keeping the monthly format and converting the other side's entries into it. Use whenever git reports a conflict in CHANGELOG.md, or when entries in the old single-[Unreleased] format need folding into the monthly sections.
+description: Resolve a merge conflict in CHANGELOG.md by detecting the file's own convention (Keep a Changelog per-version sections, monthly sections, a single [Unreleased] bucket, or another format) and folding the other side's entries into it. Use whenever git reports a conflict in CHANGELOG.md, or when entries in an older format need folding into the current one.
 ---
 
 # Resolve a CHANGELOG.md conflict
 
-`CHANGELOG.md` uses monthly sections (see the file header and the Changelog
-rule in `CLAUDE.md`); merging to `main` is the release. Conflicts happen when
-two branches append near the same lines, or when a branch still carries the
-old single-`[Unreleased]` format. The resolution is never "pick a side
-wholesale": keep the monthly-format structure, then re-express the other
-side's *new* entries inside it.
+Conflicts happen when two branches append near the same lines, or when one branch still
+carries an older changelog convention than the other. The resolution is never "pick a side
+wholesale": determine which side reflects this repo's *current, documented* convention, keep
+its structure, then re-express the other side's *new* entries inside it.
+
+**Do not assume a specific format** (monthly sections, per-version sections, ticket-prefix
+style). Detect it from the file itself — every repo's changelog is different, and guessing
+wrong produces a "fix" that contradicts the project's own header and recent history.
 
 ## Steps
 
-1. **Identify what the other side actually adds.** Diff the merge base against
-   the incoming branch for CHANGELOG.md only, and list its merged PRs:
+1. **Learn this repo's actual convention before touching anything.**
+   - Read the file's own header/preamble — many state their format explicitly (e.g. "The
+     format follows [Keep a Changelog]").
+   - Look at the most recent non-conflicted entries (`git log -p -- CHANGELOG.md` on
+     `main`/the target branch) to see the real grouping (per-version `## [x.y.z] - date`,
+     monthly `## YYYY-MM`, a flat `## [Unreleased]`), the category headers used (`###
+     Added`/`Changed`/`Fixed`/`Removed`/`Security`, or something else), and how entries cite
+     their origin (a PR number like `(#123)`, a ticket prefix like `(PROJ-123)`, a commit
+     hash, a date, or a mix). Mirror what you find — do not invent a ticket prefix or
+     category set the repo doesn't already use.
+   - If the repo has a rule file or doc describing the changelog (check `CLAUDE.md`,
+     `CONTRIBUTING.md`, or a comment in the file header), follow it as the source of truth
+     over inference from history.
+
+2. **Identify what the other side actually adds.** Diff the merge base against the
+   incoming branch for `CHANGELOG.md` only, and list its merged PRs/commits:
 
    ```bash
    git log --first-parent <merge-base>..<incoming> --pretty='%h|%ad|%s' --date=short
    git diff <merge-base> <incoming> -- CHANGELOG.md
    ```
 
-   Ignore incoming lines that merely restate entries the monthly file already
-   has (compare by ticket/PR number, not text).
+   Ignore incoming lines that merely restate entries the target side already has (compare
+   by ticket/PR/issue number where available, not raw text — wording often drifts).
 
-2. **Resolve the hunks keeping the monthly-format side.** Strip the conflict
-   markers so the monthly structure survives intact. Do not keep old-format
-   paragraphs anywhere in the file.
+3. **Resolve the hunks keeping the side that matches the repo's current convention** (step
+   1). Strip the conflict markers so that structure survives intact. Do not leave an
+   older-format section anywhere in the file — fold it in per step 4 instead.
 
-3. **Convert each genuinely new change into the standard entry** and insert it
-   in its **merge month** section, right category (Added / Changed / Fixed /
-   Removed / Security), newest first:
+4. **Convert each genuinely new change into an entry matching the file's existing style**,
+   inserted in the right place (its release/month/unreleased section per the detected
+   grouping) and the right category, newest first within that grouping. Reuse the exact
+   citation style already in use nearby (PR number, ticket prefix, hash, date — whichever
+   the repo actually does) — pull the real values from the merge commit on the incoming
+   side (step 2), never from memory or a template. One PR usually collapses to one bullet;
+   give a second bullet only when a distinct facet belongs in another category (e.g. a
+   security fix inside a feature PR). Condense multi-paragraph older-format prose to the
+   user/operator-visible effect — implementation detail belongs in the PR, not the
+   changelog.
 
-   ```markdown
-   - **Bold headline** — one or two sentences of user/operator-visible
-     effect. (RDRL-xxx, #PR, `mergehash`, YYYY-MM-DD)
-   ```
-
-   Ticket, PR, hash, and date come from the merge commit on the incoming side
-   (step 1), never from memory. One PR usually collapses to one bullet; give a
-   second bullet only when a distinct facet belongs in another category (e.g.
-   a Security fix inside a feature PR). Condense multi-paragraph old-format
-   prose to the visible effect — implementation detail stays in the PR/ADR.
-
-4. **Verify ordering mechanically** before committing:
+5. **Verify ordering mechanically** before committing, adapted to the grouping you found in
+   step 1 (per-version, monthly, or otherwise — the check below assumes dated entries or
+   section headers; adjust the regex if this repo's entries aren't dated inline):
 
    ```bash
-   uv run python - <<'EOF'
+   python3 - <<'EOF'
    import re
    sec=None; last=None; errs=[]
    for i,line in enumerate(open("CHANGELOG.md"),1):
@@ -61,6 +75,8 @@ side's *new* entries inside it.
    EOF
    ```
 
-   Also confirm no conflict markers remain: `grep -c '^<<<<<<<' CHANGELOG.md`.
+   If the repo has its own Python (`uv run python`, a `venv`, etc.), use that interpreter
+   instead of a bare `python3`. Also confirm no conflict markers remain:
+   `grep -c '^<<<<<<<' CHANGELOG.md`.
 
-5. Stage and complete the merge commit as usual.
+6. Stage and complete the merge commit as usual.
