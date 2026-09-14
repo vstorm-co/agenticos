@@ -18,10 +18,10 @@ boundaries that matter are the ones a request crosses on its way to the data.
 
 | Boundary | What crosses it | Trusted on the far side? |
 |---|---|---|
-| Browser → BFF (the Next.js route handlers) | A session cookie, the organization header, form input | No — the cookie is verified and every input validated |
-| BFF → API (FastAPI) | A JWT bound to a DB session, the `X-Organization-Id` header | No — the token is verified per request and the org is resolved from it |
-| API → PostgreSQL / Redis | Queries and cache reads, over TLS when configured | Yes — the store is the operator's, though it holds only sealed credentials |
-| API / worker → model providers, MCP servers, search vendors, Logfire | Prompts, tool calls, queries, traces | No — these are third parties; what reaches them is a per-agent decision (below) |
+| Browser → BFF (the Next.js route handlers) | A session cookie, the organization header, form input | No — but the BFF does not verify the cookie: it reads the `httpOnly` `access_token` and forwards it as a bearer header (`frontend/src/lib/platform-proxy.ts`). It is a credential-forwarding boundary; verification is the API's job |
+| BFF → API (FastAPI) | A JWT bound to a DB session, the `X-Organization-Id` header | No — the token is verified per request, the session is checked for revocation, and the org is resolved from the token |
+| API → PostgreSQL / Redis | Queries and cache reads, over TLS when configured | Yes — the store is the operator's; what it protects at rest is under "What is encrypted where" |
+| API / worker → model providers, channels, MCP servers, search vendors, Logfire | Prompts, tool calls, queries, replies, traces | No — these are third parties; what reaches them is a per-agent decision, except deployment-wide tracing (below) |
 | Worker → connectors (Google Drive, S3, …) | Credentials unsealed from the vault, fetched documents | No — a connector credential is a vault secret referenced by id |
 
 Authority inside a tenant is never a role name on a route: it is a membership row
@@ -37,7 +37,8 @@ each is a boundary a client's review will ask about.
 | To | What | When |
 |---|---|---|
 | The configured model provider | The prompt, the model's output, tool arguments and results | Every run — unless the model runs on the operator's own infrastructure, in which case nothing leaves |
-| Logfire | Traces, which carry prompts and outputs by default | Only when an agent is given an observability token; the agent's `content` mode can reduce a span to timing and cost (`docs/reference/spec.md#observability`) |
+| The configured channel (Slack, Telegram, Mattermost) | The agent's generated replies — text, images and attachments | Whenever an agent is exposed through that channel; each `send_message` posts to the provider (`app/services/channels/`) |
+| Logfire | Traces, which carry prompts and outputs by default | Two independent paths. A per-agent observability token traces that agent; a deployment-wide `LOGFIRE_TOKEN` instruments **every** run globally (`app/core/logfire_setup.py`), so with it set, run content leaves regardless of any per-agent setting. Reducing a span to timing and cost is landing in [#1413](https://github.com/vstorm-co/agenticos/issues/1413) / [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | MCP servers | Tool calls and their arguments | Only for the tools an agent is bound to |
 | A web-search vendor (Tavily, DuckDuckGo) | The search query | Only when the search capability is granted |
 | An embedding provider | Document text, at ingestion | Only for a knowledge base whose provider is remote |
@@ -45,15 +46,22 @@ each is a boundary a client's review will ask about.
 ## What is encrypted where
 
 There is one application-level encryption mechanism, and it is deliberately the
-only one: the vault (`app/core/vault.py`). Every credential at rest is sealed in a
-per-owner envelope whose wrapping key is derived, through HKDF, from the
-organization (or user) it belongs to — so a ciphertext copied into another
-organization's row fails to unwrap. The master key is rotatable without
+only one: the vault (`app/core/vault.py`). Every **connector and API credential**
+at rest is sealed in a per-owner envelope whose wrapping key is derived, through
+HKDF, from the organization (or user) it belongs to — so a ciphertext copied into
+another organization's row fails to unwrap. The master key is rotatable without
 re-encrypting the payloads.
 
-Everything else at rest is the deployment's disk to encrypt, and this is stated
+Not everything the platform stores is a vaulted credential, and this is stated
 plainly because a review will find it:
 
+- **Short-lived bearer tokens** — organization invitations
+  (`OrganizationInvitation.token`), channel-link requests
+  (`ChannelLinkRequest.token`) and conversation share links
+  (`ConversationShare.share_token`) — are random `String(64)` columns looked up by
+  equality, not vault-sealed. Whoever holds the value can use it, so they are
+  protected by expiry and single use rather than encryption. Session refresh
+  tokens are the exception that is hashed at rest (`sessions.refresh_token_hash`).
 - **Uploaded and chat files** sit on the API container's filesystem in the clear
   (`app/services/file_storage.py`) — protected only by volume encryption.
 - **Message bodies, `rag_documents` and their vectors, and sandbox workspaces**
@@ -74,7 +82,8 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Control | Mechanism | Held by |
 |---|---|---|
 | Tenant isolation, even when the caller owns the row | `resolve_access` refuses a resource whose `organization_id` differs before the ownership check (`app/services/access.py`) | `test_resource_access.py::TestTenantBoundary`, `test_conversation_tenant_isolation.py`, `test_platform_flows.py` |
-| Permission on every collection route | `require(*perms)` route dependency (`app/api/deps.py`), catalog in `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission`, `::TestEveryPlatformRouteIsGuarded` |
+| Permission on every collection route | `require(*perms)` route dependency on listing, creating and catalog routes (`app/api/deps.py`), catalog in `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
+| Per-resource routes authorize in the service, not on the route | A route acting on one agent, skill or collection carries no `require()` gate — a role gate would refuse a grant-holder before the grant applied — and calls `resolve_access` instead (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (every route is gated or service-decided) |
 | A grant widens access without promoting the member | Per-resource `resolve_access` takes `max(role scope, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
 | A channel mention runs as the sender, not the bot | A linked, active sender's own `AuthContext` is used (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
@@ -91,7 +100,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 
 | Control | Mechanism | Held by |
 |---|---|---|
-| Every gated mutation recorded, in the request's transaction | `record_audit` (`app/core/audit.py`), `app_admin_audit_logs` table | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
+| Governance-relevant mutations recorded, in the request's transaction | `record_audit` (`app/core/audit.py`) at the mutating service — secret rotation, skill / sync / MCP binding, membership, sharing, approvals, exports and more; written to `app_admin_audit_logs`. It is not blanket coverage of every write (knowledge-base CRUD, for one, is not audited) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | The trail is readable by an auditor | `GET /audit`, gated on `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exporting the trail (CSV/JSONL) | *Landing in* [#1422](https://github.com/vstorm-co/agenticos/issues/1422); run/approval/spend exports each write their own audit entry today | `test_run_export.py` (exports are audited) |
 | Tamper evidence (a hash chain) | **Not yet** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
@@ -108,15 +117,16 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 
 | Control | Mechanism | Held by |
 |---|---|---|
-| No plaintext secret in any response, log or audit entry | `SealedStr`/`CredentialStr` mask every repr; hints are last-4 only (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (sweeps the whole OpenAPI surface), `test_capability_secrets.py::TestInjection` |
-| A credential is bound to its organization at rest | Per-owner HKDF envelope (`app/core/vault.py`) | `test_secret_tenant_isolation.py`, `test_vault.py` |
+| No plaintext secret in any API response or audit entry | `SealedStr`/`CredentialStr` mask every repr; hints are last-4 only (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (sweeps the whole OpenAPI surface), `test_capability_secrets.py::TestInjection` |
+| Logs are not part of that guarantee | A malformed MCP OAuth token response reaches the logs through a Pydantic `ValidationError` that echoes its input — a known gap, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documents that the token lands in `caplog`) |
+| A credential is bound to its organization at rest | Per-owner HKDF envelope (`app/core/vault.py`); scope is connector and API credentials — see "What is encrypted where" for the bearer tokens it does not cover | `test_secret_tenant_isolation.py`, `test_vault.py` |
 
 ### Transmission security · HIPAA §164.312(e) · SOC 2 CC6
 
 | Control | Mechanism | Held by |
 |---|---|---|
-| TLS to PostgreSQL and Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` reports the live state from `pg_stat_ssl` | `test_store_tls.py` |
-| CSP, framing and MIME headers on every response | `SecurityHeadersMiddleware` (`app/core/middleware.py`) and the frontend's per-deployment CSP (`frontend/src/middleware.ts`) | `test_security_headers.py` |
+| TLS to PostgreSQL and Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` reports Postgres's live state from `pg_stat_ssl` | Postgres, on a live connection: `test_store_tls.py`; Redis, at URL construction and in `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
+| Framing and MIME headers on every response; CSP on all but the API-reference endpoints | `SecurityHeadersMiddleware` (`app/core/middleware.py`), whose `exclude_paths` drop CSP — not framing or MIME — for OpenAPI, Swagger and ReDoc; plus the frontend's per-deployment CSP (`frontend/src/middleware.ts`) | `test_security_headers.py`, incl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp` |
 | HTTPS and HSTS | Terminated at the reverse proxy — the bundled `nginx/nginx.conf` sets HSTS; the app does not, by design | Deployment concern; see the hardening checklist |
 | Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget and hosted pages (`app/services/rate_limit.py`); per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; the channel-bot limit is implemented but thinly tested |
 
@@ -124,13 +134,16 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 
 - Trust the operator's infrastructure; trust no request into it. The boundaries
   that matter are browser → BFF → API → store, and API/worker → third parties.
-- The only data that leaves is what the deployment configured to leave — and an
-  agent can trace without its prompts, or not at all.
-- Credentials are sealed per organization in the one vault; content at rest
-  (files, messages, RAG, sandboxes) is the deployment's disk to encrypt, with
-  [#1423](https://github.com/vstorm-co/agenticos/issues/1423) the app-level answer
-  for object storage.
-- Every control in the matrix names a mechanism and a test; the three gaps —
-  audit export, tamper evidence, app-level file encryption — each link an issue.
+  The BFF forwards the session cookie; the API is where a request is verified.
+- The only data that leaves is what the deployment configured to leave — model
+  providers, channels, MCP servers, search and embedding vendors, and Logfire; a
+  deployment-wide Logfire token traces every run's content.
+- Connector and API credentials are sealed per organization in the one vault;
+  short-lived bearer tokens and content at rest (files, messages, RAG, sandboxes)
+  are not, with [#1423](https://github.com/vstorm-co/agenticos/issues/1423) the
+  app-level answer for object storage.
+- Every control in the matrix names a mechanism and a test, and names its gaps in
+  the same breath — audit export, tamper evidence, app-level file encryption, and
+  the MCP OAuth log path each link an issue.
 - Report vulnerabilities and run the hardening checklist from
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md).
