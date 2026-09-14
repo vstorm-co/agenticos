@@ -1,5 +1,5 @@
 ---
-source_sha: "e5e660ee22ce"
+source_sha: "545cf7248027"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -84,6 +84,12 @@ es `default-src 'self'` con un `connect-src` que nombra exactamente este origen,
 `PUBLIC_API_URL` y `PUBLIC_WS_URL`, un `img-src` que permite `data:` para los
 glifos de marca y los avatares, `frame-src 'self' blob:` para las vistas previas
 de documentos, `object-src 'none'`, `base-uri 'self'` y `frame-ancestors 'none'`.
+
+`script-src` no lleva `'unsafe-inline'`. El middleware genera un nonce por
+petición, escribe `'nonce-…' 'strict-dynamic'` en la directiva, y Next estampa
+ese nonce en sus propios scripts inline — así un script inyectado en la página no
+tiene nonce y no se ejecuta. `'unsafe-eval'` permanece, porque el runtime de
+desarrollo de Next lo necesita.
 
 La política se estampa por petición desde el middleware del frontend, porque las
 dos URLs públicas se leen del entorno del servidor en tiempo de ejecución y una

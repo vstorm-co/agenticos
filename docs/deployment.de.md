@@ -1,5 +1,5 @@
 ---
-source_sha: "e5e660ee22ce"
+source_sha: "545cf7248027"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -90,6 +90,12 @@ ist `default-src 'self'` mit einem `connect-src`, das genau diese Origin,
 die Markenglyphen und Avatare erlaubt, `frame-src 'self' blob:` für
 Dokumentvorschauen, `object-src 'none'`, `base-uri 'self'` und
 `frame-ancestors 'none'`.
+
+`script-src` enthält kein `'unsafe-inline'`. Die Middleware erzeugt pro Anfrage
+einen Nonce, schreibt `'nonce-…' 'strict-dynamic'` in die Direktive, und Next
+stempelt diesen Nonce auf seine eigenen Inline-Skripte — ein in die Seite
+eingeschleustes Skript hat also keinen Nonce und läuft nicht. `'unsafe-eval'`
+bleibt, weil Nexts Entwicklungslaufzeit es benötigt.
 
 Die Policy wird pro Request von der Middleware des Frontends gesetzt, weil die
 beiden öffentlichen URLs zur Laufzeit aus der Umgebung des Servers gelesen werden

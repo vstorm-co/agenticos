@@ -2,7 +2,7 @@
 source_sha: "5bb89334b619"
 ---
 
-<!-- source_sha: 49074c4c262a -->
+<!-- source_sha: b2884fdda9fb -->
 
 # Seguridad
 
@@ -45,7 +45,7 @@ Aspiramos a acusar recibo en 48h y a entregar un arreglo en 7 días para los pro
 
 - **CORS** — la lista de orígenes sale de `settings.CORS_ORIGINS`. Restríngela a tus dominios en producción.
 - **HTTPS** — imponlo con un proxy inverso (Nginx / Traefik / ALB). La cabecera Strict-Transport-Security se pone en el middleware cuando `ENVIRONMENT=production`.
-- **Cabeceras de seguridad** — el frontend sirve una Content-Security-Policy completa (`default-src 'self'`, un `connect-src` que nombra solo este origen y los `PUBLIC_API_URL` y `PUBLIC_WS_URL` configurados, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) más `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` que deniega la cámara y la geolocalización y permite el micrófono solo para la transcripción de voz. La política vive en `frontend/src/lib/csp.ts` y las cabeceras en `frontend/src/lib/security-headers.ts`, ambas afirmadas por tests; mira [El despliegue](docs/deployment.es.md#security-headers).
+- **Cabeceras de seguridad** — el frontend sirve una Content-Security-Policy completa (`default-src 'self'`, un `connect-src` que nombra solo este origen y los `PUBLIC_API_URL` y `PUBLIC_WS_URL` configurados, un `script-src` sin `'unsafe-inline'` — en su lugar un nonce por petición y `'strict-dynamic'` — `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) más `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` que deniega la cámara y la geolocalización y permite el micrófono solo para la transcripción de voz. La política vive en `frontend/src/lib/csp.ts` y las cabeceras en `frontend/src/lib/security-headers.ts`, ambas afirmadas por tests; mira [El despliegue](docs/deployment.es.md#security-headers).
 
 ### Datos
 

@@ -2,7 +2,7 @@
 source_sha: "5bb89334b619"
 ---
 
-<!-- source_sha: 49074c4c262a -->
+<!-- source_sha: b2884fdda9fb -->
 
 # Sicherheit
 
@@ -45,7 +45,7 @@ Wir streben an, innerhalb von 48h zu bestätigen und bei Problemen hoher Schwere
 
 - **CORS** — Origin-Liste aus `settings.CORS_ORIGINS`. Schränken Sie sie in der Produktion auf Ihre Domains ein.
 - **HTTPS** — über einen Reverse Proxy erzwingen (Nginx / Traefik / ALB). Der Strict-Transport-Security-Header wird in der Middleware gesetzt, wenn `ENVIRONMENT=production` gilt.
-- **Security-Header** — das Frontend liefert eine vollständige Content-Security-Policy aus (`default-src 'self'`, ein `connect-src`, das nur diesen Origin und die konfigurierten `PUBLIC_API_URL` und `PUBLIC_WS_URL` nennt, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) sowie `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` und eine `Permissions-Policy`, die Kamera und Geolocation verweigert und das Mikrofon nur für Speech-to-Text erlaubt. Die Policy liegt in `frontend/src/lib/csp.ts` und die Header in `frontend/src/lib/security-headers.ts`, beide durch Tests abgesichert; siehe [Deployment](docs/deployment.de.md#security-headers).
+- **Security-Header** — das Frontend liefert eine vollständige Content-Security-Policy aus (`default-src 'self'`, ein `connect-src`, das nur diesen Origin und die konfigurierten `PUBLIC_API_URL` und `PUBLIC_WS_URL` nennt, ein `script-src` ohne `'unsafe-inline'` — stattdessen ein Nonce pro Anfrage und `'strict-dynamic'` — `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) sowie `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` und eine `Permissions-Policy`, die Kamera und Geolocation verweigert und das Mikrofon nur für Speech-to-Text erlaubt. Die Policy liegt in `frontend/src/lib/csp.ts` und die Header in `frontend/src/lib/security-headers.ts`, beide durch Tests abgesichert; siehe [Deployment](docs/deployment.de.md#security-headers).
 
 ### Daten
 

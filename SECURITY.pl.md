@@ -2,7 +2,7 @@
 source_sha: "5bb89334b619"
 ---
 
-<!-- source_sha: 49074c4c262a -->
+<!-- source_sha: b2884fdda9fb -->
 
 # Bezpieczeństwo
 
@@ -44,7 +44,7 @@ Celujemy w potwierdzenie w ciągu 48h i wypuszczenie poprawki w ciągu 7 dni dla
 
 - **CORS** — lista originów z `settings.CORS_ORIGINS`. Na produkcji ogranicz ją do swoich domen.
 - **HTTPS** — wymuszaj przez reverse proxy (Nginx / Traefik / ALB). Nagłówek Strict-Transport-Security ustawiany w middleware, gdy `ENVIRONMENT=production`.
-- **Nagłówki bezpieczeństwa** — frontend serwuje pełne Content-Security-Policy (`default-src 'self'`, `connect-src` wymieniające wyłącznie ten origin oraz skonfigurowane `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` i `Permissions-Policy`, które odmawia kamery i geolokalizacji, a mikrofon dopuszcza wyłącznie do speech-to-text. Polityka mieszka w `frontend/src/lib/csp.ts`, a nagłówki w `frontend/src/lib/security-headers.ts`; jedne i drugie są potwierdzone testami — zobacz [Wdrożenie](docs/deployment.pl.md#security-headers).
+- **Nagłówki bezpieczeństwa** — frontend serwuje pełne Content-Security-Policy (`default-src 'self'`, `connect-src` wymieniające wyłącznie ten origin oraz skonfigurowane `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `script-src` bez `'unsafe-inline'` — zamiast tego nonce dla każdego żądania i `'strict-dynamic'` — `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` i `Permissions-Policy`, które odmawia kamery i geolokalizacji, a mikrofon dopuszcza wyłącznie do speech-to-text. Polityka mieszka w `frontend/src/lib/csp.ts`, a nagłówki w `frontend/src/lib/security-headers.ts`; jedne i drugie są potwierdzone testami — zobacz [Wdrożenie](docs/deployment.pl.md#security-headers).
 
 ### Dane
 
