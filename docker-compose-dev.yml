@@ -116,14 +116,14 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    image: valkey/valkey:8-alpine
+    command: valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "valkey-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
