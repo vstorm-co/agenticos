@@ -13,6 +13,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
+from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
 from app.services.access import SECRET, resolve_access
@@ -448,7 +449,7 @@ class SyncSourceService:
         await sync_source_repo.delete(self.db, UUID(source_id))
         await self._record(source, "deleted", ctx=ctx)
 
-    async def trigger_sync(self, source_id: str) -> object:
+    async def trigger_sync(self, source_id: str) -> SyncLog:
         """Trigger a manual sync - persists a SyncLog and dispatches the task.
 
         Raises:

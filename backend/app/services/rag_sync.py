@@ -92,7 +92,7 @@ class RAGSyncService:
         *,
         collection_name: str,
         mode: str,
-        path: str | None,
+        path: str,
     ) -> SyncLog:
         """Persist a sync log and dispatch the local-sync task on the configured backend."""
         sync_log = await self.create_sync_log(

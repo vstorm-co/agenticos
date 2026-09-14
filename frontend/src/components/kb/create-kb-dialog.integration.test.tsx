@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreateKBDialog } from "./create-kb-dialog";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import { INGESTION_LIMITS } from "@/lib/ingestion-config";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
@@ -53,13 +54,11 @@ const SECRETS_WITH_OPENAI = {
 };
 
 const EMBEDDING_MODELS = {
-  default: "text-embedding-3-large",
-  default_provider: "openrouter",
   providers: [
     {
       provider: "openrouter",
       name: "OpenRouter",
-      deployment_key: true,
+      keyless: false,
       models: [
         { model: "text-embedding-3-large", dim: 3072 },
         { model: "text-embedding-3-small", dim: 1536 },
@@ -68,8 +67,16 @@ const EMBEDDING_MODELS = {
     {
       provider: "openai",
       name: "OpenAI",
-      deployment_key: false,
+      keyless: false,
       models: [{ model: "text-embedding-3-small", dim: 1536 }],
+    },
+    // An Ollama on the deployment's own network: offered only where the
+    // deployment named its address, and paid by nobody.
+    {
+      provider: "ollama",
+      name: "Ollama",
+      keyless: true,
+      models: [{ model: "nomic-embed-text", dim: 768 }],
     },
   ],
 };
@@ -92,6 +99,44 @@ async function openParsing() {
 }
 
 /** What the caller may do, and what their vault holds, per test. */
+/** The servers a keyless provider can be pointed at: the organization's own and a deployment-wide one. */
+const LOCAL_SERVICES = [
+  {
+    id: "ls-1",
+    organization_id: "org-1",
+    kind: "embedding",
+    provider: "ollama",
+    name: "GPU box",
+    base_url: "http://ollama:11434/v1",
+    is_active: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: null,
+  },
+  {
+    id: "ls-2",
+    organization_id: null,
+    kind: "embedding",
+    provider: "ollama",
+    name: "Shared Ollama",
+    base_url: "http://ollama.shared:11434/v1",
+    is_active: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: null,
+  },
+  // An OCR sidecar is not somewhere to embed, so it must not be offered here.
+  {
+    id: "ls-3",
+    organization_id: "org-1",
+    kind: "ocr",
+    provider: "liteparse",
+    name: "OCR box",
+    base_url: "http://ocr:8000",
+    is_active: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: null,
+  },
+];
+
 const state = { permissions: [] as Permission[], secrets: SECRETS };
 
 /**
@@ -104,6 +149,7 @@ const state = { permissions: [] as Permission[], secrets: SECRETS };
 function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_MODELS) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return state.secrets;
+    if (path === "/local-services") return { items: LOCAL_SERVICES, total: LOCAL_SERVICES.length };
     if (path === "/rag/embedding-models") {
       if (embeddingModels === "refused") throw new Error("502 Bad Gateway");
       return embeddingModels;
@@ -173,17 +219,16 @@ describe("the embedding key picker", () => {
     expect(key).toHaveTextContent("····3123");
   });
 
-  it("marks the deployment's own key too, which is an OpenRouter key as well", async () => {
-    // `EmbeddingService` sends every embedding request to openrouter.ai, on the
-    // deployment's key when a collection names none - so the two rows are the
-    // same service and reading as two different things was the bug.
+  it("offers no deployment key, because there is none", async () => {
+    // Every collection pays with a vault key of its own. The row that used to
+    // read "Deployment key" offered a collection that embedded on a variable
+    // the operator set once for everybody, which is what this removed.
     show();
     await openEmbeddings();
+    expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a key");
     await userEvent.click(screen.getByLabelText("Key"));
 
-    expect(providerMarkIn(await screen.findByRole("option", { name: "Deployment key" }))).toBe(
-      "openrouter",
-    );
+    expect(screen.queryByRole("option", { name: /Deployment key/ })).toBeNull();
   });
 
   it("offers no key that cannot pay for embeddings", async () => {
@@ -197,6 +242,8 @@ describe("the embedding key picker", () => {
   it("shows the selected key's mark on the closed trigger", async () => {
     show();
     await openEmbeddings();
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(await screen.findByRole("option", { name: /OpenRouter prod/ }));
 
     expect(providerMarkIn(screen.getByLabelText("Key"))).toBe("openrouter");
   });
@@ -237,13 +284,17 @@ describe("the embedding model picker", () => {
     ).toBe("openrouter");
   });
 
-  it("says which model an untouched deployment would use, in the list", async () => {
+  it("says every model's width in the list, and calls none of them a default", async () => {
+    // There is no deployment default any more: the first model the provider
+    // serves is preselected, and what tells the rows apart is the width the
+    // vector column would be created at.
     show();
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Model"));
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
-    expect(preselected).toHaveTextContent("deployment default");
+    expect(preselected).toHaveTextContent(/3,?072 dimensions/);
+    expect(preselected).not.toHaveTextContent(/default/);
   });
 });
 
@@ -278,29 +329,139 @@ describe("choosing the provider", () => {
     expect(screen.queryByRole("option", { name: /OpenRouter prod/ })).toBeNull();
   });
 
-  it("does not offer the deployment's key to a provider it does not belong to", async () => {
-    // The deployment has one key and it belongs to one endpoint. Offering it here
-    // would offer a collection that cannot index its first document.
+  it("asks for a server rather than a key on a keyless provider", async () => {
+    // The server refuses a key named for an Ollama, so the key select would offer
+    // only a mistake. What such a provider needs is an address, and the picker
+    // offers the servers registered for it - the organization's and the
+    // deployment-wide one, marked - and nothing registered for OCR.
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+
+    expect(screen.queryByLabelText("Key")).toBeNull();
+    expect(screen.getByText(/Ollama takes no key/)).toBeVisible();
+    const server = screen.getByLabelText("Server");
+    expect(server).toHaveTextContent("Choose a server");
+    await userEvent.click(server);
+    expect(await screen.findByRole("option", { name: /GPU box/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /Shared Ollama \(deployment\)/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /OCR box/ })).toBeNull();
+  });
+
+  it("posts a keyless provider with its server and no key", async () => {
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /GPU box/ }));
+    await userEvent.type(screen.getByLabelText("Name"), "Local");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body.embedding_provider).toBe("ollama");
+    expect(body.embedding_model).toBe("nomic-embed-text");
+    expect(body.embedding_endpoint_id).toBe("ls-1");
+    expect(body).not.toHaveProperty("embedding_secret_id");
+  });
+
+  it("puts a refusal about the server under the picker", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(400, "Choose the server this collection embeds through", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Choose the server this collection embeds through",
+          details: {
+            fields: [
+              {
+                field: "embedding_endpoint_id",
+                message: "Choose the server this collection embeds through",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Local");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(
+      await screen.findByText("Choose the server this collection embeds through"),
+    ).toBeInTheDocument();
+  });
+
+  it("forgets a server chosen for the provider being left behind", async () => {
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /GPU box/ }));
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+
+    expect(screen.getByLabelText("Server")).toHaveTextContent("Choose a server");
+  });
+
+  it("forgets a key chosen for the provider being left behind", async () => {
+    // A key is a key for a provider: an OpenRouter key sent to OpenAI's address
+    // is refused after it has already arrived. Moving the provider empties the
+    // key select rather than carrying the wrong key over to be refused on save.
+    show();
+    await openEmbeddings();
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(await screen.findByRole("option", { name: /OpenRouter prod/ }));
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+
+    expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a key");
+  });
+
+  it("puts a refusal about the key under the picker rather than in a toast", async () => {
+    // The server is the authority on whether a collection may be created without
+    // a key - there is no deployment key to fall back to, so it refuses on the
+    // field - and the refusal has to land where the empty select is.
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(400, "Choose the vault key that pays", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Choose the vault key that pays",
+          details: {
+            fields: [{ field: "embedding_secret_id", message: "Choose the vault key that pays" }],
+          },
+        },
+      }),
+    );
+    show();
+    await openEmbeddings();
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText("Choose the vault key that pays")).toBeInTheDocument();
+  });
+
+  it("posts the provider, its key and the model the provider serves", async () => {
     show();
     await openEmbeddings();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
     await userEvent.click(screen.getByLabelText("Key"));
-
-    expect(screen.queryByRole("option", { name: "Deployment key" })).toBeNull();
-  });
-
-  it("posts the provider and the model the provider serves", async () => {
-    show();
-    await openEmbeddings();
-    await userEvent.click(await screen.findByLabelText("Embedding provider"));
-    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(await screen.findByRole("option", { name: /OpenAI prod/ }));
     await userEvent.type(screen.getByLabelText("Name"), "Handbook");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     const body = vi.mocked(apiClient.post).mock.calls.at(-1)?.[1] as Record<string, unknown>;
     expect(body.embedding_provider).toBe("openai");
+    expect(body.embedding_secret_id).toBe("s-3");
     // The deployment default is 3072-wide and OpenAI's entry here serves only the
     // 1536 one, so the model has to move with the provider - posting the default
     // would create a column the provider cannot fill.
@@ -333,17 +494,18 @@ describe("when the embedding model list cannot be read", () => {
   it("says the list was refused rather than that it is still coming", async () => {
     await openEmbeddings();
 
-    expect(await screen.findByText(/The list of models could not be read/)).toBeInTheDocument();
+    expect(await screen.findByText(/The list of providers could not be read/)).toBeInTheDocument();
     expect(screen.queryByText("Loading models…")).toBeNull();
   });
 
-  it("says which model the collection gets anyway, since it is created either way", async () => {
-    // Create still works and still produces a collection - on the deployment's
-    // default. Being told that is the difference between a choice not offered
-    // and a choice silently made.
+  it("says that creating will be refused, since no provider or key can be chosen", async () => {
+    // There is no deployment default to fall back to: without the list nobody
+    // can name a provider or a key, and the server refuses a collection that
+    // names neither. Being told that is the difference between a choice not
+    // offered and a refusal discovered on submit.
     await openEmbeddings();
 
-    expect(await screen.findByText(/created on the deployment's default/)).toBeInTheDocument();
+    expect(await screen.findByText(/will be refused until it can/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
   });
 

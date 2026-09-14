@@ -222,11 +222,14 @@ class TestPlatformLayerIsFullyListed:
 class TestTypeGateMatchesCoverageGate:
     """The type checker holds the same files, to the rules the template gave up.
 
-    `ty check` used to report 66 diagnostics and exit 0, because every rule that
-    an untyped third-party library tripped was downgraded globally. The reasons
-    were real and they are still there for the template's code; what changed is
-    that they no longer apply to ours. Both halves of that are only true while
-    this passes.
+    `ty check` used to report 66 diagnostics and exit 0: a warning-level
+    diagnostic never failed the run, only the platform-layer override's
+    promoted `error`-level rules did - so a warning was genuinely invisible, a
+    green check indistinguishable from one with zero. `error-on-warning = true`
+    closes that: every diagnostic fails the run now, warning or error,
+    everywhere. The override below still promotes the same rules to `error` for
+    our own code, but only so a platform-layer violation reads more severely (a
+    red annotation, not yellow) - not to decide whether either one gates.
     """
 
     def test_it_covers_exactly_the_files_the_coverage_gate_does(
@@ -251,14 +254,15 @@ class TestTypeGateMatchesCoverageGate:
             f"{sorted(downgraded - restored)}"
         )
 
-    def test_the_run_still_fails_on_a_platform_error(
+    def test_the_run_fails_on_any_diagnostic_not_only_a_platform_error(
         self, pyproject: dict, platform_type_override: dict
     ) -> None:
         """`error-on-warning = false` is what made the old gate decorative.
 
-        It stays false - the template's diagnostics are informational - so the
-        only thing that can fail the run is a rule set to `error`, and this
-        override is the only place that does it.
+        It is `true` now - every diagnostic fails the run, template-inherited
+        code included. The platform-layer override still promotes its rules to
+        `error`, but that now only decides the annotation's severity, not
+        whether the run fails.
         """
-        assert pyproject["tool"]["ty"]["terminal"]["error-on-warning"] is False
+        assert pyproject["tool"]["ty"]["terminal"]["error-on-warning"] is True
         assert set(platform_type_override["rules"].values()) == {"error"}

@@ -3257,6 +3257,49 @@ class TestEnvironmentObservability:
         assert merged.observability.environment == "dev"
 
     @pytest.mark.anyio
+    async def test_the_agents_content_choice_survives_the_environment_merge(self):
+        """An environment redirects where traces go, not how much they carry: a
+        client's `none` must not be undone by pinning the run to an environment."""
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+        )
+        environment = MagicMock(logfire_token_secret_id=uuid.uuid4(), service_name=None)
+        environment.name = "client-prod"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.content == "none"
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_block_traced_by_the_environment_records_full(self):
+        """When only the environment supplies a token, the agent made no content
+        choice, so the default `full` applies."""
+        spec = AgentSpec(name="Support")
+        environment = MagicMock(logfire_token_secret_id=uuid.uuid4(), service_name=None)
+        environment.name = "dev"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.content == "full"
+
+    @pytest.mark.anyio
     async def test_no_token_from_either_source_stays_untraced(self):
         """A tag into nowhere is not observability - the spec is left alone."""
         spec = AgentSpec(name="Support")
@@ -3339,7 +3382,7 @@ class TestTheWorkspaceReachesTheAgent:
     """
 
     @staticmethod
-    async def _prepare(spec):
+    async def _prepare(spec, skills=()):
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         opened = MagicMock(id=uuid.uuid4(), exposure_id=None)
@@ -3353,7 +3396,9 @@ class TestTheWorkspaceReachesTheAgent:
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
-            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(
+                service.skills, "resolve_for_agent", new=AsyncMock(return_value=list(skills))
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=opened),
@@ -3372,25 +3417,60 @@ class TestTheWorkspaceReachesTheAgent:
         ):
             prepared = await service.prepare(_ctx(), agent.id, conversation_id=uuid.uuid4())
 
-        return prepared, build.call_args.kwargs["resources"]
+        return prepared, build.call_args
 
     @pytest.mark.anyio
     async def test_a_workspace_backend_is_handed_to_the_capability(self):
         spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
 
-        prepared, resources = await self._prepare(spec)
+        prepared, built = await self._prepare(spec)
 
         assert prepared.workspace is not None
-        assert resources["workspace_backend"] is prepared.workspace.backend
+        assert built.kwargs["resources"]["workspace_backend"] is prepared.workspace.backend
 
     @pytest.mark.anyio
     async def test_an_agent_without_one_is_handed_nothing(self):
         """A resource key present-but-empty would make the capability build a
         workspace it thinks is real."""
-        prepared, resources = await self._prepare(AgentSpec(name="Plain"))
+        prepared, built = await self._prepare(AgentSpec(name="Plain"))
 
         assert prepared.workspace is None
-        assert "workspace_backend" not in resources
+        assert "workspace_backend" not in built.kwargs["resources"]
+
+
+class TestTheModelIsToldWhereTheSkillFilesWent:
+    """Nothing else tells it. The only place the path ever appeared was inside a
+    skill's own body, so every skill written against the old root was the model's
+    sole authority for a directory the platform has since moved."""
+
+    @pytest.mark.anyio
+    async def test_a_run_that_wrote_skill_files_names_the_directory(self):
+        from app.services.skill_workspace import SKILLS_ROOT
+
+        spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
+        skill = MagicMock(
+            id=uuid.uuid4(),
+            name="refunds",
+            description="Handle refunds",
+            content="Ask.",
+            resources=[],
+        )
+
+        _, built = await TestTheWorkspaceReachesTheAgent._prepare(spec, skills=[skill])
+
+        assert SKILLS_ROOT in built.args[0].instructions
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_skills_is_told_nothing(self):
+        """There are no files to point at, and an instruction about a directory
+        that is empty is one more thing for the model to act on."""
+        from app.services.skill_workspace import SKILLS_ROOT
+
+        spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
+
+        _, built = await TestTheWorkspaceReachesTheAgent._prepare(spec)
+
+        assert SKILLS_ROOT not in built.args[0].instructions
 
 
 class TestWhatTheChannelLetsTheAgentLookUp:

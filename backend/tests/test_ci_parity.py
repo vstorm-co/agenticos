@@ -308,3 +308,34 @@ class TestCheckRunsNothingCIDoesNot:
             f"`make check` runs {missing} and no CI job does. Either CI is missing a "
             "gate a branch will pass locally, or the target does not belong in `check`."
         )
+
+
+class TestCheckRunsUnderThePinnedInterpreter:
+    """A target reachable from `check` must not depend on the host's own `python3`.
+
+    `check_routes.py` shells out as a bare `python3 scripts/check_routes.py` and
+    uses `ast.FunctionDef | ast.AsyncFunctionDef` in an `isinstance` check, which
+    needs 3.10+ at runtime. CI's runner ships a `python3` new enough to satisfy
+    that by chance; a laptop whose system `python3` predates 3.10 crashed with a
+    bare `TypeError` on the identical `make lint-backend` step CI ran clean -
+    green build, red `make check`, the exact failure mode #143 named. The fix
+    was `uv run --directory backend python3 ../scripts/check_routes.py`, which
+    runs under `backend/.python-version`'s pin regardless of the host; this test
+    is what stops the next guard script reopening the gap under a different name.
+    """
+
+    def test_no_target_reachable_from_check_invokes_a_bare_python3_script(
+        self, recipes: dict[str, str], check_closure: set[str]
+    ) -> None:
+        offenders = {
+            target: line.strip()
+            for target in check_closure
+            for line in recipes.get(target, "").splitlines()
+            if line.strip().startswith("python3 ")
+        }
+        assert not offenders, (
+            f"these targets, reachable from `make check`, run a script under the "
+            f"host's own python3 rather than the pinned interpreter: {offenders} - "
+            "route each through `uv run --directory backend python3 "
+            "../scripts/<name>.py`, the fix `check_routes.py` already got"
+        )

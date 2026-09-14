@@ -70,6 +70,12 @@ SPEC_VERSION = 11
 
 ApprovalMode = Literal["default", "required", "never"]
 
+# What a run's traces are allowed to carry. `full` is the default so nothing
+# stored changes behaviour; `none` keeps timing, tokens, cost and tool names but
+# no message text or tool arguments. A `redacted` middle ground - the same PII
+# filter the log pipeline runs, over message text - is a follow-up (#1616).
+TraceContent = Literal["full", "none"]
+
 _WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
@@ -390,6 +396,17 @@ class ObservabilitySpec(BaseModel):
         default=None,
         max_length=64,
         description="Logfire environment - production, staging, a client's name",
+    )
+    content: TraceContent = Field(
+        default="full",
+        description=(
+            "How much of a run each span carries. 'full' records the message, the "
+            "model's output and every tool argument and result; 'none' records "
+            "timing, tokens, cost and tool names only. Default 'full', so an agent "
+            "that says nothing traces as it always did. For a deployment whose runs "
+            "touch health, legal or HR data, 'none' is what keeps a copy of the "
+            "protected content from leaving the machine to the Logfire project."
+        ),
     )
 
 

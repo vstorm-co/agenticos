@@ -86,7 +86,12 @@ async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ct
     """
     try:
         authorization_url = await service.oauth_start_for_org(
-            ctx, name=data.name, url=data.url, catalog_key=data.catalog_key
+            ctx,
+            name=data.name,
+            url=data.url,
+            catalog_key=data.catalog_key,
+            client_id=data.client_id,
+            client_secret=data.client_secret,
         )
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

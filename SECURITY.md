@@ -1,5 +1,11 @@
 # Security
 
+**English** · [Polski](SECURITY.pl.md) · [Deutsch](SECURITY.de.md) · [Español](SECURITY.es.md)
+
+> [!IMPORTANT]
+> The English text is the authoritative one. A translation is a convenience, and
+> where the two disagree, report the vulnerability against what this file says.
+
 ## Reporting a vulnerability
 
 Email: **kacper.wlodarczyk@vstorm.co** (or open a private security advisory on the repo). Please include:
@@ -20,7 +26,9 @@ the mechanism that satisfies it and the test that holds it true — live in one
 copy on the [Security](https://vstorm-co.github.io/agenticos/security/) page
 (`docs/security.md`). This file keeps only the two things a repository's
 `SECURITY.md` is read for: how to report a vulnerability, above, and the
-production hardening checklist, below.
+production hardening checklist, below. Where personal data lives and what a
+deletion reaches is [Data protection](docs/data-protection.md); the components
+the images ship and their licences are [Licences](docs/licenses.md).
 
 ## Hardening checklist for production
 

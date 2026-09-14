@@ -758,6 +758,16 @@ the database.
 | `GET /runs/export` | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
 | `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view` |
+| `GET /audit/export` | The audit trail over a window, CSV or JSONL (`?fmt=`). `audit:read` |
+
+The audit export is the one that also offers **JSONL** (`?fmt=jsonl`), one JSON
+object per line, because an audit trail is as often ingested by a log pipeline as
+opened in a spreadsheet; the two describe the same entries, with `details`
+flattened to a JSON string in the CSV cell and kept as a nested object in the
+lines. It ships exactly the fields the `GET /audit` read model exposes — the stored
+`ip_address` is not on that tab, so it is not in the export either — and, like every
+export here, it records its own read in the trail (`audit.export`, naming the window,
+the format and the row count).
 
 The spend export carries only the window figures — `cost_usd`, `run_count` and
 `partial_run_count`. The Spend tab's `month_to_date_usd` and `monthly_cap_usd` are
