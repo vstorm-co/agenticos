@@ -163,7 +163,7 @@ names no author is in the evidence column below.
 | keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | License-Expression |
 | liteparse | 2.14.3 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.15.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
-| logfire | 4.41.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
+| logfire | 5.0.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 4.39.0 | MIT | https://pypi.org/project/logfire-api/4.39.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
 | lxml | 6.1.1 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
 | magic-filter | 1.0.12 | MIT | https://github.com/aiogram/magic-filter | License-Expression |
@@ -219,10 +219,10 @@ names no author is in the evidence column below.
 | pydantic-ai-backend | 0.2.29 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.29.0 | MIT | https://github.com/pydantic/pydantic-ai-harness | License-Expression |
 | pydantic-ai-skills | 1.4.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.40.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.42.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
-| pydantic-graph | 2.40.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-graph | 2.42.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 0.0.21 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 0.0.21 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-runtime | 0.0.21 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
