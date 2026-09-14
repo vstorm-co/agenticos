@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.435] - 2026-09-15
+
+### Added
+
+- **A `security` marker naming every refusal test, and a report a client can
+  read.** Tenant isolation, permission and grant refusals, a budget checked before
+  the model call, an approval decided once, secret confidentiality, spec publish
+  validation - all already tested, but scattered with nothing naming them as a
+  set, so "does this meet the standard" was answered by showing tests rather than
+  by asserting it. `make test-security` runs the marked set and
+  `make security-report` writes the count and the list, which CI uploads as an
+  artifact on each backend run. `--strict-markers` means a misspelled marker fails
+  the run instead of silently dropping a test from the set. (#1417)
+- **A guard that keeps the set complete as the suite grows.** A test whose name or
+  module mentions a tenant, a permission, a budget, an approval, a secret or
+  plaintext must carry the marker or be exempted with a one-line reason. It caught
+  its first drift on the way in: three refusals written since the branch opened
+  carried no marker, and two exemptions named tests that had been renamed. The
+  marker is for the report, not a second gate - `make check` still runs
+  everything. (#1417)
+
 ## [0.0.434] - 2026-09-15
 
 ### Changed
