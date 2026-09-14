@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.429] - 2026-09-14
+
+### Added
+
+- **The audit trail is tamper-evident.** `app_admin_audit_logs` is the record of
+  every privileged action, and the app-admin bypass story leans on it - but a row
+  was only a row, and an operator with the database could rewrite or delete an
+  entry and leave nothing that said so. Each entry now joins a per-organization
+  hash chain: its own hash over its canonical fields with the previous entry's
+  folded in, plus a deployment-wide `seq` so the chain has a deterministic order
+  even when one transaction writes two entries on the same transaction-stable
+  timestamp. Editing, reordering, inserting or deleting any entry diverges every
+  hash after it. (#1622)
+
 ## [0.0.428] - 2026-09-14
 
 ### Fixed
