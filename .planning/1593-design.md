@@ -82,15 +82,37 @@ all fields optional:
 | `organizational_unit` | `list[str] \| None` | department/team tag | OR within field |
 | `date_from` | `date \| None` | inclusive lower bound on the document date | — |
 | `date_to` | `date \| None` | inclusive upper bound on the document date | — |
-| `parent_doc_id` | `str \| None` | restrict to one document (the existing capability, now typed) | — |
+| `parent_doc_id` | `VectorDocumentId \| None` | restrict to one document (the existing capability, now typed) | — |
 
-Semantics: **within a field, multiple values are OR; across fields, AND.** A
-`None`/empty field imposes no restriction on that dimension. Validation:
-`date_from <= date_to`; where a closed vocabulary exists (e.g. `document_type`
-against known mime/types) reject unknown values with a field error via
-`app/core/field_errors.py`. The model contains **no tenant field and no
-authorization field** — those dimensions are structurally *inexpressible* here, so
-a caller cannot even name them (see 2.2).
+**ID namespace (codex-2 R6).** `parent_doc_id` is the **vector document id** — the
+parser-created `Document.id` stamped on every chunk (`services/rag/models.py`),
+which the relational tracking row records separately as
+`RAGDocument.vector_document_id` (a `String(255)`, *not* the `RAGDocument` primary
+key UUID). Filters and the scope's `authorized_document_ids` both carry vector
+document ids; a trusted relational id (the `RAGDocument.id` UUID) must be
+**translated to its `vector_document_id`** before it reaches the store, or the
+predicate matches nothing. This is stated so an implementer cannot compare the two
+namespaces by accident, and so permission intersection (2.7) and the backfill (2.5)
+join on the same key. A typed `VectorDocumentId` (a thin `str` newtype) is
+preferred over a bare `str` so the distinction is visible in signatures.
+
+Semantics: **within a field, multiple values are OR; across fields, AND.**
+**Tri-state, explicit (codex-2 R1):** for a business filter dimension, `None` (the
+field is absent) imposes no restriction; a **non-empty** list is an allow-list; an
+**empty list is rejected at validation** (a supplied-but-empty filter is a caller
+error, never silently "match everything"). This closes the fail-open ambiguity
+where `[]` read as "unrestricted". The authorization dimension is the opposite
+default and lives only in `RetrievalScope` (2.2): there `None` = "no per-document
+narrowing applied", but an **empty authorized set means match nothing**
+(empty-denies-all), so a resolver that returns "no documents" can never read as
+"all documents". Validation: `date_from <= date_to`; where a closed vocabulary
+exists (e.g. `document_type` against known mime/types) reject unknown values with a
+field error via `app/core/field_errors.py`. `RetrievalFilters` sets
+`extra="forbid"` (the repo `BaseSchema` does **not**, codex-2 R9) so a caller that
+smuggles `organization_id` or any non-whitelisted key is **rejected**, not silently
+ignored — making the trust boundary testable rather than only structural. The model
+contains **no tenant field and no authorization field** — those dimensions are
+structurally *inexpressible* here, so a caller cannot even name them (see 2.2).
 
 Whitelisting for the tool: the agent tool exposes only the whitelisted business
 dimensions (`source`, `document_type`, `organizational_unit`, `date_from`,
@@ -105,7 +127,7 @@ A separate structure built **only** from trusted context:
 | Field | Source | Purpose |
 |---|---|---|
 | `organization_id` | `ctx.organization_id` (API) / `AgentDeps.organization_id` (tool) | the **tenant** conjunct — the security-bearing restriction |
-| `authorized_document_ids` / auth predicate | server-derived (FA-037 slot) | per-document authorization; empty/absent in FA-039 → no extra narrowing beyond collection access + tenant |
+| `authorized_document_ids` / auth predicate | server-derived (FA-037 slot) | per-document authorization. **`None` = slot not populated → no per-document narrowing (FA-039 default).** A **populated but empty** set means match nothing (empty-denies-all, codex-2 R1) — it is never conflated with `None` |
 
 The scope is constructed at the trust boundary:
 
@@ -154,9 +176,11 @@ translates it to parameterized conjuncts on the metadata JSONB, e.g.:
 - source: `metadata->>'source' = ANY(:sources)`
 - document_type: `metadata->>'document_type' = ANY(:types)`
 - organizational_unit: `metadata->>'organizational_unit' = ANY(:units)`
-- date: `(metadata->>'doc_date')::date BETWEEN :date_from AND :date_to`
-  (each bound applied only when present; the cast is guarded so a malformed legacy
-  value fails closed instead of raising — see 2.4 / codex M6)
+- date: `safe_to_date(metadata->>'doc_date') BETWEEN :date_from AND :date_to`
+  (each bound applied only when present; the conversion returns `NULL` on any
+  non-valid value so a malformed or impossible legacy value fails closed instead of
+  raising, and no bare `::date` cast is evaluated over unvalidated text — see 2.4 /
+  codex-2 R7)
 - parent_doc_id: existing `parent_doc_id = :doc_id`
 
 These JSONB `metadata->>'...'` / `ANY(:list)` shapes are **the pgvector mapping
@@ -167,9 +191,11 @@ the same fields to keyword/date fields and a bool/filter query.
 All values are bound parameters (no interpolation beyond the already-validated
 table name — the store's existing rule). Supporting JSONB expression indexes are
 added in `_ensure_collection` mirroring the existing hash-index pattern (hash for
-equality dimensions; a btree on `(metadata->>'doc_date')::date` for range), with
-an `IF NOT EXISTS` create and a backfill migration for pre-existing collections
-(same shape as `0058_backfill_rag_lookup_indexes`).
+equality dimensions; for range, a **partial** btree on the same
+`safe_to_date(metadata->>'doc_date')` expression, `WHERE` the result is non-NULL,
+so the index build cannot raise on a bad row — codex-2 R7), with an `IF NOT EXISTS`
+create and a backfill migration for pre-existing collections (same shape as
+`0058_backfill_rag_lookup_indexes`).
 
 **Both retrieval paths carry the identical object:**
 
@@ -191,6 +217,23 @@ an `IF NOT EXISTS` create and a backfill migration for pre-existing collections
   threads them to every collection it visits (codex H4) — the multi-collection
   path ignores `filter` today, which this change fixes.
 
+**The tenant conjunct is not only a search concern (codex-2 R2).** The shared
+physical table is reached by more than `search()`. Today `find_existing_document`
+(the ingest dedup/replacement lookup), `delete_document`, `get_documents`,
+`get_document_chunks` and the chunk/document counts all query `rag_<name>` with
+**no tenant predicate** (`vectorstore.py`, `ingestion.py`). The most dangerous is
+the replacement path: `IngestionService` looks a document up by `source_path` /
+`filename` / `content_hash` with no `organization_id`, then **deletes the returned
+`parent_doc_id`** — so two tenants sharing a collection name and a source path can
+have one tenant's ingest silently replace and delete the other's document. A
+read-path-only tenant fix would leave this cross-tenant *write* clobber open. FA-039
+therefore threads the trusted tenant scope through **every row-level operation on
+the shared table** — dedup/replacement, deletion, listing, chunk fetch and counts —
+not just `search()`. (The clean long-term alternative is a tenant-unique physical
+namespace, e.g. `rag_<org>_<name>`; that is a larger migration and is noted, not
+adopted, here — the conjunct-everywhere approach closes the hole without a table
+rename.) The files-in-scope list (§3) is widened to name these call sites.
+
 ### 2.4 Date semantics and missing-field behavior
 
 **Canonical document date field: `doc_date`** (ISO `date`), written on every chunk
@@ -205,9 +248,25 @@ and `docs/reference/spec.md`/`capabilities.md`:
 `doc_date` is a **pure calendar date**: any source *timestamp* is converted to UTC
 first, then its date is extracted, and the value is **normalized to ISO
 `YYYY-MM-DD` at ingestion** (codex M6). Because new ingests and the backfill store
-only normalized values, the range cast cannot raise; the predicate still guards the
-cast (a regex/​safe-cast check) so a malformed legacy value **fails closed**
-(excluded) rather than 500-ing the whole search.
+only normalized values, the range cast cannot raise.
+
+**The guard must be genuinely safe, not a regex (codex-2 R7).** The M6 regex
+(`~ '^\d{4}-\d{2}-\d{2}$'`) still admits impossible-but-shaped values such as
+`2025-99-99`, which raise on `::date`. Postgres does **not** guarantee AND-operand
+evaluation order, so `regex AND value::date BETWEEN …` cannot be relied on to skip
+the cast — and *creating* an expression index over `(metadata->>'doc_date')::date`
+evaluates that cast over every legacy row, failing the migration itself on one bad
+value. The design therefore uses a **conversion that cannot raise** rather than a
+guard-then-cast: a `CASE` (or a helper) that returns a real `date` only when the
+value passes full date validation and `NULL` otherwise, e.g. conceptually
+`safe_to_date(metadata->>'doc_date')`. A row that yields `NULL` **fails closed**
+(never matches a date filter), and the expression index and the WHERE predicate use
+the **identical** safe expression (a partial index on the non-NULL result) so the
+index build cannot raise either. A real typed `doc_date` column is the sturdier
+alternative and is noted as the preferred shape if the migration cost is accepted;
+either way no `::date` cast is ever evaluated over unvalidated text. Tests must
+include **syntactically date-shaped but impossible dates** (`2025-99-99`), not only
+malformed strings and missing keys.
 
 Range is **inclusive `[date_from, date_to]`** on that calendar date. Either bound
 may be omitted (open-ended range).
@@ -240,11 +299,24 @@ automatically **preserves them per chunk** with no change to the write path.
 Provenance and trust:
 
 - **`organization_id` is security-bearing and is written from trusted worker
-  context only** — the ingestion flow already knows `organization_id` /
+  context only** — the org-scoped ingestion flows know `organization_id` /
   `KnowledgeBase.organization_id` (`worker/tasks/rag_tasks.py`). The uploader's
   `ingestion` form input and any model/user-supplied metadata **must not** be able
   to set it (defense in depth: a caller must not stamp a chunk with another
   tenant's id). This is injected in the worker/ingestion service, not the parser.
+- **Not every ingestion path has a tenant (codex-2 R5).** The claim "the ingestion
+  flow already knows `organization_id`" is **not universal**: the local-directory
+  sync task deliberately ingests with `organization_id=None` (it names a path on
+  the server, not a collection an organization owns — `rag_tasks.py`, the
+  `SpendLedger()` with no org). Under mandatory tenant filtering those chunks would
+  become permanently invisible to every tenant-scoped caller. The design's decision:
+  such documents are **deployment-scoped, not tenant-scoped** — they carry no
+  `organization_id` and are reachable **only** through the explicit unscoped
+  maintenance path (2.2's separately named CLI/app-admin marker), never through an
+  ordinary tenant-scoped search or agent tool. This is fail-closed by construction
+  (a missing tenant is never leaked to a tenant caller) and it names the supported
+  path rather than pretending every ingest has an org. A deployment that wants these
+  documents tenant-searchable must (re-)ingest them under a real organization.
 - `source`, `document_type`, `organizational_unit`, `doc_date` are business
   metadata derived from the connector/upload context and/or author input; these
   are non-security and may be author-supplied.
@@ -254,17 +326,31 @@ Migration/backfill (heed the `rag-knowledge` JSONB trap): *adding* fields is saf
 validation is *narrowed*, so stored rows are not invalidated. The **tenant** field,
 however, is a security backfill, not a caveat (codex C2). The migration must:
 
-1. detect vector tables that back more than one `KnowledgeBase.organization_id`
-   (the shared-name case);
-2. reconstruct per-chunk ownership from the tracked `rag_documents` rows where the
-   mapping is unambiguous, and write `organization_id`;
-3. **quarantine ambiguous chunks** — leave `organization_id` unset so they fail
-   closed (unsearchable) rather than be assigned to a guessed tenant;
-4. mark affected KBs **degraded** and surface that state.
+1. assign ownership **only through a positive, unique join** from a chunk's
+   `(collection_name, parent_doc_id)` to a `DONE` tracking row's
+   `(collection_name, vector_document_id, organization_id)` — never by stamping a
+   table wholesale with its sole current tenant (codex-2 R4). A table that backs
+   only one current KB can still hold chunks from a **deleted** tenant, an
+   incomplete tracking write, or a local/admin (`organization_id=None`) ingest, so
+   "one current org" is not proof every chunk is that org's;
+2. **quarantine everything the join does not positively resolve** — a chunk with no
+   matching `DONE` row, an ambiguous match, or a row whose tracked org is NULL keeps
+   `organization_id` unset so it fails closed (unsearchable) rather than being
+   assigned a guessed tenant;
+3. mark affected KBs **degraded** and surface that state.
+
+**Deployment ordering matters (codex-2 R4).** The steps must run in an order that
+cannot leave a window where new untagged chunks appear after the backfill: (a) ship
+the tenant **dual-write** (new ingests stamp `organization_id`) and deploy it
+everywhere; (b) drain/upgrade any old workers so nothing still writes untagged
+chunks; (c) run the backfill and verify; (d) only then **enable mandatory tenant
+read filtering**. Enabling read enforcement before old writers are drained would
+either hide freshly-ingested documents (fail-closed but surprising) or, if
+enforcement lagged, leak — so the read switch is last.
 
 Rollout is fail-closed: unresolved/quarantined chunks are invisible to
 tenant-scoped search, never leaked. There is no silent single-org backfill of a
-shared table.
+shared *or* single-KB table — ownership is only ever the join's positive result.
 
 ### 2.6 Keeping the contract clean for a future OpenSearch adapter
 
@@ -272,18 +358,51 @@ shared table.
   `RetrievalScope`), never a SQL string or pgvector-specific DSL.
 - Translation from structured object → backend query lives **inside each
   `BaseVectorStore` implementation**. The retrieval service composes and forwards;
-  it builds no SQL. Adding OpenSearch = implementing one `search()` translation +
-  its ingestion mapping, with **zero** change to `RetrievalService`, the API route,
-  the tool, or the filter schema.
+  it builds no SQL. Adding a **vector** backend = implementing one `search()`
+  translation + its ingestion mapping, with **zero** change to `RetrievalService`,
+  the API route, the tool, or the filter schema.
+- **The "zero change" claim is scoped honestly (codex-2 R8).** A single
+  vector-oriented `search()` does **not** by itself deliver genuine OpenSearch
+  lexical or native-hybrid search. Today the hybrid branch reranks the vector
+  store's own candidates (2.3, H3) and first calls an **unscoped `get_documents()`**
+  purely as a non-empty probe (`retrieval.py`) — which, on a shared table, also
+  reads across tenants. FA-039's seam guarantees the *filter/scope contract* is
+  backend-neutral, not that lexical/hybrid arrives free. So this section commits to:
+  (a) removing the unscoped `get_documents()` probe (or giving it the same trusted
+  scope), and (b) defining a **backend-neutral retrieval operation/mode** — vector,
+  lexical, or native hybrid — in which **scope and filters are mandatory inputs for
+  every candidate-producing query**, so no future backend can add a candidate source
+  that skips enforcement. A true corpus-wide lexical/hybrid query remains deferred;
+  the seam is what stays neutral.
 - The abstract `search()` signature is backend-neutral, so the "both paths enforce
-  the same restrictions" guarantee holds regardless of backend.
+  the same restrictions" guarantee holds regardless of backend. For portability,
+  `document_type` needs **one canonical definition**, not "mime/filetype *or*
+  semantic type" (codex-2 R8) — the ambiguity breaks exact keyword filtering across
+  backends; the design fixes it to the stored `filetype`/mime string and treats any
+  richer semantic taxonomy as a later, separately-specified dimension.
 - The legacy scalar-string `filter` is retired; for backward compatibility a thin
-  shim may map an incoming `parent_doc_id == "<id>"` string to the typed field
-  during a deprecation window, but no new backend assumptions travel through a
-  string. This issue does **not** build OpenSearch — only guarantees the seam.
+  shim may map an incoming string to the typed field during a deprecation window —
+  but it accepts **only a full-match `parent_doc_id == "<id>"` expression and
+  rejects all other text** (codex-2 R9). Substring extraction (today's behavior)
+  would silently discard any additional clauses a caller wrote, quietly *widening*
+  the result versus the caller's intent; a full-match-or-reject shim cannot. No new
+  backend assumptions travel through a string. This issue does **not** build
+  OpenSearch — only guarantees the seam.
 
 ### 2.7 Boundary with FA-037 (document ACL)
 
+- **What "permissions" means in FA-039 (codex-2 R3).** Issue #1593 lists
+  *permissions* among the filter dimensions. FA-039 delivers permission
+  enforcement at **two** layers — collection-level read access
+  (`CollectionAccessService`, already in place) **and** the new server-derived
+  **tenant** conjunct — but it deliberately does **not** ship per-document ACLs;
+  that is FA-037's scope (below). This split is a recorded decision, not an
+  oversight: the `authorized_document_ids` slot is the plug, and its
+  empty-denies-all semantics (2.1/2.2) mean that when FA-037 wires a resolver, a
+  subject authorized for no documents (or a resolver that fails) denies access
+  rather than exposing the tenant. If #1593's acceptance criteria are read to
+  require *per-document* permission filtering inside FA-039 itself, that is a scope
+  escalation to raise with the issue owner — it is not silently in this design.
 - **FA-039 delivers:** the typed filter contract, the server-derived **tenant**
   scope, and the enforcement seam — a `RetrievalScope` object the store ANDs into
   every query on both the vector and BM25/hybrid paths. The minimum security
@@ -307,8 +426,15 @@ shared table.
 - `app/services/rag/models.py` — extend `DocumentMetadata`; likely a `RetrievalScope`
   + composed-filter model (or a dedicated `rag_filters` module).
 - `app/services/rag/vectorstore.py` — `search()` signature + WHERE translation +
-  `_build_chunk_metadata` + `_ensure_collection` indexes.
+  `_build_chunk_metadata` + `_ensure_collection` indexes; **and the tenant conjunct
+  on every other row-level op on the shared table** (codex-2 R2):
+  `find_existing_document`/`_first_document`, `delete_document`, `get_documents`,
+  `get_document_chunks`, and the chunk/document counts.
+- `app/services/rag/ingestion.py` — the replace/dedup path must pass trusted scope
+  into the existing-document lookup so it cannot delete another tenant's document
+  (codex-2 R2).
 - `app/services/rag/retrieval.py` — compose scope+filters; **`_bm25_search` fix**;
+  remove/scope the unscoped `get_documents()` probe (codex-2 R8);
   `retrieve` / `retrieve_multi` threading.
 - `app/api/routes/v1/rag.py` — build `RetrievalScope` from `ctx`; request carries
   only business filters.
@@ -329,7 +455,16 @@ shared table.
 - **Cross-tenant denial:** org A cannot retrieve org B chunks in a shared-named
   collection; a supplied filter cannot reach org B.
 - **Access-widening attempt:** a business filter cannot set/override tenant;
-  parent_doc_id can only narrow.
+  parent_doc_id can only narrow; an `organization_id` (or any unknown) key in a
+  filter body is **rejected** by `extra="forbid"` (codex-2 R9).
+- **Empty-set semantics (codex-2 R1):** an empty business filter list is rejected;
+  a populated-but-empty `authorized_document_ids` returns nothing (never "all").
+- **Cross-tenant write clobber (codex-2 R2):** org A ingesting a file whose
+  `source_path`/`filename`/`content_hash` collides with org B's document in a
+  shared-named collection must **not** find, replace or delete org B's document.
+- **Impossible-but-shaped date (codex-2 R7):** a chunk with `doc_date` =
+  `2025-99-99` is excluded under a date filter and never raises (search returns,
+  does not 500); the index build tolerates it too.
 - **Both hybrid and non-hybrid** return the same restricted set; **`_bm25_search`
   regression** — the scope+`parent_doc_id` reach its `store.search`, and fusion
   reintroduces no out-of-scope row.
@@ -420,3 +555,113 @@ security guarantee or the extensibility seam without expanding beyond the issue.
 **Deferred (explicitly, per instruction):** the implementation plan. This document
 is the general design only; the step-by-step plan, task breakdown and code are not
 produced here.
+
+---
+
+## 6. Second review round (gpt-5.6-sol)
+
+A second read-only codex pass (`-m gpt-5.6-sol`, run header confirmed
+`model: gpt-5.6-sol`) re-reviewed the amended design, told to focus on **new or
+still-unresolved** problems and not to restate round-one resolutions. Nine findings
+(eight ranked + one hardening item). Each was verified against the code before a
+verdict; nothing was accepted on the model's word alone. Round-one decisions (C1,
+C2, H3, H4, M5, M6, M7) stand — none was overturned; R7 *sharpens* M6's date guard.
+
+**R1 (Critical) — empty set defined as "allow all".** The doc said a `None`/empty
+business field and an empty `authorized_document_ids` impose "no restriction".
+*Verified:* the wording did conflate `None` with `[]`, and for an authorization
+allow-list `[]` naturally means "may read nothing" — reading it as "everything" is a
+fail-open. **Accepted.** Amended 2.1/2.2: tri-state made explicit — business
+`None` = not applied, non-empty = allow-list, **empty = validation error**;
+authorization `None` = slot unset, **populated-empty = match nothing**
+(empty-denies-all). Test added in §4.
+
+**R2 (Critical) — tenant isolation covered search but not the other row-level ops.**
+*Verified in code:* `find_existing_document`/`_first_document`, `delete_document`,
+`get_documents`, `get_document_chunks` and counts query `rag_<name>` with no
+`organization_id` predicate (`vectorstore.py`); worst, `IngestionService`'s replace
+path looks a document up by `source_path`/`filename`/`content_hash` **unscoped** and
+then `delete_document`s the returned `parent_doc_id` (`ingestion.py`) — a real
+cross-tenant *write*/delete clobber on a shared collection name. The round-one design
+only scoped the read path. **Accepted.** New paragraph in 2.3 requires the tenant
+conjunct on **every** row-level op; §3 now names `ingestion.py` and the specific
+`vectorstore.py` methods; §4 adds the write-clobber test. (Tenant-unique physical
+tables noted as the heavier alternative, not adopted.)
+
+**R3 (High) — "permissions" not fully delivered.** #1593 lists *permissions* as a
+dimension; FA-039 ships tenant + collection access and defers per-document ACLs to
+FA-037. *Verified:* this is a deliberate, already-recorded boundary (2.7), not a
+silent gap — collection access + tenant *are* permission enforcement, just not
+per-document. **Accepted in part:** the demand to build a full per-document resolver
+now is **rejected** as out-of-scope for FA-039 (it is FA-037's charter, and the doc
+is design-only). What was warranted — an explicit statement of *which* permission
+layers FA-039 delivers vs defers, tied to the empty-denies-all slot, and a flag that
+a per-document reading of #1593's criteria is a scope escalation to raise with the
+issue owner — is added to 2.7.
+
+**R4 (High) — backfill can misassign historical/orphaned chunks.** *Verified:* a
+table with one *current* KB org can still hold chunks from a deleted tenant, an
+incomplete tracking write, or a local (`organization_id=None`) ingest, so the
+round-one step "detect tables backing more than one org" implied single-org tables
+could be stamped wholesale. **Accepted.** 2.5 rewritten: ownership is assigned
+**only** by a positive, unique join from `(collection_name, parent_doc_id)` to a
+`DONE` tracking row's `(vector_document_id, organization_id)`; everything else is
+quarantined; and an explicit deployment order (dual-write → drain old workers →
+backfill/verify → enable mandatory read filtering) is specified so no untagged
+chunks appear after the backfill.
+
+**R5 (High) — not every ingestion path has a tenant.** *Verified in code:* the
+local-directory sync task ingests with `organization_id=None` and a no-org
+`SpendLedger` (`rag_tasks.py`); the round-one claim "the ingestion flow already
+knows `organization_id`" was not universal, and such chunks would vanish under
+mandatory tenant filtering. **Accepted.** 2.5 now states these are
+deployment-scoped (no `organization_id`), reachable **only** through the explicit
+unscoped maintenance path, never tenant-scoped search — fail-closed, and named
+rather than glossed.
+
+**R6 (High) — `parent_doc_id` lacks a canonical ID namespace.** *Verified:* chunk
+`parent_doc_id` is the parser `Document.id` (`models.py`), recorded on the
+relational row as `RAGDocument.vector_document_id` (`String(255)`), which is *not*
+the `RAGDocument` PK UUID (`rag_document.py`). Comparing the wrong namespace would
+make permission intersection and the backfill silently match nothing. **Accepted.**
+2.1 now states filters and `authorized_document_ids` carry **vector document ids**,
+a trusted relational id must be translated to its `vector_document_id` first, and a
+typed `VectorDocumentId` is preferred over bare `str`.
+
+**R7 (High) — the date guard/index is not reliably fail-closed.** *Verified:* the
+M6 regex `^\d{4}-\d{2}-\d{2}$` still admits `2025-99-99` (raises on `::date`);
+Postgres does not guarantee AND-operand order, so `regex AND ::date` can still
+evaluate the cast; and building an expression index over `(…)::date` evaluates the
+cast on every legacy row, failing the migration itself. This **sharpens M6** (which
+stands as the normalization/UTC decision) rather than overturning it. **Accepted.**
+2.3/2.4 replace the guard-then-cast with a **non-raising conversion**
+(`safe_to_date(...)` returning `NULL` on any non-valid value); the range predicate
+and a **partial** btree index use the identical safe expression; a real typed
+`doc_date` column is noted as the sturdier option; §4 adds an impossible-date test.
+
+**R8 (Medium) — the OpenSearch/hybrid seam is overstated.** *Verified:* a single
+vector-oriented `search()` does not deliver genuine lexical/native-hybrid search
+"with zero change", and the hybrid branch first calls an **unscoped
+`get_documents()`** probe (`retrieval.py`) that, on a shared table, reads across
+tenants. **Accepted.** 2.6 scopes the "zero change" claim to *adding a vector
+backend*, commits to removing/scoping the unscoped probe, requires a
+backend-neutral retrieval **mode** (vector/lexical/hybrid) where scope+filters are
+mandatory for every candidate query, and fixes `document_type` to one canonical
+definition (stored `filetype`/mime) instead of "mime *or* semantic type".
+
+**R9 (Medium, hardening) — reject unknown filter fields; full-match the legacy
+shim.** *Verified:* the repo `BaseSchema` does **not** set `extra="forbid"`
+(`base.py`), so a smuggled `organization_id` on a filter body would be silently
+dropped rather than rejected; and the current shim regex-*extracts* a substring, so
+extra clauses a caller wrote are silently discarded. **Accepted.** 2.1 sets
+`extra="forbid"` on `RetrievalFilters`; 2.6 requires the shim to accept only a
+full-match `parent_doc_id == "<id>"` and reject all other text; §4 adds the
+unknown-field rejection test.
+
+**Rejected / partial:** only R3 is partial — its clarification is accepted, but its
+demand to implement per-document permission resolution now is rejected as FA-037's
+scope and outside a design-only change. No finding was rejected outright.
+
+**Still design-only.** This round amends design sections and records verdicts; it
+adds **no implementation plan**, no task breakdown and no production code. The plan
+remains deferred per instruction.
