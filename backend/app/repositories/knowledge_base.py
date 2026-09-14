@@ -126,6 +126,7 @@ async def create(
     organization_id: UUID | None = None,
     is_default: bool = False,
     embedding_secret_id: UUID | None = None,
+    embedding_endpoint_id: UUID | None = None,
     visibility: str | None = None,
 ) -> KnowledgeBase:
     """Create a knowledge base.
@@ -151,6 +152,7 @@ async def create(
         embedding_dim=embedding_dim,
         embedding_provider=embedding_provider,
         embedding_secret_id=embedding_secret_id,
+        embedding_endpoint_id=embedding_endpoint_id,
         **({"visibility": visibility} if visibility is not None else {}),
     )
     db.add(kb)
@@ -168,13 +170,13 @@ async def update(
     ingestion_config: dict[str, object] | None = None,
     embedding_provider: str | None = None,
     embedding_secret_id: UUID | None = None,
-    clear_embedding_secret: bool = False,
+    embedding_endpoint_id: UUID | None = None,
 ) -> KnowledgeBase:
     """Apply what an update named, leaving what it did not alone.
 
-    `clear_embedding_secret` is separate from a null `embedding_secret_id`
-    because both have to be sayable: on a partial update null means "leave the
-    key alone", so going back to the deployment's key needs a word of its own.
+    A null `embedding_secret_id` or `embedding_endpoint_id` means "leave it
+    alone": a collection is never left without the one its provider needs,
+    because there is nothing deployment-wide to fall back to.
     """
     if name is not None:
         db_kb.name = name
@@ -184,10 +186,10 @@ async def update(
         db_kb.ingestion_config = ingestion_config
     if embedding_provider is not None:
         db_kb.embedding_provider = embedding_provider
-    if clear_embedding_secret:
-        db_kb.embedding_secret_id = None
-    elif embedding_secret_id is not None:
+    if embedding_secret_id is not None:
         db_kb.embedding_secret_id = embedding_secret_id
+    if embedding_endpoint_id is not None:
+        db_kb.embedding_endpoint_id = embedding_endpoint_id
     await db.flush()
     await db.refresh(db_kb)
     return db_kb

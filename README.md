@@ -29,6 +29,13 @@
   <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
 </p>
 
+<p>
+  <b>English</b> &middot;
+  <a href="README.pl.md">Polski</a> &middot;
+  <a href="README.de.md">Deutsch</a> &middot;
+  <a href="README.es.md">Español</a>
+</p>
+
 </div>
 
 ---
@@ -542,6 +549,9 @@ Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
 ## Licence
 
 Apache License 2.0 - see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists every component the
+images ship and its licence; the review of what those licences oblige, and the
+findings still open, is in [the documentation](https://vstorm-co.github.io/agenticos/licenses/).
 
 Apache-2.0 rather than MIT because AgenticOS is meant to be deployed inside other
 companies: the explicit patent grant is the part their legal review asks about,

@@ -52,6 +52,7 @@ export function EmbeddingDialog({
   const { models, unreadable } = useEmbeddingProviders();
   const [provider, setProvider] = useState(kb.embedding_provider);
   const [secretId, setSecretId] = useState<string | null>(kb.embedding_secret_id);
+  const [endpointId, setEndpointId] = useState<string | null>(kb.embedding_endpoint_id);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
@@ -63,6 +64,7 @@ export function EmbeddingDialog({
   if (opened || rowMoved) {
     setProvider(kb.embedding_provider);
     setSecretId(kb.embedding_secret_id);
+    setEndpointId(kb.embedding_endpoint_id);
     setErrors({});
   }
 
@@ -74,25 +76,28 @@ export function EmbeddingDialog({
       (model) => model.model === kb.embedding_model && model.dim === kb.embedding_dim,
     ),
   );
-  const moved = provider !== kb.embedding_provider || secretId !== kb.embedding_secret_id;
+  const moved =
+    provider !== kb.embedding_provider ||
+    secretId !== kb.embedding_secret_id ||
+    endpointId !== kb.embedding_endpoint_id;
 
   const save = async () => {
     setIsSaving(true);
     try {
       await onSave({
         embedding_provider: provider,
-        // Two different things to say, so two fields: null means "leave the key
-        // alone" on a partial update, and going back to the deployment's key has
-        // to be sayable as well.
-        ...(secretId === null
-          ? { clear_embedding_secret: true }
-          : { embedding_secret_id: secretId }),
+        // Null means "leave the key alone" on a partial update. There is no
+        // deployment-wide key to go back to, so a key is only ever replaced,
+        // never cleared - and the same for the server a keyless provider is
+        // reached at.
+        ...(secretId === null ? {} : { embedding_secret_id: secretId }),
+        ...(endpointId === null ? {} : { embedding_endpoint_id: endpointId }),
       });
       onOpenChange(false);
     } catch (error) {
       const failure = submitFailure(
         error,
-        { fields: ["embedding_provider", "embedding_secret_id"] },
+        { fields: ["embedding_provider", "embedding_secret_id", "embedding_endpoint_id"] },
         tErrors,
       );
       setErrors(failure.fields);
@@ -129,13 +134,19 @@ export function EmbeddingDialog({
                 models={{ ...models, providers: usable }}
                 provider={provider}
                 secretId={secretId}
+                endpointId={endpointId}
                 onProvider={setProvider}
                 onSecretId={setSecretId}
+                onEndpointId={setEndpointId}
                 idPrefix="kb-embedding"
               />
-              {(errors.embedding_provider ?? errors.embedding_secret_id) !== undefined && (
+              {(errors.embedding_provider ??
+                errors.embedding_secret_id ??
+                errors.embedding_endpoint_id) !== undefined && (
                 <p className="text-destructive text-xs">
-                  {errors.embedding_provider ?? errors.embedding_secret_id}
+                  {errors.embedding_provider ??
+                    errors.embedding_secret_id ??
+                    errors.embedding_endpoint_id}
                 </p>
               )}
             </>

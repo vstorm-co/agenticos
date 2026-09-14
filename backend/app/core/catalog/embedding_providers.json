@@ -3,7 +3,7 @@
     "provider": "openrouter",
     "name": "OpenRouter",
     "base_url": "https://openrouter.ai/api/v1",
-    "deployment_key": true,
+    "keyless": false,
     "models": [
       { "model": "text-embedding-3-small", "dim": 1536 },
       { "model": "text-embedding-3-large", "dim": 3072 },
@@ -14,10 +14,24 @@
     "provider": "openai",
     "name": "OpenAI",
     "base_url": "https://api.openai.com/v1",
+    "keyless": false,
     "models": [
       { "model": "text-embedding-3-small", "dim": 1536 },
       { "model": "text-embedding-3-large", "dim": 3072 },
       { "model": "text-embedding-ada-002", "dim": 1536 }
+    ]
+  },
+  {
+    "provider": "ollama",
+    "name": "Ollama",
+    "base_url": null,
+    "keyless": true,
+    "models": [
+      { "model": "nomic-embed-text", "dim": 768 },
+      { "model": "mxbai-embed-large", "dim": 1024 },
+      { "model": "bge-m3", "dim": 1024 },
+      { "model": "snowflake-arctic-embed", "dim": 1024 },
+      { "model": "all-minilm", "dim": 384 }
     ]
   }
 ]

@@ -183,6 +183,17 @@ pages and build checks. Add new pages to `mkdocs.yml`, relevant cross-links and
 the topic map below. `scripts/docs_drift.py` contains the code-to-page trigger map;
 its Stop hook is a reminder, not a completeness check or a gate.
 
+The site publishes in four languages, so a published page owes a `.pl.md`, a
+`.de.md` and an `.es.md` beside it, and editing an English page makes all three
+stale. The same is true of `README.md`, `CONTRIBUTING.md`, `SECURITY.md` and
+`CODE_OF_CONDUCT.md`, which GitHub renders rather than MkDocs: those record the
+fingerprint in an HTML comment, cannot pin an anchor, rewrite their own in-page
+links per language, and point every other link at the reader's own language.
+`scripts/check_docs_i18n.py` gates `make lint` on all of it and names what is
+missing; `docs/howto/translate.md` is the workflow. Record a retranslated page
+with `--update <page>.<locale>.md` — it takes paths, because stamping one nobody
+retranslated is how a stale translation stops being visible.
+
 | Topic | Page |
 |---|---|
 | Spec, version, exposure, run | `docs/concepts.md` |
@@ -195,6 +206,8 @@ its Stop hook is a reminder, not a completeness check or a gate.
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
 | Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
+| Where personal data lives, what leaves, deletion, the controls and the open gaps | `docs/data-protection.md` |
+| Third-party licences, the notices, the review and its open findings | `docs/licenses.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
@@ -212,6 +225,7 @@ its Stop hook is a reminder, not a completeness check or a gate.
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
+| Translating a page, and the terminology that has to be exact | `docs/howto/translate.md` |
 | Getting it onto a host: sizing, TLS, the approved deploy | `docs/deploy.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |

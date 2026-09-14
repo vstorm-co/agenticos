@@ -70,7 +70,14 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/rag/", "docs/file-processing.md"),
     ("backend/app/services/file_upload.py", "docs/file-processing.md"),
     ("backend/app/services/ingestion_config.py", "docs/file-processing.md"),
+    ("backend/app/services/local_service.py", "docs/file-processing.md"),
+    ("backend/app/api/routes/v1/local_services.py", "docs/file-processing.md"),
     ("backend/app/core/config.py", "docs/configuration.md"),
+    ("backend/app/core/logging.py", "docs/data-protection.md"),
+    ("backend/app/core/logfire_setup.py", "docs/data-protection.md"),
+    ("backend/app/services/file_storage.py", "docs/data-protection.md"),
+    ("backend/app/services/memory/", "docs/data-protection.md"),
+    ("backend/app/services/user.py", "docs/data-protection.md"),
     # How this gets onto a host: the stack's shape, its sizing, and the two
     # scripts a deployment is actually performed with.
     ("docker-compose-prod.yml", "docs/deploy.md"),
@@ -95,6 +102,10 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/api/routes/", "docs/architecture.md"),
     ("backend/alembic/versions/", "docs/architecture.md"),
     (".github/workflows/ai-review.yml", "docs/code-review.md"),
+    ("licenses/", "docs/licenses.md"),
+    ("scripts/license_inventory.py", "docs/licenses.md"),
+    ("backend/Dockerfile", "docs/licenses.md"),
+    ("frontend/Dockerfile", "docs/licenses.md"),
     (".github/codex/", "docs/code-review.md"),
     # The only in-repo half of the branch policy; the rest is a ruleset,
     # which nothing here can watch.

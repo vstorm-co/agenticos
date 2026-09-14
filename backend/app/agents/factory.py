@@ -54,7 +54,7 @@ from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, Re
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import ModelRequestSpec
-from app.agents.observability import instrument_agent
+from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
@@ -463,22 +463,35 @@ def _instrument(
     may have been deleted after publish, and the choice is between an agent that
     runs untraced and an agent that does not run - publishing is where a missing
     secret is refused, and a run is far too late.
+
+    `content="none"` is enforced even when no per-agent exporter attaches. The
+    deployment instruments Pydantic AI globally with content on, so an agent that
+    asked for no content but has no token - or whose token has gone, or whose
+    traces the environment routes - would otherwise leak its prompts to the
+    operator's project through that global default. `suppress_content` pins it to
+    a content-free instrumentation instead.
     """
     observability = spec.observability
-    if observability is None or observability.token_secret_id is None:
+    if observability is None:
         return
 
-    secret = secrets.get(observability.token_secret_id)
-    if not isinstance(secret, ApiKeySecret):
-        logger.warning(
-            "agent_logfire_token_unavailable",
-            extra={"agent_id": str(agent_id) if agent_id else None},
-        )
-        return
+    want_content = observability.content != "none"
+    attached = False
+    if observability.token_secret_id is not None:
+        secret = secrets.get(observability.token_secret_id)
+        if isinstance(secret, ApiKeySecret):
+            attached = instrument_agent(
+                agent,
+                token=secret.api_key.get_secret_value(),
+                service_name=observability.service_name or spec.name,
+                environment=observability.environment,
+                include_content=want_content,
+            )
+        else:
+            logger.warning(
+                "agent_logfire_token_unavailable",
+                extra={"agent_id": str(agent_id) if agent_id else None},
+            )
 
-    instrument_agent(
-        agent,
-        token=secret.api_key.get_secret_value(),
-        service_name=observability.service_name or spec.name,
-        environment=observability.environment,
-    )
+    if not attached and not want_content:
+        suppress_content(agent)

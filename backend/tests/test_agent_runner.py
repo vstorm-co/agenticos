@@ -3253,6 +3253,49 @@ class TestEnvironmentObservability:
         assert merged.observability.environment == "dev"
 
     @pytest.mark.anyio
+    async def test_the_agents_content_choice_survives_the_environment_merge(self):
+        """An environment redirects where traces go, not how much they carry: a
+        client's `none` must not be undone by pinning the run to an environment."""
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+        )
+        environment = MagicMock(logfire_token_secret_id=uuid.uuid4(), service_name=None)
+        environment.name = "client-prod"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.content == "none"
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_block_traced_by_the_environment_records_full(self):
+        """When only the environment supplies a token, the agent made no content
+        choice, so the default `full` applies."""
+        spec = AgentSpec(name="Support")
+        environment = MagicMock(logfire_token_secret_id=uuid.uuid4(), service_name=None)
+        environment.name = "dev"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.content == "full"
+
+    @pytest.mark.anyio
     async def test_no_token_from_either_source_stays_untraced(self):
         """A tag into nowhere is not observability - the spec is left alone."""
         spec = AgentSpec(name="Support")
