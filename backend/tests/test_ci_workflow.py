@@ -156,3 +156,25 @@ class TestNoStepInstallsSystemPackages:
             "failure naming the step - #879. The runner image already carries every library "
             "Chromium links against."
         )
+
+
+class TestTyDiagnosticsAreVisibleOnGitHub:
+    """A warning-level `ty` diagnostic exits 0 by design - template-inherited code
+    is reported, not gated (`docs/testing.md`) - but its default output is plain
+    text on stdout, so a run carrying 61 of them looked identical to one with
+    zero: green check, no annotation, nothing pointing a reader at the log.
+
+    `ty` switches to GitHub's own `::warning file=…,line=…::` annotation syntax
+    when `TY_OUTPUT_FORMAT=github` is set in its environment - the `lint` job sets
+    it, so the exact same `make lint-backend` call surfaces every diagnostic as an
+    inline annotation on the run and the diff, unchanged and still non-gating.
+    This is what stops that setting silently reverting.
+    """
+
+    def test_the_lint_job_asks_ty_for_github_annotations(self, workflow: dict[str, Any]) -> None:
+        env = workflow["jobs"]["lint"].get("env", {})
+        assert env.get("TY_OUTPUT_FORMAT") == "github", (
+            "the `lint` job no longer sets TY_OUTPUT_FORMAT=github, so a ty diagnostic "
+            "goes back to being plain text on stdout - a green check with nothing on the "
+            "run or the diff pointing anyone at it."
+        )

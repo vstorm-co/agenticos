@@ -150,6 +150,17 @@ jobs:
     # while something still looks at the whole tree.
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `ty check` exits 0 on a warning-level diagnostic by design - template-inherited
+    # code is reported, not gated (`docs/testing.md`) - and its default output is
+    # plain text on stdout, so a run with 61 of them looked identical to one with
+    # zero: green check, no annotation, nothing to click. `ty` reads this env var
+    # itself and switches to GitHub's own `::warning file=…,line=…::` syntax, so the
+    # exact same `make lint-backend` call - unchanged, still zero-gating - surfaces
+    # every diagnostic as an inline annotation on the run and the diff. Unset
+    # locally, where the same command still prints the verbose, human-readable
+    # `full` format `make lint-backend` has always used.
+    env:
+      TY_OUTPUT_FORMAT: github
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
