@@ -371,8 +371,16 @@ class LlamaParseParser(BaseDocumentParser):
             version="latest",
             expand=["text", "markdown"],
         )
+        if result.markdown is None:
+            raise ValueError(f"LlamaParse returned no markdown result for {filepath.name}")
+
         pages = []
         for page in result.markdown.pages:
+            if not page.success:
+                raise ValueError(
+                    f"LlamaParse failed to parse page {page.page_number} of "
+                    f"{filepath.name}: {page.error}"
+                )
             pages.append(DocumentPage(page_num=page.page_number, content=page.markdown))
 
         return Document(pages=pages, metadata=self.get_document_metadata(filepath))
