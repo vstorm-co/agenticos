@@ -120,6 +120,20 @@ dimensions (`source`, `document_type`, `organizational_unit`, `date_from`,
 not *which stored id*); the API keeps it for programmatic callers. Every exposed
 argument is optional and typed on the tool signature so PydanticAI validates it.
 
+**Filter-value discoverability (self-review M3).** `document_type` is validated
+against a closed vocabulary, but `source` and `organizational_unit` are otherwise
+free-form. Combined with fail-closed missing-field behavior (§2.4), a caller — and
+especially the model driving the agent tool — that guesses a value the corpus does
+not use (`organizational_unit="Legal"` when the stored value is `"legal-dept"`) gets
+**silently empty results, not an error**. The contract must therefore make the valid
+values discoverable rather than guessable: a lightweight facet endpoint / tool
+affordance that returns the distinct `source` and `organizational_unit` values in
+scope (tenant- and collection-scoped like every other read), and — for the agent
+tool — surfacing those values in the tool description or as an enum where the set is
+small and stable. Without this, the filters are technically correct but practically
+unusable by the model. Covered by a named test (a filter value not present in the
+corpus returns empty *and* the facet list omits it).
+
 ### 2.2 The server-trusted scope (`RetrievalScope`)
 
 A separate structure built **only** from trusted context:
@@ -167,6 +181,37 @@ post-filter**, so that `LIMIT`/top-k is computed over already-restricted rows.
 Post-filtering after top-k would let an unrestricted top-k return few or zero
 in-scope rows while in-scope rows exist deeper in the ranking. The same reasoning
 is what the OpenSearch adapter will need (filter clause inside the query).
+
+**Filtered ANN recall — moving the filter into `WHERE` is necessary but not
+sufficient (self-review H1).** The store is not an exact scan: it builds a
+**pgvector HNSW** index and search is `... WHERE <conjuncts> ORDER BY embedding
+<=> :q LIMIT :k` (`vectorstore.py`, the `USING hnsw` index + the `ORDER BY
+<distance> LIMIT` query). Under HNSW, `WHERE ... ORDER BY <distance> LIMIT k` is a
+**filtered ANN scan**: Postgres walks the graph within an `hnsw.ef_search` budget
+(default 40) and applies the conjuncts to the nodes it visits. So a *selective*
+filter can return **fewer than k — or zero — in-scope rows even when more matching
+rows exist deeper in the graph**, which is the very failure mode this section
+attributes to Python post-filtering. Crucially the tenant conjunct is now
+**mandatory on every query** and, on a shared physical table where one org is a
+fraction of the rows, is exactly such a selective filter — so this is a
+common-path recall risk, not an edge case. The design therefore commits the store
+layer to one of these, made explicit rather than assumed:
+
+- enable pgvector **iterative index scan** (`hnsw.iterative_scan`, pgvector ≥ 0.8,
+  off by default) so the scan keeps expanding until it has `k` rows that pass the
+  filter, with a bounded `hnsw.max_scan_tuples` ceiling; and/or
+- raise `hnsw.ef_search` for filtered queries (a recall/latency trade-off), set per
+  statement so unfiltered paths are unaffected; and/or
+- for the security-bearing tenant conjunct specifically, prefer **partitioning or a
+  per-tenant partial index** over relying on a post-hoc filter of a global graph, so
+  tenant selectivity does not degrade recall.
+
+Whichever is chosen, an explicit test asserts that a highly selective (small-tenant)
+filter still returns a full in-scope top-k when that many in-scope rows exist — the
+recall guarantee this section claims must be *verified*, not inferred from the
+predicate living in `WHERE`. The exact-scan alternative (drop the ANN index) is
+noted and rejected on latency grounds. The check pgvector version supports iterative
+scan is a deployment prerequisite (§2.5 rollout).
 
 `BaseVectorStore.search(...)` grows a structured parameter (the composed
 scope+filters object) replacing the bare `parent_doc_id`. `PgVectorStore.search`
@@ -320,6 +365,14 @@ Provenance and trust:
 - `source`, `document_type`, `organizational_unit`, `doc_date` are business
   metadata derived from the connector/upload context and/or author input; these
   are non-security and may be author-supplied.
+- **`organizational_unit` is a discovery filter, not an access boundary
+  (self-review L6).** Its name invites treating it as departmental isolation, but it
+  is author-supplied, non-security metadata and a caller can pass any value. Access
+  is enforced solely by the tenant conjunct (FA-039) and per-document ACLs (FA-037);
+  `organizational_unit` only *narrows discovery within* what the caller may already
+  read. A deployment that needs a department to be a hard boundary must model it as a
+  separate collection/tenant or through FA-037, never by relying on this filter. This
+  is stated in the API/tool docs so it is not mistaken for a control.
 
 Migration/backfill (heed the `rag-knowledge` JSONB trap): *adding* fields is safe
 (missing keys take defaults, existing JSONB rows stay readable), and no existing
@@ -337,7 +390,21 @@ however, is a security backfill, not a caveat (codex C2). The migration must:
    matching `DONE` row, an ambiguous match, or a row whose tracked org is NULL keeps
    `organization_id` unset so it fails closed (unsearchable) rather than being
    assigned a guessed tenant;
-3. mark affected KBs **degraded** and surface that state.
+3. mark affected KBs **degraded** and surface that state through a **defined
+   operator-visible surface (self-review M4)**: a per-KB `degraded` flag and a
+   quarantined-chunk count on the `KnowledgeBase` read model, shown on the KB admin
+   view and returned by the collection API, plus a one-line migration/report summary
+   (tables scanned, chunks resolved, chunks quarantined, KBs degraded). "Surface that
+   state" is not left to a log line — a document that was searchable and is now
+   quarantined is invisible to its owner, so the degraded/quarantined state must be
+   observable and actionable (re-ingest under a real organization clears it).
+
+**Scope note (self-review M4).** This tenant backfill — shared-table detection,
+positive-join ownership resolution, quarantine, degraded surfacing and the ordered
+rollout below — is materially larger than the read/write filtering it protects and
+carries the change's main operational risk. It should be tracked as its **own sized
+task** (roughly `effort:l`) under FA-039 rather than folded silently into the filter
+work, so the rollout gets its own review and verification.
 
 **Deployment ordering matters (codex-2 R4).** The steps must run in an order that
 cannot leave a window where new untagged chunks appear after the backfill: (a) ship
@@ -380,6 +447,14 @@ shared *or* single-KB table — ownership is only ever the join's positive resul
   semantic type" (codex-2 R8) — the ambiguity breaks exact keyword filtering across
   backends; the design fixes it to the stored `filetype`/mime string and treats any
   richer semantic taxonomy as a later, separately-specified dimension.
+  - **Confirm the product meaning with the issue owner (self-review M2).** FA-039
+    lists "document type" as a business dimension, and a user may well expect
+    *semantic* types (contract, invoice, policy) rather than a mime/filetype string.
+    Fixing `document_type` to the stored filetype is the right *technical* canonical
+    for portability, but if the tender's intent is semantic classification, that is a
+    separate dimension (e.g. `document_category`) to be specified and populated — not
+    silently satisfied by mime. This is flagged as an acceptance-criteria check to
+    resolve before implementation, not assumed.
 - The legacy scalar-string `filter` is retired; for backward compatibility a thin
   shim may map an incoming string to the typed field during a deprecation window —
   but it accepts **only a full-match `parent_doc_id == "<id>"` expression and
@@ -388,6 +463,13 @@ shared *or* single-KB table — ownership is only ever the join's positive resul
   the result versus the caller's intent; a full-match-or-reject shim cannot. No new
   backend assumptions travel through a string. This issue does **not** build
   OpenSearch — only guarantees the seam.
+  - **Compatibility note (self-review L5).** Because only `parent_doc_id == "<id>"`
+    was ever honored, any existing caller sending a *different* filter string does
+    nothing today but will be **rejected (422)** by the full-match shim. This is a
+    deliberate, safe behavior change (a silently-ignored filter that reads as
+    honored is worse), but it is a change: it must be called out in the API docs and
+    the changelog/release notes, and the deprecation window communicated to
+    programmatic API consumers.
 
 ### 2.7 Boundary with FA-037 (document ACL)
 
@@ -469,6 +551,12 @@ shared *or* single-KB table — ownership is only ever the join's positive resul
   regression** — the scope+`parent_doc_id` reach its `store.search`, and fusion
   reintroduces no out-of-scope row.
 - **`retrieve_multi`** carries scope to every collection.
+- **Filtered-ANN recall (self-review H1):** a highly selective (small-tenant) filter
+  still returns a full in-scope top-k when that many in-scope rows exist — asserting
+  the HNSW scan is not truncating in-scope results below `k`.
+- **Filter-value discoverability (self-review M3):** a `source`/`organizational_unit`
+  value absent from the corpus returns empty, and the facet/affordance list omits it
+  (so the model can only choose values that exist).
 - API/tool contract documented; docstrings carry the filter grammar and date
   semantics.
 
@@ -741,3 +829,64 @@ wins. A unified opt-in config block on the RAG capability
 (`retrieval: {rerank, query_analysis, self_query, parent_context, mmr, min_score}`)
 keeps every option off by default and per-agent, consistent with "an agent is a
 versioned spec."
+
+---
+
+## 8. Third review round (self-review) and resolutions
+
+A design-level review (independent of the two codex passes, which concentrated on
+security) read the amended document against issue #1593's acceptance criteria and
+the actual store code. Six findings; all applied to the design above. The first is
+grounded in code and changes what the store layer must do; the rest are contract,
+rollout and documentation corrections. No implementation plan was added — still
+design-only.
+
+**H1 (High) — the "WHERE before top-k" recall guarantee does not hold under HNSW.**
+*Verified in code:* the store builds a **pgvector HNSW** index and searches with
+`WHERE … ORDER BY embedding <=> :q LIMIT :k` (`vectorstore.py`). §2.3 argued that
+putting restrictions in `WHERE` (vs a Python post-filter) makes top-k compute over
+restricted rows — but a filtered HNSW scan walks the graph within `hnsw.ef_search`
+and can return **fewer than k in-scope rows even when more exist deeper**, the same
+failure it warns against. With the tenant conjunct now mandatory and selective on a
+shared table, this is a common-path risk. **Amended §2.3** to require an explicit
+mitigation (iterative index scan / raised `ef_search` / per-tenant partitioning or
+partial index), make the pgvector-version prerequisite part of rollout, and **added a
+recall test to §4** asserting a small-tenant filter still returns a full in-scope
+top-k.
+
+**M2 (Medium) — `document_type` may not mean what the tender expects.** Fixing it to
+the stored filetype/mime is right for cross-backend portability, but the issue's
+"document type" may intend *semantic* classes (contract, invoice). **Amended §2.6** to
+flag this as an acceptance-criteria check to resolve with the issue owner, and to name
+a separate `document_category` dimension if semantic typing is required — not silently
+satisfied by mime.
+
+**M3 (Medium) — filter values are not discoverable.** `source`/`organizational_unit`
+are free-form; a guessed value returns silently empty (fail-closed), which makes the
+filters practically unusable by the model. **Amended §2.1** to require a
+tenant/collection-scoped facet affordance (distinct in-scope values) surfaced to the
+tool, with a **§4 test** that an absent value returns empty and is omitted from the
+facet list.
+
+**M4 (Medium) — the tenant backfill is the biggest risk and its "surface that state"
+was undefined.** **Amended §2.5** to define the operator-visible surface (per-KB
+`degraded` flag + quarantined-chunk count on the KB read model and collection API,
+plus a migration report) so an owner can see and clear a now-invisible document, and
+to recommend the backfill be tracked as its **own sized task (~`effort:l`)** with its
+own review rather than folded into the filter work.
+
+**L5 (Low) — a previously-ignored filter string now 422s.** The full-match shim
+rejects any non-`parent_doc_id` string that was silently ignored before. **Amended
+§2.6** to require this behavior change be documented in the API docs and
+changelog/release notes and communicated to programmatic consumers.
+
+**L6 (Low) — `organizational_unit` could be mistaken for an access boundary.**
+**Amended §2.5** to state explicitly that it is a discovery filter only; access is the
+tenant conjunct (FA-039) plus per-document ACLs (FA-037), and a hard departmental
+boundary must be modeled as a separate collection/tenant or via FA-037.
+
+**Rejected:** none. All six are in scope for a correct FA-039 (H1 is a store-layer
+correctness fix; M2 is a scope-confirmation gate; M3/M4 close usability and rollout
+gaps; L5/L6 are documentation duties). **Still design-only** — this round amends
+design sections and adds test-surface bullets; it adds no implementation plan, task
+breakdown or production code.
