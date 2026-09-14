@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.415] - 2026-09-14
+
 ### Added
 
 - **The documentation site publishes in four languages.** All 54 published
