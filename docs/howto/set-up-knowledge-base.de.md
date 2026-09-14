@@ -1,5 +1,5 @@
 ---
-source_sha: "b21adcea79d5"
+source_sha: "bd9c21e1a80b"
 ---
 
 # Eine Knowledge Base einrichten { #set-up-a-knowledge-base }
@@ -25,8 +25,9 @@ der entscheidet, ob sie Ihnen gehört oder der Organisation.
     würde also weiterhin Vektoren vergleichen, die nicht dasselbe bedeuten.
 
     Es sich später anders zu überlegen heißt, eine neue Collection anzulegen und
-    alles neu aufzunehmen. Belassen Sie es beim Standard des Deployments, sofern
-    Sie keinen Grund haben, und wenn Sie einen haben, siehe
+    alles neu aufzunehmen. Das Formular bietet die Models an, die der gewählte
+    Provider bereitstellt, und wählt das erste vor; belassen Sie es dabei, sofern
+    Sie keinen Grund dagegen haben, und wenn Sie einen haben, siehe
     [Ein Model wählen](../choosing-models.md#embeddings-are-a-separate-permanent-choice).
 
 Unter **Embeddings** wählen Sie den Provider, der das Model bereitstellt, und das

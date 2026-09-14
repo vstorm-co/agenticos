@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The knowledge-base howto still sent the reader to a deployment default that
+  no longer exists.** `EMBEDDING_MODEL` went with the rest of the deployment-wide
+  embedding settings, so "leave it at the deployment default" named nothing: the
+  form offers the models the chosen provider serves and preselects the first.
+  Corrected in English and in the three translations. (#1604)
+
 ## [0.0.415] - 2026-09-14
 
 ### Added
