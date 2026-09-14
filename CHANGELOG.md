@@ -17,6 +17,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.428] - 2026-09-14
+
+### Fixed
+
+- **Two RAG commands were unconditionally broken.** `rag-sources` and
+  `rag-source-sync --all` iterated and counted `SyncSourceList` - a Pydantic model
+  wrapping `items` and `total` - as if it were the list itself. Both read the
+  fields now.
+- **A failed LlamaParse page was read as if it had succeeded.** The parse result
+  is a discriminated union whose failure branch has no `markdown`, so a bad page
+  risked an `AttributeError` mid-ingestion with nothing saying which page or why.
+  It now raises an error naming both.
+- **A sync that refused before its flow ran left the log running forever.** A
+  manual trigger creates the sync log and hands the flow its id; the unknown
+  connector and unassigned collection paths returned without completing it, so
+  nothing was ever going to finish it. Both complete the log as errored first.
+- **`make check` crashed on a machine whose system Python predates 3.10.** The
+  `check-routes` guard uses `X | Y` in an `isinstance` call and was running under
+  the host interpreter rather than the pinned backend one.
+- **A local e2e run made ESLint report hundreds of errors.** `playwright-report/`
+  and `test-results/` are gitignored but were still walked, and they hold a
+  vendored, minified trace-viewer bundle.
+
+### Changed
+
+- **`ty check` reports nothing against the template-inherited code.** It runs in
+  `make lint` but only warns there, so its 61 diagnostics across the RAG pipeline,
+  connectors, worker tasks and repositories had never been worked through. Most
+  were stub imprecision, corrected with the constructs SQLAlchemy ships for those
+  shapes rather than with suppressions; the two live bugs are above.
+
 ## [0.0.427] - 2026-09-14
 
 ### Added
