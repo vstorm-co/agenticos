@@ -62,6 +62,8 @@ nothing until one is relevant.
 | `e2e-tests` | Playwright journeys and seeded fixtures |
 | `frontend-feature` | Pages, data layer, stores, i18n, permission-hiding |
 | `project-docs` | The mkdocs site, diagrams, icons, `--strict` |
+| `review-map` | A private visual PR walkthrough for a reviewer, projected onto the architecture map |
+| `ste-writing` | Rewriting prose — docs, PR descriptions, error messages — into plain, controlled English |
 
 ## Keeping this honest
 
