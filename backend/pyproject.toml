@@ -542,6 +542,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
@@ -802,6 +806,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
