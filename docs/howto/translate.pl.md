@@ -1,5 +1,5 @@
 ---
-source_sha: 01f0f199ad5a
+source_sha: aabec5b77ee2
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -229,6 +229,42 @@ Kiedy zdanie mówi, co platforma odrzuca, tłumacz tę odmowę dosłownie. Nie
 zmiękczaj „zostaje odrzucone" do „może nie zadziałać" i nie zamieniaj
 stwierdzenia o tym, co nie może się zdarzyć, w poradę o tym, czego nie powinieneś
 robić.
+
+## Cztery pliki, które renderuje GitHub, a nie ten serwis { #the-four-files-github-renders-not-this-site }
+
+`README.md`, `CONTRIBUTING.md`, `SECURITY.md` i `CODE_OF_CONDUCT.md` są tłumaczone
+tak samo i zapisywane tak samo, a `scripts/check_docs_i18n.py` pyta też o nie.
+Trzy rzeczy się różnią, a wszystkie dlatego, że te pliki renderuje GitHub, a nie
+MkDocs.
+
+**Odcisk palca idzie do komentarza, a nie do front mattera.** GitHub renderuje
+blok `---` jako tabelę, więc czytelnik spotkałby `source_sha` przed nazwą
+projektu. `--update` wpisuje zamiast tego `<!-- source_sha: 4f2b9c1ad07e -->`
+w pierwszej linii i stamtąd go odczytuje.
+
+**Nagłówki nie mogą przypiąć kotwicy.** `{ #permissions }` to `attr_list`, czyli
+rozszerzenie Python-Markdown; GitHub nie ma odpowiednika i drukuje klamry.
+Przetłumaczony nagłówek odpowiada więc własnej kotwicy, wyprowadzonej regułą
+GitHuba, a nie rozszerzenia `toc` — blisko, ale nie tej samej, bo GitHub
+zachowuje literę, którą serwis składa do ASCII, i zamienia każdą spację
+w osobny łącznik. Dlatego **przepisz każdy link, który plik kieruje do samego
+siebie**, i sprawdź wynik:
+
+```bash
+python3 scripts/check_docs_i18n.py --anchors README.pl.md
+```
+
+Bramka porównuje zamiast kotwic strukturę nagłówków — te same nagłówki, ta sama
+kolejność, ta sama głębokość, co właśnie wyłapuje plik zostawiony w połowie
+przetłumaczony — i kładzie się na każdym linku w obrębie strony, któremu nie
+odpowiada żaden nagłówek. Nic innego by tego nie zauważyło: GitHub po cichu
+serwuje martwy fragment jako górę strony.
+
+**Każdy plik niesie pasek języków** do swoich trzech tłumaczeń, a tłumaczenia
+linkują z powrotem. Przy dodaniu języka zaktualizuj wszystkie cztery.
+
+`CHANGELOG.md` nie jest tłumaczony, z tego samego powodu, z którego nie jest
+`release-notes.md`: to historia commitów.
 
 ## Dwie rzeczy, których lokalizacja nie dostaje { #two-things-a-locale-does-not-get }
 

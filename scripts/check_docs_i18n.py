@@ -21,7 +21,15 @@ every cross-page link into it, in one language, with a green build. Translations
 pin their anchors - `## Berechtigungen { #permissions }` - and this compares the
 two lists in document order, which also catches a section dropped or reordered.
 
-All three are reported as a defect. `--update` records the fingerprint after a
+`README.md` and the three policy files beside it are asked the same first two
+questions, and a different third. GitHub renders those, GitHub has no
+`attr_list`, so a translated heading there cannot pin anything and is expected
+to answer to its own anchor. What is checked instead is that the sections still
+line up - same headings, same order, same depth - and that every link the file
+aims at itself still lands on a heading that exists, because GitHub serves a
+dead fragment as the top of the page and says nothing.
+
+All of these are reported as a defect. `--update` records the fingerprint after a
 page has genuinely been retranslated - it is the last step of doing the work, not
 a way of making this guard quiet, and running it over a page nobody retranslated
 is how a stale translation stops being visible.
@@ -38,22 +46,38 @@ from pathlib import Path
 from docs_i18n import (
     DOCS,
     LOCALES,
+    REPO_ROOT,
     anchors,
     english_pages,
     english_source,
     fingerprint,
+    github_anchors,
+    heading_levels,
     locale_of,
+    own_fragments,
     record_fingerprint,
     recorded_fingerprint,
+    root_pages,
     translation_of,
 )
+
+
+def _name(page: Path) -> str:
+    """How a page is named in this report: relative to `docs/`, or to the repository."""
+    root = DOCS if page.is_relative_to(DOCS) else REPO_ROOT
+    return page.relative_to(root).as_posix()
+
+
+def translatable() -> list[Path]:
+    """Every English file owed a translation: the site's pages and the repository's."""
+    return [*english_pages(), *root_pages()]
 
 
 def missing() -> list[tuple[str, str]]:
     """Every (page, locale) with no translation file at all."""
     return [
-        (page.relative_to(DOCS).as_posix(), locale)
-        for page in english_pages()
+        (_name(page), locale)
+        for page in translatable()
         for locale in LOCALES
         if not translation_of(page, locale).exists()
     ]
@@ -62,12 +86,12 @@ def missing() -> list[tuple[str, str]]:
 def stale() -> list[tuple[str, str]]:
     """Every (page, locale) whose translation predates the English text."""
     found: list[tuple[str, str]] = []
-    for page in english_pages():
+    for page in translatable():
         current = fingerprint(page)
         for locale in LOCALES:
             translation = translation_of(page, locale)
             if translation.exists() and recorded_fingerprint(translation) != current:
-                found.append((page.relative_to(DOCS).as_posix(), locale))
+                found.append((_name(page), locale))
     return found
 
 
@@ -95,19 +119,77 @@ def adrift() -> list[tuple[str, str, str]]:
     return found
 
 
+def restructured() -> list[tuple[str, str, str]]:
+    """Every root translation whose sections no longer line up with the English.
+
+    A root file gets this instead of the anchor comparison. GitHub renders it,
+    GitHub has no `attr_list`, so a translated heading cannot pin its English
+    anchor and is *expected* to answer to a different one. What still has to
+    hold is that the same sections are there, in the same order, at the same
+    depth.
+
+    That catches a translation that stops early and loses the sections below it.
+    It does *not* catch one that stops early having copied the English headings
+    across, because those headings are structurally identical to the ones they
+    were copied from - which is exactly how the first Polish and German README
+    landed. `dangling()` is what caught those: the links above the untranslated
+    half still pointed at headings that had moved.
+    """
+    found: list[tuple[str, str, str]] = []
+    for page in root_pages():
+        expected = heading_levels(page)
+        for locale in LOCALES:
+            translation = translation_of(page, locale)
+            if not translation.exists():
+                continue
+            actual = heading_levels(translation)
+            if actual == expected:
+                continue
+            complaint = (
+                f"{len(actual)} headings against {len(expected)} in English"
+                if len(actual) != len(expected)
+                else "the same headings at different depths"
+            )
+            found.append((_name(page), locale, complaint))
+    return found
+
+
+def dangling() -> list[tuple[str, str, str]]:
+    """Every root translation that links to a heading of its own that is not there.
+
+    The English file's fragments were written against the English headings, so a
+    translation has to rewrite each one by hand. Nothing else notices when it
+    does not: GitHub serves a dead fragment as the top of the page, silently.
+    """
+    found: list[tuple[str, str, str]] = []
+    for page in root_pages():
+        for locale in LOCALES:
+            translation = translation_of(page, locale)
+            if not translation.exists():
+                continue
+            available = set(github_anchors(translation))
+            found.extend(
+                (_name(page), locale, fragment)
+                for fragment in dict.fromkeys(own_fragments(translation))
+                if fragment not in available
+            )
+    return found
+
+
 def orphaned() -> list[str]:
     """Every translation whose English page has been renamed or deleted."""
-    return sorted(
-        page.relative_to(DOCS).as_posix()
-        for page in DOCS.rglob("*.md")
+    stranded = (
+        page
+        for page in (*DOCS.rglob("*.md"), *REPO_ROOT.glob("*.md"))
         if locale_of(page) is not None and not english_source(page).exists()
     )
+    return sorted(_name(page) for page in stranded)
 
 
 def update() -> int:
     """Record the current English fingerprint on every translation that exists."""
     written = 0
-    for page in english_pages():
+    for page in translatable():
         current = fingerprint(page)
         for locale in LOCALES:
             translation = translation_of(page, locale)
@@ -120,9 +202,14 @@ def update() -> int:
 
 def report() -> int:
     absent, behind, moved, orphans = missing(), stale(), adrift(), orphaned()
-    if not (absent or behind or moved or orphans):
-        pages = len(english_pages())
-        print(f"All {pages} published pages are translated into {', '.join(LOCALES)} and current.")
+    reshaped, dead = restructured(), dangling()
+    if not (absent or behind or moved or orphans or reshaped or dead):
+        published, repository = len(english_pages()), len(root_pages())
+        locales = ", ".join(LOCALES)
+        print(
+            f"All {published} published pages and {repository} repository files "
+            f"are translated into {locales} and current."
+        )
         return 0
 
     if absent:
@@ -140,20 +227,38 @@ def report() -> int:
         for page, locale, complaint in moved:
             print(f"  {page} - {locale} has {complaint}")
         print()
+    if reshaped:
+        print(f"Repository files whose sections do not line up with English ({len(reshaped)}):\n")
+        for page, locale, complaint in reshaped:
+            print(f"  {page} - {locale} has {complaint}")
+        print()
+    if dead:
+        print(f"Repository files linking to a heading of their own that is gone ({len(dead)}):\n")
+        for page, locale, fragment in dead:
+            print(f"  {page} - {locale} links to #{fragment}, which no heading answers to")
+        print()
     if orphans:
         print(f"Translations of a page that no longer exists ({len(orphans)}):\n")
         for translation in orphans:
             print(f"  {translation}")
         print()
-    print("Translate the page, pin each heading's English anchor, then")
-    print("`python3 scripts/check_docs_i18n.py --update` to record the English revision it")
-    print("now matches. docs/howto/translate.md has the workflow.")
+    print("Translate the page, pin each heading's English anchor - or, in a repository")
+    print("file, rewrite its own in-page links - then `python3 scripts/check_docs_i18n.py")
+    print("--update` to record the English revision it now matches.")
+    print("docs/howto/translate.md has the workflow.")
     return 1
 
 
 def show_anchors(page: Path) -> int:
-    """Print the anchor each heading of a page answers to, in document order."""
-    for anchor in anchors(page):
+    """Print the anchor each heading of a page answers to, in document order.
+
+    A root file is answered by GitHub's rule rather than Python-Markdown's,
+    because GitHub is what renders it. Those anchors are not pinnable - they are
+    what a translator has to rewrite the in-page links *to*, rather than a list
+    to copy across.
+    """
+    derive = github_anchors if page.resolve().parent == REPO_ROOT else anchors
+    for anchor in derive(page):
         print(anchor)
     return 0
 

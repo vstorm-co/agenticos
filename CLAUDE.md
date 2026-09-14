@@ -185,8 +185,11 @@ its Stop hook is a reminder, not a completeness check or a gate.
 
 The site publishes in four languages, so a published page owes a `.pl.md`, a
 `.de.md` and an `.es.md` beside it, and editing an English page makes all three
-stale. `scripts/check_docs_i18n.py` gates `make lint` on that and names what is
-missing; `docs/howto/translate.md` is the workflow.
+stale. The same is true of `README.md`, `CONTRIBUTING.md`, `SECURITY.md` and
+`CODE_OF_CONDUCT.md`, which GitHub renders rather than MkDocs: those record the
+fingerprint in an HTML comment, cannot pin an anchor, and have to rewrite their
+own in-page links per language. `scripts/check_docs_i18n.py` gates `make lint` on
+all of it and names what is missing; `docs/howto/translate.md` is the workflow.
 
 | Topic | Page |
 |---|---|

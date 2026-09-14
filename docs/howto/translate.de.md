@@ -1,5 +1,5 @@
 ---
-source_sha: 01f0f199ad5a
+source_sha: aabec5b77ee2
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -234,6 +234,45 @@ Wenn ein Satz aussagt, was die Plattform ablehnt, übersetzen Sie die Ablehnung
 wörtlich. Weichen Sie "is refused" nicht zu "funktioniert möglicherweise nicht"
 auf, und machen Sie aus einer Aussage darüber, was nicht passieren kann, keinen
 Rat darüber, was Sie nicht tun sollten.
+
+## Die vier Dateien, die GitHub rendert, nicht diese Site { #the-four-files-github-renders-not-this-site }
+
+`README.md`, `CONTRIBUTING.md`, `SECURITY.md` und `CODE_OF_CONDUCT.md` werden
+genauso übersetzt und genauso verzeichnet, und `scripts/check_docs_i18n.py` fragt
+auch nach ihnen. Drei Dinge unterscheiden sich, alle deshalb, weil GitHub diese
+Dateien rendert und MkDocs nicht.
+
+**Der Fingerabdruck steht in einem Kommentar, nicht im Front Matter.** GitHub
+rendert einen `---`-Block als Tabelle, also träfe ein Leser `source_sha` vor dem
+Namen des Projekts. `--update` schreibt stattdessen
+`<!-- source_sha: 4f2b9c1ad07e -->` in die erste Zeile und liest ihn von dort
+zurück.
+
+**Überschriften können keinen Anker pinnen.** `{ #permissions }` ist `attr_list`,
+eine Erweiterung von Python-Markdown; GitHub hat kein Gegenstück und druckt die
+geschweiften Klammern. Eine übersetzte Überschrift antwortet deshalb auf ihren
+eigenen Anker, abgeleitet nach GitHubs Regel statt nach der der `toc`-Erweiterung
+- nah dran, aber nicht derselbe, weil GitHub einen Buchstaben behält, den die
+Site auf ASCII faltet, und jedes Leerzeichen in einen eigenen Bindestrich
+verwandelt. Also **schreiben Sie jeden Link um, den die Datei auf sich selbst
+richtet**, und prüfen Sie das Ergebnis:
+
+```bash
+python3 scripts/check_docs_i18n.py --anchors README.pl.md
+```
+
+Das Tor vergleicht statt der Anker die Überschriftenstruktur - dieselben
+Überschriften, dieselbe Reihenfolge, dieselbe Tiefe, und genau das fängt eine
+halb übersetzt liegen gebliebene Datei - und es scheitert an jedem seiteninternen
+Link, auf den keine Überschrift antwortet. Sonst würde es nichts bemerken: GitHub
+liefert ein totes Fragment stillschweigend als den Seitenanfang aus.
+
+**Jede Datei trägt eine Sprachleiste** zu ihren drei Übersetzungen, und die
+Übersetzungen verlinken zurück. Aktualisieren Sie alle vier, wenn eine Sprache
+dazukommt.
+
+`CHANGELOG.md` wird nicht übersetzt, aus dem Grund, aus dem `release-notes.md` es
+nicht wird: Es ist die Commit-Historie.
 
 ## Zwei Dinge, die eine Locale nicht bekommt { #two-things-a-locale-does-not-get }
 

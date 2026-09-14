@@ -219,6 +219,40 @@ When a sentence states what the platform refuses, translate the refusal
 literally. Do not soften "is refused" into "may not work", and do not turn a
 statement about what cannot happen into advice about what you should not do.
 
+## The four files GitHub renders, not this site
+
+`README.md`, `CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md` are
+translated the same way and recorded the same way, and
+`scripts/check_docs_i18n.py` asks about them too. Three things differ, all of
+them because GitHub renders those files and MkDocs does not.
+
+**The fingerprint goes in a comment, not front matter.** GitHub renders a `---`
+block as a table, so a reader would meet `source_sha` before the project's name.
+`--update` writes `<!-- source_sha: 4f2b9c1ad07e -->` on the first line instead,
+and reads it back from there.
+
+**Headings cannot pin an anchor.** `{ #permissions }` is `attr_list`, which is a
+Python-Markdown extension; GitHub has no equivalent and prints the braces.
+A translated heading therefore answers to its own anchor, derived by GitHub's
+rule rather than the `toc` extension's — close, but not the same one, because
+GitHub keeps a letter the site folds to ASCII and turns each space into its own
+hyphen. So **rewrite every link the file aims at itself**, and check the result:
+
+```bash
+python3 scripts/check_docs_i18n.py --anchors README.pl.md
+```
+
+The gate compares heading structure instead of anchors — same headings, same
+order, same depth, which is what catches a file left half-translated — and it
+fails on any in-page link that no heading answers to. Nothing else would notice:
+GitHub serves a dead fragment as the top of the page, silently.
+
+**Each file carries a language bar** to its three translations, and the
+translations link back. Update all four when a language is added.
+
+`CHANGELOG.md` is not translated, for the reason `release-notes.md` is not: it is
+the commit history.
+
 ## Two things a locale does not get
 
 The reference pages under `docs/reference/` are generated from Python docstrings

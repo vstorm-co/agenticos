@@ -1,5 +1,5 @@
 ---
-source_sha: 01f0f199ad5a
+source_sha: aabec5b77ee2
 ---
 
 # Traduce una página { #translate-a-page }
@@ -228,6 +228,42 @@ Cuando una frase afirma qué rechaza la plataforma, traduce el rechazo
 literalmente. No suavices "is refused" a "puede que no funcione", y no conviertas
 una afirmación sobre lo que no puede ocurrir en un consejo sobre lo que no
 deberías hacer.
+
+## Los cuatro archivos que renderiza GitHub, no este sitio { #the-four-files-github-renders-not-this-site }
+
+`README.md`, `CONTRIBUTING.md`, `SECURITY.md` y `CODE_OF_CONDUCT.md` se traducen
+igual y se registran igual, y `scripts/check_docs_i18n.py` también pregunta por
+ellos. Tres cosas cambian, y todas porque esos archivos los renderiza GitHub y
+MkDocs no.
+
+**La huella va en un comentario, no en el front matter.** GitHub renderiza un
+bloque `---` como una tabla, así que un lector se encontraría `source_sha` antes
+que el nombre del proyecto. `--update` escribe en su lugar
+`<!-- source_sha: 4f2b9c1ad07e -->` en la primera línea, y la lee de ahí.
+
+**Los encabezados no pueden fijar un ancla.** `{ #permissions }` es `attr_list`,
+que es una extensión de Python-Markdown; GitHub no tiene equivalente e imprime
+las llaves. Un encabezado traducido responde por tanto a su propia ancla,
+derivada por la regla de GitHub y no por la de la extensión `toc` — parecida,
+pero no la misma, porque GitHub conserva una letra que el sitio pliega a ASCII y
+convierte cada espacio en su propio guion. Así que **reescribe todos los enlaces
+que el archivo se dirige a sí mismo**, y comprueba el resultado:
+
+```bash
+python3 scripts/check_docs_i18n.py --anchors README.pl.md
+```
+
+La puerta compara la estructura de encabezados en vez de las anclas — los mismos
+encabezados, el mismo orden, la misma profundidad, que es lo que atrapa un
+archivo dejado a medio traducir — y falla ante cualquier enlace interno al que no
+responda ningún encabezado. Nada más se daría cuenta: GitHub sirve un fragmento
+muerto como el principio de la página, en silencio.
+
+**Cada archivo lleva una barra de idiomas** a sus tres traducciones, y las
+traducciones enlazan de vuelta. Actualiza los cuatro cuando se añada un idioma.
+
+`CHANGELOG.md` no se traduce, por la razón por la que `release-notes.md` tampoco:
+es el historial de commits.
 
 ## Dos cosas que una locale no recibe { #two-things-a-locale-does-not-get }
 
