@@ -250,10 +250,20 @@ hyphen. So **rewrite every link the file aims at itself**, and check the result:
 python3 scripts/check_docs_i18n.py --anchors README.pl.md
 ```
 
-The gate compares heading structure instead of anchors — same headings, same
-order, same depth, which is what catches a file left half-translated — and it
-fails on any in-page link that no heading answers to. Nothing else would notice:
-GitHub serves a dead fragment as the top of the page, silently.
+The gate compares the shape of the sections instead of anchors — as many
+headings, nested the same way — and fails on any in-page link that no heading
+answers to. That second half is what catches a file left half-translated:
+untranslated headings keep the shape of the ones they were copied from, so shape
+alone cannot see it, but the links above them still point at headings that have
+moved. Nothing else would notice, because GitHub serves a dead fragment as the
+top of the page, silently.
+
+**Every other link points at the reader's own language.** A Spanish README links
+to `docs/install.es.md`, not `docs/install.md` — otherwise choosing a language
+lasts exactly one click. The gate checks each one against the English page's
+link in the same position, so a dropped, reordered or unlocalized link fails it.
+A page with no translation, like `docs/ROADMAP.md`, stays English, and the
+language bar is left alone: pointing at other languages is what it is for.
 
 **Each file carries a language bar** to its three translations, and the
 translations link back. Update all four when a language is added.

@@ -37,7 +37,7 @@ Aspiramos a acusar recibo en 48h y a entregar un arreglo en 7 días para los pro
 ### Autorización
 
 - **Basada en permisos** — la autoridad dentro de una organización es una fila de membresía más el catálogo de permisos (`app/core/permissions.py`). No hay columna de rol en el usuario ni dependencia de ruta basada en roles.
-- **Roles de organización** — un rol es un nombre en la membresía (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`) que se corresponde con un conjunto de permisos. Las rutas de colección ponen una puerta sobre un permiso; el acceso por recurso resuelve el rol junto con las concesiones explícitas, y una concesión amplía lo que permite un rol — nunca lo estrecha. Mira [Permisos](docs/permissions.md).
+- **Roles de organización** — un rol es un nombre en la membresía (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`) que se corresponde con un conjunto de permisos. Las rutas de colección ponen una puerta sobre un permiso; el acceso por recurso resuelve el rol junto con las concesiones explícitas, y una concesión amplía lo que permite un rol — nunca lo estrecha. Mira [Permisos](docs/permissions.es.md).
 - **Scope del workspace** — toda petición autenticada resuelve una `ActiveOrg` (por defecto = la organización personal). Los recursos quedan acotados por la clave foránea `organization_id`.
 - **Administración del despliegue** — el flag `is_app_admin` en un usuario, comprobado por su propia dependencia; no es un rol.
 
@@ -45,12 +45,12 @@ Aspiramos a acusar recibo en 48h y a entregar un arreglo en 7 días para los pro
 
 - **CORS** — la lista de orígenes sale de `settings.CORS_ORIGINS`. Restríngela a tus dominios en producción.
 - **HTTPS** — imponlo con un proxy inverso (Nginx / Traefik / ALB). La cabecera Strict-Transport-Security se pone en el middleware cuando `ENVIRONMENT=production`.
-- **Cabeceras de seguridad** — el frontend sirve una Content-Security-Policy completa (`default-src 'self'`, un `connect-src` que nombra solo este origen y los `PUBLIC_API_URL` y `PUBLIC_WS_URL` configurados, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) más `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` que deniega la cámara y la geolocalización y permite el micrófono solo para la transcripción de voz. La política vive en `frontend/src/lib/csp.ts` y las cabeceras en `frontend/src/lib/security-headers.ts`, ambas afirmadas por tests; mira [El despliegue](docs/deployment.md#security-headers).
+- **Cabeceras de seguridad** — el frontend sirve una Content-Security-Policy completa (`default-src 'self'`, un `connect-src` que nombra solo este origen y los `PUBLIC_API_URL` y `PUBLIC_WS_URL` configurados, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) más `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` que deniega la cámara y la geolocalización y permite el micrófono solo para la transcripción de voz. La política vive en `frontend/src/lib/csp.ts` y las cabeceras en `frontend/src/lib/security-headers.ts`, ambas afirmadas por tests; mira [El despliegue](docs/deployment.es.md#security-headers).
 
 ### Datos
 
-- **Secretos** — se leen del entorno vía `pydantic-settings`. Nunca se confirman en el repositorio. Mira `backend/.env.example` y [Configuración](docs/configuration.md).
-- **Registro de auditoría** — las acciones de app-admin (actualizaciones de usuario, borrados, suplantaciones) quedan registradas en la tabla `app_admin_audit_logs` con el actor + la IP + una instantánea de la carga útil. Las acciones a nivel de organización que cambian el acceso o gastan dinero llevan su propio rastro, con una puerta sobre `audit:read` — mira [Governance](docs/governance.md).
+- **Secretos** — se leen del entorno vía `pydantic-settings`. Nunca se confirman en el repositorio. Mira `backend/.env.example` y [Configuración](docs/configuration.es.md).
+- **Registro de auditoría** — las acciones de app-admin (actualizaciones de usuario, borrados, suplantaciones) quedan registradas en la tabla `app_admin_audit_logs` con el actor + la IP + una instantánea de la carga útil. Las acciones a nivel de organización que cambian el acceso o gastan dinero llevan su propio rastro, con una puerta sobre `audit:read` — mira [Governance](docs/governance.es.md).
 - **Documentos de RAG** — las subidas de archivos quedan acotadas por organización. No hay endpoint público de lectura; toda la recuperación ocurre en el servidor durante el chat.
 
 ### Lista de endurecimiento para producción

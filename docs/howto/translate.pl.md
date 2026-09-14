@@ -1,5 +1,5 @@
 ---
-source_sha: "1003a5cd4f2d"
+source_sha: "2bdccaa6ec15"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -262,11 +262,21 @@ siebie**, i sprawdź wynik:
 python3 scripts/check_docs_i18n.py --anchors README.pl.md
 ```
 
-Bramka porównuje zamiast kotwic strukturę nagłówków — te same nagłówki, ta sama
-kolejność, ta sama głębokość, co właśnie wyłapuje plik zostawiony w połowie
-przetłumaczony — i kładzie się na każdym linku w obrębie strony, któremu nie
-odpowiada żaden nagłówek. Nic innego by tego nie zauważyło: GitHub po cichu
-serwuje martwy fragment jako górę strony.
+Bramka porównuje zamiast kotwic kształt sekcji — tyle samo nagłówków,
+zagnieżdżonych tak samo — i kładzie się na każdym linku w obrębie strony,
+któremu nie odpowiada żaden nagłówek. To ta druga połowa wyłapuje plik
+zostawiony w połowie przetłumaczony: nieprzetłumaczone nagłówki zachowują
+kształt tych, z których zostały skopiowane, więc sam kształt tego nie widzi, ale
+linki nad nimi dalej wskazują nagłówki, które się przesunęły. Nic innego by tego
+nie zauważyło, bo GitHub po cichu serwuje martwy fragment jako górę strony.
+
+**Każdy pozostały link wskazuje własny język czytelnika.** Hiszpański README
+linkuje do `docs/install.es.md`, a nie do `docs/install.md` — inaczej wybór
+języka starcza dokładnie na jedno kliknięcie. Bramka sprawdza każdy z nich
+względem linku angielskiej strony na tej samej pozycji, więc link pominięty,
+przestawiony albo niezlokalizowany kładzie bramkę. Strona, która nie ma
+tłumaczenia, jak `docs/ROADMAP.md`, zostaje angielska, a paska języków się nie
+rusza: wskazywanie innych języków jest właśnie tym, do czego służy.
 
 **Każdy plik niesie pasek języków** do swoich trzech tłumaczeń, a tłumaczenia
 linkują z powrotem. Przy dodaniu języka zaktualizuj wszystkie cztery.

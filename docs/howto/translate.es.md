@@ -1,5 +1,5 @@
 ---
-source_sha: "1003a5cd4f2d"
+source_sha: "2bdccaa6ec15"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -261,11 +261,22 @@ que el archivo se dirige a sí mismo**, y comprueba el resultado:
 python3 scripts/check_docs_i18n.py --anchors README.pl.md
 ```
 
-La puerta compara la estructura de encabezados en vez de las anclas — los mismos
-encabezados, el mismo orden, la misma profundidad, que es lo que atrapa un
-archivo dejado a medio traducir — y falla ante cualquier enlace interno al que no
-responda ningún encabezado. Nada más se daría cuenta: GitHub sirve un fragmento
-muerto como el principio de la página, en silencio.
+La puerta compara la forma de las secciones en vez de las anclas — tantos
+encabezados, anidados igual — y falla ante cualquier enlace interno al que no
+responda ningún encabezado. Esa segunda mitad es la que atrapa un archivo dejado
+a medio traducir: los encabezados sin traducir conservan la forma de aquellos de
+los que se copiaron, así que la forma por sí sola no lo ve, pero los enlaces que
+están encima siguen apuntando a encabezados que se han movido. Nada más se daría
+cuenta, porque GitHub sirve un fragmento muerto como el principio de la página,
+en silencio.
+
+**Todos los demás enlaces apuntan al idioma del propio lector.** Un README en
+español enlaza a `docs/install.es.md`, no a `docs/install.md` — si no, elegir
+idioma dura exactamente un clic. La puerta comprueba cada uno contra el enlace de
+la página inglesa en la misma posición, así que un enlace perdido, reordenado o
+sin localizar la hace fallar. Una página sin traducción, como `docs/ROADMAP.md`,
+se queda en inglés, y la barra de idiomas se deja en paz: apuntar a otros idiomas
+es justo para lo que está.
 
 **Cada archivo lleva una barra de idiomas** a sus tres traducciones, y las
 traducciones enlazan de vuelta. Actualiza los cuatro cuando se añada un idioma.

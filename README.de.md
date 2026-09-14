@@ -21,7 +21,7 @@ source_sha: "8917e47dd6b9"
   <a href="#-schnellstart">Schnellstart</a> &middot;
   <a href="#wie-es-aussieht">Bildschirme</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/presentation/">Präsentation</a> &middot;
-  <a href="docs/index.md">Dokumentation</a> &middot;
+  <a href="docs/index.de.md">Dokumentation</a> &middot;
   <a href="#das-beste-betriebssystem-für-agents-das-sie-selbst-betreiben-können">Warum ein OS</a> &middot;
   <a href="#im-vergleich-mit-den-alternativen">Vergleich</a>
 </p>
@@ -29,7 +29,7 @@ source_sha: "8917e47dd6b9"
 <p>
   <a href="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml"><img src="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Release"></a>
-  <a href="docs/testing.md"><img src="https://img.shields.io/badge/platform%20layer-100%25-brightgreen" alt="Coverage"></a>
+  <a href="docs/testing.de.md"><img src="https://img.shields.io/badge/platform%20layer-100%25-brightgreen" alt="Coverage"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Licence"></a>
   <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
   <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
@@ -168,7 +168,7 @@ baut dieselben Images aus dem Baum.
 Wenn etwas nicht hochkommt, beantwortet
 `docker compose exec app agenticos cmd doctor` die einzige Frage, auf die es
 ankommt — kann dieses Deployment tatsächlich einen Agent ausführen — und
-[docs/install.md](docs/install.md) hat den Rest.
+[docs/install.de.md](docs/install.de.md) hat den Rest.
 
 ## Was Sie bekommen
 
@@ -194,7 +194,7 @@ ankommt — kann dieses Deployment tatsächlich einen Agent ausführen — und
   die HTTP-API, ein reiner WebSocket, Slack, Telegram, Mattermost. Einmal
   veröffentlicht.
 - 🖥️ **Mehr als einen Browser braucht es nicht; eine Desktop-App, wenn Sie eine
-  wollen.** Die Konsole ist eine Web-App. Die [Desktop-App](docs/desktop.md) ist
+  wollen.** Die Konsole ist eine Web-App. Die [Desktop-App](docs/desktop.de.md) ist
   dieselbe Konsole in einem eigenen Fenster - dazu ein Haustier auf dem Desktop und
   ein Kürzel, das einen Screenshot direkt in einen neuen Chat legt. Eine Ergänzung,
   nie eine Voraussetzung.
@@ -386,7 +386,7 @@ auf demselben Deployment verschiedene Dashboards behalten.
 </table>
 
 
-<sub>Die Screenshots folgen Ihrem GitHub-Theme. <a href="docs/screens.md">Alle 35 Bildschirme</a>.</sub>
+<sub>Die Screenshots folgen Ihrem GitHub-Theme. <a href="docs/screens.de.md">Alle 35 Bildschirme</a>.</sub>
 
 ## Das beste Betriebssystem für Agents, das Sie selbst betreiben können
 
@@ -399,15 +399,15 @@ nachlesen können, kein Versprechen.
 |---|---|
 | **Führt Prozesse aus und isoliert sie** | Führt Agents aus, stoppt einen an seinem Budget, trennt Mandanten im Schema statt im Service-Code und behält jeden Run mit dem, was er gekostet hat |
 | **Erzwingt Ressourcengrenzen** - Quota, cgroups | Monatsbudgets pro Agent, geprüft *vor* jeder Modellanfrage statt hinterher zusammengezählt. Ein Run, der fehlschlägt, verzeichnet trotzdem, was er ausgegeben hat |
-| **Kontrolliert Zugriffe** - Nutzer, Permissions, `sudo` | Ein [Permission-Katalog](docs/permissions.md) in Code, Rollen daraus zusammengesetzt, Grants pro Ressource, die ausweiten und nie einengen. `approval: required` ist das `sudo`: ein Tool, das auf die Außenwelt wirkt, wartet auf einen Menschen |
-| **Erreicht Hardware über Treiber** | Eine Schnittstelle zu [27 Modell-Providern](docs/models.md) und zu [jedem MCP-Server per URL](docs/mcp.md). Ändern Sie ein Modellprofil, und jeder Agent, der es nutzt, zieht mit, ohne dass einer davon neu veröffentlicht wird |
-| **Führt ein Dateisystem** | [Collections, Skills und angehängter Context](docs/file-processing.md) in Ihrem eigenen Postgres, mit Embeddings, die einen Schlüssel pro Organisation haben |
+| **Kontrolliert Zugriffe** - Nutzer, Permissions, `sudo` | Ein [Permission-Katalog](docs/permissions.de.md) in Code, Rollen daraus zusammengesetzt, Grants pro Ressource, die ausweiten und nie einengen. `approval: required` ist das `sudo`: ein Tool, das auf die Außenwelt wirkt, wartet auf einen Menschen |
+| **Erreicht Hardware über Treiber** | Eine Schnittstelle zu [27 Modell-Providern](docs/models.de.md) und zu [jedem MCP-Server per URL](docs/mcp.de.md). Ändern Sie ein Modellprofil, und jeder Agent, der es nutzt, zieht mit, ohne dass einer davon neu veröffentlicht wird |
+| **Führt ein Dateisystem** | [Collections, Skills und angehängter Context](docs/file-processing.de.md) in Ihrem eigenen Postgres, mit Embeddings, die einen Schlüssel pro Organisation haben |
 | **Gibt vielen Schnittstellen eine Shell** | Ein Runner hinter Web-Chat, der HTTP-API, Slack, Telegram, einem Widget, einer gehosteten Seite und einem Zeitplan. Dasselbe Budget, dasselbe Approval-Gate, dieselbe Audit-Spur |
 | **Schreibt ein Audit-Log** - syslog, auditd | Wer was wann ausgeführt hat, was es gekostet hat und wer es freigegeben hat. Geschrieben auch dann, wenn der Run fehlgeschlagen ist |
 
 Wenden Sie dieselben sieben auf alles andere in der Kategorie an. Das ist der
 Test, an dem wir gemessen werden möchten, und
-[Wann man etwas anderes nimmt](docs/about/comparison.md) ist die Stelle, an der
+[Wann man etwas anderes nimmt](docs/about/comparison.de.md) ist die Stelle, an der
 wir ihn gegen die Alternativen laufen lassen - einschließlich der Zeilen, in
 denen die ehrliche Antwort hier "noch nicht" lautet.
 
@@ -420,9 +420,9 @@ nennen und sie dann in Code erfüllen, den Sie lesen können.
 
 Wo die ehrliche Antwort hier noch "noch nicht" lautet, ist es eine Zeile im
 Vergleich unten und eine Zeile auf der [Roadmap](docs/ROADMAP.md).
-[Wann man etwas anderes nimmt](docs/about/comparison.md) ist die lange Fassung,
+[Wann man etwas anderes nimmt](docs/about/comparison.de.md) ist die lange Fassung,
 einschließlich der Stellen, an denen dieses hier verliert, und
-[was etwas zu einem Betriebssystem für Agents macht](docs/about/index.md) sind
+[was etwas zu einem Betriebssystem für Agents macht](docs/about/index.de.md) sind
 die Kriterien für sich — nehmen Sie sie und bewerten Sie damit jeden, uns
 eingeschlossen.
 
@@ -434,12 +434,12 @@ Approval-Gate.
 
 | | |
 |---|---|
-| **Aus Ihren Dokumenten antworten** | Retrieval über Collections in Ihrem eigenen Postgres, dazu [Skills](docs/skills.md), die er bei Bedarf lädt, und [Context-Dateien](docs/context.md), die über Agents hinweg gebunden sind |
+| **Aus Ihren Dokumenten antworten** | Retrieval über Collections in Ihrem eigenen Postgres, dazu [Skills](docs/skills.de.md), die er bei Bedarf lädt, und [Context-Dateien](docs/context.de.md), die über Agents hinweg gebunden sind |
 | **Losgehen und nachsehen** | Websuche, eine einzelne Seite richtig abrufen oder einen **echten Browser** durch eine Site steuern, auf der geklickt werden muss |
-| **Die Arbeit erledigen** | Python ausführen, eine [Sandbox](docs/sandbox.md) mit Dateien und einer Shell halten, Diagramme zeichnen, Bilder erzeugen |
+| **Die Arbeit erledigen** | Python ausführen, eine [Sandbox](docs/sandbox.de.md) mit Dateien und einer Shell halten, Diagramme zeichnen, Bilder erzeugen |
 | **Bewältigen, was für eine Antwort zu groß ist** | An Subagents delegieren, eine Aufgabenliste führen, länger nachdenken, ein langes Gespräch kompaktieren |
 | **In den Linien bleiben** | Guardrails, die schwärzen oder blockieren, Ausgabe-Obergrenzen pro Tool, und die Uhr |
-| **Alles Weitere** | [Jeder MCP-Server per URL](docs/mcp.md) - 5.802 im Katalog, 99 davon geprüft, mit verdrahteten OAuth-Flows, und kein Connector zu schreiben |
+| **Alles Weitere** | [Jeder MCP-Server per URL](docs/mcp.de.md) - 5.802 im Katalog, 99 davon geprüft, mit verdrahteten OAuth-Flows, und kein Connector zu schreiben |
 
 ## Wo es antwortet
 
@@ -449,18 +449,18 @@ nicht davon ab, woher die Frage kam.
 | | |
 |---|---|
 | **Web-Chat** | In der Konsole, mit Anhängen und Slash-Kommandos |
-| **Die Desktop-App** | Dieselbe Konsole in einem eigenen Fenster, mit einem Haustier und einem Screenshot-Kürzel - eine [optionale Hülle](docs/desktop.md), kein zweites Produkt |
+| **Die Desktop-App** | Dieselbe Konsole in einem eigenen Fenster, mit einem Haustier und einem Screenshot-Kürzel - eine [optionale Hülle](docs/desktop.de.md), kein zweites Produkt |
 | **Eine gehostete Seite** | `/e/{key}` - schicken Sie jemandem einen Link, kein Konto nötig |
 | **Ein einbettbares Widget** | Auf Ihrer eigenen Site, mit Variablen aus der Adresszeile |
-| **Die HTTP-API** | [Ein POST, und Sie haben eine Antwort](docs/api.md) |
+| **Die HTTP-API** | [Ein POST, und Sie haben eine Antwort](docs/api.de.md) |
 | **Ein reiner WebSocket** | Streamen Sie Tokens in ein Frontend, das Sie selbst gebaut haben |
 | **Slack, Telegram, Mattermost** | Wo eine `@mention` als **die Person läuft, die sie geschickt hat**, nicht als der Bot |
-| **Zeitpläne und Trigger** | Eine Uhr, ein Webhook oder ein Postfach, das wir abfragen - [Routinen](docs/triggers.md) |
+| **Zeitpläne und Trigger** | Eine Uhr, ein Webhook oder ein Postfach, das wir abfragen - [Routinen](docs/triggers.de.md) |
 
 ## Auf dem Desktop, wenn Sie mögen
 
 Alles oben läuft in einem Browser, und so nutzen es die meisten. Für alle, die es
-im Dock haben wollen, gibt es eine [Desktop-App](docs/desktop.md): eine dünne
+im Dock haben wollen, gibt es eine [Desktop-App](docs/desktop.de.md): eine dünne
 Hülle um dieselbe Konsole - dieselbe Anmeldung, dieselben Permissions, nichts
 mitgeliefert - mit zwei Dingen, die ein Browser-Tab nicht kann. Ein Haustier, das
 auf dem Desktop lebt, während Sie arbeiten, und ein globales Kürzel (`⌘⇧A`), das
@@ -514,7 +514,7 @@ Unternehmen tatsächlich will — denn wer weiß, was der Agent sagen soll, ist 
 die Person mit Commit-Zugang.
 
 AgenticOS holt den Agent aus dem Code heraus und legt stattdessen Governance um
-ihn herum. [Secrets](docs/secrets.md) werden pro Organisation versiegelt: ein
+ihn herum. [Secrets](docs/secrets.de.md) werden pro Organisation versiegelt: ein
 Schlüssel, der aus der Datenbankzeile eines Mandanten kopiert wurde, lässt sich
 für einen anderen nicht entschlüsseln, und keine API-Antwort gibt jemals einen
 zurück.
@@ -523,15 +523,15 @@ zurück.
 
 | | |
 |---|---|
-| [Installation](docs/install.md) · [Ihr erster Agent](docs/first-agent.md) | Von nichts zu einem Agent, der antwortet |
-| [Konzepte](docs/concepts.md) | Spec, Version, Exposure, Trigger, Run — die fünf Substantive |
-| [Permissions](docs/permissions.md) · [Governance](docs/governance.md) | Wer was darf; Budgets, Approvals, Audit |
-| [Capabilities](docs/reference/capabilities.md) · [MCP](docs/mcp.md) | Was ein Agent tun kann, und wie man ein Tool hinzufügt |
-| [Modelle](docs/models.md) · [Secrets](docs/secrets.md) | Provider, Profile, Kosten; der Vault |
-| [Wissen](docs/file-processing.md) · [Skills](docs/skills.md) | Parser, Chunking, OCR; aufgeschriebenes Können |
-| [Channels](docs/channels.md) · [API](docs/api.md) | Slack, Telegram, Widget, WebSocket, HTTP |
-| [Desktop-App](docs/desktop.md) | Die optionale Hülle: die Konsole in einem Fenster, das Haustier, das Screenshot-Kürzel |
-| [Architektur](docs/architecture.md) · [Tests](docs/testing.md) | Wie es gebaut ist, und wie es verifiziert wird |
+| [Installation](docs/install.de.md) · [Ihr erster Agent](docs/first-agent.de.md) | Von nichts zu einem Agent, der antwortet |
+| [Konzepte](docs/concepts.de.md) | Spec, Version, Exposure, Trigger, Run — die fünf Substantive |
+| [Permissions](docs/permissions.de.md) · [Governance](docs/governance.de.md) | Wer was darf; Budgets, Approvals, Audit |
+| [Capabilities](docs/reference/capabilities.de.md) · [MCP](docs/mcp.de.md) | Was ein Agent tun kann, und wie man ein Tool hinzufügt |
+| [Modelle](docs/models.de.md) · [Secrets](docs/secrets.de.md) | Provider, Profile, Kosten; der Vault |
+| [Wissen](docs/file-processing.de.md) · [Skills](docs/skills.de.md) | Parser, Chunking, OCR; aufgeschriebenes Können |
+| [Channels](docs/channels.de.md) · [API](docs/api.de.md) | Slack, Telegram, Widget, WebSocket, HTTP |
+| [Desktop-App](docs/desktop.de.md) | Die optionale Hülle: die Konsole in einem Fenster, das Haustier, das Screenshot-Kürzel |
+| [Architektur](docs/architecture.de.md) · [Tests](docs/testing.de.md) | Wie es gebaut ist, und wie es verifiziert wird |
 
 Gebaut mit MkDocs: `make docs` liefert sie auf :8001 aus. Der Stack, in einer
 Zeile: FastAPI + Pydantic v2, PostgreSQL mit pgvector, Redis, Prefect,

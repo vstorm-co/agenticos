@@ -36,7 +36,7 @@ Celujemy w potwierdzenie w ciągu 48h i wypuszczenie poprawki w ciągu 7 dni dla
 ### Autoryzacja
 
 - **Oparta o uprawnienia** — władza wewnątrz organizacji to wiersz członkostwa plus katalog uprawnień (`app/core/permissions.py`). Nie ma kolumny z rolą na użytkowniku ani zależności route'u opartej o rolę.
-- **Role w organizacji** — rola to nazwa na członkostwie (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`), która mapuje się na zestaw uprawnień. Route'y kolekcji bramkują na uprawnieniu; dostęp do pojedynczego zasobu rozstrzyga rolę razem z jawnymi grantami, a grant poszerza to, na co rola pozwala — nigdy tego nie zawęża. Zobacz [Uprawnienia](docs/permissions.md).
+- **Role w organizacji** — rola to nazwa na członkostwie (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`), która mapuje się na zestaw uprawnień. Route'y kolekcji bramkują na uprawnieniu; dostęp do pojedynczego zasobu rozstrzyga rolę razem z jawnymi grantami, a grant poszerza to, na co rola pozwala — nigdy tego nie zawęża. Zobacz [Uprawnienia](docs/permissions.pl.md).
 - **Zakres workspace'u** — każde uwierzytelnione żądanie rozstrzyga `ActiveOrg` (domyślnie = organizacja osobista). Zasoby są ograniczone kluczem obcym `organization_id`.
 - **Administracja wdrożeniem** — flaga `is_app_admin` na użytkowniku, sprawdzana własną zależnością; nie rola.
 
@@ -44,12 +44,12 @@ Celujemy w potwierdzenie w ciągu 48h i wypuszczenie poprawki w ciągu 7 dni dla
 
 - **CORS** — lista originów z `settings.CORS_ORIGINS`. Na produkcji ogranicz ją do swoich domen.
 - **HTTPS** — wymuszaj przez reverse proxy (Nginx / Traefik / ALB). Nagłówek Strict-Transport-Security ustawiany w middleware, gdy `ENVIRONMENT=production`.
-- **Nagłówki bezpieczeństwa** — frontend serwuje pełne Content-Security-Policy (`default-src 'self'`, `connect-src` wymieniające wyłącznie ten origin oraz skonfigurowane `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` i `Permissions-Policy`, które odmawia kamery i geolokalizacji, a mikrofon dopuszcza wyłącznie do speech-to-text. Polityka mieszka w `frontend/src/lib/csp.ts`, a nagłówki w `frontend/src/lib/security-headers.ts`; jedne i drugie są potwierdzone testami — zobacz [Wdrożenie](docs/deployment.md#security-headers).
+- **Nagłówki bezpieczeństwa** — frontend serwuje pełne Content-Security-Policy (`default-src 'self'`, `connect-src` wymieniające wyłącznie ten origin oraz skonfigurowane `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` i `Permissions-Policy`, które odmawia kamery i geolokalizacji, a mikrofon dopuszcza wyłącznie do speech-to-text. Polityka mieszka w `frontend/src/lib/csp.ts`, a nagłówki w `frontend/src/lib/security-headers.ts`; jedne i drugie są potwierdzone testami — zobacz [Wdrożenie](docs/deployment.pl.md#security-headers).
 
 ### Dane
 
-- **Sekrety** — czytane ze środowiska przez `pydantic-settings`. Nigdy nie commitowane. Zobacz `backend/.env.example` oraz [Konfigurację](docs/configuration.md).
-- **Log audytu** — działania administratora aplikacji (aktualizacje użytkowników, usunięcia, impersonacje) zapisywane w tabeli `app_admin_audit_logs` wraz z aktorem, IP i migawką ładunku. Działania na poziomie organizacji, które zmieniają dostęp albo wydają pieniądze, mają własny ślad, bramkowany uprawnieniem `audit:read` — zobacz [Governance](docs/governance.md).
+- **Sekrety** — czytane ze środowiska przez `pydantic-settings`. Nigdy nie commitowane. Zobacz `backend/.env.example` oraz [Konfigurację](docs/configuration.pl.md).
+- **Log audytu** — działania administratora aplikacji (aktualizacje użytkowników, usunięcia, impersonacje) zapisywane w tabeli `app_admin_audit_logs` wraz z aktorem, IP i migawką ładunku. Działania na poziomie organizacji, które zmieniają dostęp albo wydają pieniądze, mają własny ślad, bramkowany uprawnieniem `audit:read` — zobacz [Governance](docs/governance.pl.md).
 - **Dokumenty RAG** — wgrane pliki są ograniczone do organizacji. Nie ma publicznego endpointu do odczytu; całe wyszukiwanie odbywa się po stronie serwera w trakcie czatu.
 
 ### Lista kontrolna hardeningu na produkcję

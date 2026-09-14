@@ -1,5 +1,5 @@
 ---
-source_sha: "1003a5cd4f2d"
+source_sha: "2bdccaa6ec15"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -269,11 +269,22 @@ richtet**, und prüfen Sie das Ergebnis:
 python3 scripts/check_docs_i18n.py --anchors README.pl.md
 ```
 
-Das Tor vergleicht statt der Anker die Überschriftenstruktur - dieselben
-Überschriften, dieselbe Reihenfolge, dieselbe Tiefe, und genau das fängt eine
-halb übersetzt liegen gebliebene Datei - und es scheitert an jedem seiteninternen
-Link, auf den keine Überschrift antwortet. Sonst würde es nichts bemerken: GitHub
-liefert ein totes Fragment stillschweigend als den Seitenanfang aus.
+Das Tor vergleicht statt der Anker die Form der Abschnitte - gleich viele
+Überschriften, gleich verschachtelt - und es scheitert an jedem seiteninternen
+Link, auf den keine Überschrift antwortet. Diese zweite Hälfte ist es, die eine
+halb übersetzt liegen gebliebene Datei fängt: Unübersetzte Überschriften behalten
+die Form derer, aus denen sie kopiert wurden, die Form allein sieht es also
+nicht, aber die Links darüber zeigen weiterhin auf Überschriften, die sich
+verschoben haben. Sonst würde es nichts bemerken, denn GitHub liefert ein totes
+Fragment stillschweigend als den Seitenanfang aus.
+
+**Jeder andere Link zeigt auf die eigene Sprache des Lesers.** Eine spanische
+README verlinkt auf `docs/install.es.md`, nicht auf `docs/install.md` - sonst
+hält die Wahl einer Sprache genau einen Klick lang. Das Tor prüft jeden einzelnen
+gegen den Link der englischen Seite an derselben Position, also scheitert es an
+einem weggelassenen, umgestellten oder nicht lokalisierten Link. Eine Seite ohne
+Übersetzung, etwa `docs/ROADMAP.md`, bleibt englisch, und die Sprachleiste bleibt
+unangetastet: auf andere Sprachen zu zeigen ist genau ihr Zweck.
 
 **Jede Datei trägt eine Sprachleiste** zu ihren drei Übersetzungen, und die
 Übersetzungen verlinken zurück. Aktualisieren Sie alle vier, wenn eine Sprache

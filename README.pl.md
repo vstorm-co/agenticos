@@ -21,7 +21,7 @@ source_sha: "8917e47dd6b9"
   <a href="#-szybki-start">Szybki start</a> &middot;
   <a href="#jak-to-wygląda">Ekrany</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/presentation/">Prezentacja</a> &middot;
-  <a href="docs/index.md">Dokumentacja</a> &middot;
+  <a href="docs/index.pl.md">Dokumentacja</a> &middot;
   <a href="#najlepszy-agentowy-os-jaki-możesz-prowadzić-u-siebie">Dlaczego OS</a> &middot;
   <a href="#porównanie-z-alternatywami">Porównanie</a>
 </p>
@@ -29,7 +29,7 @@ source_sha: "8917e47dd6b9"
 <p>
   <a href="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml"><img src="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Release"></a>
-  <a href="docs/testing.md"><img src="https://img.shields.io/badge/platform%20layer-100%25-brightgreen" alt="Coverage"></a>
+  <a href="docs/testing.pl.md"><img src="https://img.shields.io/badge/platform%20layer-100%25-brightgreen" alt="Coverage"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Licence"></a>
   <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
   <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
@@ -166,7 +166,7 @@ obrazy z drzewa.
 
 Jeśli coś się nie podniesie, `docker compose exec app agenticos cmd doctor`
 odpowiada na jedyne pytanie, które ma znaczenie — czy to wdrożenie naprawdę
-potrafi uruchomić agenta — a resztę ma [docs/install.md](docs/install.md).
+potrafi uruchomić agenta — a resztę ma [docs/install.pl.md](docs/install.pl.md).
 
 ## Co dostajesz
 
@@ -187,7 +187,7 @@ potrafi uruchomić agenta — a resztę ma [docs/install.md](docs/install.md).
 - 📡 **Jeden runner, osiem powierzchni.** Czat webowy, hostowana strona, widget,
   HTTP API, surowy WebSocket, Slack, Telegram, Mattermost. Publikowane raz.
 - 🖥️ **Wystarczy przeglądarka; aplikacja desktopowa, jeśli chcesz.** Konsola jest
-  aplikacją webową. [Aplikacja desktopowa](docs/desktop.md) to ta sama konsola we
+  aplikacją webową. [Aplikacja desktopowa](docs/desktop.pl.md) to ta sama konsola we
   własnym oknie - plus zwierzak na pulpicie i skrót robiący zrzut ekranu prosto
   do nowego czatu. Dodatek, nigdy wymóg.
 - 🛡️ **Pod nadzorem.** Budżety zatrzymujące run przed żądaniem do modelu, approval
@@ -377,7 +377,7 @@ trzymają na tym samym wdrożeniu inne dashboardy.
 </table>
 
 
-<sub>Zrzuty ekranu idą za Twoim motywem na GitHubie. <a href="docs/screens.md">Wszystkie 35 ekranów</a>.</sub>
+<sub>Zrzuty ekranu idą za Twoim motywem na GitHubie. <a href="docs/screens.pl.md">Wszystkie 35 ekranów</a>.</sub>
 
 ## Najlepszy agentowy OS, jaki możesz prowadzić u siebie
 
@@ -389,15 +389,15 @@ wiersz poniżej to mechanizm, który możesz przeczytać w źródłach, a nie ob
 |---|---|
 | **Uruchamia i izoluje procesy** | Uruchamia agentów, zatrzymuje agenta na jego budżecie, izoluje tenantów w schemacie, a nie w kodzie serwisów, i trzyma każdy run razem z tym, ile kosztował |
 | **Egzekwuje limity zasobów** - quota, cgroups | Miesięczne budżety per agent, sprawdzane *przed* każdym żądaniem do modelu, a nie zliczane po fakcie. Run, który zakończył się błędem, i tak zapisuje, ile wydał |
-| **Kontroluje dostęp** - użytkownicy, uprawnienia, `sudo` | [Katalog uprawnień](docs/permissions.md) w kodzie, role złożone z niego, granty per zasób, które poszerzają i nigdy nie zawężają. `approval: required` to właśnie `sudo`: narzędzie działające na świat zewnętrzny czeka na człowieka |
-| **Sięga do sprzętu przez sterowniki** | Jeden interfejs do [27 providerów modeli](docs/models.md) i do [dowolnego serwera MCP po URL](docs/mcp.md). Zmień profil modelu, a przesuną się wszyscy agenci, którzy go używają, i żaden nie musi być publikowany na nowo |
-| **Prowadzi system plików** | [Kolekcje, skille i dołączony kontekst](docs/file-processing.md) w Twoim własnym Postgresie, z embeddingami kluczowanymi per organizacja |
+| **Kontroluje dostęp** - użytkownicy, uprawnienia, `sudo` | [Katalog uprawnień](docs/permissions.pl.md) w kodzie, role złożone z niego, granty per zasób, które poszerzają i nigdy nie zawężają. `approval: required` to właśnie `sudo`: narzędzie działające na świat zewnętrzny czeka na człowieka |
+| **Sięga do sprzętu przez sterowniki** | Jeden interfejs do [27 providerów modeli](docs/models.pl.md) i do [dowolnego serwera MCP po URL](docs/mcp.pl.md). Zmień profil modelu, a przesuną się wszyscy agenci, którzy go używają, i żaden nie musi być publikowany na nowo |
+| **Prowadzi system plików** | [Kolekcje, skille i dołączony kontekst](docs/file-processing.pl.md) w Twoim własnym Postgresie, z embeddingami kluczowanymi per organizacja |
 | **Daje wielu interfejsom jedną powłokę** | Jeden runner za czatem webowym, HTTP API, Slackiem, Telegramem, widgetem, hostowaną stroną i harmonogramem. Ten sam budżet, ta sama bramka approvalu, ten sam ślad audytowy |
 | **Pisze log audytowy** - syslog, auditd | Kto co uruchomił, kiedy, ile to kosztowało i kto to zatwierdził. Zapisywane nawet wtedy, gdy run zakończył się błędem |
 
 Przyłóż tę samą siódemkę do czegokolwiek innego w tej kategorii. To jest test, na
 którym chcielibyśmy być oceniani, a
-[Kiedy sięgnąć po coś innego](docs/about/comparison.md) to miejsce, w którym
+[Kiedy sięgnąć po coś innego](docs/about/comparison.pl.md) to miejsce, w którym
 przeprowadzamy go przeciwko alternatywom - razem z wierszami, gdzie uczciwa
 odpowiedź brzmi tu "jeszcze nie".
 
@@ -410,9 +410,9 @@ spełniamy je w kodzie, który możesz przeczytać.
 
 Tam, gdzie uczciwa odpowiedź brzmi tu wciąż "jeszcze nie", jest to wiersz w
 porównaniu niżej i linia na [roadmapie](docs/ROADMAP.md).
-[Kiedy sięgnąć po coś innego](docs/about/comparison.md) to wersja długa, razem z
+[Kiedy sięgnąć po coś innego](docs/about/comparison.pl.md) to wersja długa, razem z
 tym, gdzie ten produkt przegrywa, a
-[co sprawia, że coś jest systemem operacyjnym dla agentów](docs/about/index.md),
+[co sprawia, że coś jest systemem operacyjnym dla agentów](docs/about/index.pl.md),
 to same kryteria — weź je i oceń kogokolwiek, nas włącznie.
 
 ## Co potrafi agent
@@ -423,12 +423,12 @@ approvalu.
 
 | | |
 |---|---|
-| **Odpowiadać z Twoich dokumentów** | Wyszukiwanie po kolekcjach w Twoim własnym Postgresie, plus [skille](docs/skills.md), które ładuje na żądanie, i [pliki kontekstowe](docs/context.md) wiązane z wieloma agentami |
+| **Odpowiadać z Twoich dokumentów** | Wyszukiwanie po kolekcjach w Twoim własnym Postgresie, plus [skille](docs/skills.pl.md), które ładuje na żądanie, i [pliki kontekstowe](docs/context.pl.md) wiązane z wieloma agentami |
 | **Pójść i się dowiedzieć** | Wyszukiwanie w sieci, porządne pobranie jednej strony albo poprowadzenie **prawdziwej przeglądarki** przez witrynę, która wymaga klikania |
-| **Wykonać pracę** | Uruchomić Pythona, prowadzić [sandbox](docs/sandbox.md) z plikami i powłoką, rysować wykresy, generować obrazy |
+| **Wykonać pracę** | Uruchomić Pythona, prowadzić [sandbox](docs/sandbox.pl.md) z plikami i powłoką, rysować wykresy, generować obrazy |
 | **Poradzić sobie z pracą za dużą na jedną odpowiedź** | Zdelegować do subagentów, prowadzić listę zadań, pomyśleć dłużej, skompaktować długą rozmowę |
 | **Trzymać się w ryzach** | Guardraile, które redagują albo blokują, limity wyjścia per narzędzie i zegar |
-| **Cokolwiek innego** | [Dowolny serwer MCP po URL](docs/mcp.md) - 5802 w katalogu, 99 z nich sprawdzonych, z podpiętymi przepływami OAuth, i żadnego konektora do napisania |
+| **Cokolwiek innego** | [Dowolny serwer MCP po URL](docs/mcp.pl.md) - 5802 w katalogu, 99 z nich sprawdzonych, z podpiętymi przepływami OAuth, i żadnego konektora do napisania |
 
 ## Gdzie odpowiada
 
@@ -438,19 +438,19 @@ od tego, skąd przyszło pytanie.
 | | |
 |---|---|
 | **Czat webowy** | W konsoli, z załącznikami i komendami ze slashem |
-| **Aplikacja desktopowa** | Ta sama konsola we własnym oknie, ze zwierzakiem i skrótem do zrzutu ekranu - [opcjonalna powłoka](docs/desktop.md), a nie drugi produkt |
+| **Aplikacja desktopowa** | Ta sama konsola we własnym oknie, ze zwierzakiem i skrótem do zrzutu ekranu - [opcjonalna powłoka](docs/desktop.pl.md), a nie drugi produkt |
 | **Hostowana strona** | `/e/{key}` - wyślij komuś link, konto niepotrzebne |
 | **Osadzany widget** | Na Twojej własnej stronie, ze zmiennymi z paska adresu |
-| **HTTP API** | [Jeden POST i masz odpowiedź](docs/api.md) |
+| **HTTP API** | [Jeden POST i masz odpowiedź](docs/api.pl.md) |
 | **Surowy WebSocket** | Strumieniuj tokeny do frontendu, który zbudowałeś sam |
 | **Slack, Telegram, Mattermost** | Gdzie `@mention` działa jako **osoba, która go wysłała**, a nie jako bot |
-| **Harmonogramy i triggery** | Zegar, webhook albo skrzynka pocztowa, którą odpytujemy - [routines](docs/triggers.md) |
+| **Harmonogramy i triggery** | Zegar, webhook albo skrzynka pocztowa, którą odpytujemy - [routines](docs/triggers.pl.md) |
 
 ## Na pulpicie, jeśli chcesz
 
 Wszystko powyżej działa w przeglądarce i tak właśnie korzysta z tego większość
 ludzi. Dla tych, którzy chcą mieć to w docku, jest [aplikacja
-desktopowa](docs/desktop.md): cienka powłoka wokół tej samej konsoli - to samo
+desktopowa](docs/desktop.pl.md): cienka powłoka wokół tej samej konsoli - to samo
 logowanie, te same uprawnienia, nic dołożonego - z dwiema rzeczami, których karta
 przeglądarki nie potrafi. Zwierzak, który mieszka na pulpicie, kiedy pracujesz, i
 globalny skrót (`⌘⇧A`), który robi zrzut dowolnego fragmentu ekranu i otwiera nowy
@@ -502,7 +502,7 @@ agentów, których firma naprawdę chce — bo osoba, która wie, co agent ma m�
 nie jest osobą z dostępem do commitowania.
 
 AgenticOS wyprowadza agenta z kodu i zamiast tego otacza go nadzorem.
-[Sekrety](docs/secrets.md) są zapieczętowane per organizacja: klucza skopiowanego
+[Sekrety](docs/secrets.pl.md) są zapieczętowane per organizacja: klucza skopiowanego
 z wiersza bazy jednego tenanta nie da się odszyfrować dla innego, a żadna
 odpowiedź API nigdy żadnego nie zwraca.
 
@@ -510,15 +510,15 @@ odpowiedź API nigdy żadnego nie zwraca.
 
 | | |
 |---|---|
-| [Instalacja](docs/install.md) · [Twój pierwszy agent](docs/first-agent.md) | Od zera do agenta, który odpowiada |
-| [Pojęcia](docs/concepts.md) | Spec, wersja, wystawienie, trigger, run — pięć rzeczowników |
-| [Uprawnienia](docs/permissions.md) · [Nadzór](docs/governance.md) | Komu co wolno; budżety, approvale, audyt |
-| [Capabilities](docs/reference/capabilities.md) · [MCP](docs/mcp.md) | Co agent potrafi i jak dodać narzędzie |
-| [Modele](docs/models.md) · [Sekrety](docs/secrets.md) | Providerzy, profile, koszt; vault |
-| [Wiedza](docs/file-processing.md) · [Skille](docs/skills.md) | Parsery, dzielenie na fragmenty, OCR; spisane know-how |
-| [Kanały](docs/channels.md) · [API](docs/api.md) | Slack, Telegram, widget, WebSocket, HTTP |
-| [Aplikacja desktopowa](docs/desktop.md) | Opcjonalna powłoka: konsola w oknie, zwierzak, skrót do zrzutu ekranu |
-| [Architektura](docs/architecture.md) · [Testy](docs/testing.md) | Jak to jest zbudowane i jak to jest weryfikowane |
+| [Instalacja](docs/install.pl.md) · [Twój pierwszy agent](docs/first-agent.pl.md) | Od zera do agenta, który odpowiada |
+| [Pojęcia](docs/concepts.pl.md) | Spec, wersja, wystawienie, trigger, run — pięć rzeczowników |
+| [Uprawnienia](docs/permissions.pl.md) · [Nadzór](docs/governance.pl.md) | Komu co wolno; budżety, approvale, audyt |
+| [Capabilities](docs/reference/capabilities.pl.md) · [MCP](docs/mcp.pl.md) | Co agent potrafi i jak dodać narzędzie |
+| [Modele](docs/models.pl.md) · [Sekrety](docs/secrets.pl.md) | Providerzy, profile, koszt; vault |
+| [Wiedza](docs/file-processing.pl.md) · [Skille](docs/skills.pl.md) | Parsery, dzielenie na fragmenty, OCR; spisane know-how |
+| [Kanały](docs/channels.pl.md) · [API](docs/api.pl.md) | Slack, Telegram, widget, WebSocket, HTTP |
+| [Aplikacja desktopowa](docs/desktop.pl.md) | Opcjonalna powłoka: konsola w oknie, zwierzak, skrót do zrzutu ekranu |
+| [Architektura](docs/architecture.pl.md) · [Testy](docs/testing.pl.md) | Jak to jest zbudowane i jak to jest weryfikowane |
 
 Zbudowane na MkDocs: `make docs` serwuje dokumentację na :8001. Stack, w jednej
 linii: FastAPI + Pydantic v2, PostgreSQL z pgvector, Redis, Prefect,

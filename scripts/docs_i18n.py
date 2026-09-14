@@ -76,6 +76,9 @@ _WHITESPACE = re.compile(r"\s")
 # A link a file aims at itself, written either way. A fragment that follows a
 # path - `docs/index.md#install` - belongs to the other file and is not one.
 _OWN_FRAGMENT = re.compile(r"\]\(#(?P<inline>[^)\s]+)\)|href=\"#(?P<html>[^\"\s]+)\"")
+_TARGET = re.compile(
+    r"\]\((?P<inline>[^)\s]+)[^)]*\)|href=\"(?P<href>[^\"]+)\"|src=\"(?P<src>[^\"]+)\""
+)
 
 
 def locale_of(page: Path) -> str | None:
@@ -210,6 +213,56 @@ def own_fragments(page: Path) -> list[str]:
     """
     text = page.read_text(encoding="utf-8")
     return [match["inline"] or match["html"] for match in _OWN_FRAGMENT.finditer(text)]
+
+
+def _is_language_bar(target: str) -> bool:
+    """Whether a link is one of the four a root file uses to offer its languages.
+
+    The one construct here that points at another language on purpose, so it is
+    the one `linked_targets` cannot ask to be localized.
+    """
+    path = target.partition("#")[0]
+    return _SUFFIX.sub(".md", path) in ROOT_PAGES
+
+
+def _localized(target: str, locale: str) -> str:
+    """The `locale` counterpart of a link target, where one exists."""
+    path, marker, fragment = target.partition("#")
+    if not path.endswith(".md") or locale_of(Path(path)) is not None:
+        return target
+    translated = translation_of(REPO_ROOT / path, locale)
+    if not translated.exists():
+        return target
+    return f"{translated.relative_to(REPO_ROOT).as_posix()}{marker}{fragment}"
+
+
+def linked_targets(page: Path, *, into: str | None = None) -> list[str]:
+    """Everywhere a page sends a reader, in document order.
+
+    Link targets are the one part of a page translation leaves alone, so English
+    and every translation must agree on them - except for which language each
+    target is in, which is the whole point of translating. `into` says which
+    language to expect: reading the English page with `into="es"` gives the
+    targets the Spanish translation ought to carry, and reading the Spanish page
+    without it gives the ones it does.
+
+    A target is localized only where that translation exists, so `docs/ROADMAP.md`
+    (not published, owed no translation), `CLAUDE.md` and every external URL are
+    left alone rather than pointed at a file nobody wrote.
+
+    Two kinds of link are left out. A link a page aims at itself, which is
+    `dangling()`'s business and is *expected* to differ because a translated
+    heading answers to its own anchor. And the language bar, which exists to
+    point at other languages.
+    """
+    text = page.read_text(encoding="utf-8")
+    found = (next(value for value in match.groups() if value) for match in _TARGET.finditer(text))
+    wanted = [
+        target for target in found if not target.startswith("#") and not _is_language_bar(target)
+    ]
+    if into is None:
+        return wanted
+    return [_localized(target, into) for target in wanted]
 
 
 def root_pages() -> list[Path]:

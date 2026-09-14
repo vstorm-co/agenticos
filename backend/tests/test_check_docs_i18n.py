@@ -281,6 +281,68 @@ def test_an_html_fragment_is_checked_too(repository: Path) -> None:
     assert guard.dangling() == [("README.md", "pl", "what-it-does")]
 
 
+def _linking_readme(repository: Path) -> Path:
+    """An English README that links out to a page the site translates."""
+    (repository / "docs" / "install.md").write_text("# Install\n", encoding="utf-8")
+    (repository / "docs" / "install.pl.md").write_text("# Instalacja\n", encoding="utf-8")
+    return _readme(repository, "# Project\n\nSee [install](docs/install.md).\n\n## What it does\n")
+
+
+def test_a_root_translation_linking_to_english_is_reported(repository: Path) -> None:
+    """The first thing a reader meets after choosing a language.
+
+    Pick Polski, follow the documentation link, and land back in English - which
+    is the one thing picking a language was meant to avoid. Nothing else sees it:
+    the link resolves, the page exists, and the section shape is untouched.
+    """
+    _linking_readme(repository)
+    (repository / "README.pl.md").write_text(
+        "# Projekt\n\nZobacz [instalację](docs/install.md).\n\n## Co robi\n", encoding="utf-8"
+    )
+    assert guard.restructured() == []
+    assert guard.relinked() == [
+        ("README.md", "pl", "a link to 'docs/install.md' where it owes one to 'docs/install.pl.md'")
+    ]
+
+
+def test_a_root_translation_linking_to_its_own_language_is_not(repository: Path) -> None:
+    _linking_readme(repository)
+    (repository / "README.pl.md").write_text(
+        "# Projekt\n\nZobacz [instalację](docs/install.pl.md).\n\n## Co robi\n", encoding="utf-8"
+    )
+    assert guard.relinked() == []
+
+
+def test_a_link_to_a_page_with_no_translation_stays_english(repository: Path) -> None:
+    """`docs/ROADMAP.md` is not published and is owed no translation.
+
+    Localizing every target blindly would point this one at a file nobody wrote.
+    """
+    (repository / "docs" / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    _readme(repository, "# Project\n\nSee [the roadmap](docs/ROADMAP.md).\n\n## What it does\n")
+    (repository / "README.pl.md").write_text(
+        "# Projekt\n\nZobacz [plan](docs/ROADMAP.md).\n\n## Co robi\n", encoding="utf-8"
+    )
+    assert guard.relinked() == []
+
+
+def test_the_language_bar_is_not_asked_to_stay_in_one_language(repository: Path) -> None:
+    """The one construct that points at other languages on purpose."""
+    _readme(repository, "# Project\n\n[Polski](README.pl.md)\n\n## What it does\n")
+    (repository / "README.pl.md").write_text(
+        "# Projekt\n\n[English](README.md)\n\n## Co robi\n", encoding="utf-8"
+    )
+    assert guard.relinked() == []
+
+
+def test_a_root_translation_that_drops_a_link_is_reported(repository: Path) -> None:
+    _linking_readme(repository)
+    (repository / "README.pl.md").write_text(
+        "# Projekt\n\nTekst.\n\n## Co robi\n", encoding="utf-8"
+    )
+    assert guard.relinked() == [("README.md", "pl", "0 links against 1 in English")]
+
+
 def test_a_root_translation_of_a_deleted_file_is_orphaned(repository: Path) -> None:
     (repository / "GONE.pl.md").write_text("# Nieistotne\n", encoding="utf-8")
     assert guard.orphaned() == ["GONE.pl.md"]

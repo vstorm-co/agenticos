@@ -24,10 +24,19 @@ two lists in document order, which also catches a section dropped or reordered.
 `README.md` and the three policy files beside it are asked the same first two
 questions, and a different third. GitHub renders those, GitHub has no
 `attr_list`, so a translated heading there cannot pin anything and is expected
-to answer to its own anchor. What is checked instead is that the sections still
-line up - same headings, same order, same depth - and that every link the file
-aims at itself still lands on a heading that exists, because GitHub serves a
-dead fragment as the top of the page and says nothing.
+to answer to its own anchor. Three things are checked in its place:
+
+- the sections keep their *shape* - as many headings, nested the same way;
+- every link the file aims at itself lands on a heading that exists, because
+  GitHub serves a dead fragment as the top of the page and says nothing;
+- every other link goes where the English one goes, in the same order, and in
+  the reader's own language wherever that page has been translated.
+
+The middle one is what catches a translation that stopped halfway: shape alone
+cannot, because untranslated headings have the same shape as the English ones
+they were copied from. Shape alone also cannot see two sibling sections of the
+same depth swapped - that would need a marker in a file people read as source,
+and it is not claimed here.
 
 All of these are reported as a defect. `--update` records the fingerprint after a
 page has genuinely been retranslated - it is the last step of doing the work, not
@@ -54,6 +63,7 @@ from docs_i18n import (
     fingerprint,
     github_anchors,
     heading_levels,
+    linked_targets,
     locale_of,
     own_fragments,
     record_fingerprint,
@@ -121,20 +131,22 @@ def adrift() -> list[tuple[str, str, str]]:
 
 
 def restructured() -> list[tuple[str, str, str]]:
-    """Every root translation whose sections no longer line up with the English.
+    """Every root translation whose section *shape* no longer matches the English.
 
     A root file gets this instead of the anchor comparison. GitHub renders it,
     GitHub has no `attr_list`, so a translated heading cannot pin its English
-    anchor and is *expected* to answer to a different one. What still has to
-    hold is that the same sections are there, in the same order, at the same
-    depth.
+    anchor and is *expected* to answer to a different one. What is left to
+    compare is the shape: how many headings there are, and how they nest.
 
-    That catches a translation that stops early and loses the sections below it.
-    It does *not* catch one that stops early having copied the English headings
-    across, because those headings are structurally identical to the ones they
-    were copied from - which is exactly how the first Polish and German README
-    landed. `dangling()` is what caught those: the links above the untranslated
-    half still pointed at headings that had moved.
+    Say only that, because that is all it is. Two sibling sections of the same
+    depth swapped leave the shape untouched and pass here - answering that would
+    need a per-heading marker in the file, and a README is read as source. What
+    this does catch is the failure that actually happens: a translation that
+    stops early loses the sections below it, or gains one, and the shape moves.
+
+    `dangling()` and `relinked()` are the other two thirds. Between them they
+    caught the first Polish and German README, which stopped halfway with the
+    English headings copied across - structurally identical, so invisible here.
     """
     found: list[tuple[str, str, str]] = []
     for page in root_pages():
@@ -151,6 +163,37 @@ def restructured() -> list[tuple[str, str, str]]:
                 if len(actual) != len(expected)
                 else "the same headings at different depths"
             )
+            found.append((_name(page), locale, complaint))
+    return found
+
+
+def relinked() -> list[tuple[str, str, str]]:
+    """Every root translation that does not send a reader where the English does.
+
+    Link targets are the one part of a page that translation leaves alone, so
+    they are comparable outright - same destinations, in the same order, each in
+    the reader's own language where a translation of it exists.
+
+    Two things this refuses. A translation that drops or reorders a link, which
+    nothing else would see. And the one a reader meets first: a localized README
+    whose documentation links land them back in English, which is what picking a
+    language was meant to avoid.
+    """
+    found: list[tuple[str, str, str]] = []
+    for page in root_pages():
+        for locale in LOCALES:
+            translation = translation_of(page, locale)
+            if not translation.exists():
+                continue
+            expected = linked_targets(page, into=locale)
+            actual = linked_targets(translation)
+            if actual == expected:
+                continue
+            if len(actual) != len(expected):
+                complaint = f"{len(actual)} links against {len(expected)} in English"
+            else:
+                mine, theirs = next((a, b) for a, b in zip(actual, expected, strict=True) if a != b)
+                complaint = f"a link to {mine!r} where it owes one to {theirs!r}"
             found.append((_name(page), locale, complaint))
     return found
 
@@ -221,8 +264,8 @@ def update(translations: list[Path]) -> int:
 
 def report() -> int:
     absent, behind, moved, orphans = missing(), stale(), adrift(), orphaned()
-    reshaped, dead = restructured(), dangling()
-    if not (absent or behind or moved or orphans or reshaped or dead):
+    reshaped, dead, adrift_links = restructured(), dangling(), relinked()
+    if not (absent or behind or moved or orphans or reshaped or dead or adrift_links):
         published, repository = len(english_pages()), len(root_pages())
         locales = ", ".join(LOCALES)
         print(
@@ -249,6 +292,11 @@ def report() -> int:
     if reshaped:
         print(f"Repository files whose sections do not line up with English ({len(reshaped)}):\n")
         for page, locale, complaint in reshaped:
+            print(f"  {page} - {locale} has {complaint}")
+        print()
+    if adrift_links:
+        print(f"Repository files that link somewhere English does not ({len(adrift_links)}):\n")
+        for page, locale, complaint in adrift_links:
             print(f"  {page} - {locale} has {complaint}")
         print()
     if dead:

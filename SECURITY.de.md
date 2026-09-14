@@ -37,7 +37,7 @@ Wir streben an, innerhalb von 48h zu bestätigen und bei Problemen hoher Schwere
 ### Autorisierung
 
 - **Permission-basiert** — die Autorität innerhalb einer Organisation ist eine Membership-Zeile plus der Permission-Katalog (`app/core/permissions.py`). Es gibt keine Rollenspalte am Benutzer und keine rollenbasierte Route-Dependency.
-- **Org-Rollen** — eine Rolle ist ein Name auf der Membership (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`), der auf eine Menge von Permissions abbildet. Collection-Routen gaten auf eine Permission; der Zugriff je Ressource löst die Rolle zusammen mit expliziten Grants auf, und ein Grant erweitert, was eine Rolle erlaubt — er schränkt es nie ein. Siehe [Berechtigungen](docs/permissions.md).
+- **Org-Rollen** — eine Rolle ist ein Name auf der Membership (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`), der auf eine Menge von Permissions abbildet. Collection-Routen gaten auf eine Permission; der Zugriff je Ressource löst die Rolle zusammen mit expliziten Grants auf, und ein Grant erweitert, was eine Rolle erlaubt — er schränkt es nie ein. Siehe [Berechtigungen](docs/permissions.de.md).
 - **Workspace-Scope** — jede authentifizierte Anfrage löst eine `ActiveOrg` auf (Standard = persönliche Org). Ressourcen sind über den Fremdschlüssel `organization_id` gescoped.
 - **Administration des Deployments** — das Flag `is_app_admin` am Benutzer, von einer eigenen Dependency geprüft; keine Rolle.
 
@@ -45,12 +45,12 @@ Wir streben an, innerhalb von 48h zu bestätigen und bei Problemen hoher Schwere
 
 - **CORS** — Origin-Liste aus `settings.CORS_ORIGINS`. Schränken Sie sie in der Produktion auf Ihre Domains ein.
 - **HTTPS** — über einen Reverse Proxy erzwingen (Nginx / Traefik / ALB). Der Strict-Transport-Security-Header wird in der Middleware gesetzt, wenn `ENVIRONMENT=production` gilt.
-- **Security-Header** — das Frontend liefert eine vollständige Content-Security-Policy aus (`default-src 'self'`, ein `connect-src`, das nur diesen Origin und die konfigurierten `PUBLIC_API_URL` und `PUBLIC_WS_URL` nennt, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) sowie `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` und eine `Permissions-Policy`, die Kamera und Geolocation verweigert und das Mikrofon nur für Speech-to-Text erlaubt. Die Policy liegt in `frontend/src/lib/csp.ts` und die Header in `frontend/src/lib/security-headers.ts`, beide durch Tests abgesichert; siehe [Deployment](docs/deployment.md#security-headers).
+- **Security-Header** — das Frontend liefert eine vollständige Content-Security-Policy aus (`default-src 'self'`, ein `connect-src`, das nur diesen Origin und die konfigurierten `PUBLIC_API_URL` und `PUBLIC_WS_URL` nennt, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) sowie `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` und eine `Permissions-Policy`, die Kamera und Geolocation verweigert und das Mikrofon nur für Speech-to-Text erlaubt. Die Policy liegt in `frontend/src/lib/csp.ts` und die Header in `frontend/src/lib/security-headers.ts`, beide durch Tests abgesichert; siehe [Deployment](docs/deployment.de.md#security-headers).
 
 ### Daten
 
-- **Secrets** — über `pydantic-settings` aus der Umgebung gelesen. Nie eingecheckt. Siehe `backend/.env.example` und [Konfiguration](docs/configuration.md).
-- **Audit-Log** — App-Admin-Aktionen (Benutzeränderungen, Löschungen, Impersonationen) werden in der Tabelle `app_admin_audit_logs` mit Akteur + IP + Payload-Schnappschuss festgehalten. Aktionen auf Organisationsebene, die Zugriff ändern oder Geld ausgeben, haben ihre eigene Spur, gegatet durch `audit:read` — siehe [Governance](docs/governance.md).
+- **Secrets** — über `pydantic-settings` aus der Umgebung gelesen. Nie eingecheckt. Siehe `backend/.env.example` und [Konfiguration](docs/configuration.de.md).
+- **Audit-Log** — App-Admin-Aktionen (Benutzeränderungen, Löschungen, Impersonationen) werden in der Tabelle `app_admin_audit_logs` mit Akteur + IP + Payload-Schnappschuss festgehalten. Aktionen auf Organisationsebene, die Zugriff ändern oder Geld ausgeben, haben ihre eigene Spur, gegatet durch `audit:read` — siehe [Governance](docs/governance.de.md).
 - **RAG-Dokumente** — Datei-Uploads sind je Org gescoped. Kein öffentlicher Lese-Endpunkt; das gesamte Retrieval passiert serverseitig während des Chats.
 
 ### Härtungs-Checkliste für die Produktion

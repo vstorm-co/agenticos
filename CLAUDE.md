@@ -187,9 +187,12 @@ The site publishes in four languages, so a published page owes a `.pl.md`, a
 `.de.md` and an `.es.md` beside it, and editing an English page makes all three
 stale. The same is true of `README.md`, `CONTRIBUTING.md`, `SECURITY.md` and
 `CODE_OF_CONDUCT.md`, which GitHub renders rather than MkDocs: those record the
-fingerprint in an HTML comment, cannot pin an anchor, and have to rewrite their
-own in-page links per language. `scripts/check_docs_i18n.py` gates `make lint` on
-all of it and names what is missing; `docs/howto/translate.md` is the workflow.
+fingerprint in an HTML comment, cannot pin an anchor, rewrite their own in-page
+links per language, and point every other link at the reader's own language.
+`scripts/check_docs_i18n.py` gates `make lint` on all of it and names what is
+missing; `docs/howto/translate.md` is the workflow. Record a retranslated page
+with `--update <page>.<locale>.md` — it takes paths, because stamping one nobody
+retranslated is how a stale translation stops being visible.
 
 | Topic | Page |
 |---|---|
