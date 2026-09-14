@@ -10,6 +10,11 @@ What they hold: a written chain reads back and verifies with no false break -
 including details that round-trip through JSONB - an edited or deleted row is
 detected and named, and concurrent audited writes for one organization serialize
 into a single unbroken chain rather than forking at a shared head (#1622).
+
+The reads share the test's own `db` session, which the fixture rolls back and the
+engine disposes; only the concurrency test needs more than one connection, and it
+owns a dedicated engine it disposes itself, so no session is left holding
+`app_admin_audit_logs` when the next test's reset truncates it.
 """
 
 from __future__ import annotations
@@ -19,7 +24,7 @@ import uuid
 
 import pytest
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.audit import record_audit
 from app.db.models.audit_log import AppAdminAuditLog
@@ -29,7 +34,7 @@ from app.services.audit import AuditService
 pytestmark = pytest.mark.anyio
 
 
-async def _write_chain(db, organization_id: uuid.UUID, count: int) -> None:
+async def _write_chain(db: AsyncSession, organization_id: uuid.UUID | None, count: int) -> None:
     for index in range(count):
         await record_audit(
             db,
@@ -45,14 +50,12 @@ async def _write_chain(db, organization_id: uuid.UUID, count: int) -> None:
 
 
 class TestRoundTrip:
-    async def test_a_written_chain_reads_back_and_verifies(self, db, engine) -> None:
+    async def test_a_written_chain_reads_back_and_verifies(self, db) -> None:
         org = uuid.uuid4()
         await _write_chain(db, org, 5)
 
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as reader:
-            entries = await audit_log_repo.chain_for_org(reader, organization_id=org)
-            result = await AuditService(reader).verify_chain(org)
+        entries = await audit_log_repo.chain_for_org(db, organization_id=org)
+        result = await AuditService(db).verify_chain(org)
 
         assert result.first_break is None
         assert result.entries_checked == 5
@@ -61,24 +64,21 @@ class TestRoundTrip:
         assert entries[0].prev_hash is None
         assert all(entry.prev_hash is not None for entry in entries[1:])
 
-    async def test_two_organizations_keep_independent_chains(self, db, engine) -> None:
+    async def test_two_organizations_keep_independent_chains(self, db) -> None:
         org_a, org_b = uuid.uuid4(), uuid.uuid4()
         await _write_chain(db, org_a, 3)
         await _write_chain(db, org_b, 2)
 
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as reader:
-            results = await AuditService(reader).verify_all_chains()
+        results = {r.organization_id: r for r in await AuditService(db).verify_all_chains()}
 
-        by_org = {result.organization_id: result for result in results}
-        assert by_org[org_a].first_break is None
-        assert by_org[org_a].entries_checked == 3
-        assert by_org[org_b].first_break is None
-        assert by_org[org_b].entries_checked == 2
+        assert results[org_a].first_break is None
+        assert results[org_a].entries_checked == 3
+        assert results[org_b].first_break is None
+        assert results[org_b].entries_checked == 2
 
 
 class TestTheDeploymentChain:
-    async def test_a_tenant_less_write_chains_and_verifies(self, db, engine) -> None:
+    async def test_a_tenant_less_write_chains_and_verifies(self, db) -> None:
         """`organization_id=None` is the deployment-wide chain, whose advisory-lock
         key is `-2147483648` - the `pg_advisory_xact_lock` overload trap that must
         not throw (#1622). Deployment settings, impersonation and app-admin user
@@ -92,52 +92,46 @@ class TestTheDeploymentChain:
             )
         await db.commit()
 
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as reader:
-            result = await AuditService(reader).verify_chain(None)
+        result = await AuditService(db).verify_chain(None)
 
         assert result.first_break is None
         assert result.entries_checked == 3
 
 
 class TestTamperIsDetected:
-    async def test_editing_a_stored_row_is_detected(self, db, engine) -> None:
+    async def test_editing_a_stored_row_is_detected(self, db) -> None:
         org = uuid.uuid4()
         await _write_chain(db, org, 5)
+        entries = await audit_log_repo.chain_for_org(db, organization_id=org)
+        victim = entries[2]
 
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as tamperer:
-            entries = await audit_log_repo.chain_for_org(tamperer, organization_id=org)
-            victim = entries[2]
-            await tamperer.execute(
-                text("UPDATE app_admin_audit_logs SET action = :action WHERE id = :id"),
-                {"action": "agent.action.forged", "id": victim.id},
-            )
-            await tamperer.commit()
+        await db.execute(
+            text("UPDATE app_admin_audit_logs SET action = :action WHERE id = :id"),
+            {"action": "agent.action.forged", "id": victim.id},
+        )
+        await db.commit()
+        db.expire_all()  # so the verify re-reads the tampered row rather than the cached one
 
-        async with factory() as reader:
-            result = await AuditService(reader).verify_chain(org)
+        result = await AuditService(db).verify_chain(org)
 
         assert result.first_break is not None
         assert result.first_break.seq == victim.seq
         assert result.first_break.entry_id == victim.id
         assert "entry_hash" in result.first_break.reason
 
-    async def test_deleting_a_row_is_detected(self, db, engine) -> None:
+    async def test_deleting_a_row_is_detected(self, db) -> None:
         org = uuid.uuid4()
         await _write_chain(db, org, 5)
+        entries = await audit_log_repo.chain_for_org(db, organization_id=org)
+        removed, orphaned = entries[2], entries[3]
 
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as tamperer:
-            entries = await audit_log_repo.chain_for_org(tamperer, organization_id=org)
-            removed, orphaned = entries[2], entries[3]
-            await tamperer.execute(
-                text("DELETE FROM app_admin_audit_logs WHERE id = :id"), {"id": removed.id}
-            )
-            await tamperer.commit()
+        await db.execute(
+            text("DELETE FROM app_admin_audit_logs WHERE id = :id"), {"id": removed.id}
+        )
+        await db.commit()
+        db.expire_all()
 
-        async with factory() as reader:
-            result = await AuditService(reader).verify_chain(org)
+        result = await AuditService(db).verify_chain(org)
 
         assert result.first_break is not None
         # The entry after the hole now points at a hash the walk never arrives with.
@@ -146,38 +140,44 @@ class TestTamperIsDetected:
 
 
 class TestConcurrency:
-    async def test_concurrent_writes_for_one_org_do_not_fork_the_chain(self, engine) -> None:
+    async def test_concurrent_writes_for_one_org_do_not_fork_the_chain(self, schema_url) -> None:
+        """A dedicated engine, disposed here, so the several connections this test
+        opens are its own and are gone before the next test's reset runs."""
         org = uuid.uuid4()
-        factory = async_sessionmaker(engine, expire_on_commit=False)
         writers = 6
+        engine = create_async_engine(schema_url)
+        try:
+            factory = async_sessionmaker(engine, expire_on_commit=False)
 
-        async def write(index: int) -> None:
-            async with factory() as session:
-                await record_audit(
-                    session,
-                    actor_user_id=uuid.uuid4(),
-                    action=f"concurrent.{index}",
-                    organization_id=org,
+            async def write(index: int) -> None:
+                async with factory() as session:
+                    await record_audit(
+                        session,
+                        actor_user_id=uuid.uuid4(),
+                        action=f"concurrent.{index}",
+                        organization_id=org,
+                    )
+                    await session.commit()
+
+            await asyncio.gather(*(write(index) for index in range(writers)))
+
+            async with factory() as reader:
+                entries = await audit_log_repo.chain_for_org(reader, organization_id=org)
+                result = await AuditService(reader).verify_chain(org)
+                heads = await reader.execute(
+                    select(AppAdminAuditLog).where(
+                        AppAdminAuditLog.organization_id == org,
+                        AppAdminAuditLog.prev_hash.is_(None),
+                    )
                 )
-                await session.commit()
-
-        await asyncio.gather(*(write(index) for index in range(writers)))
-
-        async with factory() as reader:
-            entries = await audit_log_repo.chain_for_org(reader, organization_id=org)
-            result = await AuditService(reader).verify_chain(org)
+                head_count = len(heads.scalars().all())
+        finally:
+            await engine.dispose()
 
         assert result.first_break is None
         assert result.entries_checked == writers
-        # Serialized, not forked: every seq distinct and every entry but the first
-        # links to a real predecessor.
+        # Serialized, not forked: every seq distinct, one head, the rest linked.
         assert len({entry.seq for entry in entries}) == writers
+        assert head_count == 1
         assert entries[0].prev_hash is None
         assert all(entry.prev_hash is not None for entry in entries[1:])
-        # A fork would have shown two entries with prev_hash NULL.
-        heads = await reader.execute(
-            select(AppAdminAuditLog).where(
-                AppAdminAuditLog.organization_id == org, AppAdminAuditLog.prev_hash.is_(None)
-            )
-        )
-        assert len(heads.scalars().all()) == 1
