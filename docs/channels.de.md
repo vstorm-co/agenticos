@@ -1,5 +1,5 @@
 ---
-source_sha: "8be06480f8a4"
+source_sha: "f819ae10b8cc"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1376,7 +1376,11 @@ auseinanderlaufen kann.
   `{member_list}` - eingesetzt, wenn ein Run startet, aus denselben Aufrufen, die
   die Channel-Abfragen verwenden, sodass Telegram alle fünf anbietet, obwohl es
   zwei der vier Tools anbietet. Der Builder listet die, die diese Plattform
-  beantworten kann, unter dem Feld auf und fügt eine an der Cursorposition ein.
+  beantworten kann, unter dem Feld auf und fügt eine an der Cursorposition ein,
+  jeweils mit der echten Beschreibung des Tools - derjenigen, die das Modell
+  liest, bevor es sich entscheidet, es aufzurufen, nicht der verkürzten
+  Paraphrase aus dem Katalog, ohne die Auszeichnung, mit der das Modell selbst
+  die Zusammenfassung von der Form der Antwort unterscheidet.
 
     Pro Run aufgelöst und nie zwischengespeichert: die Mitgliedschaft eines
     Channels ändert sich, und eine veraltete Liste in einem Prompt ist schlimmer
