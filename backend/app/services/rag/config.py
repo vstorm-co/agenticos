@@ -150,6 +150,13 @@ EMBEDDING_DIMENSIONS: dict[str, int] = {
     "bge-small-en-v1.5": 384,
     "bge-base-en-v1.5": 768,
     "bge-large-en-v1.5": 1024,
+    # Served by Ollama's OpenAI-compatible `/v1/embeddings`; the widths are the
+    # models' own and `tests/test_embedding_providers.py` holds the catalog to them.
+    "nomic-embed-text": 768,
+    "mxbai-embed-large": 1024,
+    "bge-m3": 1024,
+    "snowflake-arctic-embed": 1024,
+    "all-minilm": 384,
 }
 
 

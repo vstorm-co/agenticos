@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
-import { useModelProviders, usePermissions, useSecrets } from "@/hooks";
+import { useLocalServices, useModelProviders, usePermissions, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
   hintOf,
@@ -74,11 +74,11 @@ export interface IngestionSettingsProps {
  * PyMuPDF, and a control that changes nothing is worse than an absent one. The
  * values behind them are kept, so switching back finds the tier that was set.
  */
-/** Sentinel for "the deployment's key" - a Select item may not be empty. */
-const DEPLOYMENT_KEY = "__deployment__";
-
 /** What a key here is for, which is also the id its mark is drawn from. */
 const LLAMAPARSE = "llamaparse";
+
+/** Sentinel for the Tesseract bundled with the worker - a Select item may not be empty. */
+const BUILT_IN_OCR = "__built_in__";
 
 export function IngestionSettings({
   value,
@@ -90,6 +90,10 @@ export function IngestionSettings({
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
   const llamaparseKeys = secrets.filter((secret) => secret.purpose === LLAMAPARSE);
+  // Only LiteParse sends pages anywhere, so the list of OCR servers is fetched
+  // only while it is the parser on screen.
+  const { services } = useLocalServices(value.pdf_parser === "liteparse");
+  const ocrServers = services.filter((service) => service.kind === "ocr" && service.is_active);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   const set = <K extends keyof IngestionConfig>(key: K, next: IngestionConfig[K]) =>
     onChange({ ...value, [key]: next });
@@ -180,20 +184,22 @@ export function IngestionSettings({
               description={t("whoseAccountEachParse")}
               disabled={disabled}
             >
+              {/* Controlled on an empty string, the way the embedding picker is:
+                  there is no deployment key to stand in for "none chosen", so the
+                  select reads as empty until a key is picked and the server
+                  refuses a LlamaParse collection without one. */}
               <Select
-                value={value.llamaparse_secret_id ?? DEPLOYMENT_KEY}
+                value={value.llamaparse_secret_id ?? ""}
                 disabled={disabled}
-                onValueChange={(next) =>
-                  set("llamaparse_secret_id", next === DEPLOYMENT_KEY ? null : next)
-                }
+                onValueChange={(next) => set("llamaparse_secret_id", next)}
               >
-                <SelectTrigger id={id("llamaparse-key")}>
-                  <SelectValue />
+                <SelectTrigger
+                  id={id("llamaparse-key")}
+                  aria-invalid={errors.llamaparse_secret_id !== undefined}
+                >
+                  <SelectValue placeholder={t("chooseKey")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={DEPLOYMENT_KEY} textValue={t("deploymentKey2")}>
-                    <ProviderRow provider={LLAMAPARSE} name={t("deploymentKey2")} />
-                  </SelectItem>
                   {llamaparseKeys.map((secret) => (
                     <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                       {/* Every key in this list is a LlamaParse key - that is
@@ -239,6 +245,39 @@ export function IngestionSettings({
             disabled={disabled}
             onChange={(next) => set("auto_ocr", next)}
           />
+        )}
+
+        {value.pdf_parser === "liteparse" && (
+          <OptionalSetting
+            htmlFor={id("ocr-server")}
+            label={t("ocrServerSetting")}
+            description={t("ocrServerHint")}
+            error={errors.ocr_endpoint_id}
+            disabled={disabled}
+          >
+            <Select
+              value={value.ocr_endpoint_id ?? BUILT_IN_OCR}
+              disabled={disabled}
+              onValueChange={(next) => set("ocr_endpoint_id", next === BUILT_IN_OCR ? null : next)}
+            >
+              <SelectTrigger
+                id={id("ocr-server")}
+                aria-invalid={errors.ocr_endpoint_id !== undefined}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={BUILT_IN_OCR}>{t("builtInTesseract")}</SelectItem>
+                {ocrServers.map((service) => (
+                  <SelectItem key={service.id} value={service.id} textValue={service.name}>
+                    {service.organization_id === null
+                      ? t("deploymentWideNamed", { name: service.name })
+                      : service.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </OptionalSetting>
         )}
 
         {value.pdf_parser === "liteparse" && (

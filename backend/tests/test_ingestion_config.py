@@ -31,7 +31,6 @@ from app.services.ingestion_config import (
     PdfParserName,
     chosen_embedding,
     deployment_defaults,
-    deployment_embedding,
     parse_override,
     rag_settings_for,
 )
@@ -272,20 +271,14 @@ class TestWhatTheDeploymentSeedsANewCollectionWith:
         An installation-wide `PDF_PARSER`/`RAG_CHUNK_SIZE` - inherited from the
         template this project was generated from - made the same form produce
         different collections on two deployments, with nothing in the product
-        showing which. The variables are gone; this pins that no replacement
-        creeps back in through `settings`.
+        showing which. The variables are gone, and so is the module's reach into
+        `settings` at all: the parser credentials and addresses that followed
+        them are rows the collection names.
         """
-        with patch("app.services.ingestion_config.settings") as env:
-            env.PDF_PARSER = "liteparse"
-            env.RAG_CHUNK_SIZE = 1024
-            env.LITEPARSE_OCR_LANGUAGE = "pol"
+        import app.services.ingestion_config as module
 
-            seeded = deployment_defaults()
-
-        assert seeded == IngestionConfig()
-        assert seeded.pdf_parser is PdfParserName.PYMUPDF
-        assert seeded.chunk_size == 512
-        assert seeded.ocr_language == "eng"
+        assert not hasattr(module, "settings")
+        assert deployment_defaults() == IngestionConfig()
 
     def test_liteparse_defaults_to_markdown_with_ocr_decided_per_document(self) -> None:
         """The two defaults that decide what a LiteParse collection costs and returns.
@@ -304,22 +297,13 @@ class TestWhatTheDeploymentSeedsANewCollectionWith:
         """It now costs a model profile the organization pays for; that is a choice."""
         assert deployment_defaults().describe_images is False
 
-    def test_the_embedding_model_is_recorded_with_the_width_it_implies(self) -> None:
-        with patch("app.services.ingestion_config.settings") as env:
-            env.EMBEDDING_MODEL = "text-embedding-3-small"
+    def test_no_choice_of_model_is_refused_on_the_field(self) -> None:
+        """There is no deployment default any more: the form offers the models
+        the chosen provider serves and one of them has to be chosen."""
+        with pytest.raises(BadRequestError) as refusal:
+            chosen_embedding(None)
 
-            assert deployment_embedding() == ("text-embedding-3-small", 1536)
-
-    def test_an_embedding_model_of_unknown_width_is_refused(self) -> None:
-        """The column would be created at the default width and every insert would fail."""
-        with (
-            patch("app.services.ingestion_config.settings") as env,
-            pytest.raises(BadRequestError) as refusal,
-        ):
-            env.EMBEDDING_MODEL = "some-new-embedder"
-            deployment_embedding()
-
-        assert "some-new-embedder" in refusal.value.message
+        assert refusal.value.details["fields"][0]["field"] == "embedding_model"
 
 
 class TestTurningAConfigurationIntoPipelineSettings:
@@ -354,17 +338,21 @@ class TestTurningAConfigurationIntoPipelineSettings:
         assert settings.chunk_overlap == 16
         assert settings.chunking_strategy == "fixed"
 
-    def test_the_ocr_server_address_stays_the_deployments(self) -> None:
-        """A tenant choosing a URL the backend then calls is request forgery."""
-        with patch("app.services.ingestion_config.settings") as env:
-            env.LITEPARSE_OCR_SERVER_URL = "http://easyocr.internal:8000"
-            env.LLAMAPARSE_API_KEY = "llx-deployment"
-            env.EMBEDDING_MODEL = "text-embedding-3-large"
+    def test_the_resolved_key_and_ocr_address_reach_the_parser(self) -> None:
+        """Both arrive resolved: the configuration holds ids, and neither a
+        credential nor an address an operator may edit belongs in a stored row."""
+        settings = rag_settings_for(
+            IngestionConfig(), llamaparse_api_key="llx-org", ocr_server_url="http://ocr:8000"
+        )
 
-            settings = rag_settings_for(IngestionConfig())
+        assert settings.pdf_parser.api_key == "llx-org"
+        assert settings.pdf_parser.liteparse_ocr_server_url == "http://ocr:8000"
 
-        assert settings.pdf_parser.liteparse_ocr_server_url == "http://easyocr.internal:8000"
-        assert settings.pdf_parser.api_key == "llx-deployment"
+    def test_nothing_resolved_means_no_key_and_the_workers_own_ocr(self) -> None:
+        settings = rag_settings_for(IngestionConfig())
+
+        assert settings.pdf_parser.api_key == ""
+        assert settings.pdf_parser.liteparse_ocr_server_url is None
 
 
 class TestResolvingTheModelThatReadsImages:
@@ -402,13 +390,10 @@ class TestResolvingTheModelThatReadsImages:
 
 
 class TestTheEmbeddingModelACollectionWasBuiltWith:
-    def test_indexing_continues_while_the_deployment_still_uses_it(self) -> None:
-        with patch("app.services.ingestion_config.settings") as env:
-            env.EMBEDDING_MODEL = "text-embedding-3-large"
-
-            IngestionConfigService(_db()).check_embedding_model(
-                collection="handbook", built_with="text-embedding-3-large"
-            )
+    def test_indexing_continues_for_a_model_this_build_knows(self) -> None:
+        IngestionConfigService(_db()).check_embedding_model(
+            collection="handbook", built_with="text-embedding-3-large"
+        )
 
     def test_a_named_model_is_looked_up_and_carries_its_width(self) -> None:
         """The width travels with the choice: the vector column is created at
@@ -423,19 +408,12 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
 
         assert "made-up-model" in refusal.value.message
 
-    def test_no_choice_means_the_deployment_default(self) -> None:
-        with patch("app.services.ingestion_config.settings") as env:
-            env.EMBEDDING_MODEL = "text-embedding-3-small"
-            assert chosen_embedding(None) == ("text-embedding-3-small", 1536)
-
-    def test_a_model_the_deployment_no_longer_defaults_to_still_indexes(self) -> None:
+    def test_a_model_no_provider_offers_any_more_still_indexes(self) -> None:
         """The store embeds each collection with its own recorded model, so a
-        changed deployment default must not strand existing collections."""
-        with patch("app.services.ingestion_config.settings") as env:
-            env.EMBEDDING_MODEL = "text-embedding-3-small"
-            IngestionConfigService(_db()).check_embedding_model(
-                collection="handbook", built_with="text-embedding-3-large"
-            )
+        catalog that moved on must not strand existing collections."""
+        IngestionConfigService(_db()).check_embedding_model(
+            collection="handbook", built_with="text-embedding-ada-002"
+        )
 
     def test_a_model_this_build_cannot_embed_with_is_refused_and_named(self) -> None:
         """The upload would otherwise be accepted and die in a worker with
@@ -453,7 +431,12 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
 
 
 class TestLlamaParseCredential:
-    """Whose key a LlamaParse parse is billed to - the org's, or the deployment's."""
+    """Whose key a LlamaParse parse is billed to - the organization's, or nobody's.
+
+    There is no deployment key. A collection on LlamaParse names a vault key or
+    is refused at the form; a stored one whose key has since gone is refused at
+    parse time with a sentence that reaches the document row whole.
+    """
 
     @staticmethod
     def _sealed_llamaparse_row(plaintext: str):
@@ -465,52 +448,47 @@ class TestLlamaParseCredential:
             purpose="llamaparse",
         )
 
-    async def test_the_organizations_key_is_unsealed_into_the_parser(self) -> None:
-        config = IngestionConfig(
-            pdf_parser=PdfParserName.LLAMAPARSE, llamaparse_secret_id=uuid.uuid4()
+    @staticmethod
+    def _llamaparse(secret_id: uuid.UUID | None = None) -> IngestionConfig:
+        return IngestionConfig(
+            pdf_parser=PdfParserName.LLAMAPARSE, llamaparse_secret_id=secret_id or uuid.uuid4()
         )
 
+    async def test_the_organizations_key_is_unsealed_into_the_parser(self) -> None:
         with patch(
             "app.services.ingestion_config.organization_secret_repo.get",
             new=AsyncMock(return_value=self._sealed_llamaparse_row("llx-org-own")),
         ):
-            processor = await IngestionConfigService(_db()).build_processor(ORG, config)
+            processor = await IngestionConfigService(_db()).build_processor(ORG, self._llamaparse())
 
         assert processor.settings.pdf_parser.api_key == "llx-org-own"
 
-    async def test_a_deleted_key_degrades_to_the_deployments(self) -> None:
-        """Whose key pays for a parse must never decide whether a document can
-        be read - the same bargain the embedding resolver makes."""
-        config = IngestionConfig(
-            pdf_parser=PdfParserName.LLAMAPARSE, llamaparse_secret_id=uuid.uuid4()
-        )
-
+    async def test_a_deleted_key_refuses_the_parse_and_says_which_key(self) -> None:
+        """Nothing to degrade to: a parse that cannot be billed is a parse that
+        cannot happen, and the refusal - ours - reaches the document row whole."""
         with (
             patch(
                 "app.services.ingestion_config.organization_secret_repo.get",
                 new=AsyncMock(return_value=None),
             ),
-            patch("app.services.ingestion_config.settings") as env,
+            pytest.raises(BadRequestError, match="no longer in the organization's vault"),
         ):
-            env.LLAMAPARSE_API_KEY = "llx-deployment"
-            env.LITEPARSE_OCR_SERVER_URL = ""
-            env.EMBEDDING_MODEL = "text-embedding-3-large"
-            processor = await IngestionConfigService(_db()).build_processor(ORG, config)
+            await IngestionConfigService(_db()).build_processor(ORG, self._llamaparse())
 
-        assert processor.settings.pdf_parser.api_key == "llx-deployment"
-
-    async def test_an_unopenable_or_wrong_kind_key_degrades_too(self) -> None:
+    async def test_an_unopenable_or_wrong_kind_key_refuses_too(self) -> None:
         broken = MagicMock(
             sealed_secret="not-a-ciphertext", kind=SecretKind.API_KEY.value, key_version=1
         )
-        config = IngestionConfig(llamaparse_secret_id=uuid.uuid4())
         service = IngestionConfigService(_db())
 
-        with patch(
-            "app.services.ingestion_config.organization_secret_repo.get",
-            new=AsyncMock(return_value=broken),
+        with (
+            patch(
+                "app.services.ingestion_config.organization_secret_repo.get",
+                new=AsyncMock(return_value=broken),
+            ),
+            pytest.raises(BadRequestError, match="could not be unsealed"),
         ):
-            assert await service._llamaparse_key(ORG, config) is None
+            await service._llamaparse_key(ORG, self._llamaparse())
 
         with (
             patch(
@@ -518,10 +496,11 @@ class TestLlamaParseCredential:
                 new=AsyncMock(return_value=self._sealed_llamaparse_row("llx-x-12345")),
             ),
             patch("app.services.ingestion_config.unseal_secret", return_value=MagicMock(spec=[])),
+            pytest.raises(BadRequestError, match="does not hold an API key"),
         ):
-            assert await service._llamaparse_key(ORG, config) is None
+            await service._llamaparse_key(ORG, self._llamaparse())
 
-    async def test_no_choice_asks_the_vault_nothing(self) -> None:
+    async def test_a_collection_on_another_parser_asks_the_vault_nothing(self) -> None:
         service = IngestionConfigService(_db())
 
         with patch(
@@ -530,16 +509,31 @@ class TestLlamaParseCredential:
             assert await service._llamaparse_key(ORG, IngestionConfig()) is None
             assert (
                 await service._llamaparse_key(
-                    None, IngestionConfig(llamaparse_secret_id=uuid.uuid4())
+                    ORG, IngestionConfig(llamaparse_secret_id=uuid.uuid4())
                 )
                 is None
             )
 
         vault.assert_not_called()
 
-    async def test_a_key_the_organization_does_not_hold_is_refused_at_the_form(self) -> None:
-        config = IngestionConfig(llamaparse_secret_id=uuid.uuid4())
+    async def test_a_stored_llamaparse_collection_with_no_key_refuses_the_parse(self) -> None:
+        with pytest.raises(BadRequestError, match="names no vault key"):
+            await IngestionConfigService(_db())._llamaparse_key(
+                ORG, IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
+            )
+        with pytest.raises(BadRequestError, match="names no vault key"):
+            await IngestionConfigService(_db())._llamaparse_key(None, self._llamaparse())
 
+    async def test_llamaparse_with_no_key_is_refused_at_the_form(self) -> None:
+        """The same refusal, where the person who can fix it is looking."""
+        with pytest.raises(BadRequestError) as refusal:
+            await IngestionConfigService(_db()).check_llamaparse_secret(
+                ORG, IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
+            )
+
+        assert refusal.value.details["fields"][0]["field"] == "llamaparse_secret_id"
+
+    async def test_a_key_the_organization_does_not_hold_is_refused_at_the_form(self) -> None:
         with (
             patch(
                 "app.services.ingestion_config.organization_secret_repo.get",
@@ -547,11 +541,9 @@ class TestLlamaParseCredential:
             ),
             pytest.raises(BadRequestError, match="vault"),
         ):
-            await IngestionConfigService(_db()).check_llamaparse_secret(ORG, config)
+            await IngestionConfigService(_db()).check_llamaparse_secret(ORG, self._llamaparse())
 
     async def test_a_key_for_something_else_is_refused_by_purpose(self) -> None:
-        config = IngestionConfig(llamaparse_secret_id=uuid.uuid4())
-
         with (
             patch(
                 "app.services.ingestion_config.organization_secret_repo.get",
@@ -559,25 +551,86 @@ class TestLlamaParseCredential:
             ),
             pytest.raises(BadRequestError, match="not LlamaParse"),
         ):
-            await IngestionConfigService(_db()).check_llamaparse_secret(ORG, config)
+            await IngestionConfigService(_db()).check_llamaparse_secret(ORG, self._llamaparse())
 
-    async def test_a_personal_collection_cannot_carry_a_vault_key(self) -> None:
-        config = IngestionConfig(llamaparse_secret_id=uuid.uuid4())
+    async def test_an_app_scoped_collection_cannot_parse_with_llamaparse(self) -> None:
+        """No organization, no vault, no key - so the parser is what is wrong."""
+        with pytest.raises(BadRequestError) as refusal:
+            await IngestionConfigService(_db()).check_llamaparse_secret(None, self._llamaparse())
 
-        with pytest.raises(BadRequestError, match="organization"):
-            await IngestionConfigService(_db()).check_llamaparse_secret(None, config)
+        assert refusal.value.details["fields"][0]["field"] == "pdf_parser"
 
-    async def test_no_choice_passes_the_form_check_silently(self) -> None:
+    async def test_another_parser_passes_the_form_check_whatever_the_key_field_says(self) -> None:
         await IngestionConfigService(_db()).check_llamaparse_secret(ORG, IngestionConfig())
+        await IngestionConfigService(_db()).check_llamaparse_secret(
+            None, IngestionConfig(llamaparse_secret_id=uuid.uuid4())
+        )
 
     async def test_a_valid_key_passes_the_form_check(self) -> None:
-        config = IngestionConfig(llamaparse_secret_id=uuid.uuid4())
-
         with patch(
             "app.services.ingestion_config.organization_secret_repo.get",
             new=AsyncMock(return_value=MagicMock(purpose="llamaparse")),
         ):
-            await IngestionConfigService(_db()).check_llamaparse_secret(ORG, config)
+            await IngestionConfigService(_db()).check_llamaparse_secret(ORG, self._llamaparse())
+
+
+def _ocr_service(**overrides: object) -> MagicMock:
+    row = MagicMock(
+        name="Scanner", kind="ocr", provider="liteparse", base_url="http://ocr:8000", is_active=True
+    )
+    row.name = "Scanner"
+    for key, value in overrides.items():
+        setattr(row, key, value)
+    return row
+
+
+class TestTheOcrServer:
+    """Where LiteParse sends pages: a local service the collection names, or the
+    worker's own Tesseract. Checked at the form and resolved at parse time, both
+    within what the collection may name."""
+
+    async def test_no_choice_is_the_workers_own_tesseract(self) -> None:
+        service = IngestionConfigService(_db())
+        with patch(
+            "app.services.ingestion_config.local_service_repo.get_visible", new=AsyncMock()
+        ) as lookup:
+            await service.check_ocr_endpoint(ORG, IngestionConfig())
+            assert await service._ocr_server_url(ORG, IngestionConfig()) is None
+
+        lookup.assert_not_called()
+
+    async def test_a_visible_ocr_server_resolves_to_its_address(self) -> None:
+        config = IngestionConfig(ocr_endpoint_id=uuid.uuid4())
+        with patch(
+            "app.services.ingestion_config.local_service_repo.get_visible",
+            new=AsyncMock(return_value=_ocr_service()),
+        ):
+            await IngestionConfigService(_db()).check_ocr_endpoint(ORG, config)
+            processor = await IngestionConfigService(_db()).build_processor(ORG, config)
+
+        assert processor.settings.pdf_parser.liteparse_ocr_server_url == "http://ocr:8000"
+
+    @pytest.mark.parametrize(
+        ("row", "reason"),
+        [
+            (None, "not one this collection may name"),
+            (_ocr_service(kind="embedding"), "not an OCR server"),
+            (_ocr_service(is_active=False), "turned off"),
+        ],
+        ids=["invisible", "wrong-kind", "paused"],
+    )
+    async def test_a_server_it_may_not_use_is_refused_on_the_field(self, row, reason) -> None:
+        config = IngestionConfig(ocr_endpoint_id=uuid.uuid4())
+        with (
+            patch(
+                "app.services.ingestion_config.local_service_repo.get_visible",
+                new=AsyncMock(return_value=row),
+            ),
+            pytest.raises(BadRequestError, match=reason) as refusal,
+        ):
+            await IngestionConfigService(_db()).check_ocr_endpoint(ORG, config)
+
+        assert refusal.value.details["fields"][0]["field"] == "ocr_endpoint_id"
 
 
 class TestBuildingWhatActuallyRuns:

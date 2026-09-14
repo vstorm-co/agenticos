@@ -431,8 +431,8 @@ async def estate(db) -> TwoTenants:
             name="Handbook",
             collection_name=f"kb_{uuid.uuid4().hex[:8]}",
             ingestion_config=deployment_defaults().model_dump(mode="json"),
-            embedding_model=settings.EMBEDDING_MODEL,
-            embedding_dim=settings.rag.embeddings_config.dim,
+            embedding_model=_BUILT_WITH,
+            embedding_dim=_BUILT_WIDTH,
         )
         db.add(collection)
         collections.append(collection)
@@ -530,8 +530,8 @@ async def _kb_row(
         is_default=is_default,
         visibility=visibility,
         ingestion_config=(ingestion_config or deployment_defaults()).model_dump(mode="json"),
-        embedding_model=embedding_model or settings.EMBEDDING_MODEL,
-        embedding_dim=settings.rag.embeddings_config.dim,
+        embedding_model=embedding_model or _BUILT_WITH,
+        embedding_dim=_BUILT_WIDTH,
     )
     db.add(kb)
     await db.flush()
@@ -1342,12 +1342,44 @@ def uploads(tmp_path, monkeypatch):
     return queued
 
 
+_BUILT_WITH = "text-embedding-3-large"
+_BUILT_WIDTH = 3072
+"""What every collection these flows create embeds with - a model OpenRouter serves."""
+
+
+async def _embedding_key(db, tenant: Tenant, *, collection: str) -> OrganizationSecret:
+    """An OpenRouter key in the tenant's vault, for one collection to pay with.
+
+    There is no deployment-wide embedding key, so `KnowledgeBaseService.create`
+    refuses an organization collection that names none - and checks that the
+    chooser can see the key it names, which is why this goes through the vault
+    service as the tenant's owner rather than being inserted as a row. Named
+    after the collection because a secret's name is unique per organization and
+    several tests give one tenant several collections.
+    """
+    return await OrganizationSecretService(db).create(
+        tenant.ctx,
+        name=f"Embeddings for {collection}",
+        value=ApiKeySecret(api_key="sk-test-embeddings-key"),
+        purpose="openrouter",
+    )
+
+
 async def _collection_with(
-    db, tenant: Tenant, *, name: str, config: IngestionConfig
+    db, tenant: Tenant, *, name: str, config: IngestionConfig | None = None
 ) -> KnowledgeBase:
     """A collection created through the service that guards its configuration."""
+    key = await _embedding_key(db, tenant, collection=name)
     return await KnowledgeBaseService(db).create(
-        KnowledgeBaseCreate(name=name, scope="org", collection_name=name, ingestion_config=config),
+        KnowledgeBaseCreate(
+            name=name,
+            scope="org",
+            collection_name=name,
+            ingestion_config=config,
+            embedding_model=_BUILT_WITH,
+            embedding_provider="openrouter",
+            embedding_secret_id=key.id,
+        ),
         ctx=tenant.ctx,
     )
 
@@ -1400,10 +1432,7 @@ class TestHowACollectionReadsItsDocuments:
     async def test_a_collection_with_no_opinion_gets_the_deployments(self, db) -> None:
         tenant = await _tenant(db, name="Casual")
 
-        collection = await KnowledgeBaseService(db).create(
-            KnowledgeBaseCreate(name="notes", scope="org", collection_name="notes"),
-            ctx=tenant.ctx,
-        )
+        collection = await _collection_with(db, tenant, name="notes")
 
         assert collection.ingestion_config == deployment_defaults().model_dump(mode="json")
 
@@ -1429,25 +1458,31 @@ class TestHowACollectionReadsItsDocuments:
         )
         assert isinstance(processor.pdf_parser, LiteParseParser)
 
-    async def test_a_parser_that_cannot_be_built_is_refused_not_quietly_swapped(
-        self, db, uploads, monkeypatch
+    async def test_a_parser_that_cannot_be_billed_is_refused_not_quietly_swapped(
+        self, db, uploads
     ) -> None:
         """LlamaParse without a key must not fall back to the local parser.
 
         A collection whose owner chose the cloud parser for scanned contracts
         and silently got PyMuPDF has an index full of blank pages and nothing
-        anywhere saying so.
+        anywhere saying so. There is no deployment key to fall back to either, so
+        the form refuses the collection, and a stored configuration that lost
+        its key refuses the parse.
         """
-        monkeypatch.setattr(settings, "LLAMAPARSE_API_KEY", "")
         tenant = await _tenant(db, name="Cloudless")
-        collection = await _collection_with(
-            db, tenant, name="cloud", config=IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
-        )
-        document = await _upload(db, tenant, collection)
 
-        with pytest.raises(ValueError, match="LLAMAPARSE_API_KEY"):
+        with pytest.raises(BadRequestError) as refusal:
+            await _collection_with(
+                db,
+                tenant,
+                name="cloud",
+                config=IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE),
+            )
+        assert refusal.value.details["fields"][0]["field"] == "llamaparse_secret_id"
+
+        with pytest.raises(BadRequestError, match="LlamaParse"):
             await IngestionConfigService(db).build_processor(
-                document.organization_id, IngestionConfig.model_validate(document.ingestion_config)
+                tenant.organization.id, IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
             )
 
     async def test_an_override_wins_for_that_document_and_no_other(self, db, uploads) -> None:
@@ -1638,28 +1673,23 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
 
         collection = await _collection_with(db, tenant, name="indexed", config=IngestionConfig())
 
-        assert collection.embedding_model == settings.EMBEDDING_MODEL
-        assert collection.embedding_dim == settings.rag.embeddings_config.dim
+        assert collection.embedding_model == _BUILT_WITH
+        assert collection.embedding_dim == _BUILT_WIDTH
 
-    async def test_a_changed_deployment_default_no_longer_strands_a_collection(
-        self, db, uploads, monkeypatch
-    ) -> None:
+    async def test_a_collection_keeps_the_model_it_was_built_with(self, db, uploads) -> None:
         """The store embeds each collection with its own recorded model.
 
-        Changing `EMBEDDING_MODEL` used to make every existing collection
-        refuse ingestion until the variable was restored. The default now only
-        decides what *new* collections are built with - this one keeps
-        indexing, and its documents keep recording the model that actually
-        produced their vectors.
+        There used to be a deployment-wide `EMBEDDING_MODEL`, and changing it
+        made every existing collection refuse ingestion until it was restored.
+        The model is the collection's own now, so its documents keep recording
+        the model that actually produced their vectors.
         """
         tenant = await _tenant(db, name="Switched")
         collection = await _collection_with(db, tenant, name="switched", config=IngestionConfig())
-        built_with = collection.embedding_model
-        monkeypatch.setattr(settings, "EMBEDDING_MODEL", "voyage-3")
 
         document = await _upload(db, tenant, collection)
 
-        assert document.embedding_model == built_with
+        assert document.embedding_model == collection.embedding_model == _BUILT_WITH
 
     async def test_a_document_records_the_model_its_vectors_came_from(self, db, uploads) -> None:
         tenant = await _tenant(db, name="Traceable")
