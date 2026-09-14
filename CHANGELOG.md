@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.434] - 2026-09-15
+
+### Changed
+
+- **Fifteen backend dependencies moved to their current patch and minor
+  releases**, and the third-party notices with them. No component enters or leaves
+  the closure and no licence changes.
+
 ## [0.0.433] - 2026-09-15
 
 ### Added
