@@ -17,10 +17,13 @@ from app.db.models.audit_log import AppAdminAuditLog
 
 logger = logging.getLogger(__name__)
 
-# The lock subject for entries that belong to no organization - the approval
-# expiry sweep and operator shell commands. `hold_subject` takes a UUID, and the
-# all-zeros one is not a real organization's id, so it names the deployment-wide
-# chain without colliding with any tenant's (#1622).
+# The lock subject for entries that belong to no organization - deployment-wide
+# actions with no tenant: a deployment settings change, an impersonation starting
+# or ending, and app-admin user management. (The expiry sweep and the RAG shell
+# commands have a null *actor* but still carry their row's organization, so they
+# chain under that tenant, not here.) `hold_subject` takes a UUID, and the all-zeros
+# one is not a real organization's id, so it names the deployment-wide chain without
+# colliding with any tenant's (#1622).
 _DEPLOYMENT_CHAIN = uuid.UUID(int=0)
 
 _impersonator_id: ContextVar[UUID | None] = ContextVar("audit_impersonator_id", default=None)
@@ -75,9 +78,14 @@ def chain_hash(
 
     `created_at` is normalized to UTC and the payload is sorted, so the string
     hashed is the same whether the value was just built in Python or read back
-    from the column. `id` and `seq` are deliberately left out: `id` is a random
-    identifier and `seq` is only the order to walk the chain in - the linkage,
-    not the content, is what fixes an entry's place.
+    from the column. `id` and `seq` are deliberately left out: both are metadata,
+    not the record of what happened. Reordering entries is still caught, because
+    the verifier walks in `seq` order and a changed order makes an entry's stored
+    `prev_hash` disagree with the one the walk now arrives from; what excluding
+    `seq` leaves undetected is renumbering it without changing the order, which
+    changes nothing the trail attests to. `id` is a random handle the verifier
+    reports a break against, not part of the action it records. Neither is
+    available before the row is flushed, either, where the hash is built.
     """
     payload = {
         "prev_hash": prev_hash,
@@ -129,6 +137,14 @@ async def record_audit(
     audited writes racing for the same head and forking it; the lock is held to
     the end of the request's transaction, so entries a single transaction records
     chain in the order they were written.
+
+    That lock is transaction-scoped, so a caller must take it *after* the row locks
+    of the mutation it records - which a single request does naturally, auditing at
+    its end. A batch that audits several entries in one transaction must therefore
+    do all its row work first and audit last (see `ApprovalService.expire_stale`):
+    holding this chain lock while going on to lock another row lets a concurrent
+    decision that holds that row and reaches for the same chain lock close an ABBA
+    cycle Postgres has to abort.
     """
     impersonator_id = _impersonator_id.get()
     impersonator = impersonator_id if impersonator_id != actor_user_id else None

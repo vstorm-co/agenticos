@@ -51,7 +51,8 @@ class ChainVerification:
 
     Attributes:
         organization_id: The chain's organization, or None for the deployment-wide
-            chain (the approval-expiry sweep and operator shell commands).
+            chain - actions with no tenant, such as a deployment settings change,
+            an impersonation, or app-admin user management.
         entries_checked: How many entries were walked before it ended or broke.
         first_break: The first entry that did not verify, or None when the whole
             chain is intact.

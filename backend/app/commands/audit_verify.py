@@ -51,7 +51,8 @@ def audit_verify(organization_id: UUID | None) -> None:
     """Walk each audit chain, recompute its hashes, and report the first break.
 
     With no `--org`, every chain is verified, including the deployment-wide one
-    that holds the approval-expiry sweep and operator shell commands. Exits
+    that holds actions with no tenant - deployment settings, impersonation, and
+    app-admin user management. Exits
     non-zero if any chain fails, naming the entry it broke on.
 
     Example:

@@ -74,8 +74,8 @@ def upgrade() -> None:
     # Walk each organization's chain from its start, linking each entry to the one
     # before it. Reading in `seq` order and bucketing by organization keeps every
     # chain in the order `record_audit` would have written it. NULL is the
-    # deployment-wide chain (the expiry sweep, operator shell commands) and is one
-    # bucket like any other.
+    # deployment-wide chain (tenant-less actions: deployment settings, impersonation,
+    # app-admin user management) and is one bucket like any other.
     bind = op.get_bind()
     heads: dict[object, str | None] = {}
     for row in bind.execute(sa.text(_BACKFILL_SELECT)):
