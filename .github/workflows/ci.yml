@@ -659,6 +659,4 @@ jobs:
       # build never emits. Checking it needs the renderer, which only this job
       # installs - in the `test` job it skips for want of `pymdownx`.
       - name: Check the slug rule against the real renderer
-        run: >
-          uv run --directory backend pytest -q
-          tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
+        run: make docs-slug-check
