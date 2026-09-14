@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.417] - 2026-09-14
+
+### Fixed
+
+- **A Slack bot saved without a signing secret answered 500.** The three channel
+  webhook receivers had drifted: Telegram and Mattermost refuse an event they
+  cannot verify with 403, because a bot with no secret is an unauthenticated
+  endpoint that would run an agent on an organization's budget. Slack alone
+  raised, which sent Slack's retrier a bodiless error instead of a refusal. It
+  now logs which bot to configure and refuses with 403 like its siblings; a wrong
+  signature was already 403 on all three. (#555)
+
 ## [0.0.416] - 2026-09-14
 
 ### Fixed
