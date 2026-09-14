@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.433] - 2026-09-15
+
+### Added
+
+- **The audit trail is tamper-evident.** `app_admin_audit_logs` is the record of
+  every privileged action and the app-admin bypass story leans on it, but a row
+  was only a row: an operator with the database could rewrite or delete an entry
+  and leave nothing that said so. Each entry now joins a per-organization hash
+  chain - its own hash over its canonical fields with the previous entry's folded
+  in, plus a deployment-wide `seq` giving the chain a deterministic order even
+  when one transaction writes two entries on the same transaction-stable
+  timestamp. Editing, reordering, inserting or deleting an entry diverges every
+  hash after it. Two audited writes for one organization cannot fork the chain:
+  each appends under a per-organization lock. (#1622)
+- **`agenticos cmd audit-verify`** walks each chain, recomputes the hashes and
+  names the first entry that no longer matches; with no argument it checks every
+  chain, including the deployment-wide one holding tenant-less actions, and exits
+  non-zero if any fails. This is detection, not prevention - an operator who
+  rewrites a row can recompute every hash after it - and two deletions it cannot
+  see on its own are dropping a chain's newest entries and deleting a chain
+  outright, since the survivors stay internally consistent. Both are named in the
+  governance page rather than left for a reader to discover. (#1622)
+
 ## [0.0.432] - 2026-09-15
 
 ### Fixed
