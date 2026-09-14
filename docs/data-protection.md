@@ -39,7 +39,8 @@ The one thing that cannot stay local today is **embeddings**: the embedding
 catalog names OpenRouter and OpenAI, so a knowledge base sends its chunks and
 queries to one of them. A deployment that must keep documents on its own
 hardware does not use the knowledge base until a self-hosted embedding entry
-exists; context files and attachments, which are not embedded, are unaffected.
+exists ([#1632](https://github.com/vstorm-co/agenticos/issues/1632)); context
+files and attachments, which are not embedded, are unaffected.
 
 ## Who is responsible for what
 
@@ -281,7 +282,9 @@ UNION ALL SELECT 'chat_files', count(*) FROM chat_files;
 #    its message while the file stays, so the difference grows with every
 #    deleted conversation (see "What deletion reaches"). Generated images and
 #    the parse scratch directory have no row by design and are excluded.
-psql "$DATABASE_URL_SYNC" -Atc "SELECT storage_path FROM chat_files
+#    Through the database container: the API knows its connection string only
+#    as a computed setting, not as a variable a shell could read.
+docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT storage_path FROM chat_files
   UNION SELECT storage_path FROM rag_documents WHERE storage_path IS NOT NULL" \
   | sort > /tmp/referenced.txt
 (cd "${MEDIA_DIR:-./media}" && find . -type f -not -path './generated_*' -not -path './_rag_tmp/*' \
@@ -315,9 +318,10 @@ deployment until each closes.
 - No self-service view of one's own memory - [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 - The HIPAA and SOC 2 controls matrix - [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
-
-**In the code, not yet tracked:** no self-hosted embedding provider in the
-catalog, so a knowledge base always reaches OpenRouter or OpenAI.
+- No self-hosted embedding provider in the catalog, so a knowledge base always
+  reaches OpenRouter or OpenAI - [#1632](https://github.com/vstorm-co/agenticos/issues/1632).
+- An app-scoped collection has no vault to hold an embedding key, so it cannot
+  index or search - [#1631](https://github.com/vstorm-co/agenticos/issues/1631).
 
 **In the deployment, decided by its operator:** the agreements, locations,
 training exclusions, retention schedule, backup expiry, disk encryption, sandbox
