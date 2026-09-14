@@ -559,6 +559,7 @@ class TestPrepare:
 
         return {"agent_id": agent.id, "run_id": run.id, **build.call_args.kwargs}
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_the_spend_the_agent_checks_its_budget_against_is_this_calendar_month(self):
         """The monthly limit is checked mid-run, against a window that matches the invoice.
@@ -1227,6 +1228,7 @@ class TestSkillChangesARunProposed:
 
 
 class TestRunAccounting:
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_failed_run_still_records_its_cost(self):
         """A budget that ignores failures is not a budget."""
@@ -1261,6 +1263,7 @@ class TestRunAccounting:
 
         assert finish.call_args.kwargs["cost_is_partial"] is True
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_budget_stop_is_not_recorded_as_a_failure(self):
         """It is the platform working; an operator filtering for problems should not see it."""
@@ -1751,6 +1754,7 @@ class TestApprovals:
         ):
             await ApprovalService(_db()).decide(_ctx(), uuid.uuid4(), approved=False)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_approval_from_another_org_is_not_found(self):
         with (
@@ -3281,6 +3285,7 @@ class TestEnvironmentObservability:
 
 
 class TestTracingSecret:
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_the_tracing_token_is_unsealed_with_the_capability_secrets(self):
         """One pass over the vault, not two.

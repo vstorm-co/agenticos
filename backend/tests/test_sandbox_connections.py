@@ -875,6 +875,7 @@ class TestReadingTheSessions:
     address, and `GET /sessions` answers with all of them.
     """
 
+    @pytest.mark.security
     async def test_another_tenants_sandboxes_are_dropped_before_the_response(self, monkeypatch):
         row = _row()
         service = _service(
@@ -904,6 +905,7 @@ class TestReadingTheSessions:
         assert [entry.session_id for entry in listing.sessions] == ["mine"]
         assert listing.limit == 20
 
+    @pytest.mark.security
     async def test_a_session_with_no_tenant_label_is_not_assumed_to_be_ours(self, monkeypatch):
         """Something else opened it against the same service. Showing it would be
         showing a container this organization has no claim to."""
@@ -1034,6 +1036,7 @@ class TestReadingTheSessions:
         assert entry.conversation_id is None
         assert entry.scope is None
 
+    @pytest.mark.security
     async def test_the_tenant_label_does_not_survive_into_a_row(self, monkeypatch):
         """It is how the filter knows whose a session is, and it is another
         organization's id when the session is theirs. A row is built from the
@@ -1352,6 +1355,7 @@ class TestReadingOneSessionsActivity:
         assert log.latest_seq == 0
 
 
+@pytest.mark.security
 def test_the_read_model_carries_the_reference_and_not_the_secret():
     row = _row()
 

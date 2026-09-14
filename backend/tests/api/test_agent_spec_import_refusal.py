@@ -153,6 +153,7 @@ class TestTheRefusalNamesTheField:
 
 
 class TestTheRefusalQuotesNothingSubmitted:
+    @pytest.mark.security
     async def test_neither_the_instructions_nor_a_secret_reference_come_back(
         self, client: Any
     ) -> None:

@@ -425,6 +425,7 @@ class TestResolvingADocument:
         assert (await service.readable_document(_ctx(), str(doc.id))).id == doc.id
         assert (await service.writable_document(_ctx(), str(doc.id))).id == doc.id
 
+    @pytest.mark.security
     async def test_a_document_in_another_tenants_collection_is_reported_as_a_missing_document(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
@@ -515,6 +516,7 @@ class TestResolvingASyncRun:
 
         assert (await service.sync_log(_ctx(), str(log.id))).id == log.id
 
+    @pytest.mark.security
     async def test_a_run_against_another_tenants_collection_is_not_found(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:

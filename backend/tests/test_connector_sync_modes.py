@@ -221,6 +221,7 @@ class TestWhichKnowledgeBaseOwnsTheCollection:
         with self._kbs(self._kb(organization_id=None), mine):
             assert await rag_tasks._knowledge_base_for(MagicMock(), "docs", org) is mine
 
+    @pytest.mark.security
     async def test_another_tenants_collection_is_not_borrowed(self):
         with self._kbs(self._kb(organization_id=uuid.uuid4())):
             found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())

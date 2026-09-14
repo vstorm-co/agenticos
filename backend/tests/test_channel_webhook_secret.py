@@ -31,7 +31,7 @@ from app.services.channels.base import IncomingMessage
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.telegram import TelegramAdapter
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def _bot_service(bot: ChannelBot | None) -> MagicMock:

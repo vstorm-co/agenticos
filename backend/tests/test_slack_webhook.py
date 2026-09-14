@@ -55,6 +55,7 @@ class TestVerification:
 
         assert response.status_code == 200
 
+    @pytest.mark.security
     async def test_a_bot_without_a_signing_secret_refuses_and_names_the_fix(self):
         bot = MagicMock()
 

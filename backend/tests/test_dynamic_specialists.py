@@ -440,6 +440,7 @@ class TestADynamicSpecialistIsMetered:
 
 
 class TestInventingOneIsSomethingAPersonSeesFirst:
+    @pytest.mark.security
     async def test_both_entry_points_need_approval_by_default(self):
         """The one place delegation and *dynamic* delegation part company.
 

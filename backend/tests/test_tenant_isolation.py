@@ -12,6 +12,8 @@ import pytest
 from app.schemas.conversation import ConversationCreate
 from app.services.conversation import ConversationService
 
+pytestmark = pytest.mark.security
+
 
 class TestConversationTenantIsolation:
     """Conversation listing and creation respect organization_id (PostgreSQL)."""

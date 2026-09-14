@@ -1666,6 +1666,7 @@ class TestContextValidation:
 
 
 class TestToolApprovalValidation:
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_approval_for_a_tool_the_capability_does_not_have_is_refused(
         self, ungranted_capability
@@ -3064,6 +3065,7 @@ class TestAFetchTheApprovalGateCouldNotHold:
     def _spec_with(config: dict, **approval: object):
         return _bound("web_fetch", config, **approval)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_native_fetch_with_approval_required_is_refused(self):
         problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))
@@ -3101,6 +3103,7 @@ class TestASearchTheApprovalGateCouldNotHold:
     def _spec_with(config: dict, **approval: object):
         return _bound("web_research", config, **approval)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_native_search_with_approval_required_is_refused(self):
         problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))

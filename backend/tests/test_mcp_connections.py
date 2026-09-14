@@ -3545,6 +3545,7 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         assert "ReadError" in shown
         assert vendor_text in caplog.text
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_unreadable_token_response_does_not_echo_its_input(self, monkeypatch, caplog):
         """A pydantic `ValidationError` echoes the input it rejected, and here

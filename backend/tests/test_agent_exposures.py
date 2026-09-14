@@ -230,6 +230,7 @@ class TestCreate:
         assert "exposure_id" not in refused.value.details
         exposures.create.assert_not_called()
 
+    @pytest.mark.security
     async def test_binding_demands_permission_to_publish_the_agent(self):
         """Where an agent runs is the same class of decision as what runs."""
         service = _service()
@@ -403,6 +404,7 @@ class TestReading:
 
             assert await service.targets(_ctx(), uuid.uuid4()) == []
 
+    @pytest.mark.security
     async def test_the_picker_needs_only_permission_to_see_the_agent(self):
         """Choosing where an agent goes must not require running the bots.
 
@@ -531,6 +533,7 @@ class TestChangingABinding:
         assert audit.call_args.kwargs["action"] == "agent.unexposed"
         assert audit.call_args.kwargs["details"]["surface"] == "telegram"
 
+    @pytest.mark.security
     async def test_changing_a_binding_demands_permission_to_publish_the_agent(self):
         agent = _agent()
         service = _service(agent)

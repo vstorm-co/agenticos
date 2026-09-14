@@ -20,7 +20,7 @@ from app.core.exceptions import AuthenticationError
 from app.main import app
 from app.services import rate_limit
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def _redis_counting(count: int) -> MagicMock:
