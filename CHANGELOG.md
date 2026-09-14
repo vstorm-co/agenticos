@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.430] - 2026-09-15
+
+### Added
+
+- **The security page a HIPAA- or SOC 2-shaped review asks for, in one copy.**
+  `docs/security.md` sets out the trust boundaries a request crosses on its way to
+  the data, what leaves the deployment and to whom, what is encrypted where - and
+  a controls matrix that names, for each control, the mechanism in this codebase
+  that satisfies it and the test that holds it true. It describes what is, not
+  what would be nice: a row with no mechanism says so and links the issue that
+  would build it, and the things the vault does not seal - short-lived bearer
+  tokens, uploaded files, message bodies, RAG rows and sandbox workspaces - are
+  stated rather than left to be discovered. Published in all four languages.
+  (#1412)
+
+### Changed
+
+- **`SECURITY.md` keeps only the two things a repository's `SECURITY.md` is read
+  for.** How to report a vulnerability, and the production hardening checklist.
+  The security model it used to restate now lives in one copy on the page above,
+  with pointers to it and to Data protection and Licences.
+
 ## [0.0.429] - 2026-09-15
 
 ### Fixed
