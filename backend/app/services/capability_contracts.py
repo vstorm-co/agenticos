@@ -186,6 +186,19 @@ async def tool_contracts() -> dict[str, dict[str, ToolContract]]:
 _CACHED: dict[str, dict[str, ToolContract]] | None = None
 
 
+def real_tool_definition(tool: Any) -> Any:
+    """The `ToolDefinition` a built tool carries, however it is wrapped.
+
+    `tool_def` is where a `Tool` keeps it; a bare toolset object with none of
+    that wrapping keeps the fields directly, which is why this falls back to
+    the object itself rather than assuming the attribute. The one place that
+    knows this shape, so a reader asking what the model was actually sent -
+    this module, a test proving a capability's declared blurb has not drifted
+    from it (`tests/test_capability_registry.py`) - reads it the same way.
+    """
+    return getattr(tool, "tool_def", tool)
+
+
 async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
     blob = _DOCUMENTATION_CONFIGS.get(definition.id, {})
     built = definition.builder(
@@ -205,7 +218,7 @@ async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
     # list the model is actually sent.
     contracts: dict[str, ToolContract] = {}
     for tool_id, tool in (await toolset.get_tools(_probe_context())).items():
-        definition_for_model = getattr(tool, "tool_def", tool)
+        definition_for_model = real_tool_definition(tool)
         contracts[tool_id] = ToolContract(
             description=getattr(definition_for_model, "description", "") or "",
             parameters=getattr(definition_for_model, "parameters_json_schema", None) or {},
