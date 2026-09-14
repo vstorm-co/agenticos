@@ -1,5 +1,5 @@
 ---
-source_sha: "5740161792de"
+source_sha: "ea642dfad774"
 ---
 
 # Governance { #governance }
@@ -796,6 +796,18 @@ fuera de ella manda a la gente a la base de datos.
 | `GET /runs/export` | El historial de runs, los mismos filtros que `GET /runs` y el mismo valor por defecto de solo nivel superior. `runs:view` |
 | `GET /approvals/export` | El registro de aprobaciones, los mismos filtros que `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | El desglose de gasto por agent, la misma ventana que `GET /spend`. `runs:view` |
+| `GET /audit/export` | El rastro de auditoría sobre una ventana, CSV o JSONL (`?fmt=`). `audit:read` |
+
+La exportación de auditoría es la única que ofrece además **JSONL**
+(`?fmt=jsonl`), un objeto JSON por línea, porque un rastro de auditoría se
+ingiere en un pipeline de logs tan a menudo como se abre en una hoja de cálculo;
+ambos describen las mismas entradas, con `details` aplanado a una cadena JSON en
+la celda del CSV y conservado como objeto anidado en las líneas.
+
+Lleva exactamente los campos que expone el modelo de lectura de `GET /audit` — la
+`ip_address` almacenada no está en esa pestaña, así que tampoco en la exportación
+— y, como toda exportación aquí, registra su propia lectura en el rastro
+(`audit.export`, nombrando la ventana, el formato y el número de filas).
 
 La exportación de gasto lleva solo las cifras de la ventana — `cost_usd`, `run_count`
 y `partial_run_count`. El `month_to_date_usd` y el `monthly_cap_usd` de la pestaña

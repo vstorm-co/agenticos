@@ -1,5 +1,5 @@
 ---
-source_sha: "5740161792de"
+source_sha: "ea642dfad774"
 ---
 
 # Governance { #governance }
@@ -814,6 +814,16 @@ nim, odsyła ludzi do bazy danych.
 | `GET /runs/export` | Historia runów, te same filtry co `GET /runs` i to samo domyślne ograniczenie do najwyższego poziomu. `runs:view` |
 | `GET /approvals/export` | Zapis zatwierdzeń, te same filtry co `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | Rozbicie wydatków per agent, to samo okno co `GET /spend`. `runs:view` |
+| `GET /audit/export` | Ślad audytowy w oknie czasu, CSV albo JSONL (`?fmt=`). `audit:read` |
+
+Eksport audytu jako jedyny oferuje też **JSONL** (`?fmt=jsonl`), po jednym
+obiekcie JSON na linię, bo ślad audytowy równie często trafia do potoku logów, co
+otwiera się w arkuszu; oba opisują te same wpisy, z `details` spłaszczonym do
+łańcucha JSON w komórce CSV i zachowanym jako zagnieżdżony obiekt w liniach.
+Wiezie dokładnie te pola, które wystawia model odczytu `GET /audit` — zapisane
+`ip_address` nie jest na tej zakładce, więc nie ma go i w eksporcie — i jak każdy
+eksport tutaj zapisuje własny odczyt w śladzie (`audit.export`, z nazwanym oknem,
+formatem i liczbą wierszy).
 
 Eksport wydatków niesie tylko liczby z okna — `cost_usd`, `run_count` i
 `partial_run_count`. `month_to_date_usd` i `monthly_cap_usd` z zakładki Spend są
