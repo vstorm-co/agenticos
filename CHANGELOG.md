@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.432] - 2026-09-15
+
+### Fixed
+
+- **A skill's files never reached the sandbox.** They were materialised at
+  `/skills`, and the container runtimes run as an unprivileged user for whom `/`
+  is root's - so `mkdir -p /skills` failed, every write was refused, and an agent
+  promised its scripts on disk found nothing there. They live under
+  `/workspace/skills` now, the one directory every backend guarantees writable.
+- **Materialised skills were listed, counted and postable as the agent's work.**
+  The file browser and the channel attachment filter both matched on `skills/`
+  after stripping the leading slash, which the new root does not begin with. Both
+  now read one shared tuple holding every spelling a skills path arrives in -
+  `workspace/skills/` from a state backend and from a container listing absolute
+  paths, `skills/` from one listing relative to its own root, and from any
+  workspace written before the move.
+- **A workspace from before the move kept a second copy of every skill.** Nothing
+  writes under the old root any more and nothing removed it, so the next run wrote
+  a complete second tree beside it and both were persisted and charged against the
+  workspace's storage cap. The legacy tree is dropped at flush, where spills are.
+
+### Changed
+
+- **The model is told where its skills are.** The path was only ever discoverable
+  from a skill's own body, which made every skill written against the old root the
+  sole authority for a location the platform had since changed. A run that
+  materialised anything now says the directory once, so a body naming the old one
+  is stale text rather than the answer.
+
 ## [0.0.431] - 2026-09-15
 
 ### Added
