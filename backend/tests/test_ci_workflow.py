@@ -159,16 +159,18 @@ class TestNoStepInstallsSystemPackages:
 
 
 class TestTyDiagnosticsAreVisibleOnGitHub:
-    """A warning-level `ty` diagnostic exits 0 by design - template-inherited code
-    is reported, not gated (`docs/testing.md`) - but its default output is plain
-    text on stdout, so a run carrying 61 of them looked identical to one with
-    zero: green check, no annotation, nothing pointing a reader at the log.
+    """A `ty` diagnostic's default output is plain text on stdout, so a run
+    carrying 61 of them looked identical to one with zero: green check, no
+    annotation, nothing pointing a reader at the log - true whether or not the
+    diagnostic failed the run.
 
     `ty` switches to GitHub's own `::warning file=…,line=…::` annotation syntax
     when `TY_OUTPUT_FORMAT=github` is set in its environment - the `lint` job sets
     it, so the exact same `make lint-backend` call surfaces every diagnostic as an
-    inline annotation on the run and the diff, unchanged and still non-gating.
-    This is what stops that setting silently reverting.
+    inline annotation on the run and the diff. This is what stops that setting
+    silently reverting; `test_coverage_gate.py::TestTypeGateMatchesCoverageGate`
+    is the matching guard for `error-on-warning`, which now decides whether that
+    same diagnostic also fails the run.
     """
 
     def test_the_lint_job_asks_ty_for_github_annotations(self, workflow: dict[str, Any]) -> None:
