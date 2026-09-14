@@ -20,6 +20,16 @@ on:
       - "mkdocs.yml"
       - "backend/app/**"
       - ".github/workflows/docs.yml"
+      # The build reads these too, and a filter that misses them publishes a
+      # stale site silently. `scripts/mkdocs_hooks.py` pulls `CHANGELOG.md` into
+      # the release-notes page, so a release cut - which touches nothing else
+      # here - used to leave the published page showing the new version's
+      # entries under "Unreleased" until some unrelated change happened to
+      # trigger a deploy. The hook and `scripts/docs_i18n.py` beside it also
+      # decide the stale-translation notice on every page.
+      - "CHANGELOG.md"
+      - "scripts/mkdocs_hooks.py"
+      - "scripts/docs_i18n.py"
   workflow_dispatch:
 
 # Read-only by default. `pages: write` and `id-token: write` belong to the deploy

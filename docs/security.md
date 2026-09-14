@@ -10,6 +10,11 @@ and links the issue that would build it. For how to report a vulnerability and t
 production hardening checklist, see [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md)
 at the repository root; this page is everything else, in one copy.
 
+Two neighbouring pages answer the questions a review asks next and are not
+repeated here: [Data protection](data-protection.md) for where personal data
+lives, what a deletion actually reaches and which gaps are still open, and
+[Licences](licenses.md) for every third-party component the images ship.
+
 ## Threat model
 
 The platform is self-hosted and multi-tenant. The design assumption is that the
@@ -146,4 +151,6 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
   the same breath — audit export, tamper evidence, app-level file encryption, and
   the MCP OAuth log path each link an issue.
 - Report vulnerabilities and run the hardening checklist from
-  [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md).
+  [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
+  read [Data protection](data-protection.md) and [Licences](licenses.md) beside
+  this page.

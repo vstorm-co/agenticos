@@ -62,13 +62,24 @@ class KnowledgeBase(TimestampMixin, Base):
         String(32), nullable=False, server_default="openrouter"
     )
 
-    # The organization vault key this collection embeds on; NULL is the
-    # deployment's key. SET NULL on delete: losing a key must degrade billing,
-    # never take document search down.
+    # The organization vault key this collection embeds on. NULL is a collection
+    # that cannot index or search - there is no deployment-wide key - and SET
+    # NULL on delete is what a deleted secret becomes, so the resolver sees it as
+    # a key never chosen rather than as one that went missing.
     embedding_secret_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # Where a keyless provider is reached: a `local_services` row of kind
+    # `embedding`, the organization's own or the deployment's. NULL for a keyed
+    # provider, whose address is the catalog's. SET NULL on delete for the same
+    # reason as the key above - the resolver then says the service is gone.
+    embedding_endpoint_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("local_services.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     # How widely the collection is exposed inside its org; combines with the
     # member's role scope and any explicit grant (app.services.access).

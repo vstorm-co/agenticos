@@ -17,6 +17,167 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.416] - 2026-09-14
+
+### Fixed
+
+- **The knowledge-base howto still sent the reader to a deployment default that
+  no longer exists.** `EMBEDDING_MODEL` went with the rest of the deployment-wide
+  embedding settings, so "leave it at the deployment default" named nothing: the
+  form offers the models the chosen provider serves and preselects the first.
+  Corrected in English and in the three translations. (#1604)
+
+## [0.0.415] - 2026-09-14
+
+### Added
+
+- **The documentation site publishes in four languages.** All 54 published
+  pages and the four files GitHub renders - `README.md`, `CONTRIBUTING.md`,
+  `SECURITY.md`, `CODE_OF_CONDUCT.md` - are translated into Polish, German and
+  Spanish. `mkdocs-static-i18n` in `suffix` mode, so a translation is
+  `<page>.<locale>.md` beside its English source and the English URLs do not
+  move: `/install/` stays and `/pl/install/` appears next to it. One nav, four
+  builds, and a language switcher that keeps the reader on the same page.
+- **A gate that keeps the three translations honest.** `mkdocs build --strict`
+  validates a link's path and not its `#fragment`, so a translated heading
+  silently moves an anchor and every link into it lands at the top of the page,
+  in one language, with a green build. So a translated heading pins the English
+  anchor explicitly, each translation records the fingerprint of the English
+  revision it was made from, and `scripts/check_docs_i18n.py` runs in
+  `make lint`: it names a page with no translation, a translation older than
+  its source, headings that no longer line up and a repository file whose links
+  go somewhere the English one does not. A page rendered from a stale or
+  missing translation carries a notice in the reader's own language.
+  `docs/howto/translate.md` is the workflow, with the glossary and the
+  terminology that has to be exact.
+
+### Fixed
+
+- **A prose line in `docs/file-processing.md` rendered as a heading.** It
+  started at column zero with an issue reference, and Python-Markdown's ATX
+  rule does not require a space after the hashes, so the published page carried
+  an `<h1>` nobody wrote. The translation gate found it by counting anchors.
+
+## [0.0.414] - 2026-09-14
+
+### Added
+
+- **Local services: the servers on the deployment's own network a collection
+  may be pointed at.** A row per organization - or per deployment, registered
+  by its administrator and offered to every organization - of kind `embedding`
+  (an Ollama, reached through its OpenAI-compatible root) or `ocr` (a LiteParse
+  OCR server), with `base_url` validated the way a sandbox host's is. Managed
+  under Knowledge → Integrations behind `connections:manage`, on
+  `/local-services`; migration `0078_local_services`. (#1632)
+- **A self-hosted embedding provider.** `ollama` is in `embedding_providers.json`
+  as a keyless entry with no address of its own: a collection on it names a
+  local service (`embedding_endpoint_id`) where a keyed collection names the
+  vault key, so a knowledge base can stay on the deployment's own hardware. The
+  form asks for a server rather than a key, a key named for it is refused, and
+  five of Ollama's embedding models are catalogued with their widths. (#1632)
+- **An app-scoped collection embeds through a keyless provider, or not at all.**
+  It belongs to no organization and so has no vault to hold a key; it names a
+  deployment-wide local service instead, and choosing OpenRouter or OpenAI for
+  one is refused where the provider is chosen, at creation and on a move,
+  instead of producing a collection that fails on its first document. (#1631)
+- **An OCR server is a per-collection choice.** `ingestion_config.ocr_endpoint_id`
+  names a local service of kind `ocr`; nothing named runs the Tesseract bundled
+  with the worker.
+- **`docs/data-protection.md`** - where personal data lives, what leaves the
+  deployment and under which setting, the controls with their proof or their
+  open issue, what deletion reaches, and a reproducible verification checklist
+  for one deployment. Linked from the security-review table, `SECURITY.md` and
+  the topic map. (#1596)
+
+### Changed
+
+- **Embeddings are paid for with the collection's vault key, and nothing else.**
+  `OPENROUTER_API_KEY` is gone: it was a deployment-wide fallback for one
+  provider, left over from when `openrouter.ai` was hardcoded, and the only
+  reason the catalog carried a `deployment_key` flag, the resolver two fallback
+  states and the form a "Deployment key" row. A new personal or organization
+  collection names its provider from `embedding_providers.json` and the vault
+  key that pays, or is refused on that field; a collection whose key is missing,
+  unusable or never chosen refuses to index or search with a message naming the
+  collection and the reason, and the ingestion flow log says so. A key can be
+  replaced but no longer cleared (`clear_embedding_secret` is removed), because
+  there is nothing to fall back to. `scripts/server-init.sh` no longer asks for
+  the key and `docs/deploy.md` no longer lists it as a prerequisite. The
+  resolution says which of six situations it landed on - a key never chosen,
+  no vault to choose one from, the chosen secret missing, unusable or of the
+  wrong kind, or a provider this build no longer offers - each with its own
+  remedy. (#1596)
+
+### Removed
+
+- **`EMBEDDING_MODEL`, `LLAMAPARSE_API_KEY` and `LITEPARSE_OCR_SERVER_URL` are
+  gone.** Each was one value for every tenant, set where no tenant could see it.
+  The model is chosen from what the collection's provider serves; a LlamaParse
+  key is the vault entry the collection names, and a collection on LlamaParse
+  without one is refused at the form; an OCR server is a local service the
+  collection names. `GET /rag/embedding-models` no longer answers a `default`.
+
+## [0.0.413] - 2026-09-14
+
+### Changed
+
+- **The stack runs Valkey where it used to run Redis.** `redis:7-alpine`
+  resolves to Redis 7.4, and from 7.4.0 Redis is RSALv2 or SSPL-1.0 rather than
+  BSD-3-Clause - neither an OSI-approved licence. Nothing was broken by it: the
+  image is pulled by the operator rather than redistributed here, and RSALv2
+  permits running Redis inside your own application. But the default `docker
+  compose up` started a non-open component without saying so. Every compose file
+  and every CI service now uses `valkey/valkey:8-alpine`, the Linux Foundation
+  fork of Redis 7.2 under BSD-3-Clause. It speaks the same protocol on the same
+  port, so the service name, the `redis://` scheme, the `redis_data` volume and
+  every `REDIS_*` setting are unchanged, and so is the client - only the image,
+  the server binary and the CLI in the healthchecks differ. A deployment on a
+  managed Redis, Valkey or Elasticache is unaffected. The licence review drops
+  to one open finding. (#1603)
+
+## [0.0.412] - 2026-09-14
+
+### Added
+
+- **A licence review of everything the images ship, with generated notices and a
+  check.** `THIRD_PARTY_NOTICES.md` is generated from the two lockfiles by
+  `scripts/license_inventory.py` and lists every distribution in either image with
+  its SPDX licence, source and the evidence the licence was read from. Decisions
+  live in `licenses/policy.toml` (overrides with evidence, review entries for
+  copyleft and share-alike components) and `licenses/components.toml` (images,
+  Debian packages, fonts, glyphs, data files, compose services). `make
+  licenses-check` runs in the `security` job and `make check`: stale notices, a
+  component with no readable licence, a copyleft component with no decision, or a
+  decision about a licence that has since changed all fail it; tracked open
+  findings pass and are counted, and so does a package that ships no licence
+  file without an author to attribute or a text to place beside it. Both images
+  now carry their licence files: the backend image `LICENSE`, `NOTICE`, the
+  notices and the texts of the licences nine wheels declare but do not ship; the
+  frontend image every package's own licence file under `/app/licenses/`, which
+  the standalone build had been dropping, a `NOTICE` and the licence text for a
+  package that publishes none (`@img/sharp-libvips-linux-*` ships an LGPL
+  library with no copy of the LGPL), the fonts' OFL and the brand-mark
+  attributions. `docs/licenses.md` is the review: scope, obligations per licence
+  family and how each is met, hosted-provider terms and model-weight licences as
+  deployment-time decisions, the maintenance workflow and a release checklist.
+  One finding is open and tracked - `redis:7` resolves to Redis 7.4 under
+  RSALv2/SSPLv1 (#1603) - and one is a deployment-time review, the sandbox
+  runtime built at the deployment. The third is settled here: `pymupdf`, the
+  default PDF parser, is AGPL-3.0-only and is kept, so the backend image as a
+  whole is conveyed under AGPL-3.0 terms. Running an unmodified release owes
+  nothing, because this repository is public and Apache-2.0; a deployment that
+  modifies the platform and serves it over a network owes its users the modified
+  source under section 13, and `docs/licenses.md` gives the three exits for a
+  deployment that cannot take those terms. (#1600, #1602)
+
+### Fixed
+
+- **Three prose lines in `docs/code-review.md` rendered as headings.** Each
+  started at column zero with an issue reference, and Python-Markdown's ATX rule
+  does not require a space after the hashes, so the published page carried three
+  `<h1>`s nobody wrote - in the table of contents and in the search index. The
+  built page now has the 14 headings the file declares. (#1605)
+
 ## [0.0.411] - 2026-09-13
 
 ### Security

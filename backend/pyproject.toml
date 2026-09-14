@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.411"
+version = "0.0.416"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -184,6 +184,10 @@ docs = [
     "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=1.0.6",
+    # One build per locale from `<page>.<locale>.md` files sitting beside the
+    # English source, so `/install/` keeps its URL and `/pl/install/` is added
+    # rather than everything moving under `/en/`.
+    "mkdocs-static-i18n>=1.2.3",
 ]
 
 [project.scripts]
@@ -558,10 +562,12 @@ include = [
     "app/services/run_stream.py",
     "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
+    "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/services/attachments.py",
     "app/services/chat_timeline.py",
+    "app/services/local_service.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
@@ -642,6 +648,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
+    "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",
@@ -821,10 +828,12 @@ include = [
     "app/services/run_stream.py",
     "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
+    "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/services/attachments.py",
     "app/services/chat_timeline.py",
+    "app/services/local_service.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
@@ -935,6 +944,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
+    "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",

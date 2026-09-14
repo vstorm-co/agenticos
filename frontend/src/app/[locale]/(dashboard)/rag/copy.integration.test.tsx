@@ -98,6 +98,7 @@ const COLLECTION: KnowledgeBase = {
   embedding_model: "text-embedding-3-small",
   embedding_provider: "openrouter",
   embedding_secret_id: null,
+  embedding_endpoint_id: null,
   embedding_dim: 1536,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: null,
@@ -145,13 +146,11 @@ function serve() {
     // below would hand it `{items, total}` and it would throw on mount.
     if (path === "/rag/embedding-models") {
       return {
-        default: "text-embedding-3-large",
-        default_provider: "openrouter",
         providers: [
           {
             provider: "openrouter",
             name: "OpenRouter",
-            deployment_key: true,
+            keyless: false,
             models: [{ model: "text-embedding-3-large", dim: 3072 }],
           },
         ],

@@ -1,4 +1,4 @@
-.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build presentation
+.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -321,6 +321,7 @@ lint-backend:
 	python3 scripts/check_routes.py
 	python3 scripts/check_comments.py
 	python3 scripts/check_docs_paragraphs.py
+	python3 scripts/check_docs_i18n.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -496,6 +497,22 @@ audit:
 	python3 scripts/audit_dependencies.py backend/requirements-audit.txt \
 		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
+# The other half of the `security` job: what the two images ship and under which
+# licences. `licenses` regenerates THIRD_PARTY_NOTICES.md from the lockfiles;
+# `licenses-check` regenerates it in memory and fails when the committed file is
+# stale, when a component's metadata names no licence, or when one under a
+# copyleft or share-alike licence has no decision in `licenses/policy.toml`. It
+# runs under the backend virtualenv because that is where the wheels' metadata
+# is, and it needs `frontend/node_modules` for the same reason. A platform build
+# this machine does not have is read from the package index - the one place
+# this needs the network - and a lookup that fails is a failure, never a pass.
+# Same last-line contract as `audit`: `LICENSES: REVIEWED|FAILED - detail`.
+licenses:
+	uv run --directory backend python ../scripts/license_inventory.py write
+
+licenses-check:
+	uv run --directory backend python ../scripts/license_inventory.py check
+
 # Playwright starts the frontend itself; the backend and its seed are on you.
 # Checked rather than assumed: against a backend that is not there the suite
 # fails in fifty places at once, none of which say what is actually wrong.
@@ -550,7 +567,7 @@ test-e2e:
 #     laptop is the database with your own work in it.
 CHECK_DB_PORT ?= 5432
 
-check: lint test db-check test-frontend-cov build-frontend docs-build audit
+check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
 	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
@@ -575,6 +592,16 @@ docs:
 # would otherwise ship.
 docs-build:
 	uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
+
+# The translation guard carries its own copy of the `toc` extension's slug rule,
+# because it runs under the system interpreter with no virtualenv. A copy that
+# has drifted fails silently: the gate then compares anchors the build never
+# emits. Checking that needs the renderer, which only the `docs` group installs -
+# under `make test` the check skips for want of `pymdownx`, so it runs here,
+# beside the build that shares the group.
+docs-slug-check:
+	uv run --directory backend --group docs pytest -q \
+		tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
 
 # The client presentation is `docs/presentation/index.html` - a published page,
 # and the only copy. This renders the same file to a PDF for sending, and checks

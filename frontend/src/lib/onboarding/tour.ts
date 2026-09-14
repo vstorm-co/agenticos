@@ -354,6 +354,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsManage,
     optional: true,
   },
+  // The servers on the deployment's own network a collection may embed through
+  // or OCR with. Same tab and same gate as the integrations above: the section
+  // renders only for `connections:manage`, and its header always does once it
+  // renders, so the stop is not optional.
+  {
+    id: "knowledge-local-services",
+    page: ROUTES.RAG,
+    target: "knowledge-local-services",
+    activate: "knowledge-tab-integrations",
+    permission: Perm.connectionsManage,
+  },
 
   // The collection detail, entered from the Knowledge list. Three tabs since
   // #939, so each stop selects its own: the header and the stats strip are above
