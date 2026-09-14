@@ -5,8 +5,9 @@
     Every component the two published images contain is listed with its licence
     and the evidence for it, every obligation those licences impose is either met
     in a way this page names or recorded as an open finding with an issue behind
-    it. It does not say "all licences are compliant": three findings are open at
-    the time of writing, and they are listed below rather than averaged away.
+    it. It does not say "all licences are compliant": two findings are open at the
+    time of writing, and they are listed below rather than averaged away. A third,
+    the AGPL component, was reviewed and kept; that decision has a section of its own.
 
 AgenticOS itself is Apache-2.0 (`LICENSE`, `NOTICE`). What a deployment actually
 runs is that code plus roughly five hundred third-party packages, two Debian-based
@@ -72,7 +73,7 @@ regenerates them in memory and fails when:
 - a decision names a component the lockfiles no longer resolve.
 
 An open finding that is tracked does not fail the check. The verdict line counts it:
-`LICENSES: REVIEWED - 518 components, 3 open finding(s)`.
+`LICENSES: REVIEWED - 518 components, 2 open finding(s)`.
 
 !!! warning "A scanner's unknown is a question, not an approval"
 
@@ -102,7 +103,7 @@ the current figure.
 | LGPL-3.0-or-later (`psycopg2-binary`, `@img/sharp-libvips-linux-*`) | 3 | Licence text, source availability, and the ability to replace the library | Both are separately installed binaries loaded dynamically, unmodified, replaceable by reinstalling; sources linked in the notices. The libvips packages publish no licence file, so the image places the LGPL text beside them |
 | Artistic-1.0-Perl or GPL-2.0-or-later (`text-unidecode`) | 1 | Dual; taken under the Artistic License: notice and text | The wheel's licence file ships |
 | CC-BY-4.0 (`caniuse-lite`) | 1 | Attribution and a link to the source | Named with its source in the notices |
-| AGPL-3.0-only (`pymupdf`) | 1 | Network copyleft, see the finding below | **Open** |
+| AGPL-3.0-only (`pymupdf`) | 1 | Network copyleft: the image is conveyed under AGPL-3.0 terms and a modified deployment owes its users the modified source (s.13) | Kept deliberately, terms stated: [the section below](#the-agpl-component) and the wheel's `COPYING` in the image |
 | OFL-1.1 (Inter, Bricolage Grotesque, Geist Mono) | 3 families | Licence text and copyright notices with the fonts; no selling the fonts alone; no reuse of the reserved names for modified fonts | `frontend/src/app/fonts/OFL.txt` carries all three notices; the fonts are served unmodified |
 | CC0-1.0, CC-BY-4.0, MIT (brand glyphs) | 3 sources | Attribution for the Font Awesome icons; the marks stay their owners' trademarks | `NOTICE` names the sources and the trademark position |
 
@@ -131,19 +132,38 @@ packages, used unmodified as separate processes. The per-release SBOM planned in
 package set of each image; until it ships, the Dockerfiles and the base image
 digests are the inventory of that layer.
 
+## The AGPL component
+
+One component in the backend image is under a network copyleft, and it is the only
+licence in the set that asks something of a deployment rather than only of us.
+
+`pymupdf` is dual-licensed AGPL-3.0-only or an Artifex commercial licence. It is the
+default PDF parser and the only one of the three that extracts embedded images for
+description. The AGPL is one-way compatible with Apache-2.0: our code may be combined
+with it, and the resulting image is then conveyed under AGPL-3.0 terms.
+
+[#1602](https://github.com/vstorm-co/agenticos/issues/1602) weighed dropping it for
+LiteParse (Apache-2.0, already a dependency), moving it behind an opt-in, and keeping
+it with the terms stated. **It is kept, and the terms are stated here.** What that
+means in practice:
+
+- **Running an unmodified release.** Nothing is owed. AgenticOS is public and
+  Apache-2.0, so the source a s.13 offer would point at is already published.
+- **Modifying the platform and serving it over a network** - the case a self-hosted
+  product invites. AGPL-3.0 s.13 obliges that deployment to offer its users the
+  modified source of the whole. This is the obligation to read before forking
+  privately, and it is the one a security review will ask about.
+- **A deployment that cannot take those terms** has three exits: buy the Artifex
+  commercial licence, set the collection's PDF parser to `liteparse` and remove the
+  dependency in a private build, or keep its changes unpublished but available to its
+  own users, which is what s.13 actually asks for.
+
+Nothing else in either image carries a copyleft that reaches beyond its own files.
+
 ## Open findings
 
 Each has an issue; each will stay in this list, and first in the notices, until the
 issue closes and the policy entry moves to `accepted` or the component is gone.
-
-**PyMuPDF is AGPL-3.0-only** -
-[#1602](https://github.com/vstorm-co/agenticos/issues/1602). It is the default PDF
-parser and the only one that extracts embedded images. Our Apache-2.0 code may be
-combined with it, but the backend image as a whole is then conveyed under AGPL-3.0
-terms, and a deployment that modifies the platform and serves it over a network owes
-its users the modified source. For an unmodified public release the obligation is met
-by the repository being public; the issue decides whether the dependency is dropped,
-moved behind an opt-in, or kept with the terms stated.
 
 **`redis:7-alpine` is Redis 7.4, under RSALv2 or SSPLv1** -
 [#1603](https://github.com/vstorm-co/agenticos/issues/1603). Neither is an

@@ -64,9 +64,9 @@ fulfilled_by = "The wheel's LICENSE is in the image under its dist-info; the whe
 
 [review.python."pymupdf"]
 license = "AGPL-3.0-only"
-status = "open"
-obligations = "Network copyleft: a deployment that modifies the platform and serves it over a network must offer its modified source to those users (AGPL-3.0 s.13). The alternative Artifex sells is a commercial licence."
-fulfilled_by = ""
+status = "accepted"
+obligations = "Network copyleft: the backend image as a whole is conveyed under AGPL-3.0 terms, and a deployment that modifies the platform and serves it over a network must offer its modified source to those users (AGPL-3.0 s.13). Used unmodified, imported at the call site, and the wheel's COPYING ships in the image."
+fulfilled_by = "Kept deliberately: #1602 decided to state the terms rather than drop the parser or move it behind an opt-in. AgenticOS is Apache-2.0 and public, so an unmodified release already offers its source; docs/licenses.md states the s.13 obligation a deployment takes on when it modifies the platform, and docs/rollout.md points a security review at it. Source at https://github.com/pymupdf/pymupdf; Artifex sells a commercial licence for a deployment that cannot take AGPL terms."
 tracked_in = "https://github.com/vstorm-co/agenticos/issues/1602"
 
 [review.python."text-unidecode"]

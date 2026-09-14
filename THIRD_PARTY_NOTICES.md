@@ -17,7 +17,6 @@ names no author is in the evidence column below.
 
 ## Open findings
 
-- pymupdf 1.28.2 (AGPL-3.0-only) - https://github.com/vstorm-co/agenticos/issues/1602
 - redis 7-alpine (resolves to Redis 7.4) - https://github.com/vstorm-co/agenticos/issues/1603
 - Sandbox runtime `workbench` (built by sandboxd from backend/app/core/catalog/sandbox_runtimes.json) python:3.12-slim plus the listed apt, npm and PyPI packages, resolved at build time - deployment-review
 
@@ -232,7 +231,7 @@ names no author is in the evidence column below.
 | pydocket | 0.23.1 | MIT | https://github.com/chrisguidry/docket | classifier |
 | pygments | 2.20.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |
 | pyjwt | 2.13.0 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
-| pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review open |
+| pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review accepted |
 | pyparsing | 3.3.2 | MIT | https://github.com/pyparsing/pyparsing.git | License-Expression |
 | python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
