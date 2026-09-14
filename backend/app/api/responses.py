@@ -46,3 +46,17 @@ def csv_response(result: ExportResult) -> Response:
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": content_disposition("attachment", result.filename)},
     )
+
+
+def jsonl_response(result: ExportResult) -> Response:
+    """A finished export as downloadable JSON Lines.
+
+    The machine-readable counterpart to `csv_response`: one JSON object per line,
+    served as `application/x-ndjson` so a log pipeline or a script ingests it row
+    by row rather than parsing one array held whole in memory.
+    """
+    return Response(
+        content=result.content,
+        media_type="application/x-ndjson; charset=utf-8",
+        headers={"Content-Disposition": content_disposition("attachment", result.filename)},
+    )
