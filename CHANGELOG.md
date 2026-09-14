@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.419] - 2026-09-14
+
+### Security
+
+- **A malformed MCP OAuth token response wrote the token to the logs.**
+  `_token_request` parses the provider's answer with
+  `OAuthToken.model_validate_json`, and a Pydantic `ValidationError` echoes the
+  input it rejected - which, for a token response, is the token. The
+  `logger.exception` beside the raise then wrote a live credential, traceback and
+  all. The failure is now logged as field locations and error types only, through
+  `exc.errors(include_url=False, include_input=False)`, at `error` rather than
+  `exception` so no traceback carries the payload. The refusal shown to the caller
+  was already the class name alone. (#1626)
+
 ## [0.0.418] - 2026-09-14
 
 ### Fixed
