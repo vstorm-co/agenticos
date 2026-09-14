@@ -23,12 +23,14 @@ from typing import TYPE_CHECKING, Any
 
 import logfire
 from opentelemetry import trace
-from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
+from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from pydantic_ai import Agent as PydanticAgent
 
 from app.core.logging import PiiRedactionFilter
 
 if TYPE_CHECKING:
+    from opentelemetry.context import Context
+
     from app.agents.spec import TraceContent
 
 logger = logging.getLogger(__name__)
@@ -49,14 +51,23 @@ class _RedactingSpanProcessor(SpanProcessor):
     from it, rather than dropping content wholesale the way `none` does. Pydantic
     AI writes the message text, the model's output and every tool argument and
     result into the span attributes below; this runs each through the same filter
-    the log pipeline uses (`PiiRedactionFilter`) as the span ends, before Logfire's
-    own batching exporter reads it.
+    the log pipeline uses (`PiiRedactionFilter`).
+
+    Scrubbing happens at **both** ends of a span's life. Most content is written
+    when the model responds and is caught at `on_end`. But a tool span carries
+    `gen_ai.tool.call.arguments` from the moment it starts, and Logfire emits a
+    *pending* span from those start-time attributes to show the call in flight -
+    so an `on_end`-only scrub would let a tool argument's PII reach Logfire in the
+    pending span before the run finished. `on_start` scrubs the live span first,
+    ahead of Logfire's own pending-span processor (this processor is registered
+    before it), so the pending export is already clean.
 
     `_CONTENT_ATTRIBUTES` is the fragile seam: the names are the ones Pydantic AI's
     instrumentation emits at its pinned version, and a release that renames one
     would silently start exporting the raw content again. `tests/test_agent_observability.py`
-    feeds a real run through this processor and asserts a planted email and token
-    are gone, so such a rename fails the build rather than leaking.
+    feeds a real run through this processor - final spans and pending ones - and
+    asserts a planted email and token are gone, so such a rename fails the build
+    rather than leaking.
     """
 
     # Version 5 of Pydantic AI's instrumentation (the current default) carries a
@@ -75,13 +86,31 @@ class _RedactingSpanProcessor(SpanProcessor):
     def __init__(self) -> None:
         self._filter = PiiRedactionFilter()
 
+    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
+        """Scrub the content a span carries at start, before its pending export.
+
+        The span is still recording, so each attribute is overwritten in place
+        through the public API - which Logfire's pending-span processor, running
+        after this one, then reads in its scrubbed form.
+        """
+        del parent_context  # part of the SpanProcessor.on_start signature; unused here
+        attributes = span.attributes
+        if not attributes:
+            return
+        for name in self._CONTENT_ATTRIBUTES:
+            value = attributes.get(name)
+            if isinstance(value, str):
+                scrubbed = self._filter.redact(value)
+                if scrubbed != value:
+                    span.set_attribute(name, scrubbed)
+
     def on_end(self, span: ReadableSpan) -> None:
         """Replace each content attribute with its scrubbed form as the span ends.
 
-        A span's attributes are a read-only mapping and its backing store refuses
-        in-place assignment, so a changed set is written back as a fresh mapping -
-        the same object Logfire's exporter reads later, since the batch processor
-        only holds a reference to it.
+        A finished span's attributes are a read-only mapping and its backing store
+        refuses in-place assignment, so a changed set is written back as a fresh
+        mapping - the same object Logfire's exporter reads later, since the batch
+        processor only holds a reference to it.
         """
         attributes = span.attributes
         if not attributes:

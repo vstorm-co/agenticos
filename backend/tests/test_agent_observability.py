@@ -10,9 +10,12 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import logfire
+from logfire.testing import TestExporter
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
 from app.agents.factory import _instrument
@@ -461,6 +464,104 @@ class TestRedactionReachesTheExporter:
         # where `redacted` would keep "kindly" beside the scrubbed email.
         assert "kindly" not in blob
 
+    @staticmethod
+    def _run_tool_and_capture_pending(tag: str, tool_args: dict[str, str]) -> TestExporter:
+        """Run a redacted agent that calls a tool with `tool_args`, capturing every
+        exported span including Logfire's pending spans.
+
+        `TestExporter` is one of the exporters Logfire generates pending spans for,
+        so wiring it in reproduces the production path where a tool span's
+        arguments are exported at start, before the run finishes. `tag` keeps the
+        cached Logfire instance unique per test, or a later call reuses an earlier
+        exporter and captures nothing.
+        """
+        real_configure = logfire.configure
+        capture = TestExporter()
+
+        def configure(**kwargs: object) -> logfire.Logfire:
+            processors = list(kwargs.get("additional_span_processors") or [])
+            return real_configure(
+                local=True,
+                send_to_logfire=False,
+                console=False,
+                additional_span_processors=[*processors, SimpleSpanProcessor(capture)],
+            )
+
+        state = {"first": True}
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if state["first"]:
+                state["first"] = False
+                return ModelResponse(parts=[ToolCallPart(tool_name="lookup", args=tool_args)])
+            return ModelResponse(parts=[TextPart(content="done")])
+
+        agent: Agent[None, str] = Agent(FunctionModel(respond))
+
+        @agent.tool_plain
+        def lookup(**kwargs: str) -> str:
+            return "ok"
+
+        with patch("app.agents.observability.logfire.configure", side_effect=configure):
+            attached = instrument_agent(
+                agent,
+                token=f"pylf_v1_eu_pending_{tag}",
+                service_name="pending",
+                environment="prod",
+                content="redacted",
+            )
+        assert attached is True
+        agent.run_sync("go")
+        return capture
+
+    def test_a_tool_argument_is_scrubbed_in_the_pending_span_too(self):
+        """The pending-span leak: a tool span carries its arguments from the moment
+        it starts, and Logfire exports a pending copy before the run ends. An
+        on_end-only scrub would let the raw argument reach Logfire; this asserts the
+        planted email is gone from every exported span, pending ones included."""
+        capture = self._run_tool_and_capture_pending("email", {"email": "planted@example.com"})
+
+        pending = [
+            s
+            for s in capture.exported_spans
+            if (s.attributes or {}).get("logfire.span_type") == "pending_span"
+        ]
+        tool_args = [
+            value
+            for s in capture.exported_spans
+            for name, value in (s.attributes or {}).items()
+            if name == "gen_ai.tool.call.arguments" and isinstance(value, str)
+        ]
+        # A pending span was emitted, and the tool arguments appear on it...
+        assert pending
+        assert any('"email"' in value for value in tool_args)
+        # ...but the planted email is gone from every span, pending or final.
+        blob = "\n".join(
+            value
+            for s in capture.exported_spans
+            for value in (s.attributes or {}).values()
+            if isinstance(value, str)
+        )
+        assert "planted@example.com" not in blob
+        assert "[EMAIL_REDACTED]" in blob
+
+    def test_a_json_credential_in_a_tool_argument_is_scrubbed(self):
+        """A password serialized as a tool argument - `{"password": "..."}` - is
+        the credential shape the log filter's key=value pattern misses. Redacted
+        mode must still keep it out of the export."""
+        capture = self._run_tool_and_capture_pending(
+            "json", {"password": "hunter2", "city": "Paris"}
+        )
+
+        blob = "\n".join(
+            value
+            for s in capture.exported_spans
+            for value in (s.attributes or {}).values()
+            if isinstance(value, str)
+        )
+        assert "hunter2" not in blob
+        # A non-credential argument survives, so the trace stays debuggable.
+        assert "Paris" in blob
+
     def test_a_span_with_no_content_attributes_is_left_untouched(self):
         """The processor only rewrites the attributes it recognises; a span that
         carries none of them - or none at all - keeps its backing store."""
@@ -499,12 +600,51 @@ class TestRedactionReachesTheExporter:
         # An unrelated attribute is carried across unchanged.
         assert result["gen_ai.usage.input_tokens"] == 7
 
+    def test_on_start_scrubs_a_recording_span_in_place(self):
+        """At start the span is still recording, so a matching content attribute is
+        overwritten through `set_attribute` rather than by replacing the store -
+        which is what keeps Logfire's pending span, built right after, clean."""
+        processor = _RedactingSpanProcessor()
+        span = _FakeSpan(
+            {
+                "gen_ai.tool.call.arguments": '{"email":"planted@example.com"}',
+                "gen_ai.tool.name": "lookup",
+            }
+        )
+
+        processor.on_start(span)
+
+        assert span.set_attribute_calls == {
+            "gen_ai.tool.call.arguments": '{"email":"[EMAIL_REDACTED]"}'
+        }
+        # A non-content attribute is never touched.
+        assert "gen_ai.tool.name" not in span.set_attribute_calls
+
+    def test_on_start_leaves_a_span_without_content_untouched(self):
+        """A model-request span carries no message content at start, and a span
+        with no attributes at all must not raise."""
+        processor = _RedactingSpanProcessor()
+
+        empty = _FakeSpan(None)
+        processor.on_start(empty)
+        assert empty.set_attribute_calls == {}
+
+        clean = _FakeSpan({"gen_ai.tool.call.arguments": '{"city":"Paris"}', "http.method": 1})
+        processor.on_start(clean)
+        assert clean.set_attribute_calls == {}
+
 
 class _FakeSpan:
     """A stand-in for a `ReadableSpan`: `attributes` is what the processor reads,
-    `_attributes` the backing store it writes. A `MappingProxyType` would refuse
-    the write path a real span takes, so the two are kept as plain references."""
+    `_attributes` the backing store it writes at end. A `MappingProxyType` would
+    refuse the write path a real span takes, so the two are kept as plain
+    references. `set_attribute` records the overwrites `on_start` makes on a
+    still-recording span."""
 
     def __init__(self, attributes: dict[str, object] | None) -> None:
         self.attributes = attributes
         self._attributes = attributes
+        self.set_attribute_calls: dict[str, object] = {}
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.set_attribute_calls[key] = value

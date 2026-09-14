@@ -68,6 +68,21 @@ def test_a_module_logger_record_is_redacted_at_the_handler(root_stream):
     assert "a@b.com" not in emitted
 
 
+def test_a_credential_in_a_json_object_is_redacted():
+    """A password serialized as JSON - `{"password": "hunter2"}` - is the shape the
+    key=value pattern misses, because the quote before the colon breaks the match
+    and a short value is under the generic-secret length floor. Tool arguments and
+    messages reach the trace redactor as JSON, so this is where a credential in
+    agent content actually hides. Only the value is replaced; other fields survive."""
+    redact = PiiRedactionFilter().redact
+
+    assert redact('{"password":"hunter2"}') == '{"password":"[REDACTED]"}'
+    assert redact('{"access_token": "abc123"}') == '{"access_token": "[REDACTED]"}'
+    assert redact('{"city":"Paris","token":"t1"}') == '{"city":"Paris","token":"[REDACTED]"}'
+    # A non-credential key is left alone, so a redacted trace stays debuggable.
+    assert redact('{"city":"Paris"}') == '{"city":"Paris"}'
+
+
 def test_a_credential_in_an_exception_traceback_is_redacted(root_stream):
     """The leak this filter is for: a provider error carries the failing request,
     key and all, and the formatter appends it from `exc_info` after the filter has

@@ -43,6 +43,20 @@ class PiiRedactionFilter(logging.Filter):
             ),
             r"\1=[REDACTED]",
         ),
+        # The same secret in a JSON object: "password": "hunter2". The quote
+        # between the key and the colon defeats the key=value pattern above, and a
+        # short value ("hunter2") is not caught by the generic-secret pattern that
+        # needs 40+ characters. Serialized tool arguments and messages are JSON, so
+        # this is where a credential in agent content actually hides. Only the
+        # value is replaced, so the surrounding structure survives a redaction.
+        (
+            re.compile(
+                r'("(?:password|passwd|pwd|secret|secret_key|api_key|apikey|token'
+                r'|auth_token|access_token|refresh_token)"\s*:\s*)"[^"]*"',
+                re.IGNORECASE,
+            ),
+            r'\1"[REDACTED]"',
+        ),
     ]
 
     def filter(self, record: logging.LogRecord) -> bool:
