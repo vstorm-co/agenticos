@@ -29,8 +29,14 @@ Two things are versioned separately from this file and worth knowing about:
   unusable or never chosen refuses to index or search with a message naming the
   collection and the reason, and the ingestion flow log says so. A key can be
   replaced but no longer cleared (`clear_embedding_secret` is removed), because
-  there is nothing to fall back to. App-scoped collections have no vault and
-  stay keyless. (#1596)
+  there is nothing to fall back to. `scripts/server-init.sh` no longer asks for
+  the key and `docs/deploy.md` no longer lists it as a prerequisite. The
+  resolution says which of six situations it landed on - a key never chosen,
+  no vault to choose one from, the chosen secret missing, unusable or of the
+  wrong kind, or a provider this build no longer offers - each with its own
+  remedy. App-scoped collections have no vault and so no key; they can be
+  created but cannot index or search until a deployment-level credential
+  exists (#1631). (#1596)
 
 ### Added
 

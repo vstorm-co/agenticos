@@ -207,12 +207,16 @@ class TestCredentialDegradation:
 
     async def test_a_collection_with_no_organization_never_looks_in_a_vault(self):
         """No organization, no vault scope to open an envelope with - and no
-        deployment key to hand it instead."""
+        deployment key to hand it instead. Said as its own reason: telling an
+        app-scoped collection to choose a key from its organization's vault is
+        advice it cannot follow (#1631)."""
         resolved, secrets = await _resolve(_kb(secret_id=uuid.uuid4(), organization_id=None))
 
         assert resolved is not None
         assert resolved.api_key == ""
-        assert resolved.key_source is EmbeddingKeySource.NONE_CHOSEN
+        assert resolved.key_source is EmbeddingKeySource.NO_VAULT
+        assert "#1631" in resolved.key_source.explanation
+        assert "organization's vault" not in resolved.key_source.explanation
         secrets.get.assert_not_called()
 
 
@@ -243,10 +247,19 @@ class TestSayingWhichKeyPaid:
 
         assert degraded == {
             EmbeddingKeySource.NONE_CHOSEN,
+            EmbeddingKeySource.NO_VAULT,
             EmbeddingKeySource.SECRET_MISSING,
             EmbeddingKeySource.SECRET_UNUSABLE,
             EmbeddingKeySource.SECRET_WRONG_KIND,
+            EmbeddingKeySource.PROVIDER_UNKNOWN,
         }
+
+    def test_every_source_has_a_sentence_of_its_own(self):
+        """A source without an explanation is a KeyError on the first document
+        that lands on it, in the flow log's own error path."""
+        sentences = {source.explanation for source in EmbeddingKeySource}
+
+        assert len(sentences) == len(EmbeddingKeySource)
 
     def test_the_description_names_the_collection_the_provider_and_the_key(self):
         resolved = ResolvedEmbeddings(
@@ -284,18 +297,23 @@ class TestWhereTheRequestGoes:
         assert resolved.api_key == "sk-org-openai"
 
     async def test_a_provider_the_catalog_no_longer_names_keeps_its_key_to_itself(self):
-        """An entry removed from the file under a collection using it. The
-        address falls back to the first the catalog still holds, so the row can
-        be read; the key does not follow, because it was stored for the
-        provider that is gone and sending it to another address would hand one
-        vendor's credential to another."""
+        """An entry removed from the file under a collection using it. The row
+        can still be read - its model and width are its own - but it resolves
+        to no address and no key: the key was stored for the provider that is
+        gone, and sending it anywhere else would hand one vendor's credential to
+        another. The reason travels with the resolution, naming the provider
+        the row recorded, so the flow log says "move the collection" rather
+        than "choose a key" - the collection has one."""
         resolved, secrets = await _resolve(
             _kb(secret_id=uuid.uuid4(), provider="a-provider-that-left"),
             _sealed_key_row("sk-for-the-old-provider"),
         )
 
         assert resolved is not None
-        assert resolved.provider == "openrouter"
+        assert resolved.provider == "a-provider-that-left"
+        assert resolved.base_url == ""
         assert resolved.api_key == ""
-        assert resolved.key_source is EmbeddingKeySource.NONE_CHOSEN
+        assert resolved.key_source is EmbeddingKeySource.PROVIDER_UNKNOWN
+        assert "no longer in this build's catalog" in resolved.describe("handbook")
+        assert "a-provider-that-left" in resolved.describe("handbook")
         secrets.get.assert_not_called()

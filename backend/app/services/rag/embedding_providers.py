@@ -82,6 +82,19 @@ def get(provider: str) -> EmbeddingProviderEntry | None:
     return next((entry for entry in CATALOG if entry.provider == provider), None)
 
 
+def first() -> EmbeddingProviderEntry:
+    """The catalog's first entry - what a collection created with no say gets.
+
+    `POST /rag/collections/{name}` takes no provider, so the knowledge base it
+    records needs one to be readable at all; it waits for a key through
+    `PATCH /kb/{id}`, which can move it to another provider in the same request.
+    Named so that the file's order is visibly load-bearing:
+    `tests/test_embedding_providers.py` pins which entry this is, so reordering
+    the catalog is a decision about stored rows rather than an accident.
+    """
+    return CATALOG[0]
+
+
 def require(provider: str, *, model: str, dim: int) -> EmbeddingProviderEntry:
     """The provider to record, refused if it cannot serve this model at this width.
 

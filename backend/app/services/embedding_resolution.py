@@ -10,18 +10,19 @@ created at, the provider's address and the vault key the organization chose.
 
 **There is no deployment-wide key to fall back to.** A collection names the
 organization vault key that pays for its embeddings, the way an agent names the
-model profile that pays for its chat - and a collection that names none, or
-whose key has since been deleted, unsealed wrongly or turned out not to be an
-API key, resolves to *no* key. The embedding client turns that into a refusal
-naming the collection and the reason, at the moment somebody tries to index or
-search it; nothing is refused at resolution, because *whose key pays* must
-never decide *whether the row can be read*.
+model profile that pays for its chat - and a collection that names none, that
+has no organization vault to name one from, whose key has since been unsealed
+wrongly or turned out not to be an API key, or whose recorded provider this
+build no longer offers, resolves to *no* key. The embedding client turns that
+into a refusal naming the collection and the reason, at the moment somebody
+tries to index or search it; nothing is refused at resolution, because *whose
+key pays* must never decide *whether the row can be read*.
 
-What the resolution must not do is stay quiet about itself. Four of the five
-:class:`EmbeddingKeySource` values are a collection asking for a key and not
-getting it, and a `logger.warning` in this module reaches neither the flow log
-a worker's operator reads nor the error the upload leaves on the document row.
-So the source travels *with* the resolution, and both surfaces name it.
+What the resolution must not do is stay quiet about itself. Every
+:class:`EmbeddingKeySource` value but one is a collection asking for a key and
+not getting it, and a `logger.warning` in this module reaches neither the flow
+log a worker's operator reads nor the error the upload leaves on the document
+row. So the source travels *with* the resolution, and both surfaces name it.
 """
 
 from __future__ import annotations
@@ -46,18 +47,28 @@ logger = logging.getLogger(__name__)
 class EmbeddingKeySource(StrEnum):
     """Which credential a collection's embeddings actually went out on.
 
-    One means a key was found - the collection's own. The other four mean no
-    key was, and telling them apart is the difference between "choose a key",
-    "the key you chose is gone", "the key you chose cannot be opened" and "the
-    vault entry you chose is not an API key", which is the whole of what an
-    operator needs from the message.
+    One means a key was found - the collection's own. The others mean no key
+    was, and telling them apart is the difference between "choose a key", "this
+    collection has no vault to choose one from", "the key you chose is gone",
+    "the key you chose cannot be opened", "the vault entry you chose is not an
+    API key" and "the provider this collection recorded no longer exists", which
+    is the whole of what an operator needs from the message - each names a
+    different remedy.
+
+    `NO_VAULT` is an app-scoped collection: it belongs to no organization, so
+    there is no vault it could name a key from, and there is no deployment-wide
+    key either (#1631). `PROVIDER_UNKNOWN` is a catalog entry removed from
+    `embedding_providers.json` under a collection that was using it; the key it
+    holds was stored for the provider that is gone, so it stays sealed.
     """
 
     ORGANIZATION = "organization"
     NONE_CHOSEN = "none_chosen"
+    NO_VAULT = "no_vault"
     SECRET_MISSING = "secret_missing"
     SECRET_UNUSABLE = "secret_unusable"
     SECRET_WRONG_KIND = "secret_wrong_kind"
+    PROVIDER_UNKNOWN = "provider_unknown"
 
     @property
     def explanation(self) -> str:
@@ -76,6 +87,10 @@ _EXPLANATIONS = {
         "no key at all, because the collection names no vault key - choose one for its "
         "provider from the organization's vault"
     ),
+    EmbeddingKeySource.NO_VAULT: (
+        "no key at all, because an app-scoped collection belongs to no organization and so "
+        "has no vault to hold one, and there is no deployment-wide embedding key (#1631)"
+    ),
     EmbeddingKeySource.SECRET_MISSING: (
         "no key at all, because the vault key the collection chose is no longer in this "
         "organization's vault"
@@ -85,6 +100,10 @@ _EXPLANATIONS = {
     ),
     EmbeddingKeySource.SECRET_WRONG_KIND: (
         "no key at all, because the vault entry the collection chose does not hold an API key"
+    ),
+    EmbeddingKeySource.PROVIDER_UNKNOWN: (
+        "no key at all, because that provider is no longer in this build's catalog - move the "
+        "collection to one that is, and give it a key for that one"
     ),
 }
 
@@ -104,6 +123,7 @@ class ResolvedEmbeddings:
     # Where the request goes, from the collection's provider. Carried with the
     # key rather than read from a constant, because the two have to agree: an
     # address without its credential is how a key reaches the wrong vendor.
+    # Empty, with an empty key, for a provider this build no longer offers.
     base_url: str
     provider: str
 
@@ -146,12 +166,12 @@ async def embeddings_for_collection(
     with no organization in hand and keeps the first-match behaviour it had.
 
     A provider the catalog no longer names - an entry removed from the file
-    under a collection that was using it - resolves to the first entry the
-    catalog still holds, with a log line and **without its key**: the key was
-    stored for the provider that is gone, and sending it to whichever address
-    is left would hand one vendor's credential to another. The collection
-    refuses to embed until somebody moves it to a provider that exists and
-    gives it a key for that one.
+    under a collection that was using it - resolves to the provider the row
+    recorded, **no address and no key**: the key was stored for the provider
+    that is gone, and sending it to whichever address is left would hand one
+    vendor's credential to another. The row can still be read (its model and
+    width are its own), and the refusal on the first index or search says the
+    provider is the problem, which the earlier `logger.warning` alone did not.
     """
     async with get_db_context() as db:
         kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
@@ -163,10 +183,10 @@ async def embeddings_for_collection(
                 "embedding_provider_unknown",
                 extra={"collection": collection_name, "provider": kb.embedding_provider},
             )
-            provider = embedding_providers.providers()[0]
-            api_key, key_source = "", EmbeddingKeySource.NONE_CHOSEN
+            api_key, key_source, base_url = "", EmbeddingKeySource.PROVIDER_UNKNOWN, ""
         else:
             api_key, key_source = await _api_key_for(db, kb)
+            base_url = provider.base_url
         return ResolvedEmbeddings(
             model=kb.embedding_model,
             # The recorded width, not a fresh lookup: the table was created at
@@ -174,8 +194,8 @@ async def embeddings_for_collection(
             dim=kb.embedding_dim,
             api_key=api_key,
             key_source=key_source,
-            base_url=provider.base_url,
-            provider=provider.provider,
+            base_url=base_url,
+            provider=kb.embedding_provider,
         )
 
 
@@ -188,7 +208,9 @@ async def _api_key_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, Embedd
     being invisible: it is carried out to the flow log and to the error on the
     document row.
     """
-    if kb.embedding_secret_id is None or kb.organization_id is None:
+    if kb.organization_id is None:
+        return "", EmbeddingKeySource.NO_VAULT
+    if kb.embedding_secret_id is None:
         return "", EmbeddingKeySource.NONE_CHOSEN
 
     row = await organization_secret_repo.get(

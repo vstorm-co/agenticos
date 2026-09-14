@@ -62,9 +62,10 @@ class KnowledgeBase(TimestampMixin, Base):
         String(32), nullable=False, server_default="openrouter"
     )
 
-    # The organization vault key this collection embeds on; NULL is the
-    # deployment's key. SET NULL on delete: losing a key must degrade billing,
-    # never take document search down.
+    # The organization vault key this collection embeds on. NULL is a collection
+    # that cannot index or search - there is no deployment-wide key - and SET
+    # NULL on delete is what a deleted secret becomes, so the resolver sees it as
+    # a key never chosen rather than as one that went missing.
     embedding_secret_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),

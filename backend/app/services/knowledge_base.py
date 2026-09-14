@@ -201,7 +201,7 @@ class KnowledgeBaseService:
             ingestion_config=deployment_defaults().model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
-            embedding_provider=embedding_providers.providers()[0].provider,
+            embedding_provider=embedding_providers.first().provider,
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
@@ -375,8 +375,9 @@ class KnowledgeBaseService:
             )
             embedding_secret_id = data.embedding_secret_id
             # An app-scoped collection has no organization vault to hold a key,
-            # so it is the one shape allowed to exist keyless; it refuses to
-            # index or search until it has one, which nothing can give it yet.
+            # so it is the one shape allowed to exist keyless - and until a
+            # deployment-level credential exists it cannot index or search, which
+            # the resolver says on the first attempt (#1631).
             if embedding_secret_id is None and org_id is not None:
                 raise refused_field(
                     "embedding_secret_id",

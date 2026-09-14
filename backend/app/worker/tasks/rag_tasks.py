@@ -91,13 +91,14 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
     key rather than whichever knowledge base the database ordered first (#913). The
     store passes no organization on the ingest path, so the flow's stands in.
 
-    The resolver degrades to no key on four paths - no key chosen, or the chosen
-    secret deleted, unsealable, or not an API key - each a `logger.warning` in
-    `app.services.embedding_resolution` that reaches nothing an operator reads.
-    So a collection that *had* been given a vault key failed with advice about
-    a deployment variable, and nothing said which of the reasons had happened.
-    There is no deployment-wide key any more, so every one of the four is a
-    collection that cannot index, and every one is said here.
+    The resolver degrades to no key on every path but one - no key chosen, no
+    vault to choose from, the chosen secret deleted, unsealable or not an API
+    key, the recorded provider gone from the catalog - each a `logger.warning`
+    in `app.services.embedding_resolution` that reaches nothing an operator
+    reads. So a collection that *had* been given a vault key failed with advice
+    about a deployment variable, and nothing said which of the reasons had
+    happened. There is no deployment-wide key any more, so every degraded
+    resolution is a collection that cannot index, and every one is said here.
 
     One thing it does not say twice: the same collection - the store resolves
     per operation rather than per cache miss, so indexing one document asks

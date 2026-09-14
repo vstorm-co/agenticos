@@ -307,8 +307,9 @@ class PgVectorStore(BaseVectorStore):
         # one construction that forgot it - the worker that ingests every
         # uploaded document - silently ignored every collection's chosen key
         # and model for as long as nobody read the bill (#306). A collection
-        # outside the KB table still gets the deployment defaults, but that is
-        # now the resolver answering None rather than nobody asking.
+        # outside the KB table gets this store's own keyless embedder, which
+        # refuses on first use - the resolver answering None rather than nobody
+        # asking.
         self._resolver = resolver
         self._services: dict[tuple[str, str, str, str], EmbeddingService] = {}
         self.async_session = async_sessionmaker(engine, expire_on_commit=False)

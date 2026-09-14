@@ -48,7 +48,8 @@ class KnowledgeBaseCreate(BaseSchema):
             "embeddings. Must be a key for the chosen provider. There is no "
             "deployment-wide key: a new personal or organization collection "
             "must name one, and a knowledge base joining an existing collection "
-            "adopts its key."
+            "adopts its key - a missing one included, which `PATCH /kb/{id}` "
+            "then supplies."
         ),
     )
     ingestion_config: IngestionConfig | None = Field(

@@ -47,6 +47,16 @@ class TestTheCatalog:
         assert len(ids) == len(set(ids))
 
 
+class TestTheFirstEntry:
+    def test_the_first_entry_is_openrouter_and_reordering_it_is_a_decision(self):
+        """`first()` is what `POST /rag/collections/{name}` records for a
+        collection created with no say in the matter. The file's order is
+        load-bearing for those rows, so a reorder fails here by name rather
+        than quietly changing what a legacy collection embeds through."""
+        assert embedding_providers.first().provider == "openrouter"
+        assert embedding_providers.first() is embedding_providers.providers()[0]
+
+
 class TestRequiringOne:
     def test_a_provider_that_serves_the_model_at_its_width_is_returned(self):
         entry = embedding_providers.require("openai", model="text-embedding-3-small", dim=1536)

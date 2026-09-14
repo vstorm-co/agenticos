@@ -31,6 +31,11 @@ provider; if the organization has none yet, the form beside the picker stores
 one. The provider and the key can be changed later, the model cannot - see
 [File processing](../file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
+A knowledge base created against a collection name that already exists adopts
+that collection's provider and key instead - a missing one included, because
+every row on one collection has to embed the same way. Give such a collection
+a key on its own page afterwards.
+
 ## 2. Decide how documents are read
 
 Every collection carries its own ingestion settings, and every upload can
