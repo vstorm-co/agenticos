@@ -24,13 +24,17 @@ Two things are versioned separately from this file and worth knowing about:
 - **A deployment admin can read one organization's metadata.** An app admin could
   see every tenant in the admin listing and open none of them: `/orgs/{id}`
   resolves through membership, and the common case is the target's own personal
-  organization, which the admin belongs to. `GET /admin/organizations/{id}` gates
-  on app-admin and answers with the name, members and their roles, size, owner and
-  budget - metadata only, reaching no agent, conversation or secret, and writing
-  its own audit entry for the cross-tenant read. Deliberately a separate endpoint
-  rather than an `is_app_admin` bypass in `get_for_user`: an app-admin context
-  already carries every permission at the widest scope, so widening the membership
-  path would have granted full read *and write* of a foreign tenant. (#1245)
+  organization, which the admin belongs to none of.
+  `GET /admin/organizations/{id}` gates on app-admin and answers with the name,
+  members and their roles, size, owner and budget - metadata only, reaching no
+  agent, conversation or secret, and writing its own audit entry for the
+  cross-tenant read. The member list is bounded at 500; `member_count` still
+  carries the true total, so a larger tenant shows the count beside the first
+  names rather than an unbounded fetch on a page nobody pages. Deliberately a
+  separate endpoint rather than an `is_app_admin` bypass in `get_for_user`: an
+  app-admin context already carries every permission at the widest scope, so
+  widening the membership path would have granted full read *and write* of a
+  foreign tenant. (#1245)
 
 ## [0.0.424] - 2026-09-14
 
