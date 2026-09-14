@@ -174,12 +174,17 @@ class TestAFirstRowOnAFreeName:
         self, service: KnowledgeBaseService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         _holders(monkeypatch, [])
+        # A first row names its own provider and key - there is no deployment
+        # default to adopt. The key check is the vault's concern, not this test's.
+        monkeypatch.setattr(KnowledgeBaseService, "_check_embedding_secret", AsyncMock())
 
         written = await service.create(
             KnowledgeBaseCreate(
                 name="First",
                 collection_name="unheld",
                 embedding_model="text-embedding-3-small",
+                embedding_provider="openrouter",
+                embedding_secret_id=SECRET,
             ),
             ctx=_ctx(),
         )

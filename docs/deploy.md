@@ -24,7 +24,7 @@ otherwise would be describing a deployment nobody has run.
 | **Docker** | Engine 24+ with the Compose plugin (2.24 or later), and your user in the `docker` group. Nothing is built on the host: the images are pulled from GHCR |
 | **Two hostnames** | one for the site, one for the API — see [why two](#why-two-hostnames) |
 | **A reverse proxy** | [Traefik](#option-a-traefik) or [Nginx](#option-b-nginx). It terminates TLS |
-| **An OpenRouter key** | every collection embeds through it. Chat models are configured per organization, in the product |
+| **No provider key** | chat models and embeddings are both keyed per organization, in the product's vault. The environment holds no credential for either — see [Data protection](data-protection.md#nothing-leaves-by-default) |
 
 The host also needs ports 80 and 443 open, and nothing else. Postgres, Redis and
 the Prefect API are published on no interface at all.
@@ -104,9 +104,9 @@ bash scripts/server-init.sh
 ```
 
 `server-init.sh` writes `backend/.env`: it generates the five secrets, asks for
-the two hostnames, an address for Let's Encrypt and the OpenRouter key, and
-derives the public URLs and the CORS origin from what you gave it. It refuses to
-overwrite an existing file.
+the two hostnames and an address for Let's Encrypt, and derives the public URLs
+and the CORS origin from what you gave it. It asks for no provider key: those
+live in each organization's vault. It refuses to overwrite an existing file.
 
 The clone is where the compose files and that env file live; no code runs from
 it. What runs is the two images the repository publishes.

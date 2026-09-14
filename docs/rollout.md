@@ -90,7 +90,9 @@ architecture was chosen.
 | What stops an agent doing damage? | Nothing side-effecting runs without [approval](governance.md#approvals) when you require it, and an approval is decided exactly once |
 | Can we prove what happened? | Every run, every approval, every secret rotation is in the [audit trail](governance.md#audit) — including runs that failed |
 | Where are the credentials? | [One vault](secrets.md), sealed per organization. No API response, log line or audit entry ever carries a plaintext key |
+| Is it GDPR-compliant? | A deployment is, or is not; the code is deployable inside one. [Data protection](data-protection.md) maps every store, every destination and every control to a mechanism, a test or an open issue, and lists what the deployment itself has to decide |
 | Can we read the code? | Yes. That is usually the end of the conversation |
+| What is in it, and under what licences? | Apache-2.0, on top of about five hundred packages that are almost all MIT, Apache-2.0 or BSD. [Every one is listed with its evidence](licenses.md), and the findings still open are listed first rather than averaged away. One component, the PDF parser, is AGPL-3.0: a deployment that modifies the platform and serves it over a network owes its users the modified source, and [that decision has its own section](licenses.md#the-agpl-component) |
 
 ## Three ways this goes wrong
 

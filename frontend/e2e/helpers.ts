@@ -95,6 +95,29 @@ export const FAKE_KEY_SECRET = "sk-e2eFAKEnotarealkeyatall9XZ7";
 export const FAKE_KEY_HINT = "9XZ7";
 
 /**
+ * The OpenRouter key the seeded knowledge base pays for its embeddings with.
+ *
+ * There is no deployment-wide embedding key: a new collection is refused until
+ * it names a vault key for its provider, and the create dialog preselects the
+ * first catalogued provider, OpenRouter. So the seed stores this one before it
+ * creates its collection, and every spec that creates a collection chooses it
+ * through `chooseEmbeddingKey`, so the dialog's shape is written down once.
+ */
+export const SEEDED_EMBEDDING_KEY_LABEL = "e2e-embeddings-key";
+export const SEEDED_EMBEDDING_KEY_SECRET = "sk-e2eEMBEDnotarealkeyatallQ3M8";
+
+/**
+ * The LlamaParse key a collection parsing with LlamaParse is billed to.
+ *
+ * There is no deployment-wide LlamaParse key: a collection whose parser is
+ * LlamaParse is refused until it names a vault key for it, so the ingestion spec
+ * - which chooses that parser to prove the choice survives the round trip -
+ * needs one in the vault first.
+ */
+export const SEEDED_LLAMAPARSE_KEY_LABEL = "e2e-llamaparse-key";
+export const SEEDED_LLAMAPARSE_KEY_SECRET = "llx-e2eLLAMAnotarealkeyatallV6R2";
+
+/**
  * A stored secret, which is the other half of the vault and not a provider key.
  *
  * A capability binds one of these by id, so it is what proves the vault holds
@@ -436,4 +459,39 @@ export async function selectSavedModel(page: Page, label: string): Promise<void>
   await expect(radio).toBeVisible();
   if ((await radio.getAttribute("aria-checked")) !== "true") await radio.click();
   await expect(radio).toHaveAttribute("aria-checked", "true");
+}
+
+/**
+ * Choose the vault key a new collection embeds with, in the create dialog.
+ *
+ * The Embeddings section is folded away - creating a collection is a two-field
+ * job - so it is opened first. The key select is empty until a key is chosen,
+ * and the server refuses a collection that names none: there is no
+ * deployment-wide embedding key to fall back to. Asserted on the trigger rather
+ * than on the click, because a Radix select swallows a click on an option that
+ * was still mounting.
+ */
+/**
+ * Choose the LlamaParse key a collection is billed to, in the parsing section of
+ * the create dialog. The section has to be open and the parser set to LlamaParse
+ * already; the select is empty until a key is chosen and the server refuses a
+ * LlamaParse collection that names none.
+ */
+export async function chooseLlamaParseKey(
+  page: Page,
+  dialog: Locator,
+  name: string,
+): Promise<void> {
+  const key = dialog.getByRole("combobox", { name: "LlamaParse key" });
+  await key.click();
+  await page.getByRole("option", { name: new RegExp(name) }).click();
+  await expect(key).toHaveText(new RegExp(name));
+}
+
+export async function chooseEmbeddingKey(page: Page, dialog: Locator, name: string): Promise<void> {
+  await dialog.locator("summary", { hasText: "Embeddings" }).click();
+  const key = dialog.getByRole("combobox", { name: "Key" });
+  await key.click();
+  await page.getByRole("option", { name: new RegExp(name) }).click();
+  await expect(key).toHaveText(new RegExp(name));
 }

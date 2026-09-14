@@ -27,11 +27,19 @@ released this quarter should not be a diff in three modules. What interprets an
 entry stays here.
 
 An entry states what the provider's own documentation states it serves through an
-OpenAI-compatible `/embeddings` route. Two are listed today, and a third is one
+OpenAI-compatible `/embeddings` route. Three are listed today, and a fourth is one
 file entry: the models nobody can reach - `voyage-3`, the `bge-*` and
 `all-MiniLM-*` sentence-transformer weights - were offered by the create form for
 months on the strength of a width map, and the width of a model this build cannot
 call is not an answer to "can I use it".
+
+One of the three is not a vendor. `ollama` is an endpoint on the deployment's own
+network, reached through Ollama's OpenAI-compatible root, and it takes no
+credential - so the file holds no address for it, and a collection embedding
+through it names a local service (`app/services/local_service.py`) that does, the
+way a keyed collection names the vault key that pays. It is what lets a knowledge
+base stay on the deployment's own hardware (#1632), and the one way an app-scoped
+collection, which has no vault to hold a key, can embed at all (#1631).
 """
 
 from __future__ import annotations
@@ -54,18 +62,20 @@ class EmbeddingModelEntry:
 
 @dataclass(frozen=True)
 class EmbeddingProviderEntry:
-    """One provider that can embed, as the catalog file states it."""
+    """One provider a collection may embed through, as the catalog file states it."""
 
     provider: str
     name: str
-    # The OpenAI-compatible root the `/embeddings` call is made against.
-    base_url: str
+    # The OpenAI-compatible root the `/embeddings` call is made against. None for
+    # a keyless provider: the file cannot know where somebody's Ollama runs, so a
+    # collection on one names a local service (`local_services`) that carries the
+    # address, the way a keyed collection names the vault key that pays.
+    base_url: str | None
+    # An endpoint on the deployment's own network that takes no credential. A
+    # collection embedding through one names no vault key, and an app-scoped
+    # collection - which has no vault - may embed only through one (#1631).
+    keyless: bool
     models: tuple[EmbeddingModelEntry, ...]
-    # Whether this deployment's own `OPENROUTER_API_KEY` belongs to this provider.
-    # Exactly one entry may set it, and it is what a collection with no key of its
-    # own falls back to - sending that key anywhere else would be handing one
-    # vendor's credential to another.
-    deployment_key: bool = False
 
     def serves(self, model: str, dim: int) -> bool:
         """Whether this provider answers for `model` at exactly `dim`."""
@@ -84,25 +94,24 @@ def providers() -> tuple[EmbeddingProviderEntry, ...]:
 
 def get(provider: str) -> EmbeddingProviderEntry | None:
     """One provider, or None for an id this deployment does not offer."""
-    return next((entry for entry in CATALOG if entry.provider == provider), None)
+    return next((entry for entry in providers() if entry.provider == provider), None)
 
 
-def deployment_provider() -> EmbeddingProviderEntry:
-    """The provider the deployment's own key belongs to.
+def first() -> EmbeddingProviderEntry:
+    """The first provider offered - what a collection created with no say gets.
 
-    The catalog is validated to hold exactly one, at import, by
-    `tests/test_embedding_providers.py`: a fallback key with no address to send it
-    to, or two addresses claiming it, is a deployment that cannot embed and finds
-    out one document at a time.
+    `POST /rag/collections/{name}` takes no provider, so the knowledge base it
+    records needs one to be readable at all; it waits for a key through
+    `PATCH /kb/{id}`, which can move it to another provider in the same request.
+    Named so that the file's order is visibly load-bearing:
+    `tests/test_embedding_providers.py` pins which entry this is, so reordering
+    the catalog is a decision about stored rows rather than an accident.
     """
-    return next(entry for entry in CATALOG if entry.deployment_key)
+    return providers()[0]
 
 
-def require(provider: str | None, *, model: str, dim: int) -> EmbeddingProviderEntry:
+def require(provider: str, *, model: str, dim: int) -> EmbeddingProviderEntry:
     """The provider to record, refused if it cannot serve this model at this width.
-
-    `None` is the deployment's own provider, which is what a collection created
-    before providers were a choice has.
 
     Raises:
         BadRequestError: If the id is not one this deployment offers, or the
@@ -110,11 +119,9 @@ def require(provider: str | None, *, model: str, dim: int) -> EmbeddingProviderE
             `embedding_provider` field, because that is the control that was
             wrong.
     """
-    if provider is None:
-        return deployment_provider()
     entry = get(provider)
     if entry is None:
-        offered = ", ".join(item.provider for item in CATALOG)
+        offered = ", ".join(item.provider for item in providers())
         raise refused_field(
             "embedding_provider",
             f"'{provider}' is not an embedding provider this build offers. Choose one of: {offered}.",

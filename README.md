@@ -542,6 +542,9 @@ Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
 ## Licence
 
 Apache License 2.0 - see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists every component the
+images ship and its licence; the review of what those licences oblige, and the
+findings still open, is in [the documentation](https://vstorm-co.github.io/agenticos/licenses/).
 
 Apache-2.0 rather than MIT because AgenticOS is meant to be deployed inside other
 companies: the explicit patent grant is the part their legal review asks about,
