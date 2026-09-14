@@ -60,6 +60,7 @@ export const DEFAULT_INGESTION_CONFIG: IngestionConfig = {
   ocr: false,
   llamaparse_tier: "agentic",
   llamaparse_secret_id: null,
+  ocr_endpoint_id: null,
   auto_ocr: true,
   ocr_language: "eng",
   liteparse_output_format: "markdown",
@@ -220,6 +221,8 @@ const OCR_LANGUAGE_PATTERN = /^[a-z]{3}(\+[a-z]{3})*$/;
 export const INGESTION_FORM_FIELDS: readonly string[] = [
   "ingestion_config",
   "pdf_parser",
+  "llamaparse_secret_id",
+  "ocr_endpoint_id",
   "ocr_language",
   "parse_timeout_seconds",
   "liteparse_dpi",

@@ -234,7 +234,11 @@ class TestKnowledgeBaseCreate:
             pytest.raises(BadRequestError) as refused,
         ):
             await service.create(
-                KnowledgeBaseCreate(name="Handbook", collection_name="documents"),
+                KnowledgeBaseCreate(
+                    name="Handbook",
+                    collection_name="documents",
+                    embedding_model="text-embedding-3-small",
+                ),
                 ctx=self._ctx(),
             )
 
@@ -251,9 +255,18 @@ class TestKnowledgeBaseCreate:
                 "app.repositories.knowledge_base_repo.list_by_collection_name",
                 new=self._unclaimed(),
             ),
+            # The name is what this test is about; the provider and key a new
+            # collection must name are somebody else's assertion.
+            patch.object(KnowledgeBaseService, "_check_embedding_secret", new=AsyncMock()),
         ):
             await service.create(
-                KnowledgeBaseCreate(name="Handbook", collection_name="documents_archive"),
+                KnowledgeBaseCreate(
+                    name="Handbook",
+                    collection_name="documents_archive",
+                    embedding_model="text-embedding-3-small",
+                    embedding_provider="openrouter",
+                    embedding_secret_id=uuid.uuid4(),
+                ),
                 ctx=self._ctx(),
             )
 
