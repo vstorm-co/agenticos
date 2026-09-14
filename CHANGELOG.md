@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.413] - 2026-09-14
+
 ### Changed
 
 - **The stack runs Valkey where it used to run Redis.** `redis:7-alpine`
