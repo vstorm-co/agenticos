@@ -159,6 +159,13 @@ Computed properties:
 
 ## Redis
 
+The compose files run **Valkey** (`valkey/valkey:8-alpine`), the BSD-3-Clause fork of
+Redis 7.2, rather than Redis itself, which has been RSALv2 or SSPL-1.0 since 7.4.0 -
+neither an open-source licence ([licences](licenses.md)). It speaks the same protocol
+on the same port, so the settings below, the `redis://` scheme and the `redis` service
+name are unchanged, and a deployment that points these at a managed Redis, Valkey or
+Elasticache instead works exactly as before.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `REDIS_HOST` | `localhost` | Redis host |
