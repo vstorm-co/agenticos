@@ -40,7 +40,7 @@ Zwanzig Skills kosten ungefähr zwanzig *Beschreibungen* statt zwanzig
 Die andere Hälfte des Punktes ist, **wer sie schreibt**. Ein Skill ist eine Zeile
 in der Datenbank, in der UI bearbeitbar, sodass eine Support-Leitung die
 Rückerstattungsregel an einem Dienstagnachmittag korrigieren kann. Kein Deploy,
-kein Pull Request, keine Entwicklerin.
+kein Pull Request, kein Entwickler.
 
 !!! info "Skill, Context-Datei oder Knowledge-Collection?"
 
@@ -249,7 +249,7 @@ Moment ihrer Existenz an bearbeitbar. Er ist eine **Kopie**, keine Verknüpfung.
 Das ist Absicht. Der Sinn eines Skills ist, dass eine Support-Leitung die
 Rückerstattungsregel ohne Deploy korrigieren kann, und eine lebende Verknüpfung
 zurück zur Kopie im Repository würde genau das wegnehmen — die Organisation würde
-eine Datei lesen, die nur eine Entwicklerin ändern kann.
+eine Datei lesen, die nur ein Entwickler ändern kann.
 
 Bearbeiten ist auf gewöhnliche Weise endgültig. Löschen ist es nicht, denn die
 Auffüllung der Liste behandelt einen fehlenden mitgelieferten Namen als Lücke,

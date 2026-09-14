@@ -1,5 +1,5 @@
 ---
-source_sha: cff22ae9f823
+source_sha: 01f0f199ad5a
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -194,6 +194,20 @@ Dlatego wybór jest podejmowany raz, tutaj:
 Niemiecki składa je z łącznikiem, kiedy druga połowa jest niemiecka —
 Run-Kosten, Vault-Eintrag, Sandbox-Session — i zachowuje wielką literę
 angielskiego słowa.
+
+### Osoba bez imienia jest rodzaju męskiego, we wszystkich trzech językach { #a-generic-person-is-masculine-in-all-three-languages }
+
+Angielski mówi "the reader", "an operator", "whoever wrote the agent", nie
+wybierając rodzaju, a każdy z tutejszych języków wybrać go musi. Zostawione
+każdej stronie z osobna, wychodzi za każdym razem inaczej: pierwsze przejście
+niemieckie dało "der Betreiber" na jednej stronie i "die Betreiberin" na
+następnej, o tej samej osobie, a czytelnik spotyka oba.
+
+Ogólna forma roli jest więc męska — der Leser, der Betreiber, der Autor, der
+Entwickler, der Administrator, der Besitzer, der Kunde; czytelnik, operator,
+autor; el lector, el operador, el autor. Dotyczy to osoby, której nikt nie
+nazwał. Nazwany przykład zachowuje rodzaj, który ten przykład mu nadaje, i tak
+samo zdanie o jednej konkretnej osobie.
 
 ## Terminologia, która musi być dokładna { #terminology-that-has-to-be-exact }
 

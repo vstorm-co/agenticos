@@ -59,7 +59,7 @@ Modell erreicht.
 !!! tip "Schreiben Sie die Beschreibung für ein Modell, nicht für einen Menschen"
 
     Eine verlinkte Datei wird allein anhand ihres Namens und ihrer Beschreibung
-    gewählt. "Rückgaberichtlinie" sagt einem Modell weniger als "wann eine Kundin
+    gewählt. "Rückgaberichtlinie" sagt einem Modell weniger als "wann ein Kunde
     einen Artikel zurückgeben darf, die Fristen und die drei Ausnahmen" — und der
     Unterschied entscheidet, ob die Datei je geöffnet wird.
 

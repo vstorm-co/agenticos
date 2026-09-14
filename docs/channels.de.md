@@ -564,7 +564,7 @@ Besucher, der seine öffnet, sieht, was hier angehakt ist, und nichts sonst.
 
 | Schalter | Standard | Was er durchlässt |
 |---|---|---|
-| **Was der Agent gerade tut** | an | Eine Zeile pro Schritt — *Durchsucht die Dokumente*, *Hat eine Abfrage ausgeführt*. An, weil eine Seite, die dreißig Sekunden still wird, sich wie kaputt liest |
+| **Was der Agent gerade tut** | an | Eine Zeile pro Schritt — *Searching the documents*, *Ran a query*. An, weil eine Seite, die dreißig Sekunden still wird, sich wie kaputt liest |
 | **Was jeder Schritt zurückgegeben hat** | aus | Die Argumente, mit denen ein Schritt aufgerufen wurde, und was zurückkam. Für das Modell geschrieben, also taucht hier etwas Internes auf: eine Adresse, eine Zeile aus einem System, eine Passage, die niemand veröffentlichen wollte |
 | **Das Reasoning des Agents** | aus | Was das Modell zu sich selbst sagt, bevor es antwortet. Nicht dafür geschrieben, dass es jemand liest, und keine Antwort, hinter die sich ein Betreiber stellen kann |
 
@@ -1491,9 +1491,9 @@ davon, was der Agent gesagt hat.
 ### Wie eine Runde im Web-Chat aussieht { #what-a-turn-looks-like-in-web-chat }
 
 **Die Arbeit ist eine Erzählung, kein Stapel Karten.** Jeder Tool-Aufruf ist eine
-Zeile — *Hat test1.md geschrieben*, *Hat in app.py nach TODO gesucht*, *Hat
-pytest -q ausgeführt*, *Linear · Create issue* —, geschrieben in der Zeitform, in
-der sie wahr ist: Präsens, während der Aufruf läuft, Vergangenheit, sobald er
+Zeile — *Wrote test1.md*, *Searched for TODO in app.py*, *Ran pytest -q*,
+*Linear · Create issue* —, geschrieben in der Zeitform, in der sie wahr ist:
+Präsens, während der Aufruf läuft, Vergangenheit, sobald er
 fertig ist. Die Zeile benennt das *Subjekt* statt der Funktion, denn `write_file`
 ist nicht das, was irgendjemand lesen will. Jede Zeile öffnet sich zu dem, was der
 Aufruf tatsächlich erzeugt hat, und die rohen Argumente und die rohe Ausgabe

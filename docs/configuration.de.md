@@ -53,7 +53,7 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `MODELS_CACHE_DIR` | `./models_cache` | Verzeichnis für zwischengespeicherte ML-Modelle |
 | `MEDIA_DIR` | `./media` | Verzeichnis für hochgeladene Dateien |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Obergrenze für Dokumente der Knowledge Base und die Zahl, aus der sich die Obergrenze für die gesamte Anfrage weiter unten ableitet. Ein Dokument dieser Größe wird in Chunks zerlegt und embedded, nicht am Stück gehalten |
-| `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | Was im Chat angehängt werden darf. Eine eigene Einstellung statt der obigen, weil ein Anhang an einen Agent ohne Workspace vollständig in den Prompt eingesetzt wird — die beiden Oberflächen scheitern bei derselben Größe also unterschiedlich. War fest verdrahtete 10 MiB, die keine Betreiberin anheben konnte ([#498](https://github.com/vstorm-co/agenticos/issues/498)); der Frontend-Container liest dasselbe `CHAT_MAX_UPLOAD_SIZE_MB` zur Laufzeit, geben Sie also beiden Containern einen Wert, sonst lehnt der Composer eine Datei ab, die der Server annehmen würde |
+| `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | Was im Chat angehängt werden darf. Eine eigene Einstellung statt der obigen, weil ein Anhang an einen Agent ohne Workspace vollständig in den Prompt eingesetzt wird — die beiden Oberflächen scheitern bei derselben Größe also unterschiedlich. War fest verdrahtete 10 MiB, die kein Betreiber anheben konnte ([#498](https://github.com/vstorm-co/agenticos/issues/498)); der Frontend-Container liest dasselbe `CHAT_MAX_UPLOAD_SIZE_MB` zur Laufzeit, geben Sie also beiden Containern einen Wert, sonst lehnt der Composer eine Datei ab, die der Server annehmen würde |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Was eine **fremde Person** auf eine Hosted Page hochladen darf. Eine Obergrenze über `CHAT_MAX_UPLOAD_SIZE_MB`, nie ein Weg daran vorbei |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
@@ -249,7 +249,7 @@ angewiesen ist, hört still auf, ohne dass einer davon es ankündigt:
 - **Einladungen** — eine eingeladene Adresse bekommt nie eine Mail (die Konsole
   sagt das inzwischen, statt zu behaupten, sie habe eine verschickt, #1484);
 - **Benachrichtigungen** — eine Budget-Überschreitung, eine Freigabeanfrage, ein
-  Nutzungsbericht, der Hinweis, der verschickt wird, wenn eine Administratorin im
+  Nutzungsbericht, der Hinweis, der verschickt wird, wenn ein Administrator im
   Namen eines anderen Kontos handelt.
 
 | Variable | Standard | Beschreibung |
@@ -436,7 +436,7 @@ lesen.
 Eine `gdrive`-Sync-Quelle nennt ein `gcp_service_account`-Secret im Vault ihrer
 Organisation und läuft damit oder gar nicht: Ein deploymentweiter Key, der für
 einen fehlenden einsprang, führte dazu, dass die `folder_id` eines Tenants
-auswählte, was unter dem Service-Account der Betreiberin gelistet war. Die
+auswählte, was unter dem Service-Account des Betreibers gelistet war. Die
 Zugangsinformation der Quelle ist keine Einstellung und kein Konfigurationsfeld —
 siehe [Secrets und der Vault](secrets.md).
 
@@ -492,7 +492,7 @@ autorisiert das Öffnen einer Session, die Befehle auf dem Host ausführt, der d
 Docker-Socket hält, es gehört also dorthin, wo jede andere dauerhaft gespeicherte
 Zugangsinformation liegt.
 
-Eine Betreiberin registriert eine Verbindung mit einem Namen, einer Adresse und
+Ein Betreiber registriert eine Verbindung mit einem Namen, einer Adresse und
 einem Key aus dem Vault. Ein Agent nennt eine davon per id, genau wie er ein Model
 Profile nennt, oder nennt keine und nimmt die Standardverbindung der Organisation
 — der Wechsel auf einen anderen Host ist damit eine Änderung statt einer erneuten
@@ -501,7 +501,7 @@ Veröffentlichung jedes Agents.
 **Das Service-Token ist so viel wert wie der Docker-Socket.** Der Dienst hält
 diesen Socket, der Socket ist eine unauthentifizierte API für root auf dem Host,
 und das Token ist das, was darauf eine Session öffnet. Nie in einem Browser, nie
-in einem Log, nie committet — deshalb zeigt der Bildschirm für Betreiberinnen nur,
+in einem Log, nie committet — deshalb zeigt der Bildschirm für Betreiber nur,
 dass eine Zugangsinformation hinterlegt ist, und deshalb wird `GET /policy` über
 diese API geleitet, statt vom Browser abgerufen zu werden. Das eigene Dashboard
 des Dienstes (`SANDBOXD_UI_ENABLED`) ist aus demselben Grund in jeder
@@ -522,8 +522,8 @@ entsiegelt den Vault-Eintrag, den diese Verbindung nennt, und das bleibt der
 einzige Weg. Ein Deployment, das es nicht setzt, verliert also eine Schaltfläche
 und sonst nichts und fügt das Token stattdessen von Hand ein.
 
-Dasselbe Formular fragt, ob bereits ein Dienst antwortet, statt von einer
-Betreiberin zu verlangen zu wissen, dass ein Sandbox-Dienst aus `make dev` unter
+Dasselbe Formular fragt, ob bereits ein Dienst antwortet, statt von einem
+Betreiber zu verlangen zu wissen, dass ein Sandbox-Dienst aus `make dev` unter
 `http://sandboxd:8080` liegt. Diese Adresse ist keine Konfiguration, und das mit
 Absicht — sie ist eine Zeile, weil ein Deployment mehrere Hosts halten kann —,
 also prüft die API das unauthentifizierte `/healthz` unter der Adresse, die die
@@ -542,8 +542,8 @@ Instance-Metadata rundheraus ab — `169.254.169.254` und
 `metadata.google.internal` sind nie ein Sandbox-Dienst.
 
 Private Adressen bleiben erlaubt, und das müssen sie: `http://sandboxd:8080`
-innerhalb von Compose und `http://localhost:8080` für eine Entwicklerin, die die
-API auf ihrem eigenen Rechner laufen lässt, sind beide privat, eine Denylist für
+innerhalb von Compose und `http://localhost:8080` für einen Entwickler, der die
+API auf seinem eigenen Rechner laufen lässt, sind beide privat, eine Denylist für
 private Bereiche würde also das Deployment ablehnen, das diese Seite beschreibt.
 Der Validator verengt das Loch also, statt es zu schließen — ein Hostname, der auf
 etwas Internes zeigt, tut das weiterhin. **Die Grenze, die tatsächlich hält, ist
@@ -631,7 +631,7 @@ hat, und nicht, dass nichts konfiguriert ist — und ein Workspace mit Dateien
 darin und ohne Session ist der normale Ruhezustand.
 
 Der Dienst läuft hinter dem Compose-Profil `sandbox`, das in der lokalen
-Entwicklung standardmäßig an ist und überall sonst aus, bis eine Betreiberin es
+Entwicklung standardmäßig an ist und überall sonst aus, bis ein Betreiber es
 einschaltet — den Docker-Socket auf einem geteilten Host einzuhängen ist ein
 bewusster Akt. `COMPOSE_DEV_PROFILES` im Makefile ist die eine Stelle, an der
 sich das ändern lässt. `uv run agenticos cmd doctor` prüft jede registrierte
@@ -723,7 +723,7 @@ einen Workspace über die Nutzer eines Agents hinweg, und das Chat-Panel zeigt
 diese Dateien ohnehin jedem in einer Unterhaltung mit ihm, den Agent öffnen zu
 *können* ist also ein weiterer Anspruch, als diese Liste erhebt.
 
-`channel`-Scope ist nur für eine Betreiberin sichtbar, und das ist richtig statt
+`channel`-Scope ist nur für einen Betreiber sichtbar, und das ist richtig statt
 ein Versehen — er hängt an einem Slack- oder Telegram-Chat, die Menschen, die ihn
 teilen, sind also über diese Plattform identifiziert und nicht über eine Zeile in
 `users`.
@@ -782,7 +782,7 @@ fehle, obwohl sie da ist.
 
 Der Bildschirm Sandboxes hält das auf einem eigenen Tab, getrennt von der Tabelle
 der Verbindungen, und listet die offenen Sandboxes dieser Organisation auf dem
-Host, den er nennt — der Standardverbindung, bis die Betreiberin eine andere
+Host, den er nennt — der Standardverbindung, bis der Betreiber eine andere
 wählt.
 
 Jede Zeile trägt die Runtime, was sich diese Sandbox teilt, ihre Leerlaufzeit und

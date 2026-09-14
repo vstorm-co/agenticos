@@ -17,7 +17,7 @@ Begriff deckt den ganzen Zusammenbau ab statt zwei, die sich unschön überlappe
 
 !!! abstract "Code definiert, was existiert; Konfiguration setzt es nur zusammen"
 
-    Nichts, was eine Betreiberin eintippt, kann eine neue Capability ins Dasein
+    Nichts, was ein Betreiber eintippt, kann eine neue Capability ins Dasein
     rufen, und genau das macht die Menge dessen, was ein Agent tun kann,
     prüfbar.
 
@@ -48,7 +48,7 @@ der Begründung in diesem Test, statt ein leeres Modul mitzuschleppen.
 
 Die Tools liegen getrennt von der Capability-Klasse, weil Name und Beschreibung
 eines Tools **Prompt sind**: Das Modell liest sie, bevor es sich für einen Aufruf
-entscheidet, und eine Agent-Autorin darf beide pro Agent umschreiben. In einer
+entscheidet, und ein Agent-Autor darf beide pro Agent umschreiben. In einer
 `get_toolset`-Closure vergraben findet sie nur, wer die Klasse geschrieben hat.
 
 Lesen Sie `clock/` als kleinstes vollständiges Beispiel und `knowledge/` als
@@ -176,7 +176,7 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
 
     `tools=` ist das, wofür der Builder Approval pro Tool anbietet, und das,
     worauf das Approval-Gate abgleicht. Die gefährliche Hälfte dieses Fehlers ist
-    lautlos: Eine Autorin fügt ein zweites Tool mit Nebenwirkung hinzu, vergisst
+    lautlos: Ein Autor fügt ein zweites Tool mit Nebenwirkung hinzu, vergisst
     es zu deklarieren, und es läuft für immer unbeaufsichtigt.
     `tests/test_capability_registry.py` vergleicht die deklarierte Liste mit den
     Tools, die dem Modell tatsächlich angeboten werden — und das ist das Einzige,
@@ -205,7 +205,7 @@ gebunden wird, bekommt ihre Defaults statt eines Absturzes.
 ## 3. Die README schreiben { #3-write-the-readme }
 
 Jeder Capability-Ordner hat eine. Sagen Sie, warum es sie gibt, was sie
-absichtlich nicht tut, und jede Entscheidung, die eine spätere Leserin sonst
+absichtlich nicht tut, und jede Entscheidung, die ein späterer Leser sonst
 rückgängig machen würde. Hier wohnt die Begründung, nicht in der
 Commit-Nachricht.
 
@@ -283,7 +283,7 @@ vergessen wird:
 
     `side_effecting` gilt pro Capability, also sind es jetzt zwei Entscheidungen
     unter einem Namen. Nehmen Sie lieber eine zweite Capability; `approval` pro
-    Tool in einem Spec lässt eine *Agent-Autorin* strenger sein als der Default
+    Tool in einem Spec lässt einen *Agent-Autor* strenger sein als der Default
     und ersetzt nicht, die Wahrheit zu deklarieren.
 
 ## Ein Tool hinzufügen, das hier niemand schreiben muss { #adding-a-tool-nobody-here-has-to-write }

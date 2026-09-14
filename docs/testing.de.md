@@ -145,7 +145,7 @@ Route-Abdeckung sucht, übersieht sie.
 `tests/test_migrations.py` durchläuft die ganze Alembic-Kette gegen eine echte
 Datenbank, die es selbst unter einem eigenen Namen anlegt und wieder löscht —
 denn `downgrade base` löscht jede Tabelle, und `POSTGRES_DB` zu erben hat einmal
-die Arbeitsdatenbank einer Entwicklerin geleert. Es wird von einem gewöhnlichen
+die Arbeitsdatenbank eines Entwicklers geleert. Es wird von einem gewöhnlichen
 `pytest tests/` eingesammelt. Es liegt nicht in `integration/`, weil es die
 `db`-Fixture dieses Pakets überhaupt nicht nutzt: Es führt `alembic` in
 Subprozessen aus.
@@ -618,7 +618,7 @@ in keiner Richtung mehr davon ab, ob gerade ein Prefect-Server läuft.
 
 **Der Zustand dieses Servers ist eine SQLite-Datenbank unter `PREFECT_HOME`, und
 die Suite gibt ihm eine eigene.** Sich selbst überlassen ist das `~/.prefect`, ein
-Unit-Lauf schriebe seine Flow Runs also in die Prefect-Daten einer Entwicklerin
+Unit-Lauf schriebe seine Flow Runs also in die Prefect-Daten eines Entwicklers
 und, wo Prefect auf dem Host statt in Docker läuft, in die Datei, die ein
 laufender `prefect server` geöffnet hat. `tests/conftest.py` richtet es auf
 `agenticos-prefect-test` unter dem temporären Verzeichnis des Systems, aus

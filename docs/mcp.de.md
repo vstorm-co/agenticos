@@ -120,7 +120,7 @@ Agent diesen Server, nicht der Run.
 
 Zwei Allowlists, und keine hebt die andere auf.
 
-**Auf der Connection** ist `allowed_tools` die Entscheidung einer Administratorin
+**Auf der Connection** ist `allowed_tools` die Entscheidung eines Administrators
 für alle, die daran gebunden sind — die Tools, die diese Organisation auf jenem
 Server überhaupt erreichen will. **Auf dem Binding** grenzt sie darin weiter ein,
 pro Agent. So kann ein Server einen lesenden und einen schreibenden Agent
@@ -135,7 +135,7 @@ erlaubt — genau das, was jedes Binding tat, bevor es dies gab.
 
 Der Builder listet die Tools eines Servers aus dessen **letzter erfolgreicher
 Prüfung**, die auf der Connection festgehalten ist. Eine Prüfung wählt nach außen
-zu einem Dritten und ist auf `connections:manage` beschränkt; die Autorin eines
+zu einem Dritten und ist auf `connections:manage` beschränkt; der Autor eines
 Agents hält `agents:edit` und braucht die Liste zur Auswahl, also wird die Liste
 gelesen statt geholt.
 
@@ -160,7 +160,7 @@ Agent spricht als diese Person mit Notion: im Dashboard, in einer Direktnachrich
 und in einem Channel gleichermaßen. Der Audit-Trail bei Notion sagt dann, wer was
 getan hat — was ein geteiltes Dienstkonto nie kann.
 
-Das Konto ist das der Autorin *dieser Nachricht*, nie das des Threads. Ania fragt
+Das Konto ist das des Autors *dieser Nachricht*, nie das des Threads. Ania fragt
 in `#ops` und bekommt eine Antwort aus ihrem Notion; Bartek stellt dieselbe Frage
 im selben Thread und bekommt seine, oder wird gebeten, eines zu verbinden. Ein
 Thread ist keine Grenze, die jemandes Zugangsdaten überschreiten sollten — würde
@@ -191,8 +191,8 @@ einem Channel zu verknüpfen, es dem Channel zu übergeben.
 
 Das Tool-Präfix eines persönlichen Bindings ist der Katalogschlüssel, egal wie
 jede Person ihre Connection genannt hat, sodass der Agent allen `notion_search`
-präsentiert. `allowed_tools` auf dem Binding ist die Obergrenze der
-Administratorin; die eigene Connection der Person darf weiter eingrenzen, und die
+präsentiert. `allowed_tools` auf dem Binding ist die Obergrenze des
+Administrators; die eigene Connection der Person darf weiter eingrenzen, und die
 beiden schneiden sich.
 
 !!! warning "Drei Dinge lehnt das Veröffentlichen ab"
@@ -215,7 +215,7 @@ beiden schneiden sich.
     übrigen und sagt dem Modell, welcher Server in diesem Zug nicht verfügbar ist —
     und, wenn beide einen Namen tragen, durch welches Binding er spricht — statt
     ihn an eine Logzeile zu verlieren, die niemand liest. Eine der beiden
-    Connections umzubenennen ist die Korrektur der Autorin.
+    Connections umzubenennen ist die Korrektur des Autors.
 
 Ein Agent bindet jeden Dienst einmal, auf eine Weise. Ein Agent, der das
 Handbuch-Notion der Organisation *und* das jeweils eigene braucht, sind zwei
@@ -292,7 +292,7 @@ Die Anfrage geht an die aufgelöste IP, mit dem ursprünglichen Host im
 geprüft wird und nichts ihn ein zweites Mal auflöst.
 
 Diese zweite Hälfte zählt hier mehr als irgendwo sonst im Produkt. Die Adresse,
-die eine Betreiberin tippt, ist nur der erste Hop — der Authorization Server, der
+die ein Betreiber tippt, ist nur der erste Hop — der Authorization Server, der
 Token-Endpunkt, der Registrierungs-Endpunkt und jede Weiterleitung danach werden
 von den Discovery-Dokumenten des entfernten Servers benannt. Niemand in Ihrer
 Organisation musste der Angreifer sein.
@@ -312,8 +312,8 @@ Zwei Ränder bleiben, beide schmal und beide gewollt:
 - Die **Consent-URL** wird geprüft und dann einem Browser übergeben, der sie
   selbst auflöst. Es gibt nichts zu pinnen.
 - Die **eigene URL der Connection** wird beim Speichern geprüft und erneut
-  aufgelöst, wenn ein Agent läuft — von der Betreiberin getippt, sie neu zu binden
-  heißt also, die Betreiberin zu sein.
+  aufgelöst, wenn ein Agent läuft — vom Betreiber getippt, sie neu zu binden
+  heißt also, der Betreiber zu sein.
 
 Nichts, was ein *Modell* wählt, erreicht diese Prüfung überhaupt, und das soll auch
 so sein: Eine URL, die ein Agent ausgewählt hat, gehört zu Pydantic AIs
@@ -345,7 +345,7 @@ Anfragen hier sind eine Client-Registrierung und eine Token-Ausgabe — sie zu
 zitieren würde also einen Token-Endpunkt, mit Zugangsdaten aufgerufen, in den
 Browser tragen. Ein Pydantic-Fehler über eine unlesbare Token-Antwort gibt die
 abgelehnte Payload wieder, und das sind die Tokens. Beides bleibt im Server-Log,
-und dort schaut eine Betreiberin ohnehin hin.
+und dort schaut ein Betreiber ohnehin hin.
 
 **Ein Discovery-Dokument, das eine URL benennt, die sich überhaupt nicht anfragen
 lässt, ist dieselbe Art von Antwort**: eine **400**, die sagt, welcher Endpunkt
@@ -359,7 +359,7 @@ Behauptung darüber, wessen Schuld ein Fehlschlag war.
 
 Ein unbrauchbarer `WWW-Authenticate`-Hinweis beendet diesen
 Discovery-*Kandidaten*, nicht den Flow, denn die darauf folgenden
-Well-known-URIs leiten sich von der URL ab, die eine Betreiberin getippt hat, und
+Well-known-URIs leiten sich von der URL ab, die ein Betreiber getippt hat, und
 antworten womöglich sehr wohl.
 
 Das war eine 500 mit leerem Body bis
@@ -390,14 +390,14 @@ Scopes — bei persönlichen wie bei Organisations-Connections — sodass die Co
 Token an einen anderen zu senden.
 
 Auf einer Organisationszeile ist das zugleich eine Grenze zwischen
-Administratoren: Wenn eine Halterin von `mcp:manage` eine Connection umlenkt, die
-eine andere autorisiert hat, darf die Plattform dieses Token nicht an den neuen
+Administratoren: Wenn ein Halter von `mcp:manage` eine Connection umlenkt, die
+ein anderer autorisiert hat, darf die Plattform dieses Token nicht an den neuen
 Host ausliefern.
 
 **Eine deaktivierte Connection gibt nirgends Tokens heraus.** Der Tool-Pfad des
 Agents überspringt sie, und die Trigger-Portale tun es auch — wer die
 `connection_id` eines Triggers behalten hat, kann nicht weiter Repositories
-aufzählen oder Hooks registrieren, mit Zugangsdaten, die eine Administratorin
+aufzählen oder Hooks registrieren, mit Zugangsdaten, die ein Administrator
 abgeschaltet hat.
 
 **Eine Connection zu löschen gibt frei, was über sie registriert wurde.** Jeder

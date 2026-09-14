@@ -270,7 +270,7 @@ allein die Instruktionen und Tool-Schemata über dem Auslöser liegen, kann kein
 Zusammenfassung darunter kommen — sie stehen nicht in der Historie, die
 zusammenzufassen wäre. Jede Anfrage würde dann eine Zusammenfassung kaufen, die
 nichts ändert. Die Kompaktierung wird übersprungen, der Chat sagt warum, und die
-Behebung ist Sache der Autorin: ein größeres Window oder ein höherer Bruchteil.
+Behebung ist Sache des Autors: ein größeres Window oder ein höherer Bruchteil.
 
 Diese Ablehnung ruht auf einer Zahl, die eine *Antwort* erzeugt, sodass ein Turn
 seine eigene nicht messen kann, bevor er entscheiden muss — und ein Chat-Turn ist
@@ -315,7 +315,7 @@ Zwei dieser drei gehören dem Delegate selbst, und das ist die Linie, die das
 Budget nicht überschreitet: `max_steps` wird vom Spec des Delegates gelesen, und
 sein `max_depth` deckelt, wie tief *es* gehen darf, wie viel Raum sein Aufrufer
 auch übrig hatte. Ein Cap auf Ausgaben ist ein Cap auf den Run, den jemand
-gestartet hat; ein Cap auf Verschachtelung ist eine Entscheidung, die die Autorin
+gestartet hat; ein Cap auf Verschachtelung ist eine Entscheidung, die der Autor
 des Delegates getroffen hat und seine Prüfer lesen, also kann ein Aufrufer sie
 nicht aufweiten.
 
@@ -928,7 +928,7 @@ sechs Fragen, die die Listen-Routen nicht beantworten müssen:
 
 ### Ein gepinnter Delegate bewegt sich nicht von allein { #a-pinned-delegate-does-not-move-on-its-own }
 
-Ein Delegate ist auf eine Version gepinnt, sodass ein Fix, den seine Autorin
+Ein Delegate ist auf eine Version gepinnt, sodass ein Fix, den sein Autor
 ausliefert, für seine Aufrufer nichts ändert, bis jemand den Parent gegen den
 neuen Pin neu veröffentlicht. Das ist dieselbe Garantie, die das Veröffentlichen
 hier überall gibt, und sie schneidet in beide Richtungen: Ein in einem Delegate
@@ -946,7 +946,7 @@ jemandes Delegate.** Ein Pin auf einen bereits archivierten Agent wird beim
 Veröffentlichen abgelehnt, und ein Agent, der nach dem Pinnen archiviert wurde,
 lässt den Run seines Aufrufers namentlich scheitern — sonst würde einen Agent
 außer Dienst zu nehmen ihn ausgerechnet an der einen Stelle, an der niemand
-hinsieht, unbegrenzt weiterlaufen lassen, und die Autorin, die ihn ausgemustert
+hinsieht, unbegrenzt weiterlaufen lassen, und der Autor, der ihn ausgemustert
 hat, erführe es nie.
 
 ### Step-Limits { #step-limits }
@@ -1068,7 +1068,7 @@ Vier Eigenschaften, die man kennen sollte:
   ([#857](https://github.com/vstorm-co/agenticos/issues/857)). Wählen Sie eine
   Methode, die dieses Deployment selbst ausführt, oder lassen Sie die
   Freigabepflicht fallen; beides sind legitime Agents, und welches gewollt ist, ist
-  keine Entscheidung, die stellvertretend für die Autorin getroffen wird.
+  keine Entscheidung, die stellvertretend für den Autor getroffen wird.
 - **Und eine Version, die veröffentlicht wurde, bevor es diese Ablehnung gab,
   läuft nicht.** Nichts validiert eine eingefrorene Version erneut — ein Run lädt
   seinen gespeicherten Spec und setzt ihn zusammen —, also läuft dieselbe Prüfung
@@ -1078,8 +1078,8 @@ Vier Eigenschaften, die man kennen sollte:
   ändern ist. Was aufhört, ist ein Agent, dessen Betreiber um eine Freigabe bat,
   um die nie jemand gebeten wurde.
 - **Ein Modellschritt kann mehrere Aufrufe parken.** Ein Modell, das mit zwei
-  nebenwirkungsbehafteten Aufrufen zugleich antwortet — „mail die Kundin und die
-  Kundenbetreuerin an" — parkt beide, jeder mit einer eigenen Freigabe-Zeile, die
+  nebenwirkungsbehafteten Aufrufen zugleich antwortet — „mail den Kunden und den
+  Kundenbetreuer an" — parkt beide, jeder mit einer eigenen Freigabe-Zeile, die
   für sich entschieden wird. Die Zeilen werden geschrieben, wenn der Run parkt,
   statt beim Gaten jedes Aufrufs, weil die Aufrufe nebenläufig laufen und die
   Datenbank-Session des Runs nicht nebenläufigkeitssicher ist
@@ -1197,8 +1197,8 @@ dessen Trigger sie der verknüpfte Run war.
 Ein stündlicher Sweep beendet alles, was jenseits von
 `STALE_RUN_REAPED_AFTER_HOURS` noch `running` ist — sechs Stunden voreingestellt,
 null schaltet es ab — als **`failed`**. Niemand hat diesen Run gestoppt, die
-Infrastruktur hat es getan, und eine Betreiberin, die die Run-Historie nach
-Problemen filtert, ist genau die, die das sehen sollte.
+Infrastruktur hat es getan, und ein Betreiber, der die Run-Historie nach
+Problemen filtert, ist genau der, der das sehen sollte.
 
 Der Fehler auf der Zeile ist der eigene Satz des Sweeps. Der Prozess, der mehr
 wusste, ist gestorben.
@@ -1320,7 +1320,7 @@ Ein Publikum ist eine Liste von Rollen, nicht von Adressen:
 | `initiator` | wer den Run gestartet hat; niemand, bei einem Run, den ein Zeitplan begonnen hat |
 | `chosen` | genau die daneben benannten Mitglieder |
 
-Rollen statt Adressen, weil ein Spec in das Repository einer Kundin exportiert
+Rollen statt Adressen, weil ein Spec in das Repository eines Kunden exportiert
 wird und die Menschen darin überlebt: `admins` bedeutet nach einer Umstrukturierung
 weiterhin die richtigen Personen, und es bedeutet sie in derjenigen Organisation,
 in die der Spec importiert wird. Ein benanntes Mitglied, das gegangen ist, steuert
@@ -1339,8 +1339,8 @@ Für den Tab gab es keine URL, bis #934 sie in `?tab=` legte.
 
 Sie nennt den Run bewusst **nicht** mit `&run=`, obwohl der Alert einen hält: Die
 Entscheidungs-Bedienelemente sitzen auf der Zeile in der Queue, und unterhalb von
-`lg` ersetzt ein fokussierter Run die Liste — was sie vor der Leserin verbergen
-würde, die am ehesten am Telefon sitzt.
+`lg` ersetzt ein fokussierter Run die Liste — was sie vor dem Leser verbergen
+würde, der am ehesten am Telefon sitzt.
 
 Budget-Post öffnet den Agent, und das ist das richtige Ziel dafür: Das Cap, über
 das sie berichtet, wird dort bearbeitet.
@@ -1369,9 +1369,9 @@ er gestoppt hat.
 Die zweite E-Mail trägt **keinen Link**, und das ist gewollt und nicht
 unfertig. Dass `agents:view` eine Rollenberechtigung ist, macht keinen einzelnen
 Agent erreichbar: Der Zugriff auf einen Agent wird je Ressource aufgelöst, sodass
-eine `chosen`-Empfängerin ohne Grant auf einen privaten Agent eine zweite
+ein `chosen`-Empfänger ohne Grant auf einen privaten Agent eine zweite
 Handlungsaufforderung bekäme, die die Plattform ablehnt — derselbe Defekt an einer
-neuen Stelle. Von dieser Leserin wird nichts verlangt, also wird ihr nichts
+neuen Stelle. Von diesem Leser wird nichts verlangt, also wird ihm nichts
 angeboten. Ebenso wenig behauptet sie, irgendwer sonst sei informiert worden: Ein
 Publikum aus einer Person ohne Entscheidungsrecht heißt, dass niemand, der
 entscheiden kann, überhaupt angemailt wurde, und ein Satz, der etwas anderes
@@ -1404,22 +1404,22 @@ erste Anfrage der Seite bereits den richtigen Tenant trägt. Der Pfad steht übe
 dem Parameter — ein Link sagt, um welche Organisation ein Alert ging, und kann
 niemanden von der Seite wegbewegen, auf der er gerade steht.
 
-Einer Leserin, die diese Organisation inzwischen verlassen hat, wird das gesagt,
-statt sie still zu verschieben: Die Ablehnung nennt den Link als Grund, denn im
+Einem Leser, der diese Organisation inzwischen verlassen hat, wird das gesagt,
+statt ihn still zu verschieben: Die Ablehnung nennt den Link als Grund, denn im
 Stillen umgeschaltet zu werden ist der Weg, auf dem die Seite einer anderen
 Organisation zur Antwort auf den Alert wird. Sie kann die Organisation nicht
-nennen — die Leserin ist kein Mitglied, also steht sie nicht in ihrer Liste.
+nennen — der Leser ist kein Mitglied, also steht er nicht in ihrer Liste.
 
 ### Zwei Regeln, die nicht verhandelbar sind { #two-rules-that-are-not-negotiable }
 
 **Ein Opt-out je Person zieht immer nur ab.** Die eigenen Schalter jedes
 Empfängers unter **Settings → Notifications** werden zuletzt angewendet. Ein Agent
 kann entscheiden, dass die Admins von ihm hören sollen; ein Admin kann trotzdem
-entscheiden, dass er keine Budget-Post will. Nichts, was die Autorin eines Agents
+entscheiden, dass er keine Budget-Post will. Nichts, was der Autor eines Agents
 schreibt, verpflichtet jemanden in ein Postfach.
 
 **Das Cap der Organisation ignoriert den Spec vollständig.** Dieses Limit stoppt
-jeden Agent in der Organisation, und die Autorin eines Agents kann es nicht
+jeden Agent in der Organisation, und der Autor eines Agents kann es nicht
 anheben, also geht sein Alert an die Administratoren, was auch immer irgendein
 Agent verlangt. Ein Agent kann kein Limit stummschalten, das er nicht
 kontrolliert.
@@ -1471,8 +1471,8 @@ Eine **impersonierte** Aktion nennt beide. Wenn ein App-Admin als ein anderes
 Konto handelt, trägt das Access-Token den Administrator als `act`-Claim; jeder
 Eintrag, den diese Anfrage festhält, behält `actor_user_id` als das Konto, als das
 gehandelt wird, und fügt `impersonator_user_id` hinzu — den Administrator
-dahinter. So löst sich „wer hat die Unterhaltung dieser Kundin gelesen" auf eine
-Person auf, selbst wenn die Aktion als die der Kundin festgehalten wurde. Bei
+dahinter. So löst sich „wer hat die Unterhaltung dieses Kunden gelesen" auf eine
+Person auf, selbst wenn die Aktion als die des Kunden festgehalten wurde. Bei
 einer gewöhnlichen Anfrage ist es null, wo niemand als jemand anderes handelt, und
 nichts wird nachgetragen: Ob eine vergangene Aktion impersoniert war, lässt sich im
 Nachhinein nicht wissen, und eine Antwort zu erfinden wäre eher eine falsche

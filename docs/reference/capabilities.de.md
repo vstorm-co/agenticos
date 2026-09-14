@@ -212,7 +212,7 @@ Niemand blättert in der Konsole durch die Notizen einer Person: Ein Betreiber, 
 liest, was ein Agent über einen Kollegen geschrieben hat, ist genau das Versagen,
 das dieses Design ablehnt, und es gibt keinen Bildschirm dafür. Was es gibt, ist
 das Löschen. Eine Person löscht alles, was ein Agent über sie erinnert, aus ihrem
-eigenen Profil, und eine Administratorin mit `members:manage` kann es für jemand
+eigenen Profil, und ein Administrator mit `members:manage` kann es für jemand
 anderen tun; beides löscht die Zeilen hier **und** die zugehörigen Erinnerungen in
 mem0 für jeden Agent, der es bindet. Das Gedächtnis eines einzelnen Agents
 vollständig zu leeren, steht in dessen Toolbox, neben der Capability.
@@ -273,7 +273,7 @@ geprüft. Das Run-Log eines Triggers ist bewusst nicht dabei: Es ist ein Protoko
 von Runs unter der Autorität einer anderen Person, und ein Agent, der im Auftrag
 einer Person sucht, hält keine ihrer Berechtigungen, mit der er es prüfen könnte.
 
-**Und nur dort, wo diese Person die einzige Zuhörerin ist.** In einem Gruppenchat
+**Und nur dort, wo diese Person der einzige Zuhörer ist.** In einem Gruppenchat
 verweigern beide Tools und sagen warum: Der Korpus ist persönlich, also würde eine
 Antwort daraus in einem Kanal die privaten Unterhaltungen einer Person allen im
 Raum vorlesen. Es ist dieselbe Linie, die der Gedächtnisindex zieht, eine Schicht
@@ -426,7 +426,7 @@ auslöst.
 
 Setzen Sie `method` auf `local`, oder verzichten Sie auf die Genehmigungspflicht.
 Beides sind legitime Agents, und welcher davon gewollt ist, ist keine Entscheidung,
-die man stellvertretend für die Autorin trifft.
+die man stellvertretend für den Autor trifft.
 
 Eine Version, die vor dieser Ablehnung veröffentlicht wurde, wird erneut abgelehnt,
 wenn sie zusammengebaut wird, denn nichts validiert eine eingefrorene Version noch
@@ -600,14 +600,14 @@ Die Veröffentlichung wird für einen `service`-Workspace abgelehnt, wenn die
 Organisation keine Verbindung registriert hat, wenn die benannte verschwunden ist
 oder wenn diese Verbindung keine Zugangsdaten hat — jeweils namentlich, denn alle
 drei sind Zustände, die ein Deployment *nach* der Veröffentlichung eines Agents
-erreicht, und die Behebung liegt bei einem Betreiber statt bei der Autorin.
+erreicht, und die Behebung liegt bei einem Betreiber statt beim Autor.
 
 **Nur `execute` fragt nach.** Seiteneffekte werden pro Tool deklariert, und von den
 sieben hat nur das Ausführen eines Befehls welche: Ein Workspace ist Notizraum, der
 mit der Unterhaltung gelöscht wird, zu der er gehört, deshalb ist eine Datei darin
 zu schreiben nicht dieselbe Art von Handlung wie eine E-Mail zu senden — und ein
 Agent, der vor jedem `write_file` fragen muss, kann mehrstufige Arbeit gar nicht
-erledigen, was dazu führt, dass eine Autorin das Gate ganz abschaltet und das eine
+erledigen, was dazu führt, dass ein Autor das Gate ganz abschaltet und das eine
 verliert, auf das es ankam. `execute` führt beliebige Befehle auf dem Host von
 jemandem aus.
 
@@ -660,7 +660,7 @@ mit `skills:edit` nimmt sie an oder verwirft sie — siehe [Skills](../skills.md
 ## Diagramme { #charts }
 
 `create_chart` — *Zeichnet ein Diagramm aus Zahlen, die Sie bereits haben, damit
-die Nutzerin sie sehen kann.*
+der Nutzer sie sehen kann.*
 
 Stellt Zahlen dar, die das Modell bereits hat. Es ruft nichts ab, rechnet nichts
 und aggregiert nichts — paaren Sie es dafür mit `code_execution` oder `knowledge`.
@@ -728,7 +728,7 @@ Die beiden Provider benennen das Bildmodell an verschiedenen Stellen, und der
 Katalog trägt auch das. Bei **Google** *ist* das gewählte Modell das Bildmodell.
 Bei **OpenAI** wird das Tool von einem Responses-Modell aufgerufen und zeichnet mit
 dem gewählten, deshalb benennt der Eintrag diesen Aufrufer und die Wahl reist als
-das eigene `model` des Tools. Keines von beidem ist eine Frage, die der Autorin
+das eigene `model` des Tools. Keines von beidem ist eine Frage, die dem Autor
 gestellt wird.
 
 **Ein Spec, der vor dem Bestehen des Paares veröffentlicht wurde, läuft weiterhin.**
@@ -761,7 +761,7 @@ seine Summe als unvollständig (`cost_is_partial`), statt die Ausgaben zu verber
 **Wohin das Bild geht.** Jedes erzeugte Bild wird **pro Organisation** gespeichert
 und über [`GET /api/v1/generated/{filename}`](../architecture.md) zurückgeliefert,
 begrenzt auf die eigene Organisation der aufrufenden Person — eine weitere Grenze
-als bei einem Chat-Upload, das einer Nutzerin gehört, denn es gibt keine
+als bei einem Chat-Upload, das einem Nutzer gehört, denn es gibt keine
 Aufzeichnung darüber, wer ein Bild erzeugt hat. Wenn der Agent zusätzlich einen
 Workspace hat (die `sandbox`-Capability), wird dasselbe Bild dort unter `/output`
 abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, eine
@@ -770,14 +770,14 @@ Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
 
 ## Delegation { #delegation }
 
-`task` — *übergibt ein in sich geschlossenes Stück Arbeit an eine der
-Spezialistinnen dieses Agents.*
+`task` — *übergibt ein in sich geschlossenes Stück Arbeit an einen der
+Spezialisten dieses Agents.*
 `check_task`, `wait_tasks`, `list_active_tasks` — *eine laufende verfolgen.*
 `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — *eine steuern
 oder stoppen.* Diese sechs werden nur angeboten, wenn eine Delegation im
 Hintergrund erreichbar ist — ein Agent mit reinem `sync` bekommt keine davon.
-`create_agent`, `delegate` — *eine Spezialistin, die das Modell sich selbst
-schreibt, wenn die Autorin es erlaubt.*
+`create_agent`, `delegate` — *ein Spezialist, den das Modell sich selbst
+schreibt, wenn der Autor es erlaubt.*
 `answer_subagent` — *deklariert, und keinem Modell angeboten.*
 
 Ein Agent übergibt einen Teil einer Aufgabe an einen anderen, jeder auf seinem
@@ -791,7 +791,7 @@ Berechtigungsmodell es alle sehen können.
 
 | Konfiguration | Standard | Bereich |
 |---|---|---|
-| `inline` | keine | Spezialistinnen, die in diesem Agent definiert sind |
+| `inline` | keine | Spezialisten, die in diesem Agent definiert sind |
 | `mode` | `sync` | `sync`, `async`, `auto` |
 | `allow_questions` | `false` | eine synchrone Delegierte darf die Person des übergeordneten Agents fragen |
 | `allow_dynamic` | `false` | |
@@ -800,20 +800,20 @@ Berechtigungsmodell es alle sehen können.
 | `max_result_chars` | 2000 | 200–20000 |
 | `share_with_delegates` | keine | Capability-ids, an die dieser Agent selbst gebunden ist, außer `subagents` |
 
-**Der Modus ist die Entscheidung der Autorin, nicht die des Modells.**
+**Der Modus ist die Entscheidung des Autors, nicht die des Modells.**
 
 Das `task`-Tool der Bibliothek nimmt ein `mode`-Argument entgegen, das auf `sync`
 voreingestellt ist, deshalb sind „das Modell hat sich zum Warten entschieden“ und
 „das Modell hat nichts gesagt“ derselbe Aufruf. Es gibt keine Möglichkeit, sowohl
 eine Einstellung als auch eine Wahl zu ehren, und die Einstellung wurde geprüft.
 
-Also wird das Argument unterwegs ersetzt, und `auto` ist die Art, wie eine Autorin
+Also wird das Argument unterwegs ersetzt, und `auto` ist die Art, wie ein Autor
 die Entscheidung bewusst abgibt. `auto` wird *vor* dem Start der Delegation
 aufgelöst, denn ob ein Panel offen bleibt, nachdem der übergeordnete Agent
 geantwortet hat, hängt von der Antwort ab.
 
-Eine angeheftete Delegierte oder eine Spezialistin darf den Modus für sich selbst
-überschreiben — eine langsame Rechercheurin ist der Fall, der sich im Hintergrund
+Eine angeheftete Delegierte oder ein Spezialist darf den Modus für sich selbst
+überschreiben — ein langsamer Rechercheur ist der Fall, der sich im Hintergrund
 zu laufen lohnt. Die Instruktionen **markieren diese Delegierte** dann neben ihrem
 Namen: Ein einzelner Satz, der den konfigurierten Modus angibt, war ein
 Versprechen, das die überschreibende Delegierte dann brach, indem er dem Modell
@@ -825,7 +825,7 @@ angeboten.** Jedes von `check_task`, `wait_tasks`, `list_active_tasks`,
 oder berichtet über sie, und eine `sync`-Delegation liefert die Antwort und sonst
 nichts — es gibt keine id zum Weitergeben. Sie werden also nur angeboten, wenn eine
 Hintergrund-Delegation erreichbar ist: der Modus `async` oder `auto`, eine
-Delegierte, die eines von beiden bevorzugt, oder die Erlaubnis, Spezialistinnen zu
+Delegierte, die eines von beiden bevorzugt, oder die Erlaubnis, Spezialisten zu
 erfinden. `sync` ist der Standard, das ist also die übliche Konfiguration, und sechs
 zurückgehaltene Tool-Beschreibungen sind sechs, für die das Modell nicht mehr in
 jedem Zug bezahlt. `task` bleibt — ein `sync`-Agent delegiert weiterhin.
@@ -852,11 +852,11 @@ ersten widerspricht.
 **Und jeder Agent im Baum wird an seinem eigenen `max_depth` gemessen, nicht an dem
 der Wurzel.** Eine Delegierte bekommt den *niedrigeren* Wert aus dem, was der Baum
 noch übrig hat, und dem, was ihr eigener Spec erlaubt — eine für drei Ebenen
-konfigurierte Wurzel, die an einen Agent delegiert, dessen Autorin 1 gewählt hat,
+konfigurierte Wurzel, die an einen Agent delegiert, dessen Autor 1 gewählt hat,
 bekommt eins: Diese Delegierte delegiert und ihre Delegierten nicht, genau so, wie
-ihre eigenen Prüferinnen es gelesen haben. Eine Obergrenze, die eine Aufruferin
+ihre eigenen Prüfer es gelesen haben. Eine Obergrenze, die ein Aufrufer
 erweitern könnte, wäre keine, und der Grund, eine Delegierte auf eine Version
-anzuheften, ist, dass die Entscheidungen ihrer Autorin gelten, wenn jemand anderes
+anzuheften, ist, dass die Entscheidungen ihres Autors gelten, wenn jemand anderes
 sie aufruft.
 
 **Eine synchrone Delegation kann anhalten, um eine Person zu fragen, und wird an
@@ -886,7 +886,7 @@ freigegeben und das von einer Oberfläche geöffnete Panel nie geschlossen.
 **Eine synchrone Delegierte darf die Person des übergeordneten Agents fragen, wenn
 `allow_questions` gesetzt ist.**
 
-Standardmäßig aus: Eine Spezialistin arbeitet autonom und sagt es, wenn sie nicht
+Standardmäßig aus: Ein Spezialist arbeitet autonom und sagt es, wenn er nicht
 konnte.
 
 Eingeschaltet bekommt eine Delegierte, deren Modus sync ist, das `ask_parent`-Tool
@@ -894,17 +894,17 @@ der Bibliothek, und eine Frage, die sie stellt, wird über den eigenen
 `ask_user`-Kanal des Runs beantwortet — von der Person, die den Tool-Aufruf des
 übergeordneten Agents ohnehin schon hält — und niemals vom Modell.
 
-Es ist die Entscheidung der Autorin, weil die Frage einen Namen trägt, den die
-Autorin veröffentlicht hat. Eine Spezialistin, die das Modell *erfindet*, fragt
+Es ist die Entscheidung des Autors, weil die Frage einen Namen trägt, den der
+Autor veröffentlicht hat. Ein Spezialist, den das Modell *erfindet*, fragt
 nie, was auch immer hier steht: Instruktionen, die ein Modell vor einem Moment
-geschrieben hat, sind nicht die der Autorin, um sie einer Person vorzulegen.
+geschrieben hat, sind nicht die des Autors, um sie einer Person vorzulegen.
 
 Nur sync. Eine Hintergrund-Delegation hat eine Task-id zurückgegeben, und es ist
 niemand mehr da, der antworten könnte, und `auto` kann zu einer solchen werden.
 
 Eine vorgefertigte Delegierte zu erreichen, brauchte eine Änderung stromaufwärts.
 [subagents-pydantic-ai#76](https://github.com/vstorm-co/subagents-pydantic-ai/pull/76)
-ehrt `can_ask_questions` für einen von der Aufruferin gelieferten Agent, was hier
+ehrt `can_ask_questions` für einen vom Aufrufer gelieferten Agent, was hier
 jede Delegierte ist — damit ist die synchrone Hälfte von
 [#184](https://github.com/vstorm-co/agenticos/issues/184) erledigt.
 
@@ -934,13 +934,13 @@ das Ende des Zuges abbricht.
 **`wait_tasks` kürzt, und sagt das.** Das Ergebnis einer abgeschlossenen Task wird
 bei `max_result_chars` abgeschnitten, mit einer ausdrücklichen Markierung, die auf
 `check_task` verweist, das immer den vollständigen Text zurückgibt. Die Markierung
-ist die tragende Hälfte: Ein stiller Schnitt liest sich als kurze Antwort, und eine
-Orchestratorin, der ein halber Bericht gereicht wurde, delegiert Arbeit erneut, die
-sie schon hat.
+ist die tragende Hälfte: Ein stiller Schnitt liest sich als kurze Antwort, und ein
+Orchestrator, dem ein halber Bericht gereicht wurde, delegiert Arbeit erneut, die
+er schon hat.
 
 **Die Delegation abzuschalten heißt, die Bindung zu deaktivieren, nicht eine Zahl
 zu senken.** Eine deaktivierte Bindung ist keine Delegation: Es wird nichts gebaut,
-also liest nichts die Pins oder die Spezialistinnen, die sie mitführt — und die
+also liest nichts die Pins oder die Spezialisten, die sie mitführt — und die
 Veröffentlichung wird dann für einen Agent abgelehnt, der immer noch Delegierte
 benennt, denn ein Pin, den nie jemand aufrufen wird, ist Konfiguration, die sich
 wie eine Entscheidung liest und nichts tut.
@@ -962,13 +962,13 @@ Genehmigung zu bitten, bevor die Arbeit, die vielleicht Genehmigung braucht,
 
 **Einer Delegierten werden die Capabilities des übergeordneten Agents nicht
 geliehen.** Sie läuft auf ihrem eigenen Spec plus dem, was
-`share_with_delegates` benennt, eine id nach der anderen — eine Spezialistin, die
+`share_with_delegates` benennt, eine id nach der anderen — ein Spezialist, der
 still die Zugangsdaten des übergeordneten Agents erhielte, wäre der leise Weg um
 das herum, was diesem gewährt wurde. Die Veröffentlichung lehnt eine geteilte id
 ab, an die der übergeordnete Agent selbst nicht gebunden ist, denn zu verleihen,
 was man nicht hält, ist eine Konfigurationszeile, die sich wie eine Entscheidung
 liest und nichts tut. In der Praxis existiert das für `sandbox`: Es zu teilen, ist
-die Art, wie eine Rechercheurin `/workspace/notes.md` schreibt und eine Autorin es
+die Art, wie ein Rechercheur `/workspace/notes.md` schreibt und ein Autor es
 liest. Eine Delegierte, die `sandbox` bindet, *ohne* dass ihr der des übergeordneten
 Agents geteilt wurde, bekommt den In-Memory-Workspace, denn nur der Run öffnet
 einen.
@@ -978,9 +978,9 @@ der übergeordnete Agent es“ niemals ablehnen könnte — ein Agent, der irgen
 teilt, hält es per Definition.
 
 Geteilt landet die Bindung des übergeordneten Agents bei einer Delegierten, die
-keine bindet, und die Laufzeit liest dann die Spezialistinnen, `allow_dynamic`,
+keine bindet, und die Laufzeit liest dann die Spezialisten, `allow_dynamic`,
 `max_fanout`, `max_depth` und die Teilungsliste des *übergeordneten* Agents, als
-hätte die Autorin der Delegierten sie gewählt.
+hätte der Autor der Delegierten sie gewählt.
 
 Die Veröffentlichung lehnt das ab, und die Laufzeit streicht es außerdem aus der
 Teilungsliste, sodass auch ein vor dieser Regel gespeicherter Spec eine Delegierte
@@ -991,9 +991,9 @@ tief sie gehen darf, ebenfalls — begrenzt durch das, was der Baum über ihr ü
 hat.
 
 Das Teilen ist außerdem der einzige Weg zu einer
-[MCP-Verbindung](../mcp.md) für eine Inline-Spezialistin, die selbst gar keine
+[MCP-Verbindung](../mcp.md) für einen Inline-Spezialisten, der selbst gar keine
 binden kann: Eine Verbindung ist organisationsweite Konfiguration, und sie über
-eine Spezialistin zu erreichen, die niemand veröffentlicht hat, ist die falsche
+einen Spezialisten zu erreichen, den niemand veröffentlicht hat, ist die falsche
 Tür. Binden Sie sie am übergeordneten Agent und benennen Sie sie hier.
 
 **`create_agent` und `delegate` werden nur unter `allow_dynamic` angeboten.** Ein
@@ -1002,63 +1002,63 @@ Genehmigungsrichtlinie gegatet noch von einer Bindung umbenannt werden, und die
 gefährliche Hälfte davon ist still — deshalb sind alle zehn deklariert, und eine
 Standardkonfiguration bietet sieben an.
 
-Was der Schalter einbringt, ist eine Spezialistin, die das Modell selbst schreibt:
+Was der Schalter einbringt, ist ein Spezialist, den das Modell selbst schreibt:
 Instruktionen und ein Modell, und sonst nichts.
 
-Sie wird über dasselbe `build_agent` gebaut, über das eine Inline-Spezialistin
+Er wird über dasselbe `build_agent` gebaut, über das ein Inline-Spezialist
 kommt, auf dem gemeinsamen Budget-Guard des Runs und dessen Genehmigungskanal,
-sodass ihre Anfragen bepreist und gegen das von jemandem gesetzte Cap gezählt
+sodass seine Anfragen bepreist und gegen das von jemandem gesetzte Cap gezählt
 werden.
 
 Das ist der ganze Grund, warum es dafür eine **Factory** brauchte statt eines
-Schalters. Eine Spezialistin, die die Bibliothek für sich selbst gebaut hätte, säße
+Schalters. Ein Spezialist, den die Bibliothek für sich selbst gebaut hätte, säße
 außerhalb des Modellkatalogs dieses Deployments, seines Vaults und seines
 Budget-Guards — eine nicht erfasste Anfrage, womöglich an einen Provider, für den
 die Organisation keinen Schlüssel hält. Die Factory ist das, was sie stattdessen
 durch diese Plattform zurückleitet.
 
-!!! note "Eine Spezialistin, die kein Modell benennt, wird abgelehnt"
+!!! note "Ein Spezialist, der kein Modell benennt, wird abgelehnt"
 
     Vor `subagents-pydantic-ai` 0.2.18 führte die Bibliothek einen
-    Standard-Modellstring mit, aus dem eine modelllose Spezialistin kompiliert
+    Standard-Modellstring mit, aus dem ein modellloser Spezialist kompiliert
     wurde. 0.2.18 hat diesen Rückfall entfernt, und diese Plattform lehnt es noch
     früher ab, in `DelegatingToolset._refuse_dynamic`.
 
 Das Modell darf nur ein Modell benennen, für das die Organisation ein Profil hat,
 und die Ablehnung nennt die Liste. Es darf keine Capabilities anhängen: Einem
 Modell zu erlauben, seinem eigenen Kind eine Capability zu gewähren, ist das
-Versagen des nicht gewährten Scopes mit einem neuen Hut. Sie bekommt kein Wissen,
-keine eigenen Delegierten, und nichts wird über Runs hinweg gespeichert — eine
-Spezialistin zu behalten heißt, einen Agent zu veröffentlichen, und das ist die
+Versagen des nicht gewährten Scopes mit einem neuen Hut. Er bekommt kein Wissen,
+keine eigenen Delegierten, und nichts wird über Runs hinweg gespeichert — einen
+Spezialisten zu behalten heißt, einen Agent zu veröffentlichen, und das ist die
 Handlung einer Person. `MAX_DYNAMIC_SPECIALISTS` begrenzt, wie viele ein Run
 behalten darf.
 
-Dass eine Spezialistin nicht gespeichert wird, ist Absicht, und es hat einen
-Ausgang statt einer Sackgasse: Eine Person kann eine solche zu einem Entwurfs-Agent
+Dass ein Spezialist nicht gespeichert wird, ist Absicht, und es hat einen
+Ausgang statt einer Sackgasse: Eine Person kann einen solchen zu einem Entwurfs-Agent
 **befördern**.
 
-Ihre Definition reist auf dem eröffnenden `SubagentStarted`-Frame mit — der einen
+Seine Definition reist auf dem eröffnenden `SubagentStarted`-Frame mit — der einen
 Stelle, an der sie lesbar ist, nachdem das Modell sie geschrieben hat und bevor der
 Zug endet —, sodass das Delegationspanel im Chat anbieten kann, sie zu behalten,
 während der Run noch auf dem Bildschirm ist, und der Builder bietet dasselbe bei
-einer Inline-Spezialistin an.
+einem Inline-Spezialisten an.
 
 Die Beförderung erzeugt einen Entwurf, der demjenigen gehört, der befördert hat,
 gegatet auf `agents:edit`, und hört dort auf: Sie veröffentlicht nicht, heftet den
-neuen Agent nicht als Delegierten an und entfernt auch nicht die Spezialistin, aus
-der er hervorging.
+neuen Agent nicht als Delegierten an und entfernt auch nicht den Spezialisten, aus
+dem er hervorging.
 
 Siehe [Konzepte](../concepts.md#delegate-vs-inline-specialist) dafür, warum die
 Speicherregel der Grund für den Ausgang ist statt eine Einschränkung, die er
 umgeht.
 
-Eine behaltene hält den gesamten Run, in dem sie erfunden wurde, eine
+Ein behaltener hält den gesamten Run, in dem er erfunden wurde, eine
 Genehmigungsparkung eingeschlossen: Die Registrierung lebt in einer Registry, die
 die Delegationsbibliothek pro *gebautem* Agent aufbaut, und ein Run, der parkt,
 wird bei der Fortsetzung erneut gebaut — sie ging also über die Parkung hinweg
 verloren, bis die Registrierungen in `PausedRunState` mitgeführt und beim erneuten
 Abspielen neu registriert wurden
-([#175](https://github.com/vstorm-co/agenticos/issues/175)). Sie überdauert nicht
+([#175](https://github.com/vstorm-co/agenticos/issues/175)). Er überdauert nicht
 in den *nächsten Zug der Unterhaltung*, der ein frischer Aufbau ohne pausierten
 Zustand ist — ein in einer Antwort erzeugter Name ist in der nächsten unbekannt,
 und die Beschreibung von `create_agent` sagt dem Modell, es solle ihn erneut
@@ -1070,11 +1070,11 @@ angeboten**, und es gibt keine Einstellung dafür.
 Vor subagents-pydantic-ai 0.2.18 wäre sie auf einem Modell gelaufen, das dieses
 Deployment nicht konfiguriert hat — kompiliert aus dem bibliothekseigenen
 Standard-Modellstring, außerhalb der Profile der Organisation, ihres Vaults und des
-Budget-Guards des Runs. Genau wie die Laufzeit-Spezialistin oben, bevor es dafür
+Budget-Guards des Runs. Genau wie der Laufzeit-Spezialist oben, bevor es dafür
 eine Factory gab.
 
 Ein Auffangbecken ist ein legitimer Wunsch. Schreiben Sie es als
-Inline-Spezialistin, wo Sie lesen können, was sie tut, und sie wie alles andere
+Inline-Spezialisten, wo Sie lesen können, was er tut, und er wie alles andere
 bepreist wird.
 
 Die Delegierte der Bibliothek ist seit 0.2.18 behoben
@@ -1435,7 +1435,7 @@ Umgebungsverbrauch auf das Konto des Runs gebucht — siehe
 `truncate` rufen kein Modell auf und kosten nichts.
 
 Der Harness setzt Verkleinerungen aus einer geordneten Liste von Größen-*Bändern*
-zusammen; hier wählt eine Autorin eine `action` bei einer `threshold`, denn das
+zusammen; hier wählt ein Autor eine `action` bei einer `threshold`, denn das
 Builder-Formular kann keine verschachtelte Liste zeichnen — aus demselben Grund
 wählt `compaction` eine Strategie, statt Stufen zusammenzusetzen.
 
@@ -1458,7 +1458,7 @@ jedem Zug bezahlt, ob es es jemals aufruft oder nicht.
 - **`bm25` / `regex`** — einen Anthropic-nativen Algorithmus erzwingen; ein Run auf
   einem Provider ohne native Tool-Suche wirft einen Fehler, statt still einen
   anderen einzusetzen. Das Modell wird getrennt vom Spec aufgelöst, das ist also
-  eine Laufzeitkosten, die die Autorin akzeptiert, indem sie einen benennt — `auto`
+  eine Laufzeitkosten, die der Autor akzeptiert, indem er einen benennt — `auto`
   scheitert nie auf diese Weise.
 
 **Sie einzuschalten, ist das, was die MCP-Toolsets zurückstellt.** Die Capability
@@ -1492,7 +1492,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 
 | Kante | Liest | Schwärzen | Blockieren |
 |---|---|---|---|
-| Eingabe | den Prompt der Nutzerin | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
+| Eingabe | den Prompt des Nutzers | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | Ausgabe | die Antwort des Agents | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | Tool-Ergebnis | was ein Tool zurückgab, bevor das Modell es liest | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 
@@ -1510,7 +1510,7 @@ entfernt den Treffer, und der Run läuft zu Ende — eine Antwort, die einen Sch
 zurückzitiert hat, hat die Arbeit trotzdem getan. Eine Schlagwort-Blockade beendet
 den Run stattdessen mit dem Status `guardrail_blocked`, einem eigenen Ergebnis
 neben `budget_exceeded`, denn eine Ablehnung ist die Plattform bei der Arbeit, und
-eine Betreiberin, die nach Problemen filtert, sollte sie finden können, statt dass
+ein Betreiber, der nach Problemen filtert, sollte sie finden können, statt dass
 sie sich wie jede abgeschlossene Antwort liest. Siehe
 [Governance](../governance.md).
 
@@ -1639,7 +1639,7 @@ geprüft wird, wenn der Agent zusammengebaut wird:
     aufzurufen. Nehmen Sie ihn aus dieser Menge heraus, und die Delegation ist mit
     einer Änderung überall aus.
 
-Eine Betreiberin, die keine verschachtelten Runs oder Fan-out-Abrechnung will,
+Ein Betreiber, der keine verschachtelten Runs oder Fan-out-Abrechnung will,
 entfernt ihn, und jeder Spec, der delegiert, sagt das dann beim Veröffentlichen
 statt um drei Uhr nachts. `conversations:read` ist derselbe Hebel für die
 Unterhaltungssuche: Eine Änderung hält jeden Agent davon ab, vergangene
@@ -1696,7 +1696,7 @@ Dictionary) statt des Textes, den das Modell bekommt.
 Ein Tool aus einer Bibliothek, für das dieses Repository keinen Text hat, behält
 den der Bibliothek, und das ist der richtige Standard: `run_skill_script` wird
 ausgeschlossen statt beschrieben, und falls es je ankommt, kommt es mit dem an, was
-seine Autorin geschrieben hat.
+sein Autor geschrieben hat.
 
 ### Ein Fehler, ein Ergebnis und eine Ablehnung { #a-mistake-a-result-and-a-refusal }
 
@@ -1720,7 +1720,7 @@ dieselbe Regel für die Workspace-Tools.
 
 ## Diese Liste erweitern { #adding-to-this-list }
 
-Capabilities sind Code — nichts, was eine Betreiberin tippt, bringt eine neue
+Capabilities sind Code — nichts, was ein Betreiber tippt, bringt eine neue
 hervor, und genau das macht die Menge dessen, was ein Agent tun kann, prüfbar.
 Siehe [Eine Capability hinzufügen](../howto/add-capability.md) für eine neue, oder
 [Einer Capability ein Tool hinzufügen](../howto/add-capability.md#adding-a-tool-to-an-existing-capability),

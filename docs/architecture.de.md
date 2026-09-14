@@ -418,10 +418,10 @@ Transaktion der Anfrage selbst:
   `UserService.delete` hebt die privaten Secrets der ausscheidenden Person zuerst
   auf Org-Sichtbarkeit, sodass das Null, das das Cascade schreibt, zulässig ist und
   der Schlüssel für die Organisation erreichbar bleibt, statt gestrandet zu sein.
-- **Die Organisationen einer Erstellerin.** `organizations.created_by_user_id` ist
+- **Die Organisationen eines Erstellers.** `organizations.created_by_user_id` ist
   `RESTRICT`, und jede Registrierung erzeugt eine persönliche Org, ein blankes
   `DELETE users` hat für ein echtes Konto also nie funktioniert. Die persönliche Org
-  wird mit ihrer Besitzerin entfernt; eine geteilte wird an eine andere Besitzerin
+  wird mit ihrem Besitzer entfernt; eine geteilte wird an einen anderen Besitzer
   übergeben, oder die Löschung wird abgelehnt, wenn es niemanden gibt, dem sie zu
   übergeben wäre.
 - **Eine org-gebundene Collection.** `knowledge_bases.organization_id` ist
@@ -468,7 +468,7 @@ Hochladenden.**
 
 `GET /files/{id}` ist auf `ChatFile.user_id` beschränkt, was der richtige Scope für
 den Chat-Composer und der falsche für die Durchsicht eines Runs ist. Einen Run zu
-lesen ist das Recht der Organisation und nicht das ihrer Starterin, also wurden die
+lesen ist das Recht der Organisation und nicht das ihres Starters, also wurden die
 Anhangskarten im Transkript einer Kollegin gerendert und jede Vorschau mit 404
 beantwortet.
 
@@ -610,8 +610,8 @@ Das Projekt unterstützt zwei Authentifizierungsverfahren, beide stets verfügba
 ### Wo eine frische Session landet { #where-a-fresh-session-lands }
 
 Drei Türen begründen eine Session auf drei Wegen - das Passwortformular, der
-OAuth-Callback und ein Magic Link - und genau eine von ihnen entscheidet, wo die
-Besucherin landet: `postSignInDestination` in
+OAuth-Callback und ein Magic Link - und genau eine von ihnen entscheidet, wo der
+Besucher landet: `postSignInDestination` in
 `frontend/src/lib/auth-landing.ts`, das einen Deep Link nur dann beachtet, wenn er
 ein Pfad gleicher Herkunft ist, und sonst das Dashboard antwortet. Drei Antworten
 an drei Stellen sind Drift, und die Drift war schon zweimal real: auf der
@@ -675,16 +675,16 @@ return await service.usage(ctx, scope=scope, ...)
 
 !!! note "`require(...)` gehört nicht auf eine Route für eine einzelne Ressource"
 
-    Ein Rollen-Tor kann die Grants auf einer Zeile nicht sehen, es würde eine
-    Viewerin mit einem ausdrücklichen `edit`-Grant also ablehnen, bevor
-    `resolve_access` ihren Zugriff je erweitert hätte. Dieselbe Form gilt, wenn ein
+    Ein Rollen-Tor kann die Grants auf einer Zeile nicht sehen, es würde einen
+    Viewer mit einem ausdrücklichen `edit`-Grant also ablehnen, bevor
+    `resolve_access` seinen Zugriff je erweitert hätte. Dieselbe Form gilt, wenn ein
     *Parameter* die Frage entscheidet - `GET /stats/usage?scope=own` muss für ein
     einfaches Mitglied erreichbar sein, sein Tor lebt also im Service.
     `tests/api/test_platform_routes.py` setzt das alles durch.
 
 !!! note "Eine persönliche Einstellung trägt überhaupt kein Tor"
 
-    Eine Zeile mit dem Scope `(user_id, organization_id)`, die nur ihre Besitzerin
+    Eine Zeile mit dem Scope `(user_id, organization_id)`, die nur ihr Besitzer
     liest und schreibt, sind keine Org-Daten, also schützt sie keine Berechtigung
     und es gibt keine Route, die an die von jemand anderem heranreicht.
     `GET`/`PUT`/`DELETE /me/dashboard-layout` (die gespeicherte
@@ -693,7 +693,7 @@ return await service.usage(ctx, scope=scope, ...)
     `CurrentUser` + `ActiveOrg`, jede Abfrage auf **beide** Ids gefiltert. Der
     zusammengesetzte Schlüssel ist die ganze Tenant-Grenze — ein in einer
     Organisation gespeichertes Layout oder Preset ist in einer anderen unsichtbar,
-    *sogar für seine Besitzerin*, was eine reine Prüfung je Nutzer durchwinken
+    *sogar für seinen Besitzer*, was eine reine Prüfung je Nutzer durchwinken
     würde, also decken `tests/integration/test_dashboard_layout.py` und
     `tests/integration/test_dashboard_preset.py` genau das ab. Es gibt keine Route
     zum *Anwenden eines Presets*: Eines anzuwenden ist das `PUT` der Einträge des
@@ -728,8 +728,8 @@ einen Lesezugriff begrenzt; der Nutzer ist es, was ihn weiter einengt.**
   wird eine Unterhaltung allein über den Primärschlüssel gesucht, und jeder
   angemeldete Aufrufer, der eine UUID kennt, liest eine Unterhaltung in einem
   anderen Tenant — oder hängt an sie an.
-- Sie übergeben außerdem `user_id=current_user.id`, was eine Zeile auf ihre
-  Besitzerin oder jemanden beschränkt, mit dem sie geteilt wurde. Die Tenant-Prüfung
+- Sie übergeben außerdem `user_id=current_user.id`, was eine Zeile auf ihren
+  Besitzer oder jemanden beschränkt, mit dem sie geteilt wurde. Die Tenant-Prüfung
   allein genügt nicht: Ohne das kann jedes Mitglied einer Organisation die
   Unterhaltung jedes anderen Mitglieds lesen und daran anhängen.
 - **Eine Freigabe trägt das Schreiben nur bei `edit`.** Lesen und Schreiben sind
@@ -746,7 +746,7 @@ einen Lesezugriff begrenzt; der Nutzer ist es, was ihn weiter einengt.**
   Route übergab es, das Argument stand im Review klar da, und es erledigte die
   andere Aufgabe.
 - Datei-Downloads prüfen `chat_file.user_id == current_user.id`, und eine Datei an
-  eine Nachricht anzuhängen trägt dieselbe Besitzerin im `WHERE`: Ein Zug, der die
+  eine Nachricht anzuhängen trägt denselben Besitzer im `WHERE`: Ein Zug, der die
   Datei-Id eines anderen Nutzers benennt — oder eine Datei, die bereits an einer
   Nachricht hängt —, wird abgelehnt, nie still angewendet.
 
@@ -757,11 +757,11 @@ ungebunden, und eine Auslassung ist von einer Absicht nicht zu unterscheiden —
 Routen, die gewöhnliche Mitglieder bedienen, ließen es schlicht weg, und jeder
 angemeldete Nutzer konnte jede Unterhaltung im Deployment lesen und daran anhängen.
 
-### Ein Favorit gehört der Leserin, nicht dem Thread { #a-favourite-belongs-to-the-reader-not-to-the-thread }
+### Ein Favorit gehört dem Leser, nicht dem Thread { #a-favourite-belongs-to-the-reader-not-to-the-thread }
 
 `conversation_favourites` ist eine Zeile je `(user_id, conversation_id)` und kein
 Boolean auf `conversations`, denn eine Unterhaltung kann geteilt werden und ein
-Channel-Thread hat Teilnehmer statt einer Besitzerin: Eine Spalte ließe den Stern
+Channel-Thread hat Teilnehmer statt eines Besitzers: Eine Spalte ließe den Stern
 einer Person darüber entscheiden, wo der Thread für alle sitzt, die ihn sehen
 können.
 
@@ -770,8 +770,8 @@ Vier Konsequenzen, die man kennen sollte:
 - **`POST`/`DELETE /conversations/{id}/favourite` werden als *Lesezugriff*
   autorisiert.** Ein Stern sagt, wo ein Thread in der eigenen Seitenleiste des
   Sternvergebers sitzt, und ändert nichts am Thread, also darf jemand, mit dem eine
-  Unterhaltung geteilt wurde, sie genauso mit einem Stern versehen wie ihre
-  Besitzerin. `for_write` würde dort genau der Leserin etwas verweigern, für die es
+  Unterhaltung geteilt wurde, sie genauso mit einem Stern versehen wie ihr
+  Besitzer. `for_write` würde dort genau dem Leser etwas verweigern, für den es
   das Feature gibt. Beide Routen tragen `Auth`, aus demselben Grund wie jeder andere
   Lesezugriff auf eine: Ohne Kontext antwortet `_may_read_trigger_log` mit falsch,
   und das Run-Log eines Triggers, das der Aufrufer über `runs:view` öffnen kann,
@@ -836,7 +836,7 @@ Die vollständigen Berechtigungen auf Endpunktebene stehen in `docs/permissions.
 
 ## Dateiverarbeitung im Chat { #file-processing-in-chat }
 
-Wenn eine Nutzerin im Chat eine Datei hochlädt, läuft die folgende Pipeline:
+Wenn ein Nutzer im Chat eine Datei hochlädt, läuft die folgende Pipeline:
 
 ```
 Upload (POST /files/upload)
@@ -867,8 +867,8 @@ Knowledge-Collections, wo sie eine Einstellung je Collection ist.
 
 Dateien werden über `FileStorageService` unter `media/{user_id}/` gespeichert. Das
 Modell `ChatFile` speichert `storage_path`, `filename`, `mime_type`, `size`,
-`file_type` und `parsed_content` (den extrahierten Text). Nur die Besitzerin einer
-Datei kann auf ihre Dateien zugreifen.
+`file_type` und `parsed_content` (den extrahierten Text). Nur der Besitzer einer
+Datei kann auf seine Dateien zugreifen.
 
 ### Größenbeschränkungen { #size-limits }
 

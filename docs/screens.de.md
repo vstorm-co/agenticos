@@ -270,7 +270,7 @@ Datenbank, Redis, der Vektorspeicher und der Modellzugriff - dieselben Prüfunge
 
 ### Deployment { #deployment }
 
-Die eigene Identität und Richtlinie dieses Deployments: Registrierung, Einladungen, Hinweise und das, was eine Besucherin beim ersten Mal antrifft.
+Die eigene Identität und Richtlinie dieses Deployments: Registrierung, Einladungen, Hinweise und das, was ein Besucher beim ersten Mal antrifft.
 
 ![Deployment](assets/screens/light/admin-deployment.webp#only-light)
 ![Deployment](assets/screens/dark/admin-deployment.webp#only-dark)
@@ -279,7 +279,7 @@ Die eigene Identität und Richtlinie dieses Deployments: Registrierung, Einladun
 
 - **Die helle Hälfte des Builders** - die acht Aufnahmen oben gibt es nur in
   dunkel.
-- **Anmeldung und Onboarding**, also das, was eine Besucherin beim ersten Mal
+- **Anmeldung und Onboarding**, also das, was ein Besucher beim ersten Mal
   tatsächlich antrifft.
 
 ## Fazit { #recap }
@@ -287,7 +287,7 @@ Die eigene Identität und Richtlinie dieses Deployments: Registrierung, Einladun
 - 27 Module liegen in beiden Themes in `docs/assets/screens/`, unter demselben
   Namen; die acht Builder-Bildschirme gibt es nur in dunkel.
 - Auf dieser Website wird ein Bild zweimal geschrieben, mit `#only-light` und
-  `#only-dark`; Material zeigt das, was zur Palette der Leserin passt.
+  `#only-dark`; Material zeigt das, was zur Palette des Lesers passt.
 - In der README steht dasselbe Paar in einem `<picture>` mit
   `media="(prefers-color-scheme: dark)"`, so wie GitHub es macht.
 - Parsing ist die Einstellung, die zu kennen sich lohnt, bevor Sie irgendetwas

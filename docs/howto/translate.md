@@ -185,6 +185,20 @@ reader meets both. So the choice is made once, here:
 German compounds them with a hyphen when the second half is German - Run-Kosten,
 Vault-Eintrag, Sandbox-Session - and keeps the English word's own capital.
 
+### A generic person is masculine, in all three languages
+
+English says "the reader", "an operator", "whoever wrote the agent" without
+choosing a gender, and every language here has to choose one. Left to each page
+it comes out differently: the first German pass produced "der Betreiber" on one
+page and "die Betreiberin" on the next, for the same person, and a reader met
+both.
+
+So the generic form of a role is masculine - der Leser, der Betreiber, der Autor,
+der Entwickler, der Administrator, der Besitzer, der Kunde; czytelnik, operator,
+autor; el lector, el operador, el autor. This is about a person nobody has named.
+A named example keeps the gender the example gives it, and so does a sentence
+about one particular person.
+
 ## Terminology that has to be exact
 
 Permission, governance and security pages describe refusals, and a refusal

@@ -54,7 +54,7 @@ uv run agenticos cmd my-command --name test
 
 !!! note "Ein neuer Befehl schuldet `docs/commands.md` eine Zeile"
 
-    Diese Seite ist die Referenz, die eine Betreiberin liest; ein Befehl, der dort
+    Diese Seite ist die Referenz, die ein Betreiber liest; ein Befehl, der dort
     fehlt, ist ein Befehl, den niemand findet.
 
 ## Ein Tool hinzufügen, das der Agent aufrufen kann { #adding-a-tool-the-agent-can-call }

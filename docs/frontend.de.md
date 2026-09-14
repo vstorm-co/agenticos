@@ -100,7 +100,7 @@ rendert eine fehlende Übersetzung Englisch statt des Keys.
 !!! info "Die eigenen Nomen des Produkts bleiben in jedem Locale englisch"
 
     agent, spec, capability, skill, embed, budget, run, prompt, provider, token,
-    vault, workspace, sandbox, MCP. Sie benennen Dinge, die eine Kundin auch in
+    vault, workspace, sandbox, MCP. Sie benennen Dinge, die ein Kunde auch in
     den Docs, in der API und im exportierten YAML antrifft — sie in der UI und
     sonst nirgends zu übersetzen, macht zwei Vokabulare für ein Produkt. Flektieren
     Sie sie, ersetzen Sie sie nicht.

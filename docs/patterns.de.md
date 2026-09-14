@@ -210,8 +210,8 @@ Einstiegspunkte und dafür, welche Ablehnungen bewusst überhaupt kein Feld
 benennen.
 
 Dasselbe gilt für einen Audit-Eintrag, der `details` mit längerer Lebensdauer ist:
-halten Sie fest, *welche* Felder eine Administratorin geändert hat, nicht die
-Werte, die sie übermittelt hat.
+halten Sie fest, *welche* Felder ein Administrator geändert hat, nicht die
+Werte, die er übermittelt hat.
 
 ## Schema-Patterns { #schema-patterns }
 

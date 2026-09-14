@@ -1,5 +1,5 @@
 ---
-source_sha: cff22ae9f823
+source_sha: 01f0f199ad5a
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -176,10 +176,10 @@ channel, deployment.
 Ein englisches Substantiv, das in einem deutschen, polnischen oder spanischen
 Satz steht, muss einen Artikel und eine Endung annehmen, und jede Seite für sich
 wählt eine andere. Der erste deutsche Durchgang lieferte auf einer Seite "der
-Sandbox" und auf einer anderen "ein Sandbox"; die Leserin begegnet beidem. Die
+Sandbox" und auf einer anderen "ein Sandbox"; der Leser begegnet beidem. Die
 Entscheidung fällt deshalb einmal, und zwar hier:
 
-| Noun | German | Polish | Spanish |
+| Substantiv | Deutsch | Polnisch | Spanisch |
 |---|---|---|---|
 | agent | der Agent | ten agent, agenta | el agent |
 | spec | der Spec | ten spec, speca | el spec |
@@ -199,6 +199,20 @@ Entscheidung fällt deshalb einmal, und zwar hier:
 Im Deutschen wird mit Bindestrich zusammengesetzt, sobald die zweite Hälfte
 deutsch ist - Run-Kosten, Vault-Eintrag, Sandbox-Session - und das englische Wort
 behält seine eigene Großschreibung.
+
+### Eine Person ohne Namen ist männlich, in allen drei Sprachen { #a-generic-person-is-masculine-in-all-three-languages }
+
+Das Englische sagt "the reader", "an operator", "whoever wrote the agent", ohne
+ein Geschlecht zu wählen, und jede Sprache hier muss eines wählen. Jeder Seite
+selbst überlassen, fällt die Wahl anders aus: der erste deutsche Durchgang
+brachte "der Betreiber" auf der einen Seite und "die Betreiberin" auf der
+nächsten hervor, für dieselbe Person, und ein Leser begegnet beidem.
+
+Die allgemeine Form einer Rolle ist deshalb männlich - der Leser, der Betreiber,
+der Autor, der Entwickler, der Administrator, der Besitzer, der Kunde;
+czytelnik, operator, autor; el lector, el operador, el autor. Das gilt für eine
+Person, die niemand benannt hat. Ein benanntes Beispiel behält das Geschlecht,
+das das Beispiel ihm gibt, und ein Satz über eine bestimmte Person ebenso.
 
 ## Terminologie, die exakt sein muss { #terminology-that-has-to-be-exact }
 
