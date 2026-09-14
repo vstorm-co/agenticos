@@ -118,7 +118,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Control | Mechanism | Held by |
 |---|---|---|
 | No plaintext secret in any API response or audit entry | `SealedStr`/`CredentialStr` mask every repr; hints are last-4 only (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (sweeps the whole OpenAPI surface), `test_capability_secrets.py::TestInjection` |
-| Logs are not part of that guarantee | A malformed MCP OAuth token response reaches the logs through a Pydantic `ValidationError` that echoes its input — a known gap, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documents that the token lands in `caplog`) |
+| Logs are not part of that guarantee | A malformed MCP OAuth token response reaches the logs through a Pydantic `ValidationError` that echoes its input — a known gap, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::TestOAuthRefusalsDoNotQuoteTheServer::test_an_unreadable_token_response_does_not_echo_its_input` (documents that the token lands in `caplog`) |
 | A credential is bound to its organization at rest | Per-owner HKDF envelope (`app/core/vault.py`); scope is connector and API credentials — see "What is encrypted where" for the bearer tokens it does not cover | `test_secret_tenant_isolation.py`, `test_vault.py` |
 
 ### Transmission security · HIPAA §164.312(e) · SOC 2 CC6
@@ -129,6 +129,15 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Framing and MIME headers on every response; CSP on all but the API-reference endpoints | `SecurityHeadersMiddleware` (`app/core/middleware.py`), whose `exclude_paths` drop CSP — not framing or MIME — for OpenAPI, Swagger and ReDoc; plus the frontend's per-deployment CSP (`frontend/src/middleware.ts`) | `test_security_headers.py`, incl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp` |
 | HTTPS and HSTS | Terminated at the reverse proxy — the bundled `nginx/nginx.conf` sets HSTS; the app does not, by design | Deployment concern; see the hardening checklist |
 | Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget and hosted pages (`app/services/rate_limit.py`); per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; the channel-bot limit is implemented but thinly tested |
+
+### The refusals as a set
+
+The refusal tests above carry the `security` marker. `make test-security` runs
+the whole set, and CI publishes the collected list as a `security-tests.txt`
+artifact on each backend run (#1417) — so the refusals can be counted and read,
+not taken on trust. A test whose name or module mentions a tenant, a permission,
+a budget, an approval, a secret or plaintext but lacks the marker fails
+`tests/test_security_marker.py`, which keeps the list complete as the suite grows.
 
 ## Recap
 
