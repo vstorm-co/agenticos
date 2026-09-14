@@ -1342,12 +1342,38 @@ def uploads(tmp_path, monkeypatch):
     return queued
 
 
+async def _embedding_key(db, tenant: Tenant, *, collection: str) -> OrganizationSecret:
+    """An OpenRouter key in the tenant's vault, for one collection to pay with.
+
+    There is no deployment-wide embedding key, so `KnowledgeBaseService.create`
+    refuses an organization collection that names none - and checks that the
+    chooser can see the key it names, which is why this goes through the vault
+    service as the tenant's owner rather than being inserted as a row. Named
+    after the collection because a secret's name is unique per organization and
+    several tests give one tenant several collections.
+    """
+    return await OrganizationSecretService(db).create(
+        tenant.ctx,
+        name=f"Embeddings for {collection}",
+        value=ApiKeySecret(api_key="sk-test-embeddings-key"),
+        purpose="openrouter",
+    )
+
+
 async def _collection_with(
-    db, tenant: Tenant, *, name: str, config: IngestionConfig
+    db, tenant: Tenant, *, name: str, config: IngestionConfig | None = None
 ) -> KnowledgeBase:
     """A collection created through the service that guards its configuration."""
+    key = await _embedding_key(db, tenant, collection=name)
     return await KnowledgeBaseService(db).create(
-        KnowledgeBaseCreate(name=name, scope="org", collection_name=name, ingestion_config=config),
+        KnowledgeBaseCreate(
+            name=name,
+            scope="org",
+            collection_name=name,
+            ingestion_config=config,
+            embedding_provider="openrouter",
+            embedding_secret_id=key.id,
+        ),
         ctx=tenant.ctx,
     )
 
@@ -1400,10 +1426,7 @@ class TestHowACollectionReadsItsDocuments:
     async def test_a_collection_with_no_opinion_gets_the_deployments(self, db) -> None:
         tenant = await _tenant(db, name="Casual")
 
-        collection = await KnowledgeBaseService(db).create(
-            KnowledgeBaseCreate(name="notes", scope="org", collection_name="notes"),
-            ctx=tenant.ctx,
-        )
+        collection = await _collection_with(db, tenant, name="notes")
 
         assert collection.ingestion_config == deployment_defaults().model_dump(mode="json")
 
