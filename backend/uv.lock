@@ -117,7 +117,7 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
     { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.29" },
     { name = "pydantic-ai-harness", specifier = ">=0.29.0" },
-    { name = "pydantic-ai-skills", specifier = ">=2.0.0" },
+    { name = "pydantic-ai-skills", specifier = ">=1.4.0,<2" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.42.0" },
     { name = "pydantic-ai-slim", extras = ["openrouter", "anthropic", "google", "duckduckgo", "web-fetch", "groq", "mistral", "cohere", "huggingface", "xai"], specifier = ">=2.42.0" },
     { name = "pydantic-monty", specifier = ">=0.0.21" },
@@ -3302,8 +3302,8 @@ name = "pendulum"
 version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "python-dateutil" },
-    { name = "tzdata" },
+    { name = "python-dateutil", marker = "python_full_version < '3.13'" },
+    { name = "tzdata", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cb/72/9a51afa0a822b09e286c4cb827ed7b00bc818dac7bd11a5f161e493a217d/pendulum-3.2.0.tar.gz", hash = "sha256:e80feda2d10fa3ff8b1526715f7d33dcb7e08494b3088f2c8a3ac92d4a4331ce", size = 86912, upload-time = "2026-01-30T11:22:24.093Z" }
 wheels = [
@@ -3862,24 +3862,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/48/72/7b84ca1ec1743a60cfd3b3e8588242121bb9d90212b0acbb9c19e61b6633/pydantic_ai_harness-0.29.0-py3-none-any.whl", hash = "sha256:56ae1cb3dbac1fb728270f14b8e85fce815bac60f891680bd312c937e2ffcd92", size = 784172, upload-time = "2026-09-04T03:51:15.525Z" },
 ]
 
-[package.optional-dependencies]
-skills = [
-    { name = "pyyaml" },
-]
-
 [[package]]
 name = "pydantic-ai-skills"
-version = "2.0.0"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
-    { name = "pydantic-ai-harness", extra = ["skills"] },
     { name = "pydantic-ai-slim" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/d5/f3059f89077f257e43475ad81878d5ee7e03c501579bf9a7b05166a7e18a/pydantic_ai_skills-2.0.0.tar.gz", hash = "sha256:25fd5f14268f68d25d68e38bc94fb93323092d3b7d96db0b5e499c074e3d40c7", size = 9110556, upload-time = "2026-09-06T01:44:21.651Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/59/65d312c625c546b4754022d0e3e20921f9637f1e87225c0fbcbce09ddb82/pydantic_ai_skills-1.4.0.tar.gz", hash = "sha256:7303e0738a837218415f8b2e7bd5b5cbc0ceeb74850b1902c2d079550e0b9b83", size = 9095029, upload-time = "2026-08-16T13:01:26.999Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/8a/b05c3540dfe4e1491aa3f3de06d320bb93b61dbe49b805e2d5c4465c47b5/pydantic_ai_skills-2.0.0-py3-none-any.whl", hash = "sha256:d3bed993fe65a7a4a1c6e37c71914e9594cec86114e446a332f203f2cdc755f2", size = 73558, upload-time = "2026-09-06T01:44:20.268Z" },
+    { url = "https://files.pythonhosted.org/packages/96/eb/a4bea0c2c97f2351938e0ae2200fb197e4953928337198a17d89f0d0bbbb/pydantic_ai_skills-1.4.0-py3-none-any.whl", hash = "sha256:bce8731a042f50c45965acc520dc883163e511c34b208f720eb62067ef5be686", size = 75744, upload-time = "2026-08-16T13:01:25.501Z" },
 ]
 
 [[package]]
@@ -5700,8 +5694,8 @@ name = "whenever"
 version = "0.10.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
-    { name = "tzlocal", marker = "sys_platform != 'darwin' and sys_platform != 'linux'" },
+    { name = "tzdata", marker = "python_full_version >= '3.13' and sys_platform == 'win32'" },
+    { name = "tzlocal", marker = "python_full_version >= '3.13' and sys_platform != 'darwin' and sys_platform != 'linux'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6d/40/94856fe2439c4b8162d1a23b4cf3a48bb00bed0ed7b8d10add40988fa555/whenever-0.10.3.tar.gz", hash = "sha256:af8958c870bd178742f0089c3552d5702241cab1f4b6bdfd3b03111db4bc2150", size = 435946, upload-time = "2026-07-17T07:35:25.734Z" }
 wheels = [

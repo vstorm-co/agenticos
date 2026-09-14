@@ -93,7 +93,13 @@ dependencies = [
     "tqdm>=4.70.0",
     "tavily-python>=0.8.1",
     "pydantic-monty>=0.0.21",
-    "pydantic-ai-skills>=2.0.0",
+    # Held below 2.0 until #1658. That release makes a clean break: `SkillsToolset`
+    # is replaced by `SkillsCapability`, `parse_skill_md` moves out of the package
+    # root, and each skill becomes a deferred capability reached through
+    # `load_capability` instead of the three tools this platform publishes,
+    # documents and lets a spec grant. The backend does not import against it, so
+    # a bump alone is a deployment that will not start.
+    "pydantic-ai-skills>=1.4.0,<2",
     # `console` for the toolset, `remote` for the sandboxd client. Deliberately
     # not `docker`: this container never touches the socket, so the Docker SDK
     # has no business in the image. The service runs beside us as `sandboxd`.
