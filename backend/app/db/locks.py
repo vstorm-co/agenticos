@@ -37,6 +37,10 @@ class LockScope(IntEnum):
     #: unique index allows one, and the write is read-then-clear-then-set - so
     #: two nominations racing each found no sibling to clear and both set it.
     MCP_DEFAULT_ACCOUNT = 4
+    #: One organization's audit hash chain. `record_audit` reads the chain head
+    #: and appends under this lock, so two audited writes for the same org cannot
+    #: read the same head and fork the chain (#1622).
+    AUDIT_CHAIN_PER_ORG = 5
 
 
 def _key(subject: UUID) -> int:

@@ -11,6 +11,7 @@ rather than pointing at the customer (#943).
 from __future__ import annotations
 
 import uuid
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -30,6 +31,11 @@ class _CapturingDB:
 
     def add(self, entry: object) -> None:
         self.added.append(entry)
+
+    async def execute(self, *_args: object, **_kwargs: object) -> MagicMock:
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = None
+        return result
 
     async def flush(self) -> None:
         pass
