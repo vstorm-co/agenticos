@@ -116,7 +116,7 @@ async def member_counts_for(db: AsyncSession, org_ids: list[UUID]) -> dict[UUID,
         .where(OrganizationMember.organization_id.in_(org_ids))
         .group_by(OrganizationMember.organization_id)
     )
-    return dict(result.all())
+    return dict(result.tuples().all())
 
 
 async def list_owned_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
