@@ -665,3 +665,79 @@ scope and outside a design-only change. No finding was rejected outright.
 **Still design-only.** This round amends design sections and records verdicts; it
 adds **no implementation plan**, no task breakdown and no production code. The plan
 remains deferred per instruction.
+
+---
+
+## 7. Optional retrieval-quality enhancements (NOT part of FA-039 delivery)
+
+These are retrieval-quality options that layer **on top of** the FA-039 contract;
+they are **not** in scope for issue #1593 and must not be bundled into its PR
+(FA-039 is a committed tender item with a tight security contract of its own). They
+are recorded here because the FA-039 seam is what makes them safe and cheap to add
+later, and each is tracked by its own GitHub issue. This section is design intent
+only — no implementation plan.
+
+**The shared safety property.** Every enhancement below runs **after** the store
+has applied `RetrievalScope` + `RetrievalFilters` (§2.3), operating only on the
+already-authorized, already-filtered candidate set. So each can **reorder, expand
+within scope, or subset** results — none can *widen* access. This is the same
+narrowing-only invariant FA-039 establishes; these features inherit it by
+construction rather than re-arguing it.
+
+### 7.1 Reranker — as an option, either backend (issue #142)
+
+After hybrid retrieval returns a wider candidate pool (e.g. top-50), rerank and
+return the best top-k (e.g. 5–8). Opt-in, off by default, configured on the RAG
+capability / agent spec, e.g. `rerank: {enabled, provider, model, candidate_pool,
+top_k}`. **Both backends are offered as options** (the deployment/agent picks one):
+
+- **LLM reranker** — a cheap, fast model (e.g. Haiku) scores candidate chunks for
+  relevance, listwise in one call to bound latency/cost. No new infrastructure;
+  reuses the existing model/provider plumbing and vault-sealed credentials.
+- **Cross-encoder / rerank API** — a dedicated reranker (e.g. Cohere Rerank, Voyage
+  rerank) via an API key sealed in the vault, or a local cross-encoder model. Best
+  quality per token; cost is a configured external provider.
+
+Runs strictly on the post-scope/filter candidate set (§2.3), so reranking a wider
+pool never reaches an out-of-scope or cross-tenant chunk. Tracked by the existing
+issue **#142 "Add a real reranker to RAG retrieval"** — no new issue.
+
+### 7.2 Query analysis / expansion — as an option (issue #1649)
+
+An opt-in pre-retrieval step (`query_analysis: {mode: off | keywords | multi_query
+| hyde}`, default `off`) that improves recall on short/fuzzy queries: algorithmic
+keyword extraction to strengthen the lexical/BM25 leg, LLM multi-query variants
+unioned and fused, or HyDE. Every produced query still passes through the FA-039
+scope+filter enforcement, so expansion adds candidate queries only within the
+caller's tenant/collection scope. Tracked by **#1649**.
+
+### 7.3 Self-query — as an option, direct FA-039 synergy (issue #1650)
+
+An opt-in step (`self_query: {enabled}`, default off) where an LLM derives the
+FA-039 **business** filters (`source`, `document_type`, `organizational_unit`,
+`date_from/to`) from a natural-language question. Critically, it reuses FA-039's
+type separation: the LLM emits **only** a `RetrievalFilters` object and can never
+name `RetrievalScope` (tenant/authorization), which stay server-derived — so
+self-query is not a new escalation vector, only a UX convenience that narrows within
+existing scope. Inferred values run through the same validation (`extra="forbid"`,
+closed-vocabulary, `date_from <= date_to`) as any caller-supplied filter. Tracked by
+**#1650**.
+
+### 7.4 Sibling follow-ups (issues only, not detailed here)
+
+Two further retrieval-quality items were filed as separate issues and are noted for
+cluster completeness; they are not designed here:
+
+- **Parent-document / small-to-big retrieval** — match small chunks, return larger
+  parent/window context, bounded and de-duplicated, within scope. **#1651**.
+- **Result-quality controls** — MMR/near-duplicate dedup, a minimum-relevance
+  threshold (complements FA-039's fail-closed stance), and configurable RRF
+  weights/`k`. All operate on the post-scope candidate set. **#1652**.
+
+**Sequencing suggestion.** Ship FA-039 (#1593) first, unbundled; then the reranker
+(#142) as the highest-ROI, most isolated enhancement; then self-query (#1650), which
+reuses this contract most directly; then #1649/#1651/#1652 as independent smaller
+wins. A unified opt-in config block on the RAG capability
+(`retrieval: {rerank, query_analysis, self_query, parent_context, mmr, min_score}`)
+keeps every option off by default and per-agent, consistent with "an agent is a
+versioned spec."
