@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.426] - 2026-09-14
+
+### Added
+
+- **The audit trail exports, as CSV or JSONL.** `GET /audit/export` takes the same
+  window the tab does, gated on `audit:read`. It is the one export that also
+  offers JSONL (`?fmt=jsonl`), one JSON object per line, because an audit trail is
+  as often ingested by a log pipeline as opened in a spreadsheet: the two describe
+  the same entries, with `details` flattened to a JSON string in the CSV cell and
+  kept as a nested object in the lines. It ships exactly the fields the read model
+  exposes - the stored `ip_address` is not on that tab, so it is not in the export
+  either - and records its own read in the trail, naming the window, the format
+  and the row count. Documented in all four languages. (#1422)
+
 ## [0.0.425] - 2026-09-14
 
 ### Added
