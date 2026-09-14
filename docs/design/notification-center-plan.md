@@ -86,8 +86,11 @@ upload. The shared boundary both paths actually call through is
 `services/rag_document.py`. That boundary alone still misses a failure with
 no document row to attach to — a connector auth/network failure, or the
 pre-download `BudgetExceeded` check in `_run_source_sync` — which instead
-reaches `RAGSyncService.complete_sync` or `SyncSourceService
-.update_after_sync`. See Decision 1.
+reaches `RAGSyncService.complete_sync` and, in most of `_run_source_sync`,
+`SyncSourceService.update_after_sync` as well: the two are not alternative
+producers for the same fact, `_run_source_sync` calls both for one outcome,
+and a trigger point that hooks each independently — this plan's own
+earlier draft — double-fires. See Decision 1.
 
 **Permissions have three layers**, and only the first reaches across
 organizations. `users.is_app_admin` (`CurrentAppAdmin` in
@@ -156,7 +159,7 @@ this plan does not add it.
 | `approval_requested` | `AgentRunnerService.finish` | the approval id | `AlertSpec` (unchanged) | current `approvals:decide` | no |
 | `run_completed` | `AgentRunnerService.finish`, unattended surfaces only (not `WEB`) — the gap `docs/governance.md`'s Alerts section already names | the run id | `initiator` | — | no |
 | `run_failed` | same as above | the run id | `initiator` | — | no |
-| `ingestion_completed` / `ingestion_failed` | `RAGDocumentService.complete_ingestion`/`fail_ingestion` for a per-document outcome, or `RAGSyncService.complete_sync`/`SyncSourceService.update_after_sync` for a whole-attempt failure with no document row yet (a connector auth/network failure, or the pre-download `BudgetExceeded` check in `_run_source_sync`) | `(document id, ingestion attempt)` for the per-document case, `(sync log id \| source id, attempt started-at)` for the whole-attempt case — see Decision 2 | whoever started the sync or upload | current `collections:view` on the target collection | no |
+| `ingestion_completed` / `ingestion_failed` | per-document: `RAGDocumentService.complete_ingestion`/`fail_ingestion`. Whole-attempt: exactly three call sites in `rag_tasks.py`, named below — never a hook on `RAGSyncService`/`SyncSourceService` themselves | `(document id, ingestion attempt)` per-document, `(sync log id, attempt started-at)` or `(source id, attempt started-at)` whole-attempt, whichever the firing call site actually has — see Decision 2 | whoever started the sync or upload | current `collections:view` on the target collection | no |
 | `usage_report` / `agent_usage_report` | `worker/tasks/report_tasks.py` | `(organization id \| agent id, period, window start)` | `AlertSpec`/`_administrators` (unchanged) | — | no |
 | `security_event` | the `record_audit` call sites in section 0 | the `AppAdminAuditLog` id | `org_admins` when the entry carries an `organization_id` (`organization_secret.py`, `sandbox_connection.py`), otherwise deployment app admins (`impersonation.py`) | current owner/admin role in the row's organization, or current `is_app_admin` for an app-admin-audience row | yes |
 | `configuration_changed` | same, for `deployment.settings_updated` | the `AppAdminAuditLog` id | deployment app admins (no organization — see Decision 2) | current `is_app_admin` | yes |
@@ -173,19 +176,48 @@ the impersonation notice and to the organization's own budget cap
 (`docs/governance.md`, "the organization's cap ignores the spec entirely") —
 see Decision 4.
 
-**Two failure classes need covering, not one.** A per-document failure
-(a bad PDF, an embedding credential problem on one file) has a
-`rag_documents` row to hang the event on. A whole-attempt failure does not:
+**Two failure classes need covering, and the whole-attempt one is wired at
+the call site, not inside `RAGSyncService`/`SyncSourceService` — those two
+services are not alternative producers for the same fact, and hooking each
+independently double-fires.** A per-document failure (a bad PDF, an
+embedding credential problem on one file) has a `rag_documents` row to hang
+the event on. A whole-attempt failure does not:
 `_run_source_sync`'s pre-download `assert_organization_within_budget` check
 can raise before a single `_open_document_row` call, and a connector
-auth/network failure can fail the same way — both land in
-`SyncSourceService.update_after_sync(source_id, status="error", ...)`, never
-in `RAGDocumentService.fail_ingestion`, because no document row exists yet
-for either. `sync_collection_flow`'s own top-level failure is the same
-shape, one level down, through `RAGSyncService.complete_sync`. A trigger
-point wired only to `RAGDocumentService.fail_ingestion` — this plan's own
-earlier draft — reports every failed file and stays silent about a sync
-that failed to find any.
+auth/network failure can fail the same way. Neither reaches
+`RAGDocumentService.fail_ingestion`, because no document row exists yet for
+either — but they do not share one producer either.
+`_run_source_sync` calls `RAGSyncService.complete_sync(log_id, ...)`
+**and then** `SyncSourceService.update_after_sync(source_id, ...)` for the
+same outcome, in both its budget-exceeded handler and its ordinary
+completion block — an earlier draft of this plan hooked both service
+methods as if they were independent alternative producers, which
+double-writes: `complete_sync`'s hook would key on `log_id`,
+`update_after_sync`'s on `source_id`, the unique constraint sees two
+genuinely different occurrence ids for one failure, and both notifications
+and both emails go out. The one call site with no sync log at
+all — `_run_source_sync`'s "unknown connector" early return, which calls
+only `update_after_sync` because `log_id` is not yet resolved — is the
+exception that rules out picking one service method as universally
+authoritative. So the write sits in `rag_tasks.py`, at exactly three
+points, each firing once per outcome:
+
+1. `_run_source_sync`'s "unknown connector" early return — the only call to
+   `update_after_sync` this plan hooks — keyed on `(source_id, attempt
+   started-at)`.
+2. `_run_source_sync`'s budget-exceeded handler and its ordinary completion
+   block, both of which call `complete_sync` immediately before
+   `update_after_sync` — the write attaches to the `complete_sync` call,
+   keyed on `log_id`. The `update_after_sync` call that follows it in these
+   two spots is not independently hooked, because it is the same outcome
+   already recorded a line above.
+3. `sync_collection_flow`'s own top-level failure (`_update_sync_log` →
+   `complete_sync`), for local-directory syncs, which have no `SyncSource`
+   row and no `update_after_sync` call at all — keyed on `log_id`.
+
+A trigger point wired only to `RAGDocumentService.fail_ingestion` — this
+plan's own earlier draft — reports every failed file and stays silent about
+a sync that failed to find any.
 
 **The occurrence id for a per-document event is the document id plus the
 attempt, captured when the attempt starts — not read back from a mutable
@@ -446,7 +478,9 @@ minutes) only decides when *another* worker may retry. It does nothing to
 stop the *original* worker sitting inside a hung `send()` indefinitely,
 which could still complete and write `sent` after a second worker has
 already resent — a wider duplicate window than the provider-crash case
-below already accepts. The write helper therefore wraps the call itself,
+below already accepts. The delivery worker — the sweep claiming and sending
+the row, not the write helper that created it — therefore wraps the call
+itself,
 `asyncio.wait_for(EmailService.send(...), timeout=SEND_TIMEOUT)`, with
 `SEND_TIMEOUT` (proposed: thirty seconds) set well under `claimed_until`'s
 lease — a hung call is cancelled by this plan's own code, marked `failed`
@@ -805,25 +839,33 @@ retention has cleared the individual deliveries.
    triggering request, an organization admin is refused the failed-deliveries
    view, and a terminally failed row appears in it with its `last_error`.
 5. **New trigger points** — `run_completed`/`run_failed` for unattended
-   surfaces only (excluding `WEB`). Ingestion wired at three points —
+   surfaces only (excluding `WEB`). Ingestion wired at four points —
    `RAGDocumentService.complete_ingestion`/`fail_ingestion` for a
    per-document outcome (the shared boundary both the upload path
    (`rag_tasks.py::_run_ingestion`) and the sync paths
-   (`_settle_document_row`) call through), plus `RAGSyncService.complete_sync`
-   and `SyncSourceService.update_after_sync` for a whole-attempt failure
-   with no document row — `ingest_document_flow` and `retry_ingestion`
-   threading the dispatch-time `ingestion_attempt` through to settlement and
-   rejecting a stale one (Decision 1). `security_event`/
+   (`_settle_document_row`) call through), and the three call-site-level
+   hooks Decision 1 names for a whole-attempt failure with no document row
+   (`_run_source_sync`'s unknown-connector return, its `complete_sync` call
+   in the budget-exceeded and ordinary-completion paths, and
+   `sync_collection_flow`'s top-level failure) — never a hook on
+   `RAGSyncService`/`SyncSourceService` themselves, which would double-fire
+   for the two call sites that invoke both. `ingest_document_flow` and
+   `retry_ingestion` thread the dispatch-time `ingestion_attempt` through to
+   settlement and reject a stale one (Decision 1). `security_event`/
    `configuration_changed` wired at the existing `record_audit` call sites
    named in section 0. Tests: each trigger point produces the expected
    audience, a `WEB` run never produces a `run_completed` row, a connector
    auth failure and a pre-download `BudgetExceeded` each produce a
-   notification with no document row involved, an ingestion failure for one
-   organization never reaches another, an upload's per-document failure is
-   covered alongside a sync's (through the one hook, not two), a second
-   failure on a retried document produces a second notification rather than
-   being suppressed by the first's `occurrence_id`, and an attempt that
-   settles after a newer retry has already been dispatched is rejected as
+   notification with no document row involved, **a budget-exceeded
+   connector sync — which calls both `complete_sync` and
+   `update_after_sync` — produces exactly one notification per recipient**
+   (the regression this review's duplicate-producer finding targets), an
+   ingestion failure for one organization never reaches another, an
+   upload's per-document failure is covered alongside a sync's (through the
+   one hook, not two), a second failure on a retried document produces a
+   second notification rather than being suppressed by the first's
+   `occurrence_id`, and an attempt that settles after a newer retry has
+   already been dispatched is rejected as
    stale rather than mislabeled under the newer attempt's number.
 6. **Preferences API and page** — extend
    `frontend/.../settings/notifications/page.tsx` with the new event
@@ -903,7 +945,7 @@ retention has cleared the individual deliveries.
 
 ## Resolved in review
 
-Four automated review passes (Codex) against this plan. Outcomes below.
+Five automated review passes (Codex) against this plan. Outcomes below.
 `Resolved in review` still applies to a human reviewer's own decisions on
 top of these.
 
@@ -1003,3 +1045,24 @@ hold" race Decision 3 had just fixed for delivery settlement** — a slow
 attempt settling after a newer retry bumped the counter would misattribute
 its outcome to the newer attempt's number. The attempt is now captured at
 dispatch and threaded through to settlement, which rejects a stale one.
+
+**Fixed, fifth pass** (this commit): one P2, verified against
+`feat/1598-notification-center` at `c7bcd097` before fixing. **The two
+whole-attempt sync producers this plan named were not alternatives — they
+are a pair, and hooking both independently double-fired.** Traced
+`_run_source_sync` directly: its budget-exceeded handler and its ordinary
+completion block both call `RAGSyncService.complete_sync(log_id, ...)`
+immediately followed by `SyncSourceService.update_after_sync(source_id,
+...)`, for the same outcome. A hook on each service method would key one
+notification on `log_id` and the other on `source_id` — genuinely different
+occurrence ids for one failure, past what the unique constraint can catch.
+The design moves the write out of those two services entirely and into the
+three `rag_tasks.py` call sites that actually decide how many times an
+outcome occurs: the unknown-connector return (the one case with no sync
+log, and the only one that still calls `update_after_sync`), the
+`complete_sync` call in the budget-exceeded and ordinary-completion paths
+(the `update_after_sync` call that follows each is no longer independently
+hooked), and `sync_collection_flow`'s own top-level failure. One wording
+correction: `SEND_TIMEOUT` belongs in the delivery worker (the sweep), not
+the write helper (Decision 2's transactional insert) — the earlier text
+named the wrong component.
