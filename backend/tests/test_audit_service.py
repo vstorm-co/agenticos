@@ -134,3 +134,99 @@ async def test_an_organization_with_no_entries_answers_empty() -> None:
 
     assert page.items == []
     assert page.total == 0
+
+
+class TestExport:
+    """The trail an auditor takes away, and the record that it was taken."""
+
+    _WINDOW = (datetime(2026, 8, 1, tzinfo=UTC), datetime(2026, 8, 31, tzinfo=UTC))
+
+    async def _export(self, entry: MagicMock, *, fmt: str, total: int = 1):
+        with (
+            patch(
+                "app.services.audit.audit_log_repo.list_in_window_for_org",
+                new=AsyncMock(return_value=([entry], total)),
+            ) as listed,
+            patch("app.services.audit.record_audit", new=AsyncMock()) as audited,
+        ):
+            result = await AuditService(MagicMock()).export(
+                _ctx(), since=self._WINDOW[0], until=self._WINDOW[1], fmt=fmt
+            )
+        return result, listed, audited
+
+    async def test_csv_carries_the_header_and_the_entry(self) -> None:
+        entry = _entry(action="agent.deleted")
+        result, _listed, _audited = await self._export(entry, fmt="csv")
+
+        lines = result.content.splitlines()
+        assert lines[0].startswith("entry_id,created_at,actor_user_id")
+        assert "agent.deleted" in lines[1]
+        assert result.filename.endswith(".csv")
+        assert result.row_count == 1
+
+    async def test_csv_flattens_details_to_a_json_string(self) -> None:
+        entry = _entry()
+        result, _listed, _audited = await self._export(entry, fmt="csv")
+
+        # `details` is one CSV cell holding JSON, not spread across columns.
+        assert '{""version"": 3}' in result.content
+
+    async def test_jsonl_keeps_details_a_nested_object(self) -> None:
+        entry = _entry()
+        result, _listed, _audited = await self._export(entry, fmt="jsonl")
+
+        assert result.filename.endswith(".jsonl")
+        assert '"details": {"version": 3}' in result.content
+        assert result.content.endswith("\n")
+
+    async def test_the_export_is_itself_audited(self) -> None:
+        """Reading a whole trail is a privileged act; the record of who took it
+        away names the window and the count, never a row."""
+        _result, _listed, audited = await self._export(_entry(), fmt="csv")
+
+        assert audited.await_args.kwargs["action"] == "audit.export"
+        details = audited.await_args.kwargs["details"]
+        assert details["format"] == "csv"
+        assert details["row_count"] == 1
+        assert "actor_user_id" not in details
+
+    async def test_the_window_read_is_the_callers_own_organization(self) -> None:
+        ctx = _ctx()
+        with (
+            patch(
+                "app.services.audit.audit_log_repo.list_in_window_for_org",
+                new=AsyncMock(return_value=([], 0)),
+            ) as listed,
+            patch("app.services.audit.record_audit", new=AsyncMock()),
+        ):
+            await AuditService(MagicMock()).export(
+                ctx, since=self._WINDOW[0], until=self._WINDOW[1], fmt="csv"
+            )
+
+        assert listed.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    async def test_a_missing_date_range_is_refused(self) -> None:
+        from app.core.exceptions import ValidationError
+
+        with pytest.raises(ValidationError):
+            await AuditService(MagicMock()).export(_ctx(), since=None, until=None, fmt="csv")
+
+    async def test_a_match_over_the_cap_is_refused(self) -> None:
+        from app.core.exceptions import ExportTooLargeError
+        from app.services.exporting import MAX_EXPORT_ROWS
+
+        with (
+            patch(
+                "app.services.audit.audit_log_repo.list_in_window_for_org",
+                new=AsyncMock(return_value=([], MAX_EXPORT_ROWS + 1)),
+            ),
+            patch("app.services.audit.record_audit", new=AsyncMock()) as audited,
+            pytest.raises(ExportTooLargeError),
+        ):
+            await AuditService(MagicMock()).export(
+                _ctx(), since=self._WINDOW[0], until=self._WINDOW[1], fmt="csv"
+            )
+
+        # Refused before it read the whole table or recorded a bulk read that did
+        # not happen.
+        audited.assert_not_called()

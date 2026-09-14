@@ -332,6 +332,12 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("DELETE", "/providers/model-profiles/{profile_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/audit", Perm.AUDIT_READ),
+    Call(
+        "GET",
+        "/audit/export",
+        Perm.AUDIT_READ,
+        query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
+    ),
     # The organization's MCP servers, per-resource routes included. That is the
     # same rule the agent routes follow, not an exception to it: a role gate is
     # wrong where a resource grant could widen the answer, and a connection has
