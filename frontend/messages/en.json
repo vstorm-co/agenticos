@@ -3298,7 +3298,8 @@
       "noOwner": "No owner",
       "monthlyBudgetUsd": "Monthly budget (USD)",
       "noBudget": "No budget",
-      "noMembers": "No members"
+      "noMembers": "No members",
+      "membersTruncated": "Showing the first {shown} of {total} members"
     },
     "agentDetail": {
       "perMonth": "${amount} per month"

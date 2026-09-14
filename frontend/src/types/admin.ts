@@ -46,7 +46,12 @@ export interface AdminOrganizationMember {
  */
 export interface AdminOrganizationDetail extends AdminOrganization {
   members: AdminOrganizationMember[];
-  monthly_budget_usd: number | null;
+  /**
+   * The serialized `Decimal` budget, which reaches the wire as a string that
+   * keeps the column's precision - `"50.000000"`. Formatted with `Number(...)`
+   * at the point of use, as the other budget surfaces do.
+   */
+  monthly_budget_usd: string | null;
 }
 
 /**

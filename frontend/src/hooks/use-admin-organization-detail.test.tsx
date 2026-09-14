@@ -26,7 +26,7 @@ beforeEach(() => {
     owner_email: "owner@example.com",
     owner_name: "Owner",
     created_at: "2026-07-01T00:00:00Z",
-    monthly_budget_usd: 50,
+    monthly_budget_usd: "50.000000",
     members: [{ user_id: "u1", email: "owner@example.com", name: "Owner", role: "owner" }],
   });
 });

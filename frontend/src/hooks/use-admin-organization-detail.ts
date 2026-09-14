@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
-import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import type { AdminOrganizationDetail } from "@/types/admin";
 
@@ -22,7 +21,11 @@ export function useAdminOrganizationDetail(orgId: string, options?: { enabled?: 
     queryKey: qk.admin.organizationDetail(orgId),
     queryFn: () => apiClient.get<AdminOrganizationDetail>(`/admin/organizations/${orgId}`),
     enabled: options?.enabled ?? true,
-    ...DASHBOARD_FRESHNESS,
+    // Not the dashboard's refetch-on-focus: every successful read writes an
+    // `admin.organization.read` audit entry, so refetching each time the window
+    // regains focus would fill the trail with reads nobody made (#1245 review).
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
   return { organization: data, isLoading, error, refetch };
 }
