@@ -100,27 +100,48 @@ tags: Mapped[list[str]] = mapped_column(
 
 ### Normalization (duplicates / empties / casing)
 
-One shared, pure helper `normalize_labels(values: list[str]) -> list[str]` in
-`app/schemas/agent.py`, reused by the command schema validator and by the list-filter
-query normalization in the service. Rules, applied in order:
+A shared, pure core `_fold_labels(values: list[str]) -> list[str]` in
+`app/schemas/agent.py` does the value-shaping, and **two entry points wrap it with the
+policy their caller needs** (round-two Finding 2 — the two callers must not share one
+raising helper). Core rules, applied in order:
 
 1. **Trim** each item and collapse internal whitespace runs to a single space.
-2. **Lower-case** (canonical fold — see rationale below).
+2. **Case-fold** with `str.casefold()` (not `str.lower()`) after
+   `unicodedata.normalize("NFC", …)`, so visually identical NFC/NFD spellings and the
+   full Unicode case map fold to one canonical form (round-two lower-severity item —
+   `lower()` alone leaves `"ß"`/`"ss"` and NFC/NFD variants distinct, splitting a tag
+   and defeating the plain GIN index). Labels stay Unicode; the fold is canonical, not
+   ASCII-only.
 3. **Drop empties** (an item that is empty after trimming disappears — this is how
    "empty values" are handled consistently).
 4. **De-duplicate**, preserving first-seen order.
-5. **Bound**: each item ≤ 32 chars (enforced by `String(32)` and by the validator so
-   the refusal is a clean 422, not a DB error); at most **10 categories** and **20
-   tags** (a `Field`/validator cap so a runaway list can't bloat a row or a card).
 
-**Casing decision: fold to lower-case on write.** This makes de-duplication,
-filtering and indexing all exact and consistent (`"Sales"` and `"sales"` are one tag,
-and a plain GIN index answers the filter). The tradeoff is losing the author's original
-capitalization; the UI can present a prettified/title-cased label for display. The
-rejected alternative — preserve display casing but match case-insensitively — needs an
-expression GIN index over `lower()` of each array element (an immutable array-lowercasing
-wrapper), which is materially more complex for a cosmetic gain. Codex is asked to weigh
-this explicitly.
+The two entry points differ only in how they treat an **over-length item** (> 32 chars
+after trim) and **list cardinality**:
+
+- **`normalize_labels_strict`** (write path) **raises `ValueError`** on an item > 32
+  chars — inside a Pydantic `field_validator`, so it surfaces as a clean **422**, not a
+  DB error. Cardinality is capped by the schema `Field(max_length=…)` (10 categories, 20
+  tags), also a 422.
+- **`normalize_labels_query`** (filter path) is **tolerant**: it **drops** an item that
+  is over-length or empty rather than raising, and **caps the result to the same facet
+  bounds** (first 10 / first 20 after dedupe). It never raises and it never
+  **truncates** an item to 32 chars — truncation could turn an invalid label into a
+  valid-but-unintended match (round-two Finding 2/3). A bad or oversized query param
+  should quietly narrow to nothing on that item, not 400 the discovery page and not
+  match something the caller never typed.
+
+The `String(32)` column length and the `Field` count caps remain the backstops; the two
+helpers make the refusal shape correct on each side (a 422 the form can show on write, a
+silent narrowing on read) instead of leaking a `ValueError` out of the service as a 500.
+
+**Casing decision: case-fold on write.** This makes de-duplication, filtering and
+indexing all exact and consistent (`"Sales"` and `"sales"` are one tag, and a plain GIN
+index answers the filter). The tradeoff is losing the author's original capitalization;
+the UI can present a prettified/title-cased label for display. The rejected alternative —
+preserve display casing but match case-insensitively — needs an expression GIN index over
+a case-folded, immutable array-lowercasing wrapper of each element, which is materially
+more complex for a cosmetic gain.
 
 Because normalization lives in the schema validator, an unnormalized body (`["Sales",
 "sales", "  "]`) is accepted and stored as `["sales"]` — duplicates and empties handled
@@ -133,9 +154,22 @@ by construction, and idempotent (re-normalizing changes nothing).
 Add to `AgentRead` (`backend/app/schemas/agent.py`):
 
 ```python
-categories: list[str] = Field(default_factory=list)
-tags: list[str] = Field(default_factory=list)
+categories: list[str]
+tags: list[str]
 ```
+
+**Required, not `default_factory=list`** (round-two Finding 4). Both columns are
+`NOT NULL DEFAULT '{}'`, so the ORM row always carries a real list — a mapped column,
+not a relationship, so `from_attributes` reads it with no lazy async load. Every
+ORM-sourced `AgentRead` (detail via `AgentDetail.model_validate(agent)`, create, the
+avatar/metadata mutation responses) supplies them for free. The one **hand-built**
+constructor — `AgentRegistryService.list_agents` — must pass them explicitly (see §5
+Codex #5 / §12 step 5); making the fields required means a missed hand-built path
+**fails loud at serialization** instead of silently returning `[]` and hiding a
+regression. (This departs from the defaulted `channels`/`shared_user_count` fields, which
+default precisely because write endpoints skip paying for those extra queries; categories
+and tags are cheap row columns that are always present, so "always meant" is the correct
+contract.)
 
 `from_attributes` maps them straight off the ORM row. They ride the existing
 `AgentRead` used by both list and detail, so cards and the detail view both get them
@@ -155,7 +189,7 @@ class AgentMetadataRequest(BaseSchema):
     @field_validator("categories", "tags", mode="after")
     @classmethod
     def _normalize(cls, v: list[str]) -> list[str]:
-        return normalize_labels(v)
+        return normalize_labels_strict(v)  # raises ValueError -> 422 on an item > 32 chars
 ```
 
 ```python
@@ -194,21 +228,34 @@ category: Annotated[list[str], Query()] = [],
 tag: Annotated[list[str], Query()] = [],
 ```
 
-Threaded `list_agents(ctx, ..., categories=..., tags=...)` → `agent_repo.list_visible`,
-which adds a `.where(...)` to **both** the data query and the count query:
+The service normalizes the raw query params **once** with the tolerant
+`normalize_labels_query` (never the raising strict variant — round-two Finding 2), then
+threads the already-normalized, already-bounded lists into
+`list_agents(ctx, ..., categories=..., tags=...)` → `agent_repo.list_visible`. The
+repository adds a `.where(...)` to **both** the data query and the count query, guarding
+on the **normalized** result (round-one Codex #1) so a blank param like `?tag=%20`
+normalizes to `[]` and simply applies no predicate:
 
 ```python
+# categories / tags here are the tolerant-normalized lists the service passes down.
 if categories:
-    query = query.where(Agent.categories.op("&&")(normalize_labels(categories)))
-    count_query = count_query.where(Agent.categories.op("&&")(normalize_labels(categories)))
+    query = query.where(Agent.categories.op("&&")(categories))
+    count_query = count_query.where(Agent.categories.op("&&")(categories))
 if tags:
-    query = query.where(Agent.tags.op("&&")(normalize_labels(tags)))
-    count_query = count_query.where(Agent.tags.op("&&")(normalize_labels(tags)))
+    query = query.where(Agent.tags.op("&&")(tags))
+    count_query = count_query.where(Agent.tags.op("&&")(tags))
 ```
 
 Semantics: **overlap (`&&`) within a facet = OR**; **categories AND tags across
-facets**. Query values are normalized the same way as stored values (lower-cased), so
-matching is case-insensitive by construction. Order/count stay as they are.
+facets**. Query values are folded the same way as stored values, so matching is
+case-insensitive by construction. Order/count stay as they are.
+
+**Filter cardinality is bounded** (round-two Finding 3). Repeatable query params are
+otherwise unbounded — a caller could submit thousands of `?tag=` values, paying
+disproportionate parse/normalize/SQL-parameter and GIN cost. `normalize_labels_query`
+caps the normalized facet to the same 10 / 20 bounds the write path enforces, so a
+runaway filter is trimmed rather than executed. (A cap, not a 400: over-supplying filter
+values is not worth failing a discovery request over.)
 
 ## 5. Why filtering stays tenant- and permission-safe
 
@@ -267,6 +314,19 @@ def downgrade() -> None:
   empty array — no data loop, no nullability ambiguity.
 - Additive column, not a narrowing rule, so no data migration is required (contrast the
   OCR-language trap; that only applies when tightening an existing field).
+- **Index-build locking, accepted deliberately** (round-two Finding 6). A plain
+  `CREATE INDEX ... USING gin` takes a `SHARE` lock that blocks concurrent writes to
+  `agents` while it scans the table. The scan is proportional to the row count, but
+  `agents` is a low-cardinality table (an organization holds tens, not millions, of
+  agents on this self-hosted, multi-tenant platform) and both new indexes start
+  essentially empty, so the lock is held for a negligible window — this is accepted
+  rather than worked around. `CREATE INDEX CONCURRENTLY` is deliberately **not** used:
+  it cannot run inside Alembic's per-revision transaction, no existing migration in
+  `alembic/versions/` uses it, and `tests/test_migrations.py` runs the chain
+  transactionally forwards and back. If a deployment ever grows an `agents` table large
+  enough for the lock to matter, the escape hatch is a follow-up revision that builds the
+  indexes concurrently outside the transaction (`op.execute` with autocommit); it is out
+  of scope here.
 - Round-trip verified by `tests/test_migrations.py` (forwards/back) and
   `make db-check` (model↔migration parity).
 
@@ -292,11 +352,38 @@ Plan:
    existing tag-input primitive; build on `Input` + `badge`). Create-time tagging is out
    of scope for parity with avatar (avatar is also set after creation); note as a
    possible follow-up.
+
+   **Editor gating — deliberately role-level, matching the whole Builder** (round-two
+   Finding 1). The backend `set_metadata` is grant-aware (`resolve_access`), so a Viewer
+   holding an explicit `edit` grant on one agent *can* edit its metadata **through the
+   API**. The detail UI, however, gates every editing control on the page —
+   `agents/[id]/page.tsx:261` computes `const canEdit = can(Perm.agentsEdit)`, and the
+   draft editor, the model panel, the `AvatarColorPicker` and the `SharingPanel` all hang
+   off it. The metadata editor gates on the **same** `canEdit`, exactly as the avatar
+   precedent this design copies. Surfacing a metadata editor to a granted Viewer while
+   the rest of the Builder stays hidden from them would be a *new* inconsistency, not a
+   fix. The grant path remains a first-class capability via the API (and any future
+   per-caller Builder surfacing would add a `can_edit` to `AgentRead` — mirroring the
+   existing per-caller `can_run` — for the *whole* Builder at once, which is out of scope
+   for FA-023). The frontend permission test therefore asserts "**no `agents:edit` role →
+   editor absent**" (the avatar contract), not "Viewer + grant sees editor".
 4. **Filter**: server-driven facet. Extend `qk.agents.list` and `useAgents` to pass
    `category`/`tag` params; add the facet control to `galleryControls` in
    `agents/page.tsx`. Keep the existing text/status filters as they are. (Text/status
    stay client-side; the tag facet goes to the server so it filters the whole set, not
    just the first page.)
+
+   **One shared, side-effect-free canonicalizer feeds both the query key and the request
+   params** (round-two lower-severity item). A single helper takes the raw facet arrays
+   and returns a **sorted copy** (`[...arr].sort()`, never an in-place `.sort()` on React
+   state — mutating the state array corrupts the render and can wedge the key). That one
+   canonical output keys `qk.agents.list(includeArchived, categories, tags)` **and**
+   builds the request. Repeated params go to `apiClient` as **tuple pairs**
+   (`params: [["category","a"],["category","b"],["tag","x"]]`), because `RequestOptions.params`
+   accepts `Record<string,string> | [string,string][]` and only the tuple form can carry
+   a repeated key (`api-client.ts:15-17`) — the object form would collapse `category=a&category=b`
+   to one value. Keying on the sorted arrays is what stops two different selections from
+   sharing a stale cached page (round-one Codex #2).
 5. **i18n**: keys in `pages.agents` (filter + editor labels) and `agents` if a
    create-form label is added; English source in `messages/en.json`. Product nouns stay
    English per the i18n rule.
@@ -310,10 +397,21 @@ Plan:
   (`spec == AgentSpec.from_yaml(spec.to_yaml())`) are untouched, and no `SPEC_VERSION`
   bump is needed. This is the deliberate consistency: portable behaviour stays portable;
   org-local discovery metadata stays out of it.
-- **No agent-record export today includes avatar metadata** (export is spec-only via
-  `export_spec` → `spec.to_yaml()`), so there is no other export surface that must learn
-  about tags. If a record-level agent backup/export is added later, it should carry
-  categories/tags alongside avatar for the same reasons.
+- **Export emits no metadata.** `GET /agents/{id}/spec.yaml` → `export_spec`
+  (`agents.py:379`) serializes `AgentSpec.model_validate(agent.draft_spec).to_yaml()` and
+  nothing off the row, so categories/tags never appear in an exported file. There is no
+  other export surface that must learn about tags. If a record-level agent backup/export
+  is added later, it should carry categories/tags alongside avatar for the same reasons.
+- **Import does not touch metadata** (round-two Finding 5 — stated precisely). `POST
+  /agents/{id}/spec.yaml` → `import_spec` → `save_draft` replaces only `draft_spec`
+  (`agent_registry.py:1123`). Importing a YAML file into an **already-tagged** target
+  therefore **preserves** that target's existing categories/tags — it neither clears nor
+  overwrites them, because the file carries none. The earlier shorthand "a
+  clone/export starts untagged" was imprecise about import; the exact contract is:
+  - **export** never emits categories/tags;
+  - **import** never clears or overwrites the target's categories/tags;
+  - **clone alone starts untagged** (a fresh row, §11 Codex #6).
+  These three are pinned by regression tests (§13), not asserted rhetorically.
 
 ## 10. Alternatives considered (summary)
 
@@ -339,7 +437,7 @@ plan below.
 |---|---|---|---|
 | 1 | High | Filter predicate guards `if categories:` **before** `normalize_labels`, so `?tag=%20` is truthy, normalizes to `[]`, and `tags && '{}'` matches **nothing** (silently empties the list). | **Normalize first, then guard on the normalized result.** Compute `norm_cat = normalize_labels(category)` / `norm_tag = normalize_labels(tag)` in the service, pass them down, and apply the `&&` predicate only when the normalized list is non-empty. |
 | 2 | High | Making the facet server-driven without expanding the React Query key lets different category/tag selections reuse stale cached results. | **Expand `qk.agents.list`** to a stable, normalized+sorted filter shape: `list(includeArchived, categories, tags)` keying on `[...,"list",includeArchived, sortedCats, sortedTags]`. `useAgents` takes the facet and threads it into both the key and the request params. |
-| 3 | Med | `Field(max_length=10/20)` caps **list length**, not item length; an overlong label would hit `String(32)` as a 500/DB error, not a clean 422. | **`normalize_labels` enforces per-item length itself** (raise `ValueError` → Pydantic 422 for an item > 32 chars, after trim). The list-count cap stays as `max_length` on the field; the two caps are documented as distinct. Filter-side normalization skips/truncates rather than raising (a bad query param should narrow, not 400 the discovery page — decision noted in §4). |
+| 3 | Med | `Field(max_length=10/20)` caps **list length**, not item length; an overlong label would hit `String(32)` as a 500/DB error, not a clean 422. | **The write normalizer enforces per-item length itself** (raise `ValueError` → Pydantic 422 for an item > 32 chars, after trim). The list-count cap stays as `max_length` on the field; the two caps are documented as distinct. Filter-side normalization narrows rather than raising (a bad query param should not 400 the discovery page). **Refined by round-two Finding 2**: the write and filter paths use two separate helpers (`normalize_labels_strict` / `normalize_labels_query`) so the service never leaks a `ValueError` as a 500, and the filter path **drops** an over-length item rather than truncating it. |
 | 4 | Med | Model snippet only adds columns; GIN indexes must also be declared on the model (`__table_args__`), not just the migration, or model-built test schemas miss them and `make db-check` can drift. | **Add `Index("ix_agents_categories", "categories", postgresql_using="gin")` and the tags equivalent to `Agent.__table_args__`**, import `ARRAY`, `Index`. Implementation step 1 spells this out. |
 | 5 | Med | `AgentRead` rows in `list_agents` are **constructed by hand** (not `from_attributes`), so adding fields to the schema alone leaves list cards without them. | **Add `categories=agent.categories, tags=agent.tags` to the `AgentRead(...)` construction** in `AgentRegistryService.list_agents`. Called out as its own implementation step. Detail path (`AgentDetail`/`get`) does use `from_attributes` and needs no change beyond the schema field. |
 | 6 | Low | Clone copies the draft spec only, not row metadata; users might expect tags to travel with a clone. | **Documented decision: a clone starts untagged**, consistent with avatar metadata (a clone also starts with no avatar). Noted in the docs update and in a clone regression assertion. |
@@ -368,15 +466,19 @@ modules touched are under the 100% gate.
      `alembic upgrade head` -> `downgrade -1` -> `upgrade head`; `make db-check` clean;
      `tests/test_migrations.py` green.
 
-3. **Normalization helper + schemas** — `backend/app/schemas/agent.py`
-   - `normalize_labels(values: list[str]) -> list[str]`: trim + collapse internal
-     whitespace, lower-case, drop empties, dedupe (first-seen order), **raise
-     `ValueError` on an item > 32 chars after trim** (Codex #3 -> clean 422).
-   - `AgentRead`: add `categories: list[str] = Field(default_factory=list)` and
-     `tags: list[str] = Field(default_factory=list)`.
+3. **Normalization helpers + schemas** — `backend/app/schemas/agent.py`
+   - `_fold_labels(values)`: trim + collapse internal whitespace, NFC-normalize +
+     `casefold()`, drop empties, dedupe (first-seen order). The pure value-shaping core.
+   - `normalize_labels_strict(values)` (write): calls `_fold_labels`, then **raises
+     `ValueError` on an item > 32 chars after trim** (round-one Codex #3 -> clean 422).
+   - `normalize_labels_query(values)` (filter): calls `_fold_labels`, **drops** an
+     over-length item (never raises, never truncates), then **caps** to 10 categories /
+     20 tags (round-two Findings 2, 3).
+   - `AgentRead`: add `categories: list[str]` and `tags: list[str]` — **required**, no
+     default (round-two Finding 4).
    - `AgentMetadataRequest(BaseSchema)`: `categories` (`max_length=10`), `tags`
      (`max_length=20`), each with a `mode="after"` `field_validator` calling
-     `normalize_labels`.
+     `normalize_labels_strict`.
 
 4. **Repository** — `backend/app/repositories/agent.py`
    - `list_visible(...)` gains `categories: list[str] = []`, `tags: list[str] = []`
@@ -387,8 +489,9 @@ modules touched are under the 100% gate.
 5. **Service** — `backend/app/services/agent_registry.py`
    - `set_metadata(ctx, agent_id, *, categories, tags)` mirroring `set_avatar_color`:
      `self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)` then `agent_repo.update`.
-   - `list_agents(...)`: accept `categories`/`tags`, **normalize them once** via
-     `normalize_labels` (empty stays empty), pass to `list_visible`.
+   - `list_agents(...)`: accept `categories`/`tags`, **normalize them once** via the
+     tolerant `normalize_labels_query` (empty stays empty; over-length dropped; capped to
+     facet bounds — round-two Findings 2, 3), pass the normalized lists to `list_visible`.
    - Add `categories=agent.categories, tags=agent.tags` to the hand-built `AgentRead(...)`
      (Codex #5).
    - (Clone unchanged — starts untagged, Codex #6; assert in tests.)
@@ -402,9 +505,13 @@ modules touched are under the 100% gate.
 7. **Frontend types + hook + query key**
    - `src/types/agents.ts`: add `categories: string[]`, `tags: string[]` to `Agent`.
    - `src/lib/query-keys.ts`: `agents.list(includeArchived, categories=[], tags=[])`
-     keyed on sorted facet arrays (Codex #2).
-   - `src/hooks/use-agents.ts`: `useAgents` accepts the facet, threads it into the key
-     and the `GET /agents` params (`category`, `tag` repeated); `useAgent` gains a
+     keyed on sorted facet arrays (Codex #2). One shared canonicalizer returns a **sorted
+     copy** (`[...arr].sort()`, never mutating React state) used for both the key and the
+     params (round-two lower-severity item).
+   - `src/hooks/use-agents.ts`: `useAgents` accepts the facet, threads the canonicalized
+     lists into the key and the `GET /agents` params, emitting the repeated `category` /
+     `tag` keys as **tuple pairs** (`[["category","a"],["tag","x"]]`) since the object
+     `params` form cannot repeat a key (`api-client.ts:15-17`); `useAgent` gains a
      `setMetadata` mutation -> `PATCH /agents/{id}/metadata`, invalidating `qk.agents.all()`.
 
 8. **Frontend UI**
@@ -426,11 +533,17 @@ modules touched are under the 100% gate.
 
 Backend (anyio; 100% gate on platform modules — every new line/branch covered):
 
-- **Unit — `normalize_labels`**: trims, collapses whitespace, lower-cases, drops empties,
-  dedupes preserving order, is idempotent, and **raises on an over-length item** (-> 422
-  through the schema).
+- **Unit — normalization helpers**: `_fold_labels` trims, collapses whitespace,
+  case-folds, drops empties, dedupes preserving order, is idempotent, and **folds
+  NFC/NFD and full-case-map spellings to one** (e.g. a composed vs. decomposed accented
+  label dedupes; `casefold` folds where `lower` would not). `normalize_labels_strict`
+  **raises on an over-length item** (-> 422 through the schema).
+  `normalize_labels_query` **drops** an over-length item (no raise, no truncation) and
+  **caps** to 10 / 20 (round-two Findings 2, 3).
 - **Schema** — `AgentMetadataRequest` normalizes `["Sales","sales","  "]` -> `["sales"]`;
-  count caps (11 categories / 21 tags) rejected; `AgentRead` carries the fields.
+  count caps (11 categories / 21 tags) rejected; over-length item rejected 422;
+  `AgentRead` **requires** `categories`/`tags` — a construction omitting them fails
+  (round-two Finding 4).
 - **API — edit** (`tests/api/`): `PATCH /agents/{id}/metadata` sets, changes and clears
   (empty list) both facets; persists across a re-fetch; duplicate/empty/mixed-case input
   stored normalized. **Refusal**: a caller without `agents:edit` is refused; a Viewer
@@ -439,10 +552,21 @@ Backend (anyio; 100% gate on platform modules — every new line/branch covered)
 - **API — filter/discovery**: `GET /agents?tag=x` returns only matching visible agents;
   `?category=a&tag=b` ANDs across facets, multiple `tag` ORs within the facet;
   case-insensitive match; `?tag=%20` (blank) is a no-op that returns the full visible
-  list (Codex #1 regression); `total` reflects the filtered count.
+  list (Codex #1 regression); an **over-length query item is dropped, not a 500 and not a
+  truncated match** (round-two Finding 2 regression); an over-supplied facet
+  (> cap values) narrows without error (round-two Finding 3); `total` reflects the
+  filtered count.
 - **Tenant isolation on filter**: an agent in org B carrying tag `x` never appears in
   org A's `?tag=x`; a private/ungranted agent in the caller's own org carrying `x` does
   not appear for a caller who cannot see it (filter narrows the visible set only).
+- **Non-empty metadata round-trips every AgentRead path** (round-two Finding 4): a tagged
+  row shows its categories/tags through the **list** card, the **detail** response, and
+  the **metadata-mutation** response — the required fields never serialize as a false
+  `[]`.
+- **Import/export** (round-two Finding 5, `tests/api/`): `GET /agents/{id}/spec.yaml`
+  never contains categories/tags; importing a spec into an **already-tagged** target
+  leaves its categories/tags **unchanged** (import touches only the draft); the exported
+  YAML re-imported into a fresh agent carries no metadata.
 - **Clone**: cloning a tagged agent yields an untagged clone (Codex #6).
 - **Route-gate contract**: `tests/api/test_platform_routes.py` — the new per-resource
   PATCH carries **no** `require(...)` gate; the collection `GET` keeps its
@@ -457,19 +581,23 @@ Backend (anyio; 100% gate on platform modules — every new line/branch covered)
 
 Frontend (`*.integration.test.tsx`, Testing Library vs. mocked API; 100% gate):
 
-- Editor control **absent** without `agents:edit`, **present** with it (not
-  rendered-then-403).
+- Editor control **absent** without the `agents:edit` role, **present** with it (not
+  rendered-then-403) — the same role-level contract the avatar/draft controls hold
+  (round-two Finding 1); the test does **not** assert a granted Viewer sees it.
 - Editing submits normalized categories/tags to `PATCH /agents/{id}/metadata` and shows
   the resulting chips.
 - The facet control drives the request params and the query key changes with the facet
-  (no stale cache, Codex #2); the filtered list renders only matching cards.
+  (no stale cache, Codex #2); the filtered list renders only matching cards. Assert the
+  repeated params reach the client as **tuple pairs** and that selecting a facet does not
+  mutate the source array (round-two lower-severity item).
 - Assert on **data**, not chrome (empty-state trap).
 
 ## 14. Documentation
 
 - `docs/concepts.md` — note categories/tags as mutable, org-local agent metadata
-  (contrast the versioned spec), and that they are **not** part of the exported spec (so
-  a clone/export starts untagged), mirroring the avatar wording.
+  (contrast the versioned spec), and that they are **not** part of the exported spec:
+  export emits no metadata, import leaves the target's metadata unchanged, and only a
+  clone starts untagged (round-two Finding 5), mirroring the avatar wording.
 - `docs/console.md` — the agents listing/discovery section: filtering by category/tag and
   where the editor lives.
 - `docs/api.md` — the `PATCH /agents/{id}/metadata` command and the `category`/`tag` query
@@ -486,3 +614,40 @@ Frontend (`*.integration.test.tsx`, Testing Library vs. mocked API; 100% gate):
 - A managed per-org tag vocabulary / autocomplete registry (would justify the join-table
   model; revisit if requested).
 - Copying discovery metadata on clone (deliberately not done; §11 #6).
+
+## 16. Second review round (gpt-5.6-sol)
+
+A second `codex exec` review (`gpt-5.6-sol`, read-only, medium effort) was run against
+this design after the first round (`gpt-5.5`) was already folded in, asked to focus on
+**new or still-unresolved** problems. Each finding was verified against the actual code
+before a verdict. Six ranked findings plus two lower-severity items.
+
+| # | Sev | Finding | Verdict | Change |
+|---|---|---|---|---|
+| 1 | High | UI editor gated on role-level `can(Perm.agentsEdit)` contradicts the grant-aware backend (`set_metadata` uses `resolve_access`); a granted Viewer can call the API but not use the UI. Recommends adding a per-caller `can_edit` to `AgentRead`. | **Observation accepted, recommended fix rejected** | See below — gating is deliberately consistent with the whole Builder; §8 step 3 records the rationale, §13 keeps the "no role → absent" test. |
+| 2 | High | The single raising `normalize_labels` is used by both the write validator (wants 422) and the service filter path; a `ValueError` in the service becomes a **500**, contradicting the round-one note that filter normalization "skips/truncates". | **Accepted** | Split into `normalize_labels_strict` (raises → 422) and `normalize_labels_query` (tolerant, drops, no truncation). §3, §4 filter, §12 steps 3/5, §13. |
+| 3 | Med | Filter query params (`category`/`tag`) are unbounded while the write body caps at 10/20. | **Accepted** | `normalize_labels_query` caps the normalized facet to the same 10/20. §3, §4 filter, §13. |
+| 4 | Med | `AgentRead.categories/tags` default to `[]`; since the columns are `NOT NULL`, a missed hand-built constructor would silently return false-empty metadata. | **Accepted** | Make both fields **required**; only the one hand-built path (`list_agents`) must supply them, ORM paths get them from `from_attributes`. §4 Read, §12 step 3, §13. |
+| 5 | Med | "clone/export starts untagged" is imprecise: import (`save_draft`) touches only `draft_spec`, so importing into a tagged agent **preserves** its tags; and no import/export regression is planned. | **Accepted** | §9/§14 restated precisely (export emits none; import preserves; only clone starts empty) and §13 gains an import/export regression. |
+| 6 | Med | Two plain `CREATE INDEX ... USING gin` block writes on `agents` during their scan; recommends `CONCURRENTLY` for zero-downtime. | **Accepted as documented decision** | `agents` is a low-cardinality table and `CONCURRENTLY` cannot run in Alembic's transactional migration (no such precedent in `alembic/versions/`); §7 records the accepted brief lock and the follow-up escape hatch. |
+| L1 | Low | `str.lower()` is not a canonical Unicode fold; NFC/NFD and full-case-map spellings stay distinct, splitting a tag and defeating the plain GIN index. | **Accepted** | Normalize with `unicodedata.normalize("NFC", …)` + `str.casefold()`. §3, §12 step 3, §13. |
+| L2 | Low | Frontend needs one shared canonicalizer feeding both the query key and params; it must sort **copies** (not mutate React state) and emit repeated params as **tuple pairs** (the object `params` form cannot repeat a key). | **Accepted** | §8 step 4 and §12 step 7 specify a non-mutating sorted-copy canonicalizer and tuple-pair params; verified `api-client.ts:15-17` accepts `[string,string][]`. |
+
+**Verification notes for Finding 1 (why the recommended fix was rejected).** The backend
+asymmetry is real — `set_metadata` is grant-aware, so the backend API test still asserts
+a granted Viewer *succeeds* (§13). But the recommended UI fix (add `can_edit`, surface the
+editor to a granted Viewer) was rejected after reading `agents/[id]/page.tsx:261`: the
+**entire** agent Builder — the draft editor, the model panel, the `AvatarColorPicker` (the
+very precedent this design copies) and the `SharingPanel` — hangs off one role-level
+`const canEdit = can(Perm.agentsEdit)`. A Viewer with a per-agent edit grant already
+cannot use *any* of the Builder today; the grant path is an API capability. Surfacing a
+categories/tags editor to that Viewer while every other Builder control stayed hidden
+would be a **new inconsistency**, not a fix, and out of FA-023's scope. `AgentRead`
+carries a per-caller `can_run` (not `can_edit`) precisely because run grants meaningfully
+surface per-row controls and edit-in-the-Builder does not. The design gates the metadata
+editor on the same `canEdit`, records the decision explicitly, and keeps the "no role →
+absent" test rather than the "granted Viewer sees editor" one the finding proposed.
+
+No first-round decision was overturned. Codex also re-confirmed the SQL authorization
+composition is tenant-safe: the `&&` predicates only narrow an already org- and
+grant-scoped query and cannot widen it.
