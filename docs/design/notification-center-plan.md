@@ -226,6 +226,29 @@ further has to succeed for a person to see it in their inbox. Only the
 side channels (email, and any future channel) are the part that can fail
 independently, which is what makes Decision 3 necessary.
 
+**A failure inside this write must not poison the caller's transaction.**
+`AgentRunnerService.finish` calls its notification path inside a `try`/`except`
+specifically so a notification failure cannot replace the run's own outcome
+(section 0) — but that guard only catches the Python exception. A `flush()`
+that raises (a constraint violation, a lost connection) leaves the shared
+SQLAlchemy session needing rollback, and the outer `except` cannot undo
+that: `finish`'s own terminal `db.commit()`, reached afterward, then fails
+too, and the run it just finalized rolls back with it — exactly the failure
+the guard exists to prevent, just one layer further out than the guard
+reaches. The write helper therefore runs its insert inside a **savepoint**
+(`async with db.begin_nested()`) when called from a context that cannot
+afford the outer transaction poisoned — `finish` is exactly such a context.
+A failure inside the savepoint rolls back to it, is logged, and the caller's
+transaction proceeds and commits normally. A notification that could not be
+recorded is a real gap (surfaced through the same delivery-visibility
+mechanism as a `skipped`/permanently-`failed` row below), never a failed run.
+Separately, the dedup insert itself uses `INSERT ... ON CONFLICT
+(recipient_user_id, event_type, occurrence_id) DO NOTHING` rather than a
+plain insert relying on the unique constraint to raise — the duplicate case
+this plan expects to happen routinely (a retried budget check, a redelivered
+webhook) is then an ordinary no-op, not an exception the savepoint has to
+absorb on every retry.
+
 **Resolving who the row is for happens by identity, not by borrowing the
 email helpers.** Section 0 already rules out `_administrators`/`_deciders`/
 `_audience` for this: they return addresses pre-filtered by an email
@@ -288,6 +311,20 @@ a raised exception marks it `failed` and bumps `attempts`, exhausting into a
 terminal `failed` past the bound. A recipient who has lost access since the
 row was queued (Decision 7) marks it `skipped` instead — a fact worth
 telling an app admin apart from a provider failure, not silently absent.
+
+**A terminally `failed` row is visible, not only queryable.** Recording
+`status`/`last_error`/`attempts` on the row is not, by itself, the
+"delivery/failure visibility" the issue asks for — nothing reads that column
+back today, which is the same silent-failure shape as the status quo this
+plan set out to fix. A new `CurrentAppAdmin`-gated route,
+`GET /admin/notifications/deliveries?status=failed`, lists terminally failed
+rows deployment-wide (event type, recipient, attempts, `last_error`,
+`notification_id` to trace back to its event) — one small, generic view
+rather than a bespoke one per event type, and app-admin-gated because a
+permanent mail failure is an operational concern, not a tenant one. This is
+the same visibility mechanism the savepoint failure above surfaces through,
+so one route covers both "the send failed" and "the write itself could not
+be recorded."
 
 **Rendering is dispatched by `event_type` at send time, not frozen at write
 time.** The delivery row names the event and the notification it belongs
@@ -442,7 +479,12 @@ covered the first:
   to, the same as any other resource. Decision 3's send-time claim covers
   the email side: a pending delivery to somebody no longer a member is
   marked `skipped`, not sent, because the row is claimed and rendered at
-  send time, not at write time.
+  send time, not at write time. The same check covers the deployment-wide
+  audience: `security_event`/`configuration_changed` recipients are app
+  admins with no membership row to lose (Decision 2), so the send-time
+  re-check there is `is_app_admin`, not organization membership — a
+  recipient whose app-admin status is revoked before the sweep claims their
+  row is `skipped` on exactly the same basis.
 - **A role change, short of removal, can change what a still-current member
   is allowed to see about an event they were correctly addressed on.** This
   is not new to this plan — `NotificationService.approval_requested` already
@@ -471,6 +513,14 @@ one year) — written as one named class of data, so when #1420 ships its
 per-organization settings, adopting `notifications` as one more row in that
 table is a follow-up, not a redesign.
 
+`announcements` is deliberately not part of this sweep. Purging the
+per-recipient `notifications` rows a broadcast fanned out to is exactly what
+the window above is for, but the `announcements` row itself — the message an
+app admin actually sent, and what `record_audit`'s `announcement_id`
+(Decision 5) points at — survives past that window, so "what did an app
+admin send, and when" stays answerable from the audit trail after ordinary
+retention has cleared the individual deliveries.
+
 ## Work breakdown
 
 1. **Schema** — `notifications` (nullable `organization_id`, `occurrence_id`,
@@ -487,13 +537,18 @@ table is a follow-up, not a redesign.
    `list_member_ids_by_role`/`list_app_admin_ids` (new, `select(User.id)`,
    no preference filter), and the write helper that turns a resolved set of
    recipient ids into `notifications`/`notification_deliveries` rows inside
-   the caller's transaction, consulting Decision 4's one-authoritative-lookup
-   preference rule per channel and skipping the write entirely for a
-   mandatory event type. Tests: one event produces one row per resolved
-   recipient, a duplicated trigger produces one row via the unique
-   constraint rather than two, an in-app row is written even when the
-   recipient has emailed off, a mandatory event type's row is written
-   regardless of any preference.
+   the caller's transaction — `INSERT ... ON CONFLICT DO NOTHING` on the
+   dedup constraint, wrapped in `db.begin_nested()` when called from a
+   context that cannot afford its own transaction poisoned (Decision 2) —
+   consulting Decision 4's one-authoritative-lookup preference rule per
+   channel and skipping the write entirely for a mandatory event type.
+   Tests: one event produces one row per resolved recipient, a duplicated
+   trigger produces one row via the unique constraint rather than two (and
+   raises nothing), an in-app row is written even when the recipient has
+   emailed off, a mandatory event type's row is written regardless of any
+   preference, and — the regression Decision 2's savepoint fix targets — a
+   forced write failure inside the helper does not roll back the caller's
+   own transaction.
 3. **Migrate the three existing agent-lifecycle emails onto this path** —
    `budget_exceeded`, `approval_requested` and `agent_usage_report` stop
    calling `_send`/`spawn` directly and instead end in a
@@ -502,15 +557,18 @@ table is a follow-up, not a redesign.
    event (the regression this review caught), the existing `EmailKey`s and
    template context are unchanged, and the approval split is still made —
    now at send time (item 4) rather than at write time.
-4. **Delivery sweep** — `notification_delivery_sweep` flow, modeled on
-   `repositories/agent_trigger.py::claim_due` (`FOR UPDATE SKIP LOCKED` plus
-   a lease), the per-event-type render dispatch from Decision 3, and
-   `SendResult.accepted` deciding `sent` vs `failed`. Tests: two concurrent
-   sweep runs never both send the same row, a crashed claim's lease expires
-   and the row is retried, a failed send retries up to the bound and then
-   stops, a recipient who lost access since the row was queued is marked
-   `skipped` and not sent, and sending never raises into the triggering
-   request.
+4. **Delivery sweep and failure visibility** — `notification_delivery_sweep`
+   flow, modeled on `repositories/agent_trigger.py::claim_due` (`FOR UPDATE
+   SKIP LOCKED` plus a lease), the per-event-type render dispatch from
+   Decision 3, `SendResult.accepted` deciding `sent` vs `failed`, and the
+   `CurrentAppAdmin`-gated `GET /admin/notifications/deliveries?status=failed`
+   view. Tests: two concurrent sweep runs never both send the same row, a
+   crashed claim's lease expires and the row is retried, a failed send
+   retries up to the bound and then stops, a recipient who lost access
+   since the row was queued is marked `skipped` and not sent, sending never
+   raises into the triggering request, an organization admin is refused the
+   failed-deliveries view, and a terminally failed row appears in it with
+   its `last_error`.
 5. **New trigger points** — `run_completed`/`run_failed` for unattended
    surfaces only (excluding `WEB`), ingestion completion/failure wired at
    **both** `services/sync_source.py` and
@@ -574,19 +632,56 @@ table is a follow-up, not a redesign.
    rather than signal.
 4. **How many organizations can one announcement address before the
    recipient-resolution query itself needs paging or a background job
-   rather than a synchronous route handler?**
+   rather than a synchronous route handler?** Decision 3's sweep-only
+   delivery already removes the sharper half of this — sending fans out
+   through the bounded, leased sweep (Decision 3), never as one burst of
+   in-process tasks per send — so what is left is the synchronous insert of
+   one `notifications`/`notification_deliveries` pair per recipient before
+   the route can return. This plan leaves that as a bulk insert in the
+   request rather than a background job deliberately: a few thousand rows is
+   a sub-second write, an app admin's own action is not latency-sensitive
+   the way a user-facing request is, and an admin can already page by
+   organization by sending more than one announcement. A background job adds
+   a job table, a progress surface and a partial-failure story for a
+   scale this plan has no evidence it needs yet — worth revisiting once a
+   real deployment's organization count says otherwise, not designed
+   speculatively here.
 5. **Security event granularity** — section 0 proposes reusing existing
    `record_audit` call sites as the trigger points rather than a new
    detector. Is that coverage sufficient, or does the issue expect events
    `record_audit` does not yet cover?
-6. **Who can inspect a delivery failure beyond `last_error` on the row?**
-   Decision 5 gives an announcement's sender a way to reconstruct its
-   deliveries through `announcement_id`. Nothing in this plan yet gives an
-   app admin a general view over `notification_deliveries.status`/
-   `last_error` for non-announcement events — worth a small admin view, or
-   is a database query sufficient for how rarely this is expected to matter?
 
 ## Resolved in review
 
-*(to be filled in during review. This section records the outcomes so the
-document stands as the final design rather than a set of proposals.)*
+Two automated review passes (Codex) against this plan. Outcomes below.
+`Resolved in review` still applies to a human reviewer's own decisions on
+top of these.
+
+**Fixed, first pass** (commit `ecc82358`): permission not re-checked at
+read/send time, the Redis-claim dedup, no concurrency/crash-recovery
+contract for the sweep, two incompatible delivery paths for the legacy
+emails, `_audience()`'s address-only shape reused unchanged, in-app wrongly
+made unconditional, no scope for deployment-wide events, the ingestion and
+run-completion gaps in the catalog, missing FKs/indexes, no announcement
+identifier, and the missing dashboard-widget integration. Decisions 1–8 and
+the work breakdown above reflect all of them.
+
+**Fixed, second pass** (this commit): a notification write's failure could
+poison and roll back the transaction that triggered it (`AgentRunnerService
+.finish`'s own guard did not reach far enough) — Decision 2 now specifies a
+savepoint and an `ON CONFLICT DO NOTHING` dedup insert. A terminally failed
+delivery was recorded but never surfaced — Decision 3 now specifies an
+app-admin-gated failed-deliveries view. An announcement's message could
+outlive its audit linkage's usefulness after retention purged its recipient
+rows — Decision 8 now states `announcements` is exempt from the sweep. The
+send-time membership re-check (Decision 7) did not name its analogue for the
+app-admin audience — added.
+
+**Deliberately not fixed, second pass**: the synchronous route for an
+`every organization` announcement doing its recipient-resolution insert
+in-request. Open question 4 explains why a background job is not designed
+here yet — the sharper half of the original concern (unbounded in-process
+delivery tasks) is already gone now that delivery is sweep-only, and the
+remaining half (a bulk insert before the route returns) is judged low-risk
+at the scale this plan has evidence for. Revisit if a real deployment's
+organization count says otherwise.
