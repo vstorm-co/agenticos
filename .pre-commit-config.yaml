@@ -130,10 +130,14 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      # No ASCII banner comments (`# ---- foo ----`).
+      # No ASCII banner comments (`# ---- foo ----`). Through the pinned
+      # interpreter like check-routes above, on the same reasoning - not
+      # because this one needs 3.10+ today, but because the next guard
+      # script written this way might, and `language: system` would run it
+      # on whatever `python3` the host has regardless.
       - id: check-comments
         name: no banner comments
-        entry: python3 scripts/check_comments.py
+        entry: uv run --no-sync --directory backend python3 ../scripts/check_comments.py
         language: system
         types_or: [python, ts, tsx, yaml]
         pass_filenames: false
@@ -141,7 +145,7 @@ repos:
       # nobody finds. See the script's docstring.
       - id: check-docs-paragraphs
         name: no wall-of-text paragraphs
-        entry: python3 scripts/check_docs_paragraphs.py
+        entry: uv run --no-sync --directory backend python3 ../scripts/check_docs_paragraphs.py
         language: system
         types: [markdown]
         pass_filenames: false
@@ -149,7 +153,7 @@ repos:
       # and so do editor hovers over a docstring.
       - id: check-backticks
         name: no double backticks
-        entry: python3 scripts/check_backticks.py
+        entry: uv run --no-sync --directory backend python3 ../scripts/check_backticks.py
         language: system
         types_or: [markdown, python, ts, tsx]
         pass_filenames: false
