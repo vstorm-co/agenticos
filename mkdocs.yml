@@ -194,6 +194,8 @@ nav:
           - permissions.md
           - governance.md
           - secrets.md
+          - data-protection.md
+          - licenses.md
       - How-to - recipes:
           - howto/set-up-knowledge-base.md
           - howto/customize-agent-prompt.md
