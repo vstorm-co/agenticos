@@ -16,7 +16,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import app.services.capability_contracts as capability_contracts
 from app.core.secret_kinds import SecretKind, SecretRequirement
 from app.services.capability_contracts import _documentation_secret, tool_contracts
 
@@ -24,13 +23,11 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
-def _reset_cache():
+def _reset_cache(monkeypatch):
     """`tool_contracts` caches for the process - a test faking the registry
-    must not leave that fake behind for every test that runs after it."""
-    saved = capability_contracts._CACHED
-    capability_contracts._CACHED = None
-    yield
-    capability_contracts._CACHED = saved
+    must not leave that fake behind for every test that runs after it.
+    `monkeypatch` restores the original value on teardown either way."""
+    monkeypatch.setattr("app.services.capability_contracts._CACHED", None)
 
 
 class TestDocumentationSecret:
