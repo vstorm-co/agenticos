@@ -20,7 +20,7 @@ UUID happened to hash the same way.
 from enum import IntEnum
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -59,8 +59,16 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     Blocks while another transaction holds the same one. Call it *before* reading
     the count it protects: taken afterwards it serializes nothing, because the
     count both callers read is already stale.
+
+    Both keys are cast to `Integer`, which is what selects the two-argument
+    `pg_advisory_xact_lock(int, int)` overload. Without it a key of exactly
+    `-2147483648` - the value `_key` returns for a subject whose low 32 bits are
+    zero, which the deployment-wide audit chain hits deterministically - binds as
+    `bigint`, and `(int, bigint)` matches no overload (#1622).
     """
-    await db.execute(select(func.pg_advisory_xact_lock(scope.value, _key(subject))))
+    await db.execute(
+        select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
 
 
 async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:

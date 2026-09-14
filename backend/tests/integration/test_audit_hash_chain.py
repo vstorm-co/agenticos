@@ -77,6 +77,29 @@ class TestRoundTrip:
         assert by_org[org_b].entries_checked == 2
 
 
+class TestTheDeploymentChain:
+    async def test_a_tenant_less_write_chains_and_verifies(self, db, engine) -> None:
+        """`organization_id=None` is the deployment-wide chain, whose advisory-lock
+        key is `-2147483648` - the `pg_advisory_xact_lock` overload trap that must
+        not throw (#1622). Deployment settings, impersonation and app-admin user
+        management all write here."""
+        for index in range(3):
+            await record_audit(
+                db,
+                actor_user_id=uuid.uuid4(),
+                action=f"deployment.action.{index}",
+                organization_id=None,
+            )
+        await db.commit()
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as reader:
+            result = await AuditService(reader).verify_chain(None)
+
+        assert result.first_break is None
+        assert result.entries_checked == 3
+
+
 class TestTamperIsDetected:
     async def test_editing_a_stored_row_is_detected(self, db, engine) -> None:
         org = uuid.uuid4()
