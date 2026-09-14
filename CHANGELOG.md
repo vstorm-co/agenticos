@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.423] - 2026-09-14
+
+### Added
+
+- **An agent can be traced without its prompts.** `observability.content` on the
+  agent spec takes `full` (the default, everything as before) or `none` - timing,
+  tokens, cost and tool names, with no message text and no tool arguments. Until
+  now an agent redirecting its traces to a Logfire project, often a client's own,
+  sent the user's message, the model's output and every tool argument and result
+  with no switch: for a deployment whose runs touch health, legal or HR data, a
+  copy of the protected content left the machine per run. The choice is enforced
+  where the agent is instrumented rather than in the Builder, so a spec that says
+  `none` produces content-free spans however the run is started, and it survives
+  the environment-tracing merge - an environment redirects where traces go, not
+  how much they carry. The Builder offers both modes beside the token, locked
+  until one is chosen. `content` is optional with a default, so stored specs load
+  unchanged and `SPEC_VERSION` stays 11. The `redacted` mode from the issue needs
+  a span processor of its own and is tracked in #1616. (#1413)
+
 ## [0.0.422] - 2026-09-14
 
 ### Fixed

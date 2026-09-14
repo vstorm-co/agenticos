@@ -1,5 +1,5 @@
 ---
-source_sha: "5f82d4791ee1"
+source_sha: "c4a41dd69a21"
 ---
 
 # Środowiska { #environments }
@@ -83,6 +83,14 @@ projekcie, otagowane nazwą środowiska.
 To właśnie trzyma eksperyment ze stagingu z dala od dashboardu, który ktoś
 obserwuje pod kątem incydentów produkcyjnych — i jest per środowisko, a nie per
 deployment, bo te dwa to naprawdę różne projekty.
+
+Gdzie trafiają trace'y, należy do środowiska; *ile niosą* — do agenta. Blok
+[observability](reference/spec.md#observability) agenta ma tryb `content`: `full`
+zapisuje wiadomość, wyjście modelu i każdy argument narzędzia, a `none` — tylko
+czas, tokeny, koszt i nazwy narzędzi. Przy projekcie nad danymi medycznymi,
+prawnymi albo kadrowymi to właśnie `none` powstrzymuje kopię chronionej treści
+przed opuszczeniem maszyny. Token środowiska przekierowuje run, ale tego wyboru
+nie nadpisuje.
 
 ## Czym domyślne środowisko nie jest { #what-the-default-environment-is-not }
 
