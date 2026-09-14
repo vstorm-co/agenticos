@@ -1196,8 +1196,8 @@ hace (#983).
 El último paso del asistente — el que decide la colección — nombra la credencial y
 la audiencia *juntas*, porque el par es la decisión:
 
-> *"&lt;credential&gt; puede leer todo aquello a lo que se le haya dado acceso, y
-> todo lo que ingiera pasa a ser buscable en &lt;collection&gt; por …"*
+> *"&lt;credential&gt; can read whatever it has been granted, and everything it
+> ingests becomes searchable in &lt;collection&gt; by …"*
 
 Un conector que no autentica con nada no tiene credencial que nombrar, y la frase
 no se la inventa. Tampoco nombra una cuyo lector no tenga `secrets:view`.
