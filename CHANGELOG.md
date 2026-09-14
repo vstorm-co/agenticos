@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **The stack runs Valkey where it used to run Redis.** `redis:7-alpine`
+  resolves to Redis 7.4, and from 7.4.0 Redis is RSALv2 or SSPL-1.0 rather than
+  BSD-3-Clause - neither an OSI-approved licence. Nothing was broken by it: the
+  image is pulled by the operator rather than redistributed here, and RSALv2
+  permits running Redis inside your own application. But the default `docker
+  compose up` started a non-open component without saying so. Every compose file
+  and every CI service now uses `valkey/valkey:8-alpine`, the Linux Foundation
+  fork of Redis 7.2 under BSD-3-Clause. It speaks the same protocol on the same
+  port, so the service name, the `redis://` scheme, the `redis_data` volume and
+  every `REDIS_*` setting are unchanged, and so is the client - only the image,
+  the server binary and the CLI in the healthchecks differ. A deployment on a
+  managed Redis, Valkey or Elasticache is unaffected. The licence review drops
+  to one open finding. (#1603)
+
 ## [0.0.412] - 2026-09-14
 
 ### Added
