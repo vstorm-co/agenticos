@@ -1060,8 +1060,17 @@ All in `app/services/rag/vectorstore.py` plus one migration-side helper (9.6).
     replace/dedup path and the highest-risk write clobber (R2).
   - `insert_document`'s `ON CONFLICT (id) DO UPDATE` (line ~486) is a row-level write:
     give it a **tenant-safe conflict policy** so an id collision cannot overwrite a
-    chunk owned by another org (codex-3 C2). Chunk ids are uuid4 so collision is
-    astronomically unlikely, but the policy is stated rather than assumed.
+    chunk owned by another org (codex-3 C2). Concretely (codex round-2 R4), guard the
+    update — `ON CONFLICT (id) DO UPDATE SET … WHERE <table>.metadata->>'organization_id'
+    IS NOT DISTINCT FROM :org`: `IS NOT DISTINCT FROM` lets a legacy NULL-owner row be
+    adopted by its re-ingesting owner while a **different** org's id collision is left
+    untouched. A conflicting row whose owner differs is **skipped, not errored** —
+    Postgres applies `DO UPDATE` only where the `WHERE` holds — which is the safe
+    outcome, but the write path must **not read that skip as a successful upsert**: it
+    checks the affected-row count and treats a skipped conflict as a failure to surface,
+    not a silent success. The unscoped maintenance marker uses the all-owners form (no
+    org predicate). Chunk ids are uuid4 so a cross-tenant collision is astronomically
+    unlikely; the policy is defense-in-depth, stated rather than assumed.
   - These methods take a `RetrievalScope` (not a bare nullable UUID — codex-3 C2/M9),
     which is the discriminated scoped/unscoped type defined in Phase 1; CLI/maintenance
     passes the explicit unscoped marker (2.2).
@@ -1143,13 +1152,16 @@ scope to every collection; the removed probe no longer reads cross-tenant.
     overwriting one with the other (overwriting could widen the caller's intent) —
     equal values included, so there is one unambiguous source. Mark the legacy field
     deprecated in the generated OpenAPI schema; the removal is tracked by a named
-    follow-up issue with a usage-telemetry check before removal.
+    follow-up issue that fixes a concrete **deprecation window** (a target release and
+    date) and a **named owner** for the usage-telemetry check before removal, rather
+    than an open-ended "future issue" (codex round-2 R6).
 - **M3 facet affordance:** add a tenant/collection-scoped read that returns the
   distinct in-scope `source` and `organizational_unit` values (and, for the small
   closed set, `document_type`). Concretely a `GET
   /collections/{name}/filter-values` route (gated `COLLECTIONS_VIEW`, resolved via
   `access.readable`) backed by a new store method
-  (`distinct_metadata_values(collection, keys, organization_id)` →
+  (`distinct_metadata_values(collection, keys, scope)` — a `RetrievalScope`, not a bare
+  nullable UUID, for consistency with §9.2's "every scoped op takes a scope" rule →
   `SELECT DISTINCT metadata->>'X' … WHERE metadata->>'organization_id' = :org`). A
   `RAGFilterValues` response schema in `app/schemas/rag.py`.
 - **Agent tool `app/agents/capabilities/knowledge/_toolset.py` + `_search.py`
@@ -1301,18 +1313,31 @@ revision against the then-current head before merge.
     migration's `downgrade()` is written and exercised by `test-migrations`.
 - **Ordered rollout (R4 / codex-3 C1) — one flag gating *all* scoped ops, flipped
   last:**
-  1. ship the tenant **dual-write** (Phase 5: new ingests stamp `organization_id`) and
-     deploy everywhere; apply `0078_rag_metadata_prereqs`;
+  1. **apply `0078_rag_metadata_prereqs` first** — it creates `rag_safe_to_date` and
+     the JSONB indexes, and it must land **before any Phase 2–5 code that emits the
+     date predicate or builds the partial date index is deployed** (codex round-2 R1):
+     `_ensure_collection` runs `CREATE INDEX … rag_safe_to_date(…)` on every ingest and
+     a date business filter is not gated by the enforcement flag, so "before flag-on" is
+     not late enough. Then ship the tenant **dual-write** (Phase 5: new ingests stamp
+     `organization_id`) and deploy everywhere;
   2. **drain/upgrade old workers** so nothing still writes untagged chunks;
   3. run `0079` **backfill and verify** (report reviewed, quarantine understood);
-  4. **atomically enable tenant enforcement across every scoped operation — search,
-     listing, counts, chunk fetch, dedup lookup, deletion and the insert conflict
-     policy — not reads alone.** A single `RAGSettings` flag gates all of them so
-     there is never a state where scoped delete/dedup is on while scoped search is off
-     (which would reopen the clobber) or vice versa (which would hide a tenant's own
-     legacy document mid-rollout). Until the flag flips, the scoped methods preserve
-     the **documented legacy behaviour** (no tenant conjunct) so a tenant can still
-     reach its not-yet-tagged chunks.
+  4. **enable tenant enforcement across every scoped operation — search, listing,
+     counts, chunk fetch, dedup lookup, deletion and the insert conflict policy — not
+     reads alone.** A single `RAGSettings` flag gates all of them **within a process**,
+     so no process is ever in a partial state where scoped delete/dedup is on while
+     scoped search is off (which would reopen the clobber) or vice versa (which would
+     hide a tenant's own legacy document). The flag is **process-local configuration**
+     (pydantic `BaseSettings`), so a fleet flip is a **rolling, not instantaneous**
+     change (codex round-2 R2): during the roll a not-yet-flipped process keeps the
+     **documented legacy behaviour** (no tenant conjunct — collection-level access only,
+     today's production state) while a flipped one adds the conjunct, so the mix is
+     **monotonic** — every process is either status-quo or fully enforced, never
+     partially enforced — and opens no window worse than today's. If a genuinely
+     simultaneous flip is required, a **DB-backed switch read at request time** is the
+     alternative, at the cost of a per-request read. Until the flag flips, the scoped
+     methods preserve the documented legacy behaviour so a tenant can still reach its
+     not-yet-tagged chunks.
   5. **remove the temporary flag** in a named follow-up so enforcement cannot later be
      switched off by accident.
   Steps 1–2 can ship in an earlier PR than 3–5.
@@ -1324,9 +1349,12 @@ build tolerates `2025-99-99`; the read-enforcement flag gates step 4.
 
 ### 9.7 Phase 7 — tests (cross-cutting; one bullet per §4 item)
 
-Layer rules: `app/agents/**` tool/capability at the **100% gate**; `app/services/rag/*`
-and `app/schemas/rag.py` are **outside** the gate, so every invariant is pinned by an
-**explicit named test** (`rag-knowledge` skill). All async tests use anyio
+Layer rules: `app/agents/**` tool/capability at the **100% gate**; the new
+`app/services/rag/filters.py` is **also under the 100% gate** (§9.1/H8 — it is
+trust-boundary validation), and is the **one exception** to "rag is outside the gate",
+so it is not left uncovered by following the blanket statement (codex round-2 R5). The
+**rest** of `app/services/rag/*` and `app/schemas/rag.py` are **outside** the gate, so
+every invariant there is pinned by an **explicit named test** (`rag-knowledge` skill). All async tests use anyio
 (`pytestmark = pytest.mark.anyio`); refusal-first, assert the consequence
 (`.claude/rules/testing.md`). The §4 surface maps to phases: combined filters (9.2/9.4),
 missing-metadata per dimension incl. tenant-missing (9.2), cross-tenant denial (9.2/9.4),
@@ -1344,8 +1372,10 @@ facet operation. Additional cases: both one-sided date ranges (`date_from` only 
 `date_to` only); `filters=None` normalization; the agent tool refusing when
 `AgentDeps.organization_id` is `None`; a **valid** legacy-shim expression accepted and
 a both-fields-supplied shim conflict rejected; enforcement **off vs on** across
-backfilled and still-untagged rows; the migration `downgrade()` and re-run idempotency;
-the frontend degraded-state and updated request-type (vitest).
+backfilled and still-untagged rows; the transaction-local ANN `SET LOCAL` knobs (9.2)
+do **not** leak into a later unfiltered search on the same connection (codex round-2 R6);
+the migration `downgrade()` and re-run idempotency; the frontend degraded-state and
+updated request-type (vitest).
 
 ### 9.8 Phase 8 — docs (with the behaviour change)
 
@@ -1367,15 +1397,25 @@ the frontend degraded-state and updated request-type (vitest).
 ### 9.9 Dependency graph (what is sequential vs parallel)
 
 ```
-P0 (preconditions) ─▶ Phase 1 ─┬─▶ Phase 2 ─▶ Phase 3 ─▶ Phase 4
-                               ├─▶ Phase 5 (ingestion dual-write) ─▶ Phase 6 steps 1–2
-                               └─▶ (schema)         Phase 6 step 3 (backfill) ─▶ step 4 (enable read)
+P0 ─▶ Phase 1 ─▶ 0078 prereq migration (rag_safe_to_date + JSONB indexes)
+                        │  applied to EVERY env BEFORE any Phase 2–5 code deploys
+                        ├─▶ Phase 2 ─▶ Phase 3 ─▶ Phase 4
+                        └─▶ Phase 5 (ingestion dual-write, needs Phase 2 signatures)
+                                            └─▶ 0079 backfill ─▶ enforcement flag flip (LAST)
 ```
-Phase 1 blocks all. Phase 2 blocks 3; 3 blocks 4. Phase 5 depends only on Phase 1 and
-ships the dual-write **before** Phase 6's backfill. Phase 4's tool and API halves are
-parallel once 1 & 3 land. Read enforcement (Phases 2–4 flag-on) is the **last** step,
-after the backfill (Phase 6 steps 1→4 ordering, R4). Docs (Phase 8) accompany the PR
-that changes the described behaviour.
+Phase 1 blocks all. **`0078_rag_metadata_prereqs` (§9.6) is a hard prerequisite of
+Phases 2 and 5** — it must be applied to every environment before any code that emits
+the date predicate or builds the partial date index is deployed (`_ensure_collection`
+runs `CREATE INDEX … rag_safe_to_date(…)` on every ingest and a date business filter is
+not flag-gated), so it is ordered *before* the Phase 2–5 code, not merely "before
+flag-on" (codex round-2 R1). Phase 2 blocks 3; 3 blocks 4. **Phase 5 depends on Phase 1
+*and* Phase 2** — its replace/dedup path calls Phase 2's now-scoped
+`find_existing_document`/`delete_document` (codex-3 C1; the earlier "depends only on
+Phase 1" here was stale, codex round-2 R3) — and ships the dual-write **before** Phase
+6's backfill. Phase 4's tool and API halves are parallel once 1 & 3 land. The **tenant
+enforcement flag flip** (the last of Phase 6's ordered steps) is the **last** step of
+all, after the backfill (Phase 6 ordering, R4). Docs (Phase 8) accompany the PR that
+changes the described behaviour.
 
 ### 9.10 Verification checklist
 
@@ -1386,7 +1426,10 @@ that changes the described behaviour.
   include` and `[[tool.ty.overrides]] include`, per `test_coverage_gate.py`).
 - `make test-integration` (real Postgres: WHERE translation, cross-tenant denial,
   H1 recall, write-clobber, impossible-date).
-- `make db-check` (model/migration drift) and `make test-migrations` (0078 forward/back).
+- `make db-check` (model/migration drift) and `make test-migrations` (the full
+  `0078_rag_metadata_prereqs → 0079_rag_tenant_backfill` chain forward and back, plus a
+  re-run for idempotency — not `0078` alone, since `0079` carries the security backfill
+  and the degraded-state columns — codex round-2 R6).
 - `make test-frontend-cov` — the frontend gate, needed because Phase 4/6 add frontend
   work (`rag-api.ts` type, the degraded KB view); `make test` alone does not cover it
   (codex-3, closing note).
@@ -1475,3 +1518,78 @@ backfill observability, HNSW verification and per-source ingestion needed sharpe
 enforcement state machine and flag retirement is adopted in full. The one factual
 correction to codex is the `SourceFile`/`RemoteFile` class name (H6), which does not
 change the finding. Every accepted finding is reflected in §9 above.
+
+### 9.12 Plan review round 2 (gpt-5.6-sol, independent)
+
+A second, **independent** read-only codex pass (`codex exec --sandbox read-only -m
+gpt-5.6-sol`, run header confirmed `model: gpt-5.6-sol`, completed exit 0) re-reviewed
+**§9 only**, told to find **new or still-unresolved** problems and not to restate
+§9.11's twelve resolved findings. It surfaced six ranked findings, several of them
+residue where a §9.11 fix was applied in one place but not propagated to the phase
+graph, rollout order or test lists. Each was verified against the code and the plan
+text before a verdict; the four highlighted concerns (HNSW mitigation, tenant conjunct
+on every row op, backfill rollout ordering, deprecation shim) were re-examined
+specifically for the propagation gaps. §1–8 stand unchanged (one cross-reference only).
+
+- **R1 (Critical) — the `0078` prerequisite migration is still sequenced too late.**
+  §9.2 says `rag_safe_to_date` is created by "a prerequisite migration that precedes any
+  code emitting the date predicate", but §9.6 rollout step 1 applied `0078` *alongside*
+  the Phase 5/Phase 2 deploy, and "before flag-on" is insufficient because a **date
+  business filter is not gated by the enforcement flag** and `_ensure_collection` runs
+  `CREATE INDEX … rag_safe_to_date(…)` on **every ingest**. *Verified in code:*
+  `_ensure_collection` (vectorstore.py ~396) runs inside `insert_document`, and the date
+  predicate/index reference the function unconditionally. **Valid — accepted.** §9.6
+  step 1 now applies `0078` **first**, before any Phase 2–5 code deploys; §9.9's graph
+  and prose place `0078` as a hard prerequisite of Phases 2 and 5.
+- **R2 (Medium; codex ranked Critical) — "atomically enable" overclaims for a
+  process-local flag.** A `RAGSettings` flag is pydantic `BaseSettings` (*verified*:
+  `app/core/config.py` `Settings(BaseSettings)`), loaded per process, so a fleet flip is
+  a rolling change, not an instant. **Valid, but not the hole codex implied:** the
+  single flag already makes each *process* all-or-nothing (no partial-enforcement
+  process, so the clobber-reopening state cannot occur), and a rolling mix is
+  **monotonic** — every process is either today's status quo (collection-level access)
+  or fully enforced — so it is no worse than production today. Accepted as a **precision
+  fix, not a redesign**: §9.6 step 4 drops the word "atomically", states the per-process
+  invariant and the monotonic-mix safety, and names a DB-backed switch as the option if
+  a simultaneous flip is ever required. The demand for a mandatory DB-backed switch is
+  **rejected** as over-engineering for a monotonic, no-worse-than-today rollout.
+- **R3 (High) — the dependency graph still contradicted Phase 5.** §9.5's header reads
+  "depends on 1 **and 2**" (fixed in §9.11 C1) but §9.9 still said "Phase 5 depends only
+  on Phase 1" and drew it straight off Phase 1. *Verified:* a plain internal
+  contradiction, and it also hid R1's ordering problem. **Valid — accepted.** §9.9
+  rewritten so the graph and prose show Phase 5 depending on Phases 1 and 2.
+- **R4 (Medium; codex ranked High) — the `ON CONFLICT` "tenant-safe conflict policy"
+  was non-implementable prose.** §9.2 named the policy (§9.11 C2) but gave no SQL or
+  outcome. **Valid — accepted.** §9.2 now specifies the guarded update (`DO UPDATE SET …
+  WHERE metadata->>'organization_id' IS NOT DISTINCT FROM :org` — legacy-NULL adoptable
+  by its owner, a different org's collision left untouched), that a mismatched conflict
+  is **skipped not errored** (the safe outcome) but must **not** be read as a successful
+  upsert (check the affected-row count), and the unscoped-marker form. Kept in
+  proportion: chunk ids are uuid4 (*verified* `models.py:36`), so this is
+  defense-in-depth.
+- **R5 (Medium) — §9.7 blanket "rag is outside the gate" contradicts §9.1.** §9.1/H8
+  correctly puts `filters.py` under the 100% gate, but §9.7 then said all
+  `app/services/rag/*` is outside it — an implementer following §9.7 would leave
+  `filters.py` uncovered. *Verified:* the two sentences do conflict. **Valid —
+  accepted.** §9.7 now names `filters.py` as the one gated exception. (Also verified the
+  gate mechanics: `PLATFORM_PACKAGES = ("app/agents",)` only, so per-file gating of a
+  `rag/` module is the established pattern — `remote_names.py`, `_splitters.py` — and the
+  two `include` lists must be **equal**, which is what §9.1's "same order" secures.)
+- **R6 (Medium) — residual test/verification gaps.** *Verified:* §9.10's checklist named
+  only "`0078` forward/back" though `0079` carries the security backfill; there was no
+  test that the transaction-local ANN `SET LOCAL` knobs do not leak to a later unfiltered
+  search; and the shim-removal follow-up had no window/owner. **Valid — accepted.** §9.10
+  now exercises the full `0078→0079` chain plus idempotency; §9.7 adds the ANN-no-leak
+  test; §9.4 fixes a concrete deprecation window and owner. (The empty
+  `authorized_document_ids` case codex also asked for is already pinned in §4 and §9.7's
+  empty-set bullet — noted, no change.)
+
+**One independent finding (not from codex).** §9.2 stated the facet method "takes the
+same `RetrievalScope`, not a nullable UUID", but §9.4 still wrote its signature as
+`distinct_metadata_values(collection, keys, organization_id)`. *Verified* internal
+inconsistency; §9.4 updated to take a `RetrievalScope`, matching §9.2's rule.
+
+**Rejected / partial:** R2's demand for a mandatory DB-backed enforcement switch is
+rejected (the process-local flag with a monotonic rollout is safe); the rest are
+accepted as precision/propagation fixes. No finding overturns §1–8, and none re-opens a
+§9.11 verdict. All changes are plan-only — no production code, no task added or removed.
