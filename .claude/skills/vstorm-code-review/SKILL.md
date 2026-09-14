@@ -1,7 +1,6 @@
 ---
 name: vstorm-code-review
 argument-hint: '[model]'
-arguments: model
 description: High-signal, convergent code review for any repository. Runs a staged pipeline of subagents (Scope → Correctness → Security → Quality → Verification → Judge), one dedicated subagent per angle, all grading against one shared finding taxonomy, so every candidate is raised, filed, or refuted with proof — never silently re-surfaced after a fix. Accepts an optional `model` argument (default Claude Opus 4.8) that every subagent runs on. Use to review a pull request (first review) or to re-review code that was already reviewed and fixed. Run only after merge conflicts are resolved.
 ---
 
@@ -13,20 +12,23 @@ description: High-signal, convergent code review for any repository. Runs a stag
 
 ## 0. Invocation & arguments
 
-The skill declares one optional argument, `model`, in its frontmatter (`arguments:
-model`), so `/vstorm-code-review <model>` autocompletes it and the body reads it
-through the `$model` substitution:
+The skill takes one optional argument: the model every subagent in the pipeline
+runs on. It arrives through `$ARGUMENTS`, which is the substitution Claude Code
+actually performs — a frontmatter key does not create a named `$model` variable,
+so a body written against one is read as the literal text `$model` and the
+caller's override is silently lost.
 
-- **`model`** — the model every subagent in the pipeline runs on. When the caller
-  passes nothing, `$model` expands to an empty string; treat empty as the default
-  **`claude-opus-4-8`** (Claude Opus 4.8). The orchestrator spawns every finder, the
-  Verification stage, and the Judge on this model, so the whole pipeline grades on
-  one model unless the caller overrides it (e.g. `claude-sonnet-4-5` for a cheaper
-  pass). Orchestration and the per-stage fan-out are specified in §3.4.
+- **The argument** — when the caller passes nothing, `$ARGUMENTS` is empty; treat
+  empty as the default **`claude-opus-4-8`** (Claude Opus 4.8). The orchestrator
+  spawns every finder, the Verification stage, and the Judge on this model, so the
+  whole pipeline grades on one model unless the caller overrides it (e.g.
+  `claude-sonnet-4-5` for a cheaper pass). Orchestration and the per-stage fan-out
+  are specified in §3.4.
 
-**Resolved model for this run:** `$model` — if empty, use `claude-opus-4-8` (Claude
-Opus 4.8), spawned via the Agent tool's `opus` tier (§3.4). A caller override maps
-to its own tier (e.g. `claude-sonnet-4-5` → `sonnet`).
+**Resolved model for this run:** the first whitespace-separated token of
+`$ARGUMENTS` — if empty, use `claude-opus-4-8` (Claude Opus 4.8), spawned via the
+Agent tool's `opus` tier (§3.4). A caller override maps to its own tier (e.g.
+`claude-sonnet-4-5` → `sonnet`).
 
 ## 1. Purpose & when to run
 
@@ -209,9 +211,12 @@ Every finding routes to exactly one destination. Use the first rule that matches
    - otherwise, if it is valid — not `nitpick`, `negligible`, or `unverified` →
      **GitHub issue**;
    - otherwise → **none**.
-3. The finding is `introduced` (§2.3) → **raise**. If it is `minor` or `rare` and
-   still unfixed at merge, convert it to a **GitHub issue** — unless it is
-   `unverified`, which is never filed as an issue and stays a raised comment.
+3. The finding is `introduced` (§2.3) → **raise**. If it is `minor` and still
+   unfixed at merge, convert it to a **GitHub issue** — unless it is `unverified`,
+   which is never filed as an issue and stays a raised comment. Commonality is not
+   a severity: `rare` describes how often the path is taken, and a rare data-loss
+   or cross-tenant defect is still `blocking` and still unwaivable (§2.1), so it
+   stays on the merge gate rather than becoming an issue somebody reads later.
 
 Verification (§2.6) is orthogonal: a finding may be raised while `unverified`, but
 an `unverified` finding is never filed as a GitHub issue.

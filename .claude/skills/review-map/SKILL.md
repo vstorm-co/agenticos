@@ -18,9 +18,17 @@ scaffolding for one review, today.
 ## Inputs
 
 - **PR number** — optional. With one, review that PR (`gh pr diff <n>`, `gh pr view <n>`).
-  Without one, review the current branch against its base
-  (`BASE=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)`;
-  `git diff "origin/$BASE"...HEAD`).
+  Without one, review the current branch against **its own base**, which is not
+  necessarily the repository default: a stacked branch targets its parent, and
+  comparing it against `main` folds the parent's whole change into this walkthrough,
+  corrupting the components, the risk and the reading order.
+
+  ```bash
+  BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null) \
+    || BASE=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+  git fetch origin "$BASE"
+  git diff "origin/$BASE"...HEAD
+  ```
 
 ## Steps
 
@@ -36,8 +44,9 @@ scaffolding for one review, today.
    the codebase") and the Hard boundaries section of `CLAUDE.md`; cite those where relevant
    instead of an ADR number. Prefer reusing the existing diagrams over inventing a new topology.
 
-3. **Build the walkthrough as a self-contained HTML page** (load the `artifact-design` skill
-   first). It must contain, in this order:
+3. **Build the walkthrough as a self-contained HTML page**. Load the `artifact-design` skill
+   first where the session has it; it comes from the host, not from this repository. It must
+   contain, in this order:
    - **Changed components on the system map** — the architecture diagram with the boxes and
      edges this PR touches highlighted; everything else dimmed. Redraw the touched slice as
      inline SVG in the page (the source lives as a `mermaid` fence in `docs/architecture.md` —
@@ -55,8 +64,15 @@ scaffolding for one review, today.
      and cite the governing rule under `.claude/rules/` or the hard boundary in `CLAUDE.md` it
      touches.
 
-4. **Publish it** with the `Artifact` tool (it starts private). Hand the reviewer the URL and a
-   two-line orientation: where the change lands on the map, and where to start reading.
+4. **Publish it** with the `Artifact` tool, where that tool is available to the session (it
+   starts private). Hand the reviewer the URL and a two-line orientation: where the change
+   lands on the map, and where to start reading.
+
+   Neither the `Artifact` tool nor the `artifact-design` skill ships in this repository -
+   both come from the host session - so a clean checkout has to be able to finish without
+   them. Where they are absent, write the same page as a self-contained HTML file in the
+   scratchpad directory (one file, inline CSS and inline SVG, no external requests) and hand
+   over that path instead of a URL. The deliverable is the walkthrough, not the hosting.
 
 ## Rules
 

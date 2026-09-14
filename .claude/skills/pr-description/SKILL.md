@@ -19,8 +19,15 @@ Create or update PR description based on git diff.
 ## Steps
 
 1. **Gather context**:
+   - Refresh the base first: `git fetch origin "$BASE"`. `gh repo view` hands back a branch
+     *name*; it does not update the local remote-tracking ref, and a stale `origin/$BASE`
+     describes commits that merged upstream days ago as if they were this PR's.
    - For new PR: `git diff "origin/$BASE"...HEAD` and `git log "origin/$BASE"..HEAD --oneline`
-   - For existing PR: `gh pr diff <pr-number>`
+   - For existing PR: `gh pr diff <pr-number>`, **and its current body**:
+     `gh pr view <pr-number> --json title,body`. An update is a merge, not a rewrite: a body
+     often carries hand-written limitations, verification evidence and issue links that the
+     diff cannot reconstruct, and `--body-file` replaces all of it silently. Carry that
+     content forward, and only rewrite what the diff has actually made wrong.
 
 2. **Generate description** in this format:
 
@@ -56,10 +63,10 @@ Create or update PR description based on git diff.
    does not survive `--body "…"` intact):
    - New PR: `gh pr create --base "$BASE" --title "<title>" --body-file body.md`
    - Existing PR: `gh pr edit <pr-number> --body-file body.md`
-   - With diagrams, add one `--attach './name.png#<alt text>'` per image (needs `gh` ≥ 2.100;
-     `brew upgrade gh` if `--attach` is unknown). `gh` uploads each file and rewrites the
-     body's `./name.png` reference to the uploaded asset URL, so run the attach in the same
-     command as the body — `cd` to the images' directory first, since the paths are relative.
+   - Diagrams go in the body as mermaid, so there is nothing to upload and no asset URL to
+     go stale. `gh` has no image-upload flag - `--attach` is not a flag `gh pr create` or
+     `gh pr edit` has ever exposed - and a local PNG referenced by path renders as a broken
+     image for every reviewer.
 
 4. Return the PR URL.
 
@@ -75,13 +82,11 @@ Create or update PR description based on git diff.
   cross-channel behaviour — put images in the `Architecture` section rather than making the
   reviewer rebuild the shape from the diff. Two usually suffice: one component/flow diagram
   (who calls what, and what each outcome writes) and one sequence diagram (the call order,
-  with the refusal branches). Write mermaid and render it to PNG:
-  ```bash
-  npx --yes @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.png -b white -s 2
-  ```
-  Keep the `.mmd` source in the scratchpad (it is not a committed artifact — a committed
-  architecture doc's diagram belongs wherever this repo keeps those instead, e.g.
-  `docs/architecture.md`, a `docs/architecture/` directory, or an ADR), attach the PNGs per
-  step 3, and give every image real alt text after the `#`. Diagram the mechanism the PR
-  actually changes, including its failure paths; a box-and-arrow restatement of the module
-  tree earns nothing. Skip the section for a fix, a test-only change, or a one-file tweak.
+  with the refusal branches). Put the mermaid straight in the body, in a fenced ```mermaid
+  block: GitHub renders it in a pull request description, so the diagram needs no renderer,
+  no uploaded asset and no version of anything. It also stays readable in the diff and as
+  text, which a PNG does not. A committed architecture doc's diagram belongs wherever this
+  repo keeps those instead, e.g. `docs/architecture.md`, a `docs/architecture/` directory,
+  or an ADR. Diagram the mechanism the PR actually changes, including its failure paths; a
+  box-and-arrow restatement of the module tree earns nothing. Skip the section for a fix, a
+  test-only change, or a one-file tweak.

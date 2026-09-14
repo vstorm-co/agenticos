@@ -28,6 +28,19 @@ OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
 ```
 
+**Be on the PR's own branch before reading a single file.** The comments come
+from the PR number; the edits, the commit and the push go to whatever is checked
+out. Given a PR number while another branch is out, every fix lands on an
+unrelated branch and the PR that was asked about is untouched:
+
+```bash
+HEAD_REF=$(gh pr view NUMBER --json headRefName -q .headRefName)
+[ "$(git branch --show-current)" = "$HEAD_REF" ] || gh pr checkout NUMBER
+```
+
+Refuse to continue if the checkout fails or the working tree is dirty - a fix
+applied over somebody else's uncommitted work is not a fix.
+
 Run this exact query (replace NUMBER with the PR number):
 
 ```bash
@@ -44,6 +57,7 @@ query($owner: String!, $name: String!, $pr: Int!) {
           createdAt
           url
         }
+        pageInfo { hasNextPage endCursor }
       }
       reviews(first: 100) {
         nodes {
@@ -52,6 +66,7 @@ query($owner: String!, $name: String!, $pr: Int!) {
           state
           url
         }
+        pageInfo { hasNextPage endCursor }
       }
       reviewThreads(first: 100) {
         nodes {
@@ -78,7 +93,7 @@ query($owner: String!, $name: String!, $pr: Int!) {
 }'
 ```
 
-Paginate if `hasNextPage` is true by adding `-F after="$CURSOR"` and updating the query signature. Re-use the same `nodes` selection set as the first query (shown here so the snippet is directly executable). Only `reviewThreads` paginates; `comments` and `reviews` are capped at 100 and already fully read by the first call, so ignore their repeated nodes on paginated pages.
+Every connection above asks for `pageInfo`, because `first: 100` caps a page rather than proving the connection was read to the end. Paginate each one whose `hasNextPage` is true by adding its cursor and updating the query signature. Re-use the same `nodes` selection set as the first query (shown here so the snippet is directly executable). A PR with more than a hundred conversation comments or reviews is rare and exactly the PR this skill exists for, so do not assume one page covers it.
 
 ```bash
 gh api graphql -F owner="$OWNER" -F name="$REPO" -F pr=NUMBER -F after="$CURSOR" -f query='
@@ -197,7 +212,7 @@ For each fix:
 2. Apply the fix (Edit tool)
 
 After all fixes are applied:
-1. Run the project's verification command (`uv run pre-commit run --all-files` for this repo; substitute the equivalent in other repos)
+1. Run the project's verification command. In this repository that is `make check` from the repository root - the Python project lives under `backend/`, so a bare `uv run pre-commit` at the root fails to spawn it. Substitute the equivalent in other repos.
 2. If it fails → fix before committing
 3. Commit all fixes together: `fix: Address PR review comments`
 4. Push to remote

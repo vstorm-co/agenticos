@@ -30,8 +30,18 @@ wrong produces a "fix" that contradicts the project's own header and recent hist
      `CONTRIBUTING.md`, or a comment in the file header), follow it as the source of truth
      over inference from history.
 
-2. **Identify what the other side actually adds.** Diff the merge base against the
-   incoming branch for `CHANGELOG.md` only, and list its merged PRs/commits:
+2. **Identify what the other side actually adds.** `<incoming>` is a branch only during a
+   merge. A rebase or a cherry-pick is replaying one commit, so the incoming side is that
+   commit rather than a branch, and the placeholders below resolve differently:
+
+   | Operation | `<incoming>` | `<merge-base>` |
+   |---|---|---|
+   | merge | the branch being merged | `git merge-base HEAD MERGE_HEAD` |
+   | rebase | `REBASE_HEAD` | `REBASE_HEAD^` |
+   | cherry-pick | `CHERRY_PICK_HEAD` | `CHERRY_PICK_HEAD^` |
+
+   Then diff the base against the incoming side for `CHANGELOG.md` only, and list its
+   merged PRs/commits:
 
    ```bash
    git log --first-parent <merge-base>..<incoming> --pretty='%h|%ad|%s' --date=short
@@ -76,7 +86,22 @@ wrong produces a "fix" that contradicts the project's own header and recent hist
    ```
 
    If the repo has its own Python (`uv run python`, a `venv`, etc.), use that interpreter
-   instead of a bare `python3`. Also confirm no conflict markers remain:
-   `grep -c '^<<<<<<<' CHANGELOG.md`.
+   instead of a bare `python3`. Also confirm no conflict debris remains - all three markers,
+   not just the opening one, because an edit that deletes a `<<<<<<<` and leaves the
+   `=======` below it passes a check that only looks for openings:
+   `grep -cE '^(<{7}|={7}|>{7})' CHANGELOG.md`.
 
-6. Stage and complete the merge commit as usual.
+6. Stage the file and finish whatever operation is actually in progress - this conflict
+   arrives from a rebase and a cherry-pick as often as from a merge, and each is continued
+   differently:
+
+   | Present in `.git/` | Operation | Continue with |
+   |---|---|---|
+   | `MERGE_HEAD` | merge | `git commit` |
+   | `REBASE_HEAD` | rebase | `git rebase --continue` |
+   | `CHERRY_PICK_HEAD` | cherry-pick | `git cherry-pick --continue` |
+
+   ```bash
+   git rev-parse -q --verify MERGE_HEAD || git rev-parse -q --verify REBASE_HEAD \
+     || git rev-parse -q --verify CHERRY_PICK_HEAD
+   ```
