@@ -51,8 +51,16 @@ export interface IngestionConfig {
   pdf_parser: PdfParser;
   ocr: boolean;
   llamaparse_tier: LlamaParseTier;
-  /** The org vault key LlamaParse is billed to; null = the deployment's key. */
+  /**
+   * The org vault key LlamaParse is billed to. There is no deployment key: a
+   * collection parsing with LlamaParse is refused until it names one.
+   */
   llamaparse_secret_id?: string | null;
+  /**
+   * The OCR server LiteParse sends pages to - a local service of kind `ocr`.
+   * Null runs the Tesseract bundled with the worker.
+   */
+  ocr_endpoint_id?: string | null;
   /**
    * Whether LiteParse decides per document if OCR is worth running.
    *
@@ -120,6 +128,11 @@ export interface KnowledgeBase {
    */
   embedding_provider: string;
   embedding_secret_id: string | null;
+  /**
+   * The server a keyless provider is reached at - a local service of kind
+   * `embedding`. Null for a keyed provider, whose address is the vendor's.
+   */
+  embedding_endpoint_id: string | null;
   created_at: string;
   updated_at: string | null;
   /**
@@ -154,16 +167,19 @@ export interface CreateKnowledgeBaseInput {
   ingestion_config?: IngestionConfig;
   /**
    * Frozen at creation: the vector column is created at this model's width.
-   * Omit for the deployment default.
+   * One the chosen provider serves; there is no deployment default.
    */
   embedding_model?: string;
   /** Whose endpoint serves it. Required for a new collection - there is no deployment default. */
   embedding_provider?: string;
   /**
    * The org vault key that pays for embeddings. Required for a personal or
-   * organization collection; there is no deployment-wide key to fall back to.
+   * organization collection on a keyed provider; there is no deployment-wide
+   * key to fall back to.
    */
   embedding_secret_id?: string;
+  /** The local service a keyless provider is reached at. Required for one. */
+  embedding_endpoint_id?: string;
 }
 
 /**
@@ -175,6 +191,7 @@ export interface CreateKnowledgeBaseInput {
 export interface EmbeddingProviderInput {
   embedding_provider?: string;
   embedding_secret_id?: string;
+  embedding_endpoint_id?: string;
 }
 
 /** One provider a collection can embed through, from `GET /rag/embedding-models`. */
@@ -191,7 +208,6 @@ export interface EmbeddingProvider {
 }
 
 export interface EmbeddingModels {
-  default: string;
   providers: EmbeddingProvider[];
 }
 

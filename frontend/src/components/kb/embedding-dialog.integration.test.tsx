@@ -28,7 +28,6 @@ vi.mock("@/lib/api-client", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const MODELS = {
-  default: "text-embedding-3-large",
   providers: [
     {
       provider: "openrouter",
@@ -71,6 +70,7 @@ const KB = {
   embedding_dim: 1536,
   embedding_provider: "openrouter",
   embedding_secret_id: null,
+  embedding_endpoint_id: null,
 } as KnowledgeBase;
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -91,6 +91,23 @@ beforeEach(() => {
   save.mockResolvedValue(undefined);
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/rag/embedding-models") return MODELS;
+    if (path === "/local-services")
+      return {
+        items: [
+          {
+            id: "ls-1",
+            organization_id: "org-1",
+            kind: "embedding",
+            provider: "ollama",
+            name: "GPU box",
+            base_url: "http://ollama:11434/v1",
+            is_active: true,
+            created_at: "2026-09-01T00:00:00Z",
+            updated_at: null,
+          },
+        ],
+        total: 1,
+      };
     if (path === "/secrets")
       return {
         items: [
@@ -155,17 +172,22 @@ describe("what this dialog will and will not change", () => {
     expect(screen.queryByRole("option", { name: /Deployment key/ })).toBeNull();
   });
 
-  it("moving to a keyless provider hides the key and sends the provider alone", async () => {
+  it("moving to a keyless provider asks for a server, and sends it with no key", async () => {
     show();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
 
     expect(screen.queryByLabelText("Key")).toBeNull();
-    expect(screen.getByText(/Ollama runs on the deployment's own network/)).toBeVisible();
+    expect(screen.getByText(/Ollama takes no key/)).toBeVisible();
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /GPU box/ }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(save).toHaveBeenCalled());
-    expect(save.mock.calls[0]?.[0]).toEqual({ embedding_provider: "ollama" });
+    expect(save.mock.calls[0]?.[0]).toEqual({
+      embedding_provider: "ollama",
+      embedding_endpoint_id: "ls-1",
+    });
   });
 
   it("sends the key chosen for the new provider", async () => {

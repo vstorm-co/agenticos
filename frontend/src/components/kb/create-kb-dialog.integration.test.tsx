@@ -54,7 +54,6 @@ const SECRETS_WITH_OPENAI = {
 };
 
 const EMBEDDING_MODELS = {
-  default: "text-embedding-3-large",
   providers: [
     {
       provider: "openrouter",
@@ -100,6 +99,44 @@ async function openParsing() {
 }
 
 /** What the caller may do, and what their vault holds, per test. */
+/** The servers a keyless provider can be pointed at: the organization's own and a deployment-wide one. */
+const LOCAL_SERVICES = [
+  {
+    id: "ls-1",
+    organization_id: "org-1",
+    kind: "embedding",
+    provider: "ollama",
+    name: "GPU box",
+    base_url: "http://ollama:11434/v1",
+    is_active: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: null,
+  },
+  {
+    id: "ls-2",
+    organization_id: null,
+    kind: "embedding",
+    provider: "ollama",
+    name: "Shared Ollama",
+    base_url: "http://ollama.shared:11434/v1",
+    is_active: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: null,
+  },
+  // An OCR sidecar is not somewhere to embed, so it must not be offered here.
+  {
+    id: "ls-3",
+    organization_id: "org-1",
+    kind: "ocr",
+    provider: "liteparse",
+    name: "OCR box",
+    base_url: "http://ocr:8000",
+    is_active: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: null,
+  },
+];
+
 const state = { permissions: [] as Permission[], secrets: SECRETS };
 
 /**
@@ -112,6 +149,7 @@ const state = { permissions: [] as Permission[], secrets: SECRETS };
 function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_MODELS) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return state.secrets;
+    if (path === "/local-services") return { items: LOCAL_SERVICES, total: LOCAL_SERVICES.length };
     if (path === "/rag/embedding-models") {
       if (embeddingModels === "refused") throw new Error("502 Bad Gateway");
       return embeddingModels;
@@ -246,13 +284,17 @@ describe("the embedding model picker", () => {
     ).toBe("openrouter");
   });
 
-  it("says which model an untouched deployment would use, in the list", async () => {
+  it("says every model's width in the list, and calls none of them a default", async () => {
+    // There is no deployment default any more: the first model the provider
+    // serves is preselected, and what tells the rows apart is the width the
+    // vector column would be created at.
     show();
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Model"));
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
-    expect(preselected).toHaveTextContent("deployment default");
+    expect(preselected).toHaveTextContent(/3,?072 dimensions/);
+    expect(preselected).not.toHaveTextContent(/default/);
   });
 });
 
@@ -287,24 +329,33 @@ describe("choosing the provider", () => {
     expect(screen.queryByRole("option", { name: /OpenRouter prod/ })).toBeNull();
   });
 
-  it("asks for no key on a keyless provider, and says why", async () => {
-    // The server refuses a key named for an Ollama, so the select would offer
-    // only a mistake. The sentence in its place is what a reader needs: nothing
-    // pays, nothing leaves.
+  it("asks for a server rather than a key on a keyless provider", async () => {
+    // The server refuses a key named for an Ollama, so the key select would offer
+    // only a mistake. What such a provider needs is an address, and the picker
+    // offers the servers registered for it - the organization's and the
+    // deployment-wide one, marked - and nothing registered for OCR.
     show();
     await openEmbeddings();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
 
     expect(screen.queryByLabelText("Key")).toBeNull();
-    expect(screen.getByText(/Ollama runs on the deployment's own network/)).toBeVisible();
+    expect(screen.getByText(/Ollama takes no key/)).toBeVisible();
+    const server = screen.getByLabelText("Server");
+    expect(server).toHaveTextContent("Choose a server");
+    await userEvent.click(server);
+    expect(await screen.findByRole("option", { name: /GPU box/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /Shared Ollama \(deployment\)/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /OCR box/ })).toBeNull();
   });
 
-  it("posts a keyless provider with no key", async () => {
+  it("posts a keyless provider with its server and no key", async () => {
     show();
     await openEmbeddings();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /GPU box/ }));
     await userEvent.type(screen.getByLabelText("Name"), "Local");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -312,7 +363,52 @@ describe("choosing the provider", () => {
     const body = vi.mocked(apiClient.post).mock.calls[0]?.[1] as Record<string, unknown>;
     expect(body.embedding_provider).toBe("ollama");
     expect(body.embedding_model).toBe("nomic-embed-text");
+    expect(body.embedding_endpoint_id).toBe("ls-1");
     expect(body).not.toHaveProperty("embedding_secret_id");
+  });
+
+  it("puts a refusal about the server under the picker", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(400, "Choose the server this collection embeds through", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Choose the server this collection embeds through",
+          details: {
+            fields: [
+              {
+                field: "embedding_endpoint_id",
+                message: "Choose the server this collection embeds through",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Local");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(
+      await screen.findByText("Choose the server this collection embeds through"),
+    ).toBeInTheDocument();
+  });
+
+  it("forgets a server chosen for the provider being left behind", async () => {
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /GPU box/ }));
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+
+    expect(screen.getByLabelText("Server")).toHaveTextContent("Choose a server");
   });
 
   it("forgets a key chosen for the provider being left behind", async () => {

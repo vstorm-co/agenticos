@@ -39,13 +39,12 @@ describe("CreateKBDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Every list this dialog reads is empty, except the one that is not a list:
-    // `/rag/embedding-models` answers `{default, providers}`,
+    // `/rag/embedding-models` answers `{providers}`,
     // and the two selects are built from it rather than tolerating whatever
     // arrives - the provider decides which models and which keys are on offer.
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path === "/rag/embedding-models")
         return {
-          default: "text-embedding-3-large",
           providers: [
             {
               provider: "openrouter",

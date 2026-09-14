@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { InlineLocalService } from "@/components/kb/inline-local-service";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
@@ -12,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useSecrets } from "@/hooks";
+import { useLocalServices, useSecrets } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import type { EmbeddingModels } from "@/types";
 import { useTranslations } from "next-intl";
@@ -47,31 +48,42 @@ export function useEmbeddingProviders() {
  * another one. There is no deployment-wide key on offer: every collection pays
  * with a vault key of its own, and the picker is empty until one is chosen.
  *
- * A keyless provider - an Ollama on the deployment's own network - is the one
- * exception, and it is drawn as one: no key select, because the server refuses
- * a key named for it, and a sentence saying why there is nothing to choose.
+ * A keyless provider - an Ollama on the deployment's own network - asks a
+ * different question: not whose key, but *which server*. It is drawn as a select
+ * over the local services registered for that provider, the organization's own
+ * and the deployment-wide ones, with the same way to add one in place.
  */
 export function EmbeddingProviderFields({
   models,
   provider,
   secretId,
+  endpointId,
   onProvider,
   onSecretId,
+  onEndpointId,
   idPrefix,
 }: {
   models: EmbeddingModels;
   provider: string;
   /** The chosen vault key, or null while none is. */
   secretId: string | null;
+  /** The chosen local service for a keyless provider, or null while none is. */
+  endpointId: string | null;
   onProvider: (provider: string) => void;
   onSecretId: (secretId: string | null) => void;
+  onEndpointId: (endpointId: string | null) => void;
   /** So two of these on one screen do not share an input id. */
   idPrefix: string;
 }) {
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
   const entry = models.providers.find((item) => item.provider === provider);
+  const keyless = entry?.keyless === true;
+  const { services } = useLocalServices(keyless);
   const keys = secrets.filter((secret) => secret.purpose === provider);
+  const servers = services.filter(
+    (service) => service.kind === "embedding" && service.provider === provider && service.is_active,
+  );
 
   return (
     <>
@@ -81,10 +93,11 @@ export function EmbeddingProviderFields({
           value={provider}
           onValueChange={(next) => {
             onProvider(next);
-            // A key for the provider being left behind would be sent to the new
-            // one's address, which is the failure this whole field exists to
-            // prevent. Cleared rather than kept and refused on save.
+            // A key or a server chosen for the provider being left behind would
+            // be sent to the new one's address, which is the failure this whole
+            // field exists to prevent. Cleared rather than kept and refused on save.
             if (secretId !== null) onSecretId(null);
+            if (endpointId !== null) onEndpointId(null);
           }}
         >
           <SelectTrigger id={`${idPrefix}-provider`}>
@@ -99,10 +112,33 @@ export function EmbeddingProviderFields({
           </SelectContent>
         </Select>
       </div>
-      {entry?.keyless === true ? (
-        <p className="text-muted-foreground text-xs">
-          {t("keylessProvider", { provider: entry.name })}
-        </p>
+      {keyless ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-server`}>{t("server")}</Label>
+          <Select value={endpointId ?? ""} onValueChange={onEndpointId}>
+            <SelectTrigger id={`${idPrefix}-server`}>
+              <SelectValue placeholder={t("chooseServer")} />
+            </SelectTrigger>
+            <SelectContent>
+              {servers.map((service) => (
+                <SelectItem key={service.id} value={service.id} textValue={service.name}>
+                  <ProviderRow
+                    provider={provider}
+                    name={
+                      service.organization_id === null
+                        ? t("deploymentWideNamed", { name: service.name })
+                        : service.name
+                    }
+                  />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {t("keylessProvider", { provider: entry.name })}
+          </p>
+          <InlineLocalService kind="embedding" provider={provider} onCreated={onEndpointId} />
+        </div>
       ) : (
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-key`}>{t("key")}</Label>

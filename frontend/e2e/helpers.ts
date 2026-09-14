@@ -107,6 +107,17 @@ export const SEEDED_EMBEDDING_KEY_LABEL = "e2e-embeddings-key";
 export const SEEDED_EMBEDDING_KEY_SECRET = "sk-e2eEMBEDnotarealkeyatallQ3M8";
 
 /**
+ * The LlamaParse key a collection parsing with LlamaParse is billed to.
+ *
+ * There is no deployment-wide LlamaParse key: a collection whose parser is
+ * LlamaParse is refused until it names a vault key for it, so the ingestion spec
+ * - which chooses that parser to prove the choice survives the round trip -
+ * needs one in the vault first.
+ */
+export const SEEDED_LLAMAPARSE_KEY_LABEL = "e2e-llamaparse-key";
+export const SEEDED_LLAMAPARSE_KEY_SECRET = "llx-e2eLLAMAnotarealkeyatallV6R2";
+
+/**
  * A stored secret, which is the other half of the vault and not a provider key.
  *
  * A capability binds one of these by id, so it is what proves the vault holds
@@ -460,6 +471,23 @@ export async function selectSavedModel(page: Page, label: string): Promise<void>
  * than on the click, because a Radix select swallows a click on an option that
  * was still mounting.
  */
+/**
+ * Choose the LlamaParse key a collection is billed to, in the parsing section of
+ * the create dialog. The section has to be open and the parser set to LlamaParse
+ * already; the select is empty until a key is chosen and the server refuses a
+ * LlamaParse collection that names none.
+ */
+export async function chooseLlamaParseKey(
+  page: Page,
+  dialog: Locator,
+  name: string,
+): Promise<void> {
+  const key = dialog.getByRole("combobox", { name: "LlamaParse key" });
+  await key.click();
+  await page.getByRole("option", { name: new RegExp(name) }).click();
+  await expect(key).toHaveText(new RegExp(name));
+}
+
 export async function chooseEmbeddingKey(page: Page, dialog: Locator, name: string): Promise<void> {
   await dialog.locator("summary", { hasText: "Embeddings" }).click();
   const key = dialog.getByRole("combobox", { name: "Key" });

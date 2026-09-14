@@ -18,6 +18,8 @@ import {
   SEEDED_EMBEDDING_KEY_LABEL,
   SEEDED_EMBEDDING_KEY_SECRET,
   SEEDED_KB_NAME,
+  SEEDED_LLAMAPARSE_KEY_LABEL,
+  SEEDED_LLAMAPARSE_KEY_SECRET,
   SEEDED_AWS_SECRET_NAME,
   SEEDED_SECRET_NAME,
   SEEDED_SECRET_VALUE,
@@ -243,6 +245,20 @@ setup("a provider key is stored", async ({ page }) => {
     service: "OpenAI",
     name: FAKE_KEY_LABEL,
     value: FAKE_KEY_SECRET,
+  });
+});
+
+setup("a LlamaParse key is stored", async ({ page }) => {
+  if (await alreadyThere(page.request, "/api/secrets", "name", SEEDED_LLAMAPARSE_KEY_LABEL)) return;
+
+  // The family alone: "Something else" with no service chosen falls through to
+  // the first service in it, which is LlamaParse - the purpose the ingestion
+  // spec's LlamaParse collection has to be billed to, now that there is no
+  // deployment-wide key it could fall back on.
+  await storeSecret(page, {
+    group: "Something else",
+    name: SEEDED_LLAMAPARSE_KEY_LABEL,
+    value: SEEDED_LLAMAPARSE_KEY_SECRET,
   });
 });
 

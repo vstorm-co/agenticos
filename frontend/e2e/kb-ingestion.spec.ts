@@ -6,7 +6,9 @@ import {
   AUTH_STATE,
   SEEDED_EMBEDDING_KEY_LABEL,
   SEEDED_KB_NAME,
+  SEEDED_LLAMAPARSE_KEY_LABEL,
   chooseEmbeddingKey,
+  chooseLlamaParseKey,
   pageHeading,
 } from "./helpers";
 
@@ -101,6 +103,9 @@ test.describe("Ingestion settings", () => {
     // The tier belongs to this parser alone, so its appearance is the form
     // saying it understood the choice rather than merely recording a click.
     await expect(dialog.getByLabel("LlamaParse tier")).toBeVisible();
+    // And a LlamaParse collection is billed to a vault key of the organization's
+    // own - there is no deployment key - so one is chosen before Create.
+    await chooseLlamaParseKey(page, dialog, SEEDED_LLAMAPARSE_KEY_LABEL);
 
     await dialog.getByLabel("Chunk size").fill(CHUNK_SIZE);
     await dialog.getByRole("button", { name: "Create", exact: true }).click();

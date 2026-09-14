@@ -237,6 +237,7 @@ describe("stepsForPage", () => {
       "knowledge-tabs",
       "knowledge-integrations",
       "knowledge-add-integration",
+      "knowledge-local-services",
       ...KB_STEPS,
     ]);
   });
