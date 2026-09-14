@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.416] - 2026-09-14
+
 ### Fixed
 
 - **The knowledge-base howto still sent the reader to a deployment default that
