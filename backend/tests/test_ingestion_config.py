@@ -515,7 +515,7 @@ class TestLlamaParseCredential:
         with (
             patch(
                 "app.services.ingestion_config.organization_secret_repo.get",
-                new=AsyncMock(return_value=self._sealed_llamaparse_row("llx-x")),
+                new=AsyncMock(return_value=self._sealed_llamaparse_row("llx-x-12345")),
             ),
             patch("app.services.ingestion_config.unseal_secret", return_value=MagicMock(spec=[])),
         ):

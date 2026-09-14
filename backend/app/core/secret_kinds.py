@@ -52,6 +52,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -90,6 +91,34 @@ def _reveal(value: SecretStr) -> str:
 # of dumping a model into a log line stays harmless.
 SealedStr = Annotated[SecretStr, PlainSerializer(_reveal, when_used="json")]
 
+MIN_CREDENTIAL_LENGTH = 8
+"""The shortest value a credential field accepts.
+
+:attr:`_SecretBase.hint` shows the last four characters of a credential to
+everyone who may list secrets and writes them into the audit trail, so a value
+shorter than this would be published whole by its own hint. The floor also
+catches a truncated paste while the form is still open, rather than at the
+first run.
+"""
+
+
+def _long_enough_to_hint(value: SecretStr) -> SecretStr:
+    if len(value) < MIN_CREDENTIAL_LENGTH:
+        raise ValueError(
+            f"Must be at least {MIN_CREDENTIAL_LENGTH} characters - is the paste complete?"
+        )
+    return value
+
+
+# A sealed field that authenticates: long enough that the four-character hint
+# cannot give it away. `minLength` is declared on the schema the forms are
+# generated from, and the validator carries the message a form can show.
+CredentialStr = Annotated[
+    SealedStr,
+    AfterValidator(_long_enough_to_hint),
+    Field(json_schema_extra={"minLength": MIN_CREDENTIAL_LENGTH}),
+]
+
 
 class _SecretBase(BaseModel):
     """Common configuration for every secret payload."""
@@ -100,6 +129,8 @@ class _SecretBase(BaseModel):
     def hint(self) -> str:
         """Four characters an operator can recognise this credential by.
 
+        Never the whole credential: every field that authenticates is a
+        :data:`CredentialStr`, at least :data:`MIN_CREDENTIAL_LENGTH` long.
         Taken from the field that identifies the credential rather than from the
         one that authenticates it where the two differ - an AWS access key id is
         public, and showing four characters of it is strictly better than
@@ -122,7 +153,7 @@ class ApiKeySecret(_SecretBase):
     """One opaque token."""
 
     kind: Literal[SecretKind.API_KEY] = SecretKind.API_KEY
-    api_key: SealedStr = Field(title="API key", description="The token, sealed before storage")
+    api_key: CredentialStr = Field(title="API key", description="The token, sealed before storage")
 
     @property
     def hint(self) -> str:
@@ -133,7 +164,7 @@ class AzureOpenAISecret(_SecretBase):
     """An Azure OpenAI deployment: key, endpoint and pinned API version."""
 
     kind: Literal[SecretKind.AZURE_OPENAI] = SecretKind.AZURE_OPENAI
-    api_key: SealedStr = Field(title="API key")
+    api_key: CredentialStr = Field(title="API key")
     azure_endpoint: str = Field(
         min_length=1,
         title="Endpoint",
@@ -151,9 +182,9 @@ class AwsCredentialsSecret(_SecretBase):
 
     kind: Literal[SecretKind.AWS_CREDENTIALS] = SecretKind.AWS_CREDENTIALS
     aws_access_key_id: str = Field(min_length=1, title="Access key ID")
-    aws_secret_access_key: SealedStr = Field(title="Secret access key")
+    aws_secret_access_key: CredentialStr = Field(title="Secret access key")
     region_name: str = Field(min_length=1, title="Region", description="e.g. us-east-1")
-    aws_session_token: SealedStr | None = Field(
+    aws_session_token: CredentialStr | None = Field(
         default=None,
         title="Session token",
         description="Only for temporary STS credentials",
@@ -238,7 +269,7 @@ class GithubOAuthAppSecret(_SecretBase):
         title="Client ID",
         description="The OAuth App's client id, e.g. Iv1.0123456789abcdef",
     )
-    client_secret: SealedStr = Field(min_length=1, title="Client secret")
+    client_secret: CredentialStr = Field(title="Client secret")
 
     @property
     def hint(self) -> str:
@@ -269,7 +300,7 @@ class GoogleOAuthAppSecret(_SecretBase):
         title="Client ID",
         description="The OAuth client's id, e.g. 1234-abc.apps.googleusercontent.com",
     )
-    client_secret: SealedStr = Field(min_length=1, title="Client secret")
+    client_secret: CredentialStr = Field(title="Client secret")
 
     @property
     def hint(self) -> str:

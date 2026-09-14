@@ -307,7 +307,7 @@ class TestWhenTheChosenKeyCannotBeUsed:
     async def test_a_secret_of_the_wrong_kind_says_which_collection_chose_it(self):
         async with _the_flows_embedder(
             secret_id=uuid.uuid4(),
-            vault_row=_vault_row("sk-org"),
+            vault_row=_vault_row("sk-org-key"),
             deployment_key="",
             unseals_to_something_else=True,
         ) as (embedder, _, _openai):

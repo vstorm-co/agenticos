@@ -54,7 +54,7 @@ def _with_key(monkeypatch, provider: str, *, base_url: str | None = None) -> Non
         AsyncMock(
             return_value=SimpleNamespace(
                 provider=provider,
-                secret=ApiKeySecret(api_key=SecretStr("sk-test")),
+                secret=ApiKeySecret(api_key=SecretStr("sk-test-key")),
                 base_url=base_url,
             )
         ),
@@ -103,7 +103,7 @@ class TestATranscriptionThatWorks:
         assert call.args[0].endswith("/audio/transcriptions")
         assert call.kwargs["data"]["model"] == model
         assert call.kwargs["files"]["file"][0] == "voice.ogg"
-        assert call.kwargs["headers"]["Authorization"] == "Bearer sk-test"
+        assert call.kwargs["headers"]["Authorization"] == "Bearer sk-test-key"
 
     async def test_the_organizations_own_endpoint_wins_over_the_catalogs(self, monkeypatch):
         """Which is how a proxy or a self-hosted server is reached: the profile

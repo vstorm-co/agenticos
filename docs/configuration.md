@@ -148,6 +148,7 @@ exactly once.
 | `POSTGRES_USER` | `postgres` | PostgreSQL user |
 | `POSTGRES_PASSWORD` | (empty) | PostgreSQL password |
 | `POSTGRES_DB` | `agenticos` | Database name |
+| `POSTGRES_SSLMODE` | (empty) | Encrypt the connection: `require`, `verify-ca` or `verify-full`. Empty is plaintext. See [Encrypted connections](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Connection pool size |
 | `DB_MAX_OVERFLOW` | `10` | Max overflow connections |
 | `DB_POOL_TIMEOUT` | `30` | Pool timeout in seconds |
@@ -164,6 +165,64 @@ Computed properties:
 | `REDIS_PORT` | `6379` | Redis port |
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
+| `REDIS_SSL` | `false` | Encrypt the connection (`rediss://`). See [Encrypted connections](#encrypted-connections-tls) |
+
+## Encrypted connections (TLS)
+
+Both stores connect in plaintext by default. On a single host with Postgres and
+Redis on the same Docker network that is fine, and it is what the shipped compose
+files run. On a managed Postgres, or a Redis on another node, encrypting the
+connection is the transmission-security control a reviewer asks for first (HIPAA
+§164.312(e), SOC 2 CC6.7).
+
+Setting `POSTGRES_SSLMODE` builds the URL each driver understands — `?ssl=<mode>`
+for the app's asyncpg, `?sslmode=<mode>` for Alembic's psycopg2 — and `REDIS_SSL`
+switches the Redis scheme to `rediss://`. `require` encrypts the connection;
+`verify-ca` and `verify-full` also check the server's certificate.
+
+`REDIS_SSL` also asks for a valid certificate chain and a matching hostname on
+the URL itself, rather than leaving both to redis-py's defaults.
+
+!!! warning "A private CA is a file the drivers read, not the OS trust store"
+
+    Neither driver consults the container's trust store, and the image runs as a
+    non-root user with no entrypoint that could rebuild it. asyncpg and libpq
+    both read the CA file `PGSSLROOTCERT` names; redis-py trusts whatever bundle
+    OpenSSL points at, which `SSL_CERT_FILE` overrides. Mount the CA once and set
+    both variables to it - `verify-ca` and `verify-full` fail without the first,
+    since asyncpg then looks for `~/.postgresql/root.crt` and finds nothing.
+
+!!! note "Every service that opens a store connection needs the change"
+
+    `app`, `migrate` and `prefect-runner` each connect to Postgres and Redis, and
+    the shipped compose files pin `POSTGRES_HOST=db` and `REDIS_HOST=redis` in
+    each one's `environment`, which wins over an env file. So a managed store is
+    an override file that reaches all three, not a line in `.env`.
+
+```yaml
+# docker-compose.managed.yml - a managed Postgres and Redis, verified against a
+# private CA. Run with `docker compose -f docker-compose.yml -f docker-compose.managed.yml up -d`.
+x-managed: &managed
+  environment:
+    POSTGRES_HOST: db.internal.example.com
+    POSTGRES_SSLMODE: verify-full
+    PGSSLROOTCERT: /run/tls/managed-ca.crt
+    REDIS_HOST: redis.internal.example.com
+    REDIS_SSL: "true"
+    SSL_CERT_FILE: /run/tls/managed-ca.crt
+  volumes:
+    - ./ca/managed-ca.crt:/run/tls/managed-ca.crt:ro
+
+services:
+  app: *managed
+  migrate: *managed
+  prefect-runner: *managed
+```
+
+The bundled `db` and `redis` services keep starting, unused; `agenticos cmd
+doctor` shows which store each connection actually reached and whether it was
+encrypted (`postgres: tls=on/off`, `redis: tls=on/off`, from `pg_stat_ssl` and the
+URL scheme).
 
 ## Email (SMTP)
 

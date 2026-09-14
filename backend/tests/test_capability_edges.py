@@ -371,18 +371,24 @@ class TestFactoryHelpers:
 
 class TestModelFallbacks:
     def test_no_fallbacks_builds_a_plain_model(self):
-        credential = ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-test"))
+        credential = ResolvedCredential(
+            provider="openai", secret=ApiKeySecret(api_key="sk-test-key")
+        )
         model = build_with_fallbacks((credential, "gpt-4.1"), [])
         assert type(model).__name__ != "FallbackModel"
 
     def test_fallbacks_wrap_the_primary(self):
         """A single provider outage should not take an organization's agents down."""
-        credential = ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-test"))
+        credential = ResolvedCredential(
+            provider="openai", secret=ApiKeySecret(api_key="sk-test-key")
+        )
         model = build_with_fallbacks(
             (credential, "gpt-4.1"),
             [
                 (
-                    ResolvedCredential(provider="anthropic", secret=ApiKeySecret(api_key="sk-b")),
+                    ResolvedCredential(
+                        provider="anthropic", secret=ApiKeySecret(api_key="sk-b-12345")
+                    ),
                     "claude-sonnet-4-6",
                 )
             ],

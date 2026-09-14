@@ -873,7 +873,6 @@ describe("the model the agent is already on", () => {
       model: "openai/gpt-5.5",
       secret_id: "s-1",
       params: {},
-      allow_byo: false,
       fallback_profile_ids: [],
       ...overrides,
     } as Parameters<typeof AddModel>[0]["selected"];

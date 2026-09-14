@@ -1083,8 +1083,8 @@ class TestOAuthTokens:
         payload = _base_payload(code_verifier="verifier", refresh_token="old-refresh")
         token = OAuthToken(access_token="AT", refresh_token="new-refresh", expires_in=3600)
         result = _apply_token(payload, token)
-        assert result.access_token == "AT"
-        assert result.refresh_token == "new-refresh"
+        assert result.access_token.get_secret_value() == "AT"
+        assert result.refresh_token.get_secret_value() == "new-refresh"
         assert result.code_verifier is None  # cleared once tokens arrive
         assert (
             result.expires_at is not None and result.expires_at > mcp_oauth.TOKEN_EXPIRY_SKEW_SECS
@@ -1094,8 +1094,28 @@ class TestOAuthTokens:
         payload = _base_payload(refresh_token="keep-me")
         token = OAuthToken(access_token="AT", expires_in=None)
         result = _apply_token(payload, token)
-        assert result.refresh_token == "keep-me"
+        assert result.refresh_token.get_secret_value() == "keep-me"
         assert result.expires_at is None
+
+    def test_an_oauth_payload_does_not_print_its_tokens(self):
+        """The one reader that could log a payload whole catches `Exception` and
+        names only the connection; masking the credentials makes the guarantee
+        hold by construction rather than by that one clause."""
+        payload = _apply_token(
+            _base_payload(code_verifier="verifier"),
+            OAuthToken(access_token="at-do-not-print", refresh_token="rt-do-not-print"),
+        )
+        for shown in (repr(payload), str(payload), str(payload.model_dump())):
+            assert "csecret" not in shown
+            assert "at-do-not-print" not in shown
+            assert "rt-do-not-print" not in shown
+        # The vault is the one place that needs the real values - including after a
+        # `model_copy`, which skips validation and would otherwise hold a bare str.
+        sealed = payload.model_dump_json()
+        assert '"access_token":"at-do-not-print"' in sealed
+        assert '"refresh_token":"rt-do-not-print"' in sealed
+        assert '"client_secret":"csecret"' in sealed
+        assert McpOAuthPayload.model_validate_json(sealed) == payload
 
     @pytest.mark.anyio
     async def test_unauthorized_oauth_yields_none(self):
@@ -1134,9 +1154,9 @@ class TestOAuthTokens:
         lock_mock.assert_awaited_once()
         # The refreshed token was persisted back (re-encrypted).
         stored = update_mock.call_args.kwargs["update_data"]["oauth_payload"]
-        assert McpOAuthPayload.model_validate_json(_open_from(conn, stored)).access_token == (
-            "fresh-token"
-        )
+        assert McpOAuthPayload.model_validate_json(
+            _open_from(conn, stored)
+        ).access_token.get_secret_value() == ("fresh-token")
 
     @pytest.mark.anyio
     async def test_concurrent_turn_reuses_the_token_the_winner_stored(self, monkeypatch):
@@ -2202,8 +2222,8 @@ class TestMcpConnectionService:
         stored = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )
-        assert stored.access_token == "NEW-AT"
-        assert stored.refresh_token == "OLD-RT"
+        assert stored.access_token.get_secret_value() == "NEW-AT"
+        assert stored.refresh_token.get_secret_value() == "OLD-RT"
 
     @pytest.mark.anyio
     async def test_a_live_payload_with_no_refresh_token_has_nothing_to_carry(
@@ -2420,7 +2440,10 @@ class TestMcpConnectionService:
         payload = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )
-        assert payload.access_token == "AT" and payload.refresh_token == "RT"
+        assert (
+            payload.access_token.get_secret_value() == "AT"
+            and payload.refresh_token.get_secret_value() == "RT"
+        )
         assert payload.code_verifier is None
 
     @pytest.mark.anyio
@@ -3957,7 +3980,7 @@ class TestGithubPortalOAuth:
         assert payload.authorization_endpoint == github_oauth.AUTHORIZE_ENDPOINT
         assert payload.scope == "repo admin:repo_hook"
         # The secret is sealed in the pending payload, never in a plain column.
-        assert payload.client_secret == "ghsec-42"
+        assert payload.client_secret.get_secret_value() == "ghsec-42"
         assert payload.access_token is None
         assert payload.code_verifier is None  # no PKCE on this flow
 
@@ -4087,7 +4110,7 @@ class TestGithubPortalOAuth:
         payload = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )
-        assert payload.access_token == "gho_live"
+        assert payload.access_token.get_secret_value() == "gho_live"
         # A classic OAuth App token neither refreshes nor expires.
         assert payload.refresh_token is None
         assert payload.expires_at is None
@@ -4273,8 +4296,8 @@ class TestCompletingGooglesFlow:
 
         completed, granted = await _complete_google_flow(payload, "code")
 
-        assert completed.access_token == "at"
-        assert completed.refresh_token == "rt"
+        assert completed.access_token.get_secret_value() == "at"
+        assert completed.refresh_token.get_secret_value() == "rt"
         assert completed.expires_at is not None
         assert granted == ["https://www.googleapis.com/auth/gmail.readonly"]
 

@@ -121,24 +121,35 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "agenticos"
+    # Encrypt the connection to Postgres. Empty leaves it plaintext, which is fine
+    # for both stores on one compose network and is the first thing a reviewer asks
+    # about for a managed Postgres or one on another host (HIPAA 164.312(e), SOC 2
+    # CC6.7). `require` encrypts; `verify-ca`/`verify-full` also check the server's
+    # certificate against the CA file `PGSSLROOTCERT` names - asyncpg and libpq
+    # both read that variable, and neither consults the OS trust store (#1418).
+    POSTGRES_SSLMODE: str = ""
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def DATABASE_URL(self) -> str:
         """Build async PostgreSQL connection URL."""
-        return (
+        url = (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+        # asyncpg's parameter is `ssl`, not libpq's `sslmode`.
+        return f"{url}?ssl={self.POSTGRES_SSLMODE}" if self.POSTGRES_SSLMODE else url
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def DATABASE_URL_SYNC(self) -> str:
         """Build sync PostgreSQL connection URL (for Alembic)."""
-        return (
+        url = (
             f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+        # psycopg2 speaks libpq, whose parameter is `sslmode`.
+        return f"{url}?sslmode={self.POSTGRES_SSLMODE}" if self.POSTGRES_SSLMODE else url
 
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
@@ -242,14 +253,25 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str | None = None
     REDIS_DB: int = 0
+    # Encrypt the connection to Redis. redis-py reads TLS off the URL scheme, so
+    # this switches `redis://` for `rediss://`, and the URL also demands a valid
+    # chain and a matching hostname - stated rather than left to redis-py's
+    # defaults, which have flipped between releases. The CA is whatever bundle
+    # OpenSSL trusts, so a private one is named with `SSL_CERT_FILE` (#1418).
+    REDIS_SSL: bool = False
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def REDIS_URL(self) -> str:
         """Build Redis connection URL."""
+        scheme = "rediss" if self.REDIS_SSL else "redis"
+        verify = "?ssl_cert_reqs=required&ssl_check_hostname=true" if self.REDIS_SSL else ""
         if self.REDIS_PASSWORD:
-            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+            return (
+                f"{scheme}://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}"
+                f"/{self.REDIS_DB}{verify}"
+            )
+        return f"{scheme}://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}{verify}"
 
     # What one caller may ask the public run API for, per minute. Keyed on the
     # caller rather than on their address: the endpoint is authenticated, and an

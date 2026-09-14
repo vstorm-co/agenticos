@@ -32,7 +32,7 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 
 - **CORS** — origin list from `settings.CORS_ORIGINS`. Restrict to your domains in production.
 - **HTTPS** — enforce via reverse proxy (Nginx / Traefik / ALB). Strict-Transport-Security header set in middleware when `ENVIRONMENT=production`.
-- **CSP** — frontend sets `frame-ancestors 'none'` by default to prevent click-jacking. See `frontend/next.config.ts` headers block.
+- **Security headers** — the frontend serves a full Content-Security-Policy (`default-src 'self'`, a `connect-src` naming only this origin and the configured `PUBLIC_API_URL` and `PUBLIC_WS_URL`, `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` and a `Permissions-Policy` that denies camera/geolocation and allows the microphone only for speech-to-text. The policy lives in `frontend/src/lib/csp.ts` and the headers in `frontend/src/lib/security-headers.ts`, both asserted by tests; see [Deployment](docs/deployment.md#security-headers).
 
 ### Data
 
