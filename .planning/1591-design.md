@@ -65,6 +65,15 @@ ship in the backend Dockerfile). RAG's `LITEPARSE_OFFICE_FORMATS` already lists
 > (BSD-2), not GPL `extract-msg`; DOC uses a directly-managed, killable `soffice`
 > subprocess, not `liteparse`; `validate_upload` gains a `filename`/extension argument.
 > The rest of §2 stands. Read §2 for the shape, §4–5 for what changed and why.
+>
+> **§7 (second review round, gpt-5.6-sol) further amends §2/§5/§6:** a canonical
+> format is resolved and threaded through parsing and inlining (not the declared
+> MIME); validation defines precedence and rejects MIME/extension conflicts; the
+> `soffice` subprocess gains a concurrency semaphore, OS resource limits and a
+> cancellation-safe process-group teardown; TIFF/ZIP bomb guards stop trusting
+> attacker-controlled counts and stop mutating process-global Pillow state per
+> request; `office_convert.py` is added to the platform coverage/type gates; text
+> caps become a layered budget. Read §7 for each finding and what changed.
 
 ### 2.1 Parser / converter per new format
 
@@ -283,9 +292,17 @@ branch needs a test. Changes:
    limitation, now documented and extended to the new office formats).
 7. **`odfpy` GPL/Apache dual license** — use under Apache-2.0; fallback to liteparse if
    legal objects.
-8. **Coverage gate contract** — no new *module* is added to the platform layer, so
-   `[tool.coverage.run] include` / `[[tool.ty.overrides]] include` need no edit; only
-   existing gated modules (`attachments.py`) gain branches that must hit 100%.
+8. **Coverage gate contract** — ~~no new *module* is added to the platform layer~~
+   **(corrected in §7, finding 6)**: §6.3 adds `app/services/office_convert.py`, a new
+   platform module holding the security-critical subprocess logic. The gate does **not**
+   auto-discover it — `PLATFORM_PACKAGES` covers only `app/agents`, and every other
+   platform module is listed by hand in `PLATFORM_MODULES`
+   (`tests/test_coverage_gate.py`), `[tool.coverage.run] include` and the matching
+   `[[tool.ty.overrides]] include`. `office_convert.py` must be added to all three (same
+   order), or it escapes both 100% coverage and strict typing while the gate stays green.
+   `attachments.py` (already gated) also gains branches that must hit 100%.
+   `file_upload.py` / `file_storage.py` remain ungated today; see §7 finding 6 for
+   whether the new logic there warrants gating them too.
 
 ---
 
@@ -430,6 +447,18 @@ can read it; frontend and docs last.
    `CHAT_TIFF_MAX_INLINE_PAGES: int = 10` (gt=0),
    `CHAT_PARSED_TEXT_MAX_CHARS: int = 1_000_000` (gt=0). Document each near the existing
    `CHAT_MAX_UPLOAD_SIZE_MB`.
+   Added after the second review round (§7):
+   `CHAT_CONVERT_MAX_CONCURRENCY: int = 2` (gt=0) — the semaphore bounding concurrent
+   `soffice` processes, separate from `FILE_IO_MAX_WORKERS` (finding 3);
+   `CHAT_CONVERT_OUTPUT_MAX_BYTES: int = 20 * 1024 * 1024` (gt=0) — cap on the converter's
+   output file, checked before it is read (findings 4, 8);
+   `CHAT_ARCHIVE_MEMBER_MAX_BYTES` / `CHAT_ARCHIVE_TOTAL_MAX_BYTES` — the running
+   decompressed-byte caps for ZIP-backed office formats (finding 5);
+   `CHAT_IMAGE_MAX_PIXELS` — the explicit width×height bound checked per image without
+   mutating process-global `Image.MAX_IMAGE_PIXELS` (finding 5);
+   `CHAT_PROMPT_TEXT_MAX_CHARS` (per-file, into the prompt) and
+   `CHAT_TURN_TEXT_MAX_CHARS` (aggregate across all attachments in one turn) — the
+   prompt-budget layer distinct from the stored-text cap (finding 8).
 
 ### 6.2 Backend — allowlist, classification, validation (`file_storage.py`)
 2. Extend `ALLOWED_MIME_TYPES` with the nine MIME strings in §2.2 (incl. `application/xml`).
@@ -441,34 +470,98 @@ can read it; frontend and docs last.
 
 ### 6.3 Backend — parsers & dispatch (`file_upload.py` + new helper)
 5. Change `validate_upload` signature to include `filename`; implement mime-or-extension
-   acceptance; update the docstring.
+   acceptance **with the precedence rules in §7 finding 2**: normalize the media type
+   first (lowercase, strip `; charset=…` and other parameters); take the extension
+   fallback only when the declared MIME is missing or generic
+   (`application/octet-stream` / empty); reject a *specific* MIME that contradicts the
+   extension; and sniff the magic bytes at least for TIFF (and, where cheap, the
+   OLE/ZIP discriminators) after the bytes have arrived. Update the docstring.
+5a. **Resolve a canonical format, not just a coarse `file_type` (§7 finding 1).**
+   `classify_file` (or a companion `resolve_format(mime, filename)`) returns a canonical
+   format token — `doc | docx | xls | xlsx | ods | pptx | odp | odt | msg | tiff | pdf |
+   image | text` — computed from the normalized MIME, the extension and (for TIFF) the
+   signature. `parse_content` takes `filename` (or the canonical format) so it can
+   dispatch XLS vs XLSX vs ODS, DOC vs ODT, PPTX vs ODP inside one `file_type` branch.
+   Persist enough to recover the format downstream: either store a normalized/canonical
+   MIME on the `ChatFile` (so `_inline_images` sees `image/tiff`, not the declared
+   `octet-stream`) or add a small helper both parsing and inlining call — otherwise an
+   octet-stream TIFF classified as `image` reaches `_inline_images` with no way to know
+   it needs PNG conversion and would build an invalid `BinaryContent`.
 6. New module `backend/app/services/office_convert.py` (thick-ish helper, not a route):
    `libreoffice_convert(data: bytes, *, suffix: str, timeout: float) -> str | None` — the
-   managed `soffice` subprocess (§5 #4). One place owns the temp dir, profile, timeout,
-   and kill. (Async: uses `asyncio.create_subprocess_exec`; called from `parse_content`
-   via `await`, not `run_blocking`, since it is already async.)
+   managed `soffice` subprocess (§5 #4, hardened in §7 findings 3–4). One place owns the
+   temp dir, per-call profile, timeout, kill, **the concurrency semaphore**
+   (`CHAT_CONVERT_MAX_CONCURRENCY`, since the subprocess bypasses the `run_blocking`
+   admission gate), and **OS resource limits** (start a new session/process group;
+   `preexec_fn` setting CPU / address-space / file-size / open-file rlimits; no network
+   where the platform can enforce it). Cancellation-safe teardown: a `finally` that
+   terminates then kills the *group* and `await proc.wait()`s under
+   `asyncio.shield`, plus nonzero-exit / missing-output handling and an output-size check
+   against `CHAT_CONVERT_OUTPUT_MAX_BYTES` before the file is read. Full container/uid
+   isolation stays the documented follow-up (§6.9), consistent with the deferred
+   per-process image sandbox. (Async: uses `asyncio.create_subprocess_exec`; called from
+   `parse_content` via `await`, not `run_blocking`, since it is already async.)
 7. New in-process parsers in `FileUploadService` (each on `run_blocking`, catch→warn→None,
-   then apply the `CHAT_PARSED_TEXT_MAX_CHARS` truncation centrally in `parse_content`):
+   then apply the text budget centrally in `parse_content`):
    `_parse_doc_content` (→ office_convert), `_parse_xls_content` (xlrd),
    `_parse_ods_content` / `_parse_odt_content` / `_parse_odp_content` (odfpy),
    `_parse_pptx_content` (python-pptx), `_parse_msg_content` (olefile MAPI reader).
+   For the ZIP-backed formats (ODF/PPTX), decompress under a **running byte cap**
+   (`CHAT_ARCHIVE_MEMBER_MAX_BYTES` / `CHAT_ARCHIVE_TOTAL_MAX_BYTES`) rather than trusting
+   the ZIP central-directory sizes, which are forgeable (§7 finding 5).
+7a. **XML decoding (§7 finding 9).** The widened `application/xml` must not rely on the
+   existing unconditional `data.decode("utf-8")`: decode XML best-effort by BOM / the
+   `<?xml encoding=…?>` declaration (UTF-8/16/32), under a byte/char cap, falling back to
+   `None` on failure. The media-type normalization in step 5 also fixes
+   `application/xml; charset=utf-8` missing the exact-string allowlist.
 8. Extend `parse_content` dispatch for `document | presentation | email` and the widened
-   `spreadsheet`; apply the truncation cap to every returned string once, here.
+   `spreadsheet`; apply the **layered text budget** (§7 finding 8) — stored text capped at
+   `CHAT_PARSED_TEXT_MAX_CHARS`, per-file prompt text at `CHAT_PROMPT_TEXT_MAX_CHARS`, and
+   the per-turn aggregate at `CHAT_TURN_TEXT_MAX_CHARS` (enforced where the turn is
+   assembled — see §6.4). Truncate incrementally where a parser streams, not only after
+   building the whole string.
 
 ### 6.4 Backend — attachment routing (`attachments.py`, coverage-gated 100%)
 9. `AttachmentPlan.inline: list[BinaryContent]`; update `build_prompt` (already list-based)
    and every `AttachmentPlan(...)` construction.
 10. `_inline_image` → `_inline_images(chat_file, data) -> list[BinaryContent]`; TIFF branch
-    calls a new `tiff_pages_to_png(data, *, max_pages, max_bytes)` (Pillow, bomb-guarded,
-    metadata-stripped, per-page downscale). Non-TIFF images return a one-element list.
-11. TIFF reference text names total vs shown page count when truncated.
+    (identified by canonical format, not the possibly-`octet-stream` declared MIME —
+    §7 finding 1) calls a new `tiff_pages_to_png(data, *, max_pages, max_bytes)` (Pillow,
+    bomb-guarded, metadata-stripped, per-page downscale). Non-TIFF images return a
+    one-element list. **§7 finding 5 hardening:** do **not** mutate the process-global
+    `Image.MAX_IMAGE_PIXELS` or `warnings.simplefilter` per request — the file pool is
+    shared, so a per-request mutation races other conversions. Instead read
+    `img.size`/frame dimensions and reject against `CHAT_IMAGE_MAX_PIXELS` explicitly
+    before `img.load()`, and catch `DecompressionBombError`/`Warning` as a caught failure.
+    Bound frames by stopping iteration after `max_pages + 1` rather than reading a
+    `n_frames` total (which itself walks an attacker-controlled IFD chain).
+11. TIFF reference text names total vs shown page count **only when a safe total is known**;
+    otherwise it says "additional pages omitted" (the bounded path stopped at
+    `max_pages + 1` without traversing the whole IFD chain — §7 finding 5).
 12. Broaden `_text_sibling` / `_sibling_present` / `_write_extracted_text` per §5 #7
     (`LIT_READABLE`; email always gets a sibling).
+12a. Enforce the per-turn aggregate text budget `CHAT_TURN_TEXT_MAX_CHARS` in
+    `build_prompt` (§7 finding 8): the no-workspace path pastes each file's full
+    `parsed_content`, so several large attachments in one turn compound past any per-file
+    cap. Stop appending pasted/head text once the running total for the turn is reached
+    and say so in the prompt. This branch is in the 100% coverage gate.
 
-### 6.5 Backend — dependencies (`pyproject.toml`)
+### 6.5 Backend — dependencies & gate wiring (`pyproject.toml`, `tests/test_coverage_gate.py`)
 13. Add `xlrd`, `odfpy`, `python-pptx`, `olefile`; run `uv lock`. Confirm `deptry`
-    passes (each imported under `app/`; no `DEP002` ignore expected). Note licenses in the
-    PR body.
+    passes (each imported under `app/`; no `DEP002` ignore expected).
+    **License inventory, not a one-line claim (§7 finding 7):** verify each distribution's
+    license from the resolved artifact rather than the README — in particular `odfpy`
+    (PyPI lists LGPL alongside the README's Apache-2.0/GPL-2.0 dual offer, and PyPI is
+    still on the old `1.4.1`; prove Python 3.12 compatibility in CI) and the documented MSG
+    fallback (`msg-parser` is BSD and pre-alpha, last released 2019 — not the "MIT" §5 #1
+    stated). Record the findings in the PR body.
+13a. **Add `app/services/office_convert.py` to the platform gate (§7 finding 6):**
+    `PLATFORM_MODULES` in `tests/test_coverage_gate.py`, `[tool.coverage.run] include`, and
+    `[[tool.ty.overrides]] include` — same relative order in each, which
+    `test_coverage_gate.py` verifies. Without it the new subprocess/kill logic escapes both
+    the 100% coverage gate and strict typing. Decide, and record, whether the new
+    security-sensitive logic now in `file_upload.py` / `file_storage.py` also warrants
+    gating those modules (they are ungated today).
 
 ### 6.6 Frontend
 14. `chat-input.tsx` — extend `accept` with new MIME types **and** extensions (§2.8).
@@ -513,6 +606,32 @@ can read it; frontend and docs last.
 - Channel: extend `test_channel_attachments.py` — a `.odt`/`.msg` arriving as
   `application/octet-stream` passes preflight via the new filename arg.
 
+Added after the second review round (§7 finding 10):
+- **Canonical-format dispatch:** end-to-end upload+parse of every ambiguous format with
+  empty/octet-stream MIME (not just validation/classification) — an octet-stream `.xls`,
+  `.ods`, `.doc`, `.odt`, `.pptx`, `.odp`, `.tiff` each reaches the *right* parser and (for
+  TIFF) the PNG-conversion path (finding 1).
+- **Validation precedence & conflicts:** a specific MIME contradicting the extension
+  (`application/msword` named `photo.tiff`, `image/png` named `payload.doc`) is refused; a
+  MIME with parameters (`application/xml; charset=utf-8`) is accepted; uppercase and
+  double suffixes handled; a forged TIFF signature (bytes ≠ `.tiff`) caught by the sniff
+  (finding 2).
+- **Subprocess lifecycle (`office_convert.py`, now gated):** timeout → process-group
+  killed; request cancellation mid-convert → group killed and awaited (no orphan);
+  nonzero `soffice` exit, missing output, output over `CHAT_CONVERT_OUTPUT_MAX_BYTES`,
+  and stderr flooding each → `None`; concurrent conversions respect
+  `CHAT_CONVERT_MAX_CONCURRENCY` and use distinct profiles (findings 3, 4). A real
+  LibreOffice golden-DOC conversion where the Docker toolchain is available, since a
+  mocked success path verifies neither the command nor the export filter.
+- **Bomb guards:** ZIP member-count / forged-central-directory / running-decompressed-byte
+  cap for ODF/PPTX; per-image pixel bound without a global `Image.MAX_IMAGE_PIXELS`
+  mutation, verified concurrent conversions do not race that setting; TIFF frame bound
+  stops at `max_pages + 1` without walking the whole IFD chain (finding 5).
+- **Budgets:** per-file `CHAT_PROMPT_TEXT_MAX_CHARS` and aggregate
+  `CHAT_TURN_TEXT_MAX_CHARS` truncation, the latter across several attachments in one turn
+  (finding 8, `test_attachments.py`, 100% gate).
+- **XML encoding:** a UTF-16 (BOM) XML document decodes rather than failing (finding 9).
+
 **Backend integration (`backend/tests/integration/`, real Postgres):**
 - Upload → `ChatFile` row for a new format has correct `file_type`, `mime_type`,
   `parsed_content` (or NULL for TIFF); ownership/download unchanged.
@@ -531,6 +650,134 @@ free `String(20)`, so **no migration**), `make docs-build`. Report any unavailab
 
 ### 6.9 Out of scope / follow-ups
 - Per-process image-decode sandbox (deferred, §5).
+- Full container/uid isolation for the `soffice` subprocess (isolated user, read-only
+  filesystem, hard network cut). The in-process feature ships the semaphore + rlimits +
+  process-group teardown of §7 findings 3–4; OS-enforced isolation is the same follow-up
+  as the image sandbox above.
 - OCR for scanned PDF/TIFF in chat (documented limitation; RAG has LiteParse OCR).
 - MSG RTF-body decoding and embedded-attachment extraction.
 - A dedicated "email"/"presentation" frontend icon polish.
+
+---
+
+## 7. Second review round (gpt-5.6-sol)
+
+`codex exec --sandbox read-only -m gpt-5.6-sol` (Codex 0.154.0), run header confirmed
+`model: gpt-5.6-sol`, reasoning effort medium. The prompt asked for **new or
+still-unresolved** problems only — library/licensing, conversion resource-isolation,
+MIME/extension validation, the coverage gate and test strategy — not a restatement of
+§4. Codex explicitly confirmed the first-round fixes for `extract-msg`, TIFF browser
+rendering, sibling routing and the general test matrix are sound and need not reopen.
+
+Each finding was verified against the actual code before a verdict. Verdicts and the
+concrete doc changes:
+
+1. **High — extension fallback cannot select the correct parser. ACCEPTED.**
+   Verified: `parse_content(data, file_type, mime_type)`
+   (`file_upload.py:91`) receives no filename, and §2.3 stores the caller-declared MIME.
+   So an `application/octet-stream` `.xls`/`.ods` cannot be told apart inside the
+   `spreadsheet` branch, and — the sharp edge — an octet-stream TIFF classified `image`
+   reaches `_inline_images` (`attachments.py`) with `mime_type="application/octet-stream"`
+   and no way to know it must convert to PNG, so it would build an invalid
+   `BinaryContent(octet-stream)`. **Changed:** §6.3 step 5a resolves a canonical format
+   from normalized MIME + extension + (for TIFF) signature, threads `filename`/canonical
+   format into `parse_content`, and persists enough (normalized/canonical MIME or a shared
+   helper) for `_inline_images` (§6.4 step 10) to recognise TIFF regardless of the declared
+   MIME.
+
+2. **High — MIME-or-extension validation permits contradictions and never verifies the
+   bytes. ACCEPTED (precedence + conflict rejection + targeted sniff).** Verified: current
+   `validate_upload` trusts the declared `content_type` with no byte check, and the chat
+   path (unlike avatars, which use `sniff_image_media_type`) never sniffs. The proposed
+   plain `(mime ∈ allowlist) OR (ext ∈ set)` widens this and admits contradictions
+   (`application/msword` named `photo.tiff`). **Changed:** §6.3 step 5 now defines
+   precedence — normalize the media type (strip parameters/case), take the extension
+   fallback only for missing/generic MIME, reject a specific-MIME-vs-extension conflict,
+   and sniff magic bytes at least for TIFF (which drives the inline-conversion decision)
+   and, where cheap, the OLE/ZIP discriminators. Full per-format signature verification of
+   every OLE stream is noted as deeper hardening rather than mandated, since the pre-existing
+   path already trusts declared MIME; the precedence + TIFF sniff close the parser-selection
+   hole this feature actually introduces.
+
+3. **High — LibreOffice conversion lacks admission/resource isolation. ACCEPTED
+   (semaphore + rlimits; full container isolation deferred).** Verified: the admission
+   gate lives only inside `run_blocking` → `_submit` → `_limiter` (`blocking.py`), and
+   §6.3 step 6 deliberately runs `soffice` via `asyncio.create_subprocess_exec` *not*
+   `run_blocking` — so N concurrent DOC uploads spawn N LibreOffice processes, unbounded.
+   **Changed:** §6.1 adds `CHAT_CONVERT_MAX_CONCURRENCY`; §6.3 step 6 gives
+   `office_convert.py` a dedicated semaphore plus OS rlimits (CPU/address-space/file-size,
+   new session, network cut where enforceable). Full container/uid isolation is recorded
+   as a follow-up (§6.9), consistent with the already-deferred per-process image sandbox.
+
+4. **High — subprocess cleanup covers timeout but not cancellation/descendants. ACCEPTED
+   (refines §5 #4).** Verified: §5 #4 mentions `proc.kill()` on `TimeoutError` and a
+   process-group kill, but nothing about request cancellation, worker shutdown, awaiting
+   `proc.wait()`, or output handling — and the codebase's own cancellation-safety pattern
+   (`write_bytes_cancel_safe` in `blocking.py`) shows the shielded-`finally` shape this
+   needs. **Changed:** §6.3 step 6 specifies a new session/process group, a `finally` that
+   terminate→kills the group and `await proc.wait()`s under `asyncio.shield`, plus
+   nonzero-exit / missing-output / oversized-output (`CHAT_CONVERT_OUTPUT_MAX_BYTES`,
+   checked before read) handling.
+
+5. **High — archive/image bomb controls are preflight-only and mutate global state.
+   ACCEPTED.** Verified: §5 #8 trusts ZIP central-directory sizes (forgeable), and §5 #3
+   sets `Image.MAX_IMAGE_PIXELS` per conversion — a **process-global** on the shared file
+   pool, so concurrent conversions race it; likewise reading `n_frames` walks an
+   attacker-controlled IFD chain. **Changed:** §6.3 step 7 decompresses ODF/PPTX under a
+   running byte cap (`CHAT_ARCHIVE_*`) instead of trusting the directory; §6.4 step 10
+   replaces the global mutation with an explicit `img.size` check against
+   `CHAT_IMAGE_MAX_PIXELS` before `load()` and bounds frames by stopping at
+   `max_pages + 1`; §6.4 step 11 reports "additional pages omitted" when no safe total is
+   known. §6.1 adds the new caps. (The point that this also protects the pre-existing
+   DOCX/XLSX path is noted; broadening those guards is in-scope hardening, not required by
+   the new formats alone.)
+
+6. **High — the coverage-gate statement is false for the new module. ACCEPTED.**
+   Verified: `tests/test_coverage_gate.py` auto-discovers only `PLATFORM_PACKAGES =
+   ("app/agents",)`; every service module is listed by hand in `PLATFORM_MODULES` (and the
+   coverage-`include`/`ty`-overrides lists). Risk #8 claimed "no new module is added", but
+   §6.3 adds `app/services/office_convert.py` — the one security-critical module in the
+   feature — which would silently escape both the 100% gate and strict typing.
+   **Changed:** risk #8 corrected; §6.5 step 13a wires `office_convert.py` into all three
+   aligned lists and flags the open question of whether `file_upload.py`/`file_storage.py`
+   (ungated today, now gaining security logic) should be gated too.
+
+7. **Medium — the licensing fallback is misstated; `odfpy` needs artifact-level review.
+   ACCEPTED (doc accuracy).** Not independently verifiable offline (no network in the
+   sandbox), but the fix is to stop asserting unverified licenses: §5 #1 called
+   `msg-parser` "MIT" where Codex reports BSD / pre-alpha / last released 2019, and `odfpy`
+   carries LGPL wording in some headers despite the README's Apache-2.0/GPL-2.0 offer, on
+   an old `1.4.1` PyPI release. **Changed:** §6.5 step 13 now requires an exact per-artifact
+   license inventory at implementation and Python 3.12 proof for `odfpy`, and corrects the
+   `msg-parser` label to "verify". Primary choices (`olefile` BSD-2, the pure-Python
+   readers) are unchanged.
+
+8. **Medium — the parsed-text cap is not a prompt/resource budget. ACCEPTED.** Verified:
+   §5 #6 is a single 1M-char stored cap, and the no-workspace path (`_pasted` in
+   `attachments.py`) inlines each file's full `parsed_content`, so several attachments
+   compound in one turn with no aggregate bound. **Changed:** §6.1 adds
+   `CHAT_CONVERT_OUTPUT_MAX_BYTES`, `CHAT_PROMPT_TEXT_MAX_CHARS` and
+   `CHAT_TURN_TEXT_MAX_CHARS`; §6.3 step 8 and §6.4 step 12a layer stored-text, per-file
+   prompt-text, converter-output and per-turn aggregate caps, truncating incrementally
+   where a parser streams.
+
+9. **Medium — valid XML encoding support is incomplete. ACCEPTED.** Verified:
+   `_parse_text_content` does an unconditional `data.decode("utf-8")` (`file_upload.py:122`)
+   and `validate_upload` exact-matches the MIME, so UTF-16/32 XML and
+   `application/xml; charset=utf-8` both fail. **Changed:** §6.3 step 7a decodes XML by
+   BOM / `<?xml encoding?>` under a cap; the media-type normalization of step 5 fixes the
+   charset-parameter allowlist miss.
+
+10. **Medium — the test matrix misses these failure modes. ACCEPTED.** **Changed:** §6.8
+    gains end-to-end octet-stream dispatch per ambiguous format, MIME/extension conflict &
+    forged-signature cases, subprocess cancellation/nonzero-exit/oversized-output and
+    concurrency/profile tests, ZIP-bomb and Pillow-global-race tests, the per-turn
+    aggregate budget, a UTF-16 XML case, and a real Docker/LibreOffice golden-DOC
+    conversion (a mocked success path verifies neither the command nor the export filter).
+
+**Rejected / not reopened:** none of the ten were rejected outright — Codex stayed within
+the "new or unresolved" brief and did not restate resolved §4 items. Where a finding's
+*deepest* remedy exceeds this issue's scope (full OLE-stream signature verification in #2,
+OS container isolation in #3, broadening bomb guards onto the pre-existing DOCX/XLSX path
+in #5), the design takes the concrete, in-scope mitigation now and records the remainder
+as a named follow-up rather than accepting an unbounded hardening mandate.
