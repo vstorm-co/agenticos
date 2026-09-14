@@ -220,8 +220,8 @@ answer that looks reasonable:
 
 The `broken` comment carries what Codex printed, in a `<details>` block. That is
 read back out of the run's own job log by `publish`, which is why that job holds
-`actions: read` — a `uses:` step's stderr goes nowhere else, and for the whole of
-#311 the one line that mattered was sitting at the bottom of a green job:
+`actions: read` — a `uses:` step's stderr goes nowhere else, and for the whole
+of #311 the one line that mattered was sitting at the bottom of a green job:
 
 ```text
 ERROR: stream disconnected before completion: Your project has reached its
@@ -237,8 +237,8 @@ Three things about this worth knowing before changing it.
 
 **Red, not neutral.** The check is advisory and not required, so a red mark
 costs nobody a merge; it only makes an outage visible on the page somebody is
-already reading. A neutral conclusion renders as a grey tick, which is the thing
-#311 was about.
+already reading. A neutral conclusion renders as a grey tick, which is the
+thing #311 was about.
 
 **`Review the diff` still carries `continue-on-error`, and the job fails at its
 last step instead.** Failing at the Codex step would skip the two steps that
@@ -458,8 +458,8 @@ len              # B018  Found useless expression
 await task       # not flagged, correctly
 ```
 
-Until #229 that came with a gap worth knowing, because it was what the exclusion in
-#220 would have cost: ruff was pointed at `app tests cli`, so `backend/alembic/`
+Until #229 that came with a gap worth knowing, because it was what the exclusion
+in #220 would have cost: ruff was pointed at `app tests cli`, so `backend/alembic/`
 (9 files) and the repository's `scripts/` (3) sat outside it, and for this class of
 mistake CodeQL was their only reader. #229 closed it — `make lint-backend` and the
 pre-commit hook now run `ruff check . ../scripts` from `backend/`, so every tracked
