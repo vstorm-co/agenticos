@@ -7,6 +7,7 @@ export {
   type AdminOrgKind,
   type AdminOrgSort,
 } from "./use-admin-organizations";
+export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
 export { useConversationWorkspace } from "./use-conversation-workspace";

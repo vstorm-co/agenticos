@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { useChanged } from "@/hooks/use-changed";
@@ -40,6 +41,7 @@ import {
 import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { useAuthStore } from "@/stores/auth-store";
 import { useLocale, useTranslations } from "next-intl";
@@ -250,21 +252,23 @@ export function UserDetailDrawer({
               <p className="text-muted-foreground text-xs">{t("noMemberships")}</p>
             ) : (
               <ul className="space-y-1">
-                {/* Not links, and that is a finding rather than a decision:
-                    `/orgs/{id}` resolves through `get_for_user`, which 404s for
-                    anybody who is not a member - including an app admin, and
-                    including the target's own personal organization, which is
-                    the common case here. A link most of these rows cannot open
-                    is worse than the name and the role, which is what the
-                    decision actually needs. See #1245. */}
+                {/* The organization links to its admin detail page - a tenant an
+                    app admin can open without belonging to it, which the target's
+                    own personal organization (the common case here) it never does.
+                    That page is a dedicated app-admin read, not an `is_app_admin`
+                    bypass on `/orgs/{id}`, which would cascade into full access
+                    (#1245). The conversation rows below stay non-links. */}
                 {detail.memberships.map((membership) => (
                   <li
                     key={membership.organization_id}
                     className="border-border bg-background flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
                   >
-                    <span className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
+                    <Link
+                      href={`${ROUTES.ADMIN_ORGANIZATIONS}/${membership.organization_id}`}
+                      className="text-foreground hover:text-primary min-w-0 flex-1 truncate text-xs font-medium hover:underline"
+                    >
                       {membership.name}
-                    </span>
+                    </Link>
                     {membership.is_personal && (
                       <Badge variant="outline" className="shrink-0 text-[10px]">
                         {t("personalOrg")}
@@ -317,12 +321,12 @@ export function UserDetailDrawer({
               <p className="text-muted-foreground text-xs">{t("noConversationsFound")}</p>
             ) : (
               <ul className="space-y-1">
-                {/* Not links either, for the neighbouring reason: this list is
-                    deployment-wide and Activity is scoped to the admin's own
-                    active organization, so a link would usually land on an
-                    empty page - or, worse, on the same person's runs in a
-                    different tenant. There is no admin-readable destination for
-                    one of these at all; #1245 is where that sits. */}
+                {/* Not links, by decision rather than for want of one (#1245): a
+                    conversation is deployment-wide here while Activity is scoped to
+                    the admin's active organization, and reading one across tenants
+                    would relax the boundary docs/architecture.md keeps - "no way to
+                    read a conversation across tenants". The organization above links;
+                    a conversation stays text. */}
                 {conversations.map((c) => (
                   <li
                     key={c.id}

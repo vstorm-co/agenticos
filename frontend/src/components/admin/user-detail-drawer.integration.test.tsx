@@ -94,15 +94,13 @@ describe("what the drawer answers", () => {
     expect(membership.closest("li")).toHaveTextContent("builder");
   });
 
-  it("does not link a row an admin cannot open", async () => {
-    // `/orgs/{id}` resolves through `get_for_user`, which 404s for anybody who
-    // is not a member - an app admin included, and the target's own personal
-    // organization is the common case. A link most of these rows cannot open
-    // is worse than the name and the role (#1245).
+  it("links an organization to its admin detail page", async () => {
+    // The destination an app admin can open without belonging to the tenant -
+    // a dedicated app-admin read, not an `/orgs/{id}` bypass (#1245).
     mount();
 
-    await screen.findByText("Acme");
-    expect(screen.queryByRole("link", { name: /Acme/ })).toBeNull();
+    const link = await screen.findByRole("link", { name: /Acme/ });
+    expect(link).toHaveAttribute("href", "/admin/organizations/o-1");
   });
 
   it("does not claim a sign-in history the request failed to fetch", async () => {
