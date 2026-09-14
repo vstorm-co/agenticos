@@ -29,6 +29,13 @@
   <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
 </p>
 
+<p>
+  <b>English</b> &middot;
+  <a href="README.pl.md">Polski</a> &middot;
+  <a href="README.de.md">Deutsch</a> &middot;
+  <a href="README.es.md">Español</a>
+</p>
+
 </div>
 
 ---

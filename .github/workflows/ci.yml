@@ -676,3 +676,11 @@ jobs:
         # into a failure. Both are things a reader finds and a lenient build
         # ships.
         run: make docs-build
+
+      # The translation guard carries its own copy of the `toc` extension's slug
+      # rule, because it runs under the system interpreter with no virtualenv. A
+      # copy that has drifted fails silently: the gate then compares anchors the
+      # build never emits. Checking it needs the renderer, which only this job
+      # installs - in the `test` job it skips for want of `pymdownx`.
+      - name: Check the slug rule against the real renderer
+        run: make docs-slug-check

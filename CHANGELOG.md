@@ -17,6 +17,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.415] - 2026-09-14
+
+### Added
+
+- **The documentation site publishes in four languages.** All 54 published
+  pages and the four files GitHub renders - `README.md`, `CONTRIBUTING.md`,
+  `SECURITY.md`, `CODE_OF_CONDUCT.md` - are translated into Polish, German and
+  Spanish. `mkdocs-static-i18n` in `suffix` mode, so a translation is
+  `<page>.<locale>.md` beside its English source and the English URLs do not
+  move: `/install/` stays and `/pl/install/` appears next to it. One nav, four
+  builds, and a language switcher that keeps the reader on the same page.
+- **A gate that keeps the three translations honest.** `mkdocs build --strict`
+  validates a link's path and not its `#fragment`, so a translated heading
+  silently moves an anchor and every link into it lands at the top of the page,
+  in one language, with a green build. So a translated heading pins the English
+  anchor explicitly, each translation records the fingerprint of the English
+  revision it was made from, and `scripts/check_docs_i18n.py` runs in
+  `make lint`: it names a page with no translation, a translation older than
+  its source, headings that no longer line up and a repository file whose links
+  go somewhere the English one does not. A page rendered from a stale or
+  missing translation carries a notice in the reader's own language.
+  `docs/howto/translate.md` is the workflow, with the glossary and the
+  terminology that has to be exact.
+
+### Fixed
+
+- **A prose line in `docs/file-processing.md` rendered as a heading.** It
+  started at column zero with an issue reference, and Python-Markdown's ATX
+  rule does not require a space after the hashes, so the published page carried
+  an `<h1>` nobody wrote. The translation gate found it by counting anchors.
+
 ## [0.0.414] - 2026-09-14
 
 ### Added
