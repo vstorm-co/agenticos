@@ -1,5 +1,5 @@
 ---
-source_sha: "8949373d5ba6"
+source_sha: "e783991fce12"
 ---
 
 # Sicherheit { #security }
@@ -53,7 +53,7 @@ fragen wird.
 |---|---|---|
 | Der konfigurierte Modell-Provider | Der Prompt, die Ausgabe des Modells, Tool-Argumente und -Ergebnisse | Jeder Run — außer das Modell läuft auf der eigenen Infrastruktur des Betreibers, dann verlässt nichts das Deployment |
 | Der konfigurierte Kanal (Slack, Telegram, Mattermost) | Die generierten Antworten des Agents — Text, Bilder und Anhänge | Immer wenn ein Agent über diesen Kanal exponiert ist; jedes `send_message` postet beim Provider (`app/services/channels/`) |
-| Logfire | Traces, die standardmäßig Prompts und Ausgaben tragen | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent; ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run global (`app/core/logfire_setup.py`), mit ihm verlassen Run-Inhalte das Deployment also unabhängig von jeder Einstellung pro Agent. Einen Span auf Zeit und Kosten zu reduzieren landet in [#1413](https://github.com/vstorm-co/agenticos/issues/1413) / [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Traces, die standardmäßig Prompts und Ausgaben tragen | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent; ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run global (`app/core/logfire_setup.py`), mit ihm verlassen Run-Inhalte das Deployment also unabhängig von jeder Einstellung pro Agent. Der `content`-Modus dieses Tokens entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein gefiltertes Dazwischen ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |
 | Ein Embedding-Provider | Dokumenttext, beim Ingest | Nur für eine Wissensbasis, deren Provider entfernt ist |
@@ -122,7 +122,7 @@ SOC 2 CC6–CC8.
 |---|---|---|
 | Governance-relevante Mutationen werden in der Transaktion der Anfrage festgehalten | `record_audit` (`app/core/audit.py`) im mutierenden Service — Secret-Rotation, Skill-/Sync-/MCP-Bindung, Mitgliedschaft, Freigabe, Freigaben, Exporte und mehr; geschrieben nach `app_admin_audit_logs`. Es ist keine flächendeckende Abdeckung jedes Schreibvorgangs (das CRUD der Wissensbasis etwa wird nicht auditiert) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Die Spur ist für einen Auditor lesbar | `GET /audit`, gegated auf `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
-| Export der Spur (CSV/JSONL) | *Landet in* [#1422](https://github.com/vstorm-co/agenticos/issues/1422); Run-, Freigabe- und Spend-Exporte schreiben heute schon je einen eigenen Audit-Eintrag | `test_run_export.py` (Exporte werden auditiert) |
+| Export der Spur (CSV/JSONL) | `GET /audit/export` über ein Fenster, auf `audit:read` gegated, hält den eigenen Abruf in der Spur fest; die Run-, Freigabe- und Spend-Exporte tun dasselbe (#1422) | `test_exporting.py` (der Export und sein eigener Audit-Eintrag) |
 | Manipulationsnachweis (eine Hash-Kette) | **Noch nicht** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integrität · HIPAA §164.312(c) · SOC 2 CC8 (Change Management) { #integrity-hipaa-164312c-soc-2-cc8-change-management }
@@ -166,9 +166,9 @@ SOC 2 CC6–CC8.
   [#1423](https://github.com/vstorm-co/agenticos/issues/1423) ist die Antwort auf
   Anwendungsebene für Object Storage.
 - Jede Kontrolle in der Matrix benennt einen Mechanismus und einen Test — und im
-  selben Atemzug ihre Lücken: Audit-Export, Manipulationsnachweis,
-  Dateiverschlüsselung auf Anwendungsebene und der MCP-OAuth-Log-Pfad verlinken
-  je ein Issue.
+  selben Atemzug ihre Lücken: Manipulationsnachweis, Dateiverschlüsselung auf
+  Anwendungsebene und ein gefiltertes Dazwischen für Traces verlinken je das
+  Issue, das sie bauen würde.
 - Schwachstellen meldest du und die Härtungs-Checkliste führst du aus über
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lies [Datenschutz](data-protection.md) und [Lizenzen](licenses.md) neben dieser

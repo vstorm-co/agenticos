@@ -43,7 +43,7 @@ each is a boundary a client's review will ask about.
 |---|---|---|
 | The configured model provider | The prompt, the model's output, tool arguments and results | Every run — unless the model runs on the operator's own infrastructure, in which case nothing leaves |
 | The configured channel (Slack, Telegram, Mattermost) | The agent's generated replies — text, images and attachments | Whenever an agent is exposed through that channel; each `send_message` posts to the provider (`app/services/channels/`) |
-| Logfire | Traces, which carry prompts and outputs by default | Two independent paths. A per-agent observability token traces that agent; a deployment-wide `LOGFIRE_TOKEN` instruments **every** run globally (`app/core/logfire_setup.py`), so with it set, run content leaves regardless of any per-agent setting. Reducing a span to timing and cost is landing in [#1413](https://github.com/vstorm-co/agenticos/issues/1413) / [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Traces, which carry prompts and outputs unless the agent says otherwise | Two independent paths. A per-agent observability token traces that agent, and its `content` mode decides how much the span carries - `none` reduces it to timing, tokens, cost and tool names (#1413). A deployment-wide `LOGFIRE_TOKEN` instruments **every** run globally (`app/core/logfire_setup.py`), so with it set, run content leaves regardless of any per-agent setting. A filtered middle ground is [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | MCP servers | Tool calls and their arguments | Only for the tools an agent is bound to |
 | A web-search vendor (Tavily, DuckDuckGo) | The search query | Only when the search capability is granted |
 | An embedding provider | Document text, at ingestion | Only for a knowledge base whose provider is remote |
@@ -107,7 +107,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 |---|---|---|
 | Governance-relevant mutations recorded, in the request's transaction | `record_audit` (`app/core/audit.py`) at the mutating service — secret rotation, skill / sync / MCP binding, membership, sharing, approvals, exports and more; written to `app_admin_audit_logs`. It is not blanket coverage of every write (knowledge-base CRUD, for one, is not audited) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | The trail is readable by an auditor | `GET /audit`, gated on `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
-| Exporting the trail (CSV/JSONL) | *Landing in* [#1422](https://github.com/vstorm-co/agenticos/issues/1422); run/approval/spend exports each write their own audit entry today | `test_run_export.py` (exports are audited) |
+| Exporting the trail (CSV/JSONL) | `GET /audit/export` over a window, gated on `audit:read`, recording its own read in the trail; the run, approval and spend exports each do the same (#1422) | `test_exporting.py` (the export and its own audit entry) |
 | Tamper evidence (a hash chain) | **Not yet** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integrity · HIPAA §164.312(c) · SOC 2 CC8 (change management)
@@ -148,8 +148,8 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
   are not, with [#1423](https://github.com/vstorm-co/agenticos/issues/1423) the
   app-level answer for object storage.
 - Every control in the matrix names a mechanism and a test, and names its gaps in
-  the same breath — audit export, tamper evidence, app-level file encryption, and
-  the MCP OAuth log path each link an issue.
+  the same breath — tamper evidence, app-level file encryption and a filtered
+  middle ground for traces each link the issue that would build them.
 - Report vulnerabilities and run the hardening checklist from
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   read [Data protection](data-protection.md) and [Licences](licenses.md) beside

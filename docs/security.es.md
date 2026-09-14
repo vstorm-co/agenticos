@@ -1,5 +1,5 @@
 ---
-source_sha: "8949373d5ba6"
+source_sha: "e783991fce12"
 ---
 
 # Seguridad { #security }
@@ -51,7 +51,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 |---|---|---|
 | El proveedor de modelos configurado | El prompt, la salida del modelo, los argumentos y resultados de las herramientas | Cada run — salvo que el modelo corra en la infraestructura del propio operador, en cuyo caso no sale nada |
 | El canal configurado (Slack, Telegram, Mattermost) | Las respuestas generadas por el agent — texto, imágenes y adjuntos | Siempre que un agent esté expuesto por ese canal; cada `send_message` publica en el proveedor (`app/services/channels/`) |
-| Logfire | Trazas, que por defecto llevan prompts y salidas | Dos caminos independientes. Un token de observabilidad por agent traza ese agent; un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs globalmente (`app/core/logfire_setup.py`), así que con él puesto el contenido de los runs sale independientemente de cualquier ajuste por agent. Reducir un span a tiempo y coste aterriza en [#1413](https://github.com/vstorm-co/agenticos/issues/1413) / [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Trazas, que por defecto llevan prompts y salidas | Dos caminos independientes. Un token de observabilidad por agent traza ese agent; un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs globalmente (`app/core/logfire_setup.py`), así que con él puesto el contenido de los runs sale independientemente de cualquier ajuste por agent. El modo `content` de ese token decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un término medio filtrado es [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Servidores MCP | Llamadas a herramientas y sus argumentos | Solo para las herramientas a las que el agent está ligado |
 | Un proveedor de búsqueda web (Tavily, DuckDuckGo) | La consulta de búsqueda | Solo cuando se concede la capability de búsqueda |
 | Un proveedor de embeddings | El texto del documento, en la ingesta | Solo para una base de conocimiento cuyo proveedor sea remoto |
@@ -118,7 +118,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 |---|---|---|
 | Las mutaciones relevantes para la governance quedan registradas, dentro de la transacción de la petición | `record_audit` (`app/core/audit.py`) en el servicio que muta — rotación de secretos, vinculación de skill / sincronización / MCP, membresía, compartición, aprobaciones, exportaciones y más; escrito en `app_admin_audit_logs`. No es cobertura general de toda escritura (el CRUD de la base de conocimiento, por ejemplo, no se audita) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | El rastro es legible por un auditor | `GET /audit`, gateado en `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
-| Exportar el rastro (CSV/JSONL) | *Aterrizando en* [#1422](https://github.com/vstorm-co/agenticos/issues/1422); hoy las exportaciones de runs, aprobaciones y gasto escriben cada una su propia entrada de auditoría | `test_run_export.py` (las exportaciones se auditan) |
+| Exportar el rastro (CSV/JSONL) | `GET /audit/export` sobre una ventana, con puerta en `audit:read`, registrando su propia lectura en el rastro; las exportaciones de runs, aprobaciones y gasto hacen lo mismo (#1422) | `test_exporting.py` (la exportación y su propia entrada de auditoría) |
 | Evidencia de manipulación (una cadena de hashes) | **Todavía no** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integridad · HIPAA §164.312(c) · SOC 2 CC8 (gestión del cambio) { #integrity-hipaa-164312c-soc-2-cc8-change-management }
@@ -162,9 +162,9 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
   [#1423](https://github.com/vstorm-co/agenticos/issues/1423) es la respuesta a
   nivel de aplicación para el almacenamiento de objetos.
 - Cada control de la matriz nombra un mecanismo y un test, y nombra sus huecos en
-  la misma frase — la exportación de auditoría, la evidencia de manipulación, el
-  cifrado de archivos a nivel de aplicación y el camino del log de MCP OAuth
-  enlazan cada uno una issue.
+  la misma frase — la evidencia de manipulación, el cifrado de archivos a nivel de
+  aplicación y un término medio filtrado para las trazas enlazan la issue que los
+  construiría.
 - Informa de vulnerabilidades y ejecuta la lista de endurecimiento desde
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lee [Protección de datos](data-protection.md) y [Licencias](licenses.md) junto a

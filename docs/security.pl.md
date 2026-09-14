@@ -1,5 +1,5 @@
 ---
-source_sha: "8949373d5ba6"
+source_sha: "e783991fce12"
 ---
 
 # Bezpieczeństwo { #security }
@@ -48,7 +48,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 |---|---|---|
 | Skonfigurowany provider modelu | Prompt, wyjście modelu, argumenty i wyniki narzędzi | Każdy run — chyba że model działa na własnej infrastrukturze operatora, wtedy nic nie wychodzi |
 | Skonfigurowany kanał (Slack, Telegram, Mattermost) | Wygenerowane odpowiedzi agenta — tekst, obrazy i załączniki | Zawsze, gdy agent jest wystawiony przez ten kanał; każde `send_message` publikuje u providera (`app/services/channels/`) |
-| Logfire | Trace'y, które domyślnie niosą prompty i wyjścia | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta; `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run globalnie (`app/core/logfire_setup.py`), więc przy nim ustawionym treść runów wychodzi niezależnie od jakiegokolwiek ustawienia per agent. Sprowadzenie spanu do czasu i kosztu ląduje w [#1413](https://github.com/vstorm-co/agenticos/issues/1413) / [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Trace'y, które domyślnie niosą prompty i wyjścia | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta; `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run globalnie (`app/core/logfire_setup.py`), więc przy nim ustawionym treść runów wychodzi niezależnie od jakiegokolwiek ustawienia per agent. Tryb `content` tego tokena decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). Stan pośredni z filtrem to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |
 | Provider embeddingów | Tekst dokumentu, przy ingest | Tylko dla bazy wiedzy, której provider jest zdalny |
@@ -114,7 +114,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 |---|---|---|
 | Mutacje istotne dla governance zapisywane w transakcji żądania | `record_audit` (`app/core/audit.py`) w mutującym serwisie — rotacja sekretu, podpięcie skilla / synchronizacji / MCP, członkostwo, udostępnianie, zatwierdzenia, eksporty i więcej; zapisywane do `app_admin_audit_logs`. To nie jest pokrycie każdego zapisu (CRUD bazy wiedzy, choćby, nie jest audytowany) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Ślad jest czytelny dla audytora | `GET /audit`, bramkowane na `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
-| Eksport śladu (CSV/JSONL) | *Ląduje w* [#1422](https://github.com/vstorm-co/agenticos/issues/1422); eksporty runów/zatwierdzeń/wydatków już dziś zapisują własny wpis audytowy | `test_run_export.py` (eksporty są audytowane) |
+| Eksport śladu (CSV/JSONL) | `GET /audit/export` w oknie czasu, bramkowany na `audit:read`, zapisujący własny odczyt w śladzie; eksporty runów, zatwierdzeń i wydatków robią to samo (#1422) | `test_exporting.py` (eksport i jego własny wpis audytowy) |
 | Dowód nienaruszalności (łańcuch haszy) | **Jeszcze nie** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integralność · HIPAA §164.312(c) · SOC 2 CC8 (zarządzanie zmianą) { #integrity-hipaa-164312c-soc-2-cc8-change-management }
@@ -156,8 +156,8 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
   RAG, sandboksy) nie są, a [#1423](https://github.com/vstorm-co/agenticos/issues/1423)
   jest odpowiedzią na poziomie aplikacji dla object storage.
 - Każda kontrola w macierzy nazywa mechanizm i test, i tym samym tchem nazywa
-  swoje luki — eksport audytu, dowód nienaruszalności, szyfrowanie plików na
-  poziomie aplikacji i ścieżka logowania MCP OAuth linkują po jednym issue.
+  swoje luki — dowód nienaruszalności, szyfrowanie plików na poziomie aplikacji
+  i stan pośredni dla trace'ów linkują issue, które by je zbudowały.
 - Podatności zgłaszaj i listę kontrolną hardeningu uruchamiaj z
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   obok tej strony czytaj [Ochronę danych](data-protection.md) i
