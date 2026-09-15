@@ -133,6 +133,18 @@ class TestKnowledgeSearchGuards:
         assert "No active knowledge bases" in result
 
     @pytest.mark.anyio
+    async def test_a_search_without_an_organization_is_refused(self):
+        """Fail-closed: no trusted tenant means no scope, so no search runs.
+
+        An unscoped search over a shared physical table could read another
+        tenant's chunks, so the tool refuses rather than widening.
+        """
+        result = await search_knowledge_base(
+            query="x", kb_collection_names=["kb_a"], organization_id=None
+        )
+        assert "No organization context" in result
+
+    @pytest.mark.anyio
     async def test_one_collection_uses_the_single_collection_path(self):
         service = MagicMock()
         service.retrieve = AsyncMock(return_value=[])

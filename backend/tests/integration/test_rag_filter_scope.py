@@ -26,7 +26,7 @@ from app.services.rag.filters import (
 from app.services.rag.models import Document, DocumentMetadata, DocumentPage, DocumentPageChunk
 from app.services.rag.vectorstore import PgVectorStore
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _DIM = 3
 

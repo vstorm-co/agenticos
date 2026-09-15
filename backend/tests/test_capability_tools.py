@@ -123,6 +123,69 @@ class TestKnowledgeTool:
 
         assert "unavailable" in answered
 
+    @pytest.mark.anyio
+    async def test_business_filters_reach_the_backend(self):
+        """The whitelisted filters are assembled and passed to the search."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(
+                _ctx(AgentDeps(kb_collection_names=["kb_a"])),
+                query="x",
+                source=["upload"],
+                document_type=["pdf"],
+                organizational_unit=["legal"],
+            )
+
+        filters = backend.call_args.kwargs["filters"]
+        assert filters.source == ["upload"]
+        assert filters.document_type == ["pdf"]
+        assert filters.organizational_unit == ["legal"]
+
+    @pytest.mark.anyio
+    async def test_an_empty_list_is_normalized_to_no_filter(self):
+        """A model's `[]` means 'not filtering this', not an empty allow-list."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x", document_type=[])
+
+        assert backend.call_args.kwargs["filters"].document_type is None
+
+    @pytest.mark.anyio
+    async def test_a_bad_filter_is_a_corrected_call_not_an_outage(self):
+        """An invalid filter steers the model to fix its call, not "we are down".
+
+        It must not reach the broad backend-failure handler (which says the
+        knowledge base is unavailable), and it must not reach the backend at all.
+        """
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with (
+            patch(
+                "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+                new=AsyncMock(return_value=""),
+            ) as backend,
+            pytest.raises(ModelRetry) as steer,
+        ):
+            await search(
+                _tool_ctx(AgentDeps(kb_collection_names=["kb_a"])),
+                query="x",
+                document_type=["not-a-real-type"],
+            )
+
+        assert "not valid" in str(steer.value)
+        backend.assert_not_awaited()
+
 
 class TestKnowledgeFormatting:
     def test_no_results_says_so_rather_than_returning_nothing(self):

@@ -25,7 +25,7 @@ from app.services.rag.filters import (
     resolve_legacy_filter,
 )
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 class TestVocabularies:

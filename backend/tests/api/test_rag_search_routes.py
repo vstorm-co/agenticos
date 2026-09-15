@@ -24,7 +24,7 @@ from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.services.rag.filters import TenantScope
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _ORGANIZATION = uuid.uuid4()
 _CALLER = uuid.uuid4()
