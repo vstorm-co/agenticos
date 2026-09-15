@@ -3092,6 +3092,10 @@
         "title": "Name and face",
         "body": "The organization's name and avatar, shown wherever it appears. Owners and admins can change them here."
       },
+      "org-retention": {
+        "title": "How long data lives here",
+        "body": "A period per class - conversations, runs, workspaces, memory, uploads and the audit trail. A sweep runs daily and deletes for good, within whatever bounds the deployment set; the audit trail has a floor you can lengthen and never shorten."
+      },
       "org-roles": {
         "title": "What each role may do",
         "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
@@ -3186,6 +3190,36 @@
     "you": "(you)"
   },
   "pages": {
+    "retention": {
+      "title": "Data retention",
+      "description": "How long this organization keeps each class of data, and what the deployment allows.",
+      "organizations": "Organizations",
+      "members": "Members",
+      "notYours": "Retention is an administrator's setting",
+      "askAnAdmin": "How long this organization keeps its data is set by an Owner or an Admin. Ask one of them if it needs to change.",
+      "howLongEachClassLives": "How long each class lives",
+      "dataClass": "Data",
+      "keepForDays": "Keep for (days)",
+      "whatSweeps": "What actually happens",
+      "forEver": "for ever",
+      "keptForEver": "Kept until somebody deletes it",
+      "afterDays": "Deleted after {days} days",
+      "atLeastDays": "Kept at least {days} days",
+      "cappedByDeployment": "Deleted after {days} days — the deployment's limit",
+      "conflictingBounds": "This deployment's own bounds contradict each other for: {classes}. An administrator has to settle which applies before those periods mean anything.",
+      "hardDeleteNotice": "A sweep runs once a day and deletes for good. What a purged run spent still counts toward the month's bill.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "classes": {
+        "conversations": "Conversations, their messages and their files",
+        "runs": "Runs and their manifests",
+        "workspaces": "Agent workspaces",
+        "memory": "Agent memory",
+        "knowledge_documents": "Uploaded documents",
+        "audit": "Audit trail"
+      }
+    },
     "admin": {
       "active": "Active",
       "active24h": "Active 24h",
@@ -3670,6 +3704,7 @@
       "termsOfService": "Terms of Service"
     },
     "orgs": {
+      "retention": "Retention",
       "active": "Active",
       "all": "all",
       "avatarColour": "Fallback colour",

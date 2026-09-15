@@ -1,5 +1,5 @@
 ---
-source_sha: "06500c4360ef"
+source_sha: "4376e38c9fb3"
 ---
 
 # Datenschutz { #data-protection }
@@ -163,7 +163,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
 | Manipulationsnachweis der Spur | Noch keiner | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); ein `redacted`-Dazwischen wurde verworfen, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Aufbewahrung nach Zeitplan | Nur `sandbox_operations`-Zeilen werden weggeräumt, nach 30 Tagen. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Aufbewahrung nach Zeitplan | Je Organisation und je Klasse — Gespräche und ihre Dateien, Runs und Manifeste, Workspaces, das Gedächtnis von Agenten, hochgeladene Dokumente und Audit — innerhalb einer deploymentweiten Vorgabe, Obergrenze und Audit-Untergrenze. Ein täglicher Sweep löscht hart und hält Zähler fest, nie Inhalte. Backups und alles bereits an einen externen Collector Geschickte liegen außerhalb | [Aufbewahrung](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
 | Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Unternehmensidentität | Google-Anmeldung und Passwörter; noch kein OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |

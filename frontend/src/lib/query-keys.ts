@@ -19,6 +19,7 @@ export const qk = {
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
+    retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
   },
   agents: {
     all: () => ["agents"] as const,

@@ -82,6 +82,17 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # How long this organization's data lives, per class, in days. `None` on the
+    # column means it has never had an opinion and takes the deployment's
+    # defaults; a class absent from the mapping means the same for that class
+    # alone, and a class present with `null` means "keep for ever" deliberately -
+    # which is why this is a mapping with holes rather than six columns (#1420).
+    #
+    # The number here is what the organization *asked for*. What actually sweeps
+    # is `app/core/retention.py`'s resolution of it against the deployment's
+    # defaults, its ceiling and the audit floor, and no other place resolves it.
+    retention_days: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
+
     members: Mapped[list["OrganizationMember"]] = relationship(
         "OrganizationMember",
         back_populates="organization",
