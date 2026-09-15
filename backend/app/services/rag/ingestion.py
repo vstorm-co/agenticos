@@ -123,6 +123,10 @@ class IngestionService:
         source_path: str = "",
         *,
         still_wanted: Callable[[], Awaitable[bool]] | None = None,
+        organization_id: str | None = None,
+        source: str | None = None,
+        organizational_unit: str | None = None,
+        doc_date: str | None = None,
     ) -> IngestionResult:
         """`source_path` accepts URI schemes like gdrive://id or s3://bucket/key.
 
@@ -137,6 +141,15 @@ class IngestionService:
         insert's `CREATE TABLE IF NOT EXISTS` would resurrect the dropped table
         and leave an untracked one behind (#1275). A caller that can tell whether
         the collection still exists passes it so the write is skipped instead.
+
+        `organization_id` is the **security-bearing** tenant stamped on every
+        chunk (the conjunct retrieval ANDs into every query). It comes from
+        trusted worker context only - never from an uploader form or model input -
+        so a caller cannot stamp a chunk with another tenant's id. `source`,
+        `organizational_unit` and `doc_date` are the FA-039 business metadata;
+        `document_type` is derived here from the parsed filetype (P1). All ride
+        `document.metadata`, so `_build_chunk_metadata` writes them per chunk with
+        no change to the write path.
         """
         try:
             document: Document = await self.processor.process_file(filepath)
@@ -148,6 +161,17 @@ class IngestionService:
             if source_path:
                 document.metadata.source_path = source_path
                 document.metadata.filename = Path(source_path).name
+
+            # Trusted, security-bearing tenant plus the business dimensions. Set
+            # before insert_document so _build_chunk_metadata carries them.
+            document.metadata.organization_id = organization_id
+            document.metadata.source = source
+            document.metadata.organizational_unit = organizational_unit
+            document.metadata.doc_date = doc_date
+            # document_type is the stored filetype/extension, a pure derivation
+            # (FA-039 P1). A richer semantic document_category is deferred pending
+            # issue-owner confirmation - do not overload document_type with it.
+            document.metadata.document_type = document.metadata.filetype or None
 
             existing_id = None
             if replace:
