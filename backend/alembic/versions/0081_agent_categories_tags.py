@@ -26,7 +26,7 @@ negligible; `CONCURRENTLY` is deliberately not used, as it cannot run inside
 Alembic's per-revision transaction and no revision here does.
 
 Revision ID: 0081_agent_categories_tags
-Revises: 0079_audit_hash_chain
+Revises: 0080_audit_checkpoints
 Create Date: 2026-09-15
 
 """
@@ -38,7 +38,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0081_agent_categories_tags"
-down_revision: str | Sequence[str] | None = "0079_audit_hash_chain"
+down_revision: str | Sequence[str] | None = "0080_audit_checkpoints"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

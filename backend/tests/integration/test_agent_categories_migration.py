@@ -3,7 +3,7 @@
 `tests/test_migrations.py` runs the whole chain forwards and back; it never
 inserts a row at a revision or inspects a column or index, so it cannot show
 that a pre-existing agent gains an empty array, that the two indexes are GIN, or
-that the downgrade removes both. This does: upgrade to 0079, insert an agent,
+that the downgrade removes both. This does: upgrade to 0080, insert an agent,
 upgrade to 0081, assert the defaults and the `gin` access method, then downgrade
 and assert the columns and indexes are gone.
 
@@ -30,7 +30,7 @@ pytestmark = pytest.mark.anyio
 
 MIGRATION_DATABASE = f"agenticos_agent_cats_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
-_BASE_REVISION = "0079_audit_hash_chain"
+_BASE_REVISION = "0080_audit_checkpoints"
 _TARGET_REVISION = "0081_agent_categories_tags"
 
 
@@ -95,7 +95,7 @@ def migration_database() -> Iterator[None]:
 
 
 def _seed_agent_at_base() -> uuid.UUID:
-    """Insert one agent at revision 0079, before the new columns exist."""
+    """Insert one agent at revision 0080, before the new columns exist."""
     agent_id = uuid.uuid4()
     user_id = uuid.uuid4()
     org_id = uuid.uuid4()
