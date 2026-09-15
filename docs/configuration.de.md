@@ -1,5 +1,5 @@
 ---
-source_sha: "308fcc790ec6"
+source_sha: "c26bba9d595f"
 ---
 
 # Konfiguration { #configuration }
@@ -163,12 +163,19 @@ werden seine MFA und sein Offboarding zweimal gelöst.
 | `OIDC_CLIENT_SECRET` | (leer) | Dessen Secret |
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Der beim Anbieter registrierte Callback |
 | `OIDC_SCOPES` | `openid email profile` | Durch Leerzeichen getrennt. Den eigenen Scope des Anbieters ergänzen, wo er einen für die Claims braucht |
+| `OIDC_VERIFIED_CLAIM` | (leer) | Ein dritter Claim, der als „diese Adresse ist bestätigt“ gilt, für einen Anbieter mit eigenem Namen dafür |
 
 Der Issuer ist die einzige URL. Authorization, Token, Userinfo und JWKS kommen
 aus `<issuer>/.well-known/openid-configuration`, das der Anbieter über eine
 Schlüsselrotation oder einen Endpunktwechsel hinweg korrekt hält — es gibt also
 keine weiteren Adressen, die man subtil falsch eintragen kann. Der Ablauf ist
 Authorization Code mit PKCE.
+
+Die Claims werden aus dem ID-Token gelesen und aus dem **UserInfo-Endpunkt**,
+wenn das ID-Token sie nicht trägt. Ein Anbieter darf `email` und seinen
+Verifizierungs-Claim bei UserInfo halten und keinen davon ins Token legen; nur
+das Token zu lesen würde einen völlig konformen Anbieter eine Anfrage vor einer
+gültigen Identität abweisen.
 
 Zwei Knöpfe im Frontend, dort konfiguriert:
 
@@ -188,13 +195,22 @@ Wo welcher Issuer liegt, und was zu registrieren ist:
 
 Zwei Dinge verlangt die Plattform von jedem Anbieter, auf den sie gerichtet wird:
 
-- **`email_verified` muss wahr sein.** Fehlt der Claim, gilt das als nicht
-  verifiziert. Eine unverifizierte Adresse heißt, dass bei diesem Anbieter jeder
-  die Arbeitsadresse eines anderen beanspruchen kann — und die Domain-Erlaubnisliste
-  unten steht darauf, dass eine Adresse etwas bedeutet.
+- **Die Adresse muss bestätigt sein.** Zwei Claims werden akzeptiert: das
+  standardisierte `email_verified` und `xms_edov` von Entra ID, das Entra
+  stattdessen sendet — `email_verified` gibt es dort gar nicht, und `xms_edov` ist
+  ein **optionaler** Claim, den man an der App-Registrierung aktiviert; ein
+  Entra-Tenant, der das nicht getan hat, sendet keinen von beiden, und jede
+  Anmeldung wird abgewiesen. `OIDC_VERIFIED_CLAIM` benennt einen dritten für einen
+  Anbieter, der ihn anders nennt. Fehlt er, gilt das als nicht bestätigt: eine
+  unbestätigte Adresse heißt, dass bei diesem Anbieter jeder die Arbeitsadresse
+  eines anderen beanspruchen kann — und die Domain-Erlaubnisliste unten steht
+  darauf, dass eine Adresse etwas bedeutet.
 - **Ein stabiles `sub`.** Das Konto hängt daran und nicht an der Adresse, sodass
   jemand, der heiratet oder dessen Domain gekauft wird, die eigene Historie
   behält — und der nächste Inhaber einer frei gewordenen Adresse sie nicht erbt.
+  Gespeichert wird es **mit dem Issuer als Namensraum**, denn ein `sub` ist nur
+  innerhalb seines Issuers eindeutig: das Deployment auf einen anderen Tenant oder
+  Realm zu richten kann dann kein neues Subjekt in das Konto eines alten anmelden.
 
 Die Registrierungsrichtlinie gilt hier genau wie für das Registrierungsformular:
 ein `invite_only`-Deployment weist eine SSO-Anmeldung von jemandem ab, den

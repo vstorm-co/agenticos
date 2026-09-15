@@ -115,6 +115,50 @@ def redirect_uri_for(provider: str) -> str:
     return settings.GOOGLE_REDIRECT_URI if provider == "google" else settings.OIDC_REDIRECT_URI
 
 
+#: The claims a provider may use to say an address is confirmed.
+#:
+#: `email_verified` is the standard one. `xms_edov` is Microsoft Entra ID's,
+#: which is what its v2 tokens carry instead - Entra does not emit
+#: `email_verified` at all, so requiring only the standard name would reject
+#: every Entra account on a deployment that had configured Entra exactly as
+#: documented. It is an *optional* claim there, enabled on the app registration;
+#: an Entra tenant that has not enabled it sends neither, and neither is
+#: believed. `OIDC_VERIFIED_CLAIM` adds a third for a provider that names it
+#: something else again.
+_VERIFIED_CLAIMS: tuple[str, ...] = ("email_verified", "xms_edov")
+
+#: What a provider may send as "yes" for one of those claims.
+#:
+#: A boolean is what the specification says; Entra has shipped `xms_edov` as the
+#: string `"true"` in places, and a claim that arrives as a string is still the
+#: provider saying yes. Anything else - absent, false, `"0"` - is not. `True` and
+#: `1` are the same value in Python, so the boolean covers both.
+_AFFIRMATIVE: frozenset[object] = frozenset({True, "true", "True", "1"})
+
+
+def verification_claim_names() -> tuple[str, ...]:
+    """Every claim this deployment accepts as "the address is confirmed"."""
+    if settings.OIDC_VERIFIED_CLAIM:
+        return (*_VERIFIED_CLAIMS, settings.OIDC_VERIFIED_CLAIM)
+    return _VERIFIED_CLAIMS
+
+
+def _is_verified(userinfo: Mapping[str, object]) -> bool:
+    """Whether some claim this provider sends confirms the address.
+
+    One true claim is enough and no claim is not. Absent counts as unverified
+    deliberately: a provider that lets somebody set an address nobody confirmed
+    is a provider on which anybody can claim anybody's work address, and the
+    sign-up policy's domain allow-list is built on an address meaning something.
+    """
+    names = (
+        (*_VERIFIED_CLAIMS, settings.OIDC_VERIFIED_CLAIM)
+        if settings.OIDC_VERIFIED_CLAIM
+        else _VERIFIED_CLAIMS
+    )
+    return any(userinfo.get(name) in _AFFIRMATIVE for name in names)
+
+
 def verified_identity(userinfo: Mapping[str, object] | None) -> tuple[str, str, str | None] | None:
     """The `(subject, email, name)` this token vouches for, or None to refuse.
 
@@ -126,15 +170,12 @@ def verified_identity(userinfo: Mapping[str, object] | None) -> tuple[str, str, 
       hand the next holder of an address the previous holder's account.
     - an `email`, because the account, the invitation and the sign-up policy are
       all keyed on one.
-    - `email_verified`, **required rather than merely believed**. A provider that
-      lets somebody set an unverified address is a provider on which anybody can
-      claim anybody's work address, and the sign-up policy's domain allow-list is
-      built on the address meaning something. Absent counts as not verified: a
-      deployment whose provider omits the claim configures it to send one.
+    - a verification claim, **required rather than merely believed**. See
+      `_is_verified` for which claims count and why absent is not one.
 
     Args:
-        userinfo: The `userinfo` claims off the token, or None where the exchange
-            returned none.
+        userinfo: The claims off the token, or None where the exchange returned
+            none and the userinfo endpoint had nothing to add.
 
     Returns:
         The identity to sign in, or None where any condition fails. The caller
@@ -147,7 +188,25 @@ def verified_identity(userinfo: Mapping[str, object] | None) -> tuple[str, str, 
     email = userinfo.get("email")
     if not isinstance(subject, str) or not isinstance(email, str) or not subject or not email:
         return None
-    if userinfo.get("email_verified") is not True:
+    if not _is_verified(userinfo):
         return None
     name = userinfo.get("name")
     return subject, email, name if isinstance(name, str) else None
+
+
+def identity_key(provider: str, subject: str) -> str:
+    """The stored `oauth_id` for this subject, namespaced where it has to be.
+
+    An OIDC `sub` is unique **within its issuer** and nowhere else, so storing a
+    bare one under a single `oidc` provider name means that pointing the
+    deployment at a different tenant, realm or provider can collide with a
+    subject issued by the old one - and `get_or_create_oauth_user` matches on the
+    pair before it ever looks at the address, so the new principal would be
+    signed into the old one's account. The issuer goes in the key.
+
+    `google` keeps its bare subject: its issuer is a constant, and rewriting the
+    key would orphan every account that has signed in with it.
+    """
+    if provider != "oidc":
+        return subject
+    return f"{settings.OIDC_ISSUER.rstrip('/')}#{subject}"

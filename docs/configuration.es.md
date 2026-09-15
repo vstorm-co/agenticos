@@ -1,5 +1,5 @@
 ---
-source_sha: "308fcc790ec6"
+source_sha: "c26bba9d595f"
 ---
 
 # Configuración { #configuration }
@@ -161,12 +161,18 @@ se resuelven dos veces.
 | `OIDC_CLIENT_SECRET` | (vacío) | Su secreto |
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | El callback, registrado en el proveedor |
 | `OIDC_SCOPES` | `openid email profile` | Separados por espacios. Añade el scope propio del proveedor donde lo necesite para los claims |
+| `OIDC_VERIFIED_CLAIM` | (vacío) | Un tercer claim que se acepta como «esta dirección está confirmada», para un proveedor que lo llama de otro modo |
 
 El issuer es la única URL. Authorization, token, userinfo y JWKS salen de
 `<issuer>/.well-known/openid-configuration`, que el proveedor mantiene correcto
 a través de una rotación de claves o un cambio de endpoint — así que no quedan
 más direcciones que equivocar sutilmente. El flujo es authorization code con
 PKCE.
+
+Los claims se leen del ID token, y del endpoint **UserInfo** cuando el ID token no
+los lleva. Un proveedor puede guardar `email` y su claim de verificación en
+UserInfo y no poner ninguno en el token, así que leer solo el token rechazaría a
+un proveedor perfectamente conforme a una petición de una identidad válida.
 
 Dos botones en el frontend, configurados allí:
 
@@ -186,13 +192,22 @@ Dónde vive cada issuer, y qué registrar:
 
 Dos cosas que la plataforma exige del proveedor al que se la apunte:
 
-- **`email_verified` tiene que ser verdadero.** Ausente cuenta como no
-  verificado. Una dirección sin verificar significa que cualquiera en ese
-  proveedor puede reclamar la dirección de trabajo de otra persona, y la lista de
-  dominios permitidos de abajo se sostiene sobre que una dirección signifique algo.
+- **La dirección tiene que estar confirmada.** Se aceptan dos claims: el estándar
+  `email_verified` y el `xms_edov` de Entra ID, que es lo que Entra envía en su
+  lugar —no emite `email_verified` en absoluto— y que es un claim **opcional** que
+  se activa en el registro de la aplicación: un tenant de Entra que no lo haya
+  activado no envía ninguno de los dos y todos los accesos se rechazan.
+  `OIDC_VERIFIED_CLAIM` nombra un tercero para un proveedor que lo llame de otra
+  forma. Ausente cuenta como no confirmado: una dirección sin confirmar significa
+  que cualquiera en ese proveedor puede reclamar la dirección de trabajo de otra
+  persona, y la lista de dominios permitidos de abajo se sostiene sobre que una
+  dirección signifique algo.
 - **Un `sub` estable.** La cuenta se indexa por él, no por la dirección, así que
   quien cambie de apellido o cuyo dominio sea comprado conserva su historial — y
-  el siguiente titular de una dirección liberada no la hereda.
+  el siguiente titular de una dirección liberada no la hereda. Se guarda **con el
+  issuer como espacio de nombres**, porque un `sub` es único dentro de su issuer y
+  en ningún otro sitio: apuntar el despliegue a otro tenant o realm no puede
+  entonces meter a un principal nuevo en la cuenta de uno antiguo.
 
 La política de registro se aplica aquí exactamente como se aplica al formulario
 de registro: un despliegue `invite_only` rechaza un inicio de sesión SSO de

@@ -24,7 +24,7 @@ from app.api.deps import get_redis
 from app.core import oauth as oauth_module
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.oauth import redirect_uri_for, sign_in_client, verified_identity
+from app.core.oauth import identity_key, redirect_uri_for, sign_in_client, verified_identity
 from app.main import app
 from app.services.user import UserService
 
@@ -73,6 +73,31 @@ class TestWhatTheClaimsHaveToSay:
         """Believing an omission is the same hole as believing a false: a
         deployment whose provider does not send the claim configures it to."""
         assert verified_identity({"sub": "s-1", "email": "ada@corp.example"}) is None
+
+    def test_entras_own_claim_counts_because_entra_sends_no_other(self) -> None:
+        """Entra ID emits no `email_verified` at all - `xms_edov` is what its v2
+        tokens carry. Requiring only the standard name would have refused every
+        Entra account on a deployment configured exactly as documented."""
+        assert verified_identity({"sub": "s-1", "email": "ada@corp.example", "xms_edov": True}) == (
+            "s-1",
+            "ada@corp.example",
+            None,
+        )
+
+    def test_a_claim_that_arrives_as_a_string_is_still_the_provider_saying_yes(self) -> None:
+        """Entra has shipped `xms_edov` as the string `"true"`."""
+        assert (
+            verified_identity({"sub": "s-1", "email": "ada@corp.example", "xms_edov": "true"})
+            is not None
+        )
+
+    def test_a_deployment_may_name_a_third_claim(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(settings, "OIDC_VERIFIED_CLAIM", "mail_confirmed")
+
+        assert (
+            verified_identity({"sub": "s-1", "email": "ada@corp.example", "mail_confirmed": True})
+            is not None
+        )
 
     def test_no_subject_is_refused(self) -> None:
         """`sub` is the only stable identifier - an address changes hands, and
@@ -126,6 +151,18 @@ class TestWhichProvidersExist:
     def test_google_is_still_reachable_under_its_own_name(self) -> None:
         assert sign_in_client("google") is oauth_module.oauth.google
 
+    def test_an_oidc_subject_is_stored_namespaced_by_its_issuer(self, configured: None) -> None:
+        """A `sub` is unique within its issuer and nowhere else, and the account
+        is matched on the pair before the address is ever compared - so pointing
+        the deployment at another tenant could otherwise sign a new principal
+        into an old one's account."""
+        assert identity_key("oidc", "s-1") == "https://id.corp.example/realms/staff#s-1"
+
+    def test_googles_subject_is_left_alone(self) -> None:
+        """Its issuer is a constant, and rewriting the key would orphan every
+        account that has already signed in with it."""
+        assert identity_key("google", "s-1") == "s-1"
+
     def test_each_provider_returns_to_its_own_registered_uri(self) -> None:
         """The value has to match the one registered at the provider exactly, so
         it is configuration rather than something built from the request."""
@@ -174,9 +211,12 @@ class TestTheRoundTrip:
         assert resp.status_code == 307
         query = parse_qs(urlparse(resp.headers["location"]).query)
         assert "code" in query
-        # The account is keyed on this provider's own subject, not on the address.
+        # The account is keyed on this provider's own subject, not on the address,
+        # and namespaced by the issuer that minted it.
         assert created.await_args.kwargs["provider"] == "oidc"
-        assert created.await_args.kwargs["provider_id"] == "s-1"
+        assert (
+            created.await_args.kwargs["provider_id"] == "https://id.corp.example/realms/staff#s-1"
+        )
 
     async def test_an_unverified_address_never_reaches_account_creation(
         self, client: AsyncClient, configured: None, monkeypatch: pytest.MonkeyPatch

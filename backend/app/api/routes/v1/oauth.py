@@ -15,9 +15,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from app.api.deps import InvitationStagingSvc, OAuthExchangeSvc, SessionSvc, UserSvc
+from app.api.routes.v1._oauth_claims import claims_for
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
-from app.core.oauth import redirect_uri_for, sign_in_client, verified_identity
+from app.core.oauth import identity_key, redirect_uri_for, sign_in_client, verified_identity
 from app.core.security import create_access_token, create_refresh_token
 from app.schemas.token import OAuthExchangeRequest, Token
 
@@ -76,7 +77,7 @@ async def provider_callback(
     frontend = settings.FRONTEND_URL.rstrip("/")
     try:
         token = await client.authorize_access_token(request)
-        identity = verified_identity(token.get("userinfo"))
+        identity = verified_identity(await claims_for(client, token))
 
         if identity is None:
             # One sentence for three refusals - no subject, no address, an
@@ -94,7 +95,10 @@ async def provider_callback(
         # unrelated sign-in from the same browser.
         user = await user_service.get_or_create_oauth_user(
             provider=provider,
-            provider_id=subject,
+            # Namespaced by issuer for the generic provider: an OIDC `sub` is
+            # unique within its issuer and nowhere else, and this match happens
+            # before the address is ever compared.
+            provider_id=identity_key(provider, subject),
             email=email,
             full_name=full_name,
             invitation_token=request.session.pop(_INVITATION_KEY, None),

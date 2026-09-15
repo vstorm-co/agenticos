@@ -21,9 +21,14 @@
         "http://localhost:8000/api/v1/oauth/oidc/callback"
       ],
       "webOrigins": [
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "http://keycloak:8081"
       ],
-      "defaultClientScopes": ["openid", "email", "profile"]
+      "defaultClientScopes": [
+        "openid",
+        "email",
+        "profile"
+      ]
     }
   ],
   "users": [

@@ -153,11 +153,18 @@ for its staff - without this, its MFA and its offboarding are solved twice.
 | `OIDC_CLIENT_SECRET` | (empty) | Its secret |
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | The callback, registered at the provider |
 | `OIDC_SCOPES` | `openid email profile` | Space-separated. Add the provider's own scope where it needs one for the claims |
+| `OIDC_VERIFIED_CLAIM` | (empty) | A third claim to accept as "this address is confirmed", for a provider that names it something of its own |
 
 The issuer is the only URL. Authorization, token, userinfo and JWKS come from
 `<issuer>/.well-known/openid-configuration`, which the provider keeps correct
 across a key rotation or an endpoint move - so there are no further endpoints to
 get subtly wrong. The flow is authorization-code with PKCE.
+
+The claims are read from the ID token, and from the **UserInfo endpoint** when
+the ID token does not carry them. A provider is entitled to keep `email` and its
+verification claim at UserInfo and put neither in the token, so reading only the
+token would refuse an entirely compliant provider one request short of a valid
+identity.
 
 Two buttons on the frontend, configured there:
 
@@ -177,13 +184,21 @@ Where each issuer lives, and what to register:
 
 Two things the platform requires of whatever provider it is pointed at:
 
-- **`email_verified` must be true.** Absent counts as not verified. An
-  unverified address means anybody at that provider can claim anybody's work
+- **The address must be confirmed.** Two claims are accepted: the standard
+  `email_verified`, and Entra ID's `xms_edov`, which is what Entra sends instead
+  - it emits no `email_verified` at all, and it is an **optional claim** you
+  enable on the app registration, so an Entra tenant that has not enabled it
+  sends neither and every sign-in is refused. `OIDC_VERIFIED_CLAIM` names a third
+  for a provider that calls it something else. Absent counts as not verified: an
+  unconfirmed address means anybody at that provider can claim anybody's work
   address, and the domain allow-list below is built on an address meaning
   something.
 - **A stable `sub`.** The account is keyed on it, not on the address, so a
   person who changes their name or whose domain is bought keeps their history -
-  and the next holder of a freed address does not inherit it.
+  and the next holder of a freed address does not inherit it. It is stored
+  **namespaced by the issuer**, because a `sub` is unique within its issuer and
+  nowhere else: pointing the deployment at a different tenant or realm cannot
+  then sign a new principal into an old one's account.
 
 The sign-up policy applies here exactly as it applies to the registration form:
 an `invite_only` deployment refuses an SSO sign-in from somebody nobody invited,

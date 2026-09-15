@@ -1,5 +1,5 @@
 ---
-source_sha: "308fcc790ec6"
+source_sha: "c26bba9d595f"
 ---
 
 # Konfiguracja { #configuration }
@@ -157,11 +157,17 @@ dwa razy.
 | `OIDC_CLIENT_SECRET` | (puste) | Jego sekret |
 | `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Callback, zarejestrowany u dostawcy |
 | `OIDC_SCOPES` | `openid email profile` | Rozdzielone spacją. Dodaj własny scope dostawcy, jeśli potrzebuje go dla claimów |
+| `OIDC_VERIFIED_CLAIM` | (puste) | Trzeci claim akceptowany jako „ten adres jest potwierdzony”, dla dostawcy, który nazywa go po swojemu |
 
 Issuer to jedyny URL. Authorization, token, userinfo i JWKS biorą się z
 `<issuer>/.well-known/openid-configuration`, który dostawca utrzymuje aktualny
 przez rotację kluczy czy przeniesienie endpointu — więc nie ma kolejnych adresów,
 które da się subtelnie pomylić. Flow to authorization code z PKCE.
+
+Claimy czytane są z ID tokena, a z endpointu **UserInfo** wtedy, gdy ID token ich
+nie niesie. Dostawca ma prawo trzymać `email` i swój claim weryfikacji w UserInfo
+i nie umieszczać żadnego w tokenie, więc czytanie samego tokena odrzucałoby w
+pełni zgodnego dostawcę o jedno żądanie od poprawnej tożsamości.
 
 Dwa przyciski po stronie frontendu, konfigurowane tam:
 
@@ -181,13 +187,21 @@ Gdzie mieszka który issuer i co zarejestrować:
 
 Dwie rzeczy, których platforma wymaga od dowolnego dostawcy, na którego ją skierujesz:
 
-- **`email_verified` musi być prawdą.** Brak claima liczy się jako brak
-  weryfikacji. Niezweryfikowany adres oznacza, że ktokolwiek u tego dostawcy może
+- **Adres musi być potwierdzony.** Akceptowane są dwa claimy: standardowy
+  `email_verified` i `xms_edov` Entra ID, które Entra wysyła zamiast niego —
+  `email_verified` nie emituje w ogóle, a `xms_edov` jest claimem **opcjonalnym**,
+  włączanym na rejestracji aplikacji, więc tenant Entra, który go nie włączył, nie
+  wysyła żadnego i każde logowanie jest odrzucane. `OIDC_VERIFIED_CLAIM` nazywa
+  trzeci dla dostawcy, który mówi na to inaczej. Brak liczy się jako brak
+  potwierdzenia: niepotwierdzony adres oznacza, że ktokolwiek u tego dostawcy może
   zgłosić czyjś służbowy adres, a lista dozwolonych domen niżej stoi na tym, że
   adres coś znaczy.
 - **Stabilny `sub`.** Konto jest kluczowane po nim, nie po adresie, więc osoba,
   która zmieni nazwisko albo której domenę ktoś wykupi, zachowuje swoją historię
-  — a kolejny właściciel zwolnionego adresu jej nie dziedziczy.
+  — a kolejny właściciel zwolnionego adresu jej nie dziedziczy. Zapisywany jest
+  **z przestrzenią nazw issuera**, bo `sub` jest unikalny w obrębie swojego
+  issuera i nigdzie indziej: przestawienie wdrożenia na inny tenant albo realm nie
+  może wtedy zalogować nowego podmiotu na konto starego.
 
 Polityka rejestracji działa tu dokładnie tak, jak działa dla formularza
 rejestracji: wdrożenie `invite_only` odmawia logowania SSO komuś, kogo nikt nie

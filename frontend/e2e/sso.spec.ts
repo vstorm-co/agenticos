@@ -13,8 +13,10 @@ import { expect, test } from "./fixtures";
  *
  * ```bash
  * docker compose -f docker-compose-dev.yml --profile sso up -d keycloak
- * # backend/.env
- * #   OIDC_ISSUER=http://localhost:8081/realms/agenticos
+ * echo "127.0.0.1 keycloak" | sudo tee -a /etc/hosts
+ * # backend/.env - the hostname is `keycloak` so one issuer string resolves
+ * # both from the browser and from a containerized API (see the compose file)
+ * #   OIDC_ISSUER=http://keycloak:8081/realms/agenticos
  * #   OIDC_CLIENT_ID=agenticos
  * #   OIDC_CLIENT_SECRET=e2e-client-secret
  * # frontend

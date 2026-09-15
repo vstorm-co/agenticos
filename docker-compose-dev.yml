@@ -281,27 +281,39 @@ services:
   # SSO spec signs in as are the same on every machine - including the one whose
   # address the provider has *not* verified, which is the refusal worth a test.
   #
-  # Point the backend at it with, in `backend/.env`:
-  #   OIDC_ISSUER=http://localhost:8081/realms/agenticos
+  # **The hostname is `keycloak`, not `localhost`, and that is the whole trick.**
+  # An issuer is one string that both the browser and the API have to resolve to
+  # the same provider: `localhost:8081` is Keycloak from the host and the API
+  # container's own loopback from inside the stack, so a containerized backend
+  # fails discovery before the browser is ever redirected. Publishing on the same
+  # port the container listens on and adding one line to the host's `/etc/hosts`
+  # makes one URL work from both sides:
+  #
+  #   echo "127.0.0.1 keycloak" | sudo tee -a /etc/hosts
+  #
+  # Then, in `backend/.env`:
+  #   OIDC_ISSUER=http://keycloak:8081/realms/agenticos
   #   OIDC_CLIENT_ID=agenticos
   #   OIDC_CLIENT_SECRET=e2e-client-secret
+  #   OIDC_REDIRECT_URI=http://localhost:8000/api/v1/oauth/oidc/callback
   # and the frontend with OAUTH_PROVIDERS=google,oidc. Then `E2E_OIDC=1 make
   # test-e2e`; without that variable the SSO spec skips itself.
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     profiles: [sso]
-    command: start-dev --import-realm --http-port=8080
+    command: start-dev --import-realm --http-port=8081
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      # The issuer the backend discovers has to be the address the *browser* is
-      # sent to as well, or the authorization redirect leaves the browser at a
-      # host only the container network can resolve.
-      KC_HOSTNAME: http://localhost:8081
+      # The issuer the API discovers is the address the browser is sent to as
+      # well, so it has to be a name both can resolve - see above.
+      KC_HOSTNAME: http://keycloak:8081
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
     ports:
-      - "8081:8080"
+      # The same port on both sides, so one URL is correct from the host and
+      # from the compose network.
+      - "8081:8081"
     volumes:
       - ./e2e-fixtures/keycloak:/opt/keycloak/data/import:ro
     networks:

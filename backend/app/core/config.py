@@ -213,6 +213,10 @@ class Settings(BaseSettings):
     # scope to get the claims back - Entra ID's `User.Read`, a Keycloak client
     # scope. Space-separated, as the OAuth parameter itself is.
     OIDC_SCOPES: str = "openid email profile"
+    # A provider's own name for "this address is confirmed", beyond the two
+    # recognised already (`email_verified`, and Entra ID's `xms_edov`). Empty
+    # unless a deployment's provider names it something else again.
+    OIDC_VERIFIED_CLAIM: str = ""
 
     VAULT_MASTER_KEY: str = ""
     # Every master key the vault may unwrap with, by version - the staged form
