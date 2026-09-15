@@ -266,7 +266,7 @@ names no author is in the evidence column below.
 | sqlalchemy | 2.0.52 | MIT | https://docs.sqlalchemy.org | License field |
 | sse-starlette | 3.4.6 | BSD-3-Clause | https://github.com/sysid/sse-starlette | License-Expression |
 | starlette | 1.3.1 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
-| subagents-pydantic-ai | 0.2.21 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
+| subagents-pydantic-ai | 0.2.22 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
 | tabulate | 0.10.0 | MIT | https://github.com/astanin/python-tabulate | License-Expression |
 | tavily-python | 0.8.1 | MIT | https://github.com/tavily-ai/tavily-python | classifier |
 | tenacity | 9.1.4 | Apache-2.0 | https://github.com/jd/tenacity | License field |

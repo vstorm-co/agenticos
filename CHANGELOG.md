@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- A persisted `ask_user` question records which delegate asked it, and the
+  transcript says so — "Asked by researcher" rather than "Asked you" where a
+  specialist put the question. `ask_parent` hands the surface the question and
+  nothing else, so this needed `SubAgentState.name` upstream
+  (subagents-pydantic-ai 0.2.22, the new floor). A question the main agent asked
+  itself, and every question stored before this, names nobody. (#1042)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed
