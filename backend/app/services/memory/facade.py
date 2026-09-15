@@ -24,6 +24,7 @@ result carries what each half actually removed.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -38,8 +39,9 @@ from app.core.memory_keys import is_person_key, person_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.agent import Agent
+from app.db.models.memory import AgentMemoryFile
 from app.repositories import agent_repo, memory_repo
-from app.schemas.memory import MemoryErasureResult
+from app.schemas.memory import MemoryErasureResult, MemoryNoteList, MemoryNoteRead
 from app.services.access import AGENT, resolve_access
 from app.services.organization_secret import OrganizationSecretService
 
@@ -50,6 +52,138 @@ class MemoryService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.secrets = OrganizationSecretService(db)
+
+    async def mine(self, ctx: AuthContext, *, skip: int, limit: int) -> MemoryNoteList:
+        """What the agents in this organization have written down about the caller.
+
+        No permission, because there is none to ask for: this is the caller's own
+        store, and the answer is the same for a Viewer and an Owner. Suppressed
+        notes are included - they are the person's, and a view that hid what they
+        had suppressed would be one they could not restore anything from.
+        """
+        return await self._notes_for(
+            ctx.organization_id, person_owner_key(ctx.subject_id), skip=skip, limit=limit
+        )
+
+    async def for_person(
+        self, ctx: AuthContext, organization_id: UUID, user_id: UUID, *, reason: str | None = None
+    ) -> MemoryNoteList:
+        """One named person's notes in one named tenant - the deployment admin's view.
+
+        **Not an organization permission, deliberately.** Reading what every agent
+        has learned about a named colleague is a surveillance affordance, and the
+        earlier answer to that was to expose nothing at all (#1470). What changed
+        in #1594 is who may: the person themselves, always, and the deployment's
+        own administrator, who already administers accounts across tenants and is
+        the party a subject-access request actually reaches. An Owner or Admin of
+        the organization is not that party and does not get this by role.
+
+        The read is audited with the actor, the tenant, the subject and the reason
+        - and no content, because an audit entry holding what it looked at is a
+        second copy of the thing being protected.
+        """
+        if not ctx.is_app_admin:
+            raise AuthorizationError(
+                message="Only a deployment administrator may read another person's memory"
+            )
+        notes = await self._notes_for(organization_id, person_owner_key(user_id))
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=organization_id,
+            action="memory.person.inspected",
+            target_type="user",
+            target_id=str(user_id),
+            details={"notes": notes.total, "reason": reason},
+        )
+        return notes
+
+    async def set_active(self, ctx: AuthContext, file_id: UUID, *, active: bool) -> MemoryNoteRead:
+        """Suppress one of the caller's own notes, or restore it.
+
+        The middle answer between living with a note and erasing everything: a
+        suppressed note is not listed, not read and not editable by any tool, so
+        it stops reaching the model without being destroyed.
+
+        Raises:
+            NotFoundError: The note is not in this caller's own store. Not a 403:
+                whether a note exists in somebody else's store is itself something
+                the caller may not learn.
+        """
+        row = await self._own_note(ctx, file_id)
+        await memory_repo.update(
+            self.db,
+            file=row,
+            update_data={"deactivated_at": None if active else datetime.now(UTC)},
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.note.restored" if active else "memory.note.suppressed",
+            target_type="memory_file",
+            target_id=str(file_id),
+            # The note's name, not its content: an entry holding what it
+            # suppressed would keep the thing the person suppressed.
+            details={"agent_id": str(row.agent_id), "name": row.name},
+        )
+        return MemoryNoteRead.model_validate(row)
+
+    async def delete_note(self, ctx: AuthContext, file_id: UUID) -> None:
+        """Delete one of the caller's own notes outright."""
+        row = await self._own_note(ctx, file_id)
+        agent_id, name = row.agent_id, row.name
+        await memory_repo.delete(self.db, row)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.note.deleted",
+            target_type="memory_file",
+            target_id=str(file_id),
+            details={"agent_id": str(agent_id), "name": name},
+        )
+
+    async def _own_note(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
+        """One note, only if it is in the caller's own store.
+
+        The owner is part of the lookup rather than checked afterwards - owning a
+        conversation or being able to edit the agent reaches nothing here, which
+        is the separation between personal memory and shared agent knowledge.
+        """
+        row = await memory_repo.get_owned(
+            self.db,
+            organization_id=ctx.organization_id,
+            owner_key=person_owner_key(ctx.subject_id),
+            file_id=file_id,
+        )
+        if row is None:
+            raise NotFoundError(message="Memory note not found", details={"file_id": file_id})
+        return row
+
+    async def _notes_for(
+        self, organization_id: UUID, owner_key: str, *, skip: int = 0, limit: int = 50
+    ) -> MemoryNoteList:
+        """One store's page, with the agent names and the stores this cannot reach."""
+        rows, total = await memory_repo.list_for_person(
+            self.db, organization_id=organization_id, owner_key=owner_key, skip=skip, limit=limit
+        )
+        names = await self._agent_names({row.agent_id for row in rows})
+        items = [
+            MemoryNoteRead.model_validate(row).model_copy(
+                update={"agent_name": names.get(row.agent_id)}
+            )
+            for row in rows
+        ]
+        external = [agent.name for agent, _ in await self._mem0_bindings(organization_id)]
+        return MemoryNoteList(items=items, total=total, external_stores=sorted(set(external)))
+
+    async def _agent_names(self, agent_ids: set[UUID]) -> dict[UUID, str]:
+        """Which agent wrote each note. Provenance, and the reason for the join."""
+        if not agent_ids:
+            return {}
+        result = await self.db.execute(select(Agent.id, Agent.name).where(Agent.id.in_(agent_ids)))
+        return {row[0]: row[1] for row in result.all()}
 
     async def forget_person(self, ctx: AuthContext, user_id: UUID) -> MemoryErasureResult:
         """Delete everything every agent in this organization remembers about one person.

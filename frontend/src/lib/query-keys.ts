@@ -12,6 +12,10 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  memory: {
+    /** What the agents in one organization have written down about the caller. */
+    mine: (orgId: string) => ["memory", orgId, "mine"] as const,
+  },
   organizations: {
     all: () => ["organizations"] as const,
     list: () => ["organizations", "list"] as const,

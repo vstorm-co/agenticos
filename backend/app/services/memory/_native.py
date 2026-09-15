@@ -81,15 +81,33 @@ async def write_file(
     reaching for the wrong verb.
     """
     async with get_db_context() as db:
+        # The write path is the one that sees a suppressed note, because the name
+        # is taken in the database either way and a create that could not see it
+        # would fail on the constraint with nothing useful to say. A suppressed
+        # one is revived with the new content: what the person suppressed is
+        # overwritten, and the row now holds something learned since (#1594).
         existing = await memory_repo.get_by_name(
             db,
             organization_id=organization_id,
             agent_id=agent_id,
             owner_key=owner_key,
             name=name,
+            include_deactivated=True,
         )
-        if existing is not None:
+        if existing is not None and existing.deactivated_at is None:
             return False
+        if existing is not None:
+            await memory_repo.update(
+                db,
+                file=existing,
+                update_data={
+                    "content": content,
+                    "description": description,
+                    "kind": kind,
+                    "deactivated_at": None,
+                },
+            )
+            return True
         try:
             await memory_repo.create(
                 db,

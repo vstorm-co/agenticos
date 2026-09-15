@@ -11,6 +11,7 @@ argument to get wrong (#1470).
 """
 
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -40,13 +41,14 @@ def _own_session(monkeypatch):
     monkeypatch.setattr(f"{NATIVE}.get_db_context", _fake_session)
 
 
-def _row(*, content="body", name="prefs"):
+def _row(*, content="body", name="prefs", deactivated_at=None):
     row = MagicMock()
     row.content = content
     row.name = name
     row.description = "d"
     row.kind = "note"
     row.owner_key = OWNER
+    row.deactivated_at = deactivated_at
     return row
 
 
@@ -130,6 +132,22 @@ class TestWriteFile:
             assert await self._write() is False
 
         assert not create.await_count
+
+    async def test_a_suppressed_name_is_revived_with_the_new_content(self):
+        """The person suppressed what *was* there. Writing the name again is the
+        agent having learned something since, and the alternative - a name
+        permanently unusable - is a store that refuses to work and never says why
+        (#1594)."""
+        suppressed = _row(deactivated_at=datetime(2026, 9, 1, tzinfo=UTC))
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=suppressed)),
+            patch(f"{REPO}.update", new=AsyncMock()) as update,
+            patch(f"{REPO}.create", new=AsyncMock()) as create,
+        ):
+            assert await self._write() is True
+
+        assert not create.await_count
+        assert update.await_args.kwargs["update_data"]["deactivated_at"] is None
 
     async def test_a_name_taken_between_the_check_and_the_insert_is_the_same_answer(self):
         """The unique index is the real guard, and a concurrent write is not a

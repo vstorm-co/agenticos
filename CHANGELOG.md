@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A person can read what agents here have written down about them.** Settings
+  → Memory, across every agent, with which one wrote each note and when. No
+  permission gates it: the answer is the same for a Viewer and an Owner, because
+  it is their own store. The product offered erasure and nothing else before
+  this, on the reasoning that a listing is a surveillance affordance - which is
+  true of somebody *else's* store and the opposite of one's own. (#1594)
+- **A note can be stopped without being destroyed.** A suppressed note is no
+  longer listed, read or editable by any tool, so it stops reaching the model
+  while staying there to be looked at and restored - the middle answer for a note
+  that is wrong or too personal and that somebody is not yet sure they want gone.
+  An agent writing the same name again revives the row with the new content,
+  which is documented rather than left to be discovered. (#1594)
+- **A deployment administrator can read one named person's store in one named
+  tenant.** `GET /memory/person/{id}`, refused to everybody else - not an Owner,
+  not an Admin, not an edit grant on the agent that wrote the note - because an
+  organization role is not the party a subject-access request reaches. The read
+  is audited with the actor, the tenant, the subject and a reason, and never the
+  content. An agent bound to mem0 keeps its memories elsewhere, so those agents
+  are **named** on the page rather than listed: a page of native notes presented
+  as a complete inventory would be worse than one that says what it misses.
+  (#1594)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

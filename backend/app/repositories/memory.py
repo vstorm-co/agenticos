@@ -24,17 +24,30 @@ from app.db.models.memory import AgentMemoryFile
 
 
 async def get_by_name(
-    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, owner_key: str, name: str
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    owner_key: str,
+    name: str,
+    include_deactivated: bool = False,
 ) -> AgentMemoryFile | None:
-    """One note by name in one owner's store - every runtime lookup."""
-    result = await db.execute(
-        select(AgentMemoryFile).where(
-            AgentMemoryFile.organization_id == organization_id,
-            AgentMemoryFile.agent_id == agent_id,
-            AgentMemoryFile.owner_key == owner_key,
-            AgentMemoryFile.name == name,
-        )
+    """One note by name in one owner's store - every runtime lookup.
+
+    `include_deactivated` is for the *write* path alone. A note the person
+    suppressed is invisible to reading, editing and deleting, but the name is
+    still taken in the database, so a create that could not see it would fail on
+    the unique constraint with nothing useful to say (#1594).
+    """
+    query = select(AgentMemoryFile).where(
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.agent_id == agent_id,
+        AgentMemoryFile.owner_key == owner_key,
+        AgentMemoryFile.name == name,
     )
+    if not include_deactivated:
+        query = query.where(AgentMemoryFile.deactivated_at.is_(None))
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -59,6 +72,9 @@ async def list_for_owner(
             AgentMemoryFile.organization_id == organization_id,
             AgentMemoryFile.agent_id == agent_id,
             AgentMemoryFile.owner_key == owner_key,
+            # A suppressed note is not supplied to the model at all - which is
+            # what "deactivated" has to mean to be worth offering (#1594).
+            AgentMemoryFile.deactivated_at.is_(None),
         )
         .order_by(
             func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
@@ -155,3 +171,59 @@ async def delete_for_person(db: AsyncSession, *, organization_id: UUID, owner_ke
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def list_for_person(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    owner_key: str,
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[AgentMemoryFile], int]:
+    """One person's notes across every agent in the organization, and the total.
+
+    Across agents, because the question somebody asks of their own memory is
+    "what is written down about me here", and answering it agent by agent makes
+    them hunt. Suppressed notes are included: they are the person's own, and a
+    view that hid what they had suppressed would be a view they could not undo
+    anything from (#1594).
+
+    Newest first, on the same `coalesce(updated_at, created_at)` the model's own
+    listing uses, so the two agree about what "recent" means.
+    """
+    where = (
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.owner_key == owner_key,
+    )
+    total = await db.scalar(select(func.count()).select_from(AgentMemoryFile).where(*where))
+    result = await db.execute(
+        select(AgentMemoryFile)
+        .where(*where)
+        .order_by(
+            func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
+            AgentMemoryFile.id.asc(),
+        )
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all()), total or 0
+
+
+async def get_owned(
+    db: AsyncSession, *, organization_id: UUID, owner_key: str, file_id: UUID
+) -> AgentMemoryFile | None:
+    """One note by id, only if it belongs to this store.
+
+    The owner is part of the lookup rather than checked afterwards: this is what
+    somebody's own delete and deactivate resolve through, and a lookup by id alone
+    with a check bolted on is the shape that eventually loses the check.
+    """
+    result = await db.execute(
+        select(AgentMemoryFile).where(
+            AgentMemoryFile.id == file_id,
+            AgentMemoryFile.organization_id == organization_id,
+            AgentMemoryFile.owner_key == owner_key,
+        )
+    )
+    return result.scalar_one_or_none()

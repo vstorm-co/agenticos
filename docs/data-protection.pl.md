@@ -1,5 +1,5 @@
 ---
-source_sha: "06500c4360ef"
+source_sha: "e9bf64793555"
 ---
 
 # Ochrona danych { #data-protection }
@@ -159,7 +159,7 @@ jest luką — i tak jest nazwany.
 | Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retencja według harmonogramu | Zamiatane są tylko wiersze `sandbox_operations`, po 30 dniach. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
-| Dostęp do własnych danych | Brak endpointu eksportu; brak wglądu we własną pamięć | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
+| Dostęp do własnych danych | Osoba czyta w Ustawienia → Pamięć wszystko, co każdy agent tutaj o niej zapisał, i może notatkę wyłączyć, przywrócić albo usunąć. Czytanie *cudzego* magazynu należy wyłącznie do administratora wdrożenia — nie do roli w organizacji — i jest audytowane z aktorem, tenantem, podmiotem i powodem, nigdy z treścią. Magazyny zewnętrzne (mem0) są nazwane, a nie listowane | [Jak to czytać i jak wymazać](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Endpointu eksportu jeszcze nie ma: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Tożsamość korporacyjna | Logowanie Google i hasła; jeszcze bez OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
 | Macierz kontroli, którą czyta przegląd bezpieczeństwa | Ta strona i [Wdrażanie](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) dodaje mapowanie na HIPAA i SOC 2 |
 | Powierzchnie publiczne | Klucz odwiedzającego hostowanej strony jest losowy, nigdy wyprowadzony z osoby; wpuszczanie i wgrywanie są rate-limitowane per adres, a adres leży w kluczu Redisa na czas okna i nigdzie indziej | [Kanały](channels.md#a-hosted-page) |
@@ -339,7 +339,6 @@ wdrożenia, dopóki każdy z nich się nie zamknie.
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - Brak dowodu nienaruszalności śladu audytowego — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Pliki wyłącznie na dysku lokalnym, szyfrowane przez wolumen albo wcale — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- Brak samoobsługowego wglądu we własną pamięć — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Brak logowania OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 - Macierz kontroli HIPAA i SOC 2 — [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
 

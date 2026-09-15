@@ -183,15 +183,51 @@ another colleague's instructions in the same channel.
 An index larger than about 6,000 characters is left out rather than cut. Half an
 index — ending mid-line, mid-filename — is worse than none.
 
-### Erasing it
+### Reading it, and erasing it
 
-Nothing browses somebody's notes in the console: an operator reading what an agent
-wrote about a colleague is the failure this design refuses, and there is no screen
-for it. What there is, is erasure. A person clears everything an agent remembers
-about them from their own profile, and an administrator holding `members:manage`
-can do it for somebody else; both delete the rows here **and** the matching
-memories in mem0 for every agent that binds it. Clearing one agent's memory
-entirely is in its toolbox, beside the capability.
+Nobody browses somebody *else's* notes by organization role. That was the whole
+of the earlier answer - erasure and no listing at all - and it was half right: a
+listing is a surveillance affordance of a colleague's store, and the opposite of
+one of your own. So the answer now has three parts (#1594).
+
+**Your own, always, at Settings → Memory.** No permission gates it, because the
+answer is the same for a Viewer and an Owner: what agents here have written down
+about you, across every agent, with which one wrote each note and when. Three
+things you can do to a note:
+
+| | |
+|---|---|
+| **Stop using it** | The note is no longer listed, read or editable by any tool, so it stops reaching the model - and it still exists, for you to look at and restore. The middle answer, for a note that is wrong or too personal and that you are not yet sure you want gone. |
+| **Use it again** | Restores it. |
+| **Delete it** | Gone. |
+
+A suppressed note's *name* is still taken, so an agent writing that name again
+revives the row with the new content. That is not the suppression being undone:
+what you suppressed is overwritten, and the row holds something the agent has
+learned since. The alternative - a name permanently unusable - is a store that
+silently refuses to work and never says why.
+
+**Somebody else's, only a deployment administrator.** `GET /memory/person/{id}`,
+naming the tenant, and refused to everybody else: not an Owner, not an Admin, not
+somebody holding an edit grant on the agent that wrote the note. The reasoning is
+the one above - an organization role is not the party a subject-access request
+reaches, and the deployment's own administrator, who already administers accounts
+across tenants, is. The read is recorded in the audit trail with the actor, the
+tenant, the subject and a reason, and **no content**: an entry holding what it
+looked at would be a second copy of the thing being protected.
+
+**Erasure**, unchanged. A person clears everything an agent remembers about them
+from their own profile, and an administrator holding `members:manage` can do it
+for somebody else; both delete the rows here **and** the matching memories in
+mem0 for every agent that binds it. Clearing one agent's memory entirely is in
+its toolbox, beside the capability.
+
+**What the self-service view does not reach.** An agent bound to mem0 keeps its
+memories in somebody else's service, and this page does not list them - mem0's
+API answers what a *question* matches, not what a store holds. Those agents are
+**named** on the page rather than left out, because a list of native notes
+presented as a complete inventory would be worse than one that says what it
+misses. Erasure does reach mem0; reading does not.
 
 ## Memory (mem0)
 

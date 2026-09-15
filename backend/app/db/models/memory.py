@@ -30,8 +30,9 @@ collapsed into a single value (#788).
 """
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -68,6 +69,21 @@ class AgentMemoryFile(Base, TimestampMixin):
     # A rendering hint - presentation, not behaviour, so it is not constrained.
     format: Mapped[str] = mapped_column(String(16), nullable=False, default="md")
     kind: Mapped[str] = mapped_column(String(32), nullable=False, default="note")
+
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    """When the person whose store this is suppressed the note, or null.
+
+    Their decision, not the agent's: a deactivated note is not listed, not read
+    and not editable by any tool, so it stops reaching the model without being
+    destroyed - which is what somebody wants who has found a note that is wrong
+    or too personal and is not yet sure they want it gone (#1594).
+
+    A `write_memory` under the same name *does* revive it, with the new content.
+    That is not the suppression being undone: what the person suppressed is
+    overwritten, and the row now holds something the agent has learned since. The
+    alternative - a name permanently unusable by the agent - is a store that
+    silently refuses to work and never says why.
+    """
 
     __table_args__ = (
         UniqueConstraint(
