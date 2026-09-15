@@ -13,7 +13,7 @@ from app.db.models.announcement import Announcement
 from app.db.models.notification import Notification
 from app.db.models.notification_delivery import NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
-from app.db.models.user import User
+from app.db.models.user import NotificationPreference, User
 
 
 async def insert_notification_if_new(db: AsyncSession, notification: Notification) -> bool:
@@ -77,7 +77,7 @@ async def get_channel_preference(
 
 
 async def get_legacy_email_preference(
-    db: AsyncSession, *, user_id: uuid.UUID, column: str
+    db: AsyncSession, *, user_id: uuid.UUID, column: NotificationPreference
 ) -> bool | None:
     """One of the three legacy boolean columns on `User` - still authoritative
     for the email channel of the three agent-lifecycle events they cover

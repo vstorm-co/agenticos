@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.organization import OrganizationMember, OrgRole
-from app.db.models.user import NotificationPreference, User
+from app.db.models.user import User
 
 
 async def get(
@@ -159,99 +159,39 @@ async def get_emails_for_users(
     return {row[0]: row[1] for row in result.all()}
 
 
-async def list_emails_by_role(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    roles: list[str],
-    preference: NotificationPreference | None = None,
-) -> list[str]:
-    """Addresses of the members holding one of `roles`.
-
-    Emails rather than users because the only caller is notification: what it
-    needs is somewhere to send, and loading whole users to read one column
-    invites a second caller that starts making decisions on the rest.
-
-    `preference` names the notification opt-out to honour: a member who has
-    switched that column off is left out of the result, so the caller never
-    holds an address it is not allowed to mail.
-    """
-    conditions = [
-        OrganizationMember.organization_id == organization_id,
-        OrganizationMember.role.in_(roles),
-        User.is_active.is_(True),
-    ]
-    if preference is not None:
-        conditions.append(getattr(User, preference).is_(True))
-    result = await db.execute(
-        select(User.email)
-        .join(OrganizationMember, OrganizationMember.user_id == User.id)
-        .where(*conditions)
-    )
-    return [row[0] for row in result.all()]
-
-
-async def list_emails_for_members(
+async def list_member_ids_for(
     db: AsyncSession,
     *,
     organization_id: UUID,
     user_ids: list[UUID],
-    preference: NotificationPreference | None = None,
-) -> list[str]:
-    """Addresses of named people, but only those who are members of this organization.
+) -> set[UUID]:
+    """Which of `user_ids` are active members of this organization.
 
-    The membership join is the security property, not an optimisation. These ids
-    come from an agent's spec - `AlertSpec.user_ids`, written by whoever may edit
-    the agent - so without the join an author could name a user id from another
-    organization and have them mailed the agent's name, their organization's name
-    and what a run spent. `get_emails_for_users` above carries the same
-    restriction for the same reason.
+    The membership join is the security property, not an optimisation. These
+    ids come from an agent's spec - `AlertSpec.user_ids`, written by whoever
+    may edit the agent - so without the join an author could name a user id
+    from another organization and have them notified of the agent's name,
+    their organization's name and what a run spent. `get_emails_for_users`
+    above carries the same restriction for the same reason, but this is
+    identity-only (#1598): a channel's preference is applied afterward, per
+    recipient, not folded into who is a candidate at all.
 
-    Differs from that one by also filtering on `is_active` and on the opt-out
-    column, because the caller is notification: it must never hold an address it
-    is not allowed to mail. A user who left, was deactivated, or switched this
-    kind of mail off contributes nothing rather than raising - a spec naming one
-    person who is gone must not silence the rest of the audience.
+    Also filters on `is_active`: a deactivated member contributes nothing
+    rather than raising - a spec naming one person who has left must not
+    silence the rest of the audience.
     """
     if not user_ids:
-        return []
-    conditions = [
-        OrganizationMember.organization_id == organization_id,
-        OrganizationMember.user_id.in_(user_ids),
-        User.is_active.is_(True),
-    ]
-    if preference is not None:
-        conditions.append(getattr(User, preference).is_(True))
+        return set()
     result = await db.execute(
-        select(User.email)
+        select(User.id)
         .join(OrganizationMember, OrganizationMember.user_id == User.id)
-        .where(*conditions)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id.in_(user_ids),
+            User.is_active.is_(True),
+        )
     )
-    return [row[0] for row in result.all()]
-
-
-async def list_app_admin_emails(
-    db: AsyncSession,
-    *,
-    preference: NotificationPreference | None = None,
-) -> list[str]:
-    """Addresses of the deployment's app admins, whatever organization they are in.
-
-    Deliberately not joined to `organization_members`. An app admin administers
-    the deployment and reaches every organization in it without holding a
-    membership row - `get_auth_context` admits them to an organization they are
-    not a member of - so a query scoped by membership would silently omit exactly
-    the person who is supposed to hear when something runs out of money.
-
-    In the same module as the role query rather than in `user`, because the two
-    answer one question between them - "who are the administrators here" - and a
-    caller that found one and not the other would mail half of them.
-    """
-    conditions = [User.is_app_admin.is_(True), User.is_active.is_(True)]
-    if preference is not None:
-        conditions.append(getattr(User, preference).is_(True))
-    result = await db.execute(select(User.email).where(*conditions))
-    return [row[0] for row in result.all()]
+    return {row[0] for row in result.all()}
 
 
 async def list_member_ids_by_role(
@@ -260,12 +200,11 @@ async def list_member_ids_by_role(
     organization_id: UUID,
     roles: list[str],
 ) -> list[UUID]:
-    """User ids of the members holding one of `roles` - no preference filter.
+    """User ids of the members holding one of `roles`.
 
-    The id-based sibling of `list_emails_by_role` (#1598): a notification write
-    must happen once per resolved *person*, independent of any channel's
-    preference, which is applied per channel afterward - unlike the email
-    functions above, which fold a preference into who is returned at all.
+    Identity only, no preference filter (#1598): a notification write happens
+    once per resolved *person*, and a channel's preference is applied
+    afterward, per recipient - never folded into who is a candidate at all.
     """
     result = await db.execute(
         select(User.id)
@@ -280,11 +219,10 @@ async def list_member_ids_by_role(
 
 
 async def list_app_admin_ids(db: AsyncSession) -> list[UUID]:
-    """User ids of the deployment's app admins - no preference filter.
+    """User ids of the deployment's app admins.
 
-    The id-based sibling of `list_app_admin_emails` (#1598), for the same
-    reason `list_member_ids_by_role` is: the notification write path resolves
-    identity first and applies a channel's preference afterward.
+    Identity only, no preference filter, for the same reason
+    `list_member_ids_by_role` is (#1598).
     """
     result = await db.execute(
         select(User.id).where(User.is_app_admin.is_(True), User.is_active.is_(True))
