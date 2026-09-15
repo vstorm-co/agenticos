@@ -351,3 +351,32 @@ async def test_teardown_kills_the_group_even_when_cancelled_again(
     # the process died from it rather than still running.
     returncode = await asyncio.wait_for(proc.wait(), timeout=5)
     assert returncode == -signal.SIGKILL
+
+
+async def test_the_profile_path_is_passed_as_an_escaped_file_uri(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A temp dir with spaces or reserved characters still yields a valid URI.
+
+    LibreOffice reads `-env:UserInstallation` as a URI, so a raw path with a
+    space or `#` would be misparsed; `Path.as_uri()` percent-encodes it.
+    """
+    profile = tmp_path / "pro file#1"
+    profile.mkdir()
+    monkeypatch.setattr(office_convert.tempfile, "mkdtemp", lambda prefix=None: str(profile))
+    script = _write_fake_soffice(
+        tmp_path,
+        "env = next(a for a in argv if a.startswith('-env:UserInstallation='))\n"
+        "(outdir / 'env.txt').write_text(env)\n"
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4')\n"
+        "sys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=10)
+
+    passed = (out_dir / "env.txt").read_text()
+    assert passed == f"-env:UserInstallation={profile.as_uri()}"
+    assert "%20" in passed

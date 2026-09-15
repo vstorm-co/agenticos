@@ -110,7 +110,7 @@ async def convert_to_pdf(source: Path, out_dir: Path, *, timeout_seconds: float)
             "pdf",
             "--outdir",
             str(out_dir),
-            f"-env:UserInstallation=file://{profile_dir}",
+            f"-env:UserInstallation={profile_dir.as_uri()}",
             str(source),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
