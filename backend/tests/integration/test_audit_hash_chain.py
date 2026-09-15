@@ -31,7 +31,13 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.repositories import audit_log_repo
 from app.services.audit import AuditService
 
-pytestmark = pytest.mark.anyio
+# The whole module carries `security`: tamper evidence over the audit trail is a
+# control the matrix in `docs/security.md` names, and every test here holds one
+# half of it - that an intact chain verifies, and that an edited or deleted row
+# does not. Only `test_a_tenant_less_write_chains_and_verifies` trips the
+# keyword net in `test_security_marker.py`, and marking that one alone would
+# leave the two tamper-detection tests out of a set that exists to be counted.
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def _write_chain(db: AsyncSession, organization_id: uuid.UUID | None, count: int) -> None:

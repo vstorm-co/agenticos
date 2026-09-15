@@ -21,6 +21,7 @@ from app.db.models.sync_log import SyncLog  # noqa: F401
 from app.db.models.sync_source import SyncSource  # noqa: F401
 from app.db.models.organization import Invitation, Organization, OrganizationMember  # noqa: F401
 from app.db.models.audit_log import AppAdminAuditLog  # noqa: F401
+from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint  # noqa: F401
 from app.db.models.knowledge_base import KnowledgeBase  # noqa: F401
 
 config = context.config

@@ -41,9 +41,9 @@ def _load_migration():
         Path(__file__).resolve().parents[2]
         / "alembic"
         / "versions"
-        / "0080_scope_rag_rows_by_org.py"
+        / "0081_scope_rag_rows_by_org.py"
     )
-    spec = importlib.util.spec_from_file_location("mig_0080_under_test", path)
+    spec = importlib.util.spec_from_file_location("mig_0081_under_test", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "f4f13f232634"
 ---
 
 # Governance { #governance }
@@ -1496,12 +1496,24 @@ neu geschmiedet hat, kein Beweis, dass die Zeilen unveränderlich sind.
 
 Zwei Löschungen kann die Kette von sich aus nicht erkennen, weil die verbleibenden
 Zeilen intern konsistent bleiben: das Abschneiden der neuesten Einträge einer Kette
-und das vollständige Löschen der Kette einer Organisation — Letzteres entfernt sie
-einfach aus der Menge, die `audit-verify` abläuft. Beides zu erkennen erfordert
-einen organisationsweiten Abschluss-Checkpoint, der dort aufbewahrt wird, wo der
-Datenbank-Operator nicht hinreicht; dieser Anker ist eine geplante Folgearbeit, und
-bis es ihn gibt, bescheinigt ein sauberer Lauf nicht, dass nichts abgeschnitten
-wurde.
+und das vollständige Löschen der Kette einer Organisation. Diese fängt stattdessen
+ein **Checkpoint** ab — eine organisationsweite Höchstmarke, die `record_audit` neben
+jedem Eintrag vorrückt, unter einem Datenbank-Trigger, der ihr Zurückgehen oder
+Löschen verweigert. `audit-verify` meldet eine Kette, deren Kopf hinter ihrem
+Checkpoint liegt, oder einen Checkpoint, dessen Kette weg ist.
+
+Was dieser Trigger abdeckt, gehört genau gesagt, weil man leicht mehr hineinliest. Er
+schließt den gewöhnlichen Schreibpfad — einen App-Administrator, der durch das
+Produkt handelt, und einen Fehler in diesem Code — also das Bedrohungsmodell, für das
+diese Spur geschrieben ist.
+
+Gegen jemanden mit den Zugangsdaten der Datenbank selbst ist er keine Kontrolle. Die
+Anwendung und ihre Migrationen verbinden sich mit derselben Rolle, und dieser Rolle
+gehört die Checkpoint-Tabelle: sie kann den Trigger entfernen, und ein `TRUNCATE`
+leert die Tabelle, ohne einen zeilenbezogenen Delete-Trigger überhaupt auszulösen.
+Ein Superuser kann beides. Das zu schließen erfordert die Höchstmarke dort, wo die
+Rollen dieser Datenbank nicht hinreichen — in einem Append-only- oder
+Object-Lock-Speicher außerhalb —, was eine geplante Folgearbeit bleibt.
 
 Zwei auditierte Schreibvorgänge für eine Organisation können die Kette nicht
 aufspalten: jeder hängt unter einer organisationsbezogenen Sperre an, sodass sie

@@ -37,8 +37,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0080_scope_rag_rows_by_org"
-down_revision: str | Sequence[str] | None = "0079_audit_hash_chain"
+revision: str = "0081_scope_rag_rows_by_org"
+down_revision: str | Sequence[str] | None = "0080_audit_checkpoints"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

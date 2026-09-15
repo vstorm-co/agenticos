@@ -17,6 +17,7 @@ from app.db.models.channel_link_request import ChannelLinkRequest
 from app.db.models.channel_session import ChannelSession
 from app.db.models.organization import Invitation, Organization, OrganizationMember
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.collection_teardown import CollectionTeardown
@@ -67,6 +68,7 @@ __all__ = [
     "OrganizationMember",
     "Invitation",
     "AppAdminAuditLog",
+    "AppAdminAuditCheckpoint",
     "KnowledgeBase",
     "CollectionTeardown",
     "UserSlashCommand",

@@ -1,5 +1,5 @@
 ---
-source_sha: "e5e660ee22ce"
+source_sha: "545cf7248027"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -84,6 +84,12 @@ Polityka to `default-src 'self'` z `connect-src` nazywającym dokładnie ten ori
 `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `img-src` dopuszczającym `data:` dla znaków
 marki i awatarów, `frame-src 'self' blob:` dla podglądów dokumentów, `object-src
 'none'`, `base-uri 'self'` oraz `frame-ancestors 'none'`.
+
+`script-src` nie zawiera `'unsafe-inline'`. Middleware generuje nonce dla
+każdego żądania, wpisuje `'nonce-…' 'strict-dynamic'` do dyrektywy, a Next
+stempluje tym nonce swoje własne skrypty inline — więc skrypt wstrzyknięty na
+stronę nie ma nonce i się nie wykonuje. `'unsafe-eval'` pozostaje, bo wymaga go
+deweloperskie środowisko Next.
 
 Polityka jest stemplowana przy każdym żądaniu przez middleware frontendu,
 ponieważ oba publiczne adresy URL są czytane ze środowiska serwera w czasie
