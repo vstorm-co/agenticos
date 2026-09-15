@@ -1,5 +1,5 @@
 ---
-source_sha: "06500c4360ef"
+source_sha: "bc2eb9e0e3fc"
 ---
 
 # Ochrona danych { #data-protection }
@@ -155,13 +155,13 @@ jest luką — i tak jest nazwany.
 | Dane osobowe w kolumnie błędu | `rag_documents.error_message` i pokrewne zapisują etap i klasę, nigdy tekst klienta | `app/services/rag/failures.py` (#423) |
 | Rozliczalność | Wpisy audytu dzielą transakcję działającą i zawodzą zamknięte; podszycie nazywa obie osoby; eksporty masowe są zapisywane | [Nadzór](governance.md#audit) |
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
-| Dowód nienaruszalności śladu | Jeszcze nie ma | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Dowód nienaruszalności śladu | Każdy wpis wchodzi w łańcuch haszy danej organizacji, a każdy łańcuch ma checkpoint na swoim najwyższym stanie, więc przepisany wpis, urwany koniec i skasowany łańcuch są wykrywalne. `agenticos cmd audit-verify` przechodzi je i kończy się kodem niezerowym przy naruszeniu | [Nadzór](governance.md#audit) (#1622, #1648). Wykrywanie, nie zapobieganie: kto ma poświadczenia samej bazy, ten przekuje łańcuch od nowa albo zdejmie trigger pilnujący checkpointu |
+| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi, a tryb ten dziedziczy specjalista tego agenta | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retencja według harmonogramu | Zamiatane są tylko wiersze `sandbox_operations`, po 30 dniach. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
 | Dostęp do własnych danych | Brak endpointu eksportu; brak wglądu we własną pamięć | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Tożsamość korporacyjna | Logowanie Google i hasła; jeszcze bez OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
-| Macierz kontroli, którą czyta przegląd bezpieczeństwa | Ta strona i [Wdrażanie](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) dodaje mapowanie na HIPAA i SOC 2 |
+| Macierz kontroli, którą czyta przegląd bezpieczeństwa | [Bezpieczeństwo](security.md#controls-matrix) mapuje każdą kontrolę na jej mechanizm i test, który go trzyma, w ramach HIPAA §164.312 i SOC 2 CC6–CC8; ta strona i [Wdrażanie](rollout.md#what-your-security-review-will-ask) to reszta | [Bezpieczeństwo](security.md) (#1412) |
 | Powierzchnie publiczne | Klucz odwiedzającego hostowanej strony jest losowy, nigdy wyprowadzony z osoby; wpuszczanie i wgrywanie są rate-limitowane per adres, a adres leży w kluczu Redisa na czas okna i nigdzie indziej | [Kanały](channels.md#a-hosted-page) |
 | Noty prawne | Własne adresy Regulaminu i Polityki prywatności wdrożenia zastępują strony wbudowane | [Wdrożenie](deployment.md#identity) |
 
@@ -231,8 +231,7 @@ umożliwia.
 
 Powtarzalne sprawdzenia, z hosta, na działającym wdrożeniu. Każde wypisuje
 fakty, które przegląd może załączyć; żadne nie wypisuje poświadczenia ani
-danych osoby. Komendy uruchamiaj z `backend/` albo przez
-`docker compose exec api`.
+danych osoby. Uruchamiaj je z `backend/` albo przez `docker compose exec api`.
 
 ```bash
 # 1. Czy to w ogóle ruszy i czy połączenia do magazynów są szyfrowane?
@@ -243,87 +242,38 @@ uv run agenticos cmd doctor
 #    kluczami głównymi.
 uv run agenticos cmd vault-rotate --dry-run
 
-# 3. Ustawienia, które decydują, co wychodzi. Pusto to cicha odpowiedź.
-env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
-  | sed -E 's/(KEY|TOKEN)=.+/\1=<set>/'
+# 3. Łańcuchy haszy śladu audytowego i ich checkpointy, przeliczone od nowa.
+#    Kod wyjścia niezerowy, jeśli którykolwiek łańcuch został naruszony.
+uv run agenticos cmd audit-verify
+
+# 4. Wszystko, co to wdrożenie faktycznie skonfigurowało: ustawienia decydujące
+#    o tym, co wychodzi na zewnątrz, każdy provider i endpoint, do którego może
+#    sięgnąć agent, trzymane poświadczenia według przeznaczenia, kolekcje i to,
+#    kto liczy dla nich embeddingi, serwery we własnej sieci, serwery MCP,
+#    źródła synchronizacji i boty kanałów, gdzie trafiają trace'y runów i ile
+#    treści niesie span, ile w każdym magazynie objąłby okres retencji oraz
+#    pliki pod `MEDIA_DIR`, na które nie wskazuje już żaden wiersz.
+uv run agenticos cmd data-protection-report --older-than 365
 ```
 
-`LOG_PROVIDER_WRITE_TO_DISK` musi być `false` poza developmentem: logujący
-provider poczty zapisuje wtedy na dysk całe treści maili.
+Punkt 4 to ten do załączenia. Wypisuje konfigurację i liczby, nigdy treść:
+żadnego tekstu wiadomości, żadnego dokumentu, żadnej wartości sekretu ani jej
+podpowiedzi, a ustawienie trzymające poświadczenie jest raportowane jako
+ustawione albo nieustawione, nie wypisywane. `--older-than` to rozważany okres
+retencji, w dniach, a ostatnia kolumna jego tabeli retencji pokazuje, co ten
+okres już by usunął.
 
-```sql
--- 4. Każdy provider i endpoint, do którego agent może sięgnąć, bez kluczy.
-SELECT o.name AS organization, p.label, p.provider, p.model, p.base_url
-FROM model_profiles p JOIN organizations o ON o.id = p.organization_id
-ORDER BY 1, 2;
-
--- Profile mówiące zwykłym HTTP. Każdy musi wskazywać własną sieć wdrożenia;
--- cokolwiek innego wysyła prompty i klucz jawnie.
-SELECT label, provider, base_url FROM model_profiles WHERE base_url LIKE 'http://%';
-
-SELECT o.name AS organization, s.purpose, s.kind, s.name
-FROM organization_secrets s JOIN organizations o ON o.id = s.organization_id
-ORDER BY 1, 2;
-
--- Kolekcje: kto je embeduje i które parsują poza wdrożeniem.
-SELECT name, embedding_provider, embedding_model,
-       ingestion_config ->> 'pdf_parser' AS pdf_parser,
-       ingestion_config ->> 'llamaparse_secret_id' IS NOT NULL AS llamaparse_key,
-       embedding_endpoint_id, ingestion_config ->> 'ocr_endpoint_id' AS ocr_endpoint_id
-FROM knowledge_bases ORDER BY 1;
-
--- Serwery we własnej sieci, na które można skierować kolekcje. Każdy adres
--- tutaj powinien być adresem, który prowadzisz.
-SELECT o.name AS organization, s.kind, s.provider, s.name, s.base_url, s.is_active
-FROM local_services s LEFT JOIN organizations o ON o.id = s.organization_id
-ORDER BY 1 NULLS FIRST, 2, 4;
-
-SELECT scope, name, url, auth_type FROM mcp_connections WHERE is_enabled ORDER BY 1, 2;
-SELECT name, connector_type, collection_name FROM sync_sources WHERE is_active ORDER BY 2, 1;
-
--- 5. Runy trace'owane do własnego projektu: token na opublikowanym specu albo
---    na środowisku.
-SELECT a.slug, v.version, 'spec' AS via
-FROM agent_versions v JOIN agents a ON a.id = v.agent_id
-WHERE v.spec -> 'observability' ->> 'token_secret_id' IS NOT NULL
-UNION ALL
-SELECT a.slug, NULL, 'environment ' || e.name
-FROM agent_environments e JOIN agents a ON a.id = e.agent_id
-WHERE e.logfire_token_secret_id IS NOT NULL;
-
--- 6. Do czego musiałaby sięgnąć retencja. Dopasuj wiek do ustalonego
---    harmonogramu.
-SELECT 'conversations' AS store, count(*) FROM conversations WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'agent_runs', count(*) FROM agent_runs WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'audit', count(*) FROM app_admin_audit_logs WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'agent_memory_files', count(*) FROM agent_memory_files
-UNION ALL SELECT 'chat_files', count(*) FROM chat_files;
-```
-
-```bash
-# 7. Bajty załączników, których wiersze już nie ma. Wiersz chat_files znika
-#    kaskadą razem ze swoją wiadomością, a plik zostaje, więc różnica rośnie
-#    z każdą usuniętą konwersacją (zobacz „Co obejmuje usunięcie”). Wygenerowane
-#    obrazy i katalog roboczy parsowania z założenia nie mają wiersza i są
-#    wyłączone. Przez kontener bazy: API zna swój connection string wyłącznie
-#    jako ustawienie wyliczane, a nie jako zmienną, którą mogłaby odczytać
-#    powłoka.
-docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT storage_path FROM chat_files
-  UNION SELECT storage_path FROM rag_documents WHERE storage_path IS NOT NULL" \
-  | sort > /tmp/referenced.txt
-(cd "${MEDIA_DIR:-./media}" && find . -type f -not -path './generated_*' -not -path './_rag_tmp/*' \
-  | sed 's|^\./||' | sort) > /tmp/on_disk.txt
-comm -23 /tmp/on_disk.txt /tmp/referenced.txt | wc -l      # pliki, do których nic się nie odwołuje
-```
-
-Awatary i logotypy embedów też są na dysku i są wskazywane przez
-`users.avatar_url` oraz `agent_embeds.logo_path`; dodaj te kolumny do zapytania,
-jeśli powyższa liczba nie jest zerem, a chcesz mieć dokładną listę.
-
-Wyniki punktów od 1 do 6 załącz do przeglądu razem z umowami z poprzedniej
-sekcji. Punkt 7 to licznik do obserwowania, dopóki
+Jego ostatnia sekcja to licznik, który przewiduje
+[Co obejmuje usunięcie](#what-deletion-reaches) na tej stronie: wiersz
+`chat_files` znika kaskadowo razem ze swoją wiadomością, a bajty zostają, więc
+liczba rośnie z każdą usuniętą konwersacją, dopóki
 [#1421](https://github.com/vstorm-co/agenticos/issues/1421) nie zacznie usuwać
-bajtów razem z konwersacją.
+obu naraz. Wygenerowane obrazy i katalog roboczy parsowania są wyłączone, bo z
+założenia nie mają wiersza; wszystko inne, co się tam liczy, to bajty, których
+produkt już nie znajdzie i nie umie usunąć.
+
+Czego żadna komenda nie wytworzy, to druga połowa tej strony: umowy, lokalizacje
+i wyłączenia z treningu z poprzedniej sekcji. Załącz je obok wyniku.
 
 ## Otwarte warunki pierwszego wdrożenia { #open-conditions-for-a-first-rollout }
 
@@ -332,21 +282,27 @@ wdrożenia, dopóki każdy z nich się nie zamknie.
 
 **W kodzie, śledzone:**
 
-- Trace'y niosą pełną treść, chyba że agent ustawi `observability.content` na `none`; nie ma stanu pośredniego — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 - Brak retencji według harmonogramu — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Bajty załączników i pamięć osoby przeżywają usunięcie swojego właściciela; brak
   eksportu danych osobowych; inwentarz usunięcia —
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- Brak dowodu nienaruszalności śladu audytowego — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Pliki wyłącznie na dysku lokalnym, szyfrowane przez wolumen albo wcale — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - Brak samoobsługowego wglądu we własną pamięć — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Brak logowania OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- Macierz kontroli HIPAA i SOC 2 — [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
+
+**Zamknięte i opisane wyżej, a nie tutaj:** dowód nienaruszalności śladu
+audytowego (#1622, #1648), tryb treści trace'u per agent i jego dziedziczenie przez specjalistów (#1413, #1699), trace'owanie w procesie wykonującym
+uruchomionego agenta (#1700) oraz macierz
+kontroli HIPAA i SOC 2 w [Bezpieczeństwie](security.md#controls-matrix) (#1412).
+Trace'y nie mają stanu pośredniego z filtrem i go nie dostaną
+([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); dla wdrożenia,
+które nie może eksportować treści, odpowiedzią jest `none`.
 
 **We wdrożeniu, rozstrzygane przez jego operatora:** umowy, lokalizacje,
 wyłączenia z treningu, harmonogram retencji, wygaśnięcie kopii zapasowych,
 szyfrowanie dysku, ruch wychodzący sandboksa i strony prawne z poprzedniej
-sekcji.
+sekcji. Każdy z nich to dowód, którego `data-protection-report` celowo nie
+wytwarza.
 
 Przegląd, który zastanie każdy wiersz powyżej albo zamknięty, albo zaakceptowany
 na piśmie, ma to, co ta strona może mu dać. Reszta należy do wdrożenia.
