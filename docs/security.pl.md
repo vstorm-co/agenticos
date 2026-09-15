@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "b2bdc7d37188"
 ---
 
 # Bezpieczeństwo { #security }
@@ -84,6 +84,66 @@ Backend plików zgodny z S3, z szyfrowaniem po stronie serwera, jest odpowiedzi�
 na poziomie aplikacji dla object storage i jest śledzony w
 [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 
+## Co jest trzymane o jednej osobie i co się z tym dzieje { #what-is-held-about-one-person-and-what-happens-to-it }
+
+RODO art. 15 pyta, co o kimś trzymasz, a art. 17 każe to usunąć. Na oba odpowiada
+ta tabela, i to celowo: inwentarz, który wymienia tabelę przy eksporcie i zapomina
+o niej przy usuwaniu, jest gorszy niż żaden, bo czyta się jak kompletny.
+
+Linia, którą rysuje, to **o** kimś kontra **stworzone przez** kogoś. To, co jest
+o osobie, idzie razem z nią; to, co stworzyła na rzecz organizacji — agent,
+na którym pracuje zespół, baza wiedzy, zapisane poświadczenie — jest przekazywane
+dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy zespół.
+
+| Tabela | Przy usunięciu | W eksporcie | Dlaczego |
+|---|---|---|---|
+| `users` | Usuwany | Profil, bez hasha hasła | Samo konto |
+| `conversations`, `messages`, `tool_calls` | Kaskada | Wątki, które zaczęli, z każdą turą | Ich własne, a transkrypt bez co drugiej tury nie odpowiada na nic |
+| `chat_files` | Kaskada; bajty odpinane po commicie | Nie wypisywane | Wiersz kaskadował, a plik nie — czyli dane zatrzymane po żądaniu usunięcia ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `message_ratings` | Kaskada | Tak | Wyrażona opinia |
+| `sessions` | Kaskada | Urządzenie, adres i czasy — nigdy poświadczenie, bo jest hashem | Gdzie się logowali |
+| `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskada | Układy i skróty | Ustawienia osobiste, dla nikogo innego bez znaczenia |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Czyszczone jawnie** | Tak | Klucz jako łańcuch znaków bez klucza obcego: nic nie kaskadowało, więc każda notatka przeżywała konto |
+| `channel_identities` | **Czyszczone jawnie** | Tak | `SET NULL` zostawiał wiersz z id Slacka, nazwą i nazwą wyświetlaną osoby, której już nie ma, powiązany z nikim |
+| `agent_runs` | `SET NULL` — zachowywane | Runy, które uruchomili, i ile kosztowały | Wydatek jest zapisem organizacji; anonimowy run wciąż liczy się do miesiąca |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — zachowywane | Nie | Stworzone *dla organizacji*. Usunięcie zabrałoby pracę zespołu razem z osobą |
+| `organization_secrets` | `SET NULL`, a sekret prywatny awansuje do organizacji | Nie | Poświadczenie, na którym działa organizacja. Awans jest tym, co nie pozwala bezpańskiemu sekretowi zablokować usunięcia |
+| `organizations` | Org osobista usuwana; współdzielona, którą stworzyli, przechodzi na innego właściciela | Nie | Nikt nie może zostać z organizacją bez właściciela |
+| `resource_grants` | Kaskada po obdarowanym; `SET NULL` po nadającym | Nie | Uprawnienie *dla* nich jest ich; uprawnienie, które *nadali*, jest zapisem organizacji, kto co może |
+| `app_admin_audit_logs` | **Zachowywane**, id aktora zostaje | **Nie** | Zapis organizacji o tym, co się w niej działo. Wpis nazywający usunięte konto jest uczciwy; wpis z wyciętym aktorem jest gorszy niż bezużyteczny, a osoba nie może go zabrać ze sobą |
+| `embed_visitors` | Nietykane | Nie | Odwiedzający to klucz przeglądarki, nigdy konto — nie ma tu nic o osobie z loginem |
+
+!!! warning "Czego usunięcie nie dosięga — i mówią to dokumenty, a nie wdrożenie po fakcie"
+
+    **Skonfigurowany zewnętrzny magazyn pamięci.** `mem0` trzyma to, co agent
+    zapamiętał, w cudzym systemie, a to wdrożenie może poprosić o zapomnienie
+    tylko dopóki ma poświadczenie organizacji. `MemoryService.forget_person`
+    robi to dla osoby, która wciąż jest członkiem; notatki usuniętego konta
+    w zewnętrznym magazynie należą do operatora.
+
+    **Kopie zapasowe.** Usunięcie kasuje wiersze z żywej bazy. Harmonogram kopii,
+    który uruchamia wdrożenie, trzyma je do swojej rotacji i żadne usunięcie na
+    poziomie aplikacji tego nie zmienia.
+
+    **Własna retencja providera modelu.** To, co zostało wysłane, by odpowiedzieć
+    na turę, podlega polityce providera — opisują to [modele](models.md), a to
+    wdrożenie tego nie kontroluje.
+
+### Samoobsługa i to, co dokłada administrator { #self-service-and-what-an-administrator-adds }
+
+Osoba nie potrzebuje administratora w zwykłych przypadkach.
+`GET /me/data/export` to cała powyższa tabela w jednym dokumencie JSON, z limitem
+na godzinę i wpisem w audycie — również wtedy, gdy ktoś eksportuje samego siebie,
+bo eksport ma kształt wycieku, gdy wywołujący nie jest tym, za kogo się podaje.
+`DELETE /conversations/{id}` usuwa jeden wątek, jego tury i pliki, które z nimi
+przyszły, sprawdzone wobec własności wywołującego (FA-015).
+
+Administrator dokłada dwie rzeczy i obie są audytowane:
+`GET /admin/users/{id}/export`, który **wymaga powodu** — czytanie całej historii
+rozmów kolegi jest uzasadnione jakieś dwa razy w roku i za każdym razem poważne —
+oraz `DELETE /admin/users/{id}`, gdzie powód jest opcjonalny, bo offboarding
+zwykle nie ma czego tłumaczyć.
+
 ## Macierz kontroli { #controls-matrix }
 
 Jeden wiersz na kontrolę, mechanizm, który ją realizuje, i test, który trzyma ją
@@ -115,6 +175,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Mutacje istotne dla governance zapisywane w transakcji żądania | `record_audit` (`app/core/audit.py`) w mutującym serwisie — rotacja sekretu, podpięcie skilla / synchronizacji / MCP, członkostwo, udostępnianie, zatwierdzenia, eksporty i więcej; zapisywane do `app_admin_audit_logs`. To nie jest pokrycie każdego zapisu (CRUD bazy wiedzy, choćby, nie jest audytowany) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Ślad jest czytelny dla audytora | `GET /audit`, bramkowane na `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Eksport śladu (CSV/JSONL) | `GET /audit/export` w oknie czasu, bramkowany na `audit:read`, zapisujący własny odczyt w śladzie; eksporty runów, zatwierdzeń i wydatków robią to samo (#1422) | `test_exporting.py` (eksport i jego własny wpis audytowy) |
+| Osoba może odczytać i usunąć własne dane | `GET /me/data/export` (limit na godzinę, audytowany także przy własnym żądaniu) oraz `DELETE /conversations/{id}` w zakresie własności wywołującego; eksport administratora wymaga powodu (`app/services/personal_data.py`) | `test_personal_data.py` |
 | Dowód nienaruszalności (łańcuch haszy) | **Jeszcze nie** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integralność · HIPAA §164.312(c) · SOC 2 CC8 (zarządzanie zmianą) { #integrity-hipaa-164312c-soc-2-cc8-change-management }

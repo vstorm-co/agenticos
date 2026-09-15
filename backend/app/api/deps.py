@@ -81,6 +81,7 @@ async def get_redis(request: Request) -> RedisClient:
 Redis = Annotated[RedisClient, Depends(get_redis)]
 
 
+from app.services.personal_data import PersonalDataService
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.impersonation import ImpersonationService
@@ -96,6 +97,11 @@ from app.services.conversation_share import ConversationShareService
 def get_user_service(db: DBSession) -> UserService:
     """Create UserService instance with database session."""
     return UserService(db)
+
+
+def get_personal_data_service(db: DBSession) -> PersonalDataService:
+    """What this deployment holds about one person - read out, or removed (#1421)."""
+    return PersonalDataService(db)
 
 
 def get_session_service(db: DBSession) -> SessionService:
@@ -114,6 +120,7 @@ def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
 
 
 UserSvc = Annotated[UserService, Depends(get_user_service)]
+PersonalDataSvc = Annotated[PersonalDataService, Depends(get_personal_data_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 ImpersonationSvc = Annotated[ImpersonationService, Depends(get_impersonation_service)]
 OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
@@ -704,6 +711,30 @@ async def enforce_auth_limit(
             surface=surface, caller=f"id:{identifier.strip().lower()}", limit=limit
         )
     _refuse_if_over(decision, "Too many attempts. Please wait and try again.")
+
+
+async def limit_personal_data_export(ctx: Auth) -> None:
+    """Refuse a caller asking for personal-data exports faster than a person would.
+
+    Keyed on the caller, like the run limit beside it, and for the same reason:
+    the endpoint is authenticated, so there is a subject to count.
+
+    Its own limit rather than the run one, because what is being rationed is
+    different. A run costs money; an export costs almost nothing and hands over
+    everything this deployment holds about somebody in one file. A person does
+    that once. A stolen session walking the deployment's people does it
+    repeatedly, and per *hour* is what makes that slow enough to notice (#1421).
+
+    Usage::
+
+        @router.get("/export", dependencies=[Depends(limit_personal_data_export)])
+    """
+    decision = await rate_limit.consume(
+        surface="personal_data_export",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.export_limit(),
+    )
+    _refuse_if_over(decision, "Too many export requests. Try again later.")
 
 
 async def limit_embed_script(request: Request) -> None:

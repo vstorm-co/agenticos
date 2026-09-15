@@ -168,6 +168,18 @@ def run_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
 
 
+def export_limit() -> Limit:
+    """What one caller may ask for a personal-data export, per hour.
+
+    Per hour rather than per minute, because the thing being rationed is not
+    load: assembling everything about a person into one document is cheap and is
+    the shape of a data breach when the caller is not who they claim to be. A
+    person exporting themselves does it once; a stolen session walking the
+    deployment's people does it repeatedly (#1421).
+    """
+    return Limit(attempts=settings.RATE_LIMIT_EXPORT_PER_HOUR, window_seconds=3_600)
+
+
 def auth_limit() -> Limit:
     """How many auth attempts one caller gets per minute.
 

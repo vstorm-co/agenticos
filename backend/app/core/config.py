@@ -277,6 +277,14 @@ class Settings(BaseSettings):
     # caller rather than on their address: the endpoint is authenticated, and an
     # office behind one NAT is not one caller.
     RATE_LIMIT_RUN_PER_MINUTE: int = 30
+    # How often one caller may ask for a personal-data export, per hour rather
+    # than per minute. It is the one route that assembles everything about a
+    # person into a single document, which is the shape of a data breach when
+    # the caller is not who they claim to be - and nobody legitimately needs it
+    # twice in a day. Low enough that a stolen session cannot quietly walk the
+    # deployment's people, high enough that a person retrying a failed download
+    # is not locked out (#1421).
+    RATE_LIMIT_EXPORT_PER_HOUR: int = 5
     # How often one address may ask to be admitted to a widget or a hosted page,
     # per minute. Admission only - what a visitor may say once admitted is the
     # embed's own `rate_limit_per_minute`, counted per visitor.

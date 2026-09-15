@@ -3,8 +3,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, status
 
-from app.api.deps import CurrentAppAdmin, DBSession, ImpersonationSvc, UserSvc
+from app.api.deps import (
+    CurrentAppAdmin,
+    DBSession,
+    ImpersonationSvc,
+    PersonalDataSvc,
+    UserSvc,
+)
 from app.core.audit import record_audit
+from app.schemas.personal_data import PersonalDataExport
 from app.schemas.user import (
     AdminUserDetail,
     AdminUserList,
@@ -88,6 +95,33 @@ async def update_user(
     return user
 
 
+@router.get("/{user_id}/export", response_model=PersonalDataExport)
+async def export_user_data(
+    user_id: UUID,
+    service: PersonalDataSvc,
+    admin: CurrentAppAdmin,
+    reason: str = Query(
+        min_length=3,
+        max_length=500,
+        description="Why this export was made. Recorded in the audit trail.",
+    ),
+) -> Any:
+    """Everything this deployment holds about one person, for a data-protection request.
+
+    The administrator's half of `GET /me/data/export`, for the case the person
+    cannot make the request themselves - a DPO forwarding an art. 15 request
+    about somebody who has left, most often.
+
+    **The reason is required, and that is the point of having it.** An
+    administrator reading a colleague's entire conversation history is a
+    legitimate act about twice a year and a serious one every time; an entry
+    saying only that it happened tells whoever reviews the trail nothing they
+    can act on. It is recorded verbatim, so it is also the administrator's own
+    account of why.
+    """
+    return await service.export(user_id, actor_user_id=admin.id, reason=reason)
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_user(
     user_id: UUID,
@@ -95,16 +129,36 @@ async def delete_user(
     admin: CurrentAppAdmin,
     db: DBSession,
     service: UserSvc,
+    reason: str | None = Query(
+        default=None,
+        max_length=500,
+        description="Why this account was deleted. Recorded in the audit trail.",
+    ),
 ) -> None:
+    """Delete an account and everything this deployment holds about the person.
+
+    What goes and what stays is the inventory in `docs/security.md`, and the
+    short version is: what is *about* them goes - their threads, their ratings,
+    their sessions, what agents wrote down about them, the platform accounts
+    they linked - and what they *created* on the organization's behalf is handed
+    on rather than removed.
+
+    `reason` is optional here where the export requires one, and the asymmetry is
+    deliberate: a deletion is often a routine offboarding with nothing to
+    explain, while reading somebody's conversations never is.
+    """
     target = await service.get_by_id(user_id)
     await service.admin_delete(user_id, acting_admin_id=admin.id)
+    details: dict[str, Any] = {"email": target.email}
+    if reason is not None:
+        details["reason"] = reason
     await record_audit(
         db,
         actor_user_id=admin.id,
         action="admin.user.delete",
         target_type="user",
         target_id=str(user_id),
-        details={"email": target.email},
+        details=details,
         ip_address=request.client.host if request.client else None,
     )
 
