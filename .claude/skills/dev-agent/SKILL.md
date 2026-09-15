@@ -73,6 +73,7 @@ All agent state lives in `.dev-agent/` (gitignored). The layout is:
   "max_impl_iterations": 3,
   "requirements_hash": "<sha256 of requirements.md>",
   "last_checkpoint": "<ISO 8601>",
+  "test_commit_sha": "<set at the end of Phase 3>",
   "repo_conventions": {
     "test_runner": "<detected command>",
     "ci_command": "<detected command>",
@@ -149,9 +150,9 @@ Spawn a subagent with these instructions:
 > Rules:
 > - Write tests BEFORE any implementation (TDD).
 > - Tests must fail right now because there is no implementation — this is expected and correct.
-> - Run the repo's test-collection/dry-run step (e.g. `pytest --collect-only`, `npm test -- --listTests`, the closest equivalent for this test runner) after writing to confirm all tests are discovered without import/syntax errors.
-> - If that check fails, fix import/syntax errors until it passes.
-> - Do NOT write any implementation code.
+> - Run the repo's test-collection/dry-run step (e.g. `pytest --collect-only`, `npm test -- --listTests`, the closest equivalent for this test runner) after writing to confirm every test is discovered.
+> - A collection failure caused by importing a module Phase 5 has not created yet is the expected TDD red state — leave it. Fix only errors that are the test file's own fault: a syntax error, a wrong import path, a missing fixture/conftest entry, or a reference to something the design does not call for.
+> - Do NOT write any implementation code — including a stub module, class, or function created only to satisfy an import.
 
 ---
 
@@ -177,7 +178,13 @@ assertions:
 
 Create a git commit for the test files only, using this repo's own commit-message
 convention (see `repo_conventions`; Conventional Commits' `test:` type is a reasonable
-default if the repo uses that style).
+default if the repo uses that style). Record the resulting commit's SHA as
+`state.json`'s `test_commit_sha` — Phase 6 needs it to scope its own review.
+
+**Checkpoint**: set `phase=plan` in `state.json` *before* asking the question below, not
+after the user answers it. Tests are already committed at this point, so if the session
+ends while waiting here, `--resume` must land in Phase 4, not repeat Phase 3 — a repeat
+would find nothing left to review or commit and stall.
 
 Ask the user:
 
@@ -230,9 +237,12 @@ Spawn a subagent with these instructions:
 
 **Checkpoint**: set `phase=review-impl`, `review_iteration=0`.
 
-Run the **review loop** (below) with `target=implementation`, reviewing the files added or
-modified under the source directory (`git diff --name-only HEAD -- <source_dir>`), and
-`max_iterations = state.max_impl_iterations`.
+Run the **review loop** (below) with `target=implementation`, reviewing every file added
+or modified since the test commit (`git diff --name-only <state.test_commit_sha> -- .
+':!.dev-agent'`), and `max_iterations = state.max_impl_iterations`. Do not restrict this
+to the source directory alone — a real feature can also touch a migration, a config file,
+or a manifest outside it (this repository's own migrations live under `backend/alembic/`,
+for one), and a review scoped only to `<source_dir>` would ship those unreviewed.
 
 After the loop returns, run the repo's aggregate pre-merge check
 (`repo_conventions.ci_command`) one final time. This must be fully green (no failures of
@@ -282,8 +292,9 @@ and whether the code actually satisfies `.dev-agent/design.md` / `.dev-agent/req
 target files, giving it: the files, a one-paragraph summary of `design.md`, the first ~400
 characters of `requirements.md`, and the list of previously-unsolved issue descriptions
 from `unsolved.json` (empty on round 0). Save the result to
-`round-{N}-issues.json`. **If it reports no issues**, print "Round {N}: no issues found.
-Stopping loop." and exit the loop.
+`round-{N}-issues.json`. **If it reports no issues**: clear `unsolved.json` (write `[]`)
+— the reviewer just found nothing, so no earlier round's description survives
+unconfirmed — then print "Round {N}: no issues found. Stopping loop." and exit the loop.
 
 **Step 2 — propose solutions.** For each issue, build a code snippet (±10 lines around its
 location, or the whole file if unclear) and ask for a proposed fix per issue. Save to

@@ -290,7 +290,9 @@ reconciles against.
 
 A finding is a **durable object**, not a fresh emission each round. Every *raised*
 finding carries a **stable ID** (`RR-xxxx`) and a machine-readable **status line**
-(§2.8), both stamped into its posted comment — the PR comments *are* the ledger.
+(§2.8), both stamped into its posted comment — the PR comments *are* the ledger. This
+only holds once something actually posts them (§3.5); the Judge's output on its own,
+returned only inside the Claude Code session, is not a ledger a later run can read.
 Every review also stamps the **reviewed commit SHA** it ran against, machine-findably,
 so a later re-review anchors to it. Lifecycle: `open` → `fixed` (verified resolved)
 / `refuted` (§2.6) / `dismissed` (human closure); a `fixed` or `dismissed` finding
@@ -358,6 +360,30 @@ finding is attributable to the stage that raised it.
   model is Claude Opus 4.8, so **pass `opus` on every spawn** — Scope, all three
   finders, Verification, and Judge alike. Never inherit and never downgrade a stage
   to a different tier.
+
+### 3.5 Persisting the ledger
+
+§3.3 depends on the ledger existing where a later run can read it. Nothing upstream of
+this section posts anything — this is the step that does, and re-review's baseline step
+is the step that reads it back.
+
+- **Posting a first review.** After the Judge (§4.6) produces the final review, post it
+  to the pull request as one GitHub review (`gh pr review --comment --body-file`, or the
+  equivalent GraphQL `addPullRequestReview` mutation): a top-level summary plus one
+  inline comment per raised finding, each in the §2.8 template so its `RR-xxxx` ID and
+  `Status:` line are visible text, not something that only existed inside the session.
+  Stamp the reviewed commit SHA in the summary body as a machine-findable marker:
+  `<!-- vstorm-code-review: reviewed_commit=<full 40-char SHA> -->`.
+- **Reading the ledger for a re-review.** Before Scope's baseline step (§3.3) runs, fetch
+  every existing review and inline comment on the PR (the `pr-comments` skill's GraphQL
+  query returns exactly this shape). Find the most recent `reviewed_commit` marker for
+  its SHA, and parse every `RR-xxxx` / `Status:` pair from the comment bodies to
+  reconstruct which findings exist and their last known state. If no marker is found,
+  there is no prior ledger — run a first review (§3.3), not a re-review.
+- **Updating the ledger after a re-review.** A finding that changes status (`fixed`,
+  `refuted`, reopened) gets a reply on its existing thread recording the new status line,
+  not a new top-level finding — the thread is the finding's history. Post a new summary
+  comment carrying the newly reviewed commit SHA marker, the same way a first review does.
 
 ## 4. Per-stage instructions
 
@@ -552,6 +578,20 @@ change-verification skill when present, runs benchmarks against an established
 setup, and captures the grounding logs/traces (e.g. Logfire). The finders never do: they run
 in parallel, and each starting a uvicorn or Docker server would collide on ports —
 so finders only *propose* how to reproduce, and Verification runs it serially.
+
+**Executing PR-controlled code is itself a security boundary.** The code under review is
+attacker-controlled until proven otherwise — a repro, a `make test`/`make check` target,
+or a benchmark defined in the PR can itself contain the payload, and running it under the
+reviewer's own credentials on the reviewer's own host hands that payload the reviewer's
+network access and secrets. Before running anything the PR's own diff defines or a finder
+proposed: prefer an isolated, disposable environment with no ambient credentials (a fresh
+container or sandbox with no mounted secrets, scoped network access) over the host running
+this session. When the repository or environment does not provide that isolation, do not
+improvise one — fall back to static verification only (re-reading the execution path,
+citing the exact line and input) for candidates that would otherwise require running PR
+code, and mark them `unverified` rather than executed. This applies regardless of whether
+the caller is reviewing their own branch or a contributor's.
+
 Scale the evidence to Scope's blast-radius assessment. Run deterministic gates as
 early as the repository workflow permits; for high-impact invariant-heavy changes,
 run established property-based or mutation checks when they can confirm the
@@ -581,6 +621,8 @@ override it when it does not. Anything that cannot clear the bar stays a raised
   count is signal, not noise: emit an advisory (§4.4) recommending the PR be split,
   rather than shortening the list.
 - **Format.** Emit each finding in the §2.8 template.
+- **Hand off to persistence.** The Judge's output is not itself the ledger — §3.5 posts
+  it to the PR. Without that step, nothing here is readable by a later re-review.
 
 ## 5. Follow-ups & notes
 
