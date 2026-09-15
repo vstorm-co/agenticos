@@ -17,14 +17,30 @@ const SPLIT_ORIGIN: PublicConfig = {
   wsUrl: "wss://ws.acme.example",
 };
 
+/** A stand-in for the per-request value the middleware generates. */
+const NONCE = "r4nd0mN0nc3VALUE==";
+
 describe("the console's content security policy", () => {
-  const directives = cspDirectives(DEFAULT_PUBLIC_CONFIG);
+  const directives = cspDirectives(DEFAULT_PUBLIC_CONFIG, NONCE);
+
+  it("carries this request's script nonce and no 'unsafe-inline'", () => {
+    // The whole point of #1624: the app router's inline flight scripts are trusted
+    // by the nonce, not by opening the door to every inline script. `'unsafe-inline'`
+    // gone, `'strict-dynamic'` present so the nonce's trust reaches the chunks those
+    // scripts load.
+    expect(directives["script-src"]).toContain(`'nonce-${NONCE}'`);
+    expect(directives["script-src"]).toContain("'strict-dynamic'");
+    expect(directives["script-src"]).not.toContain("'unsafe-inline'");
+    expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE)).toContain(
+      `script-src 'self' 'unsafe-eval' 'nonce-${NONCE}' 'strict-dynamic'`,
+    );
+  });
 
   it("frames a blob, because that is what a document preview is", () => {
     // The viewer fetches the bytes, mints a blob URL and puts it in an iframe.
     // Without this the policy falls back to `default-src 'self'` and refuses it.
     expect(directives["frame-src"]).toContain("blob:");
-    expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG)).toContain("frame-src 'self' blob:");
+    expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE)).toContain("frame-src 'self' blob:");
   });
 
   it("does not frame a data URL", () => {
@@ -49,7 +65,7 @@ describe("the console's content security policy", () => {
     // `PUBLIC_WS_URL`; a policy that named `localhost` and a scheme-wide `wss:`
     // blocked the first on a split-origin deployment and let the second open to
     // any host (#1416 review).
-    expect(cspDirectives(SPLIT_ORIGIN)["connect-src"]).toEqual([
+    expect(cspDirectives(SPLIT_ORIGIN, NONCE)["connect-src"]).toEqual([
       "'self'",
       "https://api.acme.example",
       "wss://ws.acme.example",
@@ -62,7 +78,7 @@ describe("the console's content security policy", () => {
       apiUrl: "https://acme.example/api",
       wsUrl: "wss://acme.example/ws",
     };
-    expect(cspDirectives(withPaths)["connect-src"]).toEqual([
+    expect(cspDirectives(withPaths, NONCE)["connect-src"]).toEqual([
       "'self'",
       "https://acme.example",
       "wss://acme.example",
@@ -72,7 +88,7 @@ describe("the console's content security policy", () => {
   it("names no scheme-wide source and no wildcard host anywhere", () => {
     // `wss:` alone is every WebSocket server there is; `*` in any directive is
     // the policy switched off for that resource type.
-    for (const sources of Object.values(cspDirectives(SPLIT_ORIGIN))) {
+    for (const sources of Object.values(cspDirectives(SPLIT_ORIGIN, NONCE))) {
       expect(sources).not.toContain("*");
       for (const source of sources) expect(source).not.toMatch(/^wss?:$/);
     }
@@ -82,11 +98,11 @@ describe("the console's content security policy", () => {
     // `<object>`/`<embed>` are not covered by `default-src` on their own, and the
     // console renders none (#1416).
     expect(directives["object-src"]).toEqual(["'none'"]);
-    expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG)).toContain("object-src 'none'");
+    expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE)).toContain("object-src 'none'");
   });
 
   it("is one line, in the order the directives are written", () => {
-    const policy = contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG);
+    const policy = contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE);
     expect(policy).not.toContain("\n");
     expect(policy.startsWith("default-src 'self';")).toBe(true);
   });
