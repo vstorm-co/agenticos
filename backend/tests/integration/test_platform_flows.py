@@ -76,7 +76,6 @@ from app.repositories import (
     credential_repo,
     ingestion_spend_repo,
     mcp_connection_repo,
-    member_repo,
     organization_secret_repo,
     rag_document_repo,
 )
@@ -4177,73 +4176,6 @@ class TestWhichSkillsAMemberSees:
 
         assert {skill.name for skill in items} == {"members-private"}
         assert total == 1
-
-
-class TestWhoStillHearsAboutRuns:
-    """The notification opt-outs, against real rows.
-
-    `/settings/notifications` writes three booleans; the recipient query
-    filters on one of them in SQL. A unit test can only assert which column
-    was asked for - whether the WHERE clause actually drops the member who
-    switched it off is a question for the database.
-    """
-
-    @pytest.mark.anyio
-    async def test_a_member_who_opted_out_is_dropped_from_the_recipient_query(self, db) -> None:
-        tenant = await _tenant(db, name="Optout")
-        admin_ctx = await _join(db, tenant, OrgRoleName.ADMIN)
-        admin = await db.get(User, admin_ctx.user_id)
-        assert admin is not None
-        admin.notify_usage_reports = False
-        await db.flush()
-
-        recipients = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value],
-            preference="notify_usage_reports",
-        )
-
-        assert recipients == [tenant.user.email]
-
-    @pytest.mark.anyio
-    async def test_an_opt_out_silences_one_kind_of_email_not_the_others(self, db) -> None:
-        """The columns are independent: declining the usage report must not
-        also silence the budget alert that stops a runaway agent."""
-        tenant = await _tenant(db, name="OneKind")
-        tenant.user.notify_usage_reports = False
-        await db.flush()
-
-        reports = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-            preference="notify_usage_reports",
-        )
-        budget = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-            preference="notify_budget_alerts",
-        )
-
-        assert reports == []
-        assert budget == [tenant.user.email]
-
-    @pytest.mark.anyio
-    async def test_a_query_without_a_preference_still_lists_everyone(self, db) -> None:
-        """Callers that are not sending optional mail see the full roster."""
-        tenant = await _tenant(db, name="NoPref")
-        tenant.user.notify_usage_reports = False
-        await db.flush()
-
-        recipients = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-        )
-
-        assert recipients == [tenant.user.email]
 
 
 class TestSharedWithMeIsWhatWasDeliberatelyShared:

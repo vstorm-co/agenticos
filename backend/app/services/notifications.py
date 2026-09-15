@@ -8,19 +8,26 @@ when somebody asks why the agent went quiet. That gap is what this closes.
 Four rules the callers depend on:
 
 *Never raise into the caller.* A run that has already ended must not fail again
-because SMTP was down. Every send is wrapped, and a failure is logged.
+because a write here did. `NotificationCenterService.write(use_savepoint=True)`
+absorbs a failure into a rolled-back savepoint and logs it, rather than
+poisoning the transaction that just recorded the run's own outcome.
 
-*Never block the caller.* Sending happens on a background task, so a run's
-`finally` block does not wait on a mail server.
+*Never block the caller.* Writing a row is a database insert already inside
+the caller's own transaction - no mail server is contacted here at all.
+Actually sending the resulting email, and retrying one that failed, is
+`notification_delivery_sweep`'s job (a later phase), off its own claimed
+queue.
 
 *Never notify twice for the same fact.* A budget breach is reported once per
 run, at the moment the run is recorded as stopped - not per model request that
-was refused.
+was refused. Enforced by the database now: `occurrence_id` is the run id (or
+`(subject, period, window_start)` for a report), unique per recipient.
 
 *Never mail somebody who opted out.* Each kind of email here maps to one
-preference on the user (`/settings/notifications`), and the check happens where
-recipients are resolved: an address only enters a recipient list if its owner
-still wants this kind of mail.
+preference on the user (`/settings/notifications`), consulted by the write
+path per recipient, per channel - identity is resolved here, independent of
+any preference; `NotificationCenterService` is what decides whether a
+channel is actually enabled for the person it is for.
 
 Who hears about an agent is the agent's own configuration
 (:class:`~app.agents.spec.NotificationSpec`), because the alerts are about an
@@ -36,8 +43,7 @@ no spec can redirect it.
 
 from __future__ import annotations
 
-import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -46,32 +52,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
-from app.core.background import spawn
 from app.core.config import settings
-from app.core.permissions import ROLE_PERMS, OrgRoleName, Perm
+from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.user import NotificationPreference
+from app.db.models.notification import NotificationEventType
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
-from app.services.email.service import EmailKey, get_email_service
+from app.services.notification_center import NotificationCenterService
 from app.services.spend import organization_spend_since
-
-logger = logging.getLogger(__name__)
 
 # Who answers for the organization. Owners and admins because they answer for
 # the spend; a builder can create an agent but is not who gets called when the
 # organization's month runs out.
 _ESCALATION_ROLES = [OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value]
-
-# Who may actually answer a parked tool call. Derived from the catalog rather
-# than listed, so a role gaining or losing `approvals:decide` cannot leave this
-# behind - which is the whole failure #1203 reports, one level up: a mail whose
-# call to action the platform will refuse.
-_DECIDING_ROLES = [
-    str(role) for role, perms in ROLE_PERMS.items() if Perm.APPROVALS_DECIDE in perms
-]
 
 ReportPeriod = Literal["weekly", "monthly"]
 
@@ -79,10 +74,21 @@ _PERIOD_DAYS: dict[ReportPeriod, int] = {"weekly": 7, "monthly": 30}
 
 
 class NotificationService:
-    """Emails about agent runs. Constructed per request, like every service."""
+    """Resolves who hears about a run, and writes the notification (#1598).
+
+    Everything that used to be a spawned email here now ends in a
+    `NotificationCenterService.write()` call - a durable, deduplicated,
+    per-recipient row, not a fire-and-forget send. `docs/design/notification-
+    center-plan.md`, Decisions 2-4, has the full reasoning; the short version
+    is that a run's `finally` block deserves a write it can trust happened,
+    not a coroutine handed to the background and never checked again. Actually
+    sending the resulting email - re-deriving the approval split, retrying a
+    transient failure - is `notification_delivery_sweep`'s job, not this one.
+    """
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self._center = NotificationCenterService(db)
 
     async def budget_exceeded(
         self,
@@ -102,28 +108,40 @@ class NotificationService:
         goes to the administrators regardless of what any agent asks for.
         """
         if scope is BudgetScope.ORGANIZATION:
-            recipients = await self._administrators(run.organization_id, "notify_budget_alerts")
+            recipients = await self._administrator_ids(run.organization_id)
         else:
-            recipients = await self._audience(
+            recipients = await self._audience_ids(
                 spec.notifications.budget,
                 organization_id=run.organization_id,
                 owner_user_id=agent.owner_user_id,
                 initiator_user_id=run.user_id,
-                preference="notify_budget_alerts",
             )
         if not recipients:
             return
 
         organization = await organization_repo.get_by_id(self.db, run.organization_id)
-        context = {
+        organization_name = organization.name if organization else "your organization"
+        run_url = self._link(f"/agents/{agent.id}", run.organization_id)
+        render_context = {
             "agent_name": agent.name,
-            "org_name": organization.name if organization else "your organization",
+            "org_name": organization_name,
             "reason": reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
-            "run_url": self._link(f"/agents/{agent.id}", run.organization_id),
+            "run_url": run_url,
             "app_name": settings.PROJECT_NAME,
         }
-        self._send(EmailKey.BUDGET_EXCEEDED, recipients, context)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id=str(run.id),
+            summary=f"{agent.name} stopped: {reason}",
+            context_url=run_url,
+            render_context=render_context,
+            organization_id=run.organization_id,
+            # `finish` cannot afford a write failure here to poison the
+            # transaction that just recorded the run's own outcome.
+            use_savepoint=True,
+        )
 
     async def approval_requested(
         self, run: AgentRun, *, agent: Agent, spec: AgentSpec, tools: list[str]
@@ -136,67 +154,58 @@ class NotificationService:
         parked until it is noticed. An agent whose approvals should only ever
         reach the person who asked says so in its spec.
 
-        **Two emails, because the audience holds two positions.**
+        **Written once per recipient, regardless of who may actually decide.**
         `approvals:decide` belongs to `owner`, `admin` and `operator`; a builder
         starting their own agent from the chat is the ordinary initiator and
-        holds none of it. They were sent "waiting on your approval" with a
-        Review button that opens a page whose queue the server refuses them -
-        the refusal arriving as an absent tab rather than a sentence (#1203).
-        So the deciders get the request, and everybody else gets the fact: the
-        run is held, somebody who can decide has been told, nothing is asked of
-        them. Dropping them instead would leave the one person definitely
-        waiting on the run uninformed.
+        holds none of it. Splitting the audience into "gets the request" and
+        "gets the fact" used to happen here, at write time - now it happens at
+        send time (`notification_delivery_sweep`), against each recipient's
+        *current* standing rather than a snapshot from the moment the run
+        parked: `render_context` carries everything either email variant
+        needs, and the sweep picks the key. The inbox read path makes the same
+        choice independently, for the same reason (Decision 7).
         """
-        recipients = await self._audience(
+        recipients = await self._audience_ids(
             spec.notifications.approvals,
             organization_id=run.organization_id,
             owner_user_id=agent.owner_user_id,
             initiator_user_id=run.user_id,
-            preference="notify_approval_requests",
         )
         if not recipients:
             return
-        deciders = await self._deciders(run.organization_id, "notify_approval_requests")
 
-        context = {
+        # The queue, not the agent. This addressed `/agents/{id}` - the
+        # Builder - where there is nothing to approve, so the one email whose
+        # whole purpose is "somebody has to decide, now" landed a search away
+        # from the decision while the run aged towards `expire_stale` (#935).
+        # Not `&run=`: the Approve and Reject controls are on the queue row,
+        # and below `lg` a focused run replaces the list - which would hide
+        # them from the reader most likely to be on a phone.
+        approvals_url = self._link("/runs?tab=approvals", run.organization_id)
+        render_context = {
             "agent_name": agent.name,
             "tools": ", ".join(tools) if tools else "a tool call",
-            # The queue, not the agent. This addressed `/agents/{id}` - the
-            # Builder - where there is nothing to approve, so the one email whose
-            # whole purpose is "somebody has to decide, now" landed a search away
-            # from the decision while the run aged towards `expire_stale` (#935).
-            # Not `&run=`: the Approve and Reject controls are on the queue row,
-            # and below `lg` a focused run replaces the list - which would hide
-            # them from the reader most likely to be on a phone.
-            "approvals_url": self._link("/runs?tab=approvals", run.organization_id),
+            "approvals_url": approvals_url,
             "app_name": settings.PROJECT_NAME,
         }
-        approvers = [address for address in recipients if address in deciders]
-        onlookers = [address for address in recipients if address not in deciders]
-        if approvers:
-            self._send(EmailKey.APPROVAL_REQUESTED, approvers, context)
-        if not onlookers:
-            return
-        # No link at all, and that is the point of it: `agents:view` being a role
-        # permission does not make one agent reachable, because agent access is
-        # resolved per resource - a `chosen` recipient with no grant to a private
-        # agent would get a second call to action the platform refuses. Nothing is
-        # asked of this reader, so nothing is offered.
-        self._send(
-            EmailKey.APPROVAL_PENDING,
-            onlookers,
-            {
-                "agent_name": context["agent_name"],
-                "tools": context["tools"],
-                "app_name": context["app_name"],
-            },
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.APPROVAL_REQUESTED,
+            occurrence_id=str(run.id),
+            summary=f"{agent.name} is waiting on your approval",
+            context_url=approvals_url,
+            render_context=render_context,
+            organization_id=run.organization_id,
+            use_savepoint=True,
         )
 
-    async def usage_report(self, organization_id: UUID, *, period: ReportPeriod) -> bool:
+    async def usage_report(
+        self, organization_id: UUID, *, period: ReportPeriod, window_start: datetime
+    ) -> bool:
         """What the organization's agents spent over the window.
 
-        Returns whether anything was sent. An organization that ran nothing gets
-        no email: a report that says "0 runs, $0.00" every week is the report
+        Returns whether anything was written. An organization that ran nothing
+        gets no report: one that says "0 runs, $0.00" every week is the report
         people filter into a folder, and then the one that mattered goes there
         too.
 
@@ -207,33 +216,53 @@ class NotificationService:
         delegated run twice, because a delegate's tokens are already inside its
         parent's cost, and it left out what ingestion spent embedding documents.
         A bill nobody can reconcile is worse than no bill.
+
+        `window_start` is the caller's, not `datetime.now(UTC)` taken here: the
+        occurrence id below is `(organization_id, period, window_start)`, and a
+        flow retried after a partial failure must compute the *same* id on its
+        second attempt or the dedup constraint has nothing to catch - every
+        organization already notified once would be notified again.
         """
-        since = datetime.now(UTC) - timedelta(days=_PERIOD_DAYS[period])
+        since = window_start - timedelta(days=_PERIOD_DAYS[period])
         rows = await agent_run_repo.cost_breakdown(
             self.db, organization_id=organization_id, since=since
         )
         if not rows:
             return False
 
-        recipients = await self._administrators(organization_id, "notify_usage_reports")
+        recipients = await self._administrator_ids(organization_id)
         if not recipients:
             return False
 
         # After the audience, not before: an organization whose last admin left
         # still has runs, and pricing a report nobody will read is two queries
-        # spent on an email that is not sent.
+        # spent on a write that does not happen.
         total = await organization_spend_since(self.db, organization_id, since)
         organization = await organization_repo.get_by_id(self.db, organization_id)
-        context = {
+        organization_name = organization.name if organization else "your organization"
+        dashboard_url = self._link("/agents", organization_id)
+        render_context = {
             "period": "week" if period == "weekly" else "month",
-            "org_name": organization.name if organization else "your organization",
+            "org_name": organization_name,
             "total": f"{total:.2f}",
             "runs": str(sum(row[3] for row in rows)),
             "agents": str(len({row[0] for row in rows})),
-            "dashboard_url": self._link("/agents", organization_id),
+            "dashboard_url": dashboard_url,
             "app_name": settings.PROJECT_NAME,
         }
-        self._send(EmailKey.USAGE_REPORT, recipients, context)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.USAGE_REPORT,
+            occurrence_id=f"{organization_id}:{period}:{window_start.isoformat()}",
+            summary=f"Usage report for {organization_name}",
+            context_url=dashboard_url,
+            render_context=render_context,
+            organization_id=organization_id,
+            # The report flow shares one session across every organization in
+            # the estate (`report_tasks._run_reports`) - a write failure here
+            # must not poison the loop's remaining iterations.
+            use_savepoint=True,
+        )
         return True
 
     async def agent_usage_report(
@@ -242,6 +271,7 @@ class NotificationService:
         spec: AgentSpec,
         *,
         period: ReportPeriod,
+        window_start: datetime,
     ) -> bool:
         """What this one agent spent over the window, to its own audience.
 
@@ -252,7 +282,8 @@ class NotificationService:
         reading it off an estate-wide total is not an answer.
 
         Silent when the agent did not run, for the same reason the
-        organization's report is.
+        organization's report is. `window_start` carries the same
+        retry-stability reason as `usage_report`'s.
 
         This is the one place `include_delegations` is asked for, and the reason it
         is the mirror image of the organization's report above: the runs this agent
@@ -265,7 +296,7 @@ class NotificationService:
         if not alert.enabled:
             return False
 
-        since = datetime.now(UTC) - timedelta(days=_PERIOD_DAYS[period])
+        since = window_start - timedelta(days=_PERIOD_DAYS[period])
         rows = await agent_run_repo.cost_breakdown(
             self.db,
             organization_id=agent.organization_id,
@@ -276,29 +307,39 @@ class NotificationService:
         if not mine:
             return False
 
-        recipients = await self._audience(
+        recipients = await self._audience_ids(
             alert,
             organization_id=agent.organization_id,
             owner_user_id=agent.owner_user_id,
             # A report covers a period, not a run. `NotificationSpec` refuses
             # `initiator` here for that reason, so there is never one to pass.
             initiator_user_id=None,
-            preference="notify_usage_reports",
         )
         if not recipients:
             return False
 
         organization = await organization_repo.get_by_id(self.db, agent.organization_id)
-        context = {
+        organization_name = organization.name if organization else "your organization"
+        dashboard_url = self._link(f"/agents/{agent.id}", agent.organization_id)
+        render_context = {
             "period": "week" if period == "weekly" else "month",
-            "org_name": organization.name if organization else "your organization",
+            "org_name": organization_name,
             "total": f"{sum((row[2] for row in mine), Decimal(0)):.2f}",
             "runs": str(sum(row[3] for row in mine)),
             "agents": agent.name,
-            "dashboard_url": self._link(f"/agents/{agent.id}", agent.organization_id),
+            "dashboard_url": dashboard_url,
             "app_name": settings.PROJECT_NAME,
         }
-        self._send(EmailKey.USAGE_REPORT, recipients, context)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.AGENT_USAGE_REPORT,
+            occurrence_id=f"{agent.id}:{period}:{window_start.isoformat()}",
+            summary=f"Usage report for {agent.name}",
+            context_url=dashboard_url,
+            render_context=render_context,
+            organization_id=agent.organization_id,
+            use_savepoint=True,
+        )
         return True
 
     @property
@@ -328,76 +369,51 @@ class NotificationService:
         separator = "&" if "?" in path else "?"
         return f"{self._frontend}{path}{separator}org={organization_id}"
 
-    async def _administrators(
-        self, organization_id: UUID, preference: NotificationPreference
-    ) -> list[str]:
+    async def _administrator_ids(self, organization_id: UUID) -> set[UUID]:
         """Everyone who administers this deployment or this organization.
 
         The organization's owners and admins, plus the deployment's app admins -
-        who hold no membership row and would be missed by a query scoped to one.
-        Each address once, and only where the preference is still on.
+        who hold no membership row and would be missed by a query scoped to
+        one. Identity only, no preference filter (Decision 2): the write path
+        resolves who a row is *for* first, and applies a channel's preference
+        afterward, per recipient.
         """
-        by_role = await member_repo.list_emails_by_role(
-            self.db,
-            organization_id=organization_id,
-            roles=_ESCALATION_ROLES,
-            preference=preference,
+        by_role = await member_repo.list_member_ids_by_role(
+            self.db, organization_id=organization_id, roles=_ESCALATION_ROLES
         )
-        app_admins = await member_repo.list_app_admin_emails(self.db, preference=preference)
-        return sorted(set(by_role) | set(app_admins))
-
-    async def _deciders(
-        self, organization_id: UUID, preference: NotificationPreference
-    ) -> set[str]:
-        """Addresses that may actually answer a parked call.
-
-        The roles holding `approvals:decide`, plus the deployment's app admins -
-        who hold no membership row and are given every permission by
-        `AuthContext.permissions`, so a mail asking them to decide is one they
-        can act on.
-        """
-        by_role = await member_repo.list_emails_by_role(
-            self.db,
-            organization_id=organization_id,
-            roles=_DECIDING_ROLES,
-            preference=preference,
-        )
-        app_admins = await member_repo.list_app_admin_emails(self.db, preference=preference)
+        app_admins = await member_repo.list_app_admin_ids(self.db)
         return set(by_role) | set(app_admins)
 
-    async def _audience(
+    async def _audience_ids(
         self,
         alert: AlertSpec,
         *,
         organization_id: UUID,
         owner_user_id: UUID | None,
         initiator_user_id: UUID | None,
-        preference: NotificationPreference,
-    ) -> list[str]:
-        """Every address one alert resolves to, deduplicated.
+    ) -> set[UUID]:
+        """Every person one alert resolves to, deduplicated.
 
         A disabled alert resolves to nobody, and that is the whole of what
-        disabling means - there is no fallback audience. Naming the same person
-        through two audiences mails them once. Every address is filtered on
-        `preference`, so an agent cannot conscript somebody into an inbox they
-        switched off.
+        disabling means - there is no fallback audience.
 
         **Anything keyed on a person is scoped to this organization's members.**
         `chosen` ids are written by whoever may edit the agent, so without that
-        scoping an author could name a user id from another tenant and have them
-        mailed this organization's name, the agent's name and what a run spent.
-        The `admins` audience is the deliberate exception: it includes the
-        deployment's app admins, who hold no membership row anywhere.
+        scoping an author could name a user id from another tenant and have
+        them notified of this organization's name, the agent's name and what a
+        run spent. The `admins` audience is the deliberate exception: it
+        includes the deployment's app admins, who hold no membership row
+        anywhere.
         """
         if not alert.enabled:
-            return []
+            return set()
 
-        recipients: set[str] = set()
+        recipients: set[UUID] = set()
 
         # Role-derived, and deliberately wider than the organization: an app
         # admin holds no membership row and administers the deployment.
         if AlertAudience.ADMINS in alert.to:
-            recipients.update(await self._administrators(organization_id, preference))
+            recipients.update(await self._administrator_ids(organization_id))
 
         # Person-derived, and every one of these is membership-scoped. The ids
         # differ in where they come from - a column on the agent, a column on the
@@ -414,33 +430,9 @@ class NotificationService:
 
         if named:
             recipients.update(
-                await member_repo.list_emails_for_members(
-                    self.db,
-                    organization_id=organization_id,
-                    user_ids=named,
-                    preference=preference,
+                await member_repo.list_member_ids_for(
+                    self.db, organization_id=organization_id, user_ids=named
                 )
             )
 
-        return sorted(recipients)
-
-    def _send(self, key: EmailKey, recipients: list[str], context: dict[str, str]) -> None:
-        """Hand the sends to the background and stop caring about them.
-
-        Deliberately not awaited: the caller is a run's `finally` block, and a
-        mail server that takes ten seconds must not hold a database transaction
-        open for ten seconds.
-        """
-        for recipient in recipients:
-            spawn(
-                _deliver(key=key, to=recipient, context=context),
-                name=f"email:{key.value}:{recipient}",
-            )
-
-
-async def _deliver(*, key: EmailKey, to: str, context: dict[str, str]) -> None:
-    """One send that reports its own failure and raises nothing."""
-    try:
-        await get_email_service().send(key=key, to=to, context=context)
-    except Exception:
-        logger.exception("notification_email_failed", extra={"key": key.value, "to": to})
+        return recipients

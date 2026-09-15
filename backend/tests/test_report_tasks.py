@@ -7,6 +7,7 @@ raising inside a weekly job nobody watches. Those are what these pin.
 """
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,6 +16,8 @@ from app.agents.spec import AgentSpec, AlertSpec, NotificationSpec
 from app.worker.tasks.report_tasks import _run_agent_reports
 
 MODULE = "app.worker.tasks.report_tasks"
+
+_WINDOW_START = datetime.now(UTC)
 
 
 def _agent(*, version_id=None, org_id=None):
@@ -50,7 +53,7 @@ async def test_the_published_version_decides_who_is_mailed_not_the_draft():
             new=AsyncMock(return_value=_version(_asking_spec())),
         ) as get_version,
     ):
-        reported = await _run_agent_reports(MagicMock(), notifications, "weekly")
+        reported = await _run_agent_reports(MagicMock(), notifications, "weekly", _WINDOW_START)
 
     assert reported == 1
     # The version the agent currently points at, scoped to its own tenant.
@@ -72,7 +75,7 @@ async def test_an_agent_that_was_never_published_is_skipped_not_crashed_on():
         ),
         patch(f"{MODULE}.agent_repo.get_version", new=AsyncMock()) as get_version,
     ):
-        reported = await _run_agent_reports(MagicMock(), notifications, "weekly")
+        reported = await _run_agent_reports(MagicMock(), notifications, "weekly", _WINDOW_START)
 
     assert reported == 0
     get_version.assert_not_awaited()
@@ -89,7 +92,7 @@ async def test_a_version_that_has_gone_missing_is_skipped():
         ),
         patch(f"{MODULE}.agent_repo.get_version", new=AsyncMock(return_value=None)),
     ):
-        reported = await _run_agent_reports(MagicMock(), notifications, "weekly")
+        reported = await _run_agent_reports(MagicMock(), notifications, "weekly", _WINDOW_START)
 
     assert reported == 0
     notifications.agent_usage_report.assert_not_awaited()
@@ -115,7 +118,7 @@ async def test_one_unreadable_spec_does_not_stop_the_rest_of_the_estate():
         ),
         patch(f"{MODULE}.agent_repo.get_version", new=AsyncMock(side_effect=version_for)),
     ):
-        reported = await _run_agent_reports(MagicMock(), notifications, "weekly")
+        reported = await _run_agent_reports(MagicMock(), notifications, "weekly", _WINDOW_START)
 
     assert reported == 1
 
@@ -137,7 +140,7 @@ async def test_a_mail_failure_for_one_agent_does_not_stop_the_next():
             new=AsyncMock(return_value=_version(_asking_spec())),
         ),
     ):
-        reported = await _run_agent_reports(MagicMock(), notifications, "weekly")
+        reported = await _run_agent_reports(MagicMock(), notifications, "weekly", _WINDOW_START)
 
     assert reported == 1
 
@@ -158,6 +161,6 @@ async def test_an_agent_whose_spec_declines_the_report_is_not_counted():
             new=AsyncMock(return_value=_version(AgentSpec(name="Quiet"))),
         ),
     ):
-        reported = await _run_agent_reports(MagicMock(), notifications, "weekly")
+        reported = await _run_agent_reports(MagicMock(), notifications, "weekly", _WINDOW_START)
 
     assert reported == 0

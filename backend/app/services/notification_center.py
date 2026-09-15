@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
+from app.db.models.user import NotificationPreference
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 # legacy boolean columns on `User` (Decision 4) - `usage_report` and
 # `agent_usage_report` share one column, since both are the periodic digest the
 # column was named for before this feature split it into two event types.
-_LEGACY_EMAIL_COLUMN: dict[NotificationEventType, str] = {
+_LEGACY_EMAIL_COLUMN: dict[NotificationEventType, NotificationPreference] = {
     NotificationEventType.BUDGET_EXCEEDED: "notify_budget_alerts",
     NotificationEventType.APPROVAL_REQUESTED: "notify_approval_requests",
     NotificationEventType.USAGE_REPORT: "notify_usage_reports",
