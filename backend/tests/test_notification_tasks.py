@@ -12,12 +12,15 @@ patched, never through Prefect's own machinery.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.worker.tasks.notification_tasks import notification_delivery_sweep_flow
+from app.worker.tasks.notification_tasks import (
+    notification_delivery_sweep_flow,
+    notification_retention_sweep_flow,
+)
 
 MODULE = "app.worker.tasks.notification_tasks"
 
@@ -91,3 +94,26 @@ class TestTheFlow:
             counts = await notification_delivery_sweep_flow()
 
         assert counts == {"sent": 0, "skipped": 0, "failed": 0, "lost_claim": 0, "reaped": 0}
+
+
+class TestTheRetentionSweep:
+    async def test_it_deletes_at_both_cutoffs_and_returns_the_count(self):
+        from app.db.models.notification import (
+            NOTIFICATION_OUTER_RETENTION_DAYS,
+            NOTIFICATION_READ_RETENTION_DAYS,
+        )
+
+        with (
+            patch(f"{MODULE}.get_worker_db_context", return_value=_worker_db_context()),
+            patch(f"{MODULE}.notification_repo.delete_expired", AsyncMock(return_value=7)) as sweep,
+        ):
+            removed = await notification_retention_sweep_flow()
+
+        assert removed == 7
+        read_cutoff = sweep.await_args.kwargs["read_cutoff"]
+        outer_cutoff = sweep.await_args.kwargs["outer_cutoff"]
+        expected_read = datetime.now(UTC) - timedelta(days=NOTIFICATION_READ_RETENTION_DAYS)
+        expected_outer = datetime.now(UTC) - timedelta(days=NOTIFICATION_OUTER_RETENTION_DAYS)
+        assert abs((read_cutoff - expected_read).total_seconds()) < 60
+        assert abs((outer_cutoff - expected_outer).total_seconds()) < 60
+        assert read_cutoff > outer_cutoff

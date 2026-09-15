@@ -30,7 +30,10 @@ from app.core.logging import setup_logging
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
-from app.worker.tasks.notification_tasks import notification_delivery_sweep_flow
+from app.worker.tasks.notification_tasks import (
+    notification_delivery_sweep_flow,
+    notification_retention_sweep_flow,
+)
 from app.worker.tasks.rag_tasks import (
     check_scheduled_syncs_flow,
     ingest_document_flow,
@@ -177,6 +180,16 @@ async def main() -> None:
         await notification_delivery_sweep_flow.ato_deployment(
             name="notification-delivery-sweep",
             schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
+        )
+    )
+    # Daily, matching the sandbox-log sweep above: drop notifications past their
+    # retention window. Read ones age out in ninety days; anything, read or
+    # not, ages out in a year. `announcements` themselves are untouched - only
+    # the per-recipient deliveries a broadcast fanned out to.
+    deployments.append(
+        await notification_retention_sweep_flow.ato_deployment(
+            name="notification-retention-sweep",
+            schedules=[IntervalSchedule(interval=timedelta(seconds=86400))],
         )
     )
     logger.info(

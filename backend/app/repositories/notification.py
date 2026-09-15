@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -321,6 +321,31 @@ async def reap_exhausted_deliveries(
         .returning(NotificationDelivery.id)
     )
     return [row[0] for row in result.all()]
+
+
+async def delete_expired(db: AsyncSession, *, read_cutoff: datetime, outer_cutoff: datetime) -> int:
+    """Drop every row past its retention window (Decision 8), across every tenant.
+
+    Two independent cutoffs, both age-since-*creation* - not since read, so a
+    notification opened the day it arrived and one opened the day before its
+    outer bound age out the same way: a *read* row past `read_cutoff` is
+    dropped regardless of how recently it was read, and *any* row - read or
+    not - past `outer_cutoff` is dropped regardless of read state. Deliberately
+    unscoped, the same as `sandbox_operation_repo.delete_older_than`: retention
+    is the deployment's policy, not a tenant's, and the sweep reads nothing -
+    it counts what it deleted. `notification_deliveries` rows cascade with
+    their parent (`ON DELETE CASCADE`); `announcements` rows are untouched,
+    since nothing here deletes from that table.
+    """
+    result = await db.execute(
+        delete(Notification).where(
+            or_(
+                and_(Notification.read_at.isnot(None), Notification.created_at < read_cutoff),
+                Notification.created_at < outer_cutoff,
+            )
+        )
+    )
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 
 async def list_failed_deliveries(
