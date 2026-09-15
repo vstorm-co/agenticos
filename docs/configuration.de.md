@@ -1,5 +1,5 @@
 ---
-source_sha: "1a26fb09fa79"
+source_sha: "88bcd0ebc65e"
 ---
 
 # Konfiguration { #configuration }
@@ -361,6 +361,26 @@ Die eine Modell-Zugangsinformation, die in der Umgebung bleibt, ist der Key für
 die Embeddings — siehe RAG weiter unten.
 
 ## Observability (Logfire) { #observability-logfire }
+
+Optional und aus, bis ein Token gesetzt ist. Nichts in diesem Abschnitt muss
+konfiguriert werden: ohne `LOGFIRE_TOKEN` läuft die Plattform vollständig, und ein
+Run hält seine eigene Trace-Id weiterhin lokal fest. Was ein Token bringt, sind
+die Traces, und ein Trace ist eine Kopie des Runs — die Nachricht des Nutzers, die
+Ausgabe des Modells und jedes Tool-Argument samt Ergebnis —, denn genau das
+aufzuzeichnen ist die Aufgabe eines Observability-Backends. Das Token zu setzen
+ist damit eine Entscheidung darüber, wohin Run-Inhalte gehen dürfen, nicht nur
+über Dashboards. Ein Deployment über Gesundheits-, Rechts- oder HR-Daten liest
+vorher, [was das Deployment verlässt](data-protection.md#traces).
+
+Zwei Pfade senden Traces, und sie sind unabhängig voneinander. `LOGFIRE_TOKEN`
+hier instrumentiert **jeden** Run in das Projekt des Deployments selbst. Der
+[`observability`](reference/spec.md#observability)-Block eines Agenten leitet die
+Runs dieses einen Agenten in ein eigenes Projekt um — meist das eines Kunden —
+und sein `content`-Modus entscheidet, wie viel jeder Span trägt: `full`, der
+Standard, zeichnet die Nachricht, die Ausgabe und jeden Tool-Aufruf auf; `none`
+nur Zeit, Tokens, Kosten und Tool-Namen. `none` hält auf beiden Pfaden, ein Agent,
+der es verlangt, exportiert also auch dann keine Inhalte, wenn das
+deploymentweite Token den Run traced.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|

@@ -1,5 +1,5 @@
 ---
-source_sha: "b73ef30c0d82"
+source_sha: "f69158d0289c"
 ---
 
 # Seguridad { #security }
@@ -51,7 +51,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 |---|---|---|
 | El proveedor de modelos configurado | El prompt, la salida del modelo, los argumentos y resultados de las herramientas | Cada run — salvo que el modelo corra en la infraestructura del propio operador, en cuyo caso no sale nada |
 | El canal configurado (Slack, Telegram, Mattermost) | Las respuestas generadas por el agent — texto, imágenes y adjuntos | Siempre que un agent esté expuesto por ese canal; cada `send_message` publica en el proveedor (`app/services/channels/`) |
-| Logfire | Trazas, que por defecto llevan prompts y salidas | Dos caminos independientes. Un token de observabilidad por agent traza ese agent; un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs globalmente (`app/core/logfire_setup.py`), así que con él puesto el contenido de los runs sale independientemente de cualquier ajuste por agent. El modo `content` de ese token decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un término medio filtrado es [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Trazas, que llevan prompts y salidas salvo que el agent diga otra cosa | Dos caminos independientes. Un token de observabilidad por agent traza ese agent, y su modo `content` decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs globalmente (`app/core/logfire_setup.py`), así que con él puesto sale el contenido de todo agent que no haya pedido `none`; el que sí lo pidió queda fijado a una instrumentación sin contenido también en ese tracer (`suppress_content`), de modo que el modo se sostiene en ambos caminos. Ninguno de los dos caminos está activo por defecto. Un término medio filtrado es [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Servidores MCP | Llamadas a herramientas y sus argumentos | Solo para las herramientas a las que el agent está ligado |
 | Un proveedor de búsqueda web (Tavily, DuckDuckGo) | La consulta de búsqueda | Solo cuando se concede la capability de búsqueda |
 | Un proveedor de embeddings | El texto del documento, en la ingesta | Solo para una base de conocimiento cuyo proveedor sea remoto |
@@ -164,8 +164,9 @@ mantiene la lista completa a medida que crece la suite.
   verifica una petición.
 - Los únicos datos que salen son los que el deployment configuró para que
   salieran — proveedores de modelos, canales, servidores MCP, proveedores de
-  búsqueda y de embeddings, y Logfire; un token de Logfire a nivel de deployment
-  traza el contenido de todos los runs.
+  búsqueda y de embeddings, y Logfire — que es opcional y, en cuanto se pone un
+  token a nivel de deployment, traza todos los runs, con el contenido de todo
+  agent que no haya pedido `none`.
 - Las credenciales de conectores y de API están selladas por organización en el
   único vault; los tokens bearer de vida corta y el contenido en reposo
   (archivos, mensajes, RAG, sandboxes) no lo están, y

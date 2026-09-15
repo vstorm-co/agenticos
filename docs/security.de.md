@@ -1,5 +1,5 @@
 ---
-source_sha: "b73ef30c0d82"
+source_sha: "f69158d0289c"
 ---
 
 # Sicherheit { #security }
@@ -53,7 +53,7 @@ fragen wird.
 |---|---|---|
 | Der konfigurierte Modell-Provider | Der Prompt, die Ausgabe des Modells, Tool-Argumente und -Ergebnisse | Jeder Run — außer das Modell läuft auf der eigenen Infrastruktur des Betreibers, dann verlässt nichts das Deployment |
 | Der konfigurierte Kanal (Slack, Telegram, Mattermost) | Die generierten Antworten des Agents — Text, Bilder und Anhänge | Immer wenn ein Agent über diesen Kanal exponiert ist; jedes `send_message` postet beim Provider (`app/services/channels/`) |
-| Logfire | Traces, die standardmäßig Prompts und Ausgaben tragen | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent; ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run global (`app/core/logfire_setup.py`), mit ihm verlassen Run-Inhalte das Deployment also unabhängig von jeder Einstellung pro Agent. Der `content`-Modus dieses Tokens entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein gefiltertes Dazwischen ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Traces, die Prompts und Ausgaben tragen, sofern der Agent nichts anderes sagt | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent, und sein `content`-Modus entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run global (`app/core/logfire_setup.py`), mit ihm verlässt also der Inhalt jedes Agenten das Deployment, der nicht `none` verlangt hat; ein Agent, der es verlangt hat, wird auch auf diesem Tracer an eine inhaltsfreie Instrumentierung geheftet (`suppress_content`), der Modus hält also auf beiden Pfaden. Keiner der beiden Pfade ist standardmäßig an. Ein gefiltertes Dazwischen ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |
 | Ein Embedding-Provider | Dokumenttext, beim Ingest | Nur für eine Wissensbasis, deren Provider entfernt ist |
@@ -169,8 +169,9 @@ während die Suite wächst.
   der Ort, an dem eine Anfrage geprüft wird.
 - Die einzigen Daten, die das Deployment verlassen, sind die, deren Weggang es
   konfiguriert hat — Modell-Provider, Kanäle, MCP-Server, Such- und
-  Embedding-Anbieter und Logfire; ein deploymentweites Logfire-Token traced den
-  Inhalt jedes Runs.
+  Embedding-Anbieter und Logfire — das optional ist und, sobald ein
+  deploymentweites Token gesetzt ist, jeden Run traced, mit dem Inhalt jedes
+  Agenten, der nicht `none` verlangt hat.
 - Konnektor- und API-Credentials sind pro Organisation im einen Vault versiegelt;
   kurzlebige Bearer-Token und Inhalte im Ruhezustand (Dateien, Nachrichten, RAG,
   Sandboxes) sind es nicht, und

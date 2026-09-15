@@ -1,5 +1,5 @@
 ---
-source_sha: "1a26fb09fa79"
+source_sha: "88bcd0ebc65e"
 ---
 
 # Konfiguracja { #configuration }
@@ -342,6 +342,24 @@ Jedynym poświadczeniem modelu, które zostaje w środowisku, jest klucz do
 embeddingów — zobacz RAG poniżej.
 
 ## Obserwowalność (Logfire) { #observability-logfire }
+
+Opcjonalna i wyłączona, dopóki nie ustawisz tokena. Nic w tej sekcji nie musi być
+skonfigurowane: bez `LOGFIRE_TOKEN` platforma działa w pełni, a run wciąż zapisuje
+lokalnie swoje trace id. Token kupuje same trace'y, a trace jest kopią runu —
+wiadomością użytkownika, wyjściem modelu i każdym argumentem oraz wynikiem
+narzędzia — bo zapisywanie dokładnie tego jest zadaniem backendu obserwowalności.
+Ustawienie tokena jest więc decyzją o tym, dokąd może trafić treść runów, a nie
+tylko o dashboardach. Wdrożenie nad danymi medycznymi, prawnymi lub HR najpierw
+czyta, [co opuszcza maszynę](data-protection.md#traces).
+
+Trace'y wysyłają dwie ścieżki i są one niezależne. `LOGFIRE_TOKEN` stąd
+instrumentuje **każdy** run do projektu samego wdrożenia. Blok
+[`observability`](reference/spec.md#observability) agenta przekierowuje runy tego
+jednego agenta do jego własnego projektu — zwykle klienta — a jego tryb `content`
+decyduje, ile niesie każdy span: `full`, domyślny, zapisuje wiadomość, wyjście
+i każde wywołanie narzędzia; `none` zapisuje tylko czas, tokeny, koszt i nazwy
+narzędzi. `none` trzyma na obu ścieżkach, więc agent, który o niego poprosi, nie
+eksportuje treści nawet wtedy, gdy run trace'uje token na poziomie wdrożenia.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|

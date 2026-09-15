@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Documentation
+
+- **Logfire is documented as optional, and as a copy of the run when it is on.**
+  The configuration page listed six `LOGFIRE_*` variables and never said that
+  none of them has to be set, or what setting the token actually sends: a trace
+  is the user's message, the model's output and every tool argument and result,
+  because recording that is what an observability backend is for. The section now
+  says so, separates the two paths that send traces - the deployment-wide token
+  and an agent's own `observability` block - and points a deployment over health,
+  legal or HR data at the `content` mode before the token. The security page's
+  Logfire row was also stale: it still said run content leaves regardless of any
+  per-agent setting, which stopped being true when `suppress_content` pinned an
+  agent asking for `none` to content-free instrumentation on the deployment's own
+  tracer too. (#1413)
+
 ## [0.0.440] - 2026-09-15
 
 ### Added

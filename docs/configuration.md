@@ -337,6 +337,24 @@ see RAG below.
 
 ## Observability (Logfire)
 
+Optional, and off until a token is set. Nothing in this section has to be
+configured: with `LOGFIRE_TOKEN` unset the platform runs in full, and a run still
+records its own trace id locally. What a token buys is the traces, and a trace is
+a copy of the run — the user's message, the model's output and every tool
+argument and result — because recording exactly that is what an observability
+backend is for. Setting the token is therefore a decision about where run content
+may go, not only about dashboards. A deployment over health, legal or HR data
+reads [what leaves the machine](data-protection.md#traces) before setting it.
+
+Two paths send traces, and they are independent. `LOGFIRE_TOKEN` here instruments
+**every** run into the deployment's own project. An agent's
+[`observability`](reference/spec.md#observability) block redirects that one
+agent's runs into a project of its own — a client's, usually — and its `content`
+mode decides how much each span carries: `full`, the default, records the
+message, the output and every tool call; `none` records timing, tokens, cost and
+tool names only. `none` holds on both paths, so an agent that asks for it exports
+no content even when the deployment-wide token is what traces the run.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |
