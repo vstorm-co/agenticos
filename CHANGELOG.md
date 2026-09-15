@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- `GET /me/data/export` — everything this deployment holds about you as one JSON
+  document: your threads with every turn in them, what you rated, where you
+  signed in, what agents wrote down about you, the platform accounts you linked,
+  the runs you started and what they cost. Rate-limited per hour and audited,
+  including when you export yourself. `GET /admin/users/{id}/export` is the
+  administrator's half and **requires a reason**. (#1421)
+- `docs/security.md` gains the inventory both GDPR art. 15 and art. 17 are
+  answered from: every table holding something about a person, whether it
+  cascades, is purged explicitly or is retained, and why — with what erasure does
+  not reach (an external memory store, backups, a provider's own retention)
+  named rather than left to be discovered. (#1421)
+
+### Fixed
+
+- Deleting an account now removes what no cascade reached: the notes every agent
+  wrote about that person, in every organization (`agent_memory_files` is keyed
+  by a string with no foreign key, so every note survived the account), and their
+  platform identities, which `SET NULL` left holding a Slack id and a display
+  name linked to nobody. (#1421)
+- Deleting a conversation unlinks the bytes of the files attached to it. The rows
+  cascaded away with the thread and the files stayed on disk — data kept after
+  somebody asked for it to be deleted, and reachable by nothing. (#1421, FA-015)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

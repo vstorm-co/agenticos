@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "b2bdc7d37188"
 ---
 
 # Seguridad { #security }
@@ -88,6 +88,70 @@ Un backend de archivos compatible con S3 y cifrado del lado del servidor es la
 respuesta a nivel de aplicación para el almacenamiento de objetos y se sigue en
 [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 
+## Qué se guarda sobre una persona, y qué ocurre con ello { #what-is-held-about-one-person-and-what-happens-to-it }
+
+El art. 15 del RGPD pregunta qué guardas sobre alguien y el art. 17 pide
+retirarlo. A ambos responde esta tabla, a propósito: un inventario que enumera
+una tabla para la exportación y la olvida para el borrado es peor que ninguno,
+porque se lee como completo.
+
+La línea que traza es **sobre** alguien frente a **creado por** alguien. Lo que
+es sobre una persona se va con ella; lo que creó para la organización — un agent
+sobre el que trabaja el equipo, una base de conocimiento, una credencial
+guardada — se traspasa, porque borrar la cuenta de un colega no puede borrar el
+agent del que depende el equipo.
+
+| Tabla | Al borrar | En la exportación | Por qué |
+|---|---|---|---|
+| `users` | Se borra | El perfil, sin el hash de la contraseña | La cuenta misma |
+| `conversations`, `messages`, `tool_calls` | Cascada | Los hilos que iniciaron, con cada turno | Suyos, y una transcripción sin un turno de cada dos no responde a nada |
+| `chat_files` | Cascada; los bytes se desvinculan tras el commit | No se enumera | La fila cascadeaba y el fichero no, es decir datos conservados tras una petición de borrado ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `message_ratings` | Cascada | Sí | Una opinión que expresaron |
+| `sessions` | Cascada | Dispositivo, dirección y horas — nunca la credencial, que es un hash | Dónde iniciaron sesión |
+| `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Cascada | Disposiciones y atajos | Ajustes personales, sin sentido para nadie más |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Purgado explícitamente** | Sí | Una clave de texto sin clave foránea: nada cascadeaba, así que cada nota sobrevivía a la cuenta |
+| `channel_identities` | **Purgado explícitamente** | Sí | `SET NULL` dejaba la fila con un id de Slack, un nombre de usuario y un nombre visible de alguien que ya no está, vinculada a nadie |
+| `agent_runs` | `SET NULL` — se conservan | Runs que iniciaron y lo que costó cada uno | El gasto es el registro de la organización; un run anónimo sigue contando para el mes |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — se conservan | No | Creados *para la organización*. Quitarlos se llevaría el trabajo del equipo con la persona |
+| `organization_secrets` | `SET NULL`, y un secreto privado asciende a la organización | No | Una credencial sobre la que corre la organización. El ascenso es lo que impide que un secreto sin dueño bloquee el borrado |
+| `organizations` | La org personal se borra; una compartida que crearon pasa a otro propietario | No | Nadie puede quedarse con una organización sin propietario |
+| `resource_grants` | Cascada en quien lo recibe; `SET NULL` en quien lo concedió | No | Un permiso *para* ellos es suyo; uno que *concedieron* es el registro de la organización de quién puede qué |
+| `app_admin_audit_logs` | **Se conservan**, con el id del actor | **No** | El registro de la organización de lo que se hizo en ella. Una entrada que nombra una cuenta borrada es honesta; una con el actor retirado es peor que inútil, y no es de la persona para llevársela |
+| `embed_visitors` | Sin tocar | No | Un visitante es una clave de navegador, nunca una cuenta — aquí no hay nada sobre una persona con login |
+
+!!! warning "Lo que el borrado no alcanza — y lo dice la documentación, no el despliegue al descubrirlo"
+
+    **Un almacén de memoria externo configurado.** `mem0` guarda lo que un agent
+    recordó en el sistema de un tercero, y este despliegue solo puede pedir que
+    lo olvide mientras tenga la credencial de la organización.
+    `MemoryService.forget_person` lo hace para una persona que sigue siendo
+    miembro; las notas de una cuenta borrada en un almacén externo son del
+    operador.
+
+    **Las copias de seguridad.** Un borrado quita filas de la base de datos viva.
+    El calendario de copias que ejecute un despliegue las conserva hasta su
+    rotación, y ningún borrado a nivel de aplicación cambia eso.
+
+    **La retención propia de un proveedor de modelos.** Lo que se envió para
+    responder a un turno queda sujeto a la política del proveedor, que cubre
+    [modelos](models.md) y que este despliegue no controla.
+
+### Autoservicio, y qué añade un administrador { #self-service-and-what-an-administrator-adds }
+
+Una persona no necesita un administrador para los casos ordinarios.
+`GET /me/data/export` es toda la tabla anterior en un documento JSON, limitado por
+hora y registrado en el rastro de auditoría — también cuando alguien se exporta a
+sí mismo, porque una exportación tiene la forma de una fuga cuando quien llama no
+es quien dice ser. `DELETE /conversations/{id}` quita un hilo, sus turnos y los
+ficheros que llegaron con ellos, comprobado contra la propiedad de quien llama
+(FA-015).
+
+Un administrador añade dos cosas y ambas se auditan:
+`GET /admin/users/{id}/export`, que **exige un motivo** — leer todo el historial
+de conversaciones de un colega es legítimo unas dos veces al año y serio cada vez
+— y `DELETE /admin/users/{id}`, donde el motivo es opcional porque una salida
+ordinaria no suele tener nada que explicar.
+
 ## Matriz de controles { #controls-matrix }
 
 Una fila por control, el mecanismo que lo satisface y el test que lo sostiene.
@@ -119,6 +183,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Las mutaciones relevantes para la governance quedan registradas, dentro de la transacción de la petición | `record_audit` (`app/core/audit.py`) en el servicio que muta — rotación de secretos, vinculación de skill / sincronización / MCP, membresía, compartición, aprobaciones, exportaciones y más; escrito en `app_admin_audit_logs`. No es cobertura general de toda escritura (el CRUD de la base de conocimiento, por ejemplo, no se audita) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | El rastro es legible por un auditor | `GET /audit`, gateado en `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exportar el rastro (CSV/JSONL) | `GET /audit/export` sobre una ventana, con puerta en `audit:read`, registrando su propia lectura en el rastro; las exportaciones de runs, aprobaciones y gasto hacen lo mismo (#1422) | `test_exporting.py` (la exportación y su propia entrada de auditoría) |
+| Una persona puede leer y borrar sus propios datos | `GET /me/data/export` (limitado por hora, auditado incluso cuando es la propia persona) y `DELETE /conversations/{id}` acotado a la propiedad de quien llama; la exportación de un administrador exige un motivo (`app/services/personal_data.py`) | `test_personal_data.py` |
 | Evidencia de manipulación (una cadena de hashes) | **Todavía no** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integridad · HIPAA §164.312(c) · SOC 2 CC8 (gestión del cambio) { #integrity-hipaa-164312c-soc-2-cc8-change-management }

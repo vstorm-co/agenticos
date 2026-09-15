@@ -47,6 +47,7 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.organization import OrganizationService
+from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
 
 if TYPE_CHECKING:
@@ -464,8 +465,18 @@ class UserService:
         return str(full_path) if full_path is not None else None
 
     async def delete(self, user_id: UUID) -> User:
+        """Remove the account, what is about the person, and nothing the team owns.
+
+        Three steps, in this order and for reasons each has its own comment:
+        lock, hand on what the organization owns, and only then delete. The
+        purge between the second and the third is what no cascade reaches -
+        agent notes keyed by a string, and platform identities the key merely
+        unlinks (#1421). Inside the same transaction, so a deletion that fails
+        afterwards takes it with it.
+        """
         user, locked_heirs = await self._lock_for_delete(user_id)
         await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
+        await PersonalDataService(self.db).purge(user_id)
         await user_repo.delete(self.db, user_id)
         return user
 

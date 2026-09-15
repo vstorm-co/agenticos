@@ -749,6 +749,10 @@ class TestParticipationDoesNotCarryTheWrite:
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
+            patch(
+                "app.services.conversation.personal_data_repo.attachment_paths_in",
+                new=AsyncMock(return_value=[]),
+            ),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.favourite_ids = AsyncMock(return_value=set())
@@ -1087,7 +1091,16 @@ class TestConversationServiceDelete:
         conv_id = uuid4()
         mock_conv = MockConversation(id=conv_id)
 
-        with patch("app.services.conversation.conversation_repo") as mock_repo:
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            # The delete reads the thread's attachment paths first, so the bytes
+            # can be unlinked after the commit - the rows cascade away and the
+            # files would not (#1421).
+            patch(
+                "app.services.conversation.personal_data_repo.attachment_paths_in",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.delete_conversation = AsyncMock(return_value=None)
 
