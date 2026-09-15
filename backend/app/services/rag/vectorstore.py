@@ -13,16 +13,22 @@ from uuid import UUID
 import app.db.models  # noqa: F401
 from app.db.base import Base
 from app.db.vector_tables import (
+    RAG_SAFE_TO_DATE_FN,
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+    VECTOR_DOCDATE_INDEX_SUFFIX,
+    VECTOR_DOCTYPE_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
+    VECTOR_ORGUNIT_INDEX_SUFFIX,
+    VECTOR_SOURCE_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
     is_runtime_vector_table,
     validate_collection_name,
 )
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
+from app.services.rag.filters import AppScope, RetrievalQuery, RetrievalScope, TenantScope
 from app.services.rag.models import (
     CollectionInfo,
     Document,
@@ -30,6 +36,7 @@ from app.services.rag.models import (
     DocumentInfo,
     DocumentPageChunk,
     SearchResult,
+    VectorDocumentId,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,12 +93,17 @@ class BaseVectorStore(ABC):
         self,
         collection_name: str,
         query: str,
+        query_filter: RetrievalQuery,
         limit: int = 4,
-        parent_doc_id: str | None = None,
-        organization_id: UUID | None = None,
-        tenant: UUID | None = None,
     ) -> list[SearchResult]:
-        pass
+        """Nearest chunks, restricted by the composed scope AND business filters.
+
+        `query_filter` carries the server-trusted `RetrievalScope` (the mandatory
+        tenant conjunct, or the explicit unscoped maintenance marker) and the
+        caller-supplied `RetrievalFilters`. The store ANDs every restriction into
+        the backend query before top-k, so a selective filter cannot leak an
+        out-of-scope row and top-k is computed over already-restricted rows.
+        """
 
     @abstractmethod
     async def resolve_tenant(self, name: str, organization_id: UUID | None) -> UUID | None:
@@ -172,6 +184,18 @@ class BaseVectorStore(ABC):
 
         `tenant` scopes the read to that tenant's own rows, so a shared collection
         name does not expose another tenant's chunks (#1684).
+        """
+
+    @abstractmethod
+    async def distinct_metadata_values(
+        self, collection_name: str, keys: list[str], scope: RetrievalScope
+    ) -> dict[str, list[str]]:
+        """Distinct in-scope values for whitelisted free-form metadata keys.
+
+        Backs the filter-value facet so a caller can discover the corpus's
+        author-supplied values (e.g. `organizational_unit`) rather than guessing.
+        Tenant-scoped by the same `RetrievalScope` search carries, so it never
+        reveals another organization's values, and empty for an absent collection.
         """
 
     async def get_document_list(
@@ -369,6 +393,81 @@ _HNSW_MAX_VECTOR_DIM = 2000
 # 3072 dimensions that is tens of kilobytes a row, so three thousand of them in
 # one statement is a parameter list measured in hundreds of megabytes.
 _CHUNK_INSERT_BATCH = 200
+
+
+# The free-form metadata keys the facet read may return distinct values for.
+# Whitelisted because the key name is interpolated into SQL (the values are not).
+_FACET_KEYS: frozenset[str] = frozenset({"organizational_unit", "source", "document_type"})
+
+
+def _scope_conjuncts(scope: RetrievalScope) -> tuple[list[str], dict[str, Any]]:
+    """The mandatory server-trusted conjuncts for a scope (tenant + FA-037 slot).
+
+    A `TenantScope` contributes the mandatory tenant conjunct as an equality; an
+    `AppScope` contributes it as `IS NULL`, since an app-scoped ingest stamps no
+    tenant onto its rows (#1688) - the two are mutually exclusive, so a row
+    matches at most one. Either way, when the authorization slot is populated, the
+    per-document restriction is added too. The unscoped maintenance marker
+    contributes nothing. Every value is bound.
+    """
+    conjuncts: list[str] = []
+    params: dict[str, Any] = {}
+    authz: frozenset[VectorDocumentId] | None = None
+    if isinstance(scope, TenantScope):
+        conjuncts.append("metadata->>'organization_id' = :scope_org")
+        params["scope_org"] = str(scope.organization_id)
+        authz = scope.authorized_document_ids
+    elif isinstance(scope, AppScope):
+        conjuncts.append("(metadata->>'organization_id') IS NULL")
+        authz = scope.authorized_document_ids
+    if authz is not None:
+        if authz:
+            # Intersected with any business parent_doc_id (both are AND
+            # conjuncts), so an id outside the authorized set matches nothing.
+            conjuncts.append("parent_doc_id = ANY(:scope_authz)")
+            params["scope_authz"] = list(authz)
+        else:
+            # Populated-but-empty => match nothing (empty-denies-all). Never
+            # conflated with None, which leaves the slot unapplied.
+            conjuncts.append("FALSE")
+    return conjuncts, params
+
+
+def _retrieval_conjuncts(query_filter: RetrievalQuery) -> tuple[list[str], dict[str, Any]]:
+    """Translate a composed scope+filters object into bound SQL conjuncts.
+
+    Every value is a bound parameter; the only literals are the fixed metadata
+    key names and the `rag_safe_to_date` helper name, so nothing caller-supplied
+    is interpolated. Semantics: OR within a multi-value field (`= ANY(:list)`),
+    AND across fields and against the scope. This is the pgvector mapping of the
+    backend-neutral contract; another store owns its own translation.
+    """
+    conjuncts, params = _scope_conjuncts(query_filter.scope)
+
+    filters = query_filter.filters
+    if filters.source is not None:
+        conjuncts.append("metadata->>'source' = ANY(:f_source)")
+        params["f_source"] = list(filters.source)
+    if filters.document_type is not None:
+        conjuncts.append("metadata->>'document_type' = ANY(:f_doctype)")
+        params["f_doctype"] = list(filters.document_type)
+    if filters.organizational_unit is not None:
+        conjuncts.append("metadata->>'organizational_unit' = ANY(:f_orgunit)")
+        params["f_orgunit"] = list(filters.organizational_unit)
+    if filters.date_from is not None:
+        # A row whose doc_date is missing or malformed yields NULL here, so the
+        # comparison is NULL and the row fails closed - excluded from a date
+        # filter rather than raising on a bad `::date` cast (FA-039 R7).
+        conjuncts.append(f"{RAG_SAFE_TO_DATE_FN}(metadata->>'doc_date') >= :f_date_from")
+        params["f_date_from"] = filters.date_from
+    if filters.date_to is not None:
+        conjuncts.append(f"{RAG_SAFE_TO_DATE_FN}(metadata->>'doc_date') <= :f_date_to")
+        params["f_date_to"] = filters.date_to
+    if filters.parent_doc_id is not None:
+        conjuncts.append("parent_doc_id = :f_parent_doc_id")
+        params["f_parent_doc_id"] = filters.parent_doc_id
+
+    return conjuncts, params
 
 
 class PgVectorStore(BaseVectorStore):
@@ -583,11 +682,16 @@ class PgVectorStore(BaseVectorStore):
                 (VECTOR_SOURCE_PATH_INDEX_SUFFIX, "source_path"),
                 (VECTOR_FILENAME_INDEX_SUFFIX, "filename"),
                 (VECTOR_CONTENT_HASH_INDEX_SUFFIX, "content_hash"),
-                # The tenant key every row-level op scopes by (#1684). Hash, like
-                # the others: the lookups are equality only, and
-                # `0086_scope_rag_rows_by_org` backfills the collections created
-                # before this key existed.
+                # The tenant key every row-level op scopes by (#1684), plus the
+                # FA-039 equality filter dimensions. Same hash-index shape and
+                # reasoning as the lookup keys above: equality only, a value may
+                # be unbounded in length, and `0086_scope_rag_rows_by_org`
+                # backfills the collections created before `organization_id`
+                # existed.
                 (VECTOR_ORG_INDEX_SUFFIX, "organization_id"),
+                (VECTOR_SOURCE_INDEX_SUFFIX, "source"),
+                (VECTOR_DOCTYPE_INDEX_SUFFIX, "document_type"),
+                (VECTOR_ORGUNIT_INDEX_SUFFIX, "organizational_unit"),
             ):
                 await session.execute(
                     text(
@@ -595,6 +699,18 @@ class PgVectorStore(BaseVectorStore):
                         f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
+            # The date dimension is a range, so a partial btree on the identical
+            # safe expression the WHERE predicate uses, `WHERE` the result is
+            # non-NULL - so the index build cannot raise on a bad legacy row
+            # (FA-039 R7). `rag_safe_to_date` is created by the prerequisite
+            # migration, which must have run before any collection is ensured.
+            await session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {table}{VECTOR_DOCDATE_INDEX_SUFFIX} "
+                    f"ON {table} (({RAG_SAFE_TO_DATE_FN}(metadata->>'doc_date'))) "
+                    f"WHERE {RAG_SAFE_TO_DATE_FN}(metadata->>'doc_date') IS NOT NULL"
+                )
+            )
             await session.commit()
 
     async def _collection_exists(self, name: str) -> bool:
@@ -668,12 +784,10 @@ class PgVectorStore(BaseVectorStore):
         self,
         collection_name: str,
         query: str,
+        query_filter: RetrievalQuery,
         limit: int = 4,
-        parent_doc_id: str | None = None,
-        organization_id: UUID | None = None,
-        tenant: UUID | None = None,
     ) -> list[SearchResult]:
-        """Nearest chunks in a collection, reporting an absent one as empty.
+        """Nearest chunks, restricted by scope AND business filters, absent = empty.
 
         A collection's table is created by its first ingest, so "no table" and
         "nothing indexed yet" are one state here - the same reasoning
@@ -682,37 +796,32 @@ class PgVectorStore(BaseVectorStore):
         `UndefinedTableError` into a 500, and it is checked before embedding so
         an empty collection costs no embedding call either.
 
-        `parent_doc_id` restricts the search to one document's chunks, as a
-        parameterised `WHERE`; the retrieval service parses it out of the public
-        filter grammar before it reaches here.
-
-        `organization_id` scopes which tenant's knowledge base the query embeds
-        through, so a name shared across organizations does not embed on another
-        tenant's credential (#913). `tenant` scopes which rows the query may read,
-        so a collection name shared across tenants must not return another
-        organization's chunk content (#1684); the retrieval service resolves it
-        from the collection for the searching organization.
+        `query_filter` carries the server-trusted `RetrievalScope` and the
+        caller-supplied `RetrievalFilters`. Every restriction is applied in the
+        SQL `WHERE` (not a Python post-filter), so top-k is computed over already
+        restricted rows. The tenant conjunct is mandatory for a `TenantScope`
+        (`metadata->>'organization_id' = :scope_org`) or an `AppScope`
+        (`... IS NULL`), and absent only for the explicit unscoped maintenance
+        marker. `query_filter.organization_id` also scopes which tenant's
+        knowledge base the query embeds through, so a name shared across
+        organizations does not embed on another tenant's key (#913).
         """
         table = self._table(collection_name)
         if not await self._collection_exists(collection_name):
             return []
-        embedder, dim = await self._for_collection(collection_name, organization_id)
+        embedder, dim = await self._for_collection(collection_name, query_filter.organization_id)
         query_vector = embedder.embed_query(query)
 
-        org_clause, org_params = self._org_filter(tenant)
-        conditions = [org_clause]
-        if parent_doc_id:
-            conditions.append("parent_doc_id = :doc_id")
-        where_clause = "WHERE " + " AND ".join(conditions)
+        conjuncts, filter_params = _retrieval_conjuncts(query_filter)
+        where_clause = f"WHERE {' AND '.join(conjuncts)}" if conjuncts else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
         query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
-        params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit, **org_params}
-        if parent_doc_id:
-            params["doc_id"] = parent_doc_id
+        params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit, **filter_params}
 
         distance = self._distance_expr(dim)
         async with self.async_session() as session:
+            await self._apply_search_tuning(session)
             result = await session.execute(
                 text(f"""
                     SELECT content, parent_doc_id, metadata,
@@ -725,7 +834,7 @@ class PgVectorStore(BaseVectorStore):
                 params,
             )
             rows = result.fetchall()
-        return [
+        results = [
             SearchResult(
                 content=row[0],
                 score=float(row[3]),
@@ -734,6 +843,46 @@ class PgVectorStore(BaseVectorStore):
             )
             for row in rows
         ]
+        # Re-sort by score: `hnsw.iterative_scan = 'relaxed_order'` does not
+        # guarantee exact distance order, so the store orders the fetched rows
+        # rather than trusting the scan's order (FA-039 H1).
+        results.sort(key=lambda r: r.score, reverse=True)
+        return results
+
+    async def _apply_search_tuning(self, session: AsyncSession) -> None:
+        """Tune HNSW recall for this search's transaction (FA-039 H1).
+
+        `set_config(name, value, is_local=true)` is `SET LOCAL`, so the knobs
+        apply to this search's transaction only and never leak to another
+        statement or an unfiltered path on the same connection. Iterative index
+        scan (pgvector >= 0.8) keeps the scan expanding past `ef_search` until it
+        has `k` rows that pass the mandatory, selective tenant conjunct, bounded
+        by `max_scan_tuples`; the raised `ef_search` is the fallback.
+
+        The whole block runs inside a savepoint: on a pgvector older than 0.8
+        `hnsw.iterative_scan` is an unknown GUC and setting it aborts the
+        (sub)transaction, so the savepoint is rolled back and the search proceeds
+        on defaults rather than failing. Set `hnsw_iterative_scan = false` to skip
+        the unknown knobs entirely on such an image.
+        """
+        knobs: list[tuple[str, str]] = []
+        if self.settings.hnsw_iterative_scan:
+            knobs.append(("hnsw.iterative_scan", "relaxed_order"))
+            knobs.append(("hnsw.max_scan_tuples", str(self.settings.hnsw_max_scan_tuples)))
+        knobs.append(("hnsw.ef_search", str(self.settings.hnsw_ef_search)))
+        try:
+            async with session.begin_nested():
+                for name, value in knobs:
+                    await session.execute(
+                        text("SELECT set_config(:name, :value, true)"),
+                        {"name": name, "value": value},
+                    )
+        except Exception:
+            logger.warning(
+                "HNSW search tuning unavailable (iterative scan needs pgvector >= 0.8); "
+                "searching on defaults",
+                exc_info=True,
+            )
 
     async def get_collection_info(
         self,
@@ -874,6 +1023,39 @@ class PgVectorStore(BaseVectorStore):
             for row in rows
         ]
         return self._group_documents(results)
+
+    async def distinct_metadata_values(
+        self, collection_name: str, keys: list[str], scope: RetrievalScope
+    ) -> dict[str, list[str]]:
+        """Distinct in-scope values for whitelisted free-form metadata keys.
+
+        Backs the filter-value facet: it makes the corpus-dependent
+        `organizational_unit` values discoverable so a caller narrows on values
+        that exist rather than guessing one that returns silently empty. The read
+        is tenant-scoped by the same `RetrievalScope` every search carries, so it
+        never reveals another organization's values. Keys are whitelisted because
+        the key name is interpolated into SQL (the values never are).
+        """
+        unknown = [key for key in keys if key not in _FACET_KEYS]
+        if unknown:
+            raise ValueError(f"not a facetable metadata key: {', '.join(sorted(unknown))}")
+        result: dict[str, list[str]] = {key: [] for key in keys}
+        if not await self._collection_exists(collection_name):
+            return result
+        table = self._table(collection_name)
+        scope_conjuncts, params = _scope_conjuncts(scope)
+        async with self.async_session() as session:
+            for key in keys:
+                conjuncts = [f"metadata->>'{key}' IS NOT NULL", *scope_conjuncts]
+                rows = await session.execute(
+                    text(
+                        f"SELECT DISTINCT metadata->>'{key}' AS value FROM {table} "
+                        f"WHERE {' AND '.join(conjuncts)} ORDER BY value"
+                    ),
+                    params,
+                )
+                result[key] = [row[0] for row in rows.fetchall() if row[0] is not None]
+        return result
 
     async def find_existing_document(
         self,

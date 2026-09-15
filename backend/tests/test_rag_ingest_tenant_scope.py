@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
+from app.services.rag.filters import AppScope, RetrievalQuery, TenantScope
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
     Document,
@@ -328,11 +329,26 @@ class TestPgVectorStoreScopesEveryRowOp:
         execute = AsyncMock(return_value=MagicMock(fetchall=MagicMock(return_value=[])))
         store = self._store_over(execute)
 
-        await store.search("kb", "query", limit=4, tenant=ORG_A)
+        await store.search(
+            "kb", "query", RetrievalQuery(scope=TenantScope(organization_id=ORG_A)), limit=4
+        )
 
         statement = str(execute.await_args.args[0])
-        assert "(metadata->>'organization_id') = :org" in statement
-        assert execute.await_args.args[1]["org"] == str(ORG_A)
+        assert "metadata->>'organization_id' = :scope_org" in statement
+        assert execute.await_args.args[1]["scope_org"] == str(ORG_A)
+
+    async def test_search_scopes_an_app_base_by_is_null(self):
+        """The FA-039 `AppScope` compiles to the same `IS NULL` conjunct the
+        deployment-wide `_org_filter(None)` used, so an app-scoped base's search
+        reads its own untagged rows rather than matching nothing (#1684)."""
+        execute = AsyncMock(return_value=MagicMock(fetchall=MagicMock(return_value=[])))
+        store = self._store_over(execute)
+
+        await store.search("kb", "query", RetrievalQuery(scope=AppScope()), limit=4)
+
+        statement = str(execute.await_args.args[0])
+        assert "(metadata->>'organization_id') IS NULL" in statement
+        assert "scope_org" not in execute.await_args.args[1]
 
     async def test_get_collection_info_counts_only_the_tenants_rows(self):
         execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=2)))

@@ -33,6 +33,7 @@ from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions,
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
+from app.services.rag.filters import UnscopedScope
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.sources.google_drive import GoogleDriveSource
@@ -342,9 +343,14 @@ async def search_async(
     info(f"Searching collection '{collection}' for: \"{query}\"")
     click.echo()
 
+    # The one path allowed the explicit unscoped marker: `rag-search` is
+    # cross-tenant maintenance, run by an operator against a named collection,
+    # not an ordinary tenant-scoped caller (FA-039 §2.2). No ordinary API or
+    # agent-tool caller can reach this variant.
     results = await retrieval.retrieve(
         query=query,
         collection_name=collection,
+        scope=UnscopedScope(),
         limit=top_k,
     )
 

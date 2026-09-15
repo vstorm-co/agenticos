@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.filters import RetrievalFilters
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import process_vector_store, unpooled_vector_store
 
@@ -114,6 +115,7 @@ async def search_knowledge_base(
     kb_collection_names: list[str] | None = None,
     top_k: int = 5,
     organization_id: UUID | None = None,
+    filters: RetrievalFilters | None = None,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -123,31 +125,53 @@ async def search_knowledge_base(
             agent's spec. Never supplied by the LLM directly - injected via
             PydanticAI Deps or the _active_kb_collections ContextVar.
         top_k: Number of top results to retrieve (default: 5).
-        organization_id: The organization this agent runs for. Scopes embedding
-            resolution to the right tenant, so a collection name shared across
-            organizations embeds this query on this tenant's credential, not
-            another's (#913).
+        organization_id: The organization this agent runs for. The security-bearing
+            tenant scope is built from it, so a collection name shared across
+            organizations returns and embeds only this tenant's chunks (#913). A
+            search without one is refused rather than run unscoped.
+        filters: Optional narrowing-only business filters (source, document type,
+            organizational unit, date range). Never a tenant or authorization
+            field - those are structurally inexpressible here.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
         return "No active knowledge bases selected for this conversation."
 
+    if organization_id is None:
+        # Fail-closed: with no trusted tenant there is no scope to build, and an
+        # unscoped search over a shared physical table could read another
+        # tenant's chunks. Refuse rather than widen (FA-039 C1).
+        return "No organization context is available, so the knowledge base cannot be searched."
+
     service: Any = get_retrieval_service()
     one_collection = len(resolved) == 1
     try:
         if one_collection:
+            # Resolved per name rather than built from `organization_id` alone:
+            # this tool holds only a name, never an already-authorized knowledge
+            # base, so the scope has to come from the store's own resolution -
+            # `AppScope` for an app-scoped base every organization reads,
+            # `TenantScope` for an org one - or an app-scoped base's untagged
+            # rows never matched (#1684, FA-039).
+            scope = await service.resolve_scope(resolved[0], organization_id)
             results = await service.retrieve(
                 query=query,
                 collection_name=resolved[0],
+                scope=scope,
+                filters=filters,
                 limit=top_k,
-                organization_id=organization_id,
             )
         else:
+            scopes = {
+                name: await service.resolve_scope(name, organization_id) for name in resolved
+            }
             results = await service.retrieve_multi(
                 query=query,
                 collection_names=resolved,
+                scope=scopes[resolved[0]],
+                scopes=scopes,
+                filters=filters,
                 limit=top_k,
-                organization_id=organization_id,
             )
     except AppException:
         # Already an account of what is wrong and what to do about it - an

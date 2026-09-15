@@ -48,6 +48,18 @@ if TYPE_CHECKING:
 
 VECTOR_TABLE_PREFIX = "rag_"
 
+RAG_SAFE_TO_DATE_FN = "rag_safe_to_date"
+"""The immutable SQL helper that converts a stored `doc_date` string to a real
+`date`, or NULL on any non-valid value.
+
+Created once, globally, by the FA-039 prerequisite migration (never by the
+application role at request time). The date filter predicate and the partial
+date index both use this identical expression, so a malformed or impossible
+legacy value (`2025-99-99`) fails closed - excluded from a date filter - rather
+than raising on a `::date` cast, and the index build cannot raise either.
+Requires the migration to have run before any code emits the date predicate.
+"""
+
 VECTOR_INDEX_SUFFIX = "_embedding_idx"
 """What the store appends to a table name for its HNSW index.
 
@@ -72,12 +84,29 @@ the longest of them all, so a suffix that outgrew it would tighten the bound
 rather than silently truncate into the collision below.
 """
 
+VECTOR_ORG_INDEX_SUFFIX = "_org_idx"
+VECTOR_SOURCE_INDEX_SUFFIX = "_source_idx"
+VECTOR_DOCTYPE_INDEX_SUFFIX = "_doctype_idx"
+VECTOR_ORGUNIT_INDEX_SUFFIX = "_orgunit_idx"
+VECTOR_DOCDATE_INDEX_SUFFIX = "_docdate_idx"
+"""The expression indexes for the FA-039 metadata filter dimensions.
+
+Hash indexes on the equality dimensions (`organization_id`, `source`,
+`document_type`, `organizational_unit`) and a partial btree on the safe date
+expression. All kept no longer than :data:`VECTOR_INDEX_SUFFIX`, for the same
+truncation reason as the lookup-key indexes above.
+"""
+
 _INDEX_SUFFIXES = (
     VECTOR_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
+    VECTOR_SOURCE_INDEX_SUFFIX,
+    VECTOR_DOCTYPE_INDEX_SUFFIX,
+    VECTOR_ORGUNIT_INDEX_SUFFIX,
+    VECTOR_DOCDATE_INDEX_SUFFIX,
 )
 
 _MAX_IDENTIFIER_LENGTH = 63

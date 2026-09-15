@@ -60,6 +60,7 @@ from app.schemas.rag import (
     RAGCollectionInfo,
     RAGCollectionList,
     RAGDocumentList,
+    RAGFilterValues,
     RAGIngestResponse,
     RAGMessageResponse,
     RAGRetryResponse,
@@ -83,6 +84,7 @@ from app.schemas.sync_source import (
 from app.services.ingestion_config import PdfParserName, parse_override
 from app.services.rag import embedding_providers
 from app.services.rag.config import get_supported_formats
+from app.services.rag.filters import resolve_legacy_filter, scope_for_tenant
 
 router = APIRouter()
 
@@ -262,32 +264,68 @@ async def search_documents(
     """
     names = request.collection_names or [request.collection_name]
     # The authorized knowledge base for each name carries the tenant its rows are
-    # scoped by; threading it through means the search reads the base the caller was
-    # authorized for, not a same-named base in their organization the store would
-    # otherwise resolve without checking resource access (#1684).
+    # scoped by; threading it through means the search reads the base the caller
+    # was authorized for, not a same-named base in their organization the store
+    # would otherwise resolve without checking resource access (#1684).
     kbs = await access.readable_all(ctx, names)
     collections = [kb.collection_name for kb in kbs]
+    # One scope per base, built from *its own* resolved tenant - `AppScope` for
+    # an app-scoped base every organization reads, `TenantScope` for an org one -
+    # never from `ctx.organization_id` directly, which cannot match an app-scoped
+    # base's untagged rows (#1684, FA-039). The request body carries business
+    # filters only, so a supplied filter can only narrow, never widen, access
+    # (FA-039 §2.2).
+    scopes = {kb.collection_name: scope_for_tenant(kb.vector_tenant) for kb in kbs}
+    filters = resolve_legacy_filter(request.filter, request.filters)
     if len(collections) > 1:
         results = await retrieval_service.retrieve_multi(
             query=request.query,
             collection_names=collections,
+            scope=scopes[collections[0]],
+            scopes=scopes,
+            filters=filters,
             limit=request.limit,
             min_score=request.min_score,
-            organization_id=ctx.organization_id,
-            tenants={kb.collection_name: kb.vector_tenant for kb in kbs},
         )
     else:
         results = await retrieval_service.retrieve(
             query=request.query,
             collection_name=collections[0],
+            scope=scopes[collections[0]],
+            filters=filters,
             limit=request.limit,
             min_score=request.min_score,
-            filter=request.filter or "",
-            organization_id=ctx.organization_id,
-            tenant=kbs[0].vector_tenant,
         )
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)
+
+
+@router.get(
+    "/collections/{name}/filter-values",
+    response_model=RAGFilterValues,
+    dependencies=[Depends(require(Perm.COLLECTIONS_VIEW))],
+)
+async def list_filter_values(
+    name: str,
+    vector_store: VectorStoreSvc,
+    access: CollectionAccessSvc,
+    ctx: Auth,
+) -> Any:
+    """Distinct in-scope values for the free-form filter dimensions.
+
+    Makes `organizational_unit` - the one author-supplied, corpus-dependent
+    filter dimension - discoverable, so a caller narrows on values that exist
+    rather than guessing one that returns silently empty. Tenant-scoped by the
+    same trusted context every search uses, so it never reveals another
+    organization's values.
+    """
+    collection = await access.readable(ctx, name)
+    values = await vector_store.distinct_metadata_values(
+        collection.collection_name,
+        ["organizational_unit"],
+        scope_for_tenant(collection.vector_tenant),
+    )
+    return RAGFilterValues(organizational_unit=values.get("organizational_unit", []))
 
 
 @router.delete(

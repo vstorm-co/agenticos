@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from pydantic_ai import ModelRetry, RunContext
@@ -34,6 +35,7 @@ from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.core.secret_kinds import ApiKeySecret
 from app.services.mcp_catalog import CatalogAuth, get_entry
 from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvider
+from app.services.rag.filters import RetrievalQuery, TenantScope
 from app.services.rag.models import SearchResult
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
@@ -80,7 +82,9 @@ class TestSearchingSeveralCollections:
 
         with pytest.raises(RuntimeError):
             await _retrieval_over(store).retrieve_multi(
-                query="anything", collection_names=["healthy", "broken"]
+                query="anything",
+                collection_names=["healthy", "broken"],
+                scope=TenantScope(organization_id=uuid4()),
             )
 
     @pytest.mark.anyio
@@ -93,7 +97,9 @@ class TestSearchingSeveralCollections:
         )
 
         results = await _retrieval_over(store).retrieve_multi(
-            query="anything", collection_names=["populated", "never_ingested"]
+            query="anything",
+            collection_names=["populated", "never_ingested"],
+            scope=TenantScope(organization_id=uuid4()),
         )
 
         assert [r.content for r in results] == ["found"]
@@ -111,7 +117,9 @@ class TestSearchingSeveralCollections:
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         results = await _retrieval_over(store).retrieve(
-            query="anything", collection_name="handbook"
+            query="anything",
+            collection_name="handbook",
+            scope=TenantScope(organization_id=uuid4()),
         )
 
         assert [r.metadata["collection"] for r in results] == ["handbook"]
@@ -132,7 +140,9 @@ class TestKnowledgeSearchGuards:
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
             return_value=service,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=uuid4()
+            )
         service.retrieve.assert_awaited_once()
 
     @pytest.mark.anyio
@@ -143,7 +153,9 @@ class TestKnowledgeSearchGuards:
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
             return_value=service,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a", "kb_b"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a", "kb_b"], organization_id=uuid4()
+            )
         service.retrieve_multi.assert_awaited_once()
 
     @pytest.mark.anyio
@@ -158,7 +170,9 @@ class TestKnowledgeSearchGuards:
             ),
             pytest.raises(ExternalServiceError),
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=uuid4()
+            )
 
     @pytest.mark.anyio
     async def test_an_unconfigured_deployment_keeps_saying_what_to_configure(self):
@@ -182,7 +196,9 @@ class TestKnowledgeSearchGuards:
             ),
             pytest.raises(ConfigurationError) as refusal,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=uuid4()
+            )
 
         assert refusal.value.details == {"key_origin": "collection 'kb_a'"}
 
@@ -303,7 +319,8 @@ class TestEmbeddingCredential:
         store._for_collection = AsyncMock(side_effect=AssertionError("should not embed"))
         store.async_session = MagicMock(side_effect=AssertionError("should not query"))
 
-        assert asyncio.run(store.search("never_ingested", "anything")) == []
+        query_filter = RetrievalQuery(scope=TenantScope(organization_id=uuid4()))
+        assert asyncio.run(store.search("never_ingested", "anything", query_filter)) == []
 
     def test_the_service_builds_with_no_key_and_refuses_only_when_asked_to_embed(self):
         """`get_embedding_service` is a FastAPI dependency of every RAG route.

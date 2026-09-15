@@ -25,6 +25,7 @@ gate (unlike the template-inherited rest of `app/services/rag/*`).
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -32,6 +33,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.field_errors import refused_field
 from app.services.rag.config import PARSER_FORMATS
 from app.services.rag.models import VectorDocumentId
 
@@ -153,6 +155,30 @@ class TenantScope(BaseModel):
     authorized_document_ids: frozenset[VectorDocumentId] | None = None
 
 
+class AppScope(BaseModel):
+    """The scope for an app-scoped base: the deployment-wide collection every
+    organization reads.
+
+    An app-scoped ingest stamps no tenant onto its rows (`KnowledgeBase.vector_tenant
+    is None`, #1688), so `TenantScope`'s equality conjunct - built for an org base -
+    matches none of them: an ordinary caller reading an app-scoped base had no
+    scope shape that matched its own untagged rows, and searched it as if it were
+    always empty. This is that shape: it ANDs `tenant IS NULL` rather than an
+    equality, so it narrows exactly as `TenantScope` does and reads no other
+    organization's rows.
+
+    Unlike `UnscopedScope`, this is reachable by an ordinary caller - whenever the
+    knowledge base it resolved to (through `CollectionAccessService`, or the
+    store's own `resolve_tenant`) is app-scoped - not only the named maintenance
+    paths.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["app"] = "app"
+    authorized_document_ids: frozenset[VectorDocumentId] | None = None
+
+
 class UnscopedScope(BaseModel):
     """The single maintenance marker: no tenant conjunct.
 
@@ -166,10 +192,27 @@ class UnscopedScope(BaseModel):
     kind: Literal["unscoped"] = "unscoped"
 
 
-# A discriminated scope: tenant-scoped (the only shape an ordinary caller ever
-# builds) or the explicit unscoped maintenance marker. There is no third
-# "implicitly unscoped" state — a `TenantScope` cannot be built with a null org.
-RetrievalScope = Annotated[TenantScope | UnscopedScope, Field(discriminator="kind")]
+# A discriminated scope: tenant-scoped (an org base), app-scoped (the
+# deployment-wide base every organization reads), or the explicit unscoped
+# maintenance marker. There is no fourth "implicitly unscoped" state — neither
+# `TenantScope` nor `AppScope` can be built without naming which one it is.
+RetrievalScope = Annotated[TenantScope | AppScope | UnscopedScope, Field(discriminator="kind")]
+
+
+def scope_for_tenant(tenant: UUID | None) -> TenantScope | AppScope:
+    """The scope matching a knowledge base's own resolved tenant (#1684, FA-039).
+
+    `tenant` is a `KnowledgeBase.vector_tenant`, or the equivalent
+    `BaseVectorStore.resolve_tenant` returns: an organization's own id for an org
+    base, `None` for an app-scoped one every organization reads or a collection no
+    base claims. Built from the *base's* tenant, already authorized by the caller
+    - never from a caller's own organization id directly, which is what let a
+    caller's raw `organization_id` stand in for an app-scoped base's `None` and
+    search it as always-empty.
+    """
+    if tenant is None:
+        return AppScope()
+    return TenantScope(organization_id=tenant)
 
 
 class RetrievalQuery(BaseModel):
@@ -196,6 +239,48 @@ def compose(scope: RetrievalScope, filters: RetrievalFilters | None) -> Retrieva
     return RetrievalQuery(scope=scope, filters=filters or RetrievalFilters())
 
 
+# The whole trimmed legacy string must be exactly this, anchored - a full match,
+# never a substring extraction. Substring extraction silently discarded any
+# other clause a caller wrote, quietly widening the result versus their intent.
+_LEGACY_PARENT_DOC_ID_RE = re.compile(r'^parent_doc_id\s*==\s*"([^"]+)"$')
+
+
+def resolve_legacy_filter(
+    filter_str: str | None, filters: RetrievalFilters | None
+) -> RetrievalFilters | None:
+    """Fold a deprecated `filter` string into the typed `filters` (FA-039 L5 shim).
+
+    The only accepted legacy string is a full-match `parent_doc_id == "<id>"`;
+    any other text is refused rather than silently ignored (which read as
+    "honored" while discarding every clause). Supplying both `filter` and
+    `filters.parent_doc_id` is a conflict - refused even when the values are
+    equal, so there is one unambiguous source and no silent overwrite that could
+    widen the caller's intent.
+
+    Returns the effective `RetrievalFilters` (or the untouched `filters` when no
+    legacy string is present).
+    """
+    if not filter_str:
+        return filters
+    match = _LEGACY_PARENT_DOC_ID_RE.match(filter_str.strip())
+    if match is None:
+        raise refused_field(
+            "filter",
+            'The deprecated filter string accepts only parent_doc_id == "<id>"; '
+            "use the structured filters object instead",
+        )
+    if filters is not None and filters.parent_doc_id is not None:
+        raise refused_field(
+            "filter",
+            "Supply parent_doc_id through either the deprecated filter string or "
+            "filters.parent_doc_id, not both",
+        )
+    doc_id = VectorDocumentId(match.group(1))
+    if filters is None:
+        return RetrievalFilters(parent_doc_id=doc_id)
+    return filters.model_copy(update={"parent_doc_id": doc_id})
+
+
 __all__ = [
     "DOCUMENT_TYPE_VOCABULARY",
     "SOURCE_VOCABULARY",
@@ -206,4 +291,5 @@ __all__ = [
     "TenantScope",
     "UnscopedScope",
     "compose",
+    "resolve_legacy_filter",
 ]

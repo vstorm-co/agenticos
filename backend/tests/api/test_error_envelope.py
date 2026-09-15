@@ -498,7 +498,9 @@ class TestDetailsDescribeTheRefusalNotTheServer:
             ),
             pytest.raises(ExternalServiceError) as refusal,
         ):
-            await search_knowledge_base(query="our refund policy", kb_collection_names=["kb_ops"])
+            await search_knowledge_base(
+                query="our refund policy", kb_collection_names=["kb_ops"], organization_id=uuid4()
+            )
 
         response = await self._refusal_on_the_wire(client, refusal.value)
 
@@ -524,7 +526,9 @@ class TestDetailsDescribeTheRefusalNotTheServer:
             ),
             pytest.raises(ExternalServiceError) as refusal,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_ops", "kb_hr"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_ops", "kb_hr"], organization_id=uuid4()
+            )
 
         response = await self._refusal_on_the_wire(client, refusal.value)
 
