@@ -1,15 +1,14 @@
-"""0080 backfills the tenant tag only where it can be attributed (#1684).
+"""0080 backfills the tenant tag from tracked documents, not from name references (#1684).
 
-The runtime `rag_<collection>` tables predate the tenant tag, so the migration
-stamps existing rows with their organization - but only for a collection whose
-name maps to exactly one. A name shared by several organizations carries no
-per-row evidence of which wrote which chunk, so its rows cannot be attributed
-and are left untagged; a name with no organization (personal/app/local) is left
-untagged deliberately. The forward fix still holds: every new ingest stamps its
-tenant and matches only tenant-tagged rows.
+The runtime `rag_<collection>` tables predate the tenant tag. The migration
+attributes an existing row to an organization only when a tracked `rag_documents`
+row produced it and its knowledge base is org-scoped: an app-scoped base's rows
+stay untagged (deployment-wide), and a residual row whose tracking document is
+gone - an organization torn down out of a still-shared table - is left untagged
+rather than reassigned to whoever still references the name.
 
 Driven against a real database because the whole migration is raw SQL over
-tables no model declares, joined to `knowledge_bases` - a mock proves none of it.
+tables no model declares, joined to `rag_documents` and `knowledge_bases`.
 """
 
 from __future__ import annotations
@@ -28,13 +27,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
 
 pytestmark = pytest.mark.anyio
 
-SHARED = "shared_kb"
-SOLO = "solo_kb"
-ORPHAN = "orphan_kb"
+ORG_COLLECTION = "org_docs"
+APP_COLLECTION = "app_docs"
 
 
 def _load_migration():
@@ -75,11 +74,11 @@ async def _org(session, name: str) -> uuid.UUID:
     return org.id
 
 
-def _kb(collection_name: str, organization_id: uuid.UUID | None) -> KnowledgeBase:
+def _kb(collection_name: str, *, scope: str, organization_id: uuid.UUID | None) -> KnowledgeBase:
     return KnowledgeBase(
         id=uuid.uuid4(),
         name=collection_name,
-        scope=KBScope.ORG.value if organization_id else KBScope.APP.value,
+        scope=scope,
         collection_name=collection_name,
         embedding_model="text-embedding-3-small",
         embedding_dim=3,
@@ -87,7 +86,22 @@ def _kb(collection_name: str, organization_id: uuid.UUID | None) -> KnowledgeBas
     )
 
 
-async def _make_runtime_table(engine: AsyncEngine, collection: str, doc_id: str) -> None:
+def _doc(kb: KnowledgeBase, *, org: uuid.UUID | None, vector_document_id: str) -> RAGDocument:
+    return RAGDocument(
+        id=uuid.uuid4(),
+        collection_name=kb.collection_name,
+        filename="f.pdf",
+        filetype="pdf",
+        status=DocumentStatus.DONE.value,
+        vector_document_id=vector_document_id,
+        organization_id=org,
+        knowledge_base_id=kb.id,
+    )
+
+
+async def _make_runtime_table(
+    engine: AsyncEngine, collection: str, parent_doc_ids: list[str]
+) -> None:
     table = f"rag_{collection}"
     async with async_sessionmaker(engine, expire_on_commit=False)() as session:
         await session.execute(
@@ -97,20 +111,25 @@ async def _make_runtime_table(engine: AsyncEngine, collection: str, doc_id: str)
                 "content TEXT, metadata JSONB DEFAULT '{}'::jsonb)"
             )
         )
-        await session.execute(
-            text(
-                f"INSERT INTO {table} (id, parent_doc_id, content, metadata) "  # noqa: S608
-                "VALUES (:id, :pid, 'body', CAST(:meta AS jsonb))"
-            ),
-            {"id": f"{doc_id}-0", "pid": doc_id, "meta": json.dumps({"filename": "f.pdf"})},
-        )
+        for pid in parent_doc_ids:
+            await session.execute(
+                text(
+                    f"INSERT INTO {table} (id, parent_doc_id, content, metadata) "  # noqa: S608
+                    "VALUES (:id, :pid, 'body', CAST(:meta AS jsonb))"
+                ),
+                {"id": f"{pid}-0", "pid": pid, "meta": json.dumps({"filename": "f.pdf"})},
+            )
         await session.commit()
 
 
-async def _org_tag(engine: AsyncEngine, collection: str) -> str | None:
+async def _tag(engine: AsyncEngine, collection: str, parent_doc_id: str) -> str | None:
     async with async_sessionmaker(engine, expire_on_commit=False)() as session:
         result = await session.execute(
-            text(f"SELECT metadata->>'organization_id' FROM rag_{collection}")  # noqa: S608
+            text(
+                f"SELECT metadata->>'organization_id' FROM rag_{collection} "  # noqa: S608
+                "WHERE parent_doc_id = :pid"
+            ),
+            {"pid": parent_doc_id},
         )
         return result.scalar()
 
@@ -126,27 +145,29 @@ async def _has_org_index(engine: AsyncEngine, collection: str) -> bool:
 
 @pytest.fixture
 async def seeded(engine: AsyncEngine) -> AsyncGenerator[uuid.UUID, None]:
-    """One name shared by two orgs, one owned by exactly one, one owned by none."""
+    """An org-scoped collection and an app-scoped one, each with a tracked
+    document, plus a residual row in the org table whose tracking document is
+    gone (an organization torn down out of a still-shared table)."""
     async with async_sessionmaker(engine, expire_on_commit=False)() as session:
         org_a = await _org(session, "orga")
-        org_b = await _org(session, "orgb")
+        org_kb = _kb(ORG_COLLECTION, scope=KBScope.ORG.value, organization_id=org_a)
+        app_kb = _kb(APP_COLLECTION, scope=KBScope.APP.value, organization_id=None)
+        session.add_all([org_kb, app_kb])
+        await session.flush()
         session.add_all(
             [
-                _kb(SHARED, org_a),
-                _kb(SHARED, org_b),
-                _kb(SOLO, org_a),
-                _kb(ORPHAN, None),
+                _doc(org_kb, org=org_a, vector_document_id="vd-org"),
+                _doc(app_kb, org=org_a, vector_document_id="vd-app"),
             ]
         )
         await session.commit()
-    await _make_runtime_table(engine, SHARED, "doc-shared")
-    await _make_runtime_table(engine, SOLO, "doc-solo")
-    await _make_runtime_table(engine, ORPHAN, "doc-orphan")
+    await _make_runtime_table(engine, ORG_COLLECTION, ["vd-org", "vd-residual"])
+    await _make_runtime_table(engine, APP_COLLECTION, ["vd-app"])
     try:
         yield org_a
     finally:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-            for collection in (SHARED, SOLO, ORPHAN):
+            for collection in (ORG_COLLECTION, APP_COLLECTION):
                 await session.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
             await session.commit()
 
@@ -163,30 +184,30 @@ def _run(schema_url: str, direction: str) -> None:
         sync_engine.dispose()
 
 
-async def test_a_single_org_collection_is_backfilled(
+async def test_a_tracked_org_document_is_backfilled(
     engine: AsyncEngine, schema_url: str, seeded: uuid.UUID
 ) -> None:
     _run(schema_url, "up")
 
-    assert await _org_tag(engine, SOLO) == str(seeded)
+    assert await _tag(engine, ORG_COLLECTION, "vd-org") == str(seeded)
 
 
-async def test_a_shared_name_is_left_untagged(
+async def test_a_residual_row_with_no_tracking_document_is_left_untagged(
     engine: AsyncEngine, schema_url: str, seeded: uuid.UUID
 ) -> None:
-    """The vulnerable case: rows cannot be attributed to one of the two orgs, so
-    the migration leaves them untagged rather than guess."""
+    """The round-2 case: a deleted organization's rows must not be reassigned to
+    the organization that still shares the name."""
     _run(schema_url, "up")
 
-    assert await _org_tag(engine, SHARED) is None
+    assert await _tag(engine, ORG_COLLECTION, "vd-residual") is None
 
 
-async def test_a_collection_owned_by_no_org_is_left_untagged(
+async def test_an_app_scoped_documents_rows_are_left_untagged(
     engine: AsyncEngine, schema_url: str, seeded: uuid.UUID
 ) -> None:
     _run(schema_url, "up")
 
-    assert await _org_tag(engine, ORPHAN) is None
+    assert await _tag(engine, APP_COLLECTION, "vd-app") is None
 
 
 async def test_the_org_index_is_built_on_every_runtime_table(
@@ -194,8 +215,8 @@ async def test_the_org_index_is_built_on_every_runtime_table(
 ) -> None:
     _run(schema_url, "up")
 
-    assert await _has_org_index(engine, SHARED)
-    assert await _has_org_index(engine, SOLO)
+    assert await _has_org_index(engine, ORG_COLLECTION)
+    assert await _has_org_index(engine, APP_COLLECTION)
 
 
 async def test_downgrade_removes_the_tag_and_the_index(
@@ -204,5 +225,5 @@ async def test_downgrade_removes_the_tag_and_the_index(
     _run(schema_url, "up")
     _run(schema_url, "down")
 
-    assert await _org_tag(engine, SOLO) is None
-    assert not await _has_org_index(engine, SOLO)
+    assert await _tag(engine, ORG_COLLECTION, "vd-org") is None
+    assert not await _has_org_index(engine, ORG_COLLECTION)

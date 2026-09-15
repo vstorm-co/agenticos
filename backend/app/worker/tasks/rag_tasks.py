@@ -130,9 +130,16 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
 
 @asynccontextmanager
 async def _ingestion_service(
-    *, processor: DocumentProcessor, organization_id: UUID | None
+    *, processor: DocumentProcessor, organization_id: UUID | None, tenant: UUID | None
 ) -> AsyncIterator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
+
+    `organization_id` is the flow's own, and scopes embedding resolution to the
+    right tenant's key (#913). `tenant` is the collection's - resolved from its
+    knowledge base by the caller, `None` for an app-scoped base or a local-path
+    sync - and is what the rows are stamped and scoped by (#1684). They differ for
+    an app-scoped base: the organization pays for the embeddings, but the rows are
+    deployment-wide and carry no tenant.
 
     Both halves come off the collection. The parser, the chunker and the image
     model come through the `processor` the caller built from its
@@ -170,12 +177,7 @@ async def _ingestion_service(
                 resolver=_announcing_resolver(organization_id),
                 engine=engine,
             ),
-            # The flow's own tenant, stamped on every chunk it writes and used to
-            # scope the existing-document lookup and the replace-delete, so a
-            # collection name shared across tenants keeps each org's documents its
-            # own (#1684). `None` for the local-path sync, which belongs to no
-            # tenant - the same reason its document rows carry no organization.
-            organization_id=organization_id,
+            tenant=tenant,
         )
     finally:
         await engine.dispose()
@@ -365,10 +367,22 @@ async def _run_ingestion(
             await assert_organization_within_budget(db, organization_id)
         config = IngestionConfig.model_validate(record.ingestion_config)
         processor = await IngestionConfigService(db).build_processor(organization_id, config)
+        # The collection's own tenant, off the knowledge base this document is
+        # tracked under - its organization for an org base, None for an app-scoped
+        # one every organization reads. Distinct from `organization_id`, which
+        # pays for the embeddings even when the rows are deployment-wide (#1684).
+        kb = (
+            await knowledge_base_repo.get_by_id(db, record.knowledge_base_id)
+            if record.knowledge_base_id is not None
+            else None
+        )
+        tenant = kb.vector_tenant if kb is not None else None
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
-    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
+    async with _ingestion_service(
+        processor=processor, organization_id=organization_id, tenant=tenant
+    ) as ingester:
         try:
             with metered_by(ledger):
                 result = await ingester.ingest_file(
@@ -465,7 +479,9 @@ async def _run_sync(
 
     # Entered after the validations above, so an early "path not found" return
     # builds no engine, and every return inside the loop still disposes one (#948).
-    async with _ingestion_service(processor=processor, organization_id=None) as ingester:
+    async with _ingestion_service(
+        processor=processor, organization_id=None, tenant=None
+    ) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
                 sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
@@ -822,6 +838,11 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             else IngestionConfig.model_validate(knowledge_base.ingestion_config)
         )
         knowledge_base_id = None if knowledge_base is None else knowledge_base.id
+        # The collection's tenant, read off the base while its row is loaded (the
+        # property only touches already-loaded columns). Its organization for an
+        # org base, None for an app-scoped one or a collection no base claims -
+        # what this sync's rows are stamped and scoped by (#1684).
+        tenant = None if knowledge_base is None else knowledge_base.vector_tenant
         # Both models, resolved once for the collection rather than per file, and
         # recorded on every row this sync writes - the provenance the documents
         # page reads. An upload has carried them since it started tracking; a
@@ -840,7 +861,9 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     total = 0
     ledger = SpendLedger(organization_id=organization_id)
 
-    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
+    async with _ingestion_service(
+        processor=processor, organization_id=organization_id, tenant=tenant
+    ) as ingester:
         try:
             files = await connector.list_files(config, credential)
             total = len(files)

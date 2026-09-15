@@ -226,7 +226,10 @@ class TestWhatTheWorkerWritesToTheRow:
         documents = MagicMock()
         documents.return_value.get_document = AsyncMock(
             return_value=MagicMock(
-                organization_id=None, ingestion_config={}, status=DocumentStatus.PROCESSING
+                organization_id=None,
+                ingestion_config={},
+                status=DocumentStatus.PROCESSING,
+                knowledge_base_id=None,
             )
         )
         documents.return_value.fail_ingestion = AsyncMock()

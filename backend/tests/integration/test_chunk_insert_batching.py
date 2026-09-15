@@ -62,10 +62,7 @@ def _store(engine: AsyncEngine) -> PgVectorStore:
     embedder = MagicMock(
         embed_document=MagicMock(side_effect=lambda doc: [[0.25] * _DIM for _ in doc.chunked_pages])
     )
-    # `_for_collection` now also carries the collection's vector tenant; `None`
-    # here keeps these batching assertions about statements and rows, not tenancy.
-    store._for_collection = AsyncMock(return_value=(embedder, _DIM, None))  # ty: ignore[invalid-assignment]
-    store._tenant = AsyncMock(return_value=None)  # ty: ignore[invalid-assignment]
+    store._for_collection = AsyncMock(return_value=(embedder, _DIM))  # ty: ignore[invalid-assignment]
     return store
 
 

@@ -8,12 +8,11 @@ collection could find, replace and DELETE a document belonging to a different
 tenant.
 
 These are the cheap, structural halves of the fix: that `IngestionService`
-threads its bound tenant into every row-level store call, and that
-`PgVectorStore` builds the tenant conjunct - `= :org` for a tenant, `IS NULL`
-for the deployment-wide caller - with the value always bound. The real SQL
-isolating real rows is exercised against a populated Postgres in
-`tests/integration/test_rag_ingest_tenant_scope.py`; a mock here would only
-restate the WHERE.
+threads its bound tenant into every row-level store call, that a search resolves
+its tenant from the collection, and that `PgVectorStore` builds the tenant
+conjunct - `= :org` for a tenant, `IS NULL` for a deployment-wide collection -
+with the value always bound. The real SQL isolating real rows is exercised
+against a populated Postgres in `tests/integration/test_rag_ingest_tenant_scope.py`.
 
 This module is template-inherited and outside the coverage gate, which is why
 the behaviour is pinned by name rather than trusted to a percentage.
@@ -28,6 +27,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
     Document,
@@ -57,24 +57,34 @@ def _document(*, content_hash: str = "hash-new") -> Document:
     return document
 
 
-def _service(organization_id: uuid.UUID | None, *, existing: MagicMock | None = None):
+def _service(tenant: uuid.UUID | None, *, existing: MagicMock | None = None):
     store = MagicMock()
     store.find_existing_document = AsyncMock(return_value=existing)
     store.insert_document = AsyncMock()
     store.delete_document = AsyncMock()
     processor = MagicMock(process_file=AsyncMock(return_value=_document()))
-    service = IngestionService(
-        processor=processor, vector_store=store, organization_id=organization_id
-    )
+    service = IngestionService(processor=processor, vector_store=store, tenant=tenant)
     return service, store
 
 
 class TestTheIngesterThreadsItsBoundTenant:
-    """The org is bound once at construction and reaches every store call.
+    """The tenant is bound once at construction and reaches every store call.
 
     Bound rather than passed per file so `ingest_file`'s many callers cannot each
     forget it - the trap #992 was, an argument some caller omits.
     """
+
+    async def test_insert_carries_the_bound_tenant(self):
+        service, store = _service(ORG_A)
+
+        await service.ingest_file(
+            filepath=Path("handbook.pdf"),
+            collection_name="kb",
+            replace=True,
+            source_path="/srv/sync/handbook.pdf",
+        )
+
+        assert store.insert_document.await_args.kwargs["tenant"] == ORG_A
 
     async def test_the_existence_lookup_is_scoped_to_the_bound_tenant(self):
         service, store = _service(ORG_A)
@@ -86,7 +96,7 @@ class TestTheIngesterThreadsItsBoundTenant:
             source_path="/srv/sync/handbook.pdf",
         )
 
-        assert store.find_existing_document.await_args.kwargs["organization_id"] == ORG_A
+        assert store.find_existing_document.await_args.kwargs["tenant"] == ORG_A
 
     async def test_the_replace_delete_is_scoped_to_the_bound_tenant(self):
         existing = MagicMock(document_id="doc-old", additional_info={"content_hash": "hash-old"})
@@ -107,30 +117,39 @@ class TestTheIngesterThreadsItsBoundTenant:
 
         await service.existing_document("kb", "/srv/sync/handbook.pdf", content_hash="h")
 
-        assert store.find_existing_document.await_args.kwargs["organization_id"] == ORG_B
+        assert store.find_existing_document.await_args.kwargs["tenant"] == ORG_B
 
     async def test_remove_document_uses_the_bound_tenant_by_default(self):
         service, store = _service(ORG_A)
 
         await service.remove_document("kb", "doc-1")
 
-        assert store.delete_document.await_args.kwargs["organization_id"] == ORG_A
+        assert store.delete_document.await_args.kwargs["tenant"] == ORG_A
 
     async def test_remove_document_takes_an_explicit_tenant_over_the_bound_one(self):
-        """The tracking service deletes by the document row's own organization -
-        exactly the tenant the chunks were stamped with - which may be handed in
-        rather than left to the request-bound default."""
+        """The tracking service deletes by the document's own collection tenant -
+        exactly the tag the chunks were stamped with - handed in rather than left
+        to the request-bound default."""
         service, store = _service(ORG_A)
 
         await service.remove_document("kb", "doc-1", ORG_B)
 
-        assert store.delete_document.await_args.kwargs["organization_id"] == ORG_B
+        assert store.delete_document.await_args.kwargs["tenant"] == ORG_B
+
+    async def test_remove_document_honours_an_explicit_deployment_wide_none(self):
+        """`None` is a real tenant - the deployment-wide rows an app-scoped or
+        personal document writes - so an explicit `None` must not be replaced by
+        the ingester's bound tenant."""
+        service, store = _service(ORG_A)
+
+        await service.remove_document("kb", "doc-1", None)
+
+        assert store.delete_document.await_args.kwargs["tenant"] is None
 
 
 class TestTheChunkMetadataCarriesTheTenant:
     def _store(self) -> PgVectorStore:
-        store = PgVectorStore.__new__(PgVectorStore)
-        return store
+        return PgVectorStore.__new__(PgVectorStore)
 
     def _chunk(self) -> DocumentPageChunk:
         return DocumentPageChunk(chunk_content="body", chunk_num=0, page_num=1, content="body")
@@ -141,11 +160,45 @@ class TestTheChunkMetadataCarriesTheTenant:
         assert meta["organization_id"] == str(ORG_A)
 
     def test_no_tenant_leaves_no_tag(self):
-        """The deployment-wide write (CLI, local sync) stamps nothing, so the
-        `IS NULL` scope its own reads use matches it."""
+        """A deployment-wide write (app-scoped, CLI, local sync) stamps nothing,
+        so the `IS NULL` scope its own reads use matches it."""
         meta = self._store()._build_chunk_metadata(self._chunk(), _document(), None)
 
         assert "organization_id" not in meta
+
+
+class TestKnowledgeBaseVectorTenant:
+    """The tenant a collection's rows are stamped and scoped by, off its base."""
+
+    @staticmethod
+    def _kb(scope: str, organization_id: uuid.UUID | None):
+        from app.db.models.knowledge_base import KnowledgeBase
+
+        return KnowledgeBase(
+            name="handbook",
+            scope=scope,
+            collection_name="handbook",
+            embedding_model="m",
+            embedding_dim=3,
+            organization_id=organization_id,
+        )
+
+    def test_an_org_base_carries_its_organization(self):
+        from app.db.models.knowledge_base import KBScope
+
+        assert self._kb(KBScope.ORG.value, ORG_A).vector_tenant == ORG_A
+
+    def test_an_app_base_is_deployment_wide_and_carries_no_tenant(self):
+        """Readable by every organization, so its rows carry no tenant even if a
+        stray organization id were set on the row."""
+        from app.db.models.knowledge_base import KBScope
+
+        assert self._kb(KBScope.APP.value, ORG_A).vector_tenant is None
+
+    def test_a_personal_base_carries_no_tenant(self):
+        from app.db.models.knowledge_base import KBScope
+
+        assert self._kb(KBScope.PERSONAL.value, None).vector_tenant is None
 
 
 class TestTheOrgFilterClause:
@@ -162,33 +215,59 @@ class TestTheOrgFilterClause:
         assert params == {}
 
 
+class TestResolveTenantForASearch:
+    """The one place a tenant is resolved rather than passed: a search, whose
+    caller carries an organization but not the knowledge base (#1684)."""
+
+    @staticmethod
+    def _store(resolved: ResolvedEmbeddings | None) -> PgVectorStore:
+        store = PgVectorStore.__new__(PgVectorStore)
+        store._resolver = AsyncMock(return_value=resolved)  # type: ignore[method-assign]
+        return store
+
+    async def test_no_organization_short_circuits_to_none(self):
+        """A caller with no organization - the CLI - is deployment-wide and must
+        not be handed whichever base a name-only lookup matched first."""
+        store = self._store(ResolvedEmbeddings.__new__(ResolvedEmbeddings))
+        store._resolver = AsyncMock(side_effect=AssertionError("must not resolve"))  # type: ignore[method-assign]
+
+        assert await store.resolve_tenant("kb", None) is None
+
+    async def test_an_org_collection_resolves_to_its_organization(self):
+        resolved = ResolvedEmbeddings(
+            model="m",
+            dim=3,
+            api_key="",
+            key_source=EmbeddingKeySource.KEYLESS,
+            base_url="",
+            provider="p",
+            vector_tenant=ORG_A,
+        )
+        store = self._store(resolved)
+
+        assert await store.resolve_tenant("kb", ORG_B) == ORG_A
+
+    async def test_a_collection_no_base_claims_resolves_to_none(self):
+        store = self._store(None)
+
+        assert await store.resolve_tenant("kb", ORG_B) is None
+
+
 class TestPgVectorStoreScopesEveryRowOp:
     """Each statement carries the tenant conjunct and binds the value (#1684)."""
 
     @staticmethod
-    def _store_over(execute: AsyncMock, *, tenant: uuid.UUID | None = ORG_A) -> PgVectorStore:
-        """A store whose collection resolves to `tenant`.
-
-        The row ops resolve the collection's tenant before scoping, so the stub
-        lives on `_tenant` and `_for_collection` rather than on the caller's
-        organization argument - which is why passing an organization does not
-        change what these assert.
-        """
+    def _store_over(execute: AsyncMock) -> PgVectorStore:
         session = MagicMock(execute=execute, commit=AsyncMock())
         session_ctx = MagicMock()
         session_ctx.__aenter__ = AsyncMock(return_value=session)
         session_ctx.__aexit__ = AsyncMock(return_value=False)
-        embedder = MagicMock(
-            embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]),
-            embed_document=MagicMock(return_value=[[0.1, 0.2, 0.3]]),
-        )
+        embedder = MagicMock(embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]))
         store = PgVectorStore.__new__(PgVectorStore)
         store.async_session = MagicMock(return_value=session_ctx)
         store._collection_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
         store._table = MagicMock(return_value="rag_kb")  # type: ignore[method-assign]
-        store._ensure_collection = AsyncMock()  # type: ignore[method-assign]
-        store._tenant = AsyncMock(return_value=tenant)  # type: ignore[method-assign]
-        store._for_collection = AsyncMock(return_value=(embedder, 3, tenant))  # type: ignore[method-assign]
+        store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
         return store
 
     async def test_find_existing_document_binds_the_tenant_on_each_key(self):
@@ -196,7 +275,7 @@ class TestPgVectorStoreScopesEveryRowOp:
         store = self._store_over(execute)
 
         await store.find_existing_document(
-            "kb", source_path="/p/x.pdf", content_hash="h", organization_id=ORG_A
+            "kb", source_path="/p/x.pdf", content_hash="h", tenant=ORG_A
         )
 
         for call in execute.await_args_list:
@@ -204,11 +283,13 @@ class TestPgVectorStoreScopesEveryRowOp:
             assert "(metadata->>'organization_id') = :org" in statement
             assert call.args[1]["org"] == str(ORG_A)
 
-    async def test_find_existing_document_uses_is_null_for_the_deployment_wide_collection(self):
+    async def test_find_existing_document_uses_is_null_for_a_deployment_wide_collection(self):
         execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
-        store = self._store_over(execute, tenant=None)
+        store = self._store_over(execute)
 
-        await store.find_existing_document("kb", source_path="/p/x.pdf", content_hash="h")
+        await store.find_existing_document(
+            "kb", source_path="/p/x.pdf", content_hash="h", tenant=None
+        )
 
         statement = str(execute.await_args_list[0].args[0])
         assert "(metadata->>'organization_id') IS NULL" in statement
@@ -247,7 +328,7 @@ class TestPgVectorStoreScopesEveryRowOp:
         execute = AsyncMock(return_value=MagicMock(fetchall=MagicMock(return_value=[])))
         store = self._store_over(execute)
 
-        await store.search("kb", "query", limit=4, organization_id=ORG_A)
+        await store.search("kb", "query", limit=4, tenant=ORG_A)
 
         statement = str(execute.await_args.args[0])
         assert "(metadata->>'organization_id') = :org" in statement
@@ -257,7 +338,7 @@ class TestPgVectorStoreScopesEveryRowOp:
         execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=2)))
         store = self._store_over(execute)
 
-        info = await store.get_collection_info("kb", ORG_A)
+        info = await store.get_collection_info("kb", ORG_A, tenant=ORG_A)
 
         statement = str(execute.await_args.args[0])
         assert "COUNT(*)" in statement
@@ -265,11 +346,11 @@ class TestPgVectorStoreScopesEveryRowOp:
         assert info.total_vectors == 2
 
 
-class TestInsertResolvesAndWritesTheTenant:
-    """`insert_document` resolves the collection's tenant and renders it into the
-    JSON metadata parameter it binds, which is what the scoped reads match on."""
+class TestInsertStampsTheTenantIntoTheStatementParams:
+    """`insert_document` renders the tenant into the JSON metadata parameter it
+    binds, which is what the scoped reads later match on."""
 
-    async def test_the_inserted_metadata_json_carries_the_resolved_tenant(self):
+    async def test_the_inserted_metadata_json_carries_the_tenant(self):
         execute = AsyncMock()
         session = MagicMock(execute=execute, commit=AsyncMock())
         session_ctx = MagicMock()
@@ -280,10 +361,10 @@ class TestInsertResolvesAndWritesTheTenant:
         store._table = MagicMock(return_value="rag_kb")  # type: ignore[method-assign]
         store._ensure_collection = AsyncMock()  # type: ignore[method-assign]
         store._for_collection = AsyncMock(  # type: ignore[method-assign]
-            return_value=(MagicMock(embed_document=lambda d: [[0.1]]), 3, ORG_A)
+            return_value=(MagicMock(embed_document=lambda d: [[0.1]]), 3)
         )
 
-        await store.insert_document("kb", _document())
+        await store.insert_document("kb", _document(), ORG_A)
 
         rows = execute.await_args.args[1]
         assert json.loads(rows[0]["metadata"])["organization_id"] == str(ORG_A)

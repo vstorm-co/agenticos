@@ -88,7 +88,7 @@ def _store(session: RecordingSession, *, dim: int = 3) -> PgVectorStore:
         embed_document=MagicMock(side_effect=lambda doc: [[0.0] * dim] * len(doc.chunked_pages))
     )
     store._ensure_collection = AsyncMock()  # ty: ignore[invalid-assignment]
-    store._for_collection = AsyncMock(return_value=(embedder, dim, None))  # ty: ignore[invalid-assignment]
+    store._for_collection = AsyncMock(return_value=(embedder, dim))  # ty: ignore[invalid-assignment]
     return store
 
 

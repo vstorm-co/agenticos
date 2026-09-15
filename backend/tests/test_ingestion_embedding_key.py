@@ -106,7 +106,9 @@ async def _store() -> PgVectorStore:
         "app.worker.tasks.rag_tasks.create_async_engine",
         return_value=MagicMock(dispose=AsyncMock()),
     ):
-        async with _ingestion_service(processor=MagicMock(), organization_id=None) as service:
+        async with _ingestion_service(
+            processor=MagicMock(), organization_id=None, tenant=None
+        ) as service:
             store = service.store
     assert isinstance(store, PgVectorStore)
     return store
@@ -163,7 +165,7 @@ async def _the_flows_embedder(
         bases.get_for_collection = AsyncMock(return_value=_knowledge_base(secret_id=secret_id))
         secrets.get = AsyncMock(return_value=vault_row)
 
-        embedder, dim, _ = await (await _store())._for_collection("handbook")
+        embedder, dim = await (await _store())._for_collection("handbook")
         yield embedder, dim, openai
 
 
@@ -208,7 +210,7 @@ class TestTheCollectionsKeyPays:
                 db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
                 db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
                 secrets.get = AsyncMock(return_value=openai_row)
-                embedder, _, _ = await (await _store())._for_collection("handbook")
+                embedder, _ = await (await _store())._for_collection("handbook")
 
         assert embedder.provider._base_url == "https://api.openai.com/v1"
 
@@ -240,7 +242,7 @@ class TestTheCollectionsKeyPays:
             db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
             db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
             secrets.get = AsyncMock()
-            embedder, dim, _ = await (await _store())._for_collection("handbook")
+            embedder, dim = await (await _store())._for_collection("handbook")
 
         assert dim == 768
         assert embedder.provider._base_url == "http://ollama:11434/v1"
@@ -293,7 +295,7 @@ class TestTheCollectionsKeyPays:
 
         origins = []
         for collection in resolutions:
-            embedder, _, _ = await store._for_collection(collection)
+            embedder, _ = await store._for_collection(collection)
             with pytest.raises(ConfigurationError) as refusal:
                 embedder.embed_query("anything")
             origins.append(refusal.value.details["key_origin"])

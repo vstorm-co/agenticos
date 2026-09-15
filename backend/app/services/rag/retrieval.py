@@ -95,9 +95,14 @@ class RetrievalService(BaseRetrievalService):
         ]
 
     async def _bm25_search(
-        self, query: str, collection_name: str, limit: int, organization_id: UUID | None = None
+        self,
+        query: str,
+        collection_name: str,
+        limit: int,
+        organization_id: UUID | None = None,
+        tenant: UUID | None = None,
     ) -> list[SearchResult]:
-        docs = await self.store.get_documents(collection_name, organization_id)
+        docs = await self.store.get_documents(collection_name, tenant)
         if not docs:
             return []
 
@@ -106,6 +111,7 @@ class RetrievalService(BaseRetrievalService):
             query=query,
             limit=min(limit * 10, 100),
             organization_id=organization_id,
+            tenant=tenant,
         )
         if not all_results:
             return []
@@ -149,12 +155,19 @@ class RetrievalService(BaseRetrievalService):
 
         start_time = time.time()
 
+        # The tenant whose rows this search may read, resolved from the collection
+        # for the searching organization (its own for an org base, None for an
+        # app-scoped one every organization reads). A caller with no organization -
+        # the CLI - is deployment-wide and reads only untagged rows (#1684).
+        tenant = await self.store.resolve_tenant(collection_name, organization_id)
+
         pipeline_results = await self.store.search(
             collection_name=collection_name,
             query=query,
             parent_doc_id=_parent_doc_id_from_filter(filter),
             limit=limit * fetch_multiplier,
             organization_id=organization_id,
+            tenant=tenant,
         )
 
         search_time = time.time() - start_time
@@ -166,7 +179,7 @@ class RetrievalService(BaseRetrievalService):
 
         if self._hybrid_enabled:
             bm25_results = await self._bm25_search(
-                query, collection_name, limit * fetch_multiplier, organization_id
+                query, collection_name, limit * fetch_multiplier, organization_id, tenant
             )
             if bm25_results:
                 pipeline_results = self._rrf_fuse(pipeline_results, bm25_results)

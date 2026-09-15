@@ -38,6 +38,7 @@ class TestParsingTheFilter:
 class TestThreadingItToTheStore:
     async def test_a_document_filter_reaches_the_store_typed(self):
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         await _retrieval_over(store).retrieve(
@@ -48,6 +49,7 @@ class TestThreadingItToTheStore:
 
     async def test_no_filter_leaves_the_search_unrestricted(self):
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(return_value=[])
 
         await _retrieval_over(store).retrieve(query="anything", collection_name="handbook")

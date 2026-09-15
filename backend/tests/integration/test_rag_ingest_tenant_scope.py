@@ -9,11 +9,11 @@ tenant, and a search could read its chunk content back.
 
 This seeds one physical table with two tenants' documents that deliberately
 collide on `source_path`, `filename` and `content_hash`, and proves the caller
-of each row-level op sees and touches only its own rows. A mock could not: the
-whole defect is a missing SQL predicate, and only a real database carrying the
-`metadata->>'organization_id'` values shows the predicate isolating real rows.
-The precedence and the SQL shape are pinned in the unit suite
-(`tests/test_rag_ingest_tenant_scope.py`).
+of each row-level op - passing the collection's own tenant - sees and touches
+only its own rows. A mock could not: the whole defect is a missing SQL
+predicate, and only a real database carrying the `metadata->>'organization_id'`
+values shows the predicate isolating real rows. The precedence and the SQL shape
+are pinned in the unit suite (`tests/test_rag_ingest_tenant_scope.py`).
 """
 
 from __future__ import annotations
@@ -21,13 +21,13 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
 from app.services.rag.models import SearchResult
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -43,44 +43,18 @@ SOURCE_PATH = "/srv/sync/handbook.pdf"
 CONTENT_HASH = "hash-shared"
 
 
-def _resolved(vector_tenant: uuid.UUID | None) -> ResolvedEmbeddings:
-    return ResolvedEmbeddings(
-        model="text-embedding-3-small",
-        dim=3,
-        api_key="",
-        key_source=EmbeddingKeySource.KEYLESS,
-        base_url="",
-        provider="openrouter",
-        vector_tenant=vector_tenant,
-    )
+async def _no_resolution(_name: str, _organization_id: object = None) -> None:
+    """The row ops take an explicit tenant, so resolution is unused here; only
+    `_ensure_collection` reads the store's own default width through it."""
+    return
 
 
-async def _org_scoped_resolver(
-    name: str, organization_id: uuid.UUID | None = None
-) -> ResolvedEmbeddings:
-    """Stand-in for org-scoped collections: the caller's own organization is its
-    vector tenant, so each org resolves to and scopes by its own rows."""
-    return _resolved(organization_id)
-
-
-async def _deployment_wide_resolver(
-    name: str, organization_id: uuid.UUID | None = None
-) -> ResolvedEmbeddings:
-    """Stand-in for an app-scoped collection: deployment-wide, so it resolves to
-    no tenant no matter which organization is reading (#1684)."""
-    return _resolved(None)
-
-
-def _store(engine: AsyncEngine, resolver: object = _org_scoped_resolver) -> PgVectorStore:
+def _store(engine: AsyncEngine) -> PgVectorStore:
     store = PgVectorStore.__new__(PgVectorStore)
     store.async_session = async_sessionmaker(engine, expire_on_commit=False)
     store.dim = 3
     store.embedder = None  # type: ignore[assignment]  # unread for DDL and the scoped ops
-    store._resolver = resolver  # type: ignore[assignment]
-    # The resolver now returns a real resolution, so `_for_collection` reaches its
-    # embedder cache; DDL and the scoped row ops only read the resolved width and
-    # tenant, never build a client.
-    store._services = {}
+    store._resolver = _no_resolution  # type: ignore[assignment]
     return store
 
 
@@ -88,7 +62,7 @@ async def _insert(
     store: PgVectorStore,
     *,
     doc_id: str,
-    organization_id: uuid.UUID | None,
+    tenant: uuid.UUID | None,
     source_path: str = SOURCE_PATH,
     filename: str = "handbook.pdf",
     content_hash: str = CONTENT_HASH,
@@ -99,8 +73,8 @@ async def _insert(
         "filename": filename,
         "content_hash": content_hash,
     }
-    if organization_id is not None:
-        meta["organization_id"] = str(organization_id)
+    if tenant is not None:
+        meta["organization_id"] = str(tenant)
     insert = (
         f"INSERT INTO {TABLE} (id, parent_doc_id, content, embedding, metadata) "  # noqa: S608
         "VALUES (:id, :pid, :content, CAST(:emb AS vector), CAST(:meta AS jsonb))"
@@ -137,8 +111,8 @@ async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None
 async def _seed_both_tenants(store: PgVectorStore) -> None:
     """One shared table holding Org A's and Org B's colliding documents."""
     await store._ensure_collection(COLLECTION)
-    await _insert(store, doc_id="doc-a", organization_id=ORG_A)
-    await _insert(store, doc_id="doc-b", organization_id=ORG_B)
+    await _insert(store, doc_id="doc-a", tenant=ORG_A)
+    await _insert(store, doc_id="doc-b", tenant=ORG_B)
 
 
 async def test_org_a_does_not_find_org_bs_colliding_document(engine: AsyncEngine) -> None:
@@ -146,10 +120,10 @@ async def test_org_a_does_not_find_org_bs_colliding_document(engine: AsyncEngine
     let Org A match Org B's document - the lookup the replace path deletes on."""
     store = _store(engine)
     await store._ensure_collection(COLLECTION)
-    await _insert(store, doc_id="doc-b", organization_id=ORG_B)
+    await _insert(store, doc_id="doc-b", tenant=ORG_B)
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, organization_id=ORG_A
+        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, tenant=ORG_A
     )
 
     assert hit is None
@@ -160,7 +134,7 @@ async def test_org_a_finds_only_its_own_document(engine: AsyncEngine) -> None:
     await _seed_both_tenants(store)
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, organization_id=ORG_A
+        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, tenant=ORG_A
     )
 
     assert hit is not None
@@ -193,7 +167,7 @@ async def test_listing_and_count_are_scoped_per_tenant(engine: AsyncEngine) -> N
 
     a_docs = await store.get_documents(COLLECTION, ORG_A)
     b_docs = await store.get_documents(COLLECTION, ORG_B)
-    a_info = await store.get_collection_info(COLLECTION, ORG_A)
+    a_info = await store.get_collection_info(COLLECTION, tenant=ORG_A)
 
     assert [d.document_id for d in a_docs] == ["doc-a"]
     assert [d.document_id for d in b_docs] == ["doc-b"]
@@ -211,54 +185,30 @@ async def test_reading_chunks_is_scoped_per_tenant(engine: AsyncEngine) -> None:
 
 async def test_search_does_not_leak_another_tenants_chunk_content(engine: AsyncEngine) -> None:
     """A shared collection name must not return Org B's chunk content to Org A."""
-    from unittest.mock import AsyncMock, MagicMock
-
     store = _store(engine)
     await _seed_both_tenants(store)
-    # The embedder is stubbed so the query does not go to a provider; the tenant
-    # it returns (ORG_A) is what the search must scope its rows by.
+    # The embedder is stubbed so the query does not go to a provider; the search
+    # scopes its rows by the tenant it is given.
     embedder = MagicMock(embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]))
-    store._for_collection = AsyncMock(return_value=(embedder, 3, ORG_A))  # type: ignore[method-assign]
+    store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
 
-    results: list[SearchResult] = await store.search(
-        COLLECTION, "anything", limit=10, organization_id=ORG_A
-    )
+    results: list[SearchResult] = await store.search(COLLECTION, "anything", limit=10, tenant=ORG_A)
 
     contents = {r.content for r in results}
     assert contents == {"content of doc-a"}
 
 
-async def test_an_app_scoped_collection_stays_deployment_wide(engine: AsyncEngine) -> None:
-    """A collection that resolves to no tenant - an app-scoped base every
-    organization reads - is not scoped away by a caller's own organization: its
-    untagged rows stay visible, and its writes stay untagged (#1684)."""
-    store = _store(engine, resolver=_deployment_wide_resolver)
-    await store._ensure_collection(COLLECTION)
-    await _insert(store, doc_id="doc-app", organization_id=None)
-    await _insert(store, doc_id="doc-b", organization_id=ORG_B)
-
-    # A member of some organization reads the app collection; it resolves to no
-    # tenant, so the deployment-wide (untagged) row is found and the org-tagged
-    # decoy is not.
-    hit = await store.find_existing_document(
-        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, organization_id=ORG_A
-    )
-    docs = await store.get_documents(COLLECTION, ORG_A)
-
-    assert hit is not None and hit.document_id == "doc-app"
-    assert [d.document_id for d in docs] == ["doc-app"]
-
-
-async def test_the_deployment_wide_caller_sees_only_untagged_rows(engine: AsyncEngine) -> None:
-    """A CLI or local-path ingest owns no tenant: its `None` scope matches only
-    rows with no organization tag, not Org A's or Org B's."""
+async def test_a_deployment_wide_collection_sees_only_untagged_rows(engine: AsyncEngine) -> None:
+    """A deployment-wide collection - an app-scoped base, a CLI or local-path
+    ingest - carries no tenant: its `None` scope matches only rows with no
+    organization tag, not Org A's or Org B's."""
     store = _store(engine)
     await store._ensure_collection(COLLECTION)
-    await _insert(store, doc_id="doc-a", organization_id=ORG_A)
-    await _insert(store, doc_id="doc-none", organization_id=None)
+    await _insert(store, doc_id="doc-a", tenant=ORG_A)
+    await _insert(store, doc_id="doc-none", tenant=None)
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, organization_id=None
+        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, tenant=None
     )
     docs = await store.get_documents(COLLECTION, None)
 

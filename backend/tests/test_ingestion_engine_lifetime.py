@@ -101,7 +101,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=uuid.uuid4(), ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=None
+                )
             ),
             complete_ingestion=AsyncMock(),
         )
@@ -122,7 +124,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=None, ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=None, ingestion_config={}, knowledge_base_id=None
+                )
             ),
             fail_ingestion=AsyncMock(),
         )
@@ -142,7 +146,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=None, ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=None, ingestion_config={}, knowledge_base_id=None
+                )
             ),
         )
 
@@ -167,7 +173,9 @@ class TestAnUploadsEngine:
         ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
-                return_value=MagicMock(organization_id=None, ingestion_config={})
+                return_value=MagicMock(
+                    organization_id=None, ingestion_config={}, knowledge_base_id=None
+                )
             ),
         )
 

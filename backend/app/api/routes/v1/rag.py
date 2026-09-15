@@ -220,7 +220,9 @@ async def get_collection_info(
 ) -> Any:
     """Retrieve stats for a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(collection.collection_name, ctx.organization_id)
+    return await vector_store.get_collection_info(
+        collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
+    )
 
 
 @router.get(
@@ -236,7 +238,9 @@ async def list_documents(
 ) -> Any:
     """List all documents in a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_document_list(collection.collection_name, ctx.organization_id)
+    return await vector_store.get_document_list(
+        collection.collection_name, collection.vector_tenant
+    )
 
 
 @router.post(
@@ -294,7 +298,9 @@ async def delete_document(
 ) -> None:
     """Delete a specific document by its ID from a collection."""
     collection = await access.writable(ctx, name)
-    success = await ingestion_service.remove_document(collection.collection_name, document_id)
+    success = await ingestion_service.remove_document(
+        collection.collection_name, document_id, tenant=collection.vector_tenant
+    )
     if not success:
         raise NotFoundError(
             message="Document not found",

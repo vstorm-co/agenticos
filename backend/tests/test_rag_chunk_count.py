@@ -152,7 +152,11 @@ class TestSkippingADroppedCollection:
 class TestWhatTheUploadPathRecords:
     async def test_the_worker_writes_the_chunk_count_it_was_given(self):
         document_id = str(uuid.uuid4())
-        record = MagicMock(organization_id=uuid.uuid4(), ingestion_config={})
+        # No knowledge base, so the worker resolves this document's vector tenant
+        # to None without a repository lookup (#1684).
+        record = MagicMock(
+            organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=None
+        )
         documents = MagicMock(
             get_document=AsyncMock(return_value=record), complete_ingestion=AsyncMock()
         )

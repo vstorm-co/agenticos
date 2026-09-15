@@ -12,14 +12,18 @@ This migration does two things to the tables that already exist, once:
 * Builds the `organization_id` hash index `_ensure_collection` now builds on
   first write, so collections nobody re-ingests into are scoped at O(1) rather
   than at a scan - the same reasoning as `0058_backfill_rag_lookup_indexes`.
-* Backfills the tenant tag onto existing rows, but only for a collection whose
-  name maps to exactly one organization. Where the name is shared by several
-  organizations - the vulnerable case - the existing rows carry no evidence of
-  which organization wrote which chunk, so they cannot be attributed and are
-  left untagged. The fix still holds forward: every new ingest stamps its tenant
-  and can only match tenant-tagged rows, so no future ingest can cross tenants.
-  Personal, app and local-path collections have no organization and are left
-  untagged deliberately - that is the tag their deployment-wide reads match.
+* Backfills the tenant tag onto existing rows **from the tracked documents that
+  produced them**, not by inferring ownership from which organizations currently
+  reference the name. Each `rag_documents` row records the organization that
+  ingested it, the knowledge base it belongs to and the vector document id its
+  chunks carry, so a row's tenant is established from the base's scope: its
+  organization for an org base, and nothing for an app-scoped base every
+  organization reads. Chunks with no tracking row - a document deleted, an
+  organization torn down out of a still-shared table - are left untagged rather
+  than reassigned to whoever still references the name, which is how residual
+  rows would otherwise surface in another tenant's searches. The fix still holds
+  forward: every new ingest stamps its tenant and can only match tenant-tagged
+  rows.
 
 The index name and the metadata key are written out here rather than imported
 from `app.db.vector_tables`: a migration is a snapshot of what existed when it
@@ -44,8 +48,13 @@ depends_on: str | Sequence[str] | None = None
 _ORG_SUFFIX = "_org_idx"
 _TABLE_PREFIX = "rag_"
 
+# The app scope stamps no tenant - an app-scoped base is deployment-wide - so its
+# documents' chunks stay untagged. Mirrors `KnowledgeBase.vector_tenant` and
+# `KBScope.APP` as of this revision.
+_APP_SCOPE = "app"
 
-def _runtime_vector_tables(conn: Connection) -> list[str]:
+
+def _runtime_vector_tables(conn: Connection) -> set[str]:
     """The `rag_` tables the store created, told apart from the model table.
 
     A runtime vector table carries the `metadata` jsonb column the store writes;
@@ -60,50 +69,52 @@ def _runtime_vector_tables(conn: Connection) -> list[str]:
             "AND data_type = 'jsonb' AND table_name LIKE 'rag\\_%' ESCAPE '\\'"
         )
     )
-    return [row[0] for row in rows]
+    return {row[0] for row in rows}
 
 
-def _sole_organization(conn: Connection, collection_name: str) -> str | None:
-    """The one organization that owns this collection name, or None if not one.
+def _tagged_documents(conn: Connection) -> list[tuple[str, str, str]]:
+    """`(table, vector_document_id, organization_id)` for every attributable document.
 
-    Returns an organization only when *every* knowledge base for the name belongs
-    to that same organization. None means the name maps to zero organizations
-    (personal/app/local only), to several (an org-shared name), or to a mix of one
-    organization and an app-scoped base every organization reads - a legacy app
-    base and an org base can share a name, and its untagged rows might belong to
-    either, so attributing them all to the organization would misassign the
-    deployment-wide ones. Any of those leaves the existing rows untagged.
+    One row per tracked document whose chunks belong to a single organization:
+    it has a vector document id, a knowledge base, and that base is org-scoped
+    (an app-scoped base contributes nothing, its rows staying untagged). The
+    organization is the base's own, so a document uploaded under one organization
+    into a base owned by another - which cannot happen through the product - would
+    still be attributed to the base, not the uploader.
     """
     rows = conn.execute(
-        text("SELECT DISTINCT organization_id FROM knowledge_bases WHERE collection_name = :c"),
-        {"c": collection_name},
+        text(
+            "SELECT d.collection_name, d.vector_document_id, kb.organization_id "
+            "FROM rag_documents d "
+            "JOIN knowledge_bases kb ON kb.id = d.knowledge_base_id "
+            "WHERE d.vector_document_id IS NOT NULL "
+            "AND kb.organization_id IS NOT NULL "
+            "AND kb.scope <> :app"
+        ),
+        {"app": _APP_SCOPE},
     ).fetchall()
-    orgs = {row[0] for row in rows}
-    if len(orgs) == 1 and None not in orgs:
-        return str(next(iter(orgs)))
-    return None
+    return [(f"{_TABLE_PREFIX}{row[0]}", str(row[1]), str(row[2])) for row in rows]
 
 
 def upgrade() -> None:
     conn = op.get_bind()
-    for table in _runtime_vector_tables(conn):
-        # The table name is a reflected identifier, not caller input; the
-        # backfill value is always bound.
+    tables = _runtime_vector_tables(conn)
+    for table in tables:
+        # The table name is a reflected identifier, not caller input.
         op.execute(
             f"CREATE INDEX IF NOT EXISTS {table}{_ORG_SUFFIX} "
             f"ON {table} USING hash ((metadata->>'organization_id'))"
         )
-        collection_name = table[len(_TABLE_PREFIX) :]
-        organization_id = _sole_organization(conn, collection_name)
-        if organization_id is None:
+    for table, vector_document_id, organization_id in _tagged_documents(conn):
+        if table not in tables:
             continue
         conn.execute(
             text(
                 f"UPDATE {table} SET metadata = "
                 "jsonb_set(metadata, '{organization_id}', to_jsonb(cast(:org AS text)), true) "
-                "WHERE metadata->>'organization_id' IS NULL"
+                "WHERE parent_doc_id = :pid AND metadata->>'organization_id' IS NULL"
             ),
-            {"org": organization_id},
+            {"org": organization_id, "pid": vector_document_id},
         )
 
 
