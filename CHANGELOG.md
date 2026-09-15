@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.441] - 2026-09-15
+
 ### Documentation
 
 - **Logfire is documented as optional, and as a copy of the run when it is on.**
