@@ -581,11 +581,17 @@ export async function nowMatching(
   await expect
     .poll(
       async () => {
-        found = (await rowsAt(request, path)).find(matches);
-        return found !== undefined;
+        const rows = await rowsAt(request, path);
+        found = rows.find(matches);
+        // Empty means matched; anything else is what was there instead, which
+        // Playwright prints as `Received array: [ … ]`. Polling a boolean would
+        // report `Received: false` and throw the rows away - and "no run at
+        // all" and "a run that is not priced yet" are the two answers this step
+        // exists to tell apart.
+        return found === undefined ? rows : [];
       },
       { message: `${path} never listed ${describe}` },
     )
-    .toBe(true);
+    .toHaveLength(0);
   return found!;
 }
