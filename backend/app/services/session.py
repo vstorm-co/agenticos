@@ -235,14 +235,22 @@ class SessionService:
         await session_repo.deactivate(self.db, session.id)
         await record_audit(
             self.db,
-            actor_user_id=session.user_id,
+            # **Nobody.** A request that reaches this method has authenticated
+            # no one: holding a spent token establishes possession, not identity,
+            # and the likeliest holder is not the person whose session it was.
+            # Naming them as the actor would put the victim in the trail as the
+            # party who did this, which is the wrong first fact for whoever reads
+            # it during an incident. `actor_user_id` is null for exactly this -
+            # "no session behind it" - and `action` says what happened.
+            actor_user_id=None,
             action="session.refresh_token_reused",
             target_type="session",
             target_id=str(session.id),
             # No token, no hash: the entry says a spent credential was presented
-            # and which session it belonged to, which is what a reader acts on.
+            # and whose session it belonged to, which is what a reader acts on.
             # The credential itself has no business in a table people can export.
             details={
+                "session_user_id": str(session.user_id),
                 "device_name": session.device_name,
                 "reason": "a refresh token this session had already rotated away was presented",
             },
@@ -252,6 +260,18 @@ class SessionService:
             "refresh_token_reuse_detected",
             extra={"session_id": str(session.id), "user_id": str(session.user_id)},
         )
+        # **Committed here, because the caller's next act is to raise.** The
+        # refusal goes out as an `AuthenticationError`, and the request session's
+        # exception branch rolls back everything the request wrote - which would
+        # be this deactivation and this audit entry, leaving a 401, a compromised
+        # chain still live, and no record that anything happened. The two
+        # sanctioned commits in the agent run paths exist for the same reason:
+        # work that must survive the failure that follows it.
+        #
+        # Safe to end the transaction here: nothing else has written on this
+        # path. `validate_refresh_token` has already declined, so it touched no
+        # row, and the route does nothing but refuse afterwards.
+        await self.db.commit()
         return session
 
     async def open_impersonation(

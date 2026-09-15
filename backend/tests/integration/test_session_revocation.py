@@ -165,10 +165,12 @@ class TestReusingASpentRefreshToken:
         and it carries no token and no hash, because a credential has no business
         in a table people can export."""
         user = await _user(db, "reuse-audit@example.com")
+        user_id = user.id  # bound before the commit, which expires the instance
         service = SessionService(db)
         session = await session_repo.create(
-            db, user_id=user.id, refresh_token_hash=hash_token("first"), expires_at=_in_a_day()
+            db, user_id=user_id, refresh_token_hash=hash_token("first"), expires_at=_in_a_day()
         )
+        session_id = session.id
         await service.rotate_session(session, "second")
         db.expire_all()
 
@@ -186,10 +188,51 @@ class TestReusingASpentRefreshToken:
             .all()
         )
         assert len(rows) == 1
-        assert rows[0].target_id == str(session.id)
+        assert rows[0].target_id == str(session_id)
+        # Nobody authenticated: holding a spent token establishes possession, not
+        # identity, and the likeliest holder is not the person whose session it
+        # was. Naming them would put the victim in the trail as the party who did
+        # this - the wrong first fact for whoever reads it during an incident.
+        assert rows[0].actor_user_id is None
+        assert rows[0].details is not None
+        assert rows[0].details["session_user_id"] == str(user_id)
         body = str(rows[0].details)
         assert hash_token("first") not in body
         assert "first" not in body
+
+    async def test_the_response_survives_the_refusal_that_follows_it(self, db):
+        """The caller's next act is to raise, and the request session's exception
+        branch rolls back everything the request wrote. Uncommitted, that is a
+        401, a compromised chain still live, and no record - which is what this
+        whole feature exists to stop.
+
+        Proved by rolling back after the call: what is still there afterwards is
+        what was committed.
+        """
+        user = await _user(db, "reuse-survives-rollback@example.com")
+        service = SessionService(db)
+        session = await session_repo.create(
+            db, user_id=user.id, refresh_token_hash=hash_token("first"), expires_at=_in_a_day()
+        )
+        session_id = session.id
+        await service.rotate_session(session, "second")
+        await db.commit()
+
+        await service.detect_refresh_reuse("first")
+        await db.rollback()
+
+        db.expire_all()
+        reread = await session_repo.get_by_id(db, session_id)
+        assert reread is not None
+        assert reread.is_active is False
+        recorded = (
+            await db.execute(
+                select(func.count())
+                .select_from(AppAdminAuditLog)
+                .where(AppAdminAuditLog.action == "session.refresh_token_reused")
+            )
+        ).scalar_one()
+        assert recorded == 1
 
     async def test_an_ordinary_invalid_token_is_not_a_replay(self, db):
         """A typo, an expired token, a revoked one - every one of them reaches
