@@ -1,5 +1,5 @@
 ---
-source_sha: "bdf0839310f4"
+source_sha: "674521d32d87"
 ---
 
 # Sicherheit { #security }
@@ -53,7 +53,7 @@ fragen wird.
 |---|---|---|
 | Der konfigurierte Modell-Provider | Der Prompt, die Ausgabe des Modells, Tool-Argumente und -Ergebnisse | Jeder Run — außer das Modell läuft auf der eigenen Infrastruktur des Betreibers, dann verlässt nichts das Deployment |
 | Der konfigurierte Kanal (Slack, Telegram, Mattermost) | Die generierten Antworten des Agents — Text, Bilder und Anhänge | Immer wenn ein Agent über diesen Kanal exponiert ist; jedes `send_message` postet beim Provider (`app/services/channels/`) |
-| Logfire | Traces, die standardmäßig Prompts und Ausgaben tragen | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent; ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run global (`app/core/logfire_setup.py`), mit ihm verlassen Run-Inhalte das Deployment also unabhängig von jeder Einstellung pro Agent. Der `content`-Modus dieses Tokens entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein gefiltertes Dazwischen ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Traces, die Prompts und Ausgaben tragen, sofern der Agent nichts anderes sagt | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent, und sein `content`-Modus entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run im API-Prozess (`app/core/logfire_setup.py`), mit ihm verlässt also der Inhalt jedes Agenten das Deployment, der nicht `none` verlangt hat; ein Agent, der es verlangt hat, wird auch auf diesem Tracer an eine inhaltsfreie Instrumentierung geheftet (`suppress_content`), der Modus hält also auf beiden Pfaden - mit zwei Lücken, die er noch nicht abdeckt: ein Inline-Spezialist dieses Agenten, der keinen eigenen Observability-Block trägt ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), und ein fehlgeschlagenes Anheften, das protokolliert und belassen wird. Keiner der beiden Pfade ist standardmäßig an, und der deploymentweite erreicht keinen vom Prefect-Worker ausgeführten Run ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Ein gefiltertes Dazwischen ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |
 | Ein Embedding-Provider | Dokumenttext, beim Ingest | Nur für eine Wissensbasis, deren Provider entfernt ist |
@@ -146,7 +146,7 @@ SOC 2 CC6–CC8.
 | Kontrolle | Mechanismus | Gehalten von |
 |---|---|---|
 | TLS zu PostgreSQL und Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` meldet den Live-Zustand von Postgres aus `pg_stat_ssl` | Postgres, an einer echten Verbindung: `test_store_tls.py`; Redis, beim Bau der URL und in `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
-| Framing- und MIME-Header auf jeder Antwort; CSP auf allen außer den API-Referenz-Endpunkten | `SecurityHeadersMiddleware` (`app/core/middleware.py`), dessen `exclude_paths` die CSP fallen lassen — nicht Framing oder MIME — für OpenAPI, Swagger und ReDoc; dazu die eigene CSP des Frontends pro Deployment (`frontend/src/middleware.ts`) | `test_security_headers.py`, inkl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp` |
+| Framing- und MIME-Header auf jeder Antwort; CSP auf allen außer den API-Referenz-Endpunkten | `SecurityHeadersMiddleware` (`app/core/middleware.py`), dessen `exclude_paths` die CSP fallen lassen — nicht Framing oder MIME — für OpenAPI, Swagger und ReDoc; dazu die eigene CSP des Frontends pro Deployment (`frontend/src/middleware.ts`), deren `script-src` eine Nonce pro Request und `'strict-dynamic'` trägt statt `'unsafe-inline'` | `test_security_headers.py`, inkl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS und HSTS | Am Reverse Proxy terminiert — die mitgelieferte `nginx/nginx.conf` setzt HSTS; die Anwendung bewusst nicht | Sache des Deployments; siehe die Härtungs-Checkliste |
 | Rate-Limits auf öffentlichen Oberflächen | Redis-gestützte Limits auf der Run-API, dem Embed-Widget und den gehosteten Seiten (`app/services/rate_limit.py`); Limits pro Absender auf Kanal-Bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; das Limit der Kanal-Bots ist implementiert, aber dünn getestet |
 
@@ -169,8 +169,9 @@ während die Suite wächst.
   der Ort, an dem eine Anfrage geprüft wird.
 - Die einzigen Daten, die das Deployment verlassen, sind die, deren Weggang es
   konfiguriert hat — Modell-Provider, Kanäle, MCP-Server, Such- und
-  Embedding-Anbieter und Logfire; ein deploymentweites Logfire-Token traced den
-  Inhalt jedes Runs.
+  Embedding-Anbieter und Logfire — das optional ist und, sobald ein
+  deploymentweites Token gesetzt ist, jeden Run traced, den der API-Prozess
+  bedient, mit dem Inhalt jedes Agenten, der nicht `none` verlangt hat.
 - Konnektor- und API-Credentials sind pro Organisation im einen Vault versiegelt;
   kurzlebige Bearer-Token und Inhalte im Ruhezustand (Dateien, Nachrichten, RAG,
   Sandboxes) sind es nicht, und

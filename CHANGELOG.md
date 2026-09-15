@@ -17,6 +17,105 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.441] - 2026-09-15
+
+### Documentation
+
+- **Logfire is documented as optional, and as a copy of the run when it is on.**
+  The configuration page listed six `LOGFIRE_*` variables and never said that
+  none of them has to be set, or what setting the token actually sends: a trace
+  is the user's message, the model's output and every tool argument and result,
+  because recording that is what an observability backend is for. The section now
+  says so, lists the three things that can point runs at a project - the
+  deployment-wide token, an environment's own token and an agent's `observability`
+  block - and points a deployment over health, legal or HR data at the `content`
+  mode before the token. The security page's Logfire row was also stale: it still
+  said run content leaves regardless of any per-agent setting, which stopped being
+  true when `suppress_content` pinned an agent asking for `none` to content-free
+  instrumentation on the deployment's own tracer too. Both pages now name the two
+  places that guarantee does not reach yet - an inline specialist, which carries
+  no observability block of its own (#1699), and a failed attach - and that the
+  deployment-wide path never reaches a run the Prefect worker executes (#1700).
+  (#1413)
+
+## [0.0.440] - 2026-09-15
+
+### Added
+
+- **A truncated audit chain, and a chain deleted whole, are detectable.** The hash
+  chain catches an entry that was edited, reordered, inserted or deleted from the
+  middle, because any of those diverges every hash after it. It cannot catch the
+  two deletions that leave the survivors internally consistent: the newest entries
+  dropped, and an organization's chain gone. Each chain now carries a checkpoint -
+  a high-water mark `record_audit` advances beside every entry, under the same
+  per-organization lock the append takes, so it never races the head. `audit-verify`
+  flags a chain whose head is behind its checkpoint, and surfaces a checkpoint whose
+  chain has vanished by unioning the checkpointed organizations into the walk.
+  Backfilled from existing chains, so a deployment with history starts at an
+  accurate mark rather than a floor of zero. (#1648)
+
+  Be precise about the database trigger that refuses a checkpoint moving backwards:
+  it closes the ordinary write path - an app admin acting through the product, and
+  a bug in this codebase - which is the threat model the trail is written against.
+  It is not a control against anybody holding the database's own credentials. The
+  application and its migrations connect as the same role, that role owns the
+  table, and a `TRUNCATE` empties it without firing a row-level delete trigger at
+  all. Closing that needs the mark kept where this database's roles cannot reach,
+  which remains a planned follow-up and is stated as such on the governance page.
+
+## [0.0.439] - 2026-09-15
+
+### Security
+
+- **`script-src` no longer allows `'unsafe-inline'`.** The console's policy shipped
+  with everything else locked down except its riskiest directive, because the app
+  router inlines its flight data. The middleware now mints a 128-bit nonce per
+  request, writes `'nonce-…' 'strict-dynamic'` into the directive and forwards it on
+  the request headers so Next stamps that nonce onto its own inline scripts; the
+  response carries the same policy. `'unsafe-eval'` stays for the development
+  runtime and `connect-src`, which governs the chat WebSocket, is untouched.
+  Verified against a running frontend: every script tag on the page carries the
+  request's nonce, none is unnonced, and the browser reports no policy violation.
+  There is no `dangerouslySetInnerHTML` carrying a script, no inline `<script>`, no
+  `next/script` and no third-party script anywhere in the console, so every surface
+  shares that profile and `'strict-dynamic'` extends the nonce's trust to the chunks
+  those scripts load. (#1624)
+
+## [0.0.438] - 2026-09-15
+
+### Added
+
+- **Skills under `.claude/skills/`, for the work around the code rather than in
+  it.** `vstorm-code-review` runs a staged pipeline of subagents - scope,
+  correctness, security, quality, verification, judge - all grading against one
+  finding taxonomy, so a candidate is raised, filed or refuted with proof and never
+  silently re-surfaced after a fix; findings are posted to the pull request with
+  stable ids and a reviewed-commit marker, which is what lets a re-review reconcile
+  instead of starting over. Executing anything the pull request itself defines is
+  treated as a boundary: an isolated environment with no ambient credentials, or
+  static verification and an `unverified` finding. `dev-agent` drives a resumable
+  loop that takes design and plan through a reviewed PR before any code exists,
+  then writes tests and implementation with review between. `pr-comments` works
+  through a PR's threads on that PR's own branch, `pr-description` writes a
+  description from the diff and the existing body, `review-map` projects a diff
+  onto the architecture for a reviewer, `resolve-changelog-conflict` resolves this
+  file from whichever git operation is actually in progress, and `ste-writing`
+  rewrites prose into Simplified Technical English. Repository only - nothing here
+  ships in an image. (#1639)
+
+## [0.0.437] - 2026-09-15
+
+### Fixed
+
+- **The audit hash-chain tests are part of the security set.** The `security`
+  marker and the hash chain landed within an hour of each other, each green against
+  a `main` that did not yet have the other, and the marker's own guard went red
+  where they met. The module is marked rather than the one test the keyword net
+  caught: tamper evidence over the audit trail is a control the security page
+  names, and the two tests beside it - an edited row, a deleted row - trip no
+  keyword at all, so exempting the flagged one would have left the set missing its
+  tamper-detection half.
+
 ## [0.0.436] - 2026-09-15
 
 ### Changed

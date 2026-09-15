@@ -8,8 +8,13 @@ import { contentSecurityPolicyHeader, staticSecurityHeaders } from "./security-h
  * Each header is asserted for the same reason the CSP is: one that goes missing
  * fails no build and appears in no log the deployment reads (#1039, #1416).
  */
+const NONCE = "r4nd0mN0nc3VALUE==";
+
 describe("the console's security headers", () => {
-  const every = [...staticSecurityHeaders, contentSecurityPolicyHeader(DEFAULT_PUBLIC_CONFIG)];
+  const every = [
+    ...staticSecurityHeaders,
+    contentSecurityPolicyHeader(DEFAULT_PUBLIC_CONFIG, NONCE),
+  ];
   const byKey = new Map(every.map((header) => [header.key, header.value]));
 
   it("carries every header a review expects, once each, between its two emitters", () => {
@@ -30,7 +35,9 @@ describe("the console's security headers", () => {
   });
 
   it("sets the content security policy the CSP module builds for the deployment", () => {
-    expect(byKey.get("Content-Security-Policy")).toBe(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG));
+    expect(byKey.get("Content-Security-Policy")).toBe(
+      contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE),
+    );
   });
 
   it("denies framing and sniffing, and leaks no path across origins", () => {

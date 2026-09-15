@@ -1,5 +1,5 @@
 ---
-source_sha: "bdf0839310f4"
+source_sha: "674521d32d87"
 ---
 
 # Bezpieczeństwo { #security }
@@ -48,7 +48,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 |---|---|---|
 | Skonfigurowany provider modelu | Prompt, wyjście modelu, argumenty i wyniki narzędzi | Każdy run — chyba że model działa na własnej infrastrukturze operatora, wtedy nic nie wychodzi |
 | Skonfigurowany kanał (Slack, Telegram, Mattermost) | Wygenerowane odpowiedzi agenta — tekst, obrazy i załączniki | Zawsze, gdy agent jest wystawiony przez ten kanał; każde `send_message` publikuje u providera (`app/services/channels/`) |
-| Logfire | Trace'y, które domyślnie niosą prompty i wyjścia | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta; `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run globalnie (`app/core/logfire_setup.py`), więc przy nim ustawionym treść runów wychodzi niezależnie od jakiegokolwiek ustawienia per agent. Tryb `content` tego tokena decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). Stan pośredni z filtrem to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run w procesie API (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach - z dwiema lukami, których jeszcze nie obejmuje: inline specjalista tego agenta, który nie ma własnego bloku observability ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), oraz nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona, a ta na poziomie wdrożenia nie sięga runu wykonanego przez workera Prefect ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Stan pośredni z filtrem to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |
 | Provider embeddingów | Tekst dokumentu, przy ingest | Tylko dla bazy wiedzy, której provider jest zdalny |
@@ -138,7 +138,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Kontrola | Mechanizm | Trzymane przez |
 |---|---|---|
 | TLS do PostgreSQL i Redisa | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` raportuje żywy stan Postgresa z `pg_stat_ssl` | Postgres, na żywym połączeniu: `test_store_tls.py`; Redis, przy budowie URL-a i w `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
-| Nagłówki ramkowania i MIME na każdej odpowiedzi; CSP na wszystkich poza endpointami referencji API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), którego `exclude_paths` zdejmują CSP — nie ramkowanie ani MIME — dla OpenAPI, Swaggera i ReDoc; plus CSP frontendu per wdrożenie (`frontend/src/middleware.ts`) | `test_security_headers.py`, w tym `test_an_excluded_path_keeps_its_framing_but_drops_the_csp` |
+| Nagłówki ramkowania i MIME na każdej odpowiedzi; CSP na wszystkich poza endpointami referencji API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), którego `exclude_paths` zdejmują CSP — nie ramkowanie ani MIME — dla OpenAPI, Swaggera i ReDoc; plus CSP frontendu per wdrożenie (`frontend/src/middleware.ts`), którego `script-src` niesie nonce per żądanie i `'strict-dynamic'` zamiast `'unsafe-inline'` | `test_security_headers.py`, w tym `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS i HSTS | Terminowane na reverse proxy — dołączony `nginx/nginx.conf` ustawia HSTS; aplikacja z założenia nie | Sprawa wdrożenia; zobacz listę kontrolną hardeningu |
 | Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed i stronach hostowanych (`app/services/rate_limit.py`); limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
 
@@ -159,7 +159,9 @@ budżet, zatwierdzenie, sekret albo tekst jawny, a nie ma markera, wywala
   żądanie jest weryfikowane.
 - Jedyne dane, które wychodzą, to te, o których wyjściu zdecydowało wdrożenie —
   providerzy modeli, kanały, serwery MCP, dostawcy wyszukiwania i embeddingów
-  oraz Logfire; token Logfire na poziomie wdrożenia trace'uje treść każdego runu.
+  oraz Logfire — który jest opcjonalny, a gdy token na poziomie wdrożenia jest
+  ustawiony, trace'uje każdy run obsłużony przez proces API, z treścią każdego
+  agenta, który nie poprosił o `none`.
 - Poświadczenia konektorów i API są zapieczętowane per organizacja w jednym
   vaulcie; krótkożyjące tokeny bearer i treść w spoczynku (pliki, wiadomości,
   RAG, sandboksy) nie są, a [#1423](https://github.com/vstorm-co/agenticos/issues/1423)

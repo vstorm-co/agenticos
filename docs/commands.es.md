@@ -1,5 +1,5 @@
 ---
-source_sha: "10fb34b3d126"
+source_sha: "9377cdd546b3"
 ---
 
 # Comandos { #commands }
@@ -350,12 +350,12 @@ uv run agenticos cmd audit-skill-bindings
 
 # Recompute the app-admin audit trail's tamper-evidence hash chain and report any
 # break. Each entry links to the previous one's hash, so editing, reordering,
-# inserting or interior-deleting a row diverges every hash after it; this walks each
-# chain and names the first entry that no longer matches. With no --org it checks
-# every chain, including the deployment-wide one. Detection, not prevention, and
-# blind to the newest entries or a whole chain being dropped - an operator with the
-# database can re-forge it - so a clean run is evidence, not proof.
-# Exits non-zero when any chain fails, so a cron can gate on it.
+# inserting or interior-deleting a row diverges every hash after it; a per-org
+# checkpoint catches the newest entries or a whole chain being dropped, which the
+# hash walk cannot see. With no --org it checks every chain, including the
+# deployment-wide one. Detection, not prevention - a Postgres superuser can drop the
+# checkpoint's guard and delete both entries and checkpoint - so a clean run is
+# evidence, not proof. Exits non-zero when any chain fails, so a cron can gate on it.
 uv run agenticos cmd audit-verify
 uv run agenticos cmd audit-verify --org <org-id>
 

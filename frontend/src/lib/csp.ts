@@ -45,12 +45,18 @@ function originOf(url: string): string {
 /** What each directive allows for a deployment, in the order the header is written. */
 export function cspDirectives(
   config: PublicConfig,
+  nonce: string,
 ): Readonly<Record<CspDirective, readonly string[]>> {
   return {
     "default-src": ["'self'"],
-    // `unsafe-eval` and `unsafe-inline`: Next's own runtime needs both in
-    // development, and the app router inlines flight data in production.
-    "script-src": ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
+    // No `'unsafe-inline'`: the app router inlines its flight data, so each of
+    // those scripts carries this request's `nonce` instead, and `'strict-dynamic'`
+    // extends that trust to the chunks they load - which is what lets the host
+    // allowlist (`'self'`) be ignored rather than widened. `'unsafe-eval'` stays
+    // because Next's development runtime needs it. The nonce is per request
+    // (`src/middleware.ts`) - a constant one is `'unsafe-inline'` wearing a
+    // disguise (#1624).
+    "script-src": ["'self'", "'unsafe-eval'", `'nonce-${nonce}'`, "'strict-dynamic'"],
     "style-src": ["'self'", "'unsafe-inline'"],
     // `blob:` for a canvas export and for bytes fetched then handed to an `img`;
     // `https:` because a model provider's avatar and a connector's brand mark are
@@ -80,9 +86,9 @@ export function cspDirectives(
   };
 }
 
-/** The header value for a deployment, as one line. */
-export function contentSecurityPolicy(config: PublicConfig): string {
-  return Object.entries(cspDirectives(config))
+/** The header value for a deployment, as one line, carrying this request's nonce. */
+export function contentSecurityPolicy(config: PublicConfig, nonce: string): string {
+  return Object.entries(cspDirectives(config, nonce))
     .map(([directive, sources]) => `${directive} ${sources.join(" ")}`)
     .join("; ");
 }

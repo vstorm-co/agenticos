@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "f4f13f232634"
 ---
 
 # Governance { #governance }
@@ -1410,11 +1410,22 @@ wiersze są niezmienne.
 
 Dwóch usunięć łańcuch nie wychwyci sam z siebie, bo pozostałe wiersze zostają
 wewnętrznie spójne: odcięcia najnowszych wpisów z łańcucha oraz usunięcia całego
-łańcucha organizacji — to drugie po prostu usuwa go ze zbioru, który `audit-verify`
-przechodzi. Wychwycenie któregokolwiek wymaga końcowego punktu kontrolnego per
-organizacja, trzymanego tam, gdzie operator bazy nie sięga; ta kotwica to
-planowane działanie następcze, a dopóki nie powstanie, czysty przebieg nie
-poświadcza, że nic nie zostało obcięte.
+łańcucha organizacji. Te wychwytuje **checkpoint** — wskaźnik najwyższego stanu per
+organizacja, który `record_audit` posuwa naprzód przy każdym wpisie, pod triggerem
+bazy odmawiającym cofnięcia go lub usunięcia. `audit-verify` flaguje łańcuch,
+którego głowa jest poniżej checkpointu, albo checkpoint, którego łańcuch zniknął.
+
+Warto precyzyjnie powiedzieć, co ten trigger obejmuje, bo łatwo przeczytać w nim
+więcej. Zamyka zwykłą ścieżkę zapisu — administratora aplikacji działającego przez
+produkt oraz błąd w tym kodzie — czyli model zagrożeń, pod który ten ślad jest
+pisany.
+
+Nie jest kontrolą przeciwko komuś, kto ma poświadczenia samej bazy. Aplikacja i jej
+migracje łączą się tą samą rolą, a ta rola jest właścicielem tabeli checkpointów:
+może zdjąć trigger, a `TRUNCATE` opróżnia tabelę, w ogóle nie odpalając triggera
+wierszowego. Superużytkownik może jedno i drugie. Domknięcie tego wymaga wskaźnika
+trzymanego tam, gdzie role tej bazy nie sięgają — w magazynie tylko-do-dopisywania
+albo z blokadą obiektów poza nią — co pozostaje planowanym działaniem następczym.
 
 Dwa audytowane zapisy dla jednej organizacji nie mogą rozwidlić łańcucha: każdy
 dopisuje pod blokadą per organizacja, więc szeregują się w jedną linię, zamiast
