@@ -221,7 +221,8 @@ class TestPrepare:
         spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
         built = MagicMock()
 
-        async def sink(event: object) -> None: ...
+        async def sink(event: object) -> None:
+            raise AssertionError("prepare must not call the sink")
 
         with (
             patch.object(
