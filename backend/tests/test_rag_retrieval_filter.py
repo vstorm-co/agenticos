@@ -58,6 +58,7 @@ class TestThreadingItToTheStore:
         assert store.search.await_args.kwargs["parent_doc_id"] is None
 
 
+@pytest.mark.security
 class TestThreadingTheAuthorizedTenant:
     """A caller that already authorized a knowledge base passes its `vector_tenant`,
     and the search reads under exactly that tenant rather than one the store would

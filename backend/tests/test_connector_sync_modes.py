@@ -591,6 +591,7 @@ class TestTheLocalDirectorySync:
             config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
             yield documents
 
+    @pytest.mark.security
     async def test_it_stamps_the_rows_with_the_authorized_bases_tenant(self, tmp_path: Path):
         """The route resolved and authorized a knowledge base and passes its id; the
         flow loads it and stamps every row with that base's tenant and organization,
