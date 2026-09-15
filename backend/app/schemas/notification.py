@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from app.db.models.notification import Notification
+from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.schemas.base import BaseSchema
 
@@ -82,3 +82,27 @@ class FailedDeliveryRead(BaseSchema):
 class FailedDeliveryList(BaseSchema):
     items: list[FailedDeliveryRead]
     total: int
+
+
+class NotificationPreferenceRead(BaseSchema):
+    """One `(event_type, channel)` pair's current value (Decision 4).
+
+    Only the pairs `NotificationCenterService`'s own `_TOGGLABLE_PAIRS`
+    covers ever appear here - a mandatory event type or one of the four
+    legacy-column pairs is never listed, because there is no preference to
+    show.
+    """
+
+    event_type: str
+    channel: str
+    enabled: bool
+
+
+class NotificationPreferenceList(BaseSchema):
+    items: list[NotificationPreferenceRead]
+
+
+class NotificationPreferenceUpdate(BaseSchema):
+    event_type: NotificationEventType
+    channel: NotificationChannel
+    enabled: bool

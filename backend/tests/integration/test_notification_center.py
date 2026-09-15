@@ -19,7 +19,7 @@ from sqlalchemy import select
 from app.core.permissions import AuthContext
 from app.db.models.announcement import Announcement
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.notification import Notification, NotificationEventType
+from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.organization import Organization, OrganizationMember
@@ -921,3 +921,170 @@ class TestListInboxNoRows:
         )
         assert rows == []
         assert strip == {}
+
+
+class TestPreferences:
+    """Decision 4's `(event_type, channel)` surface - every pair
+    `_TOGGLABLE_PAIRS` covers, and only those."""
+
+    async def test_an_untouched_pair_defaults_enabled(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        items = await service.list_preferences(_ctx(owner, org, role="owner"))
+
+        run_completed_in_app = next(
+            item
+            for item in items
+            if item.event_type is NotificationEventType.RUN_COMPLETED
+            and item.channel is NotificationChannel.IN_APP
+        )
+        assert run_completed_in_app.enabled is True
+
+    async def test_mandatory_event_types_are_never_listed(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        items = await service.list_preferences(_ctx(owner, org, role="owner"))
+
+        listed = {item.event_type for item in items}
+        assert NotificationEventType.SECURITY_EVENT not in listed
+        assert NotificationEventType.CONFIGURATION_CHANGED not in listed
+
+    async def test_the_legacy_email_pairs_are_never_listed_but_their_in_app_channel_is(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        items = await service.list_preferences(_ctx(owner, org, role="owner"))
+
+        listed = {(item.event_type, item.channel) for item in items}
+        for event_type in (
+            NotificationEventType.BUDGET_EXCEEDED,
+            NotificationEventType.APPROVAL_REQUESTED,
+            NotificationEventType.USAGE_REPORT,
+            NotificationEventType.AGENT_USAGE_REPORT,
+        ):
+            assert (event_type, NotificationChannel.EMAIL) not in listed
+            assert (event_type, NotificationChannel.IN_APP) in listed
+
+    async def test_updating_a_pair_upserts_one_row(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        ctx = _ctx(owner, org, role="owner")
+
+        await service.update_preference(
+            ctx,
+            event_type=NotificationEventType.RUN_FAILED,
+            channel=NotificationChannel.EMAIL,
+            enabled=False,
+        )
+
+        rows = (
+            (
+                await db.execute(
+                    select(NotificationChannelPreference).where(
+                        NotificationChannelPreference.user_id == owner.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].enabled is False
+
+    async def test_updating_a_pair_twice_leaves_one_row_with_the_latest_value(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        ctx = _ctx(owner, org, role="owner")
+
+        await service.update_preference(
+            ctx,
+            event_type=NotificationEventType.RUN_FAILED,
+            channel=NotificationChannel.EMAIL,
+            enabled=False,
+        )
+        await service.update_preference(
+            ctx,
+            event_type=NotificationEventType.RUN_FAILED,
+            channel=NotificationChannel.EMAIL,
+            enabled=True,
+        )
+
+        rows = (
+            (
+                await db.execute(
+                    select(NotificationChannelPreference).where(
+                        NotificationChannelPreference.user_id == owner.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].enabled is True
+
+    async def test_a_mandatory_event_type_is_refused(self, db):
+        from app.core.exceptions import BadRequestError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        with pytest.raises(BadRequestError):
+            await service.update_preference(
+                _ctx(owner, org, role="owner"),
+                event_type=NotificationEventType.SECURITY_EVENT,
+                channel=NotificationChannel.IN_APP,
+                enabled=False,
+            )
+
+    async def test_a_legacy_email_pair_is_refused(self, db):
+        """`PATCH /users/me` is still this pair's write path (Decision 4) -
+        accepting it here too would write a row `email_channel_enabled`
+        never reads, a silent no-op preference."""
+        from app.core.exceptions import BadRequestError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+
+        with pytest.raises(BadRequestError):
+            await service.update_preference(
+                _ctx(owner, org, role="owner"),
+                event_type=NotificationEventType.BUDGET_EXCEEDED,
+                channel=NotificationChannel.EMAIL,
+                enabled=False,
+            )
+
+    async def test_an_updated_preference_is_honoured_by_the_write_path(self, db):
+        """Closes the loop: `update_preference`'s row is the same row
+        `_channel_enabled` reads at write time."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+
+        await service.update_preference(
+            _ctx(recipient, org, role="member"),
+            event_type=NotificationEventType.RUN_COMPLETED,
+            channel=NotificationChannel.IN_APP,
+            enabled=False,
+        )
+
+        written = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-off",
+            summary="A run finished",
+            organization_id=org.id,
+        )
+
+        assert len(written) == 1
+        assert written[0].in_app_visible is False
