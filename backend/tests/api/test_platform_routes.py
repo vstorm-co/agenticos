@@ -332,6 +332,12 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("DELETE", "/providers/model-profiles/{profile_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/audit", Perm.AUDIT_READ),
+    Call(
+        "GET",
+        "/audit/export",
+        Perm.AUDIT_READ,
+        query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
+    ),
     # The organization's MCP servers, per-resource routes included. That is the
     # same rule the agent routes follow, not an exception to it: a role gate is
     # wrong where a resource grant could widen the answer, and a connection has
@@ -423,6 +429,20 @@ CALLS: tuple[Call, ...] = (
     # containers there. Every route including the per-resource ones: a connection
     # has no grants, so a gate here cannot refuse somebody a grant would have
     # admitted.
+    Call("GET", "/local-services", Perm.CONNECTIONS_VIEW),
+    Call(
+        "POST",
+        "/local-services",
+        Perm.CONNECTIONS_MANAGE,
+        body={
+            "name": "GPU box",
+            "kind": "embedding",
+            "provider": "ollama",
+            "base_url": "http://ollama:11434/v1",
+        },
+    ),
+    Call("PATCH", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",
@@ -487,6 +507,7 @@ class TestEachRouteDemandsItsOwnPermission:
     more permissions than the route needs.
     """
 
+    @pytest.mark.security
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_missing_only_that_permission_is_refused(
@@ -501,6 +522,7 @@ class TestEachRouteDemandsItsOwnPermission:
             f"{call} admitted a caller holding every permission except {call.permission.value}"
         )
 
+    @pytest.mark.security
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_holding_only_that_permission_gets_through(
@@ -716,6 +738,9 @@ _PLATFORM_PREFIXES = (
     # The trigger-templates catalog, the prompt counterpart of the portals
     # catalog above, gated the same way and needing its own prefix entry too.
     "/trigger-templates",
+    # Where an organization's embedding and OCR servers are, on the deployment's
+    # own network - the rows a collection names instead of a vault key.
+    "/local-services",
 )
 
 
@@ -859,6 +884,7 @@ class TestEveryPlatformRouteIsGuarded:
     can notice a route that nobody remembered to name.
     """
 
+    @pytest.mark.security
     def test_no_platform_route_decides_nothing(self) -> None:
         """Authorization happens at the gate, or inside the sharing service.
 

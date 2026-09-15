@@ -17,7 +17,6 @@ names no author is in the evidence column below.
 
 ## Open findings
 
-- redis 7-alpine (resolves to Redis 7.4) - https://github.com/vstorm-co/agenticos/issues/1603
 - Sandbox runtime `workbench` (built by sandboxd from backend/app/core/catalog/sandbox_runtimes.json) python:3.12-slim plus the listed apt, npm and PyPI packages, resolved at build time - deployment-review
 
 ## Licences
@@ -61,14 +60,14 @@ names no author is in the evidence column below.
 | aiohappyeyeballs | 2.7.1 | PSF-2.0 | https://github.com/aio-libs/aiohappyeyeballs | License field |
 | aiohttp | 3.14.3 | Apache-2.0 | https://github.com/aio-libs/aiohttp | licence file text |
 | aiosignal | 1.4.0 | Apache-2.0 | https://github.com/aio-libs/aiosignal | License field |
-| aiosmtplib | 5.1.2 | MIT | https://github.com/cole/aiosmtplib | License field |
+| aiosmtplib | 5.1.3 | MIT | https://github.com/cole/aiosmtplib | License field |
 | aiosqlite | 0.22.1 | MIT | https://github.com/omnilib/aiosqlite | classifier |
-| alembic | 1.19.1 | MIT | https://github.com/sqlalchemy/alembic/ | License-Expression |
+| alembic | 1.19.2 | MIT | https://github.com/sqlalchemy/alembic/ | License-Expression |
 | amplitude-analytics | 1.2.3 | MIT | https://github.com/amplitude/Amplitude-Python | License field |
 | annotated-doc | 0.0.4 | MIT | https://github.com/fastapi/annotated-doc | License-Expression |
 | annotated-types | 0.8.0 | MIT | https://github.com/annotated-types/annotated-types | License-Expression |
 | anthropic | 1.4.0 | MIT | https://github.com/anthropics/anthropic-sdk-python | License field |
-| anyio | 4.15.0 | MIT | https://github.com/agronholm/anyio | License-Expression |
+| anyio | 4.15.1 | MIT | https://github.com/agronholm/anyio | License-Expression |
 | apprise | 1.13.1 | BSD-2-Clause | https://github.com/caronc/apprise | License field |
 | asgi-lifespan | 2.1.0 | MIT | https://github.com/florimondmanca/asgi-lifespan | License field |
 | asgiref | 3.12.1 | BSD-3-Clause | https://asgi.readthedocs.io/ | License field |
@@ -79,8 +78,8 @@ names no author is in the evidence column below.
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
-| boto3 | 1.43.88 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.43.89 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.43.92 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.43.93 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | brotli | 1.2.0 | MIT | https://github.com/google/brotli | License field |
 | burner-redis | 0.1.7 | MIT | https://github.com/PrefectHQ/burner-redis | License field |
@@ -119,7 +118,7 @@ names no author is in the evidence column below.
 | genai-prices | 0.1.6 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
 | google-api-core | 2.33.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
 | google-api-python-client | 2.200.0 | Apache-2.0 | https://github.com/googleapis/google-api-python-client/ | License field |
-| google-auth | 2.57.1 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
+| google-auth | 2.58.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
 | google-auth-httplib2 | 0.4.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/packages/google-auth-httplib2 | License field |
 | google-genai | 2.20.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
 | googleapis-common-protos | 1.75.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos | License field |
@@ -162,9 +161,9 @@ names no author is in the evidence column below.
 | jsonschema | 4.26.0 | MIT | https://github.com/python-jsonschema/jsonschema | License-Expression |
 | jsonschema-specifications | 2025.9.1 | MIT | https://github.com/python-jsonschema/jsonschema-specifications | License-Expression |
 | keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | License-Expression |
-| liteparse | 2.14.3 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
-| llama-cloud | 2.15.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
-| logfire | 4.41.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
+| liteparse | 2.14.4 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
+| llama-cloud | 2.16.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
+| logfire | 5.1.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 4.39.0 | MIT | https://pypi.org/project/logfire-api/4.39.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
 | lxml | 6.1.1 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
 | magic-filter | 1.0.12 | MIT | https://github.com/aiogram/magic-filter | License-Expression |
@@ -211,26 +210,26 @@ names no author is in the evidence column below.
 | propcache | 0.5.2 | Apache-2.0 | https://github.com/aio-libs/propcache | License field |
 | proto-plus | 1.28.2 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
 | protobuf | 6.33.6 | BSD-3-Clause | https://developers.google.com/protocol-buffers/ | License field |
-| psycopg2-binary | 2.9.12 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
+| psycopg2-binary | 2.9.13 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
 | py-key-value-aio | 0.4.5 | Apache-2.0 | https://pypi.org/project/py-key-value-aio/0.4.5/ | License-Expression |
 | pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.29 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
-| pydantic-ai-harness | 0.29.0 | MIT | https://github.com/pydantic/pydantic-ai-harness | License-Expression |
+| pydantic-ai-harness | 0.30.0 | MIT | https://github.com/pydantic/pydantic-ai-harness | License-Expression |
 | pydantic-ai-skills | 1.4.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.40.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.43.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
-| pydantic-graph | 2.40.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
-| pydantic-monty | 0.0.21 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-monty-client | 0.0.21 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
-| pydantic-monty-runtime | 0.0.21 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-graph | 2.43.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-monty | 0.0.23 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-client | 0.0.23 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
+| pydantic-monty-runtime | 0.0.23 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-settings | 2.15.0 | MIT | https://github.com/pydantic/pydantic-settings | License-Expression |
 | pydocket | 0.23.1 | MIT | https://github.com/chrisguidry/docket | classifier |
 | pygments | 2.20.0 | BSD-2-Clause | https://github.com/pygments/pygments | License-Expression |
-| pyjwt | 2.13.0 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
+| pyjwt | 2.14.0 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
 | pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review accepted |
 | pyparsing | 3.3.2 | MIT | https://github.com/pyparsing/pyparsing.git | License-Expression |
 | python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
@@ -275,7 +274,7 @@ names no author is in the evidence column below.
 | tiktoken | 0.13.0 | MIT | https://github.com/openai/tiktoken | License field |
 | tokenizers | 0.23.1 | Apache-2.0 | https://github.com/huggingface/tokenizers | classifier; no licence file, attributed to Nicolas Patry, Anthony Moi |
 | toml | 0.10.2 | MIT | https://github.com/uiri/toml | License field |
-| tqdm | 4.70.0 | MPL-2.0 | https://github.com/tqdm/tqdm | licence file text; review accepted |
+| tqdm | 4.70.1 | MPL-2.0 | https://github.com/tqdm/tqdm | licence file text; review accepted |
 | truststore | 0.10.4 | MIT | https://github.com/sethmlarson/truststore | License-Expression |
 | typer | 0.25.1 | MIT | https://github.com/fastapi/typer | License-Expression |
 | types-requests | 2.33.0.20260712 | Apache-2.0 | https://github.com/python/typeshed | License-Expression |
@@ -598,7 +597,7 @@ and data files.
 | Brand marks in frontend/src/lib/brand-glyphs.generated.ts | as generated by frontend/scripts/gen-brand-icons.ts | icons, frontend image | Simple Icons: CC0-1.0. Font Awesome Free icons: CC-BY-4.0. @lobehub/icons: MIT. The marks themselves are their owners' trademarks. | https://simpleicons.org, https://fontawesome.com/license, https://icons.lobehub.com | accepted | CC-BY-4.0 attribution for the Font Awesome icons; MIT notice for @lobehub/icons; trademark use limited to identifying the product each mark stands for. | NOTICE at the repository root and frontend/NOTICE name the three sources, their licences and the trademark position; the frontend one is copied into the image at /app/licenses/NOTICE. The console draws a mark only next to the product it identifies. |
 | backend/app/core/catalog/mcp_registry.json | a snapshot refreshed by `agenticos cmd mcp-registry-sync` | data, backend image | Server names, descriptions and URLs published to the Official MCP Registry by their publishers; the registry software is MIT. | https://registry.modelcontextprotocol.io | accepted | Attribution to the registry; the snapshot is redistributed as catalogue metadata and each entry links to its publisher. | app/services/mcp_registry.py names the source; the console shows each server's publisher description verbatim with its URL. |
 | pgvector/pgvector | pg16 | service image, deployment | PostgreSQL: PostgreSQL License. pgvector: PostgreSQL License. | https://github.com/pgvector/pgvector | accepted | Permissive; keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. |
-| redis | 7-alpine (resolves to Redis 7.4) | service image, deployment | RSALv2 OR SSPL-1.0 since Redis 7.4.0; Redis 8 adds AGPL-3.0. Redis 7.2 and earlier: BSD-3-Clause. | https://redis.io/legal/licenses/ | open | Neither RSALv2 nor SSPL-1.0 is an OSI-approved open-source licence. RSALv2 permits running Redis inside your own application, which is how this stack uses it, and forbids offering it as a managed service. A deployment on the compose path is agreeing to these terms. | https://github.com/vstorm-co/agenticos/issues/1603 |
+| valkey/valkey | 8-alpine | service image, deployment | BSD-3-Clause | https://github.com/valkey-io/valkey | accepted | Keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. Replaced redis:7-alpine in #1603: Redis is RSALv2 or SSPL-1.0 from 7.4.0, neither OSI-approved, and the default compose path should not start a non-open component without saying so. Valkey is the Linux Foundation fork of Redis 7.2 under BSD-3-Clause. |
 | prefecthq/prefect | 3-latest | service image, deployment | Apache-2.0 | https://github.com/PrefectHQ/prefect | accepted | Attribution and the licence text. Not redistributed by this project. | Pulled by the operator; named here with its source. |
 | traefik | v3.7 | service image, deployment (optional reverse proxy) | MIT | https://github.com/traefik/traefik | accepted | Keep the copyright notice. Not redistributed by this project. | Pulled by the operator; named here with its source. |
 | ghcr.io/vstorm-co/sandboxd | 0.2 | service image, deployment (optional agent sandbox) | MIT (pydantic-ai-backend, Vstorm) | https://github.com/vstorm-co/pydantic-ai-backend | accepted | Keep the copyright notice. | Published by Vstorm under MIT; the image is built from that repository. |

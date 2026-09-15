@@ -758,6 +758,16 @@ the database.
 | `GET /runs/export` | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
 | `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view` |
+| `GET /audit/export` | The audit trail over a window, CSV or JSONL (`?fmt=`). `audit:read` |
+
+The audit export is the one that also offers **JSONL** (`?fmt=jsonl`), one JSON
+object per line, because an audit trail is as often ingested by a log pipeline as
+opened in a spreadsheet; the two describe the same entries, with `details`
+flattened to a JSON string in the CSV cell and kept as a nested object in the
+lines. It ships exactly the fields the `GET /audit` read model exposes — the stored
+`ip_address` is not on that tab, so it is not in the export either — and, like every
+export here, it records its own read in the trail (`audit.export`, naming the window,
+the format and the row count).
 
 The spend export carries only the window figures — `cost_usd`, `run_count` and
 `partial_run_count`. The Spend tab's `month_to_date_usd` and `monthly_cap_usd` are
@@ -1282,6 +1292,32 @@ privileged mutation land unaudited.
 
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.
+
+The trail keeps itself honest, too. Every entry joins a per-organization hash
+chain — each carries a hash over its own contents with the previous entry's hash
+folded in — so editing, reordering or inserting an entry, or deleting one from the
+middle, diverges every hash after it.
+
+`agenticos cmd audit-verify` walks each chain, recomputes the hashes, and names
+the first entry that no longer matches; with no argument it checks every chain,
+including the deployment-wide one that holds tenant-less actions — a deployment
+settings change, an impersonation, app-admin user management — and exits non-zero
+if any chain fails. This is **detection, not
+prevention** — an operator with the database can still rewrite a row and recompute
+every hash after it — so a clean run is evidence of no tampering by anyone who did
+not also re-forge the chain, not proof the rows are immutable.
+
+Two deletions the chain cannot catch on its own, because the surviving rows stay
+internally consistent: dropping the newest entries from a chain, and deleting an
+organization's chain outright — the latter simply removes it from the set
+`audit-verify` walks. Catching either needs a per-organization terminal checkpoint
+kept somewhere the database operator cannot reach; that anchor is a planned
+follow-up, and until it lands a clean run does not attest that nothing was
+truncated.
+
+Two audited writes for one organization cannot fork the chain: each appends under
+a per-organization lock, so they serialize into a single line rather than both
+extending the same head.
 
 An **impersonated** action names both. When an app admin acts as another account,
 the access token carries the administrator as an `act` claim; every entry that

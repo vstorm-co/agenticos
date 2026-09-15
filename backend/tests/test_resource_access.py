@@ -20,6 +20,8 @@ from app.services.access import (
     visible_resource_ids,
 )
 
+pytestmark = pytest.mark.security
+
 
 def _ctx(role: str, org_id=None, user_id=None) -> AuthContext:
     return AuthContext(

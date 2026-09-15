@@ -64,6 +64,8 @@ from app.services.agent_chat import requested_approval_mode
 from app.services.agent_runner import AgentRunnerService, ApprovalChannel
 from app.services.approvals import ApprovalService
 
+pytestmark = pytest.mark.security
+
 # Tool names now, not capability ids: the gate matches what the model called,
 # so a capability with a write tool and a read tool can gate one of them.
 GATED = frozenset({"send_email"})

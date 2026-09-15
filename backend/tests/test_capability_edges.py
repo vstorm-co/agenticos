@@ -162,14 +162,14 @@ class TestKnowledgeSearchGuards:
         """The generic rewrap used to eat the one message that named the fix.
 
         A missing embedding credential reaches this tool as a ConfigurationError
-        carrying the setting to set; turning that into "Knowledge base search
-        failed" leaves an operator with a symptom and no next step.
+        naming the collection and the key it tried; turning that into "Knowledge
+        base search failed" leaves an operator with a symptom and no next step.
         """
         service = MagicMock()
         service.retrieve = AsyncMock(
             side_effect=ConfigurationError(
                 message="No embedding credential is configured",
-                details={"setting": "OPENROUTER_API_KEY"},
+                details={"key_origin": "collection 'kb_a'"},
             )
         )
         with (
@@ -181,7 +181,7 @@ class TestKnowledgeSearchGuards:
         ):
             await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
 
-        assert refusal.value.details == {"setting": "OPENROUTER_API_KEY"}
+        assert refusal.value.details == {"key_origin": "collection 'kb_a'"}
 
 
 class TestEmbeddingCredential:
@@ -197,18 +197,21 @@ class TestEmbeddingCredential:
         """
         assert OpenAIEmbeddingProvider(model="text-embedding-3-small").model
 
-    def test_embedding_without_a_key_names_the_setting_to_set(self):
-        """The deployment itself asking - the warmup, a `rag-*` command. It has no
-        collection, so the environment variable is exactly what it is missing."""
+    def test_embedding_without_a_collection_says_there_is_no_key_to_try(self):
+        """A caller with no collection - the warmup, a `rag-*` command embedding
+        outside any collection. There is no deployment-wide key it could have
+        used, and the refusal says so rather than advising a variable that does
+        not exist."""
         provider = OpenAIEmbeddingProvider(model="text-embedding-3-small")
 
         with pytest.raises(ConfigurationError) as refusal:
             provider.embed_queries(["hello"])
 
         assert refusal.value.status_code == 503
-        assert "OPENROUTER_API_KEY" in refusal.value.message
+        assert "OPENROUTER_API_KEY" not in refusal.value.message
+        assert "outside any collection" in refusal.value.message
         assert refusal.value.details == {
-            "setting": "OPENROUTER_API_KEY",
+            "key_origin": "none",
             "model": "text-embedding-3-small",
             "endpoint": "the provider's default",
         }
@@ -233,6 +236,27 @@ class TestEmbeddingCredential:
     def test_the_client_is_built_once_and_reused(self):
         provider = OpenAIEmbeddingProvider(model="m", api_key="sk-test", base_url="https://x/v1")
         assert provider.client is provider.client
+
+    def test_a_keyless_endpoint_gets_a_client_with_no_key_and_no_refusal(self):
+        """An Ollama on the deployment's own network takes no credential, and
+        the SDK refuses to build on an empty one - so a placeholder goes on the
+        wire, and it is visibly not a secret (#1632)."""
+        provider = OpenAIEmbeddingProvider(
+            model="nomic-embed-text", base_url="http://ollama:11434/v1", keyless=True
+        )
+
+        client = provider.client
+
+        assert client.api_key == "keyless"
+        assert str(client.base_url).startswith("http://ollama:11434/v1")
+        assert provider.client is client
+
+    def test_the_service_passes_keyless_through_to_the_client(self):
+        service = EmbeddingService(
+            settings=app_settings.rag, base_url="http://ollama:11434/v1", keyless=True
+        )
+
+        assert service.provider.client.api_key == "keyless"
 
     def test_a_collection_nobody_has_uploaded_to_reports_as_empty(self):
         """The second half of the reported 500 on `/rag/collections/{name}/info`.
@@ -278,15 +302,15 @@ class TestEmbeddingCredential:
 
         assert asyncio.run(store.search("never_ingested", "anything")) == []
 
-    def test_the_service_builds_on_a_deployment_with_no_key(self, monkeypatch):
+    def test_the_service_builds_with_no_key_and_refuses_only_when_asked_to_embed(self):
         """`get_embedding_service` is a FastAPI dependency of every RAG route.
 
         Raising here failed the request before any handler ran, which is why
         `GET /rag/collections/{name}/info` - a COUNT(*) that embeds nothing -
-        answered 500 with an OpenAI SDK traceback instead of its row count.
+        answered 500 with an OpenAI SDK traceback instead of its row count. A
+        service with no collection has no key by construction now, so building
+        one must stay free and embedding through one must refuse.
         """
-        monkeypatch.setattr(app_settings, "OPENROUTER_API_KEY", "")
-
         service = EmbeddingService(settings=app_settings.rag)
 
         with pytest.raises(ConfigurationError):

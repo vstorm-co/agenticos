@@ -126,3 +126,57 @@ async def test_a_caller_who_is_not_an_app_admin_is_refused(service: AsyncMock) -
 
     assert response.status_code == 403
     service.list_organizations.assert_not_awaited()
+
+
+def _detail(org_id: Any) -> dict[str, Any]:
+    return {
+        "id": org_id,
+        "name": "Acme",
+        "slug": "acme",
+        "is_personal": False,
+        "member_count": 2,
+        "agent_count": 1,
+        "owner_user_id": uuid4(),
+        "owner_email": "owner@example.com",
+        "owner_name": "Owner",
+        "created_at": datetime.now(UTC),
+        "monthly_budget_usd": None,
+        "members": [{"user_id": uuid4(), "email": "m@example.com", "name": "M", "role": "admin"}],
+    }
+
+
+async def test_the_detail_route_hands_the_service_the_org_and_the_admin() -> None:
+    """The per-tenant page (#1245): the org from the path, the admin as the actor
+    whose cross-tenant read the service records."""
+    admin = _User(is_app_admin=True)
+    org_id = uuid4()
+    svc = AsyncMock(get_organization_detail=AsyncMock(return_value=_detail(org_id)))
+    app.dependency_overrides[get_current_user] = lambda: admin
+    app.dependency_overrides[get_db_session] = AsyncMock
+    app.dependency_overrides[get_admin_service] = lambda: svc
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"{ENDPOINT}/{org_id}")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Acme"
+    assert body["members"][0]["role"] == "admin"
+    svc.get_organization_detail.assert_awaited_once_with(org_id, actor_user_id=admin.id)
+
+
+async def test_the_detail_route_is_app_admin_only() -> None:
+    svc = AsyncMock(get_organization_detail=AsyncMock())
+    app.dependency_overrides[get_current_user] = lambda: _User(is_app_admin=False)
+    app.dependency_overrides[get_db_session] = AsyncMock
+    app.dependency_overrides[get_admin_service] = lambda: svc
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"{ENDPOINT}/{uuid4()}")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+    svc.get_organization_detail.assert_not_awaited()

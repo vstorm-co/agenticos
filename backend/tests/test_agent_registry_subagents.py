@@ -265,6 +265,7 @@ class TestInlineSpecialists:
 
         assert problems == [f"Specialist 'summariser': Skill not found: {private.id}"]
 
+    @pytest.mark.security
     async def test_a_specialist_cannot_lend_a_secret_its_publisher_cannot_read(self, monkeypatch):
         """The same route, one table over.
 

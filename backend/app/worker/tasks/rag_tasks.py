@@ -91,21 +91,22 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
     key rather than whichever knowledge base the database ordered first (#913). The
     store passes no organization on the ingest path, so the flow's stands in.
 
-    The resolver falls back to the deployment key on three paths - the chosen
-    secret deleted, unsealable, or not an API key - each a `logger.warning` in
-    `app.services.embedding_resolution` that reaches nothing an operator reads.
-    So a collection that *had* been given a vault key either failed with advice
-    about a deployment variable, or succeeded while billing the deployment's
-    account, and in both cases nothing said which of the three had happened.
+    The resolver degrades to no key on every path but one - no key chosen, no
+    vault to choose from, the chosen secret deleted, unsealable or not an API
+    key, the recorded provider gone from the catalog - each a `logger.warning`
+    in `app.services.embedding_resolution` that reaches nothing an operator
+    reads. So a collection that *had* been given a vault key failed with advice
+    about a deployment variable, and nothing said which of the reasons had
+    happened. There is no deployment-wide key any more, so every degraded
+    resolution is a collection that cannot index, and every one is said here.
 
-    Two things it does not say. A collection that simply chose no key: that is
-    the documented normal path. And the same collection twice - the store
-    resolves per operation rather than per cache miss, so indexing one document
-    asks twice (once to create the table, once to embed), and a sync of two
-    hundred files would otherwise print four hundred copies of the line it
-    exists to make noticeable. The set is per ingestion service, so it is per
-    flow run rather than per process; a credential fixed between runs is
-    reported again on the next one.
+    One thing it does not say twice: the same collection - the store resolves
+    per operation rather than per cache miss, so indexing one document asks
+    twice (once to create the table, once to embed), and a sync of two hundred
+    files would otherwise print four hundred copies of the line it exists to
+    make noticeable. The set is per ingestion service, so it is per flow run
+    rather than per process; a credential fixed between runs is reported again
+    on the next one.
     """
     announced: set[str] = set()
 
@@ -399,6 +400,10 @@ async def _run_ingestion(
         reason = result.error_message or result.message
         await _fail_document(rag_document_id, error_message=reason)
         raise RuntimeError(f"Ingestion failed for {source_path}: {reason}")
+
+    # `ingest_file` only sets `document_id` on the branch that returns `DONE` -
+    # the two travel together in `IngestionResult`.
+    assert result.document_id is not None
 
     try:
         async with get_worker_db_context() as db:
@@ -737,12 +742,34 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         source = await source_svc.get_source(source_id)
         connector_cls = CONNECTOR_REGISTRY.get(source.connector_type)
         if not connector_cls:
-            await source_svc.update_after_sync(
-                source_id, "error", f"Unknown connector: {source.connector_type}"
-            )
-            return {"status": "error", "message": f"Unknown connector: {source.connector_type}"}
+            message = f"Unknown connector: {source.connector_type}"
+            # A manual trigger already created this log and handed us its id
+            # before dispatching - refusing here without completing it left a
+            # sync stuck `running` forever, with nothing left to ever finish
+            # it. A scheduler dispatch carries no id yet: nothing to complete.
+            if sync_log_id:
+                await RAGSyncService(db).complete_sync(
+                    sync_log_id, status="error", error_message=message
+                )
+            await source_svc.update_after_sync(source_id, "error", message)
+            return {"status": "error", "message": message}
 
         config = source.config if isinstance(source.config, dict) else json.loads(source.config)
+        if source.collection_name is None:
+            # Both callers guarantee this before dispatching: `trigger_sync`
+            # refuses a source with no collection, and the scheduler's own
+            # query only selects sources that have one. Guarded again here
+            # because this flow can also be dispatched directly by name as a
+            # Prefect deployment, outside either call path - and because a
+            # source can be edited between `trigger_sync`'s check and this
+            # flow actually running, the same stuck-log risk as above applies.
+            message = "Source has no assigned collection."
+            if sync_log_id:
+                await RAGSyncService(db).complete_sync(
+                    sync_log_id, status="error", error_message=message
+                )
+            await source_svc.update_after_sync(source_id, "error", message)
+            return {"status": "error", "message": message}
         collection_name = source.collection_name
         sync_mode = source.sync_mode
         organization_id = source.organization_id

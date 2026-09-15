@@ -1243,7 +1243,10 @@ serves all three platforms, so the policy cannot drift between them.
   `{member_list}` - filled in when a run starts, from the same calls the channel
   lookups use, so Telegram offers all five even though it offers two of the four
   tools. The Builder lists the ones this platform can answer under the box and
-  inserts one at the cursor.
+  inserts one at the cursor, each with the tool's real description - what the
+  model reads before deciding to call it, not the catalog's shortened
+  paraphrase, minus the markup the model itself uses to tell the summary from
+  the answer's shape.
 
     Resolved per run and never cached: a channel's membership changes, and a
     stale list in a prompt is worse than none because the agent states it as

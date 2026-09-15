@@ -211,6 +211,7 @@ class TestTokenMode:
 
         assert admission.visitor == "user-42"
 
+    @pytest.mark.security
     def test_a_rotated_embed_secret_still_verifies_a_visitor_token(self, monkeypatch):
         monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: "k1" * 20, 2: "k2" * 20})
         """The latent bug this issue is about: the verifier unsealed at an
@@ -255,6 +256,7 @@ class TestTokenMode:
         ):
             _service()._verify_token(self._jwt_embed(), token)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_token_signed_with_the_wrong_secret_is_refused(self):
         token = jwt.encode({"sub": "user-42"}, "attacker-secret", algorithm="HS256")
@@ -393,10 +395,12 @@ class TestTokenMode:
 
 
 class TestSecretRules:
+    @pytest.mark.security
     def test_a_token_embed_must_bring_a_secret(self):
         with pytest.raises(BadRequestError):
             _service()._check_secret("jwt", None)
 
+    @pytest.mark.security
     def test_a_public_embed_refuses_a_secret_nothing_would_read(self):
         """Stored and never consulted is a secret somebody believes protects them."""
         with pytest.raises(BadRequestError):

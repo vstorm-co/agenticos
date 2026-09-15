@@ -89,6 +89,7 @@ class TestARefusedOrganizationHeader:
         assert response.status_code == 404
         assert response.json()["error"]["details"] == {"org_id": str(deleted)}
 
+    @pytest.mark.security
     def test_the_permissions_route_can_refuse_for_no_other_reason(self) -> None:
         """The frontend reads a 404 here as "your organization is gone".
 

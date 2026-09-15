@@ -24,6 +24,8 @@ import pytest
 
 from app.main import app
 
+pytestmark = pytest.mark.security
+
 # The payload models a stored secret is made of. Reachable from a request body,
 # never from a response.
 _SECRET_MODELS = frozenset(

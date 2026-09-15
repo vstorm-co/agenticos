@@ -20,7 +20,7 @@ from app.core.exceptions import AuthenticationError, NotFoundError
 from app.core.security import create_access_token
 from app.services.ws_auth import authenticate_socket_token
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def _user(*, is_active: bool = True) -> MagicMock:

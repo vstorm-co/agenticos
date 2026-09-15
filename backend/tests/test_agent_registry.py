@@ -94,6 +94,10 @@ def _db():
     db.add = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mount must await and answer the head read with an empty chain.
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
     return db
 
 
@@ -1666,6 +1670,7 @@ class TestContextValidation:
 
 
 class TestToolApprovalValidation:
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_approval_for_a_tool_the_capability_does_not_have_is_refused(
         self, ungranted_capability
@@ -3064,6 +3069,7 @@ class TestAFetchTheApprovalGateCouldNotHold:
     def _spec_with(config: dict, **approval: object):
         return _bound("web_fetch", config, **approval)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_native_fetch_with_approval_required_is_refused(self):
         problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))
@@ -3101,6 +3107,7 @@ class TestASearchTheApprovalGateCouldNotHold:
     def _spec_with(config: dict, **approval: object):
         return _bound("web_research", config, **approval)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_native_search_with_approval_required_is_refused(self):
         problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))

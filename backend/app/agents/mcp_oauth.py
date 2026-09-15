@@ -45,7 +45,7 @@ from mcp.client.auth.oauth2 import (
     resource_url_from_server_url,
 )
 from mcp.shared.auth import OAuthClientMetadata, OAuthMetadata, OAuthToken
-from pydantic import AnyUrl, BaseModel
+from pydantic import AnyUrl, BaseModel, ValidationError
 
 from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
 from app.core.config import settings
@@ -115,8 +115,30 @@ def _flow_failed(exc: Exception, *, summary: str, advice: str) -> str:
     class of thing raised, and what the reader can do. The class still goes out:
     it separates a server we could not reach from one that refused us, and a
     class name has never carried an endpoint or a key.
+
+    The token-payload case is the exception: its text *is* the credential, so the
+    log beside that raise carries only :func:`_validation_detail` - the field
+    locations and error types, never the values (#1626).
     """
     return f"{summary} ({type(exc).__name__}) - {advice}. The server log has the full error."
+
+
+def _validation_detail(exc: ValueError) -> str:
+    """The shape of a rejected token payload, with the rejected values left out.
+
+    `OAuthToken.model_validate_json` raises `ValidationError`, whose `str()` and
+    traceback echo the input it rejected - and for a token response that input is
+    the token. So the log names the field that failed and how, never what was in
+    it: `include_input=False` drops the values, `include_url=False` the docs link.
+    A plain `ValueError` (never raised by the parse today, but the caller catches
+    the wider type) reports only its class.
+    """
+    if not isinstance(exc, ValidationError):
+        return type(exc).__name__
+    return "; ".join(
+        f"{'.'.join(str(part) for part in err['loc'])}: {err['type']}"
+        for err in exc.errors(include_url=False, include_input=False)
+    )
 
 
 def _client(transport: httpx.AsyncBaseTransport | None = None) -> PinnedAsyncClient:
@@ -477,8 +499,14 @@ async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToke
     try:
         return OAuthToken.model_validate_json(response.content)
     except ValueError as exc:
-        logger.exception(
-            "MCP token endpoint %s returned an unreadable token response", token_endpoint
+        # A `ValidationError` over the token payload echoes the input it rejected,
+        # and here that input is the token - so its `str()` and its traceback both
+        # carry a live credential. Log the field locations and error types, never
+        # the values, and do not let `logger.exception` append the raw text.
+        logger.error(
+            "MCP token endpoint %s returned an unreadable token response: %s",
+            token_endpoint,
+            _validation_detail(exc),
         )
         raise OAuthError(
             _flow_failed(

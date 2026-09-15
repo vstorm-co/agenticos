@@ -63,6 +63,10 @@ export interface CapabilityBindingSpec {
   enabled: boolean;
 }
 
+/** How much of a run its spans carry. `full` is everything; `none` is timing,
+ * tokens, cost and tool names but no message text or tool arguments. */
+export type TraceContent = "full" | "none";
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -70,6 +74,8 @@ export interface ObservabilitySpec {
   /** What the agent is called in Logfire; falls back to the agent's name. */
   service_name?: string | null;
   environment?: string | null;
+  /** How much each span carries; falls back to `full`. */
+  content?: TraceContent | null;
 }
 
 /** The agent's half of the two budget levels; the organization's cap is the other. */

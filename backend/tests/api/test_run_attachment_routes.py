@@ -143,6 +143,7 @@ async def test_a_row_whose_bytes_are_gone_is_a_404_rather_than_an_empty_document
     assert response.status_code == 404
 
 
+@pytest.mark.security
 async def test_a_run_in_another_tenant_reads_as_absent() -> None:
     service = MagicMock(
         get_run_attachment=AsyncMock(side_effect=NotFoundError(message="Run not found"))

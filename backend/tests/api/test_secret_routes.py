@@ -23,7 +23,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretKind
 from app.main import app
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _ORGANIZATION_ID = uuid.uuid4()
 _SECRET_ID = uuid.uuid4()

@@ -20,6 +20,8 @@ from app.api.deps import get_redis
 from app.api.deps import get_db_session
 from app.api.deps import get_session_service
 
+pytestmark = pytest.mark.security
+
 
 class MockUser:
     """Mock user for testing."""

@@ -27,7 +27,7 @@ from app.main import app
 from app.repositories import session_repo, user_repo
 from app.services.session import SessionService, hash_token
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.fixture
