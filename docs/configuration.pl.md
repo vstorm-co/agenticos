@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "596419daaf85"
 ---
 
 # Konfiguracja { #configuration }
@@ -471,6 +471,39 @@ na Drive własnemu adresowi e-mail konta serwisowego** — to taki sam principal
 każdy inny, a folder, którego nikt mu nie udostępnił, listuje się jako pusty, a nie
 jako odrzucony.
 
+## Wgrane pliki w spoczynku { #uploaded-files-at-rest }
+
+Gdzie leżą załączniki z czatu, avatary, obrazy brandingu i oryginały dokumentów
+bazy wiedzy. Jeden backend na wdrożenie, nigdy per organizacja, a jego zmiana nie
+przenosi tego, co trzyma już ten drugi.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` zapisuje pod `MEDIA_DIR`; `s3` zapisuje do bucketu zgodnego z S3 |
+| `FILE_STORAGE_S3_BUCKET` | (puste) | Bucket. Wymagany przy backendzie `s3`; API odmawia rozpoczęcia uploadu bez niego |
+| `FILE_STORAGE_S3_ENDPOINT` | (brak) | Puste dla AWS. Adres usługi dla MinIO lub innego zgodnego magazynu |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | Region AWS |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (puste) | Na AWS zostaw **puste**: odpowiada wtedy własny łańcuch poświadczeń boto3, czyli profil instancji albo rola IRSA, a nie długowieczny klucz w pliku środowiskowym |
+| `FILE_STORAGE_S3_SECRET_KEY` | (puste) | Druga połowa, tak samo |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` dla MinIO i większości zgodnych magazynów, które adresują bucket ścieżką. Żądanie w stylu virtual-host trafia u nich na błąd DNS, a nie na S3 |
+| `FILE_STORAGE_S3_PREFIX` | (puste) | Każdy klucz zapisywany przez to wdrożenie leży pod nim, więc jeden bucket może pomieścić więcej niż jedno wdrożenie bez mieszania kluczy |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | O co magazyn jest proszony przy każdym zapisie: `sse-s3` (własny klucz bucketu), `sse-kms` (klucz poniżej) albo `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (brak) | Identyfikator albo ARN klucza KMS. **Wymagany** przy trybie `sse-kms`: S3 czyta nienazwany `aws:kms` jako własny klucz zarządzany przez AWS `aws/s3`, a nie jako domyślny klucz bucketu, więc puste oznaczałoby szyfrowanie kluczem, którego nikt nie wybrał |
+
+!!! warning "`none` jest dla magazynu bez KMS i nie jest szyfrowaniem"
+
+    MinIO odmawia SSE-S3, dopóki nie skonfigurowano serwera KES, więc zgodny
+    magazyn bez KMS potrzebuje `none`, żeby w ogóle działać — a wdrożenie
+    pracujące w ten sposób ma tyle szyfrowania, ile dają mu wolumeny, i nic
+    ponad to. `agenticos cmd doctor` raportuje taką konfigurację jako
+    nieskonfigurowaną, a nie zdrową, i to samo mówi wiersz o spoczynku
+    w [bezpieczeństwie](security.md#what-is-encrypted-where).
+
+Bucket, do którego zapisuje wdrożenie, potrzebuje `s3:PutObject`, `s3:GetObject`,
+`s3:DeleteObject` i `s3:ListBucket`, a przy trybie `sse-kms` dodatkowo
+`kms:Encrypt`, `kms:Decrypt` i `kms:GenerateDataKey` na kluczu. Lokalne MinIO
+uruchamia `make docker-minio` na `:9000` z `minioadmin` / `minioadmin`.
+
 ### Synchronizacja S3/MinIO { #s3minio-sync }
 
 | Zmienna | Domyślnie | Opis |
@@ -480,6 +513,10 @@ jako odrzucony.
 | `S3_RAG_SECRET_KEY` | (empty) | Secret key, tak samo |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Nazwa bucketa |
 | `S3_RAG_REGION` | `us-east-1` | Region AWS. Własny region poświadczenia wygrywa tam, gdzie je ma |
+
+To jest *konektor synchronizacji*, który czyta bucket należący do tenanta — a nie
+magazyn plików samego wdrożenia opisany wyżej. Konfiguruje się je osobno i jest to
+świadome: jedno jest infrastrukturą, drugie danymi tenanta.
 
 **Para kluczy tutaj należy do CLI, a nie do źródła synchronizacji.** Źródło
 synchronizacji `s3` nazywa sekret `aws_credentials` w vaulcie swojej organizacji,

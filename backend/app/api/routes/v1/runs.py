@@ -14,7 +14,6 @@ from app.api.deps import (
     AgentRunnerSvc,
     ApprovalSvc,
     Auth,
-    FileUploadSvc,
     RunExportSvc,
     require,
 )
@@ -300,7 +299,6 @@ async def get_run_attachment(
     run_id: UUID,
     file_id: UUID,
     service: AgentRunnerSvc,
-    file_upload_svc: FileUploadSvc,
     ctx: Auth,
     disposition: str = Query("inline", description="`attachment` forces a download dialog"),
 ) -> Any:
@@ -320,7 +318,7 @@ async def get_run_attachment(
     grants, and no wider.
     """
     chat_file = await service.get_run_attachment(ctx, run_id, file_id)
-    return chat_file_response(file_upload_svc, chat_file, disposition=disposition)
+    return await chat_file_response(chat_file, disposition=disposition)
 
 
 @router.get("/runs/{run_id}/manifest", response_model=RunManifestRead)

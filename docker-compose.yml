@@ -283,6 +283,42 @@ services:
   # The socket is an unauthenticated API for root on the host. Read-only does
   # not help: the API alone is enough. So the service is never published, and
   # its token is worth exactly as much as the socket is.
+  minio:
+    # The object store `FILE_STORAGE_BACKEND=s3` writes to, for developing
+    # against that backend and for the integration tests that exercise it
+    # (#1423). Behind a profile, because a deployment that keeps the default
+    # local backend needs no object store at all: `docker compose --profile
+    # objectstore up -d minio`, or `make docker-minio`.
+    #
+    # From quay.io rather than Docker Hub, which is where MinIO publishes: the
+    # Hub repository answers "pull access denied" for a tag, so a compose file
+    # naming it fails on a fresh machine with an error that reads like a login
+    # problem. `RELEASE.2025-04-22T22-12-26Z` rather than `latest`, because the
+    # tag after it removed most of the web console and pinning a store people
+    # click around in is worth the version bump being a decision.
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    profiles: [objectstore]
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${FILE_STORAGE_S3_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${FILE_STORAGE_S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - backend
+    healthcheck:
+      # `mc ready` rather than curl: the image carries the client and carries no
+      # curl, and the endpoint answers 403 to an unsigned request, which a bare
+      # HTTP check reads as unhealthy.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]
@@ -390,6 +426,7 @@ networks:
 
 volumes:
   media_data:
+  minio_data:
   postgres_data:
   redis_data:
   prefect_data:

@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "596419daaf85"
 ---
 
 # Konfiguration { #configuration }
@@ -500,6 +500,41 @@ Drive-Ordner mit der E-Mail-Adresse des Service-Accounts selbst** — er ist ein
 Principal wie jeder andere, und ein Ordner, den niemand mit ihm geteilt hat,
 listet sich als leer statt als abgelehnt.
 
+## Hochgeladene Dateien im Ruhezustand { #uploaded-files-at-rest }
+
+Wo Chat-Anhänge, Avatare, Branding-Bilder und die Originale von
+Wissensdatenbank-Dokumenten liegen. Ein Backend pro Deployment, nie pro
+Organisation, und ein Wechsel verschiebt nicht, was das andere bereits hält.
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` schreibt unter `MEDIA_DIR`; `s3` schreibt in einen S3-kompatiblen Bucket |
+| `FILE_STORAGE_S3_BUCKET` | (leer) | Der Bucket. Beim Backend `s3` erforderlich; ohne ihn verweigert die API jeden Upload |
+| `FILE_STORAGE_S3_ENDPOINT` | (keiner) | Leer für AWS. Die Adresse des Dienstes für MinIO oder einen anderen kompatiblen Speicher |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | AWS-Region |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (leer) | Auf AWS **leer lassen**: dann antwortet boto3s eigene Credential-Chain, also ein Instanzprofil oder eine IRSA-Rolle statt eines langlebigen Schlüssels in einer Umgebungsdatei |
+| `FILE_STORAGE_S3_SECRET_KEY` | (leer) | Die andere Hälfte, ebenso |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` für MinIO und die meisten kompatiblen Speicher, die einen Bucket über den Pfad adressieren. Eine Virtual-Host-Anfrage scheitert dort an DNS statt an S3 |
+| `FILE_STORAGE_S3_PREFIX` | (leer) | Jeder Key, den dieses Deployment schreibt, liegt darunter, so dass ein Bucket mehr als ein Deployment aufnehmen kann, ohne dass sich ihre Keys treffen |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | Worum der Speicher bei jedem Schreibvorgang gebeten wird: `sse-s3` (der eigene Schlüssel des Buckets), `sse-kms` (der Schlüssel unten) oder `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (keiner) | Die KMS-Schlüssel-ID oder -ARN. **Erforderlich** im Modus `sse-kms`: S3 liest ein unbenanntes `aws:kms` als seinen eigenen AWS-verwalteten Schlüssel `aws/s3` und nicht als den Standardschlüssel des Buckets, leer hieße also Verschlüsselung unter einem Schlüssel, den niemand gewählt hat |
+
+!!! warning "`none` ist für einen Speicher ohne KMS und ist keine Verschlüsselung"
+
+    MinIO verweigert SSE-S3, solange kein KES-Server konfiguriert ist, also
+    braucht ein kompatibler Speicher ohne KMS `none`, um überhaupt zu
+    funktionieren — und ein so betriebenes Deployment hat die Verschlüsselung,
+    die seine Volumes ihm geben, und nicht mehr. `agenticos cmd doctor` meldet
+    diese Konfiguration als unkonfiguriert statt als gesund, und die Zeile zum
+    Ruhezustand in [Sicherheit](security.md#what-is-encrypted-where) sagt
+    dasselbe.
+
+Ein Bucket, in den das Deployment schreibt, braucht `s3:PutObject`,
+`s3:GetObject`, `s3:DeleteObject` und `s3:ListBucket`, im Modus `sse-kms`
+zusätzlich `kms:Encrypt`, `kms:Decrypt` und `kms:GenerateDataKey` auf dem
+Schlüssel. Ein lokales MinIO startet `make docker-minio` auf `:9000` mit
+`minioadmin` / `minioadmin`.
+
 ### S3/MinIO-Sync { #s3minio-sync }
 
 | Variable | Standard | Beschreibung |
@@ -509,6 +544,11 @@ listet sich als leer statt als abgelehnt.
 | `S3_RAG_SECRET_KEY` | (empty) | Secret Key, ebenso |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Name des Buckets |
 | `S3_RAG_REGION` | `us-east-1` | AWS-Region. Die eigene Region einer Zugangsinformation gewinnt, wo sie eine hat |
+
+Dies ist der *Sync-Connector*, der einen Bucket liest, der einem Mandanten
+gehört — nicht der eigene Dateispeicher des Deployments oben. Beide werden
+getrennt konfiguriert, und zwar mit Absicht: das eine ist Infrastruktur, das
+andere sind die Daten eines Mandanten.
 
 **Das Schlüsselpaar hier gehört dem CLI, nicht einer Sync-Quelle.** Eine
 `s3`-Sync-Quelle nennt ein `aws_credentials`-Secret im Vault ihrer Organisation,

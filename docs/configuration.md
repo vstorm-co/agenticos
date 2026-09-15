@@ -464,6 +464,40 @@ folder with the service account's own email address** - it is a principal like
 any other, and a folder nobody shared with it lists as empty rather than as
 refused.
 
+## Uploaded files at rest
+
+Where chat attachments, avatars, branding images and the originals of
+knowledge-base documents are stored. One backend per deployment, never per
+organization, and switching it does not move what the other already holds.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` writes under `MEDIA_DIR`; `s3` writes to an S3-compatible bucket |
+| `FILE_STORAGE_S3_BUCKET` | (empty) | The bucket. Required when the backend is `s3`; the API refuses to start an upload without it |
+| `FILE_STORAGE_S3_ENDPOINT` | (none) | Empty for AWS. The address of the service for MinIO or another compatible store |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | AWS region |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (empty) | Leave **empty on AWS**: boto3's own credential chain then answers, which is an instance profile or an IRSA role rather than a long-lived key in an environment file |
+| `FILE_STORAGE_S3_SECRET_KEY` | (empty) | The other half, same |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` for MinIO and most compatible stores, which address a bucket by path. A virtual-host request to one fails DNS rather than S3 |
+| `FILE_STORAGE_S3_PREFIX` | (empty) | Every key this deployment writes sits under it, so one bucket can hold more than one deployment without their keys meeting |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | What the store is asked for on every write: `sse-s3` (the bucket's own key), `sse-kms` (the key below), or `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (none) | The KMS key id or ARN. **Required** when the mode is `sse-kms`: S3 reads an unnamed `aws:kms` as its own AWS-managed `aws/s3` key rather than as the bucket's default, so leaving it empty would encrypt under a key nobody chose |
+
+!!! warning "`none` is for a store with no KMS behind it, and it is not encryption"
+
+    MinIO refuses SSE-S3 unless a KES server is configured, so a compatible store
+    with no KMS needs `none` to work at all — and a deployment running that way
+    has the encryption its volumes give it and nothing more.
+    `agenticos cmd doctor` reports that configuration as unconfigured rather than
+    healthy, and the at-rest row in [security](security.md#what-is-encrypted-where)
+    says the same.
+
+A bucket the deployment writes to needs `s3:PutObject`, `s3:GetObject`,
+`s3:DeleteObject` and `s3:ListBucket` on it, plus `kms:Encrypt`,
+`kms:Decrypt` and `kms:GenerateDataKey` on the key when the mode is `sse-kms`.
+For a local MinIO, `make docker-minio` starts one on `:9000` with
+`minioadmin` / `minioadmin`.
+
 ### S3/MinIO sync
 
 | Variable | Default | Description |
@@ -473,6 +507,10 @@ refused.
 | `S3_RAG_SECRET_KEY` | (empty) | Secret key, same |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Bucket name |
 | `S3_RAG_REGION` | `us-east-1` | AWS region. A credential's own region wins where it has one |
+
+This is the *sync connector*, which reads a bucket a tenant owns — not the
+deployment's own file storage above. The two are configured separately and
+deliberately: one is infrastructure, the other is a tenant's data.
 
 **The key pair here is the CLI's, not a sync source's.** An `s3` sync source names
 an `aws_credentials` secret in its organization's vault, the same way a `gdrive` one

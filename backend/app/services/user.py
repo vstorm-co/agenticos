@@ -459,10 +459,6 @@ class UserService:
             self.db, db_user=user, update_data={"avatar_url": storage_path}
         )
 
-    def get_avatar_path(self, avatar_url: str) -> str | None:
-        full_path = get_file_storage().get_full_path(avatar_url)
-        return str(full_path) if full_path is not None else None
-
     async def delete(self, user_id: UUID) -> User:
         user, locked_heirs = await self._lock_for_delete(user_id)
         await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
