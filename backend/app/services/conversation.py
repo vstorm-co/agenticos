@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.media import restore_stored_media
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -107,6 +108,16 @@ class ConversationService:
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
             return await self._from_transcript(conversation_id, limit, exclude_message_id)
+        # Re-inline whatever the stored history references before it is parsed
+        # (#55). Unconditional: offloading is the `media` capability's decision,
+        # but a conversation whose agent was unbound afterwards still has markers
+        # in its history, and a marker nobody re-inlines is a picture the model
+        # is handed in a language it does not read. A history carrying none costs
+        # one tree walk that changes nothing.
+        if conversation.organization_id is not None:
+            summary = await restore_stored_media(
+                summary, organization_id=conversation.organization_id
+            )
         try:
             replayed = ModelMessagesTypeAdapter.validate_python(summary)
         except ValidationError:

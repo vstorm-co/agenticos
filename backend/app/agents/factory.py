@@ -48,6 +48,9 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.media import (
+    ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
+)
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
 from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
@@ -240,6 +243,10 @@ def build_agent(
             MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
             CONTEXT_GAUGE_RESOURCE: gauge,
             REMINDER_STATE_RESOURCE: reminder_state,
+            # Whose media store this run offloads to. Here rather than in the
+            # capability's configuration, because a builder that could choose the
+            # organization could point one tenant's media at another's prefix.
+            MEDIA_ORGANIZATION_RESOURCE: organization_id,
         },
         secrets=secrets,
     )

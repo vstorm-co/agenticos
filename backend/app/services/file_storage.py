@@ -189,6 +189,36 @@ class BaseFileStorage(ABC):
     async def delete(self, storage_path: str) -> None:
         """Delete file by storage path."""
 
+    async def save_at(self, storage_path: str, data: bytes) -> None:
+        """Write `data` at exactly this path, rather than minting a name for it.
+
+        The pair of :meth:`save`, for the one caller whose key is not this
+        backend's to choose: content-addressed media, whose path *is* the digest
+        of its bytes, so a second write of the same content has to land on the
+        same object (#55). Everything a person uploads goes through `save`, which
+        mints a unique name so two people attaching `invoice.pdf` do not collide.
+
+        Overwrites. With a content address that is a write of identical bytes;
+        with anything else it would be the caller's decision, and no caller in
+        this codebase makes it.
+
+        Not abstract, so a backend that cannot honour a caller-chosen key says so
+        at the one call site rather than failing to import - and so adding a
+        backend does not mean implementing a method it may have no use for.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot write to a caller-chosen path"
+        )  # pragma: no cover - every backend in this codebase implements it
+
+    async def exists(self, storage_path: str) -> bool:
+        """Whether this backend still holds the file that path names.
+
+        Asked by the content-addressed store, which writes only what it does not
+        already have: the path is the digest of the bytes, so a second write of
+        the same content is a transfer paid for nothing.
+        """
+        return self.get_full_path(storage_path) is not None
+
     def get_full_path(self, storage_path: str) -> Path | None:
         """Return absolute filesystem path if available (local storage only)."""
         return None  # pragma: no cover
@@ -239,6 +269,11 @@ class LocalFileStorage(BaseFileStorage):
         # the caller never received and so can neither record nor delete (#1108).
         await write_bytes_cancel_safe(file_path, data)
         return f"{safe_user}/{storage_name}"
+
+    async def save_at(self, storage_path: str, data: bytes) -> None:
+        file_path = self._resolve_safe_path(storage_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        await write_bytes_cancel_safe(file_path, data)
 
     async def load(self, storage_path: str) -> bytes:
         file_path = self._resolve_safe_path(storage_path)

@@ -1,5 +1,5 @@
 ---
-source_sha: "9871a922f9f3"
+source_sha: "fb51f34b14b2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -48,18 +48,21 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — |
 | `guardrails` | Guardrails | utility | keine, mit Absicht | — | — |
 | `compaction` | Kontextverwaltung | utility | keine, mit Absicht | — | — |
+| `media` | Medien-Auslagerung | utility | keine, mit Absicht | — | — |
 | `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
 | `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Sechs davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
+Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
 Instruktionen, `tool_search` steuert seine Suchfunktion erst bei, sobald es ein
 Toolset umschließt, das zurückgestellte Tools enthält — für sich allein deklariert
 es nichts —, `guardrails` prüft und überschreibt den Text, der durch einen Run
-fließt, `compaction` schreibt die Historie um, die eine Anfrage mitführt, und
-`system_reminders` hängt steuernden Text an das Ende der Anfrage. Keine der sechs
-lässt etwas übrig, das eine Person genehmigen müsste, also deklariert auch keine
-ein Tool. Eine Capability, die wirklich keine Tools hat, sagt das mit `tools=()`,
+fließt, `compaction` schreibt die Historie um, die eine Anfrage mitführt, `media`
+schreibt um, wie eine verdichtete Historie *gespeichert* wird, und
+`system_reminders` hängt steuernden Text an das Ende der Anfrage.
+
+Keine der sieben lässt etwas übrig, das eine Person genehmigen müsste, also
+deklariert auch keine ein Tool. Eine Capability, die wirklich keine Tools hat, sagt das mit `tools=()`,
 statt das Argument wegzulassen; siehe
 [Eine Capability hinzufügen](../howto/add-capability.md).
 
@@ -1361,6 +1364,52 @@ meldet jeder Agent, ob er komprimiert oder nicht — siehe
 [wie voll das Kontextfenster ist](../governance.md#how-full-the-context-window-is).
 Die Warnung zählt am meisten für den Agent, der *nicht* komprimieren wird, denn das
 ist der, der an die Decke stößt und abgelehnt wird.
+
+## Medien-Auslagerung { #media-offload }
+
+Keine Tools. Schreibt die großen Teile einer verdichteten Konversation in den
+Speicher und hinterlässt in der gespeicherten Historie eine
+`media+sha256://…`-Referenz. Die inhaltsadressierten Speicher und die Walker
+stammen aus
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Konfiguration | Standard | |
+|---|---|---|
+| `threshold_bytes` | 32768 | 1 KiB–10 MiB; Teile ab dieser Größe werden ausgelagert |
+
+**Es gibt eine Stelle, an der sich Medien wirklich anhäufen, und das ist diese.**
+Ein Anhang erreicht das Modell einmal, in der Runde, in der er angehängt wurde:
+die gewöhnliche Historie wird aus dem *Text* des Transkripts aufgebaut, ein Bild
+wird also nicht erneut gesendet. Die Ausnahme ist eine
+[verdichtete](#context-management) Konversation — dann wird der bibliothekseigene
+Dump der Run-Nachrichten vollständig gespeichert und exakt so wiedergegeben, wie
+das Modell ihn zuletzt gesehen hat, Base64 inklusive, bis die nächste
+Zusammenfassung ihn ersetzt. Dieser Blob sind Zeilen in Postgres und Bytes auf der
+Leitung, in jeder Runde dazwischen.
+
+**Wohin die Bytes gehen.** In den eigenen Dateispeicher des Deployments, unter ein
+Präfix pro Organisation. Eine Medien-URI ist ein Inhalts-Hash, zwei Mandanten mit
+demselben Bild berechnen also dieselbe URI; die Organisation kommt aus dem Run und
+nicht aus der URI, ein Hash wird also nur innerhalb des Mandanten aufgelöst, der
+ihn geschrieben hat. Der Speicher gibt keine öffentliche URL aus — eine URL, die
+ein Modellanbieter abrufen kann, kann jeder abrufen.
+
+**Auslagern ist optional, Wiederherstellen nicht.** Die Capability zu binden ist
+die Entscheidung auszulagern. Das Wiedereinsetzen geschieht für jede Konversation,
+ob sie noch gebunden ist oder nicht: eine Konversation, deren Agent danach
+entbunden wurde, hat weiterhin Marker in ihrer Historie — und ein Marker, den
+niemand auflöst, ist ein Bild, das dem Modell in einer Sprache gereicht wird, die
+es nicht liest.
+
+**Beide Richtungen scheitern weich.** Eine Zusammenfassung zu verlieren, für die
+ein Modell bezahlt wurde, weil der Speicher gestockt hat, ist schlimmer als eine
+Historie, die größer ist als nötig. Ein Fehler wird geloggt und die Historie so
+verwendet, wie sie ist.
+
+Es reduziert nicht, was das Modell *bekommt*: die Teile werden vor dem Absenden
+wieder eingesetzt, und genau das hält den Run korrekt. Sie in eine URL
+umzuschreiben, die das Modell selbst abruft, ist eine andere Funktion und bräuchte
+die öffentliche URL, die dieser Speicher bewusst nicht ausgibt.
 
 ## Grenzen für Tool-Ausgaben { #tool-output-limits }
 

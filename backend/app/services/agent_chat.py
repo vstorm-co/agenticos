@@ -38,7 +38,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
+from app.agents.factory import BuiltAgent
 from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -272,6 +274,26 @@ class ChatTurn:
     """
 
 
+async def _offloaded(built: BuiltAgent, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The compacted history to store, with its large parts written out (#55).
+
+    The one place media genuinely piles up. An attachment reaches the model once,
+    on the turn it was attached - the ordinary history is rebuilt from the
+    transcript's text. A *compacted* conversation stores the library's own dump
+    of `all_messages()` and replays it exactly as the model last saw it, base64
+    and all, until the next summary: rows in Postgres and bytes on the wire,
+    every turn in between.
+
+    Read off the built agent rather than passed down, the way the context gauge
+    already is: the surface that persists the turn is the one that decides what
+    is stored. Unbound, the history is stored as it was.
+    """
+    offload = next((cap for cap in built.capabilities if isinstance(cap, MediaOffload)), None)
+    if offload is None:
+        return messages
+    return await offload.externalize(messages)
+
+
 def _as_text(user_input: str | Sequence[UserContent]) -> str:
     """The text half of a prompt a surface may already have assembled.
 
@@ -459,8 +481,9 @@ class ChatAgentRunner:
             # summary too: the resume replays the parked state, but the *next*
             # turn reads the conversation and would otherwise summarise again.
             if prepared.built.context.summarized:
-                summarized = ModelMessagesTypeAdapter.dump_python(
-                    result.all_messages(), mode="json"
+                summarized = await _offloaded(
+                    prepared.built,
+                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
             status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
             finished_cleanly = True

@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- A `media` capability that keeps a compacted conversation's pictures out of the
+  database. An attachment reaches the model once and the ordinary history is
+  rebuilt from text, so nothing piles up there — but a compacted conversation
+  stores the library's own dump of the run's messages and replays it base64 and
+  all until the next summary. Bound, the parts over a threshold are written to
+  the organization's own media store and replaced with a `media+sha256://…`
+  reference; re-inlining happens for every conversation whether or not it is
+  still bound. Built on `pydantic-ai-harness`'s content-addressed stores and
+  walkers. (#55)
+- `BaseFileStorage.save_at` and `.exists`, for the one caller whose key is the
+  digest of its own bytes rather than a name this codebase mints. (#55)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

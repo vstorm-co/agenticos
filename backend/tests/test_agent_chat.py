@@ -36,6 +36,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -288,6 +289,32 @@ class TestKeepingASummary:
 
         assert turn.summarized_history is not None
         assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+
+    async def test_an_agent_bound_to_media_offload_stores_the_offloaded_history(self):
+        """The one place media piles up is this blob, so the capability that
+        empties it is read off the built agent here rather than passed down -
+        the same way the context gauge is (#55)."""
+        prepared = _prepared()
+        prepared.built.context.summarized = True
+        offload: MediaOffload[object] = MediaOffload(organization_id=None)
+        offload.externalize = AsyncMock(return_value=[{"kind": "request", "parts": []}])
+        # A real list, because `built` is a MagicMock: `.capabilities` on one is
+        # another mock, and iterating it yields nothing rather than the entry.
+        prepared.built.capabilities = [offload]
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(
+                _agent_run(
+                    "the refund window is 30 days",
+                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                )
+            )
+        )
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.summarized_history == [{"kind": "request", "parts": []}]
+        offload.externalize.assert_awaited_once()
 
     async def test_the_overhead_the_turn_measured_leaves_with_it(self):
         """A one-request turn never measures one of its own before it decides, so
