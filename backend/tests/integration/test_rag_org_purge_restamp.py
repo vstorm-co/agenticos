@@ -105,12 +105,28 @@ class TestTheStoreReStamp:
         store = _store(engine)
         await _seed(store)
 
-        await store.restamp_org_to_untagged(COLLECTION, ORG_A)
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])
 
         untagged = {d.document_id for d in await store.get_documents(COLLECTION, None)}
         assert untagged == {"doc-a", "doc-none"}
         assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_B)] == ["doc-b"]
         assert await store.get_documents(COLLECTION, ORG_A) == []
+
+    async def test_it_untags_only_the_named_documents_leaving_other_org_rows(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The document-id scope is what keeps the deleted org's own torn-down
+        residual rows - and any row the survivor list omits - stamped, so untagging
+        one document does not resurrect another (#1684)."""
+        store = _store(engine)
+        await store._ensure_collection(COLLECTION)
+        await _insert(store, doc_id="doc-a", tenant=ORG_A)
+        await _insert(store, doc_id="residual", tenant=ORG_A)  # a row not in the survivor list
+
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])
+
+        assert [d.document_id for d in await store.get_documents(COLLECTION, None)] == ["doc-a"]
+        assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["residual"]
 
     async def test_the_untagged_rows_are_reachable_by_the_read_paths(
         self, engine: AsyncEngine
@@ -122,7 +138,7 @@ class TestTheStoreReStamp:
         store = _store(engine)
         await _seed(store)
 
-        await store.restamp_org_to_untagged(COLLECTION, ORG_A)
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])
 
         found = await store.find_existing_document(
             COLLECTION, source_path="/srv/doc-a.pdf", content_hash="", tenant=None
@@ -139,13 +155,18 @@ class TestTheStoreReStamp:
         assert len(chunks) == 1
         assert "content of doc-a" in {r.content for r in results}
 
-    async def test_a_missing_table_is_a_noop(self, engine: AsyncEngine) -> None:
-        """The durable cleanup retries, and a collection whose table was already
-        dropped must not raise - it simply has nothing to untag."""
+    async def test_empty_ids_or_a_missing_table_is_a_noop(self, engine: AsyncEngine) -> None:
+        """The durable cleanup retries, and a base with no documents or a collection
+        whose table was already dropped must not raise - there is nothing to untag."""
         store = _store(engine)
+        await _seed(store)
 
-        await store.restamp_org_to_untagged(COLLECTION, ORG_A)  # no table exists yet
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, [])  # no ids
+        assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["doc-a"]
 
+        async with engine.begin() as conn:
+            await conn.execute(text(f"DROP TABLE IF EXISTS {TABLE}"))
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])  # no table
         assert not await store._collection_exists(COLLECTION)
 
 
@@ -153,12 +174,20 @@ class TestTheDeferredCleanup:
     async def test_it_untags_the_orphaned_rows_through_the_real_cleanup(
         self, engine: AsyncEngine
     ) -> None:
-        """The production path: `cleanup_external_state` builds its own store on the
-        deployment database and untags exactly the orphaned organization's rows."""
+        """The production path: `cleanup_external_state` resolves the base's own
+        document ids and, on its own store, untags exactly those rows. Only the id
+        resolution is stubbed; the store UPDATE runs against the real table."""
+        from unittest.mock import AsyncMock, patch
+
         store = _store(engine)
         await _seed(store)
 
-        result = await cleanup_external_state([], [], [[COLLECTION, str(ORG_A)]])
+        kb_id = str(uuid.uuid4())
+        with patch(
+            "app.repositories.rag_document_repo.list_vector_document_ids",
+            AsyncMock(return_value=["doc-a"]),
+        ):
+            result = await cleanup_external_state([], [], [[COLLECTION, str(ORG_A), kb_id]])
 
         assert result["restamped"] == 1
         reader = _store(engine)
@@ -240,4 +269,4 @@ class TestThePurgeEndToEnd:
 
         _paths, to_drop, restamps = dispatch.call_args.args
         assert to_drop == ["orgbook"]
-        assert restamps == [["mybook", str(ORG_A)]]
+        assert restamps == [["mybook", str(ORG_A), str(personal_kb.id)]]

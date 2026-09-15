@@ -15,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
     collection_teardown_repo,
@@ -407,20 +408,15 @@ class OrganizationService:
 
         # A personal base carrying this org's id is left standing by the `SET NULL`,
         # which flips its `vector_tenant` to `None` while its rows stay stamped with
-        # the org - stranding them behind the read side's `IS NULL` scope. Its rows
-        # are re-stamped to untagged after the commit so they match again. Read here,
-        # under the org lock and before the `SET NULL`, while the tag is still the
-        # org's. A name this org also scoped is excluded (`- set(collections)`): its
-        # table is kept alive by the personal base, so it still holds this org's own
-        # torn-down rows, and untagging by org id there would surface those to the
-        # personal base rather than only its own (#1684).
-        restamp_orphans: list[str] = []
+        # the org - stranding them behind the read side's `IS NULL` scope. Each is
+        # handed to the deferred cleanup, which untags that base's own rows so they
+        # match again. Identified here, under the org lock, before the `SET NULL`:
+        # the cleanup re-stamps by the base's own `parent_doc_id`s (resolved at run
+        # time), so it touches only its own documents even on a table it shares with
+        # this org's own torn-down collection, and never another tenant's rows (#1684).
+        restamp_orphans: list[KnowledgeBase] = []
         if self._vector_store is not None:
-            orphan_names = {
-                kb.collection_name
-                for kb in await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
-            }
-            restamp_orphans = sorted(orphan_names - set(collections))
+            restamp_orphans = await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
 
         await organization_repo.delete(self.db, org)
 
@@ -454,7 +450,7 @@ class OrganizationService:
                     continue
                 to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)
-        restamps = [[collection, str(org.id)] for collection in restamp_orphans]
+        restamps = [[kb.collection_name, str(org.id), str(kb.id)] for kb in restamp_orphans]
         if storage_paths or to_drop or restamps:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup

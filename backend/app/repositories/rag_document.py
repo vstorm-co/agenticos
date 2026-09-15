@@ -293,6 +293,25 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     return [path for path in result.scalars().all() if path]
 
 
+async def list_vector_document_ids(db: AsyncSession, kb_id: UUID) -> list[str]:
+    """The runtime `parent_doc_id`s this KB's tracked documents produced.
+
+    `vector_document_id` is the id every chunk of that document carries as its
+    `parent_doc_id` in the `rag_<collection>` table, so this is how a caller reaches
+    exactly one KB's own rows on a table a collection name shares across tenants
+    (#913). A document still processing, or one whose ingest failed, has no vector
+    id yet and is dropped from the list. Used by the org-purge re-stamp to untag
+    only the surviving personal base's own rows (#1684).
+    """
+    result = await db.execute(
+        select(RAGDocument.vector_document_id).where(
+            RAGDocument.knowledge_base_id == kb_id,
+            RAGDocument.vector_document_id.is_not(None),
+        )
+    )
+    return [doc_id for doc_id in result.scalars().all() if doc_id]
+
+
 async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
     """Delete a knowledge base's document rows, returning the stored file paths.
 

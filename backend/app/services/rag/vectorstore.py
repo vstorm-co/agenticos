@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -118,15 +119,20 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
-    async def restamp_org_to_untagged(self, collection_name: str, tenant: UUID) -> None:
-        """Strip an organization's tag off its rows, making them deployment-wide.
+    async def restamp_documents_to_untagged(
+        self, collection_name: str, tenant: UUID, document_ids: Sequence[str]
+    ) -> None:
+        """Strip an organization's tag off named documents' rows, making them untagged.
 
         Used by an organization purge for a personal base the `SET NULL` orphans:
         its `vector_tenant` flips to `None` while its rows stay stamped with the
         deleted organization, so they must be re-stamped to untagged to match the
-        `None` read scope again (#1684). Scoped to `tenant`'s own rows on the
-        shared runtime table, so another organization's rows are never touched; a
-        collection with no such table is a no-op, so a durable retry is safe.
+        `None` read scope again (#1684). Scoped to `document_ids` - the surviving
+        base's own `parent_doc_id`s - *and* to `tenant`'s tag, so a shared runtime
+        table's other tenants, the deleted org's own torn-down residual rows, and a
+        document deleted before this runs (its id is no longer among the survivors)
+        are all left alone. An empty `document_ids` or a missing table is a no-op, so
+        the durable cleanup's retry is safe.
         """
 
     @abstractmethod
@@ -788,32 +794,39 @@ class PgVectorStore(BaseVectorStore):
             )
             await session.commit()
 
-    async def restamp_org_to_untagged(self, collection_name: str, tenant: UUID) -> None:
-        """Drop the `organization_id` tag from the rows this tenant stamped.
+    async def restamp_documents_to_untagged(
+        self, collection_name: str, tenant: UUID, document_ids: Sequence[str]
+    ) -> None:
+        """Drop the `organization_id` tag from named documents' rows stamped by a tenant.
 
         `metadata - 'organization_id'` makes `metadata->>'organization_id'` read
         `NULL`, which is exactly what the `None` branch of `_org_filter` tests -
         so the orphaned personal base's rows match its new `vector_tenant=None`,
         the same as a personal base that never carried an organization (#1684).
 
-        Scoped by `_org_filter(tenant)` to the deleted organization's own rows, so
-        a shared runtime table's other tenants are untouched; the value is bound,
-        never interpolated, and `_table` validates the only interpolated token. A
-        collection whose table was already dropped is skipped, so the durable
-        cleanup's retry is a no-op.
+        Two conjuncts, both load-bearing on a runtime table a collection name shares
+        across tenants (#913). `parent_doc_id = ANY(:doc_ids)` confines the update to
+        this base's own documents, so the deleted org's own torn-down residual rows,
+        another tenant's rows, and a document deleted before this ran (dropped from
+        the survivor list the cleanup passes) are never touched - the last is what
+        keeps a concurrently deleted document from being un-deleted here. The
+        `_org_filter(tenant)` conjunct then untags only rows still stamped with the
+        deleted org. Both values are bound; `_table` validates the only interpolated
+        token. An empty id list or a missing table is a no-op, so a retry is safe.
         """
-        if not await self._collection_exists(collection_name):
+        if not document_ids or not await self._collection_exists(collection_name):
             return
         table = self._table(collection_name)
         org_clause, org_params = self._org_filter(tenant)
         # The only interpolated token is `table`, validated by `_table`; the tenant
-        # is bound through `_org_filter`. S608 is ignored file-wide for that reason.
+        # and the id list are bound. S608 is ignored file-wide for that reason.
         async with self.async_session() as session:
             await session.execute(
                 text(
-                    f"UPDATE {table} SET metadata = metadata - 'organization_id' WHERE {org_clause}"
+                    f"UPDATE {table} SET metadata = metadata - 'organization_id' "
+                    f"WHERE parent_doc_id = ANY(:doc_ids) AND {org_clause}"
                 ),
-                org_params,
+                {"doc_ids": list(document_ids), **org_params},
             )
             await session.commit()
 

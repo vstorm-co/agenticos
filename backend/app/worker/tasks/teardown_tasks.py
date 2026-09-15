@@ -218,16 +218,19 @@ async def cleanup_external_state(
     :func:`_drop_then_release`.
 
     `restamps` are the personal bases an organization purge orphaned: each
-    `[collection, org_id]` untags that org's rows on a *surviving* table, so the
-    base's new `vector_tenant=None` reaches them again rather than leaving them
-    stranded behind the `IS NULL` read scope (#1684). Re-stamping is idempotent - a
-    table already dropped is a no-op and an absent tag strips to nothing - so it is
-    safe under the flow's retries; the purge already excluded any name it also tore
-    down, so this never untags rows on a table it is dropping.
+    `[collection, org_id, kb_id]` untags that org's rows for that base's own
+    surviving documents on a table the base still keeps alive, so its new
+    `vector_tenant=None` reaches them again rather than leaving them stranded behind
+    the `IS NULL` read scope (#1684). The base's `parent_doc_id`s are resolved here,
+    at run time, from `rag_documents` - so a document deleted between the org's
+    deletion and this run is no longer among them and its rows are left stamped
+    (untagging them would un-delete it) rather than resurrected. Re-stamping is
+    idempotent - a table already dropped is a no-op and an absent tag strips to
+    nothing - so it is safe under the flow's retries.
     """
     from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
-    from app.repositories import collection_teardown_repo, knowledge_base_repo
+    from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
     from app.services.file_storage import get_file_storage
 
     restamps = restamps or []
@@ -259,12 +262,15 @@ async def cleanup_external_state(
                     continue
                 if await _drop_then_release(store, db, collection):
                     dropped += 1
-            for collection, org_id in restamps:
+            for collection, org_id, kb_id in restamps:
                 # Best-effort like the drops and unlinks: one bad re-stamp must not
-                # abort the rest. The row that named this state is committed-gone, so
-                # the warning is its only remaining trace (#1684).
+                # abort the rest. The org row that named this state is committed-gone,
+                # but the personal base survives, so its current documents say which
+                # rows are its own to untag - a document deleted since is already
+                # absent here and stays stamped (#1684).
                 try:
-                    await store.restamp_org_to_untagged(collection, UUID(org_id))
+                    doc_ids = await rag_document_repo.list_vector_document_ids(db, UUID(kb_id))
+                    await store.restamp_documents_to_untagged(collection, UUID(org_id), doc_ids)
                 except SQLAlchemyError as exc:
                     logger.warning("Failed to re-stamp collection %s: %s", collection, exc)
                 else:

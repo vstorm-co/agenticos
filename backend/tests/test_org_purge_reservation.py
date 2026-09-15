@@ -160,10 +160,13 @@ class TestReStampingOrphanedPersonalBases:
     def _dispatched(mocks: dict) -> tuple:
         return mocks["dispatch"].call_args.args
 
-    async def test_it_dispatches_a_restamp_for_each_orphaned_personal_base(self):
+    async def test_it_dispatches_a_restamp_carrying_each_bases_name_org_and_id(self):
+        """Each orphaned base rides as `[collection, org_id, kb_id]` - the kb id is
+        what lets the deferred cleanup resolve that base's own documents to untag."""
+        book, notes = _kb("mybook"), _kb("notes")
         org, db, mocks = _purge(snapshot=[], authoritative=[])
         mocks["knowledge_base_repo"].list_personal_carrying_org = AsyncMock(
-            return_value=[_kb("mybook"), _kb("notes")]
+            return_value=[book, notes]
         )
         dispatch = MagicMock(return_value=None)
         with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
@@ -172,16 +175,22 @@ class TestReStampingOrphanedPersonalBases:
 
         _paths, to_drop, restamps = self._dispatched(mocks)
         assert to_drop == []
-        assert sorted(r[0] for r in restamps) == ["mybook", "notes"]
-        assert {r[1] for r in restamps} == {str(org.id)}
+        assert sorted(restamps) == sorted(
+            [
+                ["mybook", str(org.id), str(book.id)],
+                ["notes", str(org.id), str(notes.id)],
+            ]
+        )
 
-    async def test_a_name_the_org_also_scoped_is_excluded(self):
-        """A personal base sharing a name with an org-scoped one keeps that table
-        alive, so it still holds this org's own torn-down rows; untagging by org id
-        there would surface those, so the shared name is left out of the re-stamp."""
+    async def test_a_personal_base_sharing_an_org_name_is_still_restamped(self):
+        """The cleanup untags by the base's own documents, so a personal base sharing
+        a name with an org-scoped one is re-stamped like any other rather than left
+        stranded - its rows are distinguished from the org's residual rows by id,
+        not by excluding the whole name (#1684)."""
+        shared, private = _kb("shared"), _kb("private")
         org, db, mocks = _purge(snapshot=["shared"], authoritative=["shared"])
         mocks["knowledge_base_repo"].list_personal_carrying_org = AsyncMock(
-            return_value=[_kb("shared"), _kb("private")]
+            return_value=[shared, private]
         )
         dispatch = MagicMock(return_value=None)
         with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
@@ -189,7 +198,7 @@ class TestReStampingOrphanedPersonalBases:
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
 
         _paths, _to_drop, restamps = self._dispatched(mocks)
-        assert [r[0] for r in restamps] == ["private"]
+        assert sorted(r[0] for r in restamps) == ["private", "shared"]
 
     async def test_no_dispatch_when_nothing_is_orphaned(self):
         org, db, mocks = _purge(snapshot=[], authoritative=[])

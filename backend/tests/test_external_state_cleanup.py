@@ -100,14 +100,14 @@ class TestDispatch:
         untags their rows; like the drops they go on the first run only (#1684)."""
         run = AsyncMock()
         with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup([], [], [["handbook", "org-1"]])
+            await dispatch_external_state_cleanup([], [], [["handbook", "org-1", "kb-1"]])
 
         run.assert_awaited_once_with(
             name="org-purge-cleanup/org-purge-cleanup",
             parameters={
                 "storage_paths": [],
                 "collections": [],
-                "restamps": [["handbook", "org-1"]],
+                "restamps": [["handbook", "org-1", "kb-1"]],
             },
             timeout=0,
         )
@@ -126,10 +126,10 @@ class TestDispatch:
         paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_RUN + 1)]
         run = AsyncMock()
         with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_external_state_cleanup(paths, [], [["handbook", "org-1"]])
+            await dispatch_external_state_cleanup(paths, [], [["handbook", "org-1", "kb-1"]])
 
         first, second = run.await_args_list
-        assert first.kwargs["parameters"]["restamps"] == [["handbook", "org-1"]]
+        assert first.kwargs["parameters"]["restamps"] == [["handbook", "org-1", "kb-1"]]
         assert "restamps" not in second.kwargs["parameters"]
 
 
@@ -145,7 +145,7 @@ def _patch_cleanup() -> Any:
     and reserved it, so the cleanup drops unconditionally, then releases the name's
     reservation (#1362)."""
     storage = MagicMock(delete=AsyncMock())
-    store = MagicMock(delete_collection=AsyncMock(), restamp_org_to_untagged=AsyncMock())
+    store = MagicMock(delete_collection=AsyncMock(), restamp_documents_to_untagged=AsyncMock())
     engine = MagicMock(dispose=AsyncMock())
     release = AsyncMock()
 
@@ -156,6 +156,11 @@ def _patch_cleanup() -> Any:
         patch("app.services.rag.embeddings.EmbeddingService", return_value=MagicMock()),
         patch("app.db.session.get_worker_db_context", _db_ctx),
         patch("app.repositories.collection_teardown_repo.release", release),
+        # The cleanup resolves each orphaned base's own document ids at run time.
+        patch(
+            "app.repositories.rag_document_repo.list_vector_document_ids",
+            AsyncMock(return_value=["doc-a-0"]),
+        ),
     ]
     return storage, store, engine, release, patches
 
@@ -260,41 +265,69 @@ class TestTheCleanup:
         release.assert_not_awaited()
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 0}
 
-    async def test_it_untags_each_orphaned_personal_base(self) -> None:
-        """A purge orphans a personal base by nulling its org; the cleanup untags its
-        rows so its new `vector_tenant=None` reaches them again (#1684)."""
+    async def test_it_untags_each_orphaned_personal_bases_own_documents(self) -> None:
+        """A purge orphans a personal base by nulling its org; the cleanup resolves
+        that base's own document ids and untags exactly those rows, so its new
+        `vector_tenant=None` reaches them again (#1684)."""
         from uuid import UUID
 
         _storage, store, _engine, _release, patches = _patch_cleanup()
-        org_id = "11111111-1111-1111-1111-111111111111"
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            result = await cleanup_external_state([], [], [["handbook", org_id]])
+        org = "11111111-1111-1111-1111-111111111111"
+        kb = "22222222-2222-2222-2222-222222222222"
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            result = await cleanup_external_state([], [], [["handbook", org, kb]])
 
-        store.restamp_org_to_untagged.assert_awaited_once_with("handbook", UUID(org_id))
+        store.restamp_documents_to_untagged.assert_awaited_once_with(
+            "handbook", UUID(org), ["doc-a-0"]
+        )
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 1}
 
     async def test_a_failed_restamp_does_not_abort_the_rest(self) -> None:
         """Best-effort like the drops: one bad re-stamp is logged, not raised, and the
         others still run (#1684)."""
         _storage, store, _engine, _release, patches = _patch_cleanup()
-        org = "11111111-1111-1111-1111-111111111111"
-        store.restamp_org_to_untagged = AsyncMock(side_effect=[SQLAlchemyError("blip"), None])
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            result = await cleanup_external_state([], [], [["bad", org], ["good", org]])
+        org, kb = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+        store.restamp_documents_to_untagged = AsyncMock(side_effect=[SQLAlchemyError("blip"), None])
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            result = await cleanup_external_state([], [], [["bad", org, kb], ["good", org, kb]])
 
-        assert store.restamp_org_to_untagged.await_count == 2
+        assert store.restamp_documents_to_untagged.await_count == 2
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 1}
 
     async def test_restamps_alone_still_build_the_store(self) -> None:
         """A purge that only orphaned a personal base - no files, no drops - still
         opens the vector store to untag it."""
         _storage, store, engine, _release, patches = _patch_cleanup()
-        org = "11111111-1111-1111-1111-111111111111"
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            await cleanup_external_state([], [], [["handbook", org]])
+        org, kb = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+            await cleanup_external_state([], [], [["handbook", org, kb]])
 
-        store.restamp_org_to_untagged.assert_awaited_once()
+        store.restamp_documents_to_untagged.assert_awaited_once()
         engine.dispose.assert_awaited_once()
+
+    async def test_a_document_deleted_before_the_run_is_left_stamped(self) -> None:
+        """The base's ids are resolved at run time, so a document deleted since the
+        org went is absent from them - the store is handed only survivors, never the
+        deleted document's id, so its rows are not un-deleted (#1684)."""
+        from uuid import UUID
+
+        _storage, store, _engine, _release, patches = _patch_cleanup()
+        org, kb = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+        survivors = AsyncMock(return_value=["kept-doc-0"])  # the deleted doc is not among them
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patches[5],
+            patch("app.repositories.rag_document_repo.list_vector_document_ids", survivors),
+        ):
+            await cleanup_external_state([], [], [["handbook", org, kb]])
+
+        store.restamp_documents_to_untagged.assert_awaited_once_with(
+            "handbook", UUID(org), ["kept-doc-0"]
+        )
 
 
 class TestTheFlow:
@@ -311,9 +344,9 @@ class TestTheFlow:
     async def test_it_passes_the_restamps_through(self) -> None:
         impl = AsyncMock(return_value={"unlinked": 0, "dropped": 0, "restamped": 1})
         with patch.object(teardown_tasks, "cleanup_external_state", impl):
-            await external_state_cleanup_flow([], [], [["handbook", "org-1"]])
+            await external_state_cleanup_flow([], [], [["handbook", "org-1", "kb-1"]])
 
-        impl.assert_awaited_once_with([], [], [["handbook", "org-1"]])
+        impl.assert_awaited_once_with([], [], [["handbook", "org-1", "kb-1"]])
 
 
 def _patch_sweep(stale: list[Any], *, reserved: bool = True) -> Any:
