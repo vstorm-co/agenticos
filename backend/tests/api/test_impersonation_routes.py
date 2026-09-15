@@ -58,6 +58,17 @@ def _clean() -> AsyncGenerator[None, None]:
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def _no_security_event_notification(monkeypatch) -> None:
+    """These routes are about the session lifecycle and the audit entry
+    `record_audit` writes for real (#1598), not the `security_event`
+    notification that now follows it - covered separately in
+    `tests/test_notifications.py`. Left real, it would resolve a
+    deployment-wide app-admin audience against `mock_db_session`, wired for
+    neither shape of query it would ask."""
+    monkeypatch.setattr(module, "NotificationService", MagicMock(return_value=AsyncMock()))
+
+
 def _bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 

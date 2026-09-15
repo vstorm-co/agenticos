@@ -58,6 +58,7 @@ from app.repositories import session_repo, user_repo
 from app.schemas.user import ImpersonateResponse, ImpersonationRead, ImpersonatorRead
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
+from app.services.notifications import NotificationService
 from app.services.session import SessionService, hash_token
 from app.services.user import UserService
 
@@ -177,7 +178,7 @@ class ImpersonationService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=admin.id,
             action="admin.user.impersonate",
@@ -190,6 +191,7 @@ class ImpersonationService:
             },
             ip_address=ip_address,
         )
+        await NotificationService(self.db).security_event(entry)
 
         settings_service = DeploymentSettingsService(self.db)
         if await settings_service.notifies_impersonated_users():
@@ -308,7 +310,7 @@ class ImpersonationService:
         if active is None:
             raise BadRequestError(message="This session is not an impersonation")
         await session_repo.deactivate(self.db, active.session_id)
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=active.impersonator_id,
             action="admin.user.impersonation_ended",
@@ -317,6 +319,7 @@ class ImpersonationService:
             details={"session_id": str(active.session_id)},
             ip_address=ip_address,
         )
+        await NotificationService(self.db).security_event(entry)
 
 
 async def _notify_target(*, to: str, name: str, admin_email: str, app_name: str) -> None:

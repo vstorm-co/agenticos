@@ -113,6 +113,10 @@ class TestStoring:
                 new=AsyncMock(return_value=_secret(ctx)),
             ) as create,
             patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            # This class is about ownership and visibility (#1598), not the
+            # `security_event` notification `create`/`update`/`delete` now
+            # also send - covered separately in `tests/test_notifications.py`.
+            patch(f"{MODULE}.NotificationService", new=MagicMock(return_value=AsyncMock())),
         ):
             await OrganizationSecretService(MagicMock()).create(
                 ctx,
@@ -137,6 +141,7 @@ class TestStoring:
                 new=AsyncMock(return_value=_secret(ctx)),
             ) as create,
             patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(f"{MODULE}.NotificationService", new=MagicMock(return_value=AsyncMock())),
         ):
             await OrganizationSecretService(MagicMock()).create(
                 ctx,
@@ -180,6 +185,7 @@ class TestWhoCanReachOne:
             patch(f"{MODULE}.resolve_access", new=AsyncMock(return_value=True)) as resolve,
             patch(f"{MODULE}.organization_secret_repo.delete", new=AsyncMock()),
             patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(f"{MODULE}.NotificationService", new=MagicMock(return_value=AsyncMock())),
         ):
             await OrganizationSecretService(MagicMock()).delete(ctx, secret.id)
 

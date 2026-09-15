@@ -98,6 +98,16 @@ def storage(monkeypatch) -> MagicMock:
     return stub
 
 
+@pytest.fixture(autouse=True)
+def _no_configuration_changed_notification(monkeypatch) -> None:
+    """This file is about the settings row and the audit entry's own fields
+    (#1598), not the `configuration_changed` notification every write now
+    also produces - covered separately in `tests/test_notifications.py`.
+    Left real, it would resolve `member_repo.list_app_admin_ids` against
+    whatever `db` a test happens to pass, real or a bare mock."""
+    monkeypatch.setattr(module, "NotificationService", MagicMock(return_value=AsyncMock()))
+
+
 class TestWhatAStrangerMayRead:
     async def test_an_unconfigured_deployment_answers_defaults_without_writing_a_row(
         self, mock_db_session, repo
