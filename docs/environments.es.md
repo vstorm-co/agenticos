@@ -1,5 +1,5 @@
 ---
-source_sha: "5f82d4791ee1"
+source_sha: "c4a41dd69a21"
 ---
 
 # Entornos { #environments }
@@ -84,6 +84,14 @@ proyecto, etiquetados con el nombre del entorno.
 Esto es lo que mantiene un experimento de staging fuera del dashboard que alguien
 vigila por los incidentes de producción — y es por entorno y no por despliegue
 porque los dos son proyectos genuinamente distintos.
+
+Adónde van las trazas es del entorno; *cuánto llevan* es del agent. El bloque
+[observability](reference/spec.md#observability) de un agent tiene un modo
+`content`: `full` registra el mensaje, la salida del modelo y cada argumento de
+herramienta; `none` registra solo tiempo, tokens, coste y nombres de herramienta.
+En un proyecto sobre datos de salud, legales o de RR. HH., `none` es lo que
+impide que una copia del contenido protegido salga de la máquina. El token del
+entorno redirige el run, pero no anula esa elección.
 
 ## Lo que el entorno por defecto no es { #what-the-default-environment-is-not }
 

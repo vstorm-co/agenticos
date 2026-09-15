@@ -475,6 +475,37 @@ class TestTheRunsInstructions:
         assert spec.instructions == "You are an analyst."
 
 
+class TestTheModelIsToldWhereItsSkillsAre:
+    """The path was only ever discoverable from a skill's own body, so every
+    skill authored against the old root was the model's sole authority for a
+    location the platform had since changed. Said once by the side that chooses
+    it, a body naming the old directory is stale text rather than the answer."""
+
+    @staticmethod
+    def _spec() -> Any:
+        from app.agents.spec import AgentSpec
+
+        return AgentSpec(name="Analyst", instructions="You are an analyst.")
+
+    def test_it_names_the_root_the_files_were_written_under(self) -> None:
+        from app.services.agent_runner import _with_skills_briefing
+        from app.services.skill_workspace import SKILLS_ROOT
+
+        result = _with_skills_briefing(self._spec())
+
+        assert SKILLS_ROOT in result.instructions
+
+    def test_the_published_spec_is_untouched(self) -> None:
+        from app.services.agent_runner import _with_skills_briefing
+
+        spec = self._spec()
+
+        result = _with_skills_briefing(spec)
+
+        assert result.instructions.startswith("You are an analyst.")
+        assert spec.instructions == "You are an analyst."
+
+
 def test_a_shell_variable_survives_composes_interpolation() -> None:
     """The defect that made every session a 502, and the only reason `$$` exists.
 

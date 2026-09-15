@@ -1480,6 +1480,7 @@ class TestConversationServiceToolCalls:
             mock_repo.create_tool_call.assert_called_once()
             assert mock_repo.create_tool_call.call_args.kwargs["status"] == "running"
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_parked_tool_call_is_stored_awaiting_approval(
         self, service: ConversationService
@@ -1769,6 +1770,7 @@ class TestWhatTheThreadCost:
     def service(self) -> ConversationService:
         return ConversationService(AsyncMock())
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_another_tenants_thread_is_not_totalled(self, service: ConversationService):
         with patch("app.services.conversation.conversation_repo") as mock_repo:
@@ -2224,6 +2226,7 @@ class TestAFavouriteBelongsToTheReader:
         asked.assert_not_awaited()
         assert read.is_favourite is False
 
+    @pytest.mark.security
     async def test_a_thread_in_another_tenant_is_missing_rather_than_starrable(self, monkeypatch):
         conversation = MockConversation(organization_id=uuid4())
         monkeypatch.setattr(

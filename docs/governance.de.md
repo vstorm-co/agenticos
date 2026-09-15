@@ -1,5 +1,5 @@
 ---
-source_sha: "5740161792de"
+source_sha: "9985ef28fbd1"
 ---
 
 # Governance { #governance }
@@ -870,6 +870,17 @@ und außerhalb davon nicht, schickt Menschen in die Datenbank.
 | `GET /runs/export` | Die Run-Historie, dieselben Filter wie `GET /runs` und dieselbe Voreinstellung nur oberste Ebene. `runs:view` |
 | `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | Die Ausgaben-Aufschlüsselung je Agent, dasselbe Fenster wie `GET /spend`. `runs:view` |
+| `GET /audit/export` | Die Audit-Spur über ein Fenster, CSV oder JSONL (`?fmt=`). `audit:read` |
+
+Der Audit-Export ist der einzige, der auch **JSONL** anbietet (`?fmt=jsonl`),
+ein JSON-Objekt pro Zeile, weil eine Audit-Spur ebenso oft von einer
+Log-Pipeline eingelesen wie in einer Tabelle geöffnet wird; beide beschreiben
+dieselben Einträge, mit `details` als JSON-String in der CSV-Zelle und als
+verschachteltes Objekt in den Zeilen. Er liefert genau die Felder, die das
+Lesemodell von `GET /audit` zeigt — die gespeicherte `ip_address` steht nicht auf
+diesem Tab und daher auch nicht im Export — und hält wie jeder Export hier seinen
+eigenen Abruf in der Spur fest (`audit.export`, mit Fenster, Format und
+Zeilenzahl).
 
 Der Ausgaben-Export trägt nur die Zahlen des Fensters — `cost_usd`, `run_count`
 und `partial_run_count`. `month_to_date_usd` und `monthly_cap_usd` des Spend-Tabs
@@ -1466,6 +1477,36 @@ landen zu lassen.
 
 `audit:read` gatet das Lesen. Die Umgehung eines App-Admins ist genau das, wozu
 die Spur existiert, um sie zur Verantwortung zu ziehen.
+
+Die Spur hält auch sich selbst ehrlich. Jeder Eintrag reiht sich in eine
+Hash-Kette je Organisation ein — er trägt einen Hash über seinen eigenen Inhalt,
+in den der Hash des vorherigen Eintrags eingeflochten ist — sodass das Ändern,
+Umordnen oder Einfügen eines Eintrags, oder das Löschen eines aus der Mitte, jeden
+nachfolgenden Hash auseinanderlaufen lässt.
+
+`agenticos cmd audit-verify` läuft jede Kette ab, berechnet die Hashes neu und
+nennt den ersten Eintrag, der nicht mehr passt; ohne Argument prüft es jede Kette,
+auch die deploymentweite, die mandantenlose Aktionen hält — eine Änderung der
+Deployment-Einstellungen, eine Impersonierung, App-Admin-Benutzerverwaltung — und
+endet mit einem Exit-Code ungleich null, wenn eine Kette fehlschlägt. Das ist
+**Erkennung, keine Verhinderung** — ein Operator mit Zugriff auf die Datenbank kann
+eine Zeile weiterhin umschreiben und jeden nachfolgenden Hash neu berechnen — ein
+sauberer Lauf belegt also, dass niemand manipuliert hat, der nicht auch die Kette
+neu geschmiedet hat, kein Beweis, dass die Zeilen unveränderlich sind.
+
+Zwei Löschungen kann die Kette von sich aus nicht erkennen, weil die verbleibenden
+Zeilen intern konsistent bleiben: das Abschneiden der neuesten Einträge einer Kette
+und das vollständige Löschen der Kette einer Organisation — Letzteres entfernt sie
+einfach aus der Menge, die `audit-verify` abläuft. Beides zu erkennen erfordert
+einen organisationsweiten Abschluss-Checkpoint, der dort aufbewahrt wird, wo der
+Datenbank-Operator nicht hinreicht; dieser Anker ist eine geplante Folgearbeit, und
+bis es ihn gibt, bescheinigt ein sauberer Lauf nicht, dass nichts abgeschnitten
+wurde.
+
+Zwei auditierte Schreibvorgänge für eine Organisation können die Kette nicht
+aufspalten: jeder hängt unter einer organisationsbezogenen Sperre an, sodass sie
+sich zu einer einzigen Linie serialisieren, statt beide denselben Kopf zu
+verlängern.
 
 Eine **impersonierte** Aktion nennt beide. Wenn ein App-Admin als ein anderes
 Konto handelt, trägt das Access-Token den Administrator als `act`-Claim; jeder

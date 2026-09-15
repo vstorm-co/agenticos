@@ -27,7 +27,7 @@ from app.db.models.user import User
 from app.repositories import chat_file as chat_file_repo
 from app.services.conversation import ConversationService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def _member(db) -> User:

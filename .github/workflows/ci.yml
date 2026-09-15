@@ -150,6 +150,17 @@ jobs:
     # while something still looks at the whole tree.
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `ty check` exits 0 on a warning-level diagnostic by design - template-inherited
+    # code is reported, not gated (`docs/testing.md`) - and its default output is
+    # plain text on stdout, so a run with 61 of them looked identical to one with
+    # zero: green check, no annotation, nothing to click. `ty` reads this env var
+    # itself and switches to GitHub's own `::warning file=…,line=…::` syntax, so the
+    # exact same `make lint-backend` call - unchanged, still zero-gating - surfaces
+    # every diagnostic as an inline annotation on the run and the diff. Unset
+    # locally, where the same command still prints the verbose, human-readable
+    # `full` format `make lint-backend` has always used.
+    env:
+      TY_OUTPUT_FORMAT: github
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -317,6 +328,27 @@ jobs:
         with:
           files: ./backend/coverage.xml
           fail_ci_if_error: false
+
+      - name: Report the security refusal tests
+        # The `security` marker names the refusal tests as a set (#1417). The
+        # target writes the count and the list to the job summary and to
+        # `backend/security-tests.txt`, which the next step uploads, so a security
+        # review can read which refusals the suite holds rather than take the
+        # claim on faith. A report, not a gate - it only lists, and `always()` so
+        # it still runs when a test above failed. `test_ci_parity.py` exempts it.
+        if: always()
+        run: make security-report
+
+      - name: Upload the security refusal-test list
+        # Downloadable per build, and the file a release attaches as its evidence
+        # that the refusals are held - the repository cuts releases by hand, so
+        # the attachment is a release-time step rather than an automated one.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-tests
+          path: backend/security-tests.txt
+          retention-days: 90
 
   test-frontend:
     needs: changes

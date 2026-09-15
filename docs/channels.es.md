@@ -1,5 +1,5 @@
 ---
-source_sha: "8be06480f8a4"
+source_sha: "f819ae10b8cc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1290,7 +1290,11 @@ así que la política no puede desviarse entre ellas.
   `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las
   mismas llamadas que usan las consultas de canal, así que Telegram ofrece los cinco
   aunque ofrezca dos de las cuatro herramientas. El Builder lista bajo la caja los
-  que esta plataforma puede responder e inserta uno en el cursor.
+  que esta plataforma puede responder e inserta uno en el cursor, cada uno con
+  la descripción real de la herramienta - la misma que lee el modelo antes de
+  decidir si la llama, no la paráfrasis abreviada del catálogo, sin el marcado
+  que el propio modelo usa para distinguir el resumen de la forma de la
+  respuesta.
 
     Se resuelven por run y nunca se cachean: la pertenencia a un canal cambia, y una
     lista caducada en un prompt es peor que ninguna porque el agent la afirma como

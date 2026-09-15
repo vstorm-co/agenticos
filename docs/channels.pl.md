@@ -1,5 +1,5 @@
 ---
-source_sha: "8be06480f8a4"
+source_sha: "f819ae10b8cc"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1283,7 +1283,10 @@ może się między nimi rozjechać.
   `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których
   używają odpytania o kanał, więc Telegram oferuje wszystkie pięć, choć oferuje
   dwa z czterech narzędzi. Builder wylicza pod polem te, na które ta platforma
-  potrafi odpowiedzieć, i wstawia wybrane w miejscu kursora.
+  potrafi odpowiedzieć, i wstawia wybrane w miejscu kursora, każde z prawdziwym
+  opisem narzędzia — tym samym, który czyta model, zanim zdecyduje się je
+  wywołać, a nie skróconą parafrazą z katalogu, bez znaczników, których model
+  sam używa, by odróżnić streszczenie od kształtu odpowiedzi.
 
     Rozwiązywane przy każdym runie i nigdy nie cache'owane: członkostwo kanału
     się zmienia, a nieaktualna lista w prompcie jest gorsza niż żadna, bo agent

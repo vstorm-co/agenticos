@@ -126,6 +126,7 @@ class TestSealUnseal:
         sealed = seal("sk-live-abcd1234", scope=_org())
         assert sealed.hint == "1234"
 
+    @pytest.mark.security
     def test_ciphertext_never_contains_the_plaintext(self):
         secret = "sk-live-abcd1234"
         sealed = seal(secret, scope=_org())
@@ -138,6 +139,7 @@ class TestSealUnseal:
         second = seal("same-secret", scope=scope)
         assert first.ciphertext != second.ciphertext
 
+    @pytest.mark.security
     def test_empty_secret_is_refused(self):
         """A credential that genuinely has no value is stored as no envelope at all.
 
@@ -289,6 +291,7 @@ class TestRotation:
                 to_version=2,
             )
 
+    @pytest.mark.security
     def test_rotating_from_the_wrong_version_fails_instead_of_writing_an_unreadable_secret(
         self, three_master_keys
     ):

@@ -1,5 +1,5 @@
 ---
-source_sha: "7e69c0532818"
+source_sha: "10fb34b3d126"
 ---
 
 # Polecenia { #commands }
@@ -343,6 +343,17 @@ uv run agenticos cmd doctor
 # Report-only - a spec is exported into a client's own git, so unbinding is a person's
 # call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
+
+# Recompute the app-admin audit trail's tamper-evidence hash chain and report any
+# break. Each entry links to the previous one's hash, so editing, reordering,
+# inserting or interior-deleting a row diverges every hash after it; this walks each
+# chain and names the first entry that no longer matches. With no --org it checks
+# every chain, including the deployment-wide one. Detection, not prevention, and
+# blind to the newest entries or a whole chain being dropped - an operator with the
+# database can re-forge it - so a clean run is evidence, not proof.
+# Exits non-zero when any chain fails, so a cron can gate on it.
+uv run agenticos cmd audit-verify
+uv run agenticos cmd audit-verify --org <org-id>
 
 # Re-wrap every stored secret under the current master key - the staged rotation
 # docs/secrets.md describes. Configure the old and new key side by side in

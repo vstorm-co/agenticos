@@ -715,6 +715,7 @@ class TestTenantIsolation:
         assert [agent.id for agent in items] == [estate.home_agent.id]
         assert total == 1
 
+    @pytest.mark.security
     async def test_an_agent_in_another_tenant_is_not_found_by_its_own_owner(
         self, db, estate: TwoTenants
     ) -> None:
@@ -730,12 +731,14 @@ class TestTenantIsolation:
         # that counted another organization's rows offers a page that is empty.
         assert total == 1
 
+    @pytest.mark.security
     async def test_a_skill_in_another_tenant_is_not_found_by_its_own_owner(
         self, db, estate: TwoTenants
     ) -> None:
         with pytest.raises(NotFoundError):
             await SkillService(db).get(estate.home.ctx, estate.other_skill.id)
 
+    @pytest.mark.security
     async def test_a_collection_in_another_tenant_is_unreachable(
         self, db, estate: TwoTenants
     ) -> None:
@@ -799,6 +802,7 @@ class TestTenantIsolation:
         """The other tenant's run costs nine dollars; it must not appear on this bill."""
         assert await AgentRunnerService(db).monthly_spend(estate.home.ctx) == Decimal("1")
 
+    @pytest.mark.security
     async def test_an_approval_from_another_tenant_cannot_be_decided(
         self, db, estate: TwoTenants
     ) -> None:
@@ -883,6 +887,7 @@ class TestTenantIsolation:
         assert response.status_code == 200
         assert [item["filename"] for item in response.json()["items"]] == ["ours.txt"]
 
+    @pytest.mark.security
     async def test_a_tracked_document_in_another_tenant_cannot_be_deleted(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -928,6 +933,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_a_file_cannot_be_ingested_into_another_tenants_collection(
         self, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -939,6 +945,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_claiming_a_collection_name_another_tenant_owns_is_refused(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -956,6 +963,7 @@ class TestTenantIsolation:
         )
         assert [kb.organization_id for kb in rows.scalars()] == [rag_estate.other.organization.id]
 
+    @pytest.mark.security
     async def test_another_tenants_sync_source_cannot_be_deleted(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -967,6 +975,7 @@ class TestTenantIsolation:
         assert response.status_code == 404
         assert await db.get(SyncSource, rag_estate.other_source.id) is not None
 
+    @pytest.mark.security
     async def test_another_tenants_integration_cannot_be_cloned_for_its_credentials(
         self, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -978,6 +987,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_another_tenants_sync_run_cannot_be_cancelled(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -1008,6 +1018,7 @@ class TestTenantIsolation:
     # The clone below is the exception, and goes through the app: what it checks
     # lives in the route.
 
+    @pytest.mark.security
     async def test_another_tenants_integration_cannot_be_cloned_into_a_knowledge_base(
         self, db, kb_api: KbClient, rag_estate: RagEstate
     ) -> None:
@@ -1058,6 +1069,7 @@ class TestTenantIsolation:
         assert theirs.value.message == invented.value.message
         assert set(theirs.value.details or {}) == set(invented.value.details or {})
 
+    @pytest.mark.security
     async def test_a_knowledge_base_in_another_tenant_cannot_be_deleted_by_its_own_owner(
         self, db, rag_estate: RagEstate
     ) -> None:
@@ -1069,6 +1081,7 @@ class TestTenantIsolation:
 
         assert await db.get(KnowledgeBase, rag_estate.other_collection.id) is not None
 
+    @pytest.mark.security
     async def test_another_tenants_default_base_is_not_reported_as_undeletable(
         self, db, rag_estate: RagEstate
     ) -> None:
@@ -1884,6 +1897,7 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].chunks == 12
         assert await rag_document_repo.get_by_id(db, first.id) is None
 
+    @pytest.mark.security
     async def test_another_tenants_documents_are_not_counted(self, db) -> None:
         """The counts are keyed on `collection_name`, and `rag_documents` carries a
         nullable `organization_id` that a sync task never stamps - so the tenant
@@ -3731,6 +3745,7 @@ class TestTheOrganizationsSecrets:
         )
         return secret.id
 
+    @pytest.mark.security
     async def test_a_stored_secret_keeps_only_a_hint_in_the_clear(self, db) -> None:
         tenant = await _tenant(db, name="Secretive")
 
@@ -3750,6 +3765,7 @@ class TestTheOrganizationsSecrets:
         assert stored is not None
         assert "wx-live-abcd4242" not in stored.sealed_secret
 
+    @pytest.mark.security
     async def test_a_secret_from_another_organization_is_unreachable(self, db) -> None:
         """Both locks, in one test.
 
@@ -3847,6 +3863,7 @@ class TestTheOrganizationsSecrets:
             is False
         )
 
+    @pytest.mark.security
     async def test_a_secret_is_found_by_name_inside_its_own_organization_only(self, db) -> None:
         theirs = await _tenant(db, name="NamedTheirs")
         mine = await _tenant(db, name="NamedMine")
@@ -4453,6 +4470,7 @@ class TestWhereAChatAccountHasBeenUsed:
 
         assert found == {}
 
+    @pytest.mark.security
     async def test_a_bot_from_another_tenant_is_never_reported_to_this_person(
         self, db, estate: TwoTenants
     ) -> None:

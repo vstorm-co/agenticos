@@ -115,6 +115,7 @@ class TestTheLookupStaysInsideTheOrganization:
 
 
 class TestTheEmbeddingResolverUnsealsOnlyTheCallersKey:
+    @pytest.mark.security
     async def test_a_shared_name_never_unseals_another_tenants_vault_key(self, db) -> None:
         """The security payoff (#913): org A chose its own key; resolving the same
         collection name for org B must not open A's vault entry and bill A - it

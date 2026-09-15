@@ -23,7 +23,7 @@ from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @asynccontextmanager

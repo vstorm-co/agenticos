@@ -383,6 +383,7 @@ class TestTheRuntimeARunIsHanded:
 
         assert prepared.build.call_count == 2
 
+    @pytest.mark.security
     async def test_a_delegate_runs_on_the_runs_own_budget_guard(self):
         """Sharing the guard is what makes a delegation's spend visible to the
         parent's cap before the next request. Without it a delegate meters
@@ -392,6 +393,7 @@ class TestTheRuntimeARunIsHanded:
 
         assert prepared.built("summariser")["shared_budget"] is prepared.build.return_value.budget
 
+    @pytest.mark.security
     async def test_a_delegate_reaches_the_approval_queue_the_parent_is_waiting_on(self):
         """A specialist that needs a person needs the person already waiting."""
         prepared = await _prepare(_delegating(inline=[_specialist()]))
@@ -985,6 +987,7 @@ class TestASpecialistTheModelInvents:
         assert [binding.id for binding in built["spec"].capabilities] == []
         assert SUBAGENT_RUNTIME_RESOURCE not in built["resources"]
 
+    @pytest.mark.security
     async def test_one_is_built_through_the_factory_with_the_runs_budget(self):
         """The property the whole phase exists for, at the seam the runner owns.
 

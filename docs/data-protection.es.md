@@ -1,5 +1,5 @@
 ---
-source_sha: "3a50fc3a822d"
+source_sha: "a20c296fac18"
 ---
 
 # Protección de datos { #data-protection }
@@ -157,8 +157,9 @@ una laguna, y así queda dicho.
 | Datos personales que llegan al modelo | La capability `guardrails` redacta IBAN, números de tarjeta, números de seguridad social estadounidenses y direcciones de correo de los prompts, las respuestas y los resultados de herramientas cuando está configurada | [Capabilities](reference/capabilities.md); sus pruebas bajo `tests/` |
 | Datos personales en una columna de fallo | `rag_documents.error_message` y similares registran la etapa y la clase, nunca el texto del cliente | `app/services/rag/failures.py` (#423) |
 | Rendición de cuentas | Las entradas de auditoría comparten la transacción que actúa y fallan en cerrado; la suplantación nombra a ambas personas; las exportaciones masivas quedan registradas | [Gobernanza](governance.md#audit) |
-| Exportación de auditoría y prueba de no manipulación | Todavía ninguna | [#1422](https://github.com/vstorm-co/agenticos/issues/1422) |
-| Trazas | Hoy contenido completo, y sin interruptor | [#1413](https://github.com/vstorm-co/agenticos/issues/1413) añade `full`, `redacted`, `none` por agent |
+| Exportación de auditoría | `GET /audit/export`, CSV o JSONL sobre una ventana, con puerta en `audit:read` y registrada en el propio rastro | [Governance](governance.md#audit) (#1422) |
+| Prueba de no manipulación del rastro | Todavía ninguna | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
+| Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta | [Entornos](environments.md) (#1413); `redacted` es [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retención programada | Solo se barren las filas de `sandbox_operations`, a los 30 días. El barrido de runs abandonados los finaliza; no borra nada | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
 | Acceso a los propios datos | No hay endpoint de exportación; no hay vista de la propia memoria | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -174,10 +175,11 @@ así que un span contiene el mensaje del usuario, la respuesta del modelo y cada
 argumento y resultado de herramienta. Con `LOGFIRE_TOKEN` sin definir, sin token
 `observability` en ningún spec y sin `logfire_token_secret_id` en ningún
 entorno, no se envía nada y el id de la traza se sigue registrando localmente.
-Un deployment que necesite trazas antes de que aterrice
-[#1413](https://github.com/vstorm-co/agenticos/issues/1413) tiene una sola
-opción: un proyecto de Logfire cuyas condiciones y región haya aceptado,
-sabiendo que el contenido va con los tiempos.
+Un deployment que necesite trazas sin el contenido pone el
+`observability.content` del agent en `none`: se registran tiempo, tokens, coste y
+nombres de herramienta, y ningún texto de mensaje sale. Cualquier punto
+intermedio — el contenido pasado por un filtro de PII — es
+[#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 
 ### Qué alcanza el borrado { #what-deletion-reaches }
 
@@ -334,12 +336,12 @@ cualquier deployment hasta que cada una se cierre.
 
 **En el código, con seguimiento:**
 
-- Las trazas llevan contenido completo — [#1413](https://github.com/vstorm-co/agenticos/issues/1413).
+- Las trazas llevan contenido completo salvo que un agent ponga `observability.content` en `none`; no hay término medio filtrado — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 - No hay retención programada — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Los bytes de los adjuntos y la memoria de una persona sobreviven al borrado de
   su propietario; no hay exportación de datos personales; el inventario de
   supresión — [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- No hay exportación de auditoría ni prueba de no manipulación — [#1422](https://github.com/vstorm-co/agenticos/issues/1422).
+- No hay prueba de no manipulación del rastro de auditoría — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Archivos solo en disco local, cifrados por el volumen o nada — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - No hay vista de autoservicio de la propia memoria — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No hay inicio de sesión OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).

@@ -27,7 +27,7 @@ from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _NON_ASCII = "café-éé"
 # Survives json.loads as a lone surrogate; a bare UTF-8 encode raises on it.

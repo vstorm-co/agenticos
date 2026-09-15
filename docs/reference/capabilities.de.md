@@ -1,5 +1,5 @@
 ---
-source_sha: "82fcf03671a3"
+source_sha: "9871a922f9f3"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -645,7 +645,7 @@ Dateien, die jemand an eine Nachricht anhängt, landen in `/uploads` — siehe
 [Dateiverarbeitung](../file-processing.md).
 
 **Auch Skills werden zu Dateien.** Ein Agent, der sowohl einen Workspace als auch
-Skills hat, bekommt jeden Skill als `/skills/<name>/SKILL.md` mit seinen Ressourcen
+Skills hat, bekommt jeden Skill als `/workspace/skills/<name>/SKILL.md` mit seinen Ressourcen
 daneben, und genau das macht das Skript eines Skills überhaupt ausführbar: Es liegt
 auf der Platte, neben der Shell, die es ausführen kann. Es gibt bewusst kein
 `run_skill_script` — `execute` hat bereits das Genehmigungs-Gate und die

@@ -1,5 +1,5 @@
 ---
-source_sha: "82fcf03671a3"
+source_sha: "9871a922f9f3"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -612,7 +612,7 @@ Pliki, które ktoś dołącza do wiadomości, lądują w `/uploads` — zobacz
 [Przetwarzanie plików](../file-processing.md).
 
 **Skille też stają się plikami.** Agent mający i workspace, i skille dostaje każdy
-skill jako `/skills/<name>/SKILL.md` z jego zasobami obok, i to właśnie czyni
+skill jako `/workspace/skills/<name>/SKILL.md` z jego zasobami obok, i to właśnie czyni
 skrypt skilla w ogóle uruchamialnym: leży na dysku obok powłoki, która potrafi go
 uruchomić. Celowo nie ma `run_skill_script` — `execute` ma już za sobą bramkę
 zatwierdzeń i górne limity operatora, a druga ścieżka wykonywania byłaby drugim

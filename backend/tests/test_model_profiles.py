@@ -219,6 +219,7 @@ class TestProviderCatalog:
         assert exc.value.details is not None
         assert "supported" in exc.value.details
 
+    @pytest.mark.security
     def test_a_secret_that_is_not_a_provider_credential_is_refused(self):
         """A GitHub OAuth App credential cannot authenticate a model provider.
 

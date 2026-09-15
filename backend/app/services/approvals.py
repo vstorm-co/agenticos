@@ -229,9 +229,6 @@ class ApprovalService:
                 decided_by_user_id=None,
                 decided_at=now,
             )
-            await self._record_decision(
-                approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=None
-            )
 
         settled = 0
         for run_id, organization_id in {
@@ -239,6 +236,17 @@ class ApprovalService:
         }:
             settled += await self._settle_expired_run(
                 run_id, organization_id=organization_id, at=now
+            )
+
+        # Audited last, after every row this sweep touches is already locked. The
+        # per-organization chain lock `record_audit` takes must be the last lock
+        # the transaction acquires: were it held while the sweep went on to lock
+        # another approval or run row, a concurrent decision holding that row and
+        # reaching for the same chain lock would close an ABBA cycle Postgres has
+        # to abort. A single request audits at its end for the same reason (#1622).
+        for approval in stale:
+            await self._record_decision(
+                approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=None
             )
 
         logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)

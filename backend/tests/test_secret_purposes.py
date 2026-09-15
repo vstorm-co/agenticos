@@ -25,6 +25,8 @@ from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret, SecretKind
 from app.db.models.resource_grant import Visibility
 from app.services.organization_secret import OrganizationSecretService
 
+pytestmark = pytest.mark.security
+
 MODULE = "app.services.organization_secret"
 
 

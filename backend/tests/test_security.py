@@ -3,6 +3,8 @@
 from datetime import timedelta
 from uuid import uuid4
 
+import pytest
+
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -11,6 +13,8 @@ from app.core.security import (
     verify_password,
     verify_token,
 )
+
+pytestmark = pytest.mark.security
 
 
 class TestPasswordHashing:

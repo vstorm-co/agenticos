@@ -1,5 +1,5 @@
 ---
-source_sha: "e2011b4848b5"
+source_sha: "c4345a034178"
 ---
 
 # La puesta en marcha { #rolling-it-out }
@@ -102,6 +102,11 @@ que se eligió esta arquitectura.
 | ¿Cumple el RGPD? | Lo cumple un despliegue, o no lo cumple; el código se puede desplegar dentro de uno que sí. [Protección de datos](data-protection.md) asigna cada almacén, cada destino y cada control a un mecanismo, una prueba o una incidencia abierta, y enumera lo que el propio despliegue tiene que decidir |
 | ¿Podemos leer el código? | Sí. Ahí suele terminar la conversación |
 | ¿De qué está hecho, y bajo qué licencias? | Apache-2.0, encima de unos quinientos paquetes que son casi todos MIT, Apache-2.0 o BSD. [Cada uno está listado con su evidencia](licenses.md), y los hallazgos todavía abiertos aparecen primero en lugar de diluirse en la media. Un componente, el parser de PDF, es AGPL-3.0: un despliegue que modifique la plataforma y la sirva por red les debe a sus usuarios el código fuente modificado, y [esa decisión tiene su propia sección](licenses.md#the-agpl-component) |
+
+Las respuestas largas que se entregan a una revisión con forma de HIPAA o SOC 2
+— el modelo de amenazas, qué datos salen del deployment, qué se cifra y dónde, y
+una matriz de controles que mapea cada control a su mecanismo y a su test — están
+en [Seguridad](security.md).
 
 ## Tres formas en que esto sale mal { #three-ways-this-goes-wrong }
 

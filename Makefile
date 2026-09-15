@@ -317,11 +317,16 @@ lint-backend:
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
-	python3 scripts/check_backticks.py
-	python3 scripts/check_routes.py
-	python3 scripts/check_comments.py
-	python3 scripts/check_docs_paragraphs.py
-	python3 scripts/check_docs_i18n.py
+	# Through the pinned interpreter for all five, not whatever `python3`
+	# resolves to on the host: `check_routes.py`'s isinstance union check
+	# needs 3.10+, and a system Python older than the backend's own pin
+	# crashed it with a bare TypeError while the others happened to
+	# still work - until the next one written this way needs 3.10+ too.
+	uv run --directory backend python3 ../scripts/check_backticks.py
+	uv run --directory backend python3 ../scripts/check_routes.py
+	uv run --directory backend python3 ../scripts/check_comments.py
+	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
+	uv run --directory backend python3 ../scripts/check_docs_i18n.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -432,6 +437,31 @@ test-cov:
 	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
 	@echo "Open backend/htmlcov/index.html"
 
+# Just the refusal tests, by the `security` marker. This is a report, not a gate:
+# `make check` still runs everything. `--no-cov` because a subset never meets the
+# 100% bar, and `-p no:randomly` so the printed list is stable to read and diff.
+# The CI security-report step runs this same selection with `--collect-only`.
+test-security:
+	uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
+
+# The list of refusal tests written to backend/security-tests.txt, and appended to
+# the CI job summary when one is present. Collection only - no database, no run -
+# so it is the cheap step CI calls with `if: always()`. Informational: it lists,
+# it does not gate, which is why `check` never reaches it and test_ci_parity.py
+# names it in CI_ONLY_TARGETS.
+security-report:
+	cd backend && uv run pytest tests/ -m security -p no:randomly -p no:cacheprovider --no-cov --collect-only -q > $${TMPDIR:-/tmp}/security-collect.txt 2>&1 || { echo "security-marker collection failed:"; cat $${TMPDIR:-/tmp}/security-collect.txt; exit 1; }
+	grep '::' $${TMPDIR:-/tmp}/security-collect.txt | sort > backend/security-tests.txt || true
+	@count=$$(wc -l < backend/security-tests.txt | tr -d ' '); \
+	echo "$$count tests carry the security marker -> backend/security-tests.txt"; \
+	if [ -n "$$GITHUB_STEP_SUMMARY" ]; then \
+	  { echo "## Security refusal tests"; echo; \
+	    echo "$$count tests carry the security marker. Run them with: make test-security"; echo; \
+	    echo '<details><summary>The list</summary>'; echo; echo '```'; \
+	    cat backend/security-tests.txt; echo '```'; echo; echo '</details>'; \
+	  } >> "$$GITHUB_STEP_SUMMARY"; \
+	fi
+
 # Everything, including template-inherited subsystems. Informational: those are
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
@@ -494,7 +524,7 @@ AUDIT_TIMEOUT ?= 30
 
 audit:
 	cd backend && uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
-	python3 scripts/audit_dependencies.py backend/requirements-audit.txt \
+	uv run --directory backend python3 ../scripts/audit_dependencies.py requirements-audit.txt \
 		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
 # The other half of the `security` job: what the two images ship and under which

@@ -32,6 +32,8 @@ from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret, SecretKind
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.agent_registry import AgentRegistryService
 
+pytestmark = pytest.mark.security
+
 CAPABILITY_ID = "test_needs_a_key"
 
 

@@ -786,6 +786,7 @@ class TestKBAccessControl:
             with pytest.raises(AuthorizationError):
                 await svc.get_for_write(kb.id, ctx=ctx)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_write_from_another_tenant_is_reported_as_missing(self, mock_db):
         """The write path answers exactly as the read path: 404, never an oracle."""
@@ -888,6 +889,7 @@ class TestBindingAnEmbeddingSecret:
         secret.purpose = purpose
         return secret
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_private_secret_the_caller_cannot_view_is_refused(
         self, mock_db, unclaimed_collection_name
@@ -926,6 +928,7 @@ class TestBindingAnEmbeddingSecret:
         assert "not in this organization's vault" in exc.value.message
         created.assert_not_called()
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_secret_the_caller_can_view_is_bound(self, mock_db, unclaimed_collection_name):
         secret = self._secret()

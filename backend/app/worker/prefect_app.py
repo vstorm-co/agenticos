@@ -68,7 +68,7 @@ async def main() -> None:
     deployments.append(
         await check_scheduled_syncs_flow.ato_deployment(
             name="rag-sync-check",
-            schedules=[IntervalSchedule(interval=60)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
         )
     )
     # On-demand: one fired run per due trigger, submitted by the heartbeat below.
@@ -85,7 +85,7 @@ async def main() -> None:
     deployments.append(
         await check_agent_triggers_flow.ato_deployment(
             name="agent-triggers-check",
-            schedules=[IntervalSchedule(interval=60)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
         )
     )
     # Daily: drop sandbox operations past the retention window. The window is
@@ -94,7 +94,7 @@ async def main() -> None:
     deployments.append(
         await sweep_sandbox_operations_flow.ato_deployment(
             name="sandbox-log-sweep",
-            schedules=[IntervalSchedule(interval=86400)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=86400))],
         )
     )
     # Every minute: read the connected accounts nobody pushes to. A separate
@@ -104,7 +104,7 @@ async def main() -> None:
     deployments.append(
         await poll_portal_grants_flow.ato_deployment(
             name="portal-poll",
-            schedules=[IntervalSchedule(interval=60)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=60))],
         )
     )
     # Every 15 minutes: often enough that a dead grant is noticed within one
@@ -114,7 +114,7 @@ async def main() -> None:
     deployments.append(
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
-            schedules=[IntervalSchedule(interval=900)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=900))],
         )
     )
     # Hourly, against a threshold measured in days: precision here buys nothing,
@@ -123,7 +123,7 @@ async def main() -> None:
     deployments.append(
         await approval_expiry_sweep_flow.ato_deployment(
             name="approval-expiry-sweep",
-            schedules=[IntervalSchedule(interval=3600)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
         )
     )
     # Hourly for the same reason as the approval sweep: the invitation TTL is
@@ -131,7 +131,7 @@ async def main() -> None:
     deployments.append(
         await invitation_expiry_sweep_flow.ato_deployment(
             name="invitation-expiry-sweep",
-            schedules=[IntervalSchedule(interval=3600)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
         )
     )
     # Hourly like the sweeps above, and for the same arithmetic: the ceiling is
@@ -140,7 +140,7 @@ async def main() -> None:
     deployments.append(
         await stale_run_sweep_flow.ato_deployment(
             name="stale-run-sweep",
-            schedules=[IntervalSchedule(interval=3600)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
         )
     )
     # Hourly, against a threshold measured in hours: a teardown reservation whose
@@ -150,7 +150,7 @@ async def main() -> None:
     deployments.append(
         await teardown_reservation_sweep_flow.ato_deployment(
             name="teardown-reservation-sweep",
-            schedules=[IntervalSchedule(interval=3600)],
+            schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
         )
     )
     # Usage reports. An interval rather than a cron because the schedule only

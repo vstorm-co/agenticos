@@ -26,7 +26,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.services import rate_limit
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _CALLER = uuid4()
 _ORGANIZATION = uuid4()

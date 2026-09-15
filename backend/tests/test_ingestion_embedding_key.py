@@ -310,6 +310,7 @@ class TestWhenTheChosenKeyCannotBeUsed:
     thing that can carry the failure to an operator is the message.
     """
 
+    @pytest.mark.security
     async def test_a_secret_from_another_organization_is_not_readable(self):
         """The repository scopes every read by `organization_id`, so a secret
         id belonging to another tenant simply is not found - the same answer as

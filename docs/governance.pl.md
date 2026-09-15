@@ -1,5 +1,5 @@
 ---
-source_sha: "5740161792de"
+source_sha: "9985ef28fbd1"
 ---
 
 # Governance { #governance }
@@ -814,6 +814,16 @@ nim, odsyła ludzi do bazy danych.
 | `GET /runs/export` | Historia runów, te same filtry co `GET /runs` i to samo domyślne ograniczenie do najwyższego poziomu. `runs:view` |
 | `GET /approvals/export` | Zapis zatwierdzeń, te same filtry co `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | Rozbicie wydatków per agent, to samo okno co `GET /spend`. `runs:view` |
+| `GET /audit/export` | Ślad audytowy w oknie czasu, CSV albo JSONL (`?fmt=`). `audit:read` |
+
+Eksport audytu jako jedyny oferuje też **JSONL** (`?fmt=jsonl`), po jednym
+obiekcie JSON na linię, bo ślad audytowy równie często trafia do potoku logów, co
+otwiera się w arkuszu; oba opisują te same wpisy, z `details` spłaszczonym do
+łańcucha JSON w komórce CSV i zachowanym jako zagnieżdżony obiekt w liniach.
+Wiezie dokładnie te pola, które wystawia model odczytu `GET /audit` — zapisane
+`ip_address` nie jest na tej zakładce, więc nie ma go i w eksporcie — i jak każdy
+eksport tutaj zapisuje własny odczyt w śladzie (`audit.export`, z nazwanym oknem,
+formatem i liczbą wierszy).
 
 Eksport wydatków niesie tylko liczby z okna — `cost_usd`, `run_count` i
 `partial_run_count`. `month_to_date_usd` i `monthly_cap_usd` z zakładki Spend są
@@ -1382,6 +1392,33 @@ pozwolić uprzywilejowanej mutacji wylądować bez audytu.
 
 Czytanie go bramkuje `audit:read`. Obejście przez administratora aplikacji jest
 dokładnie tym, co ten ślad ma rozliczać.
+
+Ślad pilnuje też własnej spójności. Każdy wpis dołącza do łańcucha skrótów
+prowadzonego per organizacja — niesie skrót swojej własnej treści z wplecionym
+skrótem poprzedniego wpisu — więc edycja, zmiana kolejności lub wstawienie wpisu,
+albo usunięcie jednego ze środka, rozjeżdża każdy skrót po nim.
+
+`agenticos cmd audit-verify` przechodzi każdy łańcuch, przelicza skróty i wskazuje
+pierwszy wpis, który już się nie zgadza; bez argumentu sprawdza każdy łańcuch, w
+tym ten obejmujący całe wdrożenie, który trzyma działania bez organizacji — zmianę
+ustawień wdrożenia, impersonację, zarządzanie użytkownikami przez administratora
+aplikacji — i kończy się kodem niezerowym, jeśli którykolwiek łańcuch zawiedzie. To
+**wykrywanie, nie zapobieganie** — operator z dostępem do bazy wciąż może przepisać
+wiersz i przeliczyć każdy skrót po nim — więc czysty przebieg jest dowodem braku
+manipulacji przez kogoś, kto nie przekuł łańcucha na nowo, a nie dowodem, że
+wiersze są niezmienne.
+
+Dwóch usunięć łańcuch nie wychwyci sam z siebie, bo pozostałe wiersze zostają
+wewnętrznie spójne: odcięcia najnowszych wpisów z łańcucha oraz usunięcia całego
+łańcucha organizacji — to drugie po prostu usuwa go ze zbioru, który `audit-verify`
+przechodzi. Wychwycenie któregokolwiek wymaga końcowego punktu kontrolnego per
+organizacja, trzymanego tam, gdzie operator bazy nie sięga; ta kotwica to
+planowane działanie następcze, a dopóki nie powstanie, czysty przebieg nie
+poświadcza, że nic nie zostało obcięte.
+
+Dwa audytowane zapisy dla jednej organizacji nie mogą rozwidlić łańcucha: każdy
+dopisuje pod blokadą per organizacja, więc szeregują się w jedną linię, zamiast
+oba przedłużać tę samą głowę.
 
 Działanie wykonane w ramach **impersonacji** nazywa obu. Gdy administrator
 aplikacji działa jako inne konto, token dostępu niesie administratora w

@@ -65,6 +65,10 @@ def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> Magic
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service = AgentTriggerService(MagicMock())
     service.db.flush = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mock must await and answer the head read with an empty chain.
+    service.db.execute = AsyncMock()
+    service.db.execute.return_value.scalar_one_or_none.return_value = None
     # `create` refreshes the row before returning it, so it serializes without a
     # MissingGreenlet on a live session; the mock must await.
     service.db.refresh = AsyncMock()
@@ -193,6 +197,7 @@ class TestScheduleMath:
 
 
 class TestCreate:
+    @pytest.mark.security
     async def test_scheduling_demands_permission_to_run_the_agent(self):
         """Creating a schedule is asserting 'run this agent, repeatedly, as me'."""
         service = _service()
@@ -400,6 +405,7 @@ class TestReading:
             await service.list_for_agent(_ctx(), agent.id)
         assert repo.list_for_agent.call_args.kwargs["organization_id"] == _ORG
 
+    @pytest.mark.security
     async def test_seeing_the_schedules_needs_only_permission_to_see_the_agent(self):
         service = _service()
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
@@ -555,6 +561,7 @@ class TestChangingASchedule:
                 await service.delete(_ctx(), agent.id, uuid.uuid4())
         assert repo.get.call_args.kwargs["organization_id"] == _ORG
 
+    @pytest.mark.security
     async def test_changing_a_schedule_demands_permission_to_run_the_agent(self):
         agent = _agent()
         service = _service(agent)
@@ -773,6 +780,7 @@ def fired(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 
 class TestRunningNow:
+    @pytest.mark.security
     async def test_running_now_demands_permission_to_run_the_agent(self, fired):
         """The same floor as scheduling it - `agents:run` on the agent, per row."""
         agent = _agent()
@@ -1081,6 +1089,7 @@ class TestFiring:
         conversations.create_conversation.assert_not_called()
         assert runner.execute.call_args.kwargs["conversation_id"] == existing
 
+    @pytest.mark.security
     async def test_a_fired_run_over_budget_is_recorded_and_not_retried(self):
         """The issue's own line: the run ends BUDGET_EXCEEDED and fire returns
         normally, so Prefect does not retry it into spending more."""
@@ -1434,6 +1443,7 @@ class TestFiring:
 
 
 class TestCreatingAnEventTrigger:
+    @pytest.mark.security
     async def test_an_event_trigger_seals_its_secret_and_has_no_next_fire(self):
         agent = _agent()
         service = _service(agent)
@@ -1456,6 +1466,7 @@ class TestCreatingAnEventTrigger:
         # An event trigger is never due on the clock.
         assert repo.create.call_args.kwargs["next_fire_at"] is None
 
+    @pytest.mark.security
     async def test_creating_an_event_trigger_never_audits_its_secret(self):
         agent = _agent()
         service = _service(agent)
@@ -1504,6 +1515,7 @@ class TestEventTriggerSchema:
         with pytest.raises(PydanticValidationError, match="event_source is required"):
             TriggerCreate(prompt="x", trigger_type="event", event_secret=_SIGNING_SECRET)
 
+    @pytest.mark.security
     def test_an_event_trigger_requires_a_secret(self):
         with pytest.raises(PydanticValidationError, match="event_secret is required"):
             TriggerCreate(prompt="x", trigger_type="event", event_source="github")
@@ -1534,6 +1546,7 @@ class TestEventTriggerSchema:
         with pytest.raises(PydanticValidationError, match="event_source is not valid"):
             TriggerCreate(prompt="x", interval_seconds=300, event_source="github")
 
+    @pytest.mark.security
     def test_a_schedule_rejects_a_secret(self):
         with pytest.raises(PydanticValidationError, match="event_secret is not valid"):
             TriggerCreate(prompt="x", interval_seconds=300, event_secret=_SIGNING_SECRET)
@@ -1556,6 +1569,7 @@ class TestEventTriggerSchema:
                 event_config={"unknown_filter": 1},
             )
 
+    @pytest.mark.security
     def test_a_secret_below_the_floor_is_refused(self):
         with pytest.raises(PydanticValidationError):
             TriggerCreate(
@@ -2004,6 +2018,7 @@ class TestRotatingTheSecret:
     and replaceable - a re-seal and a new plaintext shown once. An auto-registered
     hook is re-registered so its deliveries keep verifying (DEENUU #537)."""
 
+    @pytest.mark.security
     async def test_rotation_reseals_and_reveals_the_new_plaintext_for_a_manual_trigger(self):
         agent = _agent()
         service = _service(agent)
@@ -2891,6 +2906,7 @@ class TestAPolledPresetMintsNothing:
                 ),
             )
 
+    @pytest.mark.security
     async def test_no_secret_is_sealed_for_it(self):
         repo, _ = await self._create()
         assert repo.create.await_args.kwargs["event_secret_encrypted"] is None
@@ -2900,6 +2916,7 @@ class TestAPolledPresetMintsNothing:
         repo, _ = await self._create()
         assert repo.create.await_args.kwargs["delivery_mode"] == "polling"
 
+    @pytest.mark.security
     async def test_the_response_reveals_no_secret(self):
         _, created = await self._create()
         assert created.reveal_secret is None

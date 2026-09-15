@@ -150,8 +150,9 @@ one.
 | Personal data reaching the model | The `guardrails` capability redacts IBANs, card numbers, US social security numbers and email addresses from prompts, answers and tool results when configured | [Capabilities](reference/capabilities.md); its tests under `tests/` |
 | Personal data in a failure column | `rag_documents.error_message` and friends record the stage and class, never the client's text | `app/services/rag/failures.py` (#423) |
 | Accountability | Audit entries share the acting transaction and fail closed; impersonation names both people; bulk exports are recorded | [Governance](governance.md#audit) |
-| Audit export and tamper evidence | None yet | [#1422](https://github.com/vstorm-co/agenticos/issues/1422) |
-| Traces | Full content today, and no switch | [#1413](https://github.com/vstorm-co/agenticos/issues/1413) adds `full`, `redacted`, `none` per agent |
+| Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
+| Tamper evidence on the trail | None yet | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
+| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only | [Environments](environments.md) (#1413); `redacted` is [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retention on a schedule | Only `sandbox_operations` rows are swept, after 30 days. The stale-run sweep finalizes abandoned runs; it deletes nothing | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
 | Access to one's own data | No export endpoint; no view of one's own memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -166,10 +167,10 @@ one.
 user's message, the model's answer and every tool argument and result. With
 `LOGFIRE_TOKEN` unset, no `observability` token on any spec and no
 `logfire_token_secret_id` on any environment, nothing is sent and the trace id
-is still recorded locally. A deployment that needs traces before
-[#1413](https://github.com/vstorm-co/agenticos/issues/1413) lands has one
-choice: a Logfire project whose terms and region it has accepted, knowing the
-content goes with the timing.
+is still recorded locally. A deployment that needs traces without the content sets the agent's
+`observability.content` to `none`, which records timing, tokens, cost and tool
+names and no message text. Anything between the two - the content exported with
+a PII filter over it - is [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 
 ### What deletion reaches
 
@@ -317,12 +318,12 @@ deployment until each closes.
 
 **In the code, tracked:**
 
-- Traces carry full content - [#1413](https://github.com/vstorm-co/agenticos/issues/1413).
+- Traces carry full content unless an agent sets `observability.content` to `none`; no filtered middle ground - [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 - No scheduled retention - [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Attachment bytes and a person's memory survive their owner's deletion; no
   personal data export; the erasure inventory -
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- No audit export or tamper evidence - [#1422](https://github.com/vstorm-co/agenticos/issues/1422).
+- No tamper evidence on the audit trail - [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Files on local disk only, encrypted by the volume or not at all - [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - No self-service view of one's own memory - [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).

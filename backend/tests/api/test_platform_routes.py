@@ -332,6 +332,12 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("DELETE", "/providers/model-profiles/{profile_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/audit", Perm.AUDIT_READ),
+    Call(
+        "GET",
+        "/audit/export",
+        Perm.AUDIT_READ,
+        query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
+    ),
     # The organization's MCP servers, per-resource routes included. That is the
     # same rule the agent routes follow, not an exception to it: a role gate is
     # wrong where a resource grant could widen the answer, and a connection has
@@ -501,6 +507,7 @@ class TestEachRouteDemandsItsOwnPermission:
     more permissions than the route needs.
     """
 
+    @pytest.mark.security
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_missing_only_that_permission_is_refused(
@@ -515,6 +522,7 @@ class TestEachRouteDemandsItsOwnPermission:
             f"{call} admitted a caller holding every permission except {call.permission.value}"
         )
 
+    @pytest.mark.security
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_holding_only_that_permission_gets_through(
@@ -876,6 +884,7 @@ class TestEveryPlatformRouteIsGuarded:
     can notice a route that nobody remembered to name.
     """
 
+    @pytest.mark.security
     def test_no_platform_route_decides_nothing(self) -> None:
         """Authorization happens at the gate, or inside the sharing service.
 

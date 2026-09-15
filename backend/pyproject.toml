@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.416"
+version = "0.0.437"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -25,7 +25,7 @@ dependencies = [
     "pydantic[email]>=2.13.5",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
-    "logfire[fastapi,asyncpg,redis,httpx]>=4.41.0",
+    "logfire[fastapi,asyncpg,redis,httpx]>=5.0.0",
     "sqlalchemy[asyncio]>=2.0.52",
     "asyncpg>=0.31.0",
     # Alembic's, not the application's. Every application URL is
@@ -33,18 +33,18 @@ dependencies = [
     # builds a *sync* engine from `DATABASE_URL_SYNC`, which is bare
     # `postgresql://`, and SQLAlchemy resolves that to psycopg2. Removing it
     # breaks every migration (#155).
-    "psycopg2-binary>=2.9.0",
-    "alembic>=1.19.1",
+    "psycopg2-binary>=2.9.13",
+    "alembic>=1.19.2",
     "greenlet>=3.5.5",
-    "pyjwt>=2.9.0",
+    "pyjwt>=2.14.0",
     "bcrypt>=4.0.0",
     "authlib>=1.8.0",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
-    "anyio>=4.15.0",
+    "anyio>=4.15.1",
     "redis>=8.1.0",
-    "aiosmtplib>=3.0.0",
+    "aiosmtplib>=5.1.3",
     # Starlette's requirement for `SessionMiddleware`, which `main.py` adds for
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
@@ -56,9 +56,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.35.3",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.42.0",
     "genai-prices>=0.1.4",
-    "pydantic-ai-slim[mcp]>=2.35.3",
+    "pydantic-ai-slim[mcp]>=2.42.0",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -66,7 +66,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.29.0",
+    "pydantic-ai-harness>=0.30.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -79,21 +79,27 @@ dependencies = [
     "pillow>=10.0.0",
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
-    "llama-cloud>=2.15.0",
-    "liteparse>=2.14.3",
+    "llama-cloud>=2.16.0",
+    "liteparse>=2.14.4",
     "google-api-python-client>=2.200.0",
-    "google-auth>=2.57.1",
-    "boto3>=1.43.88",
+    "google-auth>=2.58.0",
+    "boto3>=1.43.92",
     "httpx>=0.28.0",
     "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
     # `deptry` step reads `cli/` as well for exactly that reason.
     "tabulate>=0.9.0",
-    "tqdm>=4.70.0",
+    "tqdm>=4.70.1",
     "tavily-python>=0.8.1",
-    "pydantic-monty>=0.0.21",
-    "pydantic-ai-skills>=1.4.0",
+    "pydantic-monty>=0.0.23",
+    # Held below 2.0 until #1658. That release makes a clean break: `SkillsToolset`
+    # is replaced by `SkillsCapability`, `parse_skill_md` moves out of the package
+    # root, and each skill becomes a deferred capability reached through
+    # `load_capability` instead of the three tools this platform publishes,
+    # documents and lets a spec grant. The backend does not import against it, so
+    # a bump alone is a deployment that will not start.
+    "pydantic-ai-skills>=1.4.0,<2",
     # `console` for the toolset, `remote` for the sandboxd client. Deliberately
     # not `docker`: this container never touches the socket, so the Docker SDK
     # has no business in the image. The service runs beside us as `sandboxd`.
@@ -156,11 +162,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
-    "anyio[trio]>=4.15.0",
+    "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.6",
-    "ty>=0.0.78",
+    "ruff>=0.16.7",
+    "ty>=0.0.80",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -425,10 +431,16 @@ ignore = [
 known-first-party = ["app", "cli"]
 
 [tool.ty.terminal]
-# The "warn" rules below are informational — don't let them fail `ty check`.
-# The platform-layer override further down promotes them back to errors for our
-# own code, and those do fail the run.
-error-on-warning = false
+# The "warn" rules below are downgraded because the template's own, untyped-by-
+# design dependencies trip them - not because a finding there is safe to ignore.
+# `error-on-warning = true` means a warning gates the run exactly like an error
+# does; the platform-layer override further down still promotes the same rules
+# to `error` for our own code, so a violation there is the more severe
+# annotation (red, not yellow) even though both now fail the run the same way.
+# `false` here is what let 61 warning-level diagnostics exit 0 and look
+# identical to a clean run - green check, no annotation, nothing distinguishing
+# the two.
+error-on-warning = true
 
 [tool.ty.environment]
 python-version = "3.12"
@@ -491,6 +503,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
     "app/commands/invite_members.py",
@@ -546,6 +559,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
@@ -630,6 +647,7 @@ include = [
     "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",
@@ -731,6 +749,13 @@ unresolved-import = "error"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `--strict-markers` turns a marker that is not registered below into an error
+# rather than a warning, so a misspelled marker name fails the run instead of
+# silently dropping the test from `-m security`.
+addopts = "--strict-markers"
+markers = [
+    "security: a refusal or security-boundary test. Collected as a set so the security report can show the refusals rather than assert them (#1417) — tenant isolation, permission and grant refusals, a budget checked before the model call, an approval decided once, secret confidentiality, spec publish validation, channel sender identity, constant-time credential compare, webhook HMAC and rate limits. It is a label for the report, not a second gate: `make check` still runs everything.",
+]
 
 
 
@@ -754,6 +779,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
     "app/commands/invite_members.py",
@@ -809,6 +835,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
@@ -926,6 +956,7 @@ include = [
     "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",

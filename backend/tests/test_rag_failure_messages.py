@@ -103,6 +103,7 @@ class TestWhatMayBeStored:
             "No embedding credential is configured for the collection's key"
         )
 
+    @pytest.mark.security
     def test_a_budget_refusal_keeps_its_numbers(self):
         """`BudgetExceeded` is ours too, and the numbers are the organization's.
 

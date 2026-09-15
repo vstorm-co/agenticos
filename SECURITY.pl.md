@@ -1,8 +1,4 @@
----
-source_sha: "5bb89334b619"
----
-
-<!-- source_sha: b2884fdda9fb -->
+<!-- source_sha: c911383112ac -->
 
 # Bezpieczeństwo
 
@@ -26,34 +22,17 @@ Celujemy w potwierdzenie w ciągu 48h i wypuszczenie poprawki w ciągu 7 dni dla
 
 ## Model bezpieczeństwa
 
-### Uwierzytelnianie
-- **JWT (`HS256`)** podpisywany `SECRET_KEY`. TTL access tokena = `ACCESS_TOKEN_EXPIRE_MINUTES` (domyślnie 30 min). TTL refresh tokena = `REFRESH_TOKEN_EXPIRE_MINUTES` (domyślnie 7 dni).
-- **Haszowanie haseł:** bcrypt przez `passlib`. Hasła w postaci jawnej nigdy nie są zapisywane.
-- **OAuth 2.0 (Google)** — flow z kodem autoryzacyjnym. Token walidowany po stronie serwera, wewnętrzny rekord użytkownika wyszukiwany/tworzony po adresie e-mail.
-- **Zarządzanie sesjami** — sesje oparte o bazę danych, z unieważnianiem. Każde wydanie refresh tokena tworzy wiersz sesji; endpoint `/sessions` pozwala użytkownikom zobaczyć i unieważnić urządzenia.
-- **Administracyjny klucz API** — statyczne `settings.API_KEY` dopasowywane nagłówkiem `X-API-Key` przy wywołaniach między usługami. Porównywane w stałym czasie przez `secrets.compare_digest()`.
+Model zagrożeń, opis przepływu danych (co opuszcza wdrożenie i do kogo), co jest
+gdzie szyfrowane oraz macierz kontroli — każda kontrola zmapowana na mechanizm,
+który ją realizuje, i na test, który trzyma ją w mocy — żyją w jednej kopii na
+stronie [Bezpieczeństwo](https://vstorm-co.github.io/agenticos/security/)
+(`docs/security.md`). Ten plik zostawia tylko dwie rzeczy, po które sięga się do
+`SECURITY.md` w repozytorium: jak zgłosić podatność, powyżej, i produkcyjną listę
+kontrolną hardeningu, poniżej. Gdzie leżą dane osobowe i co obejmuje usunięcie,
+opisuje [Ochrona danych](docs/data-protection.pl.md); komponenty, które wiozą
+obrazy, i ich licencje — [Licencje](docs/licenses.pl.md).
 
-### Autoryzacja
-
-- **Oparta o uprawnienia** — władza wewnątrz organizacji to wiersz członkostwa plus katalog uprawnień (`app/core/permissions.py`). Nie ma kolumny z rolą na użytkowniku ani zależności route'u opartej o rolę.
-- **Role w organizacji** — rola to nazwa na członkostwie (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`), która mapuje się na zestaw uprawnień. Route'y kolekcji bramkują na uprawnieniu; dostęp do pojedynczego zasobu rozstrzyga rolę razem z jawnymi grantami, a grant poszerza to, na co rola pozwala — nigdy tego nie zawęża. Zobacz [Uprawnienia](docs/permissions.pl.md).
-- **Zakres workspace'u** — każde uwierzytelnione żądanie rozstrzyga `ActiveOrg` (domyślnie = organizacja osobista). Zasoby są ograniczone kluczem obcym `organization_id`.
-- **Administracja wdrożeniem** — flaga `is_app_admin` na użytkowniku, sprawdzana własną zależnością; nie rola.
-
-### Transport / sieć
-
-- **CORS** — lista originów z `settings.CORS_ORIGINS`. Na produkcji ogranicz ją do swoich domen.
-- **HTTPS** — wymuszaj przez reverse proxy (Nginx / Traefik / ALB). Nagłówek Strict-Transport-Security ustawiany w middleware, gdy `ENVIRONMENT=production`.
-- **Nagłówki bezpieczeństwa** — frontend serwuje pełne Content-Security-Policy (`default-src 'self'`, `connect-src` wymieniające wyłącznie ten origin oraz skonfigurowane `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `script-src` bez `'unsafe-inline'` — zamiast tego nonce dla każdego żądania i `'strict-dynamic'` — `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`) plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` i `Permissions-Policy`, które odmawia kamery i geolokalizacji, a mikrofon dopuszcza wyłącznie do speech-to-text. Polityka mieszka w `frontend/src/lib/csp.ts`, a nagłówki w `frontend/src/lib/security-headers.ts`; jedne i drugie są potwierdzone testami — zobacz [Wdrożenie](docs/deployment.pl.md#security-headers).
-
-### Dane
-
-- **Sekrety** — czytane ze środowiska przez `pydantic-settings`. Nigdy nie commitowane. Zobacz `backend/.env.example` oraz [Konfigurację](docs/configuration.pl.md).
-- **Log audytu** — działania administratora aplikacji (aktualizacje użytkowników, usunięcia, impersonacje) zapisywane w tabeli `app_admin_audit_logs` wraz z aktorem, IP i migawką ładunku. Działania na poziomie organizacji, które zmieniają dostęp albo wydają pieniądze, mają własny ślad, bramkowany uprawnieniem `audit:read` — zobacz [Governance](docs/governance.pl.md).
-- **Dokumenty RAG** — wgrane pliki są ograniczone do organizacji. Nie ma publicznego endpointu do odczytu; całe wyszukiwanie odbywa się po stronie serwera w trakcie czatu.
-- **Dane osobowe** — gdzie leżą, co opuszcza wdrożenie i przy jakim ustawieniu, co obejmuje usunięcie, a czego nie obejmuje, z nazwanymi otwartymi lukami: [Ochrona danych](docs/data-protection.pl.md).
-
-### Lista kontrolna hardeningu na produkcję
+## Lista kontrolna hardeningu na produkcję
 
 - [ ] Zrotuj `SECRET_KEY` i `API_KEY` z wygenerowanych wartości domyślnych.
 - [ ] Ustaw `DEBUG=false` i `ENVIRONMENT=production`.

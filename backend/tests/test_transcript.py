@@ -452,6 +452,7 @@ class TestWritingTheTranscript:
         conversations.create_tool_call.assert_awaited_once()
         conversations.complete_tool_call.assert_not_awaited()
 
+    @pytest.mark.security
     async def test_a_parked_call_is_written_awaiting_approval_not_running(self, conversations):
         """The parked state lives on `agent_runs` and the `approvals` rows, so the
         transcript row was the one place a reloaded conversation could not see it:
