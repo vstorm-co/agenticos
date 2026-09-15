@@ -129,7 +129,7 @@ async def list_visible(
         visible = or_(
             Agent.owner_user_id == user_id,
             Agent.visibility == Visibility.ORG.value,
-            Agent.id.in_(shared_ids) if shared_ids else False,
+            Agent.id.in_(shared_ids) if shared_ids else false(),
         )
         query = query.where(visible)
         count_query = count_query.where(visible)

@@ -369,6 +369,7 @@ class TestOrganizationService:
                 uuid.uuid4(), OrganizationUpdate(name="New"), requester_id=uuid.uuid4()
             )
 
+    @pytest.mark.security
     @pytest.mark.anyio
     @pytest.mark.parametrize("role", ["member", "builder", "operator", "viewer"])
     async def test_setting_the_monthly_cap_needs_the_budgets_manage_permission(

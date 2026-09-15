@@ -1079,6 +1079,7 @@ class TestRecording:
         # the part present either way rather than the filter's own behaviour.
         assert "connect to https://llm.acme.internal/v1" in caplog.text
 
+    @pytest.mark.security
     async def test_a_delegate_stopped_by_the_budget_keeps_the_ceiling_sentence(self):
         """A budget breach is the second ceiling, and its numbers are the point.
 
@@ -1953,6 +1954,7 @@ class TestApprovalInsideADelegation:
     is a database write on a session the parent is still using.
     """
 
+    @pytest.mark.security
     async def test_a_sync_delegation_can_park_the_run_on_its_delegate_s_approval(self):
         approvals = Approvals()
         capability = a_capability(a_runtime(a_delegate(model=one_tool_call(), gated=True)))
@@ -1963,6 +1965,7 @@ class TestApprovalInsideADelegation:
 
         assert [request.tool_name for request in approvals.asked] == ["ping"]
 
+    @pytest.mark.security
     async def test_a_background_delegation_never_reaches_the_approval_queue(self):
         """The refusal that keeps a background delegate off the request's session.
 
@@ -1995,6 +1998,7 @@ class TestApprovalInsideADelegation:
         assert [outcome.status for outcome in recorder.outcomes] == ["completed"]
         assert capability.journal.in_flight() == 0
 
+    @pytest.mark.security
     @pytest.mark.parametrize("mode", ["sync", "async"])
     async def test_only_a_background_delegate_is_handed_no_approval_channel(self, mode: str):
         """The substitution itself, on a delegate with nothing gated.

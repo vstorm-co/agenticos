@@ -2,10 +2,11 @@
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.mcp_registry_server import McpRegistryServer
@@ -125,6 +126,9 @@ async def delete_stale(db: AsyncSession, before: datetime) -> int:
     it touched and comparing two sets of five thousand ids is the same answer at
     more cost.
     """
-    result = await db.execute(delete(McpRegistryServer).where(McpRegistryServer.synced_at < before))
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(McpRegistryServer).where(McpRegistryServer.synced_at < before)),
+    )
     await db.flush()
     return result.rowcount or 0

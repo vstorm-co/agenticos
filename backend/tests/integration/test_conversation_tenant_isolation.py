@@ -33,7 +33,7 @@ from app.schemas.conversation import MessageCreate
 from app.services.conversation import ConversationService
 from app.services.conversation_share import ConversationShareService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def _member(db) -> User:

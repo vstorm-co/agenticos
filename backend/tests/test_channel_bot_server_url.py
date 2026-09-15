@@ -149,6 +149,7 @@ class TestThePastedSecret:
     unusable: the bot compared Mattermost's token against a random string nobody
     could overwrite."""
 
+    @pytest.mark.security
     async def test_a_pasted_secret_is_sealed_rather_than_stored(self):
         kwargs = await _created(
             ChannelBotCreate(**_mattermost(webhook_mode=True, webhook_secret="from-mattermost"))
@@ -172,6 +173,7 @@ class TestThePastedSecret:
         )
         assert kwargs["webhook_secret_encrypted"] is not None
 
+    @pytest.mark.security
     async def test_the_secret_is_never_in_a_response_schema(self):
         """`ChannelBotRead` answers whether one is configured, never with it."""
         assert "webhook_secret" not in ChannelBotRead.model_fields

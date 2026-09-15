@@ -158,6 +158,7 @@ class TestAColleagueReadsARunTheyDidNotStart:
 
 
 class TestAnotherTenantsRunIsRefusedAsAMissingOne:
+    @pytest.mark.security
     async def test_the_cross_tenant_read_and_the_unknown_id_answer_alike(self, db) -> None:
         home, owner = await _org(db)
         agent = await _agent(db, home)

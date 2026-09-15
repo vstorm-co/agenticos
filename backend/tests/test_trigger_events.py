@@ -26,11 +26,13 @@ def _sign(secret: str, body: bytes) -> str:
 
 
 class TestVerifySignature:
+    @pytest.mark.security
     def test_a_github_delivery_signed_with_the_secret_verifies(self):
         body = b'{"action": "opened"}'
         headers = {"x-hub-signature-256": _sign(_SECRET, body)}
         assert trigger_events.verify_signature("github", secret=_SECRET, body=body, headers=headers)
 
+    @pytest.mark.security
     def test_a_github_delivery_signed_with_another_secret_is_refused(self):
         body = b'{"action": "opened"}'
         headers = {"x-hub-signature-256": _sign("wrong-secret-entirely", body)}

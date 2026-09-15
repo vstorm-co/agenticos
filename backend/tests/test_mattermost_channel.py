@@ -109,6 +109,7 @@ class TestWebhookAuthentication:
 
         assert adapter.verify_webhook_signature({}, "shared-token", body) is False
 
+    @pytest.mark.security
     def test_no_secret_configured_means_refused_rather_than_open(self):
         """Mattermost does not sign the body, so an unset secret is an endpoint
         anybody on the internet can post to."""

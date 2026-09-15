@@ -226,7 +226,7 @@ class TestCollectingWhatTheAgentChanged:
         assert change.content == "Ask for the receipt."
 
     async def test_a_file_nested_deeper_than_a_skill_belongs_to_no_skill(self):
-        """A skill is a directory of files. Treating `/skills/a/b/c` as `a`'s
+        """A skill is a directory of files. Treating `/workspace/skills/a/b/c` as `a`'s
         would flatten two paths onto one resource name."""
         backend = _backend()
         state = await materialise(backend, [_Skill()])
@@ -248,7 +248,7 @@ class TestCollectingWhatTheAgentChanged:
 
     async def test_a_directory_in_the_listing_is_not_read_as_a_file(self):
         """`StateBackend` reports only files; a container-backed workspace lists a
-        real filesystem, where `/skills/refunds` is itself an entry. Reading it
+        real filesystem, where `/workspace/skills/refunds` is itself an entry. Reading it
         would raise where nothing is wrong."""
 
         class _WithDirectories:

@@ -489,6 +489,7 @@ class TestAnswer:
 
         assert agents.get_by_slug.call_args.kwargs["organization_id"] == organization_id
 
+    @pytest.mark.security
     async def test_the_run_carries_the_senders_own_role(self):
         """Not the bot's, and not the owner's: the person who typed the handle."""
         user_id = uuid.uuid4()

@@ -23,6 +23,7 @@ import {
   type DraftState,
   type Scope,
 } from "@/components/mcp/mcp-server-list-types";
+import { slugForPrefix } from "@/lib/mcp-servers";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 
 const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = [
@@ -97,7 +98,7 @@ function ConnectionForm({
   const t = useTranslations("mcp");
   const [label, setLabel] = useState(draft.existing?.label ?? "");
   const [name, setName] = useState(
-    draft.existing?.name ?? draft.suggestedName ?? draft.row.entry?.key ?? "",
+    draft.existing?.name ?? draft.suggestedName ?? slugForPrefix(draft.row.entry?.key ?? ""),
   );
   const [url, setUrl] = useState(draft.existing?.url ?? draft.row.entry?.url ?? "");
   const [token, setToken] = useState("");

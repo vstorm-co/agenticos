@@ -27,7 +27,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def _user(db) -> User:

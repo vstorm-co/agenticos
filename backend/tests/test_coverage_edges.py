@@ -86,7 +86,7 @@ class TestPerAgentTracing:
             )
 
         assert attached is True
-        instance.instrument_pydantic_ai.assert_called_once_with(agent)
+        instance.instrument_pydantic_ai.assert_called_once_with(agent, include_content=True)
         assert configure.call_args.kwargs["service_name"] == "acme"
 
     def test_the_instance_is_reused_for_the_same_project(self):

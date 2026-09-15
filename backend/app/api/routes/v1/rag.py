@@ -53,7 +53,6 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
-from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.rag import (
@@ -95,18 +94,17 @@ async def list_embedding_models() -> Any:
     Deployment description, like `/supported-formats`: the list feeds the
     create-collection form and the one that moves an existing collection to
     another provider, and hardcoding it in the client is how the form and the
-    build drift apart. The defaults are named so the form can preselect what an
-    untouched deployment would use.
+    build drift apart. There is no deployment default in it: the model, the
+    provider and what pays - a vault key, or a local service for a keyless
+    provider - are the collection's own choice, every time.
     """
     return {
-        "default": settings.EMBEDDING_MODEL,
-        "default_provider": embedding_providers.deployment_provider().provider,
         "providers": [
             {
                 "provider": entry.provider,
                 "name": entry.name,
                 "models": [{"model": model.model, "dim": model.dim} for model in entry.models],
-                "deployment_key": entry.deployment_key,
+                "keyless": entry.keyless,
             }
             for entry in embedding_providers.providers()
         ],

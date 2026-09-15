@@ -470,7 +470,18 @@ class TestChoosingWhatToSendBack:
     async def test_a_materialised_skill_is_not_the_agents_work(self):
         backend = StateBackend()
         before = await workspace_snapshot(backend)
-        backend.write("/skills/refunds/SKILL.md", "---\nname: refunds\n---\n\nbody")
+        backend.write("/workspace/skills/refunds/SKILL.md", "---\nname: refunds\n---\n\nbody")
+
+        assert (await files_written(backend, before)).attachments == []
+
+    async def test_a_container_listing_a_skill_relatively_is_not_the_agents_work(self):
+        """A container lists its workspace relative to its own root, so the same
+        file the `state` backend calls `/workspace/skills/...` arrives as
+        `skills/...`. One filter has to catch both spellings, or a channel reply
+        posts organizational know-how back as the agent's own work."""
+        backend = StateBackend()
+        before = await workspace_snapshot(backend)
+        backend.write("skills/refunds/reconcile.py", "print('hi')")
 
         assert (await files_written(backend, before)).attachments == []
 

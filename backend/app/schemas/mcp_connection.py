@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
+from app.core.secret_kinds import CredentialStr
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.base import BaseSchema, TimestampSchema
 
@@ -235,6 +236,14 @@ class McpOAuthStart(BaseSchema):
 
     name: str = Field(..., min_length=1, max_length=32, pattern=NAME_PATTERN)
     url: str = Field(..., min_length=1, max_length=2048)
+    # A client the operator registered at the provider by hand. Most MCP servers
+    # register this app dynamically (RFC 7591) and these stay empty; HubSpot's
+    # remote server publishes no `registration_endpoint` and hands out client
+    # credentials only through an "MCP auth app" created in the account, so the
+    # flow needs a way to be told them. The secret is sealed into the pending
+    # payload with the rest of the flow state and never read back over the API.
+    client_id: str | None = Field(default=None, min_length=1, max_length=512)
+    client_secret: CredentialStr | None = Field(default=None, max_length=4096)
     catalog_key: str | None = Field(
         default=None,
         max_length=255,
@@ -244,6 +253,19 @@ class McpOAuthStart(BaseSchema):
             "never be substituted for the organization's."
         ),
     )
+
+    @model_validator(mode="after")
+    def _a_secret_needs_the_client_it_belongs_to(self) -> McpOAuthStart:
+        """Refuse a secret with no client id, which would be silently discarded.
+
+        `_oauth_start` registers dynamically whenever `client_id` is absent, and
+        the registration's own credentials replace whatever was passed in. The
+        caller would then consent against a client they never named - so this is
+        refused at submission rather than half-applied.
+        """
+        if self.client_secret is not None and self.client_id is None:
+            raise ValueError("client_secret needs the client_id it belongs to")
+        return self
 
 
 class GithubOAuthStart(BaseSchema):

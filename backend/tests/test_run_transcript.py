@@ -104,6 +104,7 @@ async def test_a_missing_or_foreign_run_is_a_not_found_naming_only_the_id(
     assert caught.value.details == {"run_id": str(run_id)}
 
 
+@pytest.mark.security
 async def test_an_absent_run_is_not_found_before_the_permission_is_read(
     monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncMock
 ) -> None:
@@ -165,6 +166,7 @@ class TestReadingWhatTheRunHandedItsModel:
     the most misleading thing it could say.
     """
 
+    @pytest.mark.security
     async def test_a_run_in_another_tenant_reads_as_absent(
         self, monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncMock
     ) -> None:
@@ -245,6 +247,7 @@ class TestOpeningAnAttachmentOnSomebodyElsesRun:
             "conversation_id": run.conversation_id
         }
 
+    @pytest.mark.security
     async def test_a_run_in_another_tenant_reads_as_absent(
         self, monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncMock
     ) -> None:

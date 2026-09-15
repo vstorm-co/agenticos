@@ -14,15 +14,108 @@ pass the same thing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, Literal
 
+from app.core.audit import chain_hash, record_audit
 from app.repositories import audit_log_repo
 from app.schemas.audit import AuditEntryList, AuditEntryRead
+from app.services.exporting import (
+    MAX_EXPORT_ROWS,
+    ExportResult,
+    cell,
+    csv_document,
+    guard_cap,
+    jsonl_document,
+    require_range,
+    stamp,
+)
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.core.permissions import AuthContext
+    from app.db.models.audit_log import AppAdminAuditLog
+
+# What the export ships, matching the fields the read model exposes on the tab -
+# `ip_address` is stored but not surfaced there, so it is not exported either
+# (the same "exactly what the tab shows" rule the run export follows).
+_AUDIT_HEADER = [
+    "entry_id",
+    "created_at",
+    "actor_user_id",
+    "impersonator_user_id",
+    "action",
+    "target_type",
+    "target_id",
+    "details",
+]
+
+
+def _audit_row(entry: AppAdminAuditLog) -> list[object]:
+    """One entry as CSV cells, `details` flattened to a JSON string for the sheet."""
+    return [
+        entry.id,
+        entry.created_at,
+        entry.actor_user_id,
+        entry.impersonator_user_id,
+        entry.action,
+        entry.target_type,
+        entry.target_id,
+        None if entry.details is None else json.dumps(entry.details, sort_keys=True),
+    ]
+
+
+def _audit_record(entry: AppAdminAuditLog) -> dict[str, Any]:
+    """One entry as a JSON object, `details` kept as a nested object."""
+    return {
+        "entry_id": entry.id,
+        "created_at": entry.created_at,
+        "actor_user_id": entry.actor_user_id,
+        "impersonator_user_id": entry.impersonator_user_id,
+        "action": entry.action,
+        "target_type": entry.target_type,
+        "target_id": entry.target_id,
+        "details": entry.details,
+    }
+
+
+@dataclass(frozen=True)
+class ChainBreak:
+    """Where a chain stopped verifying, and why.
+
+    Attributes:
+        seq: The `seq` of the entry the walk broke on - what an operator greps for.
+        entry_id: That entry's id, so the row itself can be found.
+        reason: Whether the entry's own hash failed to match its contents, or its
+            link to the entry before it did.
+    """
+
+    seq: int
+    entry_id: UUID
+    reason: str
+
+
+@dataclass(frozen=True)
+class ChainVerification:
+    """The result of walking one organization's chain.
+
+    Attributes:
+        organization_id: The chain's organization, or None for the deployment-wide
+            chain - actions with no tenant, such as a deployment settings change,
+            an impersonation, or app-admin user management.
+        entries_checked: How many entries were walked before it ended or broke.
+        first_break: The first entry that did not verify, or None when the whole
+            chain is intact.
+    """
+
+    organization_id: UUID | None
+    entries_checked: int
+    first_break: ChainBreak | None
 
 
 class AuditService:
@@ -73,3 +166,130 @@ class AuditService:
             ],
             total=total,
         )
+
+    async def export(
+        self,
+        ctx: AuthContext,
+        *,
+        since: datetime | None,
+        until: datetime | None,
+        fmt: Literal["csv", "jsonl"],
+    ) -> ExportResult:
+        """This organization's audit entries in a window, as a downloadable file.
+
+        The same `audit:read` gate and organization scope as the list, with two
+        differences an export demands: the date range is **mandatory**, and a match
+        over the row cap is **refused** rather than paged, because an export has no
+        ceiling by nature. CSV for a spreadsheet, JSONL for a log pipeline; the two
+        describe the same rows, `details` flattened to a JSON string in the sheet
+        and kept as a nested object in the lines.
+
+        The export writes its own audit entry. Reading a whole trail is a
+        privileged act, and the record of who took it away is the first thing a
+        later reader of that trail wants - it names the window, the format and the
+        row count, never a row.
+        """
+        start, end = require_range(since, until)
+        entries, total = await audit_log_repo.list_in_window_for_org(
+            self.db,
+            organization_id=ctx.organization_id,
+            since=start,
+            until=end,
+            limit=MAX_EXPORT_ROWS,
+        )
+        guard_cap(total, remedy="Narrow the date range and try again.")
+
+        now = datetime.now(UTC)
+        if fmt == "jsonl":
+            content = jsonl_document([_audit_record(entry) for entry in entries])
+        else:
+            content = csv_document(_AUDIT_HEADER, [_audit_row(entry) for entry in entries])
+
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="audit.export",
+            target_type="audit_log",
+            details={
+                "since": cell(start),
+                "until": cell(end),
+                "format": fmt,
+                "row_count": len(entries),
+            },
+        )
+        return ExportResult(
+            content=content, filename=stamp("audit", now, fmt), row_count=len(entries)
+        )
+
+    async def verify_chain(self, organization_id: UUID | None) -> ChainVerification:
+        """Recompute one organization's chain and report the first break.
+
+        Walks the entries in `seq` order, holding the previous entry's hash. Each
+        entry has to agree on two things: that its stored `prev_hash` is the hash
+        the walk actually arrived with, and that its stored `entry_hash` is what
+        recomputing over its contents produces. The first failure of either is
+        returned and the walk stops - a rewritten row diverges its own
+        `entry_hash`, and a deleted or reordered one diverges the next entry's
+        `prev_hash`.
+
+        Detection, not prevention: an operator with the database can rewrite a row
+        and every hash after it, so a chain that verifies is evidence of no
+        tampering by anyone who did not also recompute the chain, not proof of
+        none. It is also blind to a chain being truncated from the end - dropping
+        the newest entries leaves the surviving prefix internally consistent - and
+        to a whole organization's chain being deleted, which simply removes it from
+        the set walked here; catching either needs a checkpoint kept outside the
+        table. `docs/governance.md` states the boundary (#1622).
+        """
+        entries = await audit_log_repo.chain_for_org(self.db, organization_id=organization_id)
+        prev_hash: str | None = None
+        for index, entry in enumerate(entries):
+            if entry.prev_hash != prev_hash:
+                return ChainVerification(
+                    organization_id=organization_id,
+                    entries_checked=index + 1,
+                    first_break=ChainBreak(
+                        seq=entry.seq,
+                        entry_id=entry.id,
+                        reason="prev_hash does not link to the previous entry",
+                    ),
+                )
+            expected = chain_hash(
+                prev_hash=prev_hash,
+                actor_user_id=entry.actor_user_id,
+                impersonator_user_id=entry.impersonator_user_id,
+                organization_id=entry.organization_id,
+                action=entry.action,
+                target_type=entry.target_type,
+                target_id=entry.target_id,
+                details=entry.details,
+                ip_address=entry.ip_address,
+                created_at=entry.created_at,
+            )
+            if entry.entry_hash != expected:
+                return ChainVerification(
+                    organization_id=organization_id,
+                    entries_checked=index + 1,
+                    first_break=ChainBreak(
+                        seq=entry.seq,
+                        entry_id=entry.id,
+                        reason="entry_hash does not match the entry's contents",
+                    ),
+                )
+            prev_hash = entry.entry_hash
+        return ChainVerification(
+            organization_id=organization_id,
+            entries_checked=len(entries),
+            first_break=None,
+        )
+
+    async def verify_all_chains(self) -> list[ChainVerification]:
+        """Verify every chain the log holds, in a deterministic report order.
+
+        The deployment-wide chain (no organization) sorts first; the rest follow
+        by their id, so two runs over the same data report in the same order.
+        """
+        org_ids = await audit_log_repo.distinct_organization_ids(self.db)
+        ordered = sorted(org_ids, key=lambda oid: (oid is not None, str(oid)))
+        return [await self.verify_chain(oid) for oid in ordered]

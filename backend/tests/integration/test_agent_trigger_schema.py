@@ -209,6 +209,7 @@ class TestTheEventShapeRejectsABadRow:
         with pytest.raises(IntegrityError):
             await db.flush()
 
+    @pytest.mark.security
     async def test_a_posted_event_trigger_without_a_sealed_secret_is_refused(self, db):
         """Without a secret there is nothing to verify a delivery against."""
         org = await _org(db)
@@ -217,6 +218,7 @@ class TestTheEventShapeRejectsABadRow:
         with pytest.raises(IntegrityError):
             await db.flush()
 
+    @pytest.mark.security
     async def test_a_polled_event_trigger_carrying_a_secret_is_refused(self, db):
         """The other direction, and the one that shipped broken.
 
