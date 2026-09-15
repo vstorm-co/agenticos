@@ -61,7 +61,6 @@ from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
-from app.services import rate_limit
 from app.services.notification_center import NotificationCenterService
 from app.services.spend import organization_spend_since
 
@@ -469,17 +468,15 @@ class NotificationService:
         those would turn routine CRUD into a security alert nobody asked for.
 
         Mandatory means no preference can silence it, which is exactly what
-        makes it worth rate limiting: an actor alternating one secret's
+        makes rate limiting worth it: an actor alternating one secret's
         description back and forth produces a distinct `AppAdminAuditLog` row,
         and therefore a distinct notification, on every write, with no
-        `occurrence_id` to collapse them. `_audit_notification_allowed` skips
-        the write past the per-actor ceiling; the audit entry itself, already
-        written by the time this runs, is never affected.
+        `occurrence_id` to collapse them. `NotificationCenterService.write`
+        already carries this guard - `actor_user_id` is what turns it on for a
+        mandatory event type, keyed on `(actor_user_id, event_type)`; the
+        audit entry, already written by the time this runs, is never affected
+        by the notification being skipped.
         """
-        if not await self._audit_notification_allowed(
-            actor_user_id=entry.actor_user_id, event_type=NotificationEventType.SECURITY_EVENT
-        ):
-            return
         recipients = await self._security_audience(entry.organization_id)
         if not recipients:
             return
@@ -497,6 +494,7 @@ class NotificationService:
                 "url": url,
             },
             organization_id=entry.organization_id,
+            actor_user_id=entry.actor_user_id,
             use_savepoint=True,
         )
 
@@ -505,12 +503,11 @@ class NotificationService:
         three `record_audit` calls, every one of them `action=
         "deployment.settings_updated"`. Always deployment-wide - a setting
         has no organization to attribute the change to - so the audience is
-        always the deployment's own app admins, never `org_admins`."""
-        if not await self._audit_notification_allowed(
-            actor_user_id=entry.actor_user_id,
-            event_type=NotificationEventType.CONFIGURATION_CHANGED,
-        ):
-            return
+        always the deployment's own app admins, never `org_admins`. Rate
+        limited by `actor_user_id` the same way `security_event` is, under
+        its own event type's bucket - an actor's settings changes never eat
+        into the allowance a security event from the same actor would need.
+        """
         recipients = set(await member_repo.list_app_admin_ids(self.db))
         if not recipients:
             return
@@ -527,6 +524,7 @@ class NotificationService:
                 "url": url,
             },
             organization_id=None,
+            actor_user_id=entry.actor_user_id,
             use_savepoint=True,
         )
 
@@ -759,25 +757,6 @@ class NotificationService:
             )
             return set(by_role)
         return set(await member_repo.list_app_admin_ids(self.db))
-
-    async def _audit_notification_allowed(
-        self, *, actor_user_id: UUID | None, event_type: NotificationEventType
-    ) -> bool:
-        """Whether this occurrence's own mandatory write is inside the
-        per-actor rate limit (Decision 1's "mandatory fan-out needs a rate
-        limit"). `actor_user_id` is null for the one caller `record_audit`
-        allows it for - the approval expiry sweep, not one of this plan's
-        curated call sites - so there is no id to key a limit on and nothing
-        to bound; unmetered rather than refused.
-        """
-        if actor_user_id is None:
-            return True
-        decision = await rate_limit.consume(
-            surface=f"security_notification:{event_type.value}",
-            caller=str(actor_user_id),
-            limit=rate_limit.Limit(attempts=settings.RATE_LIMIT_SECURITY_EVENT_PER_MINUTE),
-        )
-        return decision.allowed
 
     async def _audience_ids(
         self,

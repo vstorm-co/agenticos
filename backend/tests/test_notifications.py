@@ -33,7 +33,6 @@ import pytest
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpec
 from app.db.models.notification import NotificationEventType
-from app.services import rate_limit
 from app.services.notification_center import NotificationCenterService
 from app.services.notifications import NotificationService
 
@@ -846,14 +845,14 @@ class TestSecurityEventAndConfigurationChanged:
     """The two mandatory events, wired at the record_audit call sites this
     plan curates as genuinely security-sensitive (#1598) - impersonation, an
     organization's own secrets and sandbox connections, an app admin's user
-    management, and the deployment's own settings."""
+    management, and the deployment's own settings.
 
-    @pytest.fixture(autouse=True)
-    def _unmetered(self):
-        """Rate limiting fails open with no Redis configured (its own module
-        docstring), which is exactly the unmetered state these tests want -
-        the rate limit's own behaviour is `TestTheRateLimit`'s job below."""
-        assert rate_limit._redis is None
+    Rate limiting itself is not this class's job: both methods pass
+    `actor_user_id` through to `NotificationCenterService.write`, which
+    already carries the per-`(actor_user_id, event_type)` mandatory-write
+    limit (built in phase 2, `tests/integration/test_notification_center.py`
+    - `test_a_rate_limited_mandatory_write_writes_nothing` and its sibling).
+    What belongs here is that the id reaches that call correctly."""
 
     @pytest.mark.anyio
     async def test_an_org_scoped_entry_reaches_that_organizations_admins(self, written):
@@ -867,6 +866,7 @@ class TestSecurityEventAndConfigurationChanged:
         assert call["recipients"] == [admin]
         assert call["occurrence_id"] == str(entry.id)
         assert call["organization_id"] == entry.organization_id
+        assert call["actor_user_id"] == entry.actor_user_id
         assert call["use_savepoint"] is True
         assert "/vault" in call["context_url"]
 
@@ -935,17 +935,21 @@ class TestSecurityEventAndConfigurationChanged:
         assert written.calls == []
 
     @pytest.mark.anyio
-    async def test_an_actorless_entry_is_never_rate_limited(self, written):
+    async def test_an_actorless_entry_passes_no_actor_through(self, written):
         """The approval expiry sweep is the one `record_audit` caller with no
-        actor - not one of this plan's curated call sites, but the audience
-        resolution and the rate-limit skip must not crash if it ever were."""
+        actor - not one of this plan's curated call sites, but `write`'s own
+        rate limit only turns on for a mandatory event type when
+        `actor_user_id is not None` (`NotificationCenterService.write`), so a
+        null one here must reach it as `None`, not skip the write outright."""
         admin = uuid.uuid4()
         with patch(f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[admin])):
             await NotificationService(MagicMock()).security_event(
                 _entry(action="secret.created", org_id=None, actor=None, target_type="secret")
             )
 
-        assert written.calls[0]["recipients"] == [admin]
+        call = written.calls[0]
+        assert call["recipients"] == [admin]
+        assert call["actor_user_id"] is None
 
     @pytest.mark.anyio
     async def test_configuration_changed_always_reaches_app_admins_never_org_admins(self, written):
@@ -963,6 +967,7 @@ class TestSecurityEventAndConfigurationChanged:
         assert call["event_type"] is NotificationEventType.CONFIGURATION_CHANGED
         assert call["recipients"] == [app_admin]
         assert call["organization_id"] is None
+        assert call["actor_user_id"] == entry.actor_user_id
 
     @pytest.mark.anyio
     async def test_configuration_changed_with_no_app_admins_writes_nothing(self, written):
@@ -972,88 +977,6 @@ class TestSecurityEventAndConfigurationChanged:
             )
 
         assert written.calls == []
-
-
-class TestTheRateLimit:
-    """`security_event`/`configuration_changed` are mandatory - no preference
-    can silence them - which is exactly what makes the per-actor rate limit
-    (#1598) load-bearing: an actor alternating one secret's description back
-    and forth produces a distinct `AppAdminAuditLog` row, and therefore a
-    distinct notification, with no `occurrence_id` to collapse them."""
-
-    @pytest.mark.anyio
-    async def test_an_actor_over_the_limit_writes_nothing(self, written):
-        with (
-            patch(
-                f"{MODULE}.member_repo.list_app_admin_ids",
-                new=AsyncMock(return_value=[uuid.uuid4()]),
-            ),
-            patch(
-                f"{MODULE}.rate_limit.consume",
-                new=AsyncMock(
-                    return_value=rate_limit.Decision(allowed=False, retry_after_seconds=60)
-                ),
-            ) as consume,
-        ):
-            await NotificationService(MagicMock()).security_event(
-                _entry(action="admin.user.impersonate", org_id=None, target_type="user")
-            )
-
-        assert written.calls == []
-        assert consume.call_args.kwargs["surface"] == "security_notification:security_event"
-
-    @pytest.mark.anyio
-    async def test_an_actor_inside_the_limit_still_writes(self, written):
-        admin = uuid.uuid4()
-        with (
-            patch(f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[admin])),
-            patch(
-                f"{MODULE}.rate_limit.consume",
-                new=AsyncMock(
-                    return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)
-                ),
-            ),
-        ):
-            await NotificationService(MagicMock()).security_event(
-                _entry(action="admin.user.impersonate", org_id=None, target_type="user")
-            )
-
-        assert written.calls[0]["recipients"] == [admin]
-
-    @pytest.mark.anyio
-    async def test_configuration_changed_over_the_limit_writes_nothing(self, written):
-        with patch(
-            f"{MODULE}.rate_limit.consume",
-            new=AsyncMock(return_value=rate_limit.Decision(allowed=False, retry_after_seconds=60)),
-        ):
-            await NotificationService(MagicMock()).configuration_changed(
-                _entry(action="deployment.settings_updated", org_id=None, target_type="deployment")
-            )
-
-        assert written.calls == []
-
-    @pytest.mark.anyio
-    async def test_configuration_changed_is_keyed_on_its_own_event_type(self, written):
-        """`security_event` and `configuration_changed` share no rate-limit
-        bucket - an actor's own settings changes must not eat into the
-        allowance a security event from the same actor would need."""
-        with (
-            patch(
-                f"{MODULE}.member_repo.list_app_admin_ids",
-                new=AsyncMock(return_value=[uuid.uuid4()]),
-            ),
-            patch(
-                f"{MODULE}.rate_limit.consume",
-                new=AsyncMock(
-                    return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)
-                ),
-            ) as consume,
-        ):
-            await NotificationService(MagicMock()).configuration_changed(
-                _entry(action="deployment.settings_updated", org_id=None, target_type="deployment")
-            )
-
-        assert consume.call_args.kwargs["surface"] == "security_notification:configuration_changed"
 
 
 class TestUsageReport:

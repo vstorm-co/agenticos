@@ -301,15 +301,6 @@ class Settings(BaseSettings):
     # address bounds a brute force against one account. Low, because a person
     # signing in does it a handful of times and a script does it thousands.
     RATE_LIMIT_AUTH_PER_MINUTE: int = 10
-    # How many mandatory `security_event`/`configuration_changed` notification
-    # writes one actor's own audited actions may produce per minute (#1598).
-    # Console routes are unmetered (`SECURITY.md`), so nothing else stops an
-    # ordinary write access - alternating a secret's description back and
-    # forth - from turning into an email/queue amplifier against every
-    # organization admin, since each `AppAdminAuditLog` row is a distinct id
-    # with no dedup key to collapse it against. The audit entry itself always
-    # writes in full past this limit; only the notification is skipped.
-    RATE_LIMIT_SECURITY_EVENT_PER_MINUTE: int = 5
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
