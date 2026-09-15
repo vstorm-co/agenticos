@@ -127,11 +127,11 @@ async def list_visible(
     # Guard on the (already-normalized) list being non-empty: a blank param that
     # normalized to `[]` upstream must apply no predicate rather than match `{}`.
     if categories:
-        overlap = Agent.categories.op("&&")(list(categories))
+        overlap = Agent.categories.overlap(list(categories))
         query = query.where(overlap)
         count_query = count_query.where(overlap)
     if tags:
-        overlap = Agent.tags.op("&&")(list(tags))
+        overlap = Agent.tags.overlap(list(tags))
         query = query.where(overlap)
         count_query = count_query.where(overlap)
 

@@ -16,7 +16,6 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
-    ARRAY,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -26,6 +25,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -95,9 +95,11 @@ class Agent(Base, TimestampMixin):
     # (`&&`) answered by a GIN index, not a join table nobody asked for. Never
     # null - an existing row and a cleared facet are both the empty array.
     categories: Mapped[list[str]] = mapped_column(
-        ARRAY(String(32)), nullable=False, server_default="{}"
+        PG_ARRAY(String(32)), nullable=False, server_default="{}"
     )
-    tags: Mapped[list[str]] = mapped_column(ARRAY(String(32)), nullable=False, server_default="{}")
+    tags: Mapped[list[str]] = mapped_column(
+        PG_ARRAY(String(32)), nullable=False, server_default="{}"
+    )
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=AgentStatus.DRAFT.value, index=True
