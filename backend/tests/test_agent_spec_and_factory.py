@@ -119,6 +119,7 @@ class TestSpecContract:
         assert "api_key" not in rendered
         assert "sk-" not in rendered
 
+    @pytest.mark.security
     def test_negative_budgets_are_refused(self):
         with pytest.raises(ValueError):
             AgentSpec(name="x", budget={"monthly_usd": 0})
@@ -569,6 +570,7 @@ class TestAnApprovalTheGateCouldNotEnforce:
             granted_scopes=frozenset({scope}),
         )
 
+    @pytest.mark.security
     def test_a_stored_native_search_with_approval_does_not_assemble(self):
         with pytest.raises(BadRequestError) as refused:
             self._build(
@@ -578,6 +580,7 @@ class TestAnApprovalTheGateCouldNotEnforce:
 
         assert any("no call to hold" in problem for problem in refused.value.details["problems"])
 
+    @pytest.mark.security
     def test_a_stored_native_fetch_with_approval_does_not_assemble(self):
         """#839 refused this at publish and left every version published before it."""
         with pytest.raises(BadRequestError) as refused:

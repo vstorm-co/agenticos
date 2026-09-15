@@ -62,6 +62,7 @@ def instrument_agent(
     token: str,
     service_name: str,
     environment: str | None,
+    include_content: bool = True,
 ) -> bool:
     """Point one agent's traces at the Logfire project the token belongs to.
 
@@ -69,6 +70,14 @@ def instrument_agent(
     swallowed: an agent that cannot export traces still answers questions, and
     refusing to build it would turn an observability misconfiguration into an
     outage.
+
+    `include_content` is the spec's `content` mode made concrete: `False` (the
+    spec's `none`) records spans with timing, tokens, cost and tool names but no
+    message text or tool arguments, so a run over protected data leaves no copy
+    of it in the Logfire project. It is applied on the per-agent
+    `instrument_pydantic_ai` call rather than on the cached instance, because the
+    instance is shared across agents keyed on (token, service, environment) and
+    the content decision is one agent's.
     """
     key = (token, service_name, environment or "")
     instance = _instances.get(key)
@@ -88,8 +97,28 @@ def instrument_agent(
         _instances[key] = instance
 
     try:
-        instance.instrument_pydantic_ai(agent)
+        instance.instrument_pydantic_ai(agent, include_content=include_content)
     except Exception:
         logger.exception("agent_logfire_instrument_failed", extra={"service_name": service_name})
         return False
     return True
+
+
+def suppress_content(agent: PydanticAgent[Any, Any]) -> None:
+    """Trace this agent to the deployment's own project, but without its content.
+
+    The deployment enables Pydantic AI instrumentation globally at startup
+    (`app/main.py`), content on by default, so an agent that asked for
+    `content="none"` but has no per-agent exporter - no token, an environment that
+    carries the token instead, or a token that has gone missing since publish -
+    would otherwise fall back to that global default and export its prompts and
+    tool arguments to the operator's project. Pinning the agent to a content-free
+    instrumentation on the same default tracer keeps the timing, tokens and cost
+    and drops the content, so `none` holds wherever the run's spans land. Swallows
+    a failure for the same reason `instrument_agent` does: an agent that cannot be
+    instrumented still answers.
+    """
+    try:
+        logfire.instrument_pydantic_ai(agent, include_content=False)
+    except Exception:
+        logger.exception("agent_content_suppress_failed")

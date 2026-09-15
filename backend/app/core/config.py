@@ -318,20 +318,13 @@ class Settings(BaseSettings):
     # otherwise start all of them - see app/worker/prefect_app.py.
     PREFECT_RUNNER_LIMIT: int = 5
 
-    # The embeddings credential. Every collection in the deployment is embedded
-    # on this key (via OpenRouter); model *profiles* in the vault cover chat
-    # models only. Moving this to per-organization credentials is a feature,
-    # not a rename - the vector column width is bound to EMBEDDING_MODEL below.
-    OPENROUTER_API_KEY: str = ""
-    # Deployment-level on purpose: pgvector columns are created at this model's
-    # width, so changing it mid-life invalidates every existing collection.
-    # ingestion_config guards both directions of that mistake.
-    EMBEDDING_MODEL: str = "text-embedding-3-large"
-
-    # Cloud-parser credential and OCR sidecar. Which parser a collection uses
-    # is per-collection configuration; these say only how to reach the tools.
-    LLAMAPARSE_API_KEY: str = ""
-    LITEPARSE_OCR_SERVER_URL: str = ""
+    # Nothing about embeddings or parsing is a setting. The model, the provider
+    # and the vault key that pays are recorded on the collection; where a local
+    # embedding or OCR server answers is a `local_services` row an organization
+    # (or the deployment's administrator) registers in the product; a LlamaParse
+    # key is a vault entry the collection's ingestion configuration names. Each
+    # of these was an environment variable once, and each was one address or one
+    # key for every tenant, visible to none of them.
 
     # Where sandboxes run is deliberately *not* a setting. It is a row per
     # organization in `sandbox_connections`, with its token in the vault: a
@@ -408,27 +401,21 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def rag(self) -> "RAGSettings":
-        """The deployment-level half of the RAG settings.
+        """The RAG settings with nothing of the deployment's in them.
 
-        Only what genuinely belongs to the installation: the embedding model
-        the vector columns were built for, and the credentials to reach a
-        parser. Everything about *how a document is read* is per collection and
-        arrives via :func:`app.services.ingestion_config.rag_settings_for`,
-        which builds this same object from the collection's stored
-        configuration; everything else falls to :class:`RAGSettings` defaults.
+        There is no deployment-level half any more: the embedding model, the
+        provider and the key are the collection's, and so are the parser and
+        the addresses it reaches. Everything about *how a document is read*
+        arrives via :func:`app.services.ingestion_config.rag_settings_for`, which
+        builds this same object from the collection's stored configuration; this
+        one is what a caller with no collection in hand - the warmup, a `rag-*`
+        command - gets, and it embeds nothing.
         """
-        return RAGSettings(
-            embeddings_config=EmbeddingsConfig(model=self.EMBEDDING_MODEL),
-            document_parser=DocumentParser(),
-            pdf_parser=PdfParser(
-                api_key=self.LLAMAPARSE_API_KEY,
-                liteparse_ocr_server_url=self.LITEPARSE_OCR_SERVER_URL or None,
-            ),
-        )
+        return RAGSettings()
 
 
 # Rebuild Settings to resolve RAGSettings forward reference
-from app.services.rag.config import DocumentParser, EmbeddingsConfig, PdfParser, RAGSettings
+from app.services.rag.config import RAGSettings
 
 Settings.model_rebuild()
 

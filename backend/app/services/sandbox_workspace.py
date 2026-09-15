@@ -62,6 +62,7 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
+from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,7 @@ class WorkspaceOverview:
     """
 
 
-NOT_BROWSABLE = ("skills/", f"{OVERFLOW_PREFIX}/")
+NOT_BROWSABLE = (*RESERVED_SKILL_PREFIXES, f"{OVERFLOW_PREFIX}/")
 """Prefixes the file browser drops, matched after the leading slash.
 
 Both are the platform's own writing rather than the agent's work for a person, and
@@ -283,6 +284,27 @@ def _without_spills(files: dict[str, FileData]) -> dict[str, FileData]:
         return relative == OVERFLOW_PREFIX or relative.startswith(f"{OVERFLOW_PREFIX}/")
 
     return {path: data for path, data in files.items() if not _is_spill(path)}
+
+
+def _without_legacy_skills(files: dict[str, FileData]) -> dict[str, FileData]:
+    """The same files without the skills tree that predates the move inside the workspace.
+
+    A conversation-, user- or agent-scoped `state` workspace created before skills
+    moved to `SKILLS_ROOT` still holds them under `LEGACY_SKILLS_ROOT`, and nothing
+    writes there any more. Left in place, the next run materialises a second
+    complete copy beside the first, both are persisted, and both are charged
+    against `SANDBOX_STATE_MAX_BYTES` - so an upgrade roughly doubles the skill
+    footprint and can start refusing the agent's own writes near the cap.
+
+    Dropped at flush, where spills are dropped and for the same reason: it is the
+    platform's own writing, not the turn's work, and the agent is told where the
+    files are now. The current root survives this because it strips to
+    `workspace/skills/...`, which is not under the legacy prefix.
+    """
+    legacy = LEGACY_SKILLS_ROOT.strip("/")
+    return {
+        path: data for path, data in files.items() if not path.lstrip("/").startswith(f"{legacy}/")
+    }
 
 
 def _under_overflow(path: str) -> bool:
@@ -580,7 +602,7 @@ class SandboxWorkspaceService:
             # belonged to it, so there is nothing to keep.
             return
         self._warn_if_overtaken(workspace, row)
-        files = _without_spills(workspace.backend.files)
+        files = _without_legacy_skills(_without_spills(workspace.backend.files))
         await workspace_repo.save_files(
             self.db, workspace=row, files=files, bytes_total=document_size(files)
         )

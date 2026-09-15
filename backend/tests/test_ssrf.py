@@ -17,6 +17,8 @@ from app.core.sanitize import (
     validate_webhook_url,
 )
 
+pytestmark = pytest.mark.security
+
 # _is_ip_blocked
 
 

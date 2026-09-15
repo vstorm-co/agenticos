@@ -143,6 +143,7 @@ class TestTheRefusalQuotesNoSecret:
         error = response.json()["error"]
         assert error["details"]["fields"] == [{"field": "url", "message": error["message"]}]
 
+    @pytest.mark.security
     async def test_a_secret_parked_where_the_port_belongs_is_not_read_back(self, client) -> None:
         """The refusal for this one is written by `urlsplit`, not by us.
 

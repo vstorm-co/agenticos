@@ -629,6 +629,7 @@ class TestRecordingTheRun:
         assert finished["error"] is None
         assert db.commit.await_count == 2
 
+    @pytest.mark.security
     async def test_a_budget_stop_is_recorded_as_a_budget_stop_not_a_failure(self):
         """An operator filtering run history for problems should not wade through it."""
         stopped = BudgetExceeded(limit_usd=1, spent_usd=2, scope=BudgetScope.AGENT)

@@ -24,6 +24,8 @@ from app.agents.capabilities.budget import (
     usage_delta,
 )
 
+pytestmark = pytest.mark.security
+
 MILLION = 1_000_000
 
 

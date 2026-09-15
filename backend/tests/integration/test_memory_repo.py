@@ -152,6 +152,7 @@ class TestReads:
 
         assert [row.name for row in rows] == ["mine"]
 
+    @pytest.mark.security
     async def test_another_tenants_note_is_not_reachable_by_name(self, db) -> None:
         """The organization is on the query even though the agent id alone would
         already be unique - a wrong id must answer nothing rather than answer."""

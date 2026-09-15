@@ -371,8 +371,16 @@ class LlamaParseParser(BaseDocumentParser):
             version="latest",
             expand=["text", "markdown"],
         )
+        if result.markdown is None:
+            raise ValueError(f"LlamaParse returned no markdown result for {filepath.name}")
+
         pages = []
         for page in result.markdown.pages:
+            if not page.success:
+                raise ValueError(
+                    f"LlamaParse failed to parse page {page.page_number} of "
+                    f"{filepath.name}: {page.error}"
+                )
             pages.append(DocumentPage(page_num=page.page_number, content=page.markdown))
 
         return Document(pages=pages, metadata=self.get_document_metadata(filepath))
@@ -543,7 +551,9 @@ class PdfParserFactory:
     ) -> BaseDocumentParser:
         if parser_name == "llamaparse":
             if not settings or not settings.pdf_parser.api_key:
-                raise ValueError("LlamaParse requires LLAMAPARSE_API_KEY to be set")
+                raise ValueError(
+                    "LlamaParse needs the collection's vault key, and none was resolved"
+                )
             return LlamaParseParser(
                 api_key=settings.pdf_parser.api_key,
                 tier=settings.pdf_parser.tier,

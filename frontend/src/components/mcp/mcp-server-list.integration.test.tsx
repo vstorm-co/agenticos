@@ -496,6 +496,18 @@ describe("several accounts on one server", () => {
     expect(await screen.findByLabelText("Tool prefix")).toHaveValue("github-2");
   });
 
+  it("seeds the tool prefix with a slug, never a namespaced registry key", async () => {
+    // `com.example/thing` is not a valid prefix, so seeding the field with it
+    // made a submit that could never pass while `hubspot` happened to work (#1628).
+    registryResults = [registryEntry()];
+    await mount();
+
+    const row = within(screen.getByRole("group", { name: "Some Thing" }));
+    await userEvent.click(row.getByRole("button", { name: "Connect" }));
+
+    expect(await screen.findByLabelText("Tool prefix")).toHaveValue("thing");
+  });
+
   it("says where each owner's accounts can be used, which is the whole distinction", async () => {
     await mount({ org: [connection({ name: "gh-org" })] });
 

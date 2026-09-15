@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { CreateKBDialog, ReusableIntegrations } from "@/components/kb";
+import { CreateKBDialog, LocalServices, ReusableIntegrations } from "@/components/kb";
 import { SearchTab } from "@/components/rag/search-tab";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
@@ -182,9 +182,15 @@ export default function RAGPage() {
             and cloned into each base that needs it. `targets` is the base list,
             so this tab needs it loaded - which is why it is the same query
             rather than a second one. */}
-        <TabsContent value="integrations">
+        <TabsContent value="integrations" className="space-y-8">
           <div data-tour="knowledge-integrations">
             <ReusableIntegrations targets={kbs} />
+          </div>
+          {/* Servers on the deployment's own network, registered once and chosen
+              per collection - the same shape as the integrations above, and
+              hidden by the same permission. */}
+          <div data-tour="knowledge-local-services">
+            <LocalServices />
           </div>
         </TabsContent>
       </Tabs>

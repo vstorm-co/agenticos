@@ -32,7 +32,7 @@ from app.core.config import settings
 from app.main import app
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 # Every spelling somebody might reach for. `role` is included deliberately: the
 # column was dropped in migration 0066, and a schema that started accepting it
