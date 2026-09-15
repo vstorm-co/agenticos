@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
+import { type McpOAuthClient, mcpOAuthClient, secretWithoutClientId } from "@/lib/mcp-oauth";
 import {
   connectionState,
   CUSTOM_CATEGORY,
@@ -282,11 +283,16 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     });
   };
 
-  const handleOAuth = async (row: McpServerRow, name: string, scope: Scope = "personal") => {
+  const handleOAuth = async (
+    row: McpServerRow,
+    name: string,
+    scope: Scope = "personal",
+    client?: McpOAuthClient,
+  ) => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
-        { name, url: row.url ?? "", catalog_key: row.entry?.key },
+        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client },
         scope,
       );
       // `assign`, not a write to `href`: the React compiler reads a property
@@ -384,8 +390,17 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // Sending the form would make an unauthorized bearer connection that then
     // has to be repaired.
     if (values.auth === "oauth" && existing === null) {
+      if (secretWithoutClientId(values.clientId, values.clientSecret)) {
+        toast.error(t("clientSecretNeedsId"));
+        return;
+      }
       closeDraft();
-      await handleOAuth({ ...row, url }, name, scope);
+      await handleOAuth(
+        { ...row, url },
+        name,
+        scope,
+        mcpOAuthClient(values.clientId, values.clientSecret),
+      );
       return;
     }
 

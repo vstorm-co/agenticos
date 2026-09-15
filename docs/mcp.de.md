@@ -1,5 +1,5 @@
 ---
-source_sha: "dd0f6d8e10dd"
+source_sha: "87a5e8e9d4e1"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -249,7 +249,12 @@ unterscheidet.
 
     1. **Discover** — den Server prüfen, seinen Authorization Server auflösen,
        RFC-8414-Metadaten holen.
-    2. **Register** — dynamische Client-Registrierung nach RFC 7591.
+    2. **Register** — dynamische Client-Registrierung nach RFC 7591. Ein Server,
+       der keinen Registrierungs-Endpunkt veröffentlicht — HubSpots ist so einer —
+       lehnt hier ab, und der einzige Weg weiter ist ein Client, den Sie beim
+       Anbieter von Hand registriert haben: Der Verbindungsdialog nimmt dessen
+       Client-ID und Secret unter *Eigener Client* entgegen und zeigt die
+       Redirect-URL, die der Anbieter exakt so hinterlegt haben muss.
     3. **Consent** — eine PKCE-Autorisierungs-URL mit `state` und einem
        Resource-Indicator nach RFC 8707; der Browser geht dorthin.
     4. **Exchange** — der Callback tauscht den Code gegen Tokens und leitet den

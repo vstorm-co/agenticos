@@ -135,6 +135,74 @@ describe("ConnectServerDialog", () => {
   });
 
   describe("OAuth", () => {
+    it("sends a client registered by hand, for a server that registers none itself", async () => {
+      // HubSpot publishes no registration endpoint: without these two fields
+      // the flow ended at "This server rejected the client registration
+      // request" and the server could not be connected from the UI at all.
+      vi.spyOn(window, "open").mockReturnValue(null);
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { assign: vi.fn(), origin: "https://console.example" },
+      });
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+
+      open({ ...OAUTH_ENTRY, key: "hubspot", name: "HubSpot", url: "https://mcp.hubspot.com" });
+      // The redirect URL the provider has to hold, shown so nobody guesses it.
+      expect(
+        screen.getByText("https://console.example/api/me/mcp-connections/oauth/callback"),
+      ).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText("Client ID"), " app-1 ");
+      await userEvent.type(screen.getByLabelText("Client secret"), "shh");
+      await submit();
+
+      await waitFor(() =>
+        expect(startMcpOAuth).toHaveBeenCalledWith(
+          {
+            name: "hubspot",
+            url: "https://mcp.hubspot.com",
+            catalog_key: "hubspot",
+            client_id: "app-1",
+            client_secret: "shh",
+          },
+          "organization",
+        ),
+      );
+    });
+
+    it("sends no client when the fields were left empty, so the server registers one", async () => {
+      vi.spyOn(window, "open").mockReturnValue(null);
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { assign: vi.fn(), origin: "https://console.example" },
+      });
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+
+      open(OAUTH_ENTRY);
+      await submit();
+
+      await waitFor(() =>
+        expect(startMcpOAuth).toHaveBeenCalledWith(
+          { name: "notion", url: "https://mcp.notion.com/mcp", catalog_key: "notion" },
+          "organization",
+        ),
+      );
+    });
+
+    it("refuses a secret typed for a client nobody named, without calling the API", async () => {
+      // The backend answers 422 to that; the dialog says why before the trip.
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+      open(OAUTH_ENTRY);
+      await userEvent.type(screen.getByLabelText("Client secret"), "shh");
+      await submit();
+
+      expect(startMcpOAuth).not.toHaveBeenCalled();
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledWith(
+        "A client secret needs the client ID it belongs to.",
+      );
+    });
+
     it("opens the tab on the click, before the request that produces the URL", async () => {
       // Opened inside the await's callback, a popup blocker treats it as
       // unprompted. So the tab exists first and is pointed at the URL after.
