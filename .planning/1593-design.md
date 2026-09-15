@@ -3,6 +3,17 @@
 **General design only. The implementation plan is deferred on instruction — this
 document stops at the general design + codex critique + resolutions.**
 
+**How to read this document (PR #1656 note).** The living artifact for an
+implementer is **§1–§4 (the design) plus §9 (the plan)**; every finding those
+sections earned is already folded into them. §5, §6, §8, §9.11, §9.12 and §10 are
+**historical review appendices** — the verdict trail that produced §1–§4/§9. They
+are recorded, not maintained: once implementation begins they will drift and should
+not be trusted over the code or over §1–§4/§9. `scripts/docs_drift.py` does not
+watch `.planning/`, so nothing flags that drift automatically. Whether `.planning/`
+is long-lived repo content or a working artifact that belongs in `.gitignore` is a
+repository-wide decision spanning this PR and its siblings (#1654, #1655), to be
+settled once by the maintainers rather than inside any one design doc.
+
 ## 1. Problem and current state
 
 FA-039 wants the RAG retrieval path and its agent tool to support metadata
@@ -101,7 +112,18 @@ Semantics: **within a field, multiple values are OR; across fields, AND.**
 field is absent) imposes no restriction; a **non-empty** list is an allow-list; an
 **empty list is rejected at validation** (a supplied-but-empty filter is a caller
 error, never silently "match everything"). This closes the fail-open ambiguity
-where `[]` read as "unrestricted". The authorization dimension is the opposite
+where `[]` read as "unrestricted".
+
+**One rule, two boundaries (PR #1656).** The hard `[] → 422` rejection is correct
+**for the API body**, where a caller controls the JSON and `[]` is genuinely
+ambiguous. It is the wrong default **at the agent-tool boundary**: models routinely
+emit `[]` for an optional list they mean to leave unfiltered, and there `[]`
+unambiguously means "I am not filtering this dimension". So the tool
+**normalizes `[] → None` before constructing `RetrievalFilters`** (a not-filtering
+intent that was already correct costs no retry), while the API schema keeps the
+hard rejection. Same type, two boundaries, different handling — stated here because
+§9.4 assembles `RetrievalFilters` inside the tool and would otherwise inherit the
+API rule by silence. The authorization dimension is the opposite
 default and lives only in `RetrievalScope` (2.2): there `None` = "no per-document
 narrowing applied", but an **empty authorized set means match nothing**
 (empty-denies-all), so a resolver that returns "no documents" can never read as
@@ -110,7 +132,13 @@ exists (e.g. `document_type` against known mime/types) reject unknown values wit
 field error via `app/core/field_errors.py`. `RetrievalFilters` sets
 `extra="forbid"` (the repo `BaseSchema` does **not**, codex-2 R9) so a caller that
 smuggles `organization_id` or any non-whitelisted key is **rejected**, not silently
-ignored — making the trust boundary testable rather than only structural. The model
+ignored — making the trust boundary testable rather than only structural.
+**`extra="forbid"` is the guard for the API body specifically (PR #1656):** on the
+agent tool the arguments are named parameters on a typed signature, so the
+signature *is* the whitelist and a smuggled key never reaches a filter model at
+all. The unknown-key rejection test therefore belongs against the **API route**
+(where a caller controls the JSON), and the tool must not be read as covered by the
+same `extra="forbid"` mechanism (see §9.4). The model
 contains **no tenant field and no authorization field** — those dimensions are
 structurally *inexpressible* here, so a caller cannot even name them (see 2.2).
 
@@ -120,19 +148,33 @@ dimensions (`source`, `document_type`, `organizational_unit`, `date_from`,
 not *which stored id*); the API keeps it for programmatic callers. Every exposed
 argument is optional and typed on the tool signature so PydanticAI validates it.
 
-**Filter-value discoverability (self-review M3).** `document_type` is validated
-against a closed vocabulary, but `source` and `organizational_unit` are otherwise
-free-form. Combined with fail-closed missing-field behavior (§2.4), a caller — and
-especially the model driving the agent tool — that guesses a value the corpus does
-not use (`organizational_unit="Legal"` when the stored value is `"legal-dept"`) gets
-**silently empty results, not an error**. The contract must therefore make the valid
-values discoverable rather than guessable: a lightweight facet endpoint / tool
-affordance that returns the distinct `source` and `organizational_unit` values in
-scope (tenant- and collection-scoped like every other read), and — for the agent
-tool — surfacing those values in the tool description or as an enum where the set is
-small and stable. Without this, the filters are technically correct but practically
-unusable by the model. Covered by a named test (a filter value not present in the
-corpus returns empty *and* the facet list omits it).
+**Filter-value discoverability (self-review M3; sharpened PR #1656).** Three
+dimensions, three shapes, decided by *who* controls the value:
+
+- **`document_type`** is validated against a **closed filetype/mime vocabulary**
+  (§2.6, P1) — known at build time.
+- **`source`** is **also a closed vocabulary known at build time**: the code sets it
+  per origin, and there are exactly four (`upload`, `local` for the directory sync,
+  and the two connectors registered in `app/services/rag/sources/__init__.py` —
+  `GoogleDriveSource`/`gdrive` and `S3Source`/`s3`; §9.5 confirms it is a canonical
+  string set at the call site). No author or model ever writes an arbitrary
+  `source`. A new connector adds a value in the same commit that adds the connector.
+- **`organizational_unit`** is the **only genuinely free-form, author-supplied
+  dimension** — the one whose legal values are corpus-dependent and unknowable at
+  build time.
+
+So the two build-time-closed dimensions (`document_type`, `source`) belong **in the
+tool/API schema as a `Literal`/enum**: the model reads the legal values straight
+out of the function schema, cannot guess wrong, and pays nothing at runtime.
+Runtime discovery is needed for `organizational_unit` alone. Combined with
+fail-closed missing-field behavior (§2.4), a caller that guesses an
+`organizational_unit` value the corpus does not use (`"Legal"` when the stored value
+is `"legal-dept"`) gets **silently empty results, not an error**, so that one
+dimension gets a lightweight facet affordance that returns the distinct in-scope
+values (tenant- and collection-scoped like every other read). This scopes M3 to a
+single dimension and decides whether a second tool operation is warranted at all
+(see §9.4). Covered by a named test (an `organizational_unit` value not present in
+the corpus returns empty *and* the facet list omits it).
 
 ### 2.2 The server-trusted scope (`RetrievalScope`)
 
@@ -213,6 +255,23 @@ predicate living in `WHERE`. The exact-scan alternative (drop the ANN index) is
 noted and rejected on latency grounds. The check pgvector version supports iterative
 scan is a deployment prerequisite (§2.5 rollout).
 
+**A real `organization_id` column is the sturdier alternative for the one
+security-bearing dimension (PR #1656).** Everything else in this design is
+deliberately typed and structurally constrained, yet the tenant conjunct lands as
+`metadata->>'organization_id'` on a hash index — untyped JSONB text. §2.4 already
+reaches for a real typed column as the sturdier shape for `doc_date`; the same
+reasoning applies with more force to the field that actually carries the security
+guarantee. A real `organization_id uuid` column on each `rag_*` table would be
+type-safe, **`NOT NULL`-enforceable once backfilled** (so the backfill can *prove*
+it finished rather than being audited by a count), and cheaper to filter. It also
+changes the H1 calculus above: with the tenant key in a real column,
+**partitioning and a per-tenant partial index become at least expressible** choices
+rather than ruled out because the key lives in JSONB on one global HNSW graph.
+Migration cost looks comparable — both are an iteration over the runtime `rag_*`
+tables, the pattern `0058_backfill_rag_lookup_indexes` already established. This is
+recorded as precondition **P5** (§9.0) because adopting it changes Phase 2 and
+Phase 6; the JSONB shape is what the rest of this document currently assumes.
+
 `BaseVectorStore.search(...)` grows a structured parameter (the composed
 scope+filters object) replacing the bare `parent_doc_id`. `PgVectorStore.search`
 translates it to parameterized conjuncts on the metadata JSONB, e.g.:
@@ -289,6 +348,18 @@ and `docs/reference/spec.md`/`capabilities.md`:
 2. the source's modified time (file mtime / S3 `LastModified` / Drive
    `modifiedTime`), else
 3. ingestion time.
+
+**Step 2 is unimplemented work today, not an existing field to read (PR #1656).**
+`SourceFile` (`app/services/rag/sources/base.py`) is `id, name, mime_type, size,
+path` — it carries **no** modified-time field. Upstream neither connector fetches
+one: the Drive lister requests `fields="files(id, name, mimeType, size)"`
+(`google_drive.py`, so `modifiedTime` is never even asked for) and the S3 lister
+builds `SourceFile(...)` without the `LastModified` the API already returns
+(`s3.py`). So step 2 is **three concrete changes** — add a modified-time field to
+`SourceFile`, widen the Drive `fields=` projection, and thread S3 `LastModified`
+through — not a read of something that exists. It is on the critical path for every
+document whose date should come from the source rather than ingestion time (most of
+a synced corpus), so the Phase 5 estimate must include both connectors (§9.5).
 
 `doc_date` is a **pure calendar date**: any source *timestamp* is converted to UTC
 first, then its date is extracted, and the value is **normalized to ISO
@@ -896,8 +967,10 @@ breakdown or production code.
 ## 9. Implementation plan
 
 Sections 1–8 are settled. This section turns them into an ordered, file-level plan.
-It is grounded in the code as it stands on `feat/1593-rag-metadata-filters`
-(migration head `0077_drop_allow_byo`, verified). It adds **no production code** —
+It is grounded in the code as it stands on `feat/1593-rag-metadata-filters` (when
+first written the migration head was `0077_drop_allow_byo`; `main` has since merged
+`0078_local_services`, so the migration numbers named in §9.6 are **placeholders** —
+regenerate against the then-current head, see §9.6). It adds **no production code** —
 it is the plan the implementation PR(s) will follow.
 
 ### 9.0 Preconditions / open decisions (resolve before coding)
@@ -911,11 +984,22 @@ These gate the work; none is a code change, and two would change scope.
   semantic typing is required, it becomes a separate `document_category` dimension
   (new business metadata + a populate story) — a scope increase to be re-planned, not
   silently satisfied by mime.
-- **P2 — pgvector version.** Iterative index scan (the H1 mitigation, 9.2) requires
-  **pgvector ≥ 0.8.0**. Confirm the repository's pgvector-enabled Postgres image ships
-  it (`SELECT extversion FROM pg_extension WHERE extname='vector'`); if not, the image
-  bump is a prerequisite of Phase 2, and the fallback (raised `ef_search` only, 9.2)
-  ships until then.
+- **P2 — pgvector version, and pinning it is part of the deliverable (self-review
+  H1; sharpened PR #1656).** Iterative index scan (the H1 mitigation, 9.2) requires
+  **pgvector ≥ 0.8.0**. This **cannot be a one-off manual check**: both
+  `docker-compose-dev.yml` and `docker-compose-prod.yml` use the **floating tag**
+  `pgvector/pgvector:pg16`, so "does the image ship ≥ 0.8" resolves to whatever that
+  tag pointed at on the day a given host last pulled and can silently regress on the
+  next pull with nothing changing in the repo. If the H1 recall guarantee depends on
+  `hnsw.iterative_scan`, then **pinning the image to a concrete pgvector version in
+  both compose files and in CI is part of FA-039's Phase 2 deliverable**, not a
+  precondition someone ticks once (`SELECT extversion FROM pg_extension WHERE
+  extname='vector'` verifies a running instance). If the pin does **not** happen,
+  FA-039 ships with a **known recall shortfall** on precisely the conjunct now
+  mandatory on every query — the tenant filter, which on a shared table is also the
+  most selective one, since the `ef_search`-only fallback (9.2) "does not claim the
+  same recall". That trade is to put explicitly in front of the issue owner, not
+  left as a footnote.
 - **P3 — backfill as its own issue (self-review M4).** The tenant backfill (Phase 6)
   is materially larger and riskier than the filter work and should be split into its
   own `effort:l` sub-issue under FA-039 with its own review. Confirm the split;
@@ -923,6 +1007,30 @@ These gate the work; none is a code change, and two would change scope.
 - **P4 — per-document ACL boundary (R3/2.7).** Confirm #1593's acceptance criteria do
   **not** require per-document permission filtering inside FA-039 (that is FA-037).
   If they do, that is a scope escalation to raise, not silently added here.
+- **P5 — real `organization_id` column vs JSONB (PR #1656).** Decide whether the
+  security-bearing tenant key is a real `organization_id uuid` column on each `rag_*`
+  table (type-safe, `NOT NULL`-provable after backfill, cheaper to filter, and makes
+  the H1 partitioning/partial-index mitigations expressible — §2.3) or the JSONB
+  `metadata->>'organization_id'` the rest of this plan currently assumes. Adopting the
+  column changes Phase 2's WHERE translation/index shape and Phase 6's backfill
+  (a `NOT NULL` add after a verified fill instead of a JSON-key stamp). Migration cost
+  is comparable to the JSONB path; resolve before Phase 2 because it is expensive to
+  switch after chunks are written.
+- **P6 — the cross-tenant write clobber (R2) is a live defect, fix it in its own PR
+  first (PR #1656).** The unscoped dedup/replace path — `IngestionService` looks a
+  document up by `source_path`/`filename`/`content_hash` with **no**
+  `organization_id` and then `delete_document`s the returned `parent_doc_id`, so one
+  tenant's ingest can replace and delete another's on a shared collection name — is a
+  **live security defect with no dependency whatsoever on metadata filters**. It
+  should ship as its **own small fix PR now, ahead of FA-039** (scope the dedup
+  lookup and the delete, plus a regression test), rather than riding behind this
+  tender feature's backfill and enforcement flag. Doing so also shrinks what the
+  §9.6 flag has to protect. The four separable workstreams in this document, by
+  urgency: **(1)** the R2 clobber (this precondition, now, standalone); **(2)** the
+  filter contract and its enforcement (the FA-039 feature); **(3)** the tenant
+  backfill, rollout ordering and enforcement flag (P3); **(4)** ingestion provenance
+  (H6/§9.5, both connectors). If (1) lands separately, the rest of §9 assumes its
+  scoping is already in place.
 
 ### 9.1 Phase 1 — schema & metadata contract (foundational; blocks 2/3/4/5)
 
@@ -1155,33 +1263,64 @@ scope to every collection; the removed probe no longer reads cross-tenant.
     follow-up issue that fixes a concrete **deprecation window** (a target release and
     date) and a **named owner** for the usage-telemetry check before removal, rather
     than an open-ended "future issue" (codex round-2 R6).
-- **M3 facet affordance:** add a tenant/collection-scoped read that returns the
-  distinct in-scope `source` and `organizational_unit` values (and, for the small
-  closed set, `document_type`). Concretely a `GET
+- **M3 facet affordance — for `organizational_unit`, the one free-form dimension
+  (§2.1, sharpened PR #1656).** `source` and `document_type` are build-time-closed
+  and exposed as enums in the schema, so the facet read exists to make the distinct
+  in-scope **`organizational_unit`** values discoverable. Concretely a `GET
   /collections/{name}/filter-values` route (gated `COLLECTIONS_VIEW`, resolved via
   `access.readable`) backed by a new store method
   (`distinct_metadata_values(collection, keys, scope)` — a `RetrievalScope`, not a bare
   nullable UUID, for consistency with §9.2's "every scoped op takes a scope" rule →
   `SELECT DISTINCT metadata->>'X' … WHERE metadata->>'organization_id' = :org`). A
-  `RAGFilterValues` response schema in `app/schemas/rag.py`.
+  `RAGFilterValues` response schema in `app/schemas/rag.py`. If the closed sets are
+  ever wanted at runtime too the method can take more keys, but that is not what
+  makes the filters usable — the enums already do.
 - **Agent tool `app/agents/capabilities/knowledge/_toolset.py` + `_search.py`
   (+ `_capability.py`):**
   - Expose the **whitelisted** business filters as optional, typed tool parameters on
     `search_documents` (`source`, `document_type`, `organizational_unit`, `date_from`,
     `date_to`) so PydanticAI validates them; **do not** expose `parent_doc_id`
     (§2.1). Assemble a `RetrievalFilters` inside the tool.
+  - **Build-time-closed dimensions ship as `Literal` in the tool schema (PR #1656).**
+    `document_type` (closed filetype/mime vocabulary) **and** `source` (the four
+    code-set origins — `upload`, `local`, `gdrive`, `s3`; §2.1) are given to the model
+    as a `Literal`/enum on the tool signature, so it reads the legal set straight out
+    of the function schema, cannot write `"PDF"`/`"pdf document"` or a guessed source,
+    and pays nothing at runtime. Only `organizational_unit` stays a free-form `str`
+    (its values are corpus-dependent). A new connector adds a `source` value in the
+    same commit that adds the connector.
+  - **Normalize `[] → None` before constructing `RetrievalFilters` (PR #1656, §2.1).**
+    A model that emits `[]` for a list it means to leave unfiltered is expressing a
+    correct not-filtering intent; the tool maps it to `None` rather than letting the
+    `extra`/empty-list validation turn it into a retry. (`extra="forbid"` is not the
+    tool's guard — the typed signature is; the smuggled-key rejection test lives on
+    the API route, §2.1.)
+  - **A `ValidationError` must reach the model as a corrected-call steer, not an
+    outage (PR #1656).** `_toolset.py` today wraps the whole call in a single
+    `except Exception` that returns `steer(ctx, "Knowledge base temporarily
+    unavailable, please try again.")` — deliberately, so an error never reads as
+    "nothing found". But once `RetrievalFilters(...)` is constructed **inside the tool
+    body**, an unknown `document_type`/`source` or a reversed date range would land in
+    that same handler, telling the model the knowledge base is down (which it cannot
+    act on, and which is untrue). The tool needs its **own `except ValidationError`**
+    that steers with the actual field error, so the next attempt is a corrected call
+    rather than a repeat; the broad handler stays for genuine backend failures.
   - Build `RetrievalScope` from `ctx.deps.organization_id` (never from parameters);
     thread it and the filters through `search_knowledge_base` →
     `retrieve`/`retrieve_multi`.
-  - **Discoverability for the model (M3) — one concrete choice (codex-3 M10):** add a
-    **second whitelisted tool operation** `list_filter_values` on the knowledge
-    toolset that returns the distinct in-scope `source`/`organizational_unit` values
-    (scope from deps, keys whitelisted so they can never become SQL fragments) — the
-    toolset is built synchronously and cannot embed tenant-specific facet data in a
-    static description, so a runtime tool call is the honest shape. (Rejected
-    alternatives: a static enum in the description — the values are tenant/collection
-    dependent; a dynamic description at run setup — extra resolution per run for data
-    the model rarely needs.)
+  - **Discoverability for the model (M3) — scoped to one dimension (codex-3 M10;
+    narrowed PR #1656):** with `source` and `document_type` now enums in the schema
+    (above), runtime discovery is needed for **`organizational_unit` alone**. Because
+    a permanent second tool sits in the schema of *every* knowledge-enabled agent —
+    tokens on every turn of every run, including agents whose corpora are untagged —
+    the affordance is **registered conditionally**: `list_filter_values` is added to
+    the toolset **only when the agent's bound collections actually carry non-empty
+    `organizational_unit` values**. Agents with untagged corpora then pay nothing, and
+    the ones that do get the affordance where it means something. It returns the
+    distinct in-scope `organizational_unit` values (scope from deps, key whitelisted so
+    it can never become an SQL fragment). (Rejected alternatives: an unconditional
+    permanent tool — schema tokens on every run for data the model rarely needs; a
+    static enum in the description — the values are tenant/collection dependent.)
   - `KnowledgeConfig`/`Knowledge` (`_capability.py`) unchanged unless the facet set is
     made configurable; if a spec field is touched, follow the `agent-spec` skill
     (SPEC_VERSION). Default plan: **no spec change** (filters are runtime tool args,
@@ -1216,14 +1355,26 @@ now-scoped `find_existing_document`/`delete_document` signatures.
   - `source` = a canonical origin string set at the call site: `upload`, the
     connector's name (e.g. `gdrive`, `s3`), or `local` for the directory sync.
   - `doc_date` (§2.4 precedence): upload → author/uploader-supplied date if the form
-    carries one, else file mtime; connector sync → the source file's modified time
-    (`app/services/rag/sources/base.py` `SourceFile` modified field, S3
-    `LastModified`, Drive `modifiedTime`); local sync → file mtime; **fallback**
-    ingestion time captured once in the worker. Timestamp → UTC → date → ISO string.
+    carries one, else file mtime; connector sync → the source file's modified time;
+    local sync → file mtime; **fallback** ingestion time captured once in the worker.
+    Timestamp → UTC → date → ISO string.
+    - **Connector step 2 is new plumbing, not a read (PR #1656).** `SourceFile`
+      (`app/services/rag/sources/base.py`) is `id, name, mime_type, size, path` — it
+      has **no** modified-time field today, and neither connector fetches one: the
+      Drive lister requests `fields="files(id, name, mimeType, size)"`
+      (`google_drive.py`, so `modifiedTime` is never asked for) and the S3 lister
+      builds `SourceFile(...)` without the `LastModified` the list call already
+      returns (`s3.py`). So connector `doc_date` provenance is **three concrete
+      changes** — add a modified-time field to `SourceFile`, widen the Drive `fields=`
+      projection to include `modifiedTime`, and thread S3 `LastModified` through — and
+      the Phase 5 estimate covers both connectors, not just `ingest_file`. (§9.11 H6
+      corrected the class name to `SourceFile` but the field it names does not yet
+      exist on it.)
   - `organizational_unit` = author/connector-supplied where present, else absent.
-  - Files touched: `sources/base.py` and the connector implementations (to expose the
-    modified time and origin), the upload schema/route if an author date/unit is
-    accepted, and every `ingest_file` caller in `rag_tasks.py`.
+  - Files touched: `sources/base.py` (add the modified-time field) and **both**
+    connector implementations (Drive `fields=` projection, S3 `LastModified`
+    wiring — to expose the modified time and origin), the upload schema/route if an
+    author date/unit is accepted, and every `ingest_file` caller in `rag_tasks.py`.
 - **`existing_document` / the replace path (lines ~66–89, ~125–166):** pass the
   trusted `organization_id` into `find_existing_document` so the dedup lookup and the
   subsequent `delete_document(existing_id)` cannot find/replace/delete another tenant's
@@ -1252,23 +1403,32 @@ cannot delete another tenant's document; a local sync writes no `organization_id
 Own `effort:l` sub-issue. Ships behind the ordered rollout so no window leaves
 untagged chunks searchable.
 
-**Migration numbering (codex-3 M11).** `0077_drop_allow_byo` is the current single head
-(verified), so the prerequisite-DDL migration is `0078_…` with
-**`down_revision = "0077_drop_allow_byo"`** (full-filename convention). `0078` is **not
-permanently reserved**: if the P3 split lands another migration first, regenerate the
-revision against the then-current head before merge.
+**Migration numbering — the `0078`/`0079` names below are placeholders, not fixed
+revision ids (codex-3 M11; corrected PR #1656).** When this plan was first written
+`0077_drop_allow_byo` was the single head; **it no longer is** — `main` has since
+merged `0078_local_services`, so `0078` is already taken. The literal
+`0078_rag_metadata_prereqs`/`0079_rag_tenant_backfill` names used throughout §9 are
+therefore **placeholders for "the prereq migration" and "the backfill migration"**;
+the real revision ids and `down_revision` must be **generated at implementation
+time against whatever the head is then** (`alembic heads` / `make db-migrate`), not
+copied from this document. Taking the numbers literally is exactly how duplicate
+revision ids have reached `main` from parallel branches before — invisible until
+`upgrade head` runs on a real database. Two further constraints for the generated
+slug: revision ids are **capped at 32 characters** in this repo's setup (glance
+before merge), and the prereq migration's `down_revision` is **the then-current
+head**, whatever it is.
 
-**Two migrations, not one (codex-3 H5), in this order:**
+**Two migrations, not one (codex-3 H5), in this order (placeholder names):**
 
-1. **`0078_rag_metadata_prereqs`** — the global, additive DDL that must exist before
-   any code emits the date predicate or the scoped queries: `CREATE OR REPLACE
-   FUNCTION rag_safe_to_date(text)`, the new JSONB hash indexes and the partial date
-   btree on pre-existing collections. Alembic owns the global function (the app role
-   does not create functions at request time). This migration ships and is applied
-   **before** the read-enforcement flag is turned on.
-2. **`0079_rag_tenant_backfill`** — the operational tenant ownership backfill and the
-   degraded-state columns (below). Runs after dual-write is deployed and old workers
-   drained.
+1. **the prereq migration (placeholder `0078_rag_metadata_prereqs`)** — the global,
+   additive DDL that must exist before any code emits the date predicate or the
+   scoped queries: `CREATE OR REPLACE FUNCTION rag_safe_to_date(text)`, the new JSONB
+   hash indexes and the partial date btree on pre-existing collections. Alembic owns
+   the global function (the app role does not create functions at request time). This
+   migration ships and is applied **before** the read-enforcement flag is turned on.
+2. **the backfill migration (placeholder `0079_rag_tenant_backfill`)** — the
+   operational tenant ownership backfill and the degraded-state columns (below). Runs
+   after dual-write is deployed and old workers drained.
 
 - **DDL (safe/additive):**
   - `CREATE OR REPLACE FUNCTION rag_safe_to_date(text) RETURNS date` — PL/pgSQL,
@@ -1593,3 +1753,66 @@ inconsistency; §9.4 updated to take a `RetrievalScope`, matching §9.2's rule.
 rejected (the process-local flag with a monotonic rollout is safe); the rest are
 accepted as precision/propagation fixes. No finding overturns §1–8, and none re-opens a
 §9.11 verdict. All changes are plan-only — no production code, no task added or removed.
+
+---
+
+## 10. PR #1656 review resolutions (historical appendix)
+
+A human reviewer read the design and plan against `main` and the store code.
+Findings verified against the code before a verdict; each accepted one is folded
+into §1–§4/§9 above, deltas recorded here. **No production code** — plan-only.
+
+- **PR-1 (line 1255) — migration numbers already taken.** *Verified:* `main` now
+  carries `0078_local_services` (revision `0078_local_services`,
+  `down_revision 0077_drop_allow_byo`); the `0079_audit_hash_chain` the reviewer also
+  named is on an unmerged branch (`feat/1422-audit-export`), so `0078` is the taken
+  one. §9 still named `0078_rag_metadata_prereqs`/`0079_rag_tenant_backfill` as if
+  fixed. **Valid.** §9 intro and §9.6 now mark those as **placeholders** to
+  regenerate against the then-current head, add the 32-char revision-id cap, and drop
+  the false "`0077` is the single head" claim.
+- **PR-2 (line 220) — the security-bearing field is untyped JSONB.** *Verified:* the
+  tenant conjunct is `metadata->>'organization_id'`, while §2.4 already prefers a real
+  typed column for `doc_date`. **Valid.** §2.3 records a real `organization_id uuid`
+  column as the sturdier alternative (`NOT NULL`-provable, cheaper, makes H1
+  partitioning/partial-index expressible); added as precondition **P5** (§9.0).
+- **PR-3 (line 914) — pgvector image not pinned.** *Verified:* both compose files use
+  the floating tag `pgvector/pgvector:pg16`, so the H1 ≥ 0.8 requirement can regress
+  on a pull. **Valid.** P2 (§9.0) now makes pinning the image (compose + CI) part of
+  the Phase 2 deliverable and states the recall-shortfall trade for the issue owner.
+- **PR-4 (line 1216 / 123) — `source` is a closed, code-set vocabulary.** *Verified:*
+  §9.5 sets `source` from four code origins (`upload`/`local`/`gdrive`/`s3`); only
+  `GoogleDriveSource`/`S3Source` are registered. §2.1 wrongly called it free-form.
+  **Valid.** §2.1/§9.4 expose `source` (and `document_type`) as `Literal` enums in the
+  tool schema and scope the M3 facet discovery to `organizational_unit` alone.
+- **PR-5 (line 1220) — `SourceFile` has no modified time; connectors don't fetch
+  one.** *Verified:* `SourceFile` = id/name/mime_type/size/path; Drive
+  `fields="files(id, name, mimeType, size)"`; S3 drops `LastModified`. **Valid.** §2.4
+  and §9.5 now state `doc_date` step 2 is new plumbing (add the field, widen Drive
+  projection, wire S3 `LastModified`) and cover both connectors in Phase 5.
+- **PR-6 (line 102) — `[] → None` at the tool boundary.** *Verified:* a model's `[]`
+  means "not filtering", and blanket `[] → 422` costs a needless retry. **Valid.**
+  §2.1/§9.4 normalize `[] → None` in the tool, keep the hard rejection on the API body.
+- **PR-7 (line 1172a) — a `ValidationError` must not reach the model as an outage.**
+  *Verified:* `_toolset.py` wraps the call in one `except Exception` →
+  "temporarily unavailable"; a tool-side filter build would land there. **Valid.**
+  §9.4 requires a dedicated `except ValidationError` that steers with the field error.
+- **PR-8 (line 1172b) — `extra="forbid"` guards the API body, not the tool.**
+  *Verified:* on the tool the typed signature is the whitelist. **Valid.** §2.1/§9.4
+  state the smuggled-key test belongs on the API route.
+- **PR-9 (line 1172c) — give `document_type` a `Literal`.** **Valid**, folded into
+  PR-4's enum decision.
+- **PR-10 (line 1177) — a permanent second tool is the expensive option.**
+  *Verified:* it costs schema tokens on every run of every knowledge agent. **Valid.**
+  §9.4 registers `list_filter_values` **conditionally** — only when bound collections
+  carry non-empty `organizational_unit` values.
+- **PR-11 (line 903) — split the work four ways; fix R2 first.** *Verified:* the R2
+  cross-tenant write clobber has no dependency on metadata filters. **Valid.**
+  precondition **P6** (§9.0) records the four workstreams and recommends the R2 fix as
+  its own PR ahead of FA-039.
+- **PR-12 (review summary) — the review log is most of the document.** **Valid.** the
+  top-of-document reading guide now designates §1–§4/§9 as the living artifact and
+  §5/§6/§8/§9.11/§9.12/§10 as historical review appendices.
+- **PR-13 (review summary) — `.planning/` has no convention.** **Valid observation,
+  not resolvable inside one doc.** whether `.planning/` is tracked repo content or
+  `.gitignore`d spans #1654/#1655/#1656 and is a maintainer decision; the reading
+  guide records the drift risk (`scripts/docs_drift.py` does not watch the path).
