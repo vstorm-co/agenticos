@@ -1766,14 +1766,14 @@ class TestToolOverrideValidation:
             _spec(
                 capabilities=[
                     {
-                        "id": "skills",
-                        "tool_overrides": {"load_skill": {"name": "list_skills"}},
+                        "id": "context",
+                        "tool_overrides": {"read_context": {"name": "list_context"}},
                     }
                 ]
             )
         )
 
-        assert any("two tools called list_skills" in problem for problem in problems)
+        assert any("two tools called list_context" in problem for problem in problems)
 
     @pytest.mark.anyio
     async def test_a_rename_a_model_can_call_is_accepted(self):
@@ -1785,7 +1785,7 @@ class TestToolOverrideValidation:
                 {
                     "id": "skills",
                     "tool_overrides": {
-                        "load_skill": {
+                        "read_skill_resource": {
                             "name": "load-playbook_2",
                             "description": "Load one of the team's playbooks.",
                         }

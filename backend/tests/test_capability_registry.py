@@ -150,12 +150,21 @@ class TestToolDeclarations:
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
         CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+        # A skill that ships a file, which is the widest shape: `skills` offers
+        # `read_skill_resource` only when at least one skill has something to
+        # read, and a skill with no resources offers no tool at all.
         "skills": [
             SimpleNamespace(
                 name="refunds",
                 description="How refunds work.",
                 content="…",
-                resources=[],
+                resources=[
+                    SimpleNamespace(
+                        name="template.md",
+                        description="Reply template",
+                        content="Dear {name},",
+                    )
+                ],
             )
         ],
         # A linked file, so `context` offers both its tools - the widest shape,
@@ -763,11 +772,16 @@ class TestToolsets:
     def test_skills_exclude_script_execution(self):
         """Without a sandbox, run_skill_script is remote code execution."""
 
+        class _Resource:
+            name = "template.md"
+            description = "Reply template"
+            content = "Dear {name},"
+
         class _Skill:
             name = "refunds"
             description = "How refunds work."
             content = "# Refunds"
-            resources: list[object] = []
+            resources: list[object] = [_Resource()]
 
         toolset = Skills(skills=[_Skill()]).get_toolset()
         assert toolset is not None

@@ -10,8 +10,8 @@ import { ChartMessage, parseChartResult } from "./chart-message";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
-import { LoadSkillResult } from "./tool-results/skills";
-import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
+import { LoadedSkillResult } from "./tool-results/skills";
+import { ContextListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
@@ -204,10 +204,8 @@ export function ToolCallCard({
         <ChartMessage spec={chartSpec} />
       ) : renderer === "run-python" ? (
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
-      ) : renderer === "load-skill" ? (
-        <LoadSkillResult resultText={resultText} status={toolCall.status} />
-      ) : renderer === "skill-list" ? (
-        <SkillListResult result={toolCall.result} />
+      ) : renderer === "loaded-skill" ? (
+        <LoadedSkillResult result={toolCall.result} status={toolCall.status} />
       ) : renderer === "context-list" ? (
         <ContextListResult resultText={resultText} />
       ) : renderer === "plan" ? (

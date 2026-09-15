@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
     ModelMessage,
@@ -422,6 +424,186 @@ class TestSpecsPublishedBeforeThisExisted:
         """The before-validator must not swallow a malformed hand-written spec."""
         with pytest.raises(ValueError):
             AgentSpec.from_yaml("name: x\ncapabilities: [[not, a, mapping]]\n")
+
+
+class TestSkillsAreDeferredCapabilities:
+    """A capability that registers its own children, wrapped by a binding.
+
+    `skills` is the only one: each bound skill is a deferred capability of its
+    own, and the capability registers itself beside them so the toolset carrying
+    `read_skill_resource` has an owner in the run. A wrapper adopts the id of what
+    it wraps, so registering both would be two classes claiming `skills` - which
+    Pydantic AI refuses before the first token, and which is what
+    `ToolOverrides.apply` exists to prevent.
+    """
+
+    @staticmethod
+    def _skill() -> Any:
+        skill = SimpleNamespace(
+            name="refunds",
+            description="How refunds are handled.",
+            content="Check the order date first.",
+            resources=[
+                SimpleNamespace(
+                    name="exceptions.md",
+                    description="The three exceptions",
+                    content="Wholesale, gift cards, damaged on arrival.",
+                )
+            ],
+        )
+        return {"skills": [skill]}
+
+    @pytest.mark.anyio
+    async def test_a_renamed_skills_tool_reaches_the_model(self):
+        """The rename works, and the run survives being wrapped at all.
+
+        `load_capability` is beside it because it is the framework's own, offered
+        to any agent with a deferred capability - which every skill now is. It is
+        not this capability's to rename, and a binding cannot reach it.
+        """
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {
+                    "id": "skills",
+                    "tool_overrides": {"read_skill_resource": {"name": "open_playbook_file"}},
+                }
+            ],
+        )
+
+        offered = await _tools_offered(spec, resources=self._skill())
+
+        assert sorted(tool.name for tool in offered) == [
+            "load_capability",
+            "open_playbook_file",
+        ]
+
+    @pytest.mark.anyio
+    async def test_the_rename_keeps_the_tool_attached_to_its_capability(self):
+        """`capability_id` is what the approval gate needs; a wrapper must not lose it."""
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {
+                    "id": "skills",
+                    "tool_overrides": {"read_skill_resource": {"name": "open_playbook_file"}},
+                }
+            ],
+        )
+
+        offered = await _tools_offered(spec, resources=self._skill())
+
+        by_name = {tool.name: tool.capability_id for tool in offered}
+        assert by_name["open_playbook_file"] == "skills"
+
+    @pytest.mark.anyio
+    async def test_each_skill_stays_its_own_deferred_capability_under_a_rename(self):
+        """The wrapper stands in for the capability, never for the skills under it."""
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {
+                    "id": "skills",
+                    "tool_overrides": {"read_skill_resource": {"name": "open_playbook_file"}},
+                }
+            ],
+        )
+        built = build_agent(
+            spec, _model_spec(), organization_id=uuid.uuid4(), resources=self._skill()
+        )
+
+        registered: list[Any] = []
+        for capability in built.capabilities:
+            capability.apply(registered.append)
+
+        assert [capability.id for capability in registered] == ["skills", "refunds"]
+
+
+class TestSpecVersion12WithdrewTwoSkillsTools:
+    """`list_skills` and `load_skill` stopped being tools when skills became capabilities."""
+
+    def test_a_stored_gate_on_a_withdrawn_tool_is_dropped(self):
+        """Publish refuses a gate on a tool that does not exist; the spec still loads."""
+        spec = AgentSpec.model_validate(
+            {
+                "spec_version": 11,
+                "name": "Support",
+                "capabilities": [
+                    {
+                        "id": "skills",
+                        "tool_approval": {
+                            "load_skill": "required",
+                            "read_skill_resource": "never",
+                        },
+                    }
+                ],
+            }
+        )
+
+        assert spec.capabilities[0].tool_approval == {"read_skill_resource": "never"}
+
+    def test_a_stored_rename_of_a_withdrawn_tool_is_dropped(self):
+        spec = AgentSpec.model_validate(
+            {
+                "spec_version": 11,
+                "name": "Support",
+                "capabilities": [
+                    {
+                        "id": "skills",
+                        "tool_overrides": {
+                            "list_skills": {"name": "what_do_i_know"},
+                            "read_skill_resource": {"name": "open_playbook_file"},
+                        },
+                    }
+                ],
+            }
+        )
+        binding = spec.capabilities[0]
+
+        assert set(binding.tool_overrides) == {"read_skill_resource"}
+        assert binding.tool_overrides["read_skill_resource"].name == "open_playbook_file"
+        assert "list_skills" not in spec.to_yaml()
+
+    def test_another_capability_keeps_a_binding_of_the_same_name(self):
+        """The withdrawal is the skills capability's, not a name ban."""
+        spec = AgentSpec.model_validate(
+            {
+                "spec_version": 11,
+                "name": "Support",
+                "capabilities": [
+                    {"id": "knowledge", "tool_overrides": {"load_skill": {"name": "x"}}}
+                ],
+            }
+        )
+
+        assert set(spec.capabilities[0].tool_overrides) == {"load_skill"}
+
+    def test_a_binding_that_never_gated_one_is_untouched(self):
+        """Almost every stored spec; re-reading one must change nothing."""
+        spec = AgentSpec.model_validate(
+            {
+                "spec_version": 11,
+                "name": "Support",
+                "capabilities": [{"id": "skills", "tool_approval": {}, "tool_overrides": {}}],
+            }
+        )
+
+        assert spec.capabilities[0].tool_approval == {}
+        assert spec.capabilities[0].tool_overrides == {}
+
+    def test_a_binding_stating_neither_field_is_untouched(self):
+        spec = AgentSpec.model_validate(
+            {"spec_version": 11, "name": "Support", "capabilities": [{"id": "skills"}]}
+        )
+
+        assert spec.capabilities[0].tool_approval == {}
+
+    def test_a_capability_list_entry_that_is_not_a_mapping_is_left_to_pydantic(self):
+        """The field's own validation names it better than a migration can."""
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate(
+                {"spec_version": 11, "name": "Support", "capabilities": ["skills"]}
+            )
 
 
 class TestSerialisation:

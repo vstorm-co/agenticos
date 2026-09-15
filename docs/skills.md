@@ -11,9 +11,9 @@ twenty-first pushes the conversation out of the window. Skills invert that:
 
 ```mermaid
 flowchart LR
-    A["the agent's context<br/><i>names + one-line descriptions only</i>"] -->|list_skills| B{is one relevant?}
+    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_skill - the body"]
+    B -->|yes| C["load_capability - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -24,9 +24,9 @@ Twenty skills cost roughly twenty *descriptions* instead of twenty *procedures*.
 
 !!! note "Discovery is cheap, not free"
 
-    `list_skills` answers with every attached skill's name and description, and
-    that result goes into the next model request — so each skill an agent is bound
-    to does cost tokens on a turn where discovery runs.
+    Every skill an agent is bound to sits in the catalog the model reads on every
+    turn, as its name and its one-line description — so binding a skill does cost
+    tokens whether or not the model ever opens it.
 
     It is a line per skill against a body per skill, which is why the numbers work.
     It is not grounds for binding an unbounded catalogue.
@@ -80,14 +80,20 @@ by category.
 
 ## How an agent reads one
 
-Through the [`skills` capability](reference/capabilities.md#skills), which
-contributes three tools:
+Through the [`skills` capability](reference/capabilities.md#skills). Each skill
+an agent is given becomes a **capability of its own**, listed for the model by
+name and description and opened on demand:
 
-| Tool | What it does |
+| How | What it does |
 |---|---|
-| `list_skills` | Names and one-line descriptions of everything bound to this agent |
-| `load_skill` | The full body of one skill |
+| The capability catalog | Names and one-line descriptions of everything bound to this agent |
+| `load_capability` | The full body of one skill, pulled into the conversation |
 | `read_skill_resource` | One file beside a skill |
+
+`load_capability` is the agent framework's own tool, not one this platform
+publishes, so it is not something a spec grants, gates or renames. What the
+capability contributes as a tool is `read_skill_resource`, and only when at least
+one of the bound skills ships a file to read.
 
 A spec binds skills by id in `skill_ids`, so an agent sees the ones it was given
 and nothing else.
