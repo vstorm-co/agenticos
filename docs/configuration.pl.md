@@ -1,5 +1,5 @@
 ---
-source_sha: "5507a17623b1"
+source_sha: "596419daaf85"
 ---
 
 # Konfiguracja { #configuration }
@@ -488,7 +488,7 @@ przenosi tego, co trzyma już ten drugi.
 | `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` dla MinIO i większości zgodnych magazynów, które adresują bucket ścieżką. Żądanie w stylu virtual-host trafia u nich na błąd DNS, a nie na S3 |
 | `FILE_STORAGE_S3_PREFIX` | (puste) | Każdy klucz zapisywany przez to wdrożenie leży pod nim, więc jeden bucket może pomieścić więcej niż jedno wdrożenie bez mieszania kluczy |
 | `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | O co magazyn jest proszony przy każdym zapisie: `sse-s3` (własny klucz bucketu), `sse-kms` (klucz poniżej) albo `none` |
-| `FILE_STORAGE_S3_KMS_KEY_ID` | (brak) | Identyfikator albo ARN klucza KMS dla `sse-kms`. Zostawiony pusty oznacza domyślny klucz bucketu |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (brak) | Identyfikator albo ARN klucza KMS. **Wymagany** przy trybie `sse-kms`: S3 czyta nienazwany `aws:kms` jako własny klucz zarządzany przez AWS `aws/s3`, a nie jako domyślny klucz bucketu, więc puste oznaczałoby szyfrowanie kluczem, którego nikt nie wybrał |
 
 !!! warning "`none` jest dla magazynu bez KMS i nie jest szyfrowaniem"
 

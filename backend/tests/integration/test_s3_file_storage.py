@@ -131,6 +131,18 @@ async def test_deleting_an_object_twice_is_a_no_op(storage: S3FileStorage) -> No
     await storage.delete(stored)
 
 
+async def test_a_large_object_is_streamed_back_in_chunks(storage: S3FileStorage) -> None:
+    """Against a real store, because the chunking is botocore's `read(n)` on a
+    live socket rather than something a fake can prove."""
+    payload = bytes(range(256)) * 4096  # 1 MiB
+    stored = await storage.save("users/abc", "big.bin", payload)
+
+    chunks = [chunk async for chunk in await storage.open_stream(stored)]
+
+    assert len(chunks) > 1, "a 1 MiB object came back in one piece"
+    assert b"".join(chunks) == payload
+
+
 async def test_the_object_lands_under_the_configured_prefix(
     storage: S3FileStorage, bucket: str
 ) -> None:

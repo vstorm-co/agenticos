@@ -15,6 +15,12 @@ this module knows which.
 Both builders answer `None` rather than raising, because the wording of the
 refusal belongs to the route: "No avatar set" and "No logo" are different
 sentences about the same missing object.
+
+The two differ in one more way. `stored_file_response` serves the things that
+can be large - a chat attachment, a knowledge-base document - and streams them
+from an object store in bounded chunks; `stored_image_response` has to see the
+first bytes to decide what it is serving, and what it serves is capped at
+`MAX_AVATAR_SIZE`, so it reads the whole thing.
 """
 
 from __future__ import annotations
@@ -22,7 +28,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from fastapi import Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.responses import content_disposition
 from app.services.file_storage import (
@@ -61,10 +67,18 @@ async def stored_file_response(
     path = storage.get_full_path(storage_path)
     if path is not None:
         return FileResponse(path=path, media_type=media_type, headers=header_map)
-    data = await _load(storage_path)
-    if data is None:
+    # Streamed rather than buffered, because this is the pair of routes that
+    # serve something large: a knowledge-base document can be 50 MB and neither
+    # route is rate-limited, so a handful of concurrent downloads held whole in
+    # this process is the container's memory ceiling - a tenant taking the
+    # deployment down without reading anything they were not entitled to. The
+    # object is opened before the response starts, so a missing one is still a
+    # 404 rather than a stream that dies mid-body.
+    try:
+        chunks = await storage.open_stream(storage_path)
+    except (FileNotFoundError, ValueError):
         return None
-    return Response(content=data, media_type=media_type, headers=header_map)
+    return StreamingResponse(chunks, media_type=media_type, headers=header_map)
 
 
 async def stored_image_response(

@@ -1,5 +1,5 @@
 ---
-source_sha: "5507a17623b1"
+source_sha: "596419daaf85"
 ---
 
 # Configuración { #configuration }
@@ -499,7 +499,7 @@ despliegue, nunca por organización, y cambiarlo no mueve lo que el otro ya tien
 | `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` para MinIO y la mayoría de almacenes compatibles, que direccionan el bucket por ruta. Una petición de tipo virtual-host falla en DNS antes que en S3 |
 | `FILE_STORAGE_S3_PREFIX` | (vacío) | Toda clave que escribe este despliegue queda debajo, de modo que un bucket puede alojar más de un despliegue sin que sus claves se crucen |
 | `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | Lo que se le pide al almacén en cada escritura: `sse-s3` (la propia clave del bucket), `sse-kms` (la clave de abajo) o `none` |
-| `FILE_STORAGE_S3_KMS_KEY_ID` | (ninguno) | El id o ARN de la clave KMS para `sse-kms`. Vacío, decide la clave por defecto del bucket |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (ninguno) | El id o ARN de la clave KMS. **Obligatorio** con el modo `sse-kms`: S3 lee un `aws:kms` sin nombre como su propia clave gestionada por AWS `aws/s3` y no como la clave por defecto del bucket, así que dejarlo vacío cifraría bajo una clave que nadie eligió |
 
 !!! warning "`none` es para un almacén sin KMS y no es cifrado"
 

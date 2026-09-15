@@ -22,9 +22,10 @@ Two things are versioned separately from this file and worth knowing about:
 - An S3-compatible file-storage backend beside the local disk, selected by
   `FILE_STORAGE_BACKEND=s3`. Every write asks the store for server-side
   encryption — SSE-S3 by default, SSE-KMS under a key the deployment names — and
-  a `FILE_STORAGE_S3_PREFIX` keeps two deployments in one bucket apart. Local
-  stays the default and nothing migrates between them; it is a deployment-time
-  choice. `agenticos cmd doctor` prints which backend is running and whether
+  a `FILE_STORAGE_S3_PREFIX` keeps two deployments in one bucket apart. An
+  upload is cancellation-safe the way the local one is, and a download is
+  streamed in bounded chunks rather than held whole. Local stays the default and
+  nothing migrates between them; it is a deployment-time choice. `agenticos cmd doctor` prints which backend is running and whether
   encryption is on, and `make docker-minio` starts a MinIO to develop against.
   (#1423)
 

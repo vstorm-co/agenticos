@@ -20,16 +20,34 @@ import os
 import re
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from app.core.blocking import delete_cancel_safe, run_blocking, write_bytes_cancel_safe
+from app.core.blocking import (
+    create_cancel_safe,
+    delete_cancel_safe,
+    run_blocking,
+    write_bytes_cancel_safe,
+)
 from app.core.config import settings
 
 if TYPE_CHECKING:
     from botocore.client import BaseClient
 
 logger = logging.getLogger(__name__)
+
+# What S3 says when the object is not there. Anything else a request comes back
+# with - a refused policy, a throttle, an outage - is a fact about the store
+# rather than about the object, and is never reported as "missing".
+_MISSING_OBJECT_CODES = frozenset({"NoSuchKey", "NoSuchBucket", "404"})
+
+# How much of an object is in this process at once while it is being served.
+# Small enough that a burst of concurrent downloads is bounded by the number of
+# requests rather than by the size of what they asked for; large enough that a
+# 50 MB document is not fifty thousand round trips.
+STREAM_CHUNK_BYTES = 256 * 1024
 
 
 async def delete_files_best_effort(storage_paths: list[str]) -> None:
@@ -214,6 +232,28 @@ class BaseFileStorage(ABC):
     async def delete(self, storage_path: str) -> None:
         """Delete file by storage path."""
 
+    async def open_stream(self, storage_path: str) -> AsyncIterator[bytes]:
+        """The file's bytes in chunks, for a caller that must not hold it whole.
+
+        The default reads it whole and yields one chunk, which is right for a
+        backend whose files are already on this host - the serving routes hand
+        those to `FileResponse`, which streams from disk and answers a range
+        request. A backend whose objects arrive over the network overrides it.
+
+        The object is *opened here*, not on the first chunk, so a missing file
+        raises before a response has started going out and the route can still
+        answer 404 (#1423).
+
+        Raises:
+            FileNotFoundError: the backend does not hold that path.
+        """
+        data = await self.load(storage_path)
+
+        async def _one() -> AsyncIterator[bytes]:
+            yield data
+
+        return _one()
+
     @abstractmethod
     async def exists(self, storage_path: str) -> bool:
         """Whether this backend still holds the file that path names.
@@ -359,15 +399,24 @@ class S3FileStorage(BaseFileStorage):
         return f"{self.prefix}/{cleaned}" if self.prefix else cleaned
 
     def _encryption(self) -> dict[str, str]:
-        """The server-side-encryption arguments every `put_object` carries."""
+        """The server-side-encryption arguments every `put_object` carries.
+
+        `sse-kms` always names its key, and `get_file_storage` refuses to build a
+        backend that does not have one. A `ServerSideEncryption: aws:kms` with no
+        `SSEKMSKeyId` does **not** fall back to the bucket's default key, which
+        is what this looked like it did: S3 encrypts under the AWS-managed
+        `aws/s3` key instead. A deployment whose bucket default is a
+        customer-managed key would have stored data under the wrong one, or had
+        the write refused by a policy requiring theirs.
+        """
         mode = settings.FILE_STORAGE_S3_ENCRYPTION
         if mode == "sse-s3":
             return {"ServerSideEncryption": "AES256"}
         if mode == "sse-kms":
-            args = {"ServerSideEncryption": "aws:kms"}
-            if settings.FILE_STORAGE_S3_KMS_KEY_ID:
-                args["SSEKMSKeyId"] = settings.FILE_STORAGE_S3_KMS_KEY_ID
-            return args
+            return {
+                "ServerSideEncryption": "aws:kms",
+                "SSEKMSKeyId": settings.FILE_STORAGE_S3_KMS_KEY_ID or "",
+            }
         return {}
 
     async def save(self, user_id: str, filename: str, data: bytes) -> str:
@@ -381,7 +430,13 @@ class S3FileStorage(BaseFileStorage):
         safe_owner = _sanitize_filename(user_id)
         storage_name = make_storage_filename(filename)
         storage_path = f"{safe_owner}/{storage_name}"
-        await run_blocking(self._put_blocking, self._key(storage_path), data)
+        key = self._key(storage_path)
+        # Cancellation-safe for the reason the local backend's write is: an
+        # executor cannot interrupt a running `put_object`, so a cancelled
+        # request would unwind with the object written and its key never
+        # returned - bytes nothing points at, paid for every month until
+        # somebody goes looking (#1108's failure in a bucket).
+        await create_cancel_safe(self._put_blocking, partial(self._delete_blocking, key), key, data)
         return storage_path
 
     def _put_blocking(self, key: str, data: bytes) -> None:
@@ -403,8 +458,7 @@ class S3FileStorage(BaseFileStorage):
         try:
             response = self.client.get_object(Bucket=self.bucket, Key=key)
         except ClientError as exc:
-            code = exc.response.get("Error", {}).get("Code")
-            if code in {"NoSuchKey", "404", "NoSuchBucket"}:
+            if exc.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
                 raise FileNotFoundError(f"File not found: {key}") from exc
             raise
         body: Any = response["Body"]
@@ -429,13 +483,67 @@ class S3FileStorage(BaseFileStorage):
             return False
         return await run_blocking(self._head_blocking, key)
 
+    async def open_stream(self, storage_path: str) -> AsyncIterator[bytes]:
+        """One object, in bounded chunks, never held whole in this process.
+
+        A knowledge-base document can be 50 MB, and the route serving it has no
+        rate limit of its own - so a handful of concurrent downloads buffered in
+        full is the API container's memory ceiling, which is a tenant taking the
+        deployment down without reading anything they were not entitled to.
+
+        `get_object` runs first and raises `FileNotFoundError` for a key that is
+        not there, so the 404 is decided before the response starts.
+        """
+        body = await run_blocking(self._open_blocking, self._key(storage_path))
+        return self._chunks(body)
+
+    def _open_blocking(self, key: str) -> Any:
+        """The open body of one object, translating a miss the way `load` does."""
+        from botocore.exceptions import ClientError
+
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
+                raise FileNotFoundError(f"File not found: {key}") from exc
+            raise
+        return response["Body"]
+
+    async def _chunks(self, body: Any) -> AsyncIterator[bytes]:
+        """Read the open body a chunk at a time, on the file pool.
+
+        `body.read(n)` is a blocking socket read, so it belongs off the loop for
+        the reason every other call here does. The body is closed however the
+        iteration ends - botocore holds the connection until it is, and a pool
+        that runs out of them stalls every later read.
+        """
+        try:
+            while True:
+                chunk: bytes = await run_blocking(body.read, STREAM_CHUNK_BYTES)
+                if not chunk:
+                    return
+                yield chunk
+        finally:
+            await run_blocking(body.close)
+
     def _head_blocking(self, key: str) -> bool:
+        """Whether the object is there, and only that.
+
+        A blanket `except ClientError` would answer "not there" for an
+        `AccessDenied`, a throttle or an outage - so a bad bucket policy would
+        read as an agent with no avatar and a knowledge base whose documents
+        have all been deleted, which is the wrong thing for anybody to act on.
+        Only the codes that mean "no such object" answer `False`; everything
+        else is the caller's to see.
+        """
         from botocore.exceptions import ClientError
 
         try:
             self.client.head_object(Bucket=self.bucket, Key=key)
-        except ClientError:
-            return False
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
+                return False
+            raise
         return True
 
 
@@ -456,10 +564,21 @@ def build_s3_client() -> BaseClient:
     import boto3
     from botocore.config import Config
 
+    key_id = settings.FILE_STORAGE_S3_ACCESS_KEY
+    secret = settings.FILE_STORAGE_S3_SECRET_KEY
+    if bool(key_id) != bool(secret):
+        # Half a key pair silently falls through to boto3's own chain, which on a
+        # host with an instance or task role authenticates as a principal the
+        # operator did not name - and everywhere else fails with "no credentials"
+        # about a key they did supply.
+        raise RuntimeError(
+            "FILE_STORAGE_S3_ACCESS_KEY and FILE_STORAGE_S3_SECRET_KEY must both be set "
+            "or both be empty; empty means boto3's own credential chain answers"
+        )
     client_kwargs: dict[str, Any] = {"region_name": settings.FILE_STORAGE_S3_REGION}
-    if settings.FILE_STORAGE_S3_ACCESS_KEY and settings.FILE_STORAGE_S3_SECRET_KEY:
-        client_kwargs["aws_access_key_id"] = settings.FILE_STORAGE_S3_ACCESS_KEY
-        client_kwargs["aws_secret_access_key"] = settings.FILE_STORAGE_S3_SECRET_KEY
+    if key_id and secret:
+        client_kwargs["aws_access_key_id"] = key_id
+        client_kwargs["aws_secret_access_key"] = secret
     if settings.FILE_STORAGE_S3_ENDPOINT:
         client_kwargs["endpoint_url"] = settings.FILE_STORAGE_S3_ENDPOINT
     config = Config(
@@ -486,6 +605,19 @@ def get_file_storage() -> BaseFileStorage:
             if not settings.FILE_STORAGE_S3_BUCKET:
                 raise RuntimeError(
                     "FILE_STORAGE_BACKEND=s3 needs FILE_STORAGE_S3_BUCKET set to the bucket to write to"
+                )
+            if (
+                settings.FILE_STORAGE_S3_ENCRYPTION == "sse-kms"
+                and not settings.FILE_STORAGE_S3_KMS_KEY_ID
+            ):
+                # Not a default anybody can fall back to: S3 reads an unnamed
+                # `aws:kms` as its own `aws/s3` key rather than as the bucket's
+                # configured one, so a deployment that asked for a client-held
+                # key and named none would get neither and be told nothing.
+                raise RuntimeError(
+                    "FILE_STORAGE_S3_ENCRYPTION=sse-kms needs FILE_STORAGE_S3_KMS_KEY_ID; "
+                    "S3 reads an unnamed aws:kms as the AWS-managed aws/s3 key, not as the "
+                    "bucket's default"
                 )
             _s3_storage = S3FileStorage(
                 build_s3_client(),

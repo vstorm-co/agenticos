@@ -481,7 +481,7 @@ organization, and switching it does not move what the other already holds.
 | `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` for MinIO and most compatible stores, which address a bucket by path. A virtual-host request to one fails DNS rather than S3 |
 | `FILE_STORAGE_S3_PREFIX` | (empty) | Every key this deployment writes sits under it, so one bucket can hold more than one deployment without their keys meeting |
 | `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | What the store is asked for on every write: `sse-s3` (the bucket's own key), `sse-kms` (the key below), or `none` |
-| `FILE_STORAGE_S3_KMS_KEY_ID` | (none) | The KMS key id or ARN for `sse-kms`. Left empty, the bucket's default key decides |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (none) | The KMS key id or ARN. **Required** when the mode is `sse-kms`: S3 reads an unnamed `aws:kms` as its own AWS-managed `aws/s3` key rather than as the bucket's default, so leaving it empty would encrypt under a key nobody chose |
 
 !!! warning "`none` is for a store with no KMS behind it, and it is not encryption"
 

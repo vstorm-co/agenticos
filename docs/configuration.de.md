@@ -1,5 +1,5 @@
 ---
-source_sha: "5507a17623b1"
+source_sha: "596419daaf85"
 ---
 
 # Konfiguration { #configuration }
@@ -517,7 +517,7 @@ Organisation, und ein Wechsel verschiebt nicht, was das andere bereits hält.
 | `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` für MinIO und die meisten kompatiblen Speicher, die einen Bucket über den Pfad adressieren. Eine Virtual-Host-Anfrage scheitert dort an DNS statt an S3 |
 | `FILE_STORAGE_S3_PREFIX` | (leer) | Jeder Key, den dieses Deployment schreibt, liegt darunter, so dass ein Bucket mehr als ein Deployment aufnehmen kann, ohne dass sich ihre Keys treffen |
 | `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | Worum der Speicher bei jedem Schreibvorgang gebeten wird: `sse-s3` (der eigene Schlüssel des Buckets), `sse-kms` (der Schlüssel unten) oder `none` |
-| `FILE_STORAGE_S3_KMS_KEY_ID` | (keiner) | Die KMS-Schlüssel-ID oder -ARN für `sse-kms`. Leer gelassen entscheidet der Standardschlüssel des Buckets |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (keiner) | Die KMS-Schlüssel-ID oder -ARN. **Erforderlich** im Modus `sse-kms`: S3 liest ein unbenanntes `aws:kms` als seinen eigenen AWS-verwalteten Schlüssel `aws/s3` und nicht als den Standardschlüssel des Buckets, leer hieße also Verschlüsselung unter einem Schlüssel, den niemand gewählt hat |
 
 !!! warning "`none` ist für einen Speicher ohne KMS und ist keine Verschlüsselung"
 

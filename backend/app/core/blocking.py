@@ -19,6 +19,7 @@ import contextlib
 import weakref
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -103,18 +104,31 @@ async def run_blocking[T](fn: Callable[..., T], *args: object) -> T:
     return await asyncio.wrap_future(await _submit(fn, *args))
 
 
-async def write_bytes_cancel_safe(path: Path, data: bytes) -> None:
-    """Write `data` to `path` on the file pool, leaving nothing behind if cancelled.
+async def create_cancel_safe(
+    create: Callable[..., Any], undo: Callable[[], Any], *args: object
+) -> None:
+    """Run `create` on the file pool, undoing it if the caller is cancelled.
 
-    An executor cannot interrupt a running `write_bytes`, so a task cancelled
-    while the write is in flight would unwind with the file half- or
-    fully-created and unreachable - the caller never receives its storage path,
-    so it can neither record nor delete it (#1108). The write is shielded so it
-    runs to completion, and on cancellation the file it created is removed before
-    the cancellation propagates. A write that finishes uncancelled is left in
-    place, which is the whole purpose of the call.
+    An executor cannot interrupt a running call, so a task cancelled while the
+    write is in flight would unwind with the thing half- or fully-created and
+    unreachable - the caller never receives its storage path, so it can neither
+    record nor delete it (#1108). The call is shielded so it runs to completion,
+    and on cancellation `undo` removes what it created before the cancellation
+    propagates. A call that finishes uncancelled is left alone, which is the
+    whole purpose of it.
+
+    Takes the pair rather than a path because the second storage backend writes
+    an object to a bucket rather than a file to a disk, and an orphan there is
+    the same orphan: bytes nothing points at, paid for monthly (#1423).
+
+    Args:
+        create: The blocking call that makes the thing, run on the pool.
+        undo: The blocking call that removes it, run on the pool only if this
+            coroutine is cancelled. It must tolerate the thing not existing -
+            `create` may have failed before making anything.
+        *args: Positional arguments for `create`.
     """
-    future = asyncio.wrap_future(await _submit(path.write_bytes, data))
+    future = asyncio.wrap_future(await _submit(create, *args))
     try:
         await asyncio.shield(future)
     except asyncio.CancelledError:
@@ -125,24 +139,31 @@ async def write_bytes_cancel_safe(path: Path, data: bytes) -> None:
         # this function exists to prevent. So the cleanup is a task, and further
         # cancellations arriving while it runs are absorbed rather than
         # propagated until it has finished. It terminates: it awaits a write the
-        # executor will complete, then one unlink.
-        cleanup = asyncio.ensure_future(_discard(future, path))
+        # executor will complete, then one removal.
+        cleanup = asyncio.ensure_future(_discard(future, undo))
         while not cleanup.done():
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.shield(cleanup)
         raise
 
 
-async def _discard(future: asyncio.Future[Any], path: Path) -> None:
-    """Let the uninterruptible write finish, then remove the file it created.
+async def write_bytes_cancel_safe(path: Path, data: bytes) -> None:
+    """Write `data` to `path` on the file pool, leaving nothing behind if cancelled."""
+    await create_cancel_safe(path.write_bytes, partial(path.unlink, missing_ok=True), data)
 
-    A write that failed is suppressed - there is nothing to clean up and the
-    cancellation, not the write's error, is what the caller is unwinding on.
+
+async def _discard(future: asyncio.Future[Any], undo: Callable[[], Any]) -> None:
+    """Let the uninterruptible call finish, then remove what it created.
+
+    A call that failed is suppressed - there is nothing to clean up and the
+    cancellation, not its error, is what the caller is unwinding on. So is the
+    removal's own failure: it is a courtesy on a path already unwinding, and
+    raising here would replace the cancellation with something unrelated.
     """
     with contextlib.suppress(Exception):
         await future
-    with contextlib.suppress(FileNotFoundError, OSError):
-        await run_blocking(path.unlink)
+    with contextlib.suppress(Exception):
+        await run_blocking(undo)
 
 
 async def delete_cancel_safe(fn: Callable[..., None], *args: object) -> None:

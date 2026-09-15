@@ -384,6 +384,10 @@ class Settings(BaseSettings):
     # so a compatible store with no KMS has somewhere to be; `doctor` reports it
     # as unconfigured rather than healthy.
     FILE_STORAGE_S3_ENCRYPTION: Literal["sse-s3", "sse-kms", "none"] = "sse-s3"
+    # Required when the mode is `sse-kms`, and refused empty there. An unnamed
+    # `aws:kms` is not the bucket's default key: S3 reads it as its own
+    # AWS-managed `aws/s3`, so a deployment that asked for a client-held key and
+    # named none would encrypt under a key nobody chose and be told nothing.
     FILE_STORAGE_S3_KMS_KEY_ID: str | None = None
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""
