@@ -22,8 +22,9 @@ const canOnly =
 
 const NOBODY = () => false;
 
-/** Which single permission opens each widget - the truth table of the page. */
-const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
+/** Which single permission opens each widget - the truth table of the page.
+ * `"everyone"` is the one card whose primary read needs no permission at all. */
+const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   summary: Perm.runsView,
   "activity-rhythm": Perm.runsView,
   channels: Perm.channelsManage,
@@ -59,11 +60,12 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
   "sandbox-capacity": Perm.connectionsView,
   "sandbox-sessions": Perm.connectionsView,
   "sandbox-policy": Perm.connectionsView,
+  notifications: "everyone",
 };
 
 describe("the widget catalog", () => {
-  it("holds all thirty-five widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(35);
+  it("holds all thirty-six widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(36);
   });
 
   it.each(WIDGET_IDS)("%s opens on exactly its own permission", (id) => {
@@ -73,6 +75,8 @@ describe("the widget catalog", () => {
     if (expected === "app_admin") {
       expect(gate(NOBODY, true)).toBe(true);
       expect(gate(() => true, false)).toBe(false);
+    } else if (expected === "everyone") {
+      expect(gate(NOBODY, false)).toBe(true);
     } else {
       expect(gate(canOnly(expected), false)).toBe(true);
       // Holding everything except the gate's permission is not enough.
@@ -83,10 +87,12 @@ describe("the widget catalog", () => {
     }
   });
 
-  it("shows a caller with no permissions nothing at all", () => {
+  it("shows a caller with no permissions only the one card that needs none", () => {
+    // Every own inbox is a person's own, not an organization's - the same
+    // reason a Viewer, who holds nothing else on this page, still gets it.
     const visible = WIDGET_IDS.filter((id) => WIDGETS[id].gate(NOBODY, false));
 
-    expect(visible).toEqual([]);
+    expect(visible).toEqual(["notifications"]);
   });
 
   it("every widget's default span is a class the grid knows", () => {

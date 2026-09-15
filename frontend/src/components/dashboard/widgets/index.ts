@@ -25,6 +25,7 @@ import { MyActivityWidget } from "./my-activity";
 import { MyAgentsWidget } from "./my-agents";
 import { MyQualityWidget } from "./my-quality";
 import { MyTopAgentsWidget } from "./my-top-agents";
+import { NotificationsWidget } from "./notifications";
 import { OrgRatingsWidget } from "./org-ratings";
 import { OutcomesWidget } from "./outcomes";
 import { PlatformWidget } from "./platform";
@@ -82,6 +83,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "sandbox-capacity": SandboxCapacityWidget,
   "sandbox-sessions": SandboxSessionsWidget,
   "sandbox-policy": SandboxPolicyWidget,
+  notifications: NotificationsWidget,
 };
 
 export type { DashboardWidgetProps } from "./types";
