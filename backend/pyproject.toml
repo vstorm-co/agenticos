@@ -715,6 +715,11 @@ include = [
     # on every route. Gated because it is a refusal path nobody exercises on purpose
     # and because it goes away the moment upstream guards it.
     "app/core/otel_compat.py",
+    # Whether a running deployment matches a security profile. A control that
+    # passed on a deployment that does not satisfy it is a sheet somebody puts in
+    # front of an auditor, so every branch of every control is held to the gate
+    # (#1448).
+    "app/services/deployment_profile.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
@@ -1024,6 +1029,11 @@ include = [
     # on every route. Gated because it is a refusal path nobody exercises on purpose
     # and because it goes away the moment upstream guards it.
     "app/core/otel_compat.py",
+    # Whether a running deployment matches a security profile. A control that
+    # passed on a deployment that does not satisfy it is a sheet somebody puts in
+    # front of an auditor, so every branch of every control is held to the gate
+    # (#1448).
+    "app/services/deployment_profile.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",

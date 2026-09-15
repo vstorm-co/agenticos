@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+import click
 from sqlalchemy import text
 
 from app.commands import command, error, info, success, warning
@@ -265,19 +266,57 @@ async def _run() -> int:
     return failures
 
 
+#: How a profile control prints. `--` for a control that is the operator's:
+#: it is named rather than passed, and it does not fail the command, because one
+#: nobody can evidence from here is one nobody could ever pass.
+_PROFILE_MARK = {
+    "met": ("ok", success),
+    "unmet": ("!!", error),
+    "attested": ("--", warning),
+}
+
+
+async def _profile_sheet(profile: str) -> int:
+    """Print one row per control and answer how many were unmet."""
+    from app.services.deployment_profile import evaluate
+
+    async with get_db_context() as db:
+        results = await evaluate(db, profile)  # ty: ignore[invalid-argument-type]
+    for result in results:
+        mark, printer = _PROFILE_MARK[result.outcome]
+        printer(f"[{mark}] {result.key} ({result.safeguard}): {result.detail}")
+    return sum(1 for result in results if result.failed)
+
+
 @command("doctor", help="Check that this deployment can actually run an agent")
-def doctor() -> None:
+@click.option(
+    "--profile",
+    type=click.Choice(["hipaa"]),
+    default=None,
+    help="Also check this deployment against a security profile's controls",
+)
+def doctor(profile: str | None) -> None:
     """Diagnose a deployment, in dependency order.
 
     Exits non-zero when something is broken, so it can gate a provisioning
     script. A subsystem that is merely unconfigured - pgvector not installed on
     a deployment that has never ingested anything - is a warning, not a failure.
 
+    `--profile` adds a second sheet: one row per control of an opinionated
+    security profile, naming the setting that satisfies it or the one that does
+    not. It is evidence a security officer can read, not a certification - and a
+    control that is genuinely the operator's (volume encryption, a locked rack)
+    prints `--` and is named rather than quietly passed.
+
     Example:
         agenticos cmd doctor
+        agenticos cmd doctor --profile hipaa
     """
     info(f"Checking {settings.PROJECT_NAME} at {settings.POSTGRES_HOST}...")
     failures = asyncio.run(_run())
+    if profile:
+        info(f"\nAgainst the {profile} profile - technical safeguards only:")
+        failures += asyncio.run(_profile_sheet(profile))
     if failures:
         error(f"{failures} check(s) failed.")
         raise SystemExit(1)

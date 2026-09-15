@@ -68,6 +68,19 @@ last changed; the `?v=` built from that is the only reason a replacement ever
 appears. A URL would also be one every client had to rewrite, since in any real
 deployment the API is not on the same origin as the pages.
 
+## A deployment inside a compliant environment
+
+`deploy/profiles/hipaa/` is an opinionated configuration for running this where
+HIPAA's technical safeguards apply - a compose overlay that refuses to start
+without the settings it cannot default, and an annotated env file - plus
+`agenticos cmd doctor --profile hipaa`, which checks a running deployment against
+it and exits non-zero on any unmet control.
+
+It is evidence, not a certification, and it answers §164.312 only: the
+administrative and physical safeguards are the operator's. See
+[The HIPAA profile](security.md#the-hipaa-profile-and-what-it-does-not-claim)
+for the sheet and for the line about who the business associate is.
+
 ## Security headers
 
 Every console page carries a Content-Security-Policy and the usual hardening

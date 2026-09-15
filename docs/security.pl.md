@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "2dd7d32f5e67"
 ---
 
 # Bezpieczeństwo { #security }
@@ -150,6 +150,70 @@ przebiegu backendu (#1417) — więc odmowy da się policzyć i przeczytać, a n
 przyjąć na wiarę. Test, którego nazwa albo moduł wspomina tenanta, uprawnienie,
 budżet, zatwierdzenie, sekret albo tekst jawny, a nie ma markera, wywala
 `tests/test_security_marker.py`, co trzyma listę kompletną w miarę rozrostu suite.
+
+## Profil HIPAA i czego nie twierdzi { #the-hipaa-profile-and-what-it-does-not-claim }
+
+Przegląd bezpieczeństwa nie pyta „czy to oprogramowanie jest zgodne”. HHS nie
+certyfikuje żadnego oprogramowania, a OCR nie uznaje prywatnych certyfikacji.
+Pyta **czy możemy to uruchomić wewnątrz naszego zgodnego środowiska i czy da się
+to udowodnić** — a odpowiedzią jest konfiguracja dostarczona z produktem plus
+komenda sprawdzająca działające wdrożenie względem niej (#1448).
+
+```bash
+uv run agenticos cmd doctor --profile hipaa
+```
+
+Jeden wiersz na kontrolę, każdy nazywający ustawienie, które ją spełnia, albo to,
+które jej nie spełnia, i niezerowy exit przy jakiejkolwiek porażce, żeby dało się
+to odpalić w CI klienta. Konfiguracja to `deploy/profiles/hipaa/`: overlay compose
+odmawiający startu bez ustawień, których nie może domyślnie przyjąć, i opisany
+plik env.
+
+**Ten akapit czytaj jednym tchem z profilem.** Odpowiada on na **techniczne**
+zabezpieczenia, §164.312, i tylko na nie. Zabezpieczenia administracyjne
+(§164.308 — analiza ryzyka, szkolenia, polityka sankcji, plan ciągłości, umowy z
+business associate) i fizyczne (§164.310) należą do operatora i zawsze będą.
+Profil sugerujący inaczej byłby twierdzeniem, którego nikt nie obroni.
+
+### Arkusz { #the-sheet }
+
+| Kontrola | Zabezpieczenie | Spełnia ją |
+|---|---|---|
+| `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` szyfruje i nie weryfikuje żadnego certyfikatu, więc profil go nie przyjmuje |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
+| `vault-key` | §164.312(a)(2)(iv) | Klucz główny vaulta, dzięki któremu każde poświadczenie dostawcy i konektora jest zapieczętowane per organizacja |
+| `content-at-rest` | §164.312(a)(2)(iv) | **Operatora.** Dane Postgresa, wolumen mediów i katalog workspace'ów sandboxa szyfruje wolumen albo dysk, nie ta aplikacja |
+| `local-model` | §164.312(e)(1) | Każdy profil modelu serwowany z twojej sieci. Ten bez `base_url` to z definicji publiczne API dostawcy |
+| `traces-local` | §164.312(e)(1) | Nieustawiony `LOGFIRE_TOKEN`. Span z `observability.content: full` niesie wiadomość, wyjście i każdy argument narzędzia |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. MFA należy do dostawcy tożsamości, i arkusz to mówi, zamiast tego twierdzić |
+| `signup` | §164.312(a)(1) | `invite_only` albo `closed` |
+| `audit-retention` | §164.312(b) | Podłoga audytu co najmniej 2190 dni — sześć lat z §164.316(b)(2) |
+| `audit-chain` | §164.312(c)(1) | Łańcuch haszy i jego checkpoint. Wykrywanie, nie zapobieganie — zobacz [Kontrole audytu](#audit-controls-hipaa-164312b-soc-2-cc7) |
+
+Trzy wyniki i to środkowy waży. `ok` i `!!` to odpowiedzi tego kodu. `--` to
+kontrola, która naprawdę należy do operatora, **nazwana**, a nie po cichu
+zaliczona — arkusz pomijający to, czego nie widzi, czytałby się jako kompletny i
+nie byłby — i nie wywala komendy, bo kontrola, której stąd nikt nie udowodni, to
+kontrola, której nikt nigdy by nie przeszedł.
+
+### Kto jest business associate { #who-is-the-business-associate }
+
+Klient uruchamiający to na własnej infrastrukturze dostaje oprogramowanie. Nikt
+tutaj nie dotyka jego PHI i żadna umowa nie jest potrzebna. Wdrożenie prowadzone
+dla niego przez kogoś innego czyni tego kogoś business associate, a to umowa, nie
+flaga w konfiguracji.
+
+### Dlaczego profil domyślnie bierze model lokalny { #why-the-profile-defaults-to-a-local-model }
+
+Hostowany model zabiera ze sobą treść każdego uruchomienia, więc jego użycie
+oznacza umowę z tym dostawcą — a te umowy są węższe, niż ludzie zakładają.
+Organizacja z włączonym HIPAA u dużego dostawcy zwykle wyklucza wykonywanie kodu
+i pobieranie z sieci, czyli dokładnie kształt capability `sandbox`,
+`code_execution` i `web_fetch`. Klient, który taką umowę podpisze, a potem
+zbuduje agenta na tych capability, dowiaduje się o tym w trakcie incydentu.
+
+Lokalna inferencja usuwa to pytanie i dlatego jest domyślną wartością profilu, a
+nie sugestią.
 
 ## Podsumowanie { #recap }
 

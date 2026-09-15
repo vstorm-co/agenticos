@@ -1,0 +1,40 @@
+# The HIPAA profile, as an overlay over the repository's `docker-compose.yml`.
+#
+#   docker compose -f docker-compose.yml \
+#     -f deploy/profiles/hipaa/docker-compose.hipaa.yml up -d
+#
+# It sets the transport and observability settings the profile asks for and
+# refuses to start without the ones it cannot default - an unset `OIDC_ISSUER`
+# stops the stack here rather than producing a deployment that looks configured
+# and accepts passwords.
+#
+# What this file cannot do is encrypt the volumes: that is the host's, and
+# `agenticos cmd doctor --profile hipaa` names it rather than passing it.
+# See README.md for the whole control sheet and for what the profile is not.
+
+services:
+  app:
+    environment:
+      # §164.312(e)(1). `verify-full` verifies the certificate and the hostname;
+      # `require` encrypts and verifies nothing, so the profile does not take it.
+      - POSTGRES_SSLMODE=${POSTGRES_SSLMODE:-verify-full}
+      - REDIS_SSL=${REDIS_SSL:-true}
+      # §164.312(d). No default and no fallback: the stack refuses to start
+      # rather than quietly running on passwords this deployment stores.
+      - OIDC_ISSUER=${OIDC_ISSUER:?the HIPAA profile signs people in through your identity provider}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:?set the client your provider issued}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:?set the client secret}
+      # §164.312(e)(1). Empty rather than absent, so a value inherited from the
+      # host environment cannot switch hosted tracing back on.
+      - LOGFIRE_TOKEN=
+
+  prefect-runner:
+    environment:
+      - POSTGRES_SSLMODE=${POSTGRES_SSLMODE:-verify-full}
+      - REDIS_SSL=${REDIS_SSL:-true}
+      - LOGFIRE_TOKEN=
+
+  frontend:
+    environment:
+      # The SSO button, and only it.
+      - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-oidc}

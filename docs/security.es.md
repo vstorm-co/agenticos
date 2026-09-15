@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "2dd7d32f5e67"
 ---
 
 # Seguridad { #security }
@@ -155,6 +155,71 @@ pueden contar y leer, en vez de darlos por supuestos. Un test cuyo nombre o mód
 mencione un tenant, un permiso, un budget, una aprobación, un secreto o texto en
 claro y no lleve el marcador hace fallar `tests/test_security_marker.py`, que
 mantiene la lista completa a medida que crece la suite.
+
+## El perfil HIPAA, y lo que no afirma { #the-hipaa-profile-and-what-it-does-not-claim }
+
+Una revisión de seguridad no pregunta «¿es este software conforme?». HHS no
+certifica software alguno y la OCR no reconoce certificaciones privadas.
+Pregunta **¿podemos ejecutar esto dentro de nuestro entorno conforme, y podéis
+demostrarlo?** — y la respuesta es una configuración que viene con el producto
+más un comando que comprueba un despliegue en marcha contra ella (#1448).
+
+```bash
+uv run agenticos cmd doctor --profile hipaa
+```
+
+Una fila por control, cada una nombrando el ajuste que lo satisface o el que no,
+y salida distinta de cero ante cualquier fallo, para que corra en la CI del
+propio cliente. La configuración es `deploy/profiles/hipaa/`: una superposición
+de compose que se niega a arrancar sin los ajustes que no puede poner por
+defecto, y un archivo env comentado.
+
+**Este párrafo se lee del tirón junto al perfil.** Responde a las salvaguardas
+**técnicas**, §164.312, y solo a ellas. Las salvaguardas administrativas
+(§164.308 —análisis de riesgos, formación del personal, política sancionadora,
+plan de contingencia, acuerdos de business associate) y las físicas (§164.310)
+son de la operadora y lo seguirán siendo. Un perfil que insinuara otra cosa sería
+una afirmación que nadie puede sostener.
+
+### La hoja { #the-sheet }
+
+| Control | Salvaguarda | Lo satisface |
+|---|---|---|
+| `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` cifra y no verifica certificado alguno, así que el perfil no lo acepta |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
+| `vault-key` | §164.312(a)(2)(iv) | Una clave maestra del vault, con la que toda credencial de proveedor y conector queda sellada por organización |
+| `content-at-rest` | §164.312(a)(2)(iv) | **De la operadora.** Los datos de Postgres, el volumen de medios y la raíz de workspaces del sandbox los cifra un volumen o un disco, no esta aplicación |
+| `local-model` | §164.312(e)(1) | Todo perfil de modelo servido desde tu propia red. Uno sin `base_url` es, por definición, la API pública del proveedor |
+| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` sin definir. Un span con `observability.content: full` lleva el mensaje, la salida y todos los argumentos de herramienta |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. La autenticación multifactor es del proveedor de identidad, y la hoja lo dice en vez de atribuírsela |
+| `signup` | §164.312(a)(1) | `invite_only` o `closed` |
+| `audit-retention` | §164.312(b) | Un suelo de auditoría de al menos 2190 días — los seis años de §164.316(b)(2) |
+| `audit-chain` | §164.312(c)(1) | La cadena de hashes y su checkpoint. Detección, no prevención — véase [Controles de auditoría](#audit-controls-hipaa-164312b-soc-2-cc7) |
+
+Tres resultados, y el del medio pesa. `ok` y `!!` son respuestas de este código.
+`--` es un control que de verdad es de la operadora, **nombrado** en vez de
+aprobado en silencio —una hoja que se saltara lo que no puede ver se leería como
+completa y no lo estaría— y no hace fallar el comando, porque un control que
+desde aquí nadie puede evidenciar es uno que nadie podría aprobar nunca.
+
+### Quién es la business associate { #who-is-the-business-associate }
+
+Una clienta que ejecuta esto en su propia infraestructura recibe software. Nadie
+de aquí toca su PHI y no hace falta acuerdo alguno. Un despliegue que otra parte
+opere para ella convierte a esa parte en business associate, y eso es un contrato,
+no una casilla de configuración.
+
+### Por qué el perfil usa por defecto un modelo local { #why-the-profile-defaults-to-a-local-model }
+
+Un modelo alojado se lleva el contenido de cada ejecución, así que usarlo implica
+un acuerdo con ese proveedor — y esos acuerdos son más estrechos de lo que la
+gente supone. Una organización con HIPAA habilitado en un proveedor grande suele
+excluir la ejecución de código y la descarga web, que es exactamente la forma de
+las capabilities `sandbox`, `code_execution` y `web_fetch`. Quien firma uno y
+luego construye un agente sobre ellas se entera durante un incidente.
+
+La inferencia local elimina la pregunta, y por eso es el valor por defecto del
+perfil y no una sugerencia.
 
 ## Resumen { #recap }
 

@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A HIPAA deployment profile, and a command that proves a deployment matches
+  it.** A security review does not ask whether software is compliant - HHS
+  certifies none and OCR recognises no private certification - it asks whether
+  this can run inside a compliant environment and whether that can be shown.
+  `agenticos cmd doctor --profile hipaa` prints one row per control, naming the
+  setting that satisfies it or the one that does not, and exits non-zero on any
+  unmet control so a client's own CI can gate on it. `deploy/profiles/hipaa/`
+  holds a compose overlay that refuses to start without the settings it cannot
+  default, plus an annotated env file.
+
+  Ten controls: TLS to Postgres and Redis, a vault key, local inference, no
+  hosted tracing, SSO, closed registration, a six-year audit floor and the audit
+  hash chain - with volume encryption **named** rather than quietly passed,
+  because a sheet that skipped what it cannot see would read as complete and
+  would not be. It answers §164.312 and says so: the administrative (§164.308)
+  and physical (§164.310) safeguards are the operator's, and `docs/security.md`
+  states that in the same breath, along with who the business associate is and
+  why a hosted model's agreement is narrower than people expect. (#1448)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

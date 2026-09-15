@@ -144,6 +144,70 @@ not taken on trust. A test whose name or module mentions a tenant, a permission,
 a budget, an approval, a secret or plaintext but lacks the marker fails
 `tests/test_security_marker.py`, which keeps the list complete as the suite grows.
 
+## The HIPAA profile, and what it does not claim
+
+A security review does not ask "is this software compliant". HHS certifies no
+software and OCR recognises no private certification. It asks **can we run this
+inside our compliant environment, and can you prove it** - and the answer is a
+configuration shipped with the product plus a command that checks a running
+deployment against it (#1448).
+
+```bash
+uv run agenticos cmd doctor --profile hipaa
+```
+
+One row per control, each naming the setting that satisfies it or the one that
+does not, and a non-zero exit on any failure so it can run in a client's own CI.
+The configuration is `deploy/profiles/hipaa/`: a compose overlay that refuses to
+start without the settings it cannot default, and an annotated env file.
+
+**Read this line in the same breath as the profile.** It answers the
+**technical** safeguards, §164.312, and only those. Administrative safeguards
+(§164.308 - risk analysis, workforce training, a sanction policy, a contingency
+plan, business associate agreements) and physical safeguards (§164.310) belong
+to the operator and always will. A profile implying otherwise would be a claim
+nobody can support.
+
+### The sheet
+
+| Control | Safeguard | Satisfied by |
+|---|---|---|
+| `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` encrypts and verifies no certificate, so the profile does not accept it |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
+| `vault-key` | §164.312(a)(2)(iv) | A vault master key, so every provider and connector credential is sealed per organization |
+| `content-at-rest` | §164.312(a)(2)(iv) | **The operator's.** Postgres data, the media volume and the sandbox workspace root are encrypted by a volume or a disk, not by this application |
+| `local-model` | §164.312(e)(1) | Every model profile served from your own network. One with no `base_url` is the vendor's public API by definition |
+| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset. A span with `observability.content: full` carries the message, the output and every tool argument |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. Multi-factor authentication is the identity provider's, and the sheet says so rather than claiming it |
+| `signup` | §164.312(a)(1) | `invite_only` or `closed` |
+| `audit-retention` | §164.312(b) | An audit floor of at least 2190 days - §164.316(b)(2)'s six years |
+| `audit-chain` | §164.312(c)(1) | The hash chain and its checkpoint. Detection, not prevention - see [Audit controls](#audit-controls-hipaa-164312b-soc-2-cc7) |
+
+Three outcomes, and the middle one carries weight. `ok` and `!!` are this code's
+answers. `--` is a control that is genuinely the operator's, **named** rather
+than quietly passed - a sheet that skipped what it cannot see would read as
+complete and would not be - and it does not fail the command, because a control
+nobody can evidence from here is one nobody could ever pass.
+
+### Who is the business associate
+
+A client running this on their own infrastructure gets software. Nobody here
+touches their PHI, and no agreement is needed. A deployment somebody else
+operates for them makes that operator a business associate, which is a contract
+and not a configuration flag.
+
+### Why the profile defaults to a local model
+
+A hosted model takes the content of every run with it, so using one means an
+agreement with that vendor - and those agreements are narrower than people
+expect. A HIPAA-enabled organization at a major vendor typically excludes code
+execution and web fetch, which is the exact shape of the `sandbox`,
+`code_execution` and `web_fetch` capabilities here. A client who signs one and
+then builds an agent on those capabilities finds out during an incident.
+
+Local inference removes the question, which is why it is the profile's default
+rather than a suggestion.
+
 ## Recap
 
 - Trust the operator's infrastructure; trust no request into it. The boundaries

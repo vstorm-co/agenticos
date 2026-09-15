@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "2dd7d32f5e67"
 ---
 
 # Sicherheit { #security }
@@ -160,6 +160,73 @@ einen Mandanten, eine Berechtigung, ein Budget, eine Freigabe, ein Secret oder
 Klartext erwähnt und den Marker nicht trägt, lässt
 `tests/test_security_marker.py` fehlschlagen, was die Liste vollständig hält,
 während die Suite wächst.
+
+## Das HIPAA-Profil, und was es nicht behauptet { #the-hipaa-profile-and-what-it-does-not-claim }
+
+Eine Sicherheitsprüfung fragt nicht „ist diese Software konform“. HHS
+zertifiziert keine Software, und OCR erkennt keine private Zertifizierung an. Sie
+fragt **können wir das in unserer konformen Umgebung betreiben, und lässt sich
+das belegen** - und die Antwort ist eine mitgelieferte Konfiguration plus ein
+Befehl, der ein laufendes Deployment dagegen prüft (#1448).
+
+```bash
+uv run agenticos cmd doctor --profile hipaa
+```
+
+Eine Zeile je Kontrolle, jede mit der Einstellung, die sie erfüllt, oder der, die
+es nicht tut, und ein Exit ungleich null bei jedem Fehlschlag, damit es in der CI
+einer Kundin laufen kann. Die Konfiguration ist `deploy/profiles/hipaa/`: ein
+Compose-Overlay, das ohne die Einstellungen, die es nicht vorbelegen kann, gar
+nicht erst startet, und eine kommentierte Env-Datei.
+
+**Diesen Absatz im selben Atemzug mit dem Profil lesen.** Es beantwortet die
+**technischen** Sicherungen, §164.312, und nur diese. Administrative Sicherungen
+(§164.308 - Risikoanalyse, Schulung, Sanktionsrichtlinie, Notfallplan,
+Business-Associate-Verträge) und physische (§164.310) gehören der Betreiberin und
+werden es bleiben. Ein Profil, das anderes nahelegt, wäre eine Behauptung, die
+niemand stützen kann.
+
+### Das Blatt { #the-sheet }
+
+| Kontrolle | Sicherung | Erfüllt durch |
+|---|---|---|
+| `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` verschlüsselt und prüft kein Zertifikat, das Profil nimmt es deshalb nicht |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
+| `vault-key` | §164.312(a)(2)(iv) | Ein Vault-Masterschlüssel, sodass jedes Anbieter- und Konnektor-Credential je Organisation versiegelt ist |
+| `content-at-rest` | §164.312(a)(2)(iv) | **Der Betreiberin.** Postgres-Daten, das Medien-Volume und das Sandbox-Workspace-Verzeichnis verschlüsselt ein Volume oder eine Platte, nicht diese Anwendung |
+| `local-model` | §164.312(e)(1) | Jedes Modellprofil aus dem eigenen Netz. Eines ohne `base_url` ist per Definition die öffentliche API des Anbieters |
+| `traces-local` | §164.312(e)(1) | Nicht gesetztes `LOGFIRE_TOKEN`. Ein Span mit `observability.content: full` trägt die Nachricht, die Ausgabe und jedes Tool-Argument |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. Mehrfaktor-Authentifizierung ist Sache des Identitätsanbieters, und das Blatt sagt es, statt es zu behaupten |
+| `signup` | §164.312(a)(1) | `invite_only` oder `closed` |
+| `audit-retention` | §164.312(b) | Eine Audit-Untergrenze von mindestens 2190 Tagen - die sechs Jahre aus §164.316(b)(2) |
+| `audit-chain` | §164.312(c)(1) | Die Hash-Kette und ihr Checkpoint. Erkennung, nicht Verhinderung - siehe [Audit-Kontrollen](#audit-controls-hipaa-164312b-soc-2-cc7) |
+
+Drei Ergebnisse, und das mittlere wiegt. `ok` und `!!` sind die Antworten dieses
+Codes. `--` ist eine Kontrolle, die wirklich der Betreiberin gehört, **benannt**
+statt still bestanden - ein Blatt, das überginge, was es nicht sehen kann, läse
+sich als vollständig und wäre es nicht - und sie lässt den Befehl nicht
+fehlschlagen, denn eine Kontrolle, die von hier niemand belegen kann, ist eine,
+die nie jemand bestehen könnte.
+
+### Wer die Business Associate ist { #who-is-the-business-associate }
+
+Eine Kundin, die das auf eigener Infrastruktur betreibt, bekommt Software.
+Niemand hier fasst ihre PHI an, und es braucht keinen Vertrag. Ein Deployment,
+das jemand anders für sie betreibt, macht diesen jemand zur Business Associate -
+und das ist ein Vertrag, kein Konfigurationsschalter.
+
+### Warum das Profil auf ein lokales Modell setzt { #why-the-profile-defaults-to-a-local-model }
+
+Ein gehostetes Modell nimmt den Inhalt jedes Laufs mit, seine Nutzung bedeutet
+also einen Vertrag mit diesem Anbieter - und diese Verträge sind enger, als man
+erwartet. Eine HIPAA-fähige Organisation bei einem großen Anbieter schließt
+typischerweise Codeausführung und Web-Abrufe aus, also genau die Form der
+Capabilities `sandbox`, `code_execution` und `web_fetch`. Wer so einen Vertrag
+unterschreibt und dann einen Agenten darauf baut, erfährt es während eines
+Vorfalls.
+
+Lokale Inferenz nimmt die Frage weg, und deshalb ist sie die Vorgabe des Profils
+und kein Vorschlag.
 
 ## Fazit { #recap }
 
