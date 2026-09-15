@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.443] - 2026-09-15
+
 ### Fixed
 
 - **A scheduled or event-fired run now reaches the deployment's Logfire project.**
