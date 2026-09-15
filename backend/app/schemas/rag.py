@@ -32,7 +32,10 @@ class RAGSearchRequest(BaseSchema):
     )
     filter: str | None = Field(
         None,
-        deprecated=True,
+        # Marked deprecated in the generated OpenAPI schema. Not Field(deprecated=True),
+        # which also emits a Python DeprecationWarning every time the server reads the
+        # field - on every search that carries it - for a caller who cannot see it.
+        json_schema_extra={"deprecated": True},
         description=(
             'Deprecated. Only a full-match `parent_doc_id == "<id>"` expression is '
             "accepted; any other string is rejected. Use `filters.parent_doc_id` instead."
