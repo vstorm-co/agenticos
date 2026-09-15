@@ -1,5 +1,5 @@
 ---
-source_sha: "f4f13f232634"
+source_sha: "0e05f1abf28d"
 ---
 
 # Governance { #governance }
@@ -1478,6 +1478,98 @@ administratora dla każdego agenta, którego organizacja powiąże, poza godzin�
 której impersonacja się kończy. Utworzenie połączenia organizacji już wcześniej
 zapisywało administratora za nim; aktualizacja nie zapisywała niczego, więc token
 rotowany na istniejące połączenie zostawia teraz ten sam ślad (#1521).
+
+## Retencja { #retention }
+
+Do #1420 nic nie było usuwane według harmonogramu. Rozmowy, ich pliki, wiersze
+runów i manifesty, workspace'y, pamięć agentów, wgrane dokumenty i wpisy
+audytowe żyły, dopóki ktoś nie usunął organizacji. To problem ochrony danych w
+jedną stronę i — dla audytu — problem zgodności w drugą: HIPAA §164.316(b)(2)
+chce trzymać zapis audytowy sześć lat, a RODO chce minimalizować całą resztę.
+Dlatego okres jest **na klasę** i oba obowiązki dostają swoje ustawienie.
+
+Ustawisz to w **Organizacje → workspace → Członkowie → Retencja**, za bramką
+`org:settings`. Sweep chodzi raz dziennie i **usuwa twardo**: polityka, która
+zostawiałaby wiersze, nie byłaby polityką.
+
+### Klasy { #the-classes }
+
+| Klasa | Co odchodzi razem z nią | Liczone od |
+|---|---|---|
+| Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty tak samo jak wiersze | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
+| Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
+| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
+| Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
+| Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
+| Audyt | Wpisy na ścieżce audytowej tej organizacji | Momentu zapisania wpisu |
+
+**Dokument zsynchronizowany przez konektor nie jest zamiatany.** Jego czas życia
+należy do źródła, które go tam umieściło: usunięcie go tutaj skasowałoby wiersz,
+który kolejny sync `new_only` odtworzy z tego samego niezmienionego pliku,
+paląc spend na embeddingi na nic. Zamiatane jest to, co ktoś wgrał, a czego
+czasu życia nic innego nie posiada.
+
+### Który numer wygrywa { #which-number-wins }
+
+Trzy warstwy, rozstrzygane w `app/core/retention.py` i nigdzie indziej:
+
+1. **Domyślna wartość wdrożenia**, dla organizacji, która nic nie powiedziała.
+   Brak znaczy na zawsze — platforma, która po aktualizacji zaczęłaby usuwać
+   historię istniejącej instalacji, byłaby platformą, której nikt nie zaufałby
+   przy kolejnej aktualizacji.
+2. **Własny okres organizacji**, krótszy albo dłuższy.
+3. **Sufit wdrożenia**: nic z tej klasy nie żyje tu dłużej niż N dni, i
+   organizacja nie może go podnieść.
+
+Audyt działa odwrotnie. Wdrożenie ustawia **podłogę** — najkrócej, jak wpis może
+żyć, sześć lat, dopóki operator tego nie zmieni — a organizacja może ją wydłużyć
+i nigdy skrócić. Ścieżka, którą administrator może skrócić, nie jest ścieżką,
+więc okres poniżej podłogi jest **odrzucany**, a nie po cichu do niej podnoszony:
+trzymanie wpisów dłużej, niż mówi liczba na ekranie, to własny rodzaj błędu.
+
+Podłoga powyżej sufitu to sprzeczność i jest raportowana, a nie rozstrzygana.
+Strona ustawień nazywa klasę; administrator decyduje, która obowiązuje. Wybranie
+jednej zostawiłoby wdrożenie zachowujące się inaczej niż jego własna strona
+ustawień.
+
+### Co przeżywa czystkę { #what-survives-a-purge }
+
+**Rachunek.** Spend miesiąca to suma po `agent_runs`, więc twarde usunięcie ich
+zrzuciłoby miesięczny wynik organizacji do zera wraz z mijającym oknem, a limit
+mierzony na tej liczbie przestałby obowiązywać do końca miesiąca. Sweep czyta,
+ile kosztowały wygasające runy, zanim je usunie, i trzyma sumę na organizację na
+miesiąc w `purged_run_spend` — liczbę i licznik, bez agenta, bez modelu, bez
+czyjegokolwiek nazwiska. `app/services/spend.py` dodaje to do sumy na żywo i to
+jedyne miejsce, w którym te dwie rzeczy się spotykają.
+
+**Ślad samego sweepa.** Jeden wpis na organizację na sweep, nazywający klasę i
+licznik, i nic więcej: wpis audytowy cytujący to, co usunął, trzymałby treść
+dłużej niż retencja, która ją usunęła.
+
+### Kiedy się nie uda { #when-it-fails }
+
+Per klasa, nie per sweep. Niedostępny vector store nie może zatrzymać usuwania
+rozmów, więc każda klasa jest próbowana, jej błąd logowany i nazwany we wpisie
+audytowym, a sweep idzie dalej. Kolejny przebieg ponawia, bo partia, która nic
+nie usunęła, po prostu wraca.
+
+Usuwanie idzie partiami po 500, do czterdziestu przebiegów na klasę na sweep.
+Organizacja, która po dwóch latach ustawia dziewięćdziesiąt dni, odrabia zaległość
+przez kilka dni, a nie w jednym sweepie trzymającym locka przez godzinę z całą
+resztą cyklicznych flowów w kolejce za nim.
+
+### Czego to nie sięga { #what-this-does-not-reach }
+
+- **Backupów.** Czystka usuwa wiersze i pliki z żywego wdrożenia. To, co trzyma
+  twój harmonogram backupów, wygaszasz sam, a restore przywróci to, co było w
+  snapshotcie.
+- **Tego, co wysłałeś gdzie indziej.** Logi wysłane do zewnętrznego kolektora,
+  trace'y w hostowanym projekcie observability i cokolwiek trzyma dostawca
+  modelu rządzą się własnymi ustawieniami tych usług, nie tym.
+- **Kontroli per wpis pamięci**, czyli [#1594](https://github.com/vstorm-co/agenticos/issues/1594),
+  ani usunięcia jednej osoby w całej organizacji, czyli
+  [#1421](https://github.com/vstorm-co/agenticos/issues/1421). Ta strona jest o
+  wieku; tamte są o podmiocie.
 
 ## Czego nic z tego nie obejmuje { #what-none-of-this-covers }
 

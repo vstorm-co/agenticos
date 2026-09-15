@@ -39,6 +39,7 @@ from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
 from app.repositories import audit_log as audit_log_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
+from app.repositories import retention as retention_repo
 from app.repositories import credential as credential_repo
 from app.repositories import resource_grant as resource_grant_repo
 from app.repositories import skill as skill_repo
@@ -102,6 +103,7 @@ __all__ = [
     "sandbox_operation_repo",
     "skill_proposal_repo",
     "ingestion_spend_repo",
+    "retention_repo",
     "skill_repo",
     "context_repo",
     "memory_repo",

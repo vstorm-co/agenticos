@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Per-organization data retention, on a schedule that actually deletes.**
+  Nothing was ever swept before this: conversations and their files, run rows
+  and manifests, workspaces, agent memory, uploaded documents and audit entries
+  lived until somebody deleted the organization - a data-protection problem in
+  one direction and, for audit, a compliance problem in the other. A period per
+  class now, set under the organization and gated on `org:settings`, resolved
+  against a deployment-wide default and ceiling; `audit` takes a **floor**
+  instead, six years by default, which an organization may lengthen and never
+  shorten. A daily Prefect flow hard-deletes in batches and records one audit
+  entry per organization per sweep, naming the class and the count and never the
+  content. A ceiling below the audit floor is reported to the operator rather
+  than resolved. (#1420)
+- **A purged run still counts toward the month's bill.** A month's spend is a sum
+  over `agent_runs`, so removing them would drop an organization's month-to-date
+  figure to zero as the window passed and a cap metered on that figure would stop
+  enforcing. The sweep keeps a total per organization per month on
+  `purged_run_spend` - a number and a count, no agent, no model, no name - and
+  `app/services/spend.py` adds it to the live sum. (#1420)
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

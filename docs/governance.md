@@ -1378,6 +1378,100 @@ hour the impersonation ends. Creating an org connection already recorded the
 administrator behind it; updating one recorded nothing at all, so a token
 rotated onto an existing connection now leaves the same trail (#1521).
 
+## Retention
+
+Nothing was deleted on a schedule until #1420. Conversations, their files, run
+rows and manifests, workspaces, agent memory, uploaded documents and audit
+entries lived until somebody deleted the organization. That is a
+data-protection problem in one direction and, for audit, a compliance problem
+in the other: HIPAA §164.316(b)(2) wants an audit record kept six years, and
+GDPR wants everything else minimised. So the period is **per class**, and both
+obligations get a setting.
+
+Set it at **Organizations → a workspace → Members → Retention**, gated on
+`org:settings`. A sweep runs once a day and **hard-deletes**: a policy that kept
+the rows would not be a policy.
+
+### The classes
+
+| Class | What leaves with it | Measured from |
+|---|---|---|
+| Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes as well as the rows | The thread's last activity, so one somebody is still returning to is not old |
+| Runs | The run row, its manifest and its tool approvals | When the run started |
+| Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL | Last use |
+| Memory | An agent's memory files | Last write, because a note is written once and read for months |
+| Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
+| Audit | Entries on this organization's trail | When the entry was recorded |
+
+**A document a connector synced is not swept.** Its lifetime belongs to the
+source that put it there: purging it here would delete a row the next `new_only`
+sync recreates from the same unchanged file, burning embedding spend to no
+effect. What is swept is what somebody uploaded, whose lifetime nothing else
+owns.
+
+### Which number wins
+
+Three layers, resolved in `app/core/retention.py` and nowhere else:
+
+1. **The deployment's default**, for an organization that has said nothing.
+   Absent means for ever - a platform that started deleting an existing
+   installation's history on upgrade would be one nobody could trust with the
+   next upgrade either.
+2. **The organization's own period**, shorter or longer.
+3. **The deployment's ceiling**: nothing of this class lives longer than N days
+   here, and an organization cannot raise it.
+
+Audit runs the other way. The deployment sets a **floor** - the shortest an
+entry may live, six years unless an operator changes it - and an organization
+may lengthen it and never shorten it. A trail an administrator can shorten is
+not a trail, so a period below the floor is **refused** rather than quietly
+raised to it: silently keeping entries longer than the number on the screen is
+its own kind of wrong.
+
+A floor above a ceiling is a contradiction, and it is reported rather than
+resolved. The settings page names the class; an administrator settles which
+applies. Picking one would leave a deployment behaving unlike its own settings
+page.
+
+### What survives a purge
+
+**The bill.** A month's spend is a sum over `agent_runs`, so hard-deleting them
+would drop an organization's month-to-date figure to zero as the window passed
+and a cap metered on that figure would stop enforcing for the rest of the month.
+The sweep reads what the expiring runs cost before it deletes them and keeps a
+total per organization per month on `purged_run_spend` - a number and a count,
+no agent, no model, nobody's name. `app/services/spend.py` adds it to the live
+sum, which is the only place the two meet.
+
+**The trail of the sweep itself.** One entry per organization per sweep, naming
+the class and the count and nothing else: an audit entry that quoted what it
+deleted would keep the content past the retention that removed it.
+
+### When it fails
+
+Per class, not per sweep. A vector store that is down must not stop
+conversations being purged, so each class is attempted, its failure logged and
+named in the audit entry, and the sweep goes on. The next pass retries it,
+because a batch that removed nothing simply comes round again.
+
+Deletes go in batches of 500, up to forty passes per class per sweep. An
+organization arriving at a ninety-day policy after two years works its backlog
+off over several days rather than in one sweep that holds a lock for an hour
+with every other periodic flow queued behind it.
+
+### What this does not reach
+
+- **Backups.** A purge removes rows and files from the live deployment. Whatever
+  your backup schedule holds is yours to expire, and a restore brings back
+  whatever the snapshot contained.
+- **What you sent elsewhere.** Logs shipped to an external collector, traces in
+  a hosted observability project, and anything a model provider retains are
+  governed by those services' own settings, not by this one.
+- **Per-entry memory controls**, which are [#1594](https://github.com/vstorm-co/agenticos/issues/1594),
+  and erasing one person across an organization, which is
+  [#1421](https://github.com/vstorm-co/agenticos/issues/1421). This page is
+  about age; those are about a subject.
+
 ## What none of this covers
 
 Worth stating, because a governance page implies otherwise:

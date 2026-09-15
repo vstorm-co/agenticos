@@ -72,6 +72,7 @@ from app.schemas.local_service import LocalServiceUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.resource_grant import VisibilityUpdate
+from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
@@ -98,6 +99,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     KnowledgeBaseUpdate: KnowledgeBase,
     LocalServiceUpdate: LocalService,
     McpConnectionUpdate: McpConnection,
+    RetentionUpdate: Organization,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,

@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "4357a73b3cba"
 ---
 
 # Sicherheit { #security }
@@ -123,6 +123,7 @@ SOC 2 CC6–CC8.
 | Governance-relevante Mutationen werden in der Transaktion der Anfrage festgehalten | `record_audit` (`app/core/audit.py`) im mutierenden Service — Secret-Rotation, Skill-/Sync-/MCP-Bindung, Mitgliedschaft, Freigabe, Freigaben, Exporte und mehr; geschrieben nach `app_admin_audit_logs`. Es ist keine flächendeckende Abdeckung jedes Schreibvorgangs (das CRUD der Wissensbasis etwa wird nicht auditiert) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Die Spur ist für einen Auditor lesbar | `GET /audit`, gegated auf `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Export der Spur (CSV/JSONL) | `GET /audit/export` über ein Fenster, auf `audit:read` gegated, hält den eigenen Abruf in der Spur fest; die Run-, Freigabe- und Spend-Exporte tun dasselbe (#1422) | `test_exporting.py` (der Export und sein eigener Audit-Eintrag) |
+| Eine Audit-Frist, die eine Organisation verlängern und nie verkürzen kann | Eine deploymentweite Untergrenze (standardmäßig sechs Jahre, HIPAA §164.316(b)(2)); eine kürzere Frist wird abgelehnt statt angehoben (`app/core/retention.py`, `app/services/retention.py`). Siehe [Aufbewahrung](governance.md#retention) | `test_retention.py::TestWhichNumberWins` |
 | Manipulationsnachweis (eine Hash-Kette) | **Noch nicht** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integrität · HIPAA §164.312(c) · SOC 2 CC8 (Change Management) { #integrity-hipaa-164312c-soc-2-cc8-change-management }

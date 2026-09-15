@@ -11,6 +11,7 @@ import {
   AGENT_BUILDER,
   KB_DETAIL,
   ORG_MEMBERS,
+  ORG_RETENTION,
   ORG_ROLES,
   SETTINGS_DETAIL,
   WORKSPACE_DETAIL,
@@ -43,6 +44,7 @@ export const FETCHED_DETAIL_PAGES: ReadonlySet<string> = new Set([
   AGENT_BUILDER,
   KB_DETAIL,
   ORG_MEMBERS,
+  ORG_RETENTION,
   ORG_ROLES,
 ]);
 
@@ -132,6 +134,10 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       [ORG_ROLES]: {
         pending: orgPending,
         href: orgId ? ROUTES.ORG_ROLES(orgId) : null,
+      },
+      [ORG_RETENTION]: {
+        pending: orgPending,
+        href: orgId ? ROUTES.ORG_RETENTION(orgId) : null,
       },
       // Two "?"-only sections with nothing to fetch. Settings resolves to its own
       // first page for the rare navigation into it, but its stop is really shown in
