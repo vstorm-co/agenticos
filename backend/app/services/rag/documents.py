@@ -472,7 +472,7 @@ class LiteParseParser(BaseDocumentParser):
 
         return LiteParse(ocr_enabled=ocr, **self._options)
 
-    def _needs_ocr(self, filepath: Path) -> bool:
+    async def _needs_ocr(self, filepath: Path, *, deadline: float) -> bool:
         """Ask the cheap text-layer pass whether OCR is worth running.
 
         This is the single biggest saving LiteParse offers. OCR dominates the
@@ -481,11 +481,20 @@ class LiteParseParser(BaseDocumentParser):
         first turns "OCR every page of every document" into "OCR the documents
         that are actually scans".
 
-        A failure here is not a parse failure - if the check cannot answer, the
-        honest thing is to parse with OCR on rather than to refuse.
+        Like the parse itself, `is_complex` is a synchronous native call, so it
+        runs in a thread bounded by `deadline` rather than on the event loop -
+        otherwise a slow probe would block the worker and spend time the
+        whole-document ceiling does not account for. A failure or a probe that
+        overruns the deadline is not a parse failure: the honest thing is to
+        parse with OCR on rather than to refuse, and the parse's own remaining
+        budget then enforces the ceiling.
         """
+        budget = max(deadline - asyncio.get_running_loop().time(), 0.0)
         try:
-            stats = self._build(ocr=False).is_complex(str(filepath))
+            stats = await asyncio.wait_for(
+                asyncio.to_thread(lambda: self._build(ocr=False).is_complex(str(filepath))),
+                timeout=budget,
+            )
         except Exception:
             logger.warning("LiteParse: complexity check failed for %s", filepath.name)
             return True
@@ -563,7 +572,9 @@ class LiteParseParser(BaseDocumentParser):
 
         # The OCR preflight is a synchronous read too, so it spends the deadline
         # like the parse does; the budget is what remains once it has answered.
-        ocr = self.enable_ocr and (not self.auto_ocr or self._needs_ocr(parse_target))
+        ocr = self.enable_ocr
+        if ocr and self.auto_ocr:
+            ocr = await self._needs_ocr(parse_target, deadline=deadline)
         budget = max(deadline - loop.time(), 0.0)
 
         try:

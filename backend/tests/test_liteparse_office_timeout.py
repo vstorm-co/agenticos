@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -172,3 +174,31 @@ async def test_the_conversion_and_parse_share_one_timeout_budget(
     remaining = seen["remaining"]
     assert remaining is not None
     assert 0.0 < remaining < 1.0
+
+
+async def test_the_ocr_preflight_runs_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`is_complex` is a synchronous native call; it must not block the worker.
+
+    Running it inline stalls every other request on the loop and spends time the
+    whole-document deadline cannot see (#1685). It belongs in a thread, like the
+    parse - proven here by the probe observing it runs off the main thread.
+    """
+    ran_off_loop: dict[str, bool] = {}
+
+    class Probe:
+        def is_complex(self, _path: str) -> list[object]:
+            ran_off_loop["complex"] = threading.current_thread() is not threading.main_thread()
+            return []
+
+        def parse(self, _path: str) -> SimpleNamespace:
+            return SimpleNamespace(pages=[])
+
+    monkeypatch.setattr(LiteParseParser, "_build", lambda _self, *, ocr: Probe())
+    pdf = tmp_path / "manual.pdf"
+    pdf.write_bytes(b"%PDF-1.4 minimal")
+
+    await LiteParseParser(enable_ocr=True, auto_ocr=True).parse(pdf)
+
+    assert ran_off_loop.get("complex") is True
