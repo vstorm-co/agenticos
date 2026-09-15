@@ -180,22 +180,34 @@ def test_the_guard_forbids_a_checkpoint_moving_backwards_or_being_deleted() -> N
                 {"org": _ORG_A},
             )
 
-        # Advancing it is allowed - which is all `record_audit` ever does.
-        with engine.begin() as connection:
-            connection.execute(
-                text(
-                    "UPDATE app_admin_audit_checkpoints "
-                    "SET max_seq = max_seq + 1, entry_count = entry_count + 1 "
-                    "WHERE organization_id = :org"
-                ),
-                {"org": _ORG_A},
-            )
-            advanced = connection.execute(
-                text(
-                    "SELECT max_seq FROM app_admin_audit_checkpoints WHERE organization_id = :org"
-                ),
-                {"org": _ORG_A},
-            ).scalar_one()
+        # Advancing it is allowed - which is all `record_audit` ever does. Rolled
+        # back rather than committed: the trigger is `BEFORE UPDATE`, so it has
+        # already fired and the row inside this transaction already carries the new
+        # value - committing would prove nothing more and would leave the database
+        # this module shares with the backfill test holding a mark six rows never
+        # justified. Both tests read `app_admin_audit_checkpoints` and the suite
+        # runs in random order, so a mutation left behind here is a failure over
+        # there, on some runs only.
+        with engine.connect() as connection:
+            transaction = connection.begin()
+            try:
+                connection.execute(
+                    text(
+                        "UPDATE app_admin_audit_checkpoints "
+                        "SET max_seq = max_seq + 1, entry_count = entry_count + 1 "
+                        "WHERE organization_id = :org"
+                    ),
+                    {"org": _ORG_A},
+                )
+                advanced = connection.execute(
+                    text(
+                        "SELECT max_seq FROM app_admin_audit_checkpoints "
+                        "WHERE organization_id = :org"
+                    ),
+                    {"org": _ORG_A},
+                ).scalar_one()
+            finally:
+                transaction.rollback()
         assert advanced == _EXPECTED[_ORG_A]["max_seq"] + 1
     finally:
         engine.dispose()
