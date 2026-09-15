@@ -131,7 +131,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
     { name = "slack-sdk", specifier = ">=3.44.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
-    { name = "subagents-pydantic-ai", specifier = ">=0.2.21" },
+    { name = "subagents-pydantic-ai", specifier = ">=0.2.22" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tavily-python", specifier = ">=0.8.1" },
     { name = "tqdm", specifier = ">=4.70.1" },
@@ -5058,16 +5058,16 @@ wheels = [
 
 [[package]]
 name = "subagents-pydantic-ai"
-version = "0.2.21"
+version = "0.2.22"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-ai-slim" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f7/d5/4764ba5ef762b108bdfdddba2018c6bba1820e3ccebde0b3f2fbc3b4aa96/subagents_pydantic_ai-0.2.21.tar.gz", hash = "sha256:2bc9d0a624578e132f667d038b7cf85149e28078cf81aa01c09bc8f47f6f90f9", size = 651209, upload-time = "2026-08-22T10:43:38.447Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/e3/375e83ea2ea81749dc5b14b09190f6255636e3e8eb19db022f501be9c9ba/subagents_pydantic_ai-0.2.22.tar.gz", hash = "sha256:df00e4e0c71785b6dcb4f8010f6b7d7386df41ee08da416152d5c84b11e14230", size = 652407, upload-time = "2026-09-15T16:25:13.045Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/ac/120a5201481609c03521415afa2a95877da3eef2b2af17b6ccb74dd0bb6d/subagents_pydantic_ai-0.2.21-py3-none-any.whl", hash = "sha256:5317c92c9c7da9446aa2b53e2300d3d296c347649930b536eb0771b9091cf4c1", size = 83929, upload-time = "2026-08-22T10:43:36.857Z" },
+    { url = "https://files.pythonhosted.org/packages/42/15/6378098a8ca12ce7c5482d636181e0268ec2172dd79f6d17bee13e7a89bb/subagents_pydantic_ai-0.2.22-py3-none-any.whl", hash = "sha256:d523288db9678540b85ace9275615cd09787611ac1a08da77b4133118bcfeffe", size = 84240, upload-time = "2026-09-15T16:25:10.957Z" },
 ]
 
 [[package]]

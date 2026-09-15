@@ -266,7 +266,7 @@ names no author is in the evidence column below.
 | sqlalchemy | 2.0.52 | MIT | https://docs.sqlalchemy.org | License field |
 | sse-starlette | 3.4.6 | BSD-3-Clause | https://github.com/sysid/sse-starlette | License-Expression |
 | starlette | 1.3.1 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
-| subagents-pydantic-ai | 0.2.21 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
+| subagents-pydantic-ai | 0.2.22 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
 | tabulate | 0.10.0 | MIT | https://github.com/astanin/python-tabulate | License-Expression |
 | tavily-python | 0.8.1 | MIT | https://github.com/tavily-ai/tavily-python | classifier |
 | tenacity | 9.1.4 | Apache-2.0 | https://github.com/jd/tenacity | License field |
@@ -314,7 +314,7 @@ names no author is in the evidence column below.
 | @img/sharp-libvips-linux-x64 | 1.2.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
 | @img/sharp-linux-arm64 | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @next/env | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
+| @next/env | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
 | @next/swc-linux-x64-gnu | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
@@ -379,7 +379,7 @@ names no author is in the evidence column below.
 | @swc/core-linux-arm64-gnu | 1.15.47 | Apache-2.0 AND MIT | https://github.com/swc-project/swc | package.json license |
 | @swc/core-linux-x64-gnu | 1.15.47 | Apache-2.0 AND MIT | https://github.com/swc-project/swc | package.json license |
 | @swc/counter | 0.1.3 | Apache-2.0 | https://github.com/swc-project/pkgs | package.json license; no licence file, attributed to 강동윤 <kdy1997.dev@gmail.com> |
-| @swc/helpers | 0.5.15 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
+| @swc/helpers | 0.5.23 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @swc/types | 0.1.28 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @tanstack/query-core | 5.101.4 | MIT | https://github.com/TanStack/query | package.json license |
 | @tanstack/react-query | 5.101.4 | MIT | https://github.com/TanStack/query | package.json license |
@@ -515,9 +515,9 @@ names no author is in the evidence column below.
 | micromark-util-types | 2.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types | package.json license |
 | module-details-from-path | 1.0.4 | MIT | https://github.com/watson/module-details-from-path | package.json license |
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms | package.json license |
-| nanoid | 3.3.16 | MIT | https://github.com/ai/nanoid | package.json license |
+| nanoid | 3.3.19 | MIT | https://github.com/ai/nanoid | package.json license |
 | negotiator | 1.0.0 | MIT | https://github.com/jshttp/negotiator | package.json license |
-| next | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
+| next | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license |
 | next-intl | 4.13.4 | MIT | https://github.com/amannn/next-intl | package.json license |
 | next-intl-swc-plugin-extractor | 4.13.4 | MIT | https://github.com/amannn/next-intl | package.json license |
 | node-addon-api | 7.1.1 | MIT | https://github.com/nodejs/node-addon-api | package.json license |
@@ -527,7 +527,7 @@ names no author is in the evidence column below.
 | playwright | 1.62.1 | Apache-2.0 | https://github.com/microsoft/playwright | package.json license |
 | playwright-core | 1.62.1 | Apache-2.0 | https://github.com/microsoft/playwright | package.json license |
 | po-parser | 2.1.1 | MIT | https://github.com/amannn/po-parser | package.json license |
-| postcss | 8.4.31 | MIT | https://github.com/postcss/postcss | package.json license |
+| postcss | 8.5.23 | MIT | https://github.com/postcss/postcss | package.json license |
 | property-information | 7.2.0 | MIT | https://github.com/wooorm/property-information | package.json license |
 | react | 19.2.8 | MIT | https://github.com/react/react | package.json license |
 | react-dom | 19.2.8 | MIT | https://github.com/react/react | package.json license |
@@ -549,7 +549,7 @@ names no author is in the evidence column below.
 | reselect | 5.2.0 | MIT | https://github.com/reduxjs/reselect | package.json license |
 | scheduler | 0.27.0 | MIT | https://github.com/facebook/react | package.json license |
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
-| sharp | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.7 | MIT | https://github.com/emilkowalski/sonner | package.json license |
 | source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |

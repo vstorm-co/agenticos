@@ -75,7 +75,12 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
-from subagents_pydantic_ai import TaskStatus
+from subagents_pydantic_ai import SubAgentState, TaskStatus
+
+# The library binds this itself around every delegation and exports the reader
+# rather than the binder, so a test that wants to *be* inside a delegation
+# reaches for it here. Binding through a real delegation would mean running one.
+from subagents_pydantic_ai._state import bind_subagent_state
 
 from app.agents.capabilities import CapabilityBinding, build
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
@@ -1291,6 +1296,53 @@ class TestAskingTheUser:
         assert [(part.type, part.question, part.answer) for part in stored] == [
             ("ask_user", "Which region?", "eu")
         ]
+
+    async def test_a_delegated_question_records_which_delegate_asked(self):
+        """#1042. `ask_parent` hands the surface the question and nothing else,
+        so a stored question said that one was asked and not who asked it - and a
+        specialist asking reads differently in a transcript from the agent the
+        person is talking to asking.
+
+        The name is read where the question is *put*, inside the delegation, and
+        the delegation's state is bound only there: the answer arrives on the
+        receive loop, which is a different task with nothing bound.
+        """
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        state = SubAgentState(ask_timeout_seconds=300.0, name="researcher")
+        with bind_subagent_state(state):
+            asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+            await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+        assert await asking == "eu"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.question, part.asked_by) for part in stored] == [
+            ("Which region?", "researcher")
+        ]
+
+    async def test_a_question_the_main_agent_asked_names_no_delegate(self):
+        """`None` rather than a placeholder: the main agent asking is the ordinary
+        case, and the transcript says nothing extra about it."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+        await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+        assert await asking == "eu"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert stored[0].asked_by is None
 
     async def test_the_answer_is_recorded_when_the_frame_arrives_not_when_the_run_resumes(self):
         """A `stop` sent right behind the answer cancels the turn before `_ask_one`
