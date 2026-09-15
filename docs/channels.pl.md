@@ -1,5 +1,5 @@
 ---
-source_sha: "f819ae10b8cc"
+source_sha: "701b924290b6"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -279,7 +279,7 @@ Każda ramka niesie `{ "type": …, "data": { … } }`.
 | `type` | `data` | Znaczenie |
 |---|---|---|
 | `ready` | `visitor` | Połączono. `visitor: true`, gdy token zidentyfikował osobę. |
-| `history` | `messages` | Tylko na hostowanej stronie: co zostało powiedziane w wątku, który ten odwiedzający wznawia. Każdy wpis to `role`, `text` i `at`, więc odtworzona tura zachowuje pod sobą swój czas. |
+| `history` | `messages` | Co zostało powiedziane w wątku, który ten odwiedzający wznawia — **każdy socket, którego odwiedzający niesie klucz ciągłości**, nie tylko hostowana strona. Każdy wpis to `role`, `text` i `at`, więc odtworzona tura zachowuje pod sobą swój czas. |
 | `model_request_start` | — | Agent poszedł do modelu. Pokaż wskaźnik. |
 | `part_start` | `index`, `part_type` | Zaczyna się blok odpowiedzi. Wysyłane tylko dla bloku, który ta powierzchnia faktycznie poniesie — strona niepokazująca rozumowania nie zapowiada `ThinkingPart`, bo sama zapowiedź mówi, że agent rozumował. |
 | `text_delta` | `index`, `content` | Słowa odpowiedzi. Doklejaj je. |
@@ -292,6 +292,7 @@ Każda ramka niesie `{ "type": …, "data": { … } }`.
 | `final_result` | `output` | Czym run się zakończył. Puste w turze, która zaparkowała. |
 | `complete` | — | Tura się skończyła. Nie niesie **żadnego usage**: ile run kosztował, to sprawa operatora, nie odwiedzającego. |
 | `error` | `message` | Coś, co odwiedzający powinien zobaczyć: rate limit, osiągnięty budżet, odmowę, turę, która nic nie wyprodukowała. |
+| `compaction_started`, `compaction_finished`, `compaction_impossible` | zależnie od ramki | Agent porządkuje własne notatki, bo wątek przerósł okno modelu. Wysyłane zawsze, niezależnie od przełączników operatora: podsumowanie trwa dziesiątki sekund, a powierzchnia, która streamuje i nic nie mówi, po prostu zatrzymuje się na ten czas ([#936](https://github.com/vstorm-co/agenticos/issues/936)). |
 
 Niektóre ramki dashboardu nigdy nie docierają do publicznego socketu i są
 odmowami, a nie ustawieniami. **`user_prompt_processed`** niesie prompt *w
@@ -355,6 +356,68 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 jako jedyną kopię odpowiedzi.
 
 ---
+
+## Co oferuje każda powierzchnia i dlaczego różnice są różnicami { #what-each-surface-offers-and-why-the-differences-are-differences }
+
+Trzy powierzchnie uruchamiają tego samego agenta przez ten sam runner: czat w
+dashboardzie, ten socket i publiczne API. **Nie** oferują tego samego uruchomienia, a
+do [#936](https://github.com/vstorm-co/agenticos/issues/936) nic nie mówiło, które z
+tych różnic były decyzjami.
+
+Teraz mówi. Każde „nie” poniżej ma powód, a powód to albo „tutaj byłoby to złe”,
+albo „to jeszcze nie jest zbudowane” — nigdy milczenie.
+
+| | `/chat` (dashboard) | Surowy WebSocket | Publiczne API |
+|---|---|---|---|
+| Streaming | tak | tak, filtrowany tym, co pokazuje operator | **nie** — POST jest ścieżką bez streamingu; wariant SSE to osobne pytanie |
+| Załączniki | tak | tak (`file_ids`) | tak (`file_ids`), i trafiają tam, gdzie wszędzie indziej |
+| Ciągłość rozmowy | tak | tak (`continuity_key`) | tak (`conversation_id`) |
+| `environment_id` | tak | **nie, celowo** — patrz niżej | tak |
+| Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: API uruchamia opublikowaną wersję, co jest sensem publikowania |
+| `ask_user` | tak | **nie, jeszcze nie** — patrz niżej | **nie, słusznie**: nikt nie czeka na odpowiedź, trzymając otwarty request HTTP |
+| Powiadomienie o kompakcji | tak | tak | nie dotyczy — nic nie streamuje, żeby powiedzieć |
+| Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy |
+| Zatwierdzenia: parkują uruchomienie | tak | tak | tak |
+| Zatwierdzenia: droga do decyzji | tak (`/runs`) | jedno zdanie, celowo: obcemu trzymającemu link nie pokazuje się URL-a do czyjejś konsoli | tak — wynik niesie `parked`, nazywając to, co czeka, i zatwierdzenie, do którego wysłać decyzję |
+
+### `environment_id` na sockecie i dlaczego należy do publikującego { #environment_id-on-the-socket-and-why-it-is-the-publishers }
+
+API je ma, bo wołającym jest organizacja: przećwiczenie środowiska deweloperskiego
+przed promocją to jej własna praca na jej własnym agencie. Wołającym socketa jest
+ten, kto trzyma klucz embeda, a na widgecie jest to przeglądarka obcej osoby. Ramka
+wybierająca środowisko pozwoliłaby odwiedzającemu wybrać, która *wersja* agenta mu
+odpowiada — łącznie z tą, której organizacja nie wypromowała, co jest
+przeciwieństwem tego, co znaczy publikowanie wersji.
+
+Więc w tym kształcie jest odrzucona. Jeśli integracja first-party potrzebuje
+uruchomić nazwane środowisko, miejscem na to jest konfiguracja samego embeda, gdzie
+publikujący wybiera raz, a każdy odwiedzający dostaje tę samą odpowiedź.
+
+### `ask_user` na sockecie i czego by potrzebował { #ask_user-on-the-socket-and-what-it-would-need }
+
+Docstring modułu `ask_user` mówi, że pauza i wznowienie żyją „w sesji WebSocket”, i
+ma na myśli sesję *czatu*. Ten socket jest równie żywy, z człowiekiem równie
+siedzącym po drugiej stronie — więc delegat, który by zapytał, dostaje informację,
+że nikogo nie dało się złapać, co jest właściwą odpowiedzią dla uruchomienia z
+harmonogramu i niewłaściwą tutaj.
+
+Nie jest to tu domknięte, bo brakująca połowa nie należy do serwera. Słownik ramek
+nie ma `ask_user` ani `ask_user_response`, a widget nie ma formularza, żeby je
+wyrenderować — więc podpięcie callbacku parkowałoby uruchomienia na pytaniu, na
+które nic nie odpowie, co jest gorsze niż odmowa. Czego to wymaga: dwóch ramek,
+formularza w widgecie i decyzji o *hostowanej stronie*, gdzie pytany jest obcym, a
+pytanie może nieść cokolwiek, co agent postanowił powiedzieć.
+
+### Zatwierdzenia na sockecie: zdecydowane i celowo nieposzerzone { #approvals-on-the-socket-decided-and-deliberately-not-widened }
+
+Zaparkowane uruchomienie odpowiada odwiedzającemu „To wymaga czyjegoś zatwierdzenia,
+zanim będzie mogło się wykonać”, i tak zostaje. Surowy socket jest sprzedawany jako
+interfejs, który budujesz sam — aplikacja mobilna, kiosk — i klientowi first-party z
+zalogowanym użytkownikiem można by w zasadzie wręczyć zaparkowane wywołanie i sposób
+na jego rozstrzygnięcie. Nie jest, bo klucz embeda nie identyfikuje *członka*:
+identyfikuje opublikowaną powierzchnię wdrożenia, a osobą po drugiej stronie może być
+ktokolwiek, kogo integracja wpuściła. Rozstrzygnięcie zatwierdzenia to akt członka,
+bramkowany przez `approvals:decide`, i należy do powierzchni, która wie, kto pyta.
 
 ## Hostowana strona { #a-hosted-page }
 

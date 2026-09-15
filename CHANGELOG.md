@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **The public API accepts attachments and answers a parked run.** The surface
+  whose whole purpose is running an agent from your own backend was the one that
+  could not send it a document: `AgentRunRequest` now takes `file_ids`, resolved
+  against the caller's own files the way `/chat` and the widget resolve them. The
+  same route filled the `AgentRunResult.parked` field, which existed and was
+  always empty - a caller whose run stopped for an approval got a status and
+  nothing to act on, and now gets the call that is waiting and the approval to
+  post the decision to. (#936)
+- **A raw WebSocket is told when the agent is compacting its own history.** A
+  summary takes tens of seconds, and only `/chat` passed a compaction sink into
+  the runner - so every other streaming surface simply went quiet for the length
+  of it with nothing said. `AgentRunnerService.prepare` and `.execute` take
+  `on_compaction`, the embed session forwards the three frames, and they are sent
+  whatever the operator's trace switches say: that the agent is tidying its notes
+  is a fact about the product, not about its reasoning. (#936)
+- **`docs/channels.md` says what each surface offers and why each difference is a
+  difference.** A parity table across `/chat`, the socket and the API, with a
+  reason beside every "no" - either "this would be wrong here" or "this is not
+  built yet". `environment_id` on the socket, `ask_user` on the socket and
+  widening approvals past a member are each declined in writing, with what they
+  would need. `backend/tests/test_surface_parity.py` asserts the table against
+  the code rather than trusting it. (#936)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed
