@@ -276,7 +276,10 @@ class TestSavingIsCancellationSafe:
         await asyncio.sleep(0)
         saving.cancel()
         with pytest.raises(asyncio.CancelledError):
-            await saving
+            # Bound rather than left bare: `await saving` on its own is an
+            # expression statement, which CodeQL reads as having no effect. The
+            # await is the effect, and this says so.
+            _cancelled = await saving
 
         assert client.objects == {}, "the object the cancelled put wrote is still there"
         assert client.deleted, "nothing was deleted, so nothing undid the put"
