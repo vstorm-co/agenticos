@@ -149,19 +149,20 @@ async def convert_to_pdf(source: Path, out_dir: Path, *, timeout_seconds: float)
 async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
     """Kill the subprocess and everything it spawned, then reap it.
 
-    `start_new_session=True` made `proc` a process-group leader whose group
-    id equals its pid, so signalling the group reaches `soffice.bin` and any
-    helper it forked - not just the `soffice` launcher. `SIGTERM` first for a
-    clean shutdown, then `SIGKILL` for the process that ignores it.
+    `start_new_session=True` made `proc` a process-group leader whose group id
+    equals its pid, so signalling the group reaches `soffice.bin` and any helper
+    it forked - not just the `soffice` launcher. `SIGTERM` first for a clean
+    shutdown, a grace for the launcher to take it, then `SIGKILL` over the whole
+    group unconditionally: the launcher can exit on `SIGTERM` while a helper that
+    ignores it keeps running, and waiting only on the launcher would return with
+    that helper still alive - the very orphan this function exists to prevent. A
+    final `SIGKILL` to an already-empty group is a harmless no-op.
     """
-    if proc.returncode is not None:
-        return
     _signal_group(proc.pid, signal.SIGTERM)
-    try:
+    with contextlib.suppress(TimeoutError):
         await asyncio.wait_for(proc.wait(), timeout=_KILL_GRACE_SECONDS)
-    except TimeoutError:
-        _signal_group(proc.pid, signal.SIGKILL)
-        await proc.wait()
+    _signal_group(proc.pid, signal.SIGKILL)
+    await proc.wait()
 
 
 def _signal_group(pid: int, sig: signal.Signals) -> None:

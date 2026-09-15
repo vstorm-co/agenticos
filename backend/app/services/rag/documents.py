@@ -522,6 +522,10 @@ class LiteParseParser(BaseDocumentParser):
         ordinary native pipeline - no further LibreOffice - while the document
         keeps the original file's name and type in its metadata.
         """
+        # One deadline spans conversion *and* parsing, so `timeout_seconds` is a
+        # ceiling on the whole document rather than one each: a slow conversion
+        # leaves the native parse only the remaining budget.
+        deadline = asyncio.get_running_loop().time() + self.timeout_seconds
         with tempfile.TemporaryDirectory(prefix="liteparse-office-") as tmp:
             try:
                 pdf_path = await convert_to_pdf(
@@ -536,17 +540,23 @@ class LiteParseParser(BaseDocumentParser):
                 raise RuntimeError(
                     f"LiteParse: LibreOffice could not convert {filepath.name} to PDF"
                 ) from e
-            return await self._parse_pdf(pdf_path, source=filepath)
+            remaining = deadline - asyncio.get_running_loop().time()
+            return await self._parse_pdf(pdf_path, source=filepath, timeout=remaining)
 
-    async def _parse_pdf(self, parse_target: Path, *, source: Path) -> Document:
+    async def _parse_pdf(
+        self, parse_target: Path, *, source: Path, timeout: float | None = None
+    ) -> Document:
         """Read a PDF (or image) through LiteParse's native pipeline.
 
         `parse_target` is what LiteParse reads - the file itself for a PDF, or the
         PDF an office document was converted to. `source` is the original upload,
-        whose name and type the returned document carries.
+        whose name and type the returned document carries. `timeout` is the wait
+        this parse is allowed; `None` means the full configured ceiling, and the
+        office path passes the budget its conversion did not already spend.
         """
         from liteparse.types import ParseError  # type: ignore[import-not-found]
 
+        budget = self.timeout_seconds if timeout is None else max(timeout, 0.0)
         ocr = self.enable_ocr and (not self.auto_ocr or self._needs_ocr(parse_target))
 
         try:
@@ -560,7 +570,7 @@ class LiteParseParser(BaseDocumentParser):
             # which is why `max_pages` is the setting that actually bounds cost.
             result = await asyncio.wait_for(
                 asyncio.to_thread(self._build(ocr=ocr).parse, str(parse_target)),
-                timeout=self.timeout_seconds,
+                timeout=budget,
             )
         except FileNotFoundError as e:
             raise RuntimeError(f"LiteParse: file not found: {parse_target}") from e

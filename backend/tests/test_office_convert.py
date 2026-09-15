@@ -272,13 +272,11 @@ async def test_cancellation_tears_the_subprocess_down(
     assert await _wait_gone(pid), "cancellation left soffice running"
 
 
-async def test_terminating_an_already_exited_process_is_a_noop(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The teardown races the process exiting; a finished process is fine.
+async def test_tearing_down_an_already_exited_process_is_a_noop() -> None:
+    """Teardown races the process exiting; a finished, empty group is fine.
 
-    Covers both the early return when the process is already reaped and the
-    suppression of a group that has gone between the check and the signal.
+    Both signals land on a group that has gone, and reaping an already-reaped
+    launcher must not raise - exercising the ProcessLookupError suppression.
     """
     proc = await asyncio.create_subprocess_exec(
         sys.executable, "-c", "pass", start_new_session=True
@@ -286,5 +284,5 @@ async def test_terminating_an_already_exited_process_is_a_noop(
     await proc.wait()
 
     await office_convert._terminate_process_group(proc)
-    # The group is gone; signalling it must not raise.
+    # The group is gone; signalling it again must still not raise.
     office_convert._signal_group(proc.pid, signal.SIGTERM)
