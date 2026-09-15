@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "4d1d8b96f1d7"
 ---
 
 # Governance { #governance }
@@ -1308,6 +1308,41 @@ an seinem Budget stoppt, sagt das auf dem Bildschirm; derselbe Run, von einer
 Slack-Erwähnung, einem Zeitplan oder einem API-Aufruf gestartet, stoppt lautlos,
 und das Erste, was irgendwer davon hört, ist jemand, der fragt, warum der Agent
 still geworden ist.
+
+### In-App, neben E-Mail { #in-app-alongside-email }
+
+Jeder Alert in diesem Abschnitt schreibt zwei Dinge: die unten beschriebene
+E-Mail, und eine Zeile an **der Glocke** in der [Konsole](console.md#the-bell)
+- dem eigenen Postfach der Konsole, keine Kopie der Mail. Die Zeile *ist* die
+In-App-Zustellung; nichts weiter muss gelingen, damit sie erscheint. E-Mail
+ist ein zweiter, unabhängig wiederholter Kanal desselben Schreibvorgangs,
+weshalb der eine fehlschlagen kann - eine unzustellbare Adresse, ein
+ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
+
+Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
+**Settings → Notifications** - eine Person kann die In-App-Zeile für
+Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
+trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
+unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments,
+die abschließt oder scheitert, und die eigene Ankündigung eines App-Admins
+(**Console** → **Announcements**), adressiert nach Organisation und,
+optional, nach Rolle.
+
+Anders als alles oben lässt sich ein Sicherheitsereignis oder eine
+Konfigurationsänderung auf keinem der beiden Kanäle abschalten. Es erreicht
+die eigenen Owner und Admins dieser Organisation - nicht das breitere
+`admins`-Publikum von oben - und nie die App-Admins des Deployments, außer
+die Aktion selbst hat keine Organisation, der sie zuzuordnen wäre; in diesem
+Fall bekommt sie stattdessen jeder App-Admin. Nichts davon weitet aus, was
+diese Seite dokumentiert: Es ist dasselbe Postfach, in dem die oben auf dem
+Agent konfigurierten Alerts landen, und die Opt-out-Regel unten gilt
+weiterhin für alles, was sich abschalten lässt.
+
+Eine Zeile fällt aus dem Postfach, sobald sie dort neunzig Tage *gelesen*
+gestanden hat, oder ein Jahr, unabhängig davon, ob sie je geöffnet wurde -
+ein Sweep im Hintergrund, den niemand auslöst. Was das übersteht, ist der
+Audit-Trail selbst ([Audit](#audit)), von dem das Postfach eine
+Benachrichtigung ist, nie der Datensatz.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 
