@@ -27,7 +27,7 @@ from app.db.models.user import User
 from app.repositories.agent_run import ApprovalFilters
 from app.services.approvals import ApprovalService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _NOW = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
 

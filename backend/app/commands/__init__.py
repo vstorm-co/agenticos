@@ -22,6 +22,7 @@ import importlib
 import pkgutil
 from collections.abc import Callable
 from pathlib import Path
+from types import FunctionType
 from typing import Any
 
 import click
@@ -45,7 +46,7 @@ def command(name: str | None = None, **kwargs: Any) -> Callable[..., Any]:
             click.echo(f"Seeding {count} records...")
     """
 
-    def decorator(func: Callable[..., Any]) -> click.Command:
+    def decorator(func: FunctionType) -> click.Command:
         cmd_name = name or func.__name__.replace("_", "-")
         cmd: click.Command = click.command(cmd_name, **kwargs)(func)  # type: ignore[no-untyped-call]
         _commands.append(cmd)

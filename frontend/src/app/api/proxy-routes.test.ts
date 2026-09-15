@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import * as adminConversations from "./admin/conversations/route";
 import * as adminOrganizations from "./admin/organizations/route";
+import * as adminOrganization from "./admin/organizations/[id]/route";
 import * as adminRatingsSummary from "./admin/ratings/summary/route";
 import * as adminSettings from "./admin/settings/[[...path]]/route";
 import * as adminStats from "./admin/stats/route";
@@ -71,6 +72,7 @@ import * as users from "./users/[userId]/route";
 const MOUNTED: [string, Record<string, unknown>][] = [
   ["admin/conversations", adminConversations],
   ["admin/organizations", adminOrganizations],
+  ["admin/organizations/[id]", adminOrganization],
   ["admin/ratings/summary", adminRatingsSummary],
   ["admin/settings", adminSettings],
   ["admin/stats", adminStats],

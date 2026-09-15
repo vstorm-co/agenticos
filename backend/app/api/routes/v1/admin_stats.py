@@ -1,11 +1,12 @@
 """Admin observability - workspace stats and per-service health."""
 
 from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Query
 
 from app.api.deps import AdminSvc, CurrentAppAdmin, DBSession, Redis
-from app.schemas.admin import AdminOrganizationList, AdminStats
+from app.schemas.admin import AdminOrganizationDetail, AdminOrganizationList, AdminStats
 from app.schemas.health import SystemHealthResponse
 from app.services.health import system_health
 
@@ -51,6 +52,24 @@ async def list_admin_organizations(
     return await service.list_organizations(
         skip=skip, limit=limit, search=search, sort_by=sort_by, sort_dir=sort_dir, kind=kind
     )
+
+
+@router.get("/organizations/{organization_id}", response_model=AdminOrganizationDetail)
+async def get_admin_organization(
+    organization_id: UUID,
+    service: AdminSvc,
+    user: CurrentAppAdmin,
+) -> Any:
+    """One organization the deployment admin can open without joining it (#1245).
+
+    The destination the admin drawer's organization row links to: its name,
+    members and their roles, size, owner and budget. Cross-tenant by design and
+    behind the `is_app_admin` gate - a deployment admin belongs to none of the
+    personal organizations this most often opens - and read-only: it reaches no
+    agent, conversation or secret, so the tenant boundary that keeps a tenant's
+    content to the tenant is untouched. The cross-tenant read is itself audited.
+    """
+    return await service.get_organization_detail(organization_id, actor_user_id=user.id)
 
 
 @router.get("/system", response_model=SystemHealthResponse)

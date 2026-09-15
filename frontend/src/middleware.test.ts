@@ -126,4 +126,20 @@ describe("the content security policy", () => {
     expect(redirected.headers.get("location")).toContain("/pl/orgs");
     expect(redirected.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
+
+  it("carries a fresh script nonce and never 'unsafe-inline'", () => {
+    // Next stamps this nonce onto its inline scripts; a constant one would be
+    // `'unsafe-inline'` an attacker can read and reuse, so it is per request (#1624).
+    const first = middleware(request("/orgs")).headers.get("content-security-policy") ?? "";
+    const second = middleware(request("/orgs")).headers.get("content-security-policy") ?? "";
+
+    const scriptSrc = /script-src ([^;]*)/.exec(first)?.[1] ?? "";
+    expect(scriptSrc).toContain("'nonce-");
+    expect(scriptSrc).toContain("'strict-dynamic'");
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
+
+    const nonceOf = (policy: string) => /'nonce-([^']+)'/.exec(policy)?.[1];
+    expect(nonceOf(first)).toBeTruthy();
+    expect(nonceOf(first)).not.toBe(nonceOf(second));
+  });
 });

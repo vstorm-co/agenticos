@@ -11,6 +11,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
@@ -56,8 +57,6 @@ from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models.channel_bot import ChannelBot
@@ -301,7 +300,7 @@ class ChannelMessageRouter:
             8. Otherwise run the bot's only exposed agent.
             9. Send reply via adapter.
         """
-        bot = await channel_bot_repo.get_for_inbound(db, incoming.bot_id)
+        bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
         if not bot or not bot.is_active:
             logger.debug("Bot %s not found or inactive - ignoring", incoming.bot_id)
             return

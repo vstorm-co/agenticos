@@ -12,7 +12,7 @@ import pytest
 from app.core.exceptions import AuthenticationError
 from app.services.session import SessionService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _REPO = "app.services.session.session_repo.get_by_id"
 

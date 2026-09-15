@@ -76,6 +76,14 @@ This is what keeps a staging experiment out of the dashboard somebody watches
 for production incidents — and it is per environment rather than per deployment
 because the two are genuinely different projects.
 
+Where the traces go is the environment's; *how much they carry* is the agent's.
+An agent's [observability](reference/spec.md#observability) block has a `content`
+mode: `full` records the message, the model's output and every tool argument;
+`none` records timing, tokens, cost and tool names only. For a project over
+health, legal or HR data, `none` is what keeps a copy of the protected content
+from leaving the machine. The environment's token redirects the run but does not
+override that choice.
+
 ## What the default environment is not
 
 The default is **managed by publishing**, not by this API. You cannot delete it,

@@ -99,6 +99,7 @@ class TestReading:
 
         assert set(_filters(session).values()) >= {organization_id, workspace_id}
 
+    @pytest.mark.security
     async def test_a_conversation_listing_is_scoped_to_the_tenant_too(self):
         organization_id, conversation_id = uuid.uuid4(), uuid.uuid4()
         session = _RecordingSession(_scalars([]))

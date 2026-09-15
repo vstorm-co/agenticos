@@ -17,6 +17,554 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.438] - 2026-09-15
+
+### Added
+
+- **Skills under `.claude/skills/`, for the work around the code rather than in
+  it.** `vstorm-code-review` runs a staged pipeline of subagents - scope,
+  correctness, security, quality, verification, judge - all grading against one
+  finding taxonomy, so a candidate is raised, filed or refuted with proof and never
+  silently re-surfaced after a fix; findings are posted to the pull request with
+  stable ids and a reviewed-commit marker, which is what lets a re-review reconcile
+  instead of starting over. Executing anything the pull request itself defines is
+  treated as a boundary: an isolated environment with no ambient credentials, or
+  static verification and an `unverified` finding. `dev-agent` drives a resumable
+  loop that takes design and plan through a reviewed PR before any code exists,
+  then writes tests and implementation with review between. `pr-comments` works
+  through a PR's threads on that PR's own branch, `pr-description` writes a
+  description from the diff and the existing body, `review-map` projects a diff
+  onto the architecture for a reviewer, `resolve-changelog-conflict` resolves this
+  file from whichever git operation is actually in progress, and `ste-writing`
+  rewrites prose into Simplified Technical English. Repository only - nothing here
+  ships in an image. (#1639)
+
+## [0.0.437] - 2026-09-15
+
+### Fixed
+
+- **The audit hash-chain tests are part of the security set.** The `security`
+  marker and the hash chain landed within an hour of each other, each green against
+  a `main` that did not yet have the other, and the marker's own guard went red
+  where they met. The module is marked rather than the one test the keyword net
+  caught: tamper evidence over the audit trail is a control the security page
+  names, and the two tests beside it - an edited row, a deleted row - trip no
+  keyword at all, so exempting the flagged one would have left the set missing its
+  tamper-detection half.
+
+## [0.0.436] - 2026-09-15
+
+### Changed
+
+- **Logfire 5 and Pydantic AI 2.43.** The agent-frameworks group, with the
+  third-party notices regenerated for the three versions that moved.
+- **`pydantic-ai-skills` is held below 2.0 until #1658.** That release makes a
+  clean break with no compatibility shims and the backend does not import against
+  it: `SkillsToolset` is gone, replaced by `SkillsCapability`, and
+  `parse_skill_md` moved out of the package root, so test collection fails on the
+  second and every startup would abort on the first. It is not a rename - 2.0
+  turns each skill into a deferred capability reached through `load_capability`,
+  replacing the three tools this platform publishes, documents and lets a spec
+  grant, so migrating begins with deciding what a published spec granting a tool
+  that no longer exists does. The constraint carries that reason in the manifest.
+
+## [0.0.435] - 2026-09-15
+
+### Added
+
+- **A `security` marker naming every refusal test, and a report a client can
+  read.** Tenant isolation, permission and grant refusals, a budget checked before
+  the model call, an approval decided once, secret confidentiality, spec publish
+  validation - all already tested, but scattered with nothing naming them as a
+  set, so "does this meet the standard" was answered by showing tests rather than
+  by asserting it. `make test-security` runs the marked set and
+  `make security-report` writes the count and the list, which CI uploads as an
+  artifact on each backend run. `--strict-markers` means a misspelled marker fails
+  the run instead of silently dropping a test from the set. (#1417)
+- **A guard that keeps the set complete as the suite grows.** A test whose name or
+  module mentions a tenant, a permission, a budget, an approval, a secret or
+  plaintext must carry the marker or be exempted with a one-line reason. It caught
+  its first drift on the way in: three refusals written since the branch opened
+  carried no marker, and two exemptions named tests that had been renamed. The
+  marker is for the report, not a second gate - `make check` still runs
+  everything. (#1417)
+
+## [0.0.434] - 2026-09-15
+
+### Changed
+
+- **Fifteen backend dependencies moved to their current patch and minor
+  releases**, and the third-party notices with them. No component enters or leaves
+  the closure and no licence changes.
+
+## [0.0.433] - 2026-09-15
+
+### Added
+
+- **The audit trail is tamper-evident.** `app_admin_audit_logs` is the record of
+  every privileged action and the app-admin bypass story leans on it, but a row
+  was only a row: an operator with the database could rewrite or delete an entry
+  and leave nothing that said so. Each entry now joins a per-organization hash
+  chain - its own hash over its canonical fields with the previous entry's folded
+  in, plus a deployment-wide `seq` giving the chain a deterministic order even
+  when one transaction writes two entries on the same transaction-stable
+  timestamp. Editing, reordering, inserting or deleting an entry diverges every
+  hash after it. Two audited writes for one organization cannot fork the chain:
+  each appends under a per-organization lock. (#1622)
+- **`agenticos cmd audit-verify`** walks each chain, recomputes the hashes and
+  names the first entry that no longer matches; with no argument it checks every
+  chain, including the deployment-wide one holding tenant-less actions, and exits
+  non-zero if any fails. This is detection, not prevention - an operator who
+  rewrites a row can recompute every hash after it - and two deletions it cannot
+  see on its own are dropping a chain's newest entries and deleting a chain
+  outright, since the survivors stay internally consistent. Both are named in the
+  governance page rather than left for a reader to discover. (#1622)
+
+## [0.0.432] - 2026-09-15
+
+### Fixed
+
+- **A skill's files never reached the sandbox.** They were materialised at
+  `/skills`, and the container runtimes run as an unprivileged user for whom `/`
+  is root's - so `mkdir -p /skills` failed, every write was refused, and an agent
+  promised its scripts on disk found nothing there. They live under
+  `/workspace/skills` now, the one directory every backend guarantees writable.
+- **Materialised skills were listed, counted and postable as the agent's work.**
+  The file browser and the channel attachment filter both matched on `skills/`
+  after stripping the leading slash, which the new root does not begin with. Both
+  now read one shared tuple holding every spelling a skills path arrives in -
+  `workspace/skills/` from a state backend and from a container listing absolute
+  paths, `skills/` from one listing relative to its own root, and from any
+  workspace written before the move.
+- **A workspace from before the move kept a second copy of every skill.** Nothing
+  writes under the old root any more and nothing removed it, so the next run wrote
+  a complete second tree beside it and both were persisted and charged against the
+  workspace's storage cap. The legacy tree is dropped at flush, where spills are.
+
+### Changed
+
+- **The model is told where its skills are.** The path was only ever discoverable
+  from a skill's own body, which made every skill written against the old root the
+  sole authority for a location the platform had since changed. A run that
+  materialised anything now says the directory once, so a body naming the old one
+  is stale text rather than the answer.
+
+## [0.0.431] - 2026-09-15
+
+### Added
+
+- **An MCP server can be connected with a client the operator registered by
+  hand.** Most servers register this app dynamically, but HubSpot's remote server
+  publishes no registration endpoint and hands out client credentials only through
+  an auth app created in the account, so there was no way to tell the flow about
+  them. `client_id` and `client_secret` can now be supplied at OAuth start; the
+  secret is sealed into the pending payload with the rest of the flow state and
+  never read back over the API. (#1620)
+
+### Fixed
+
+- **Three ways a pre-registered client failed after consent rather than before
+  it.** A `client_secret` with no `client_id` was accepted and then discarded,
+  because the flow registers dynamically whenever the id is absent - so the caller
+  consented against a client they never named. A truncated secret passed the start
+  and failed the token exchange, since the secret is not used until the callback;
+  it now meets the same eight-character floor as every other credential. And a
+  client registered for `client_secret_basic` completed consent and could never
+  exchange or refresh, because this flow only ever puts the secret in the form
+  body - a server whose metadata allows no such method is refused at start
+  instead. A server that names no method is taken as accepting it, which is what
+  RFC 8414 leaves open and what the servers this exists for actually do. (#1620)
+
+## [0.0.430] - 2026-09-15
+
+### Added
+
+- **The security page a HIPAA- or SOC 2-shaped review asks for, in one copy.**
+  `docs/security.md` sets out the trust boundaries a request crosses on its way to
+  the data, what leaves the deployment and to whom, what is encrypted where - and
+  a controls matrix that names, for each control, the mechanism in this codebase
+  that satisfies it and the test that holds it true. It describes what is, not
+  what would be nice: a row with no mechanism says so and links the issue that
+  would build it, and the things the vault does not seal - short-lived bearer
+  tokens, uploaded files, message bodies, RAG rows and sandbox workspaces - are
+  stated rather than left to be discovered. Published in all four languages.
+  (#1412)
+
+### Changed
+
+- **`SECURITY.md` keeps only the two things a repository's `SECURITY.md` is read
+  for.** How to report a vulnerability, and the production hardening checklist.
+  The security model it used to restate now lives in one copy on the page above,
+  with pointers to it and to Data protection and Licences.
+
+## [0.0.429] - 2026-09-15
+
+### Fixed
+
+- **`make check` depended on whichever `python3` the host happened to have.**
+  One guard script had already been pinned to the backend interpreter after it
+  crashed outright on a machine whose system Python predates 3.10; the other four
+  and the dependency audit were still invoked as a bare `python3`, surviving only
+  because none of them happens to use 3.10-only syntax yet. All of them now run
+  under the interpreter `backend/.python-version` names, in the Makefile and in
+  pre-commit alike, and a test refuses the next target written the fragile way.
+
+## [0.0.428] - 2026-09-14
+
+### Fixed
+
+- **Two RAG commands were unconditionally broken.** `rag-sources` and
+  `rag-source-sync --all` iterated and counted `SyncSourceList` - a Pydantic model
+  wrapping `items` and `total` - as if it were the list itself. Both read the
+  fields now.
+- **A failed LlamaParse page was read as if it had succeeded.** The parse result
+  is a discriminated union whose failure branch has no `markdown`, so a bad page
+  risked an `AttributeError` mid-ingestion with nothing saying which page or why.
+  It now raises an error naming both.
+- **A sync that refused before its flow ran left the log running forever.** A
+  manual trigger creates the sync log and hands the flow its id; the unknown
+  connector and unassigned collection paths returned without completing it, so
+  nothing was ever going to finish it. Both complete the log as errored first.
+- **`make check` crashed on a machine whose system Python predates 3.10.** The
+  `check-routes` guard uses `X | Y` in an `isinstance` call and was running under
+  the host interpreter rather than the pinned backend one.
+- **A local e2e run made ESLint report hundreds of errors.** `playwright-report/`
+  and `test-results/` are gitignored but were still walked, and they hold a
+  vendored, minified trace-viewer bundle.
+
+### Changed
+
+- **`ty check` reports nothing against the template-inherited code.** It runs in
+  `make lint` but only warns there, so its 61 diagnostics across the RAG pipeline,
+  connectors, worker tasks and repositories had never been worked through. Most
+  were stub imprecision, corrected with the constructs SQLAlchemy ships for those
+  shapes rather than with suppressions; the two live bugs are above.
+
+## [0.0.427] - 2026-09-14
+
+### Added
+
+- **The admin drawer's organization rows are links now.** They were plain text
+  because there was nowhere for an app admin to go: the tenant-scoped page 404s
+  for anybody who is not a member. Each row opens `/admin/organizations/{id}`,
+  which reads the metadata endpoint - name, members and their roles, size, owner
+  and budget. The conversation rows stay text, deliberately: there is no
+  admin-readable destination for a single conversation, and adding one would relax
+  the tenant boundary the architecture page holds. Both drawer comments now record
+  that decision. (#1245)
+
+## [0.0.426] - 2026-09-14
+
+### Added
+
+- **The audit trail exports, as CSV or JSONL.** `GET /audit/export` takes the same
+  window the tab does, gated on `audit:read`. It is the one export that also
+  offers JSONL (`?fmt=jsonl`), one JSON object per line, because an audit trail is
+  as often ingested by a log pipeline as opened in a spreadsheet: the two describe
+  the same entries, with `details` flattened to a JSON string in the CSV cell and
+  kept as a nested object in the lines. It ships exactly the fields the read model
+  exposes - the stored `ip_address` is not on that tab, so it is not in the export
+  either - and records its own read in the trail, naming the window, the format
+  and the row count. Documented in all four languages. (#1422)
+
+## [0.0.425] - 2026-09-14
+
+### Added
+
+- **A deployment admin can read one organization's metadata.** An app admin could
+  see every tenant in the admin listing and open none of them: `/orgs/{id}`
+  resolves through membership, and the common case is the target's own personal
+  organization, which the admin belongs to none of.
+  `GET /admin/organizations/{id}` gates on app-admin and answers with the name,
+  members and their roles, size, owner and budget - metadata only, reaching no
+  agent, conversation or secret, and writing its own audit entry for the
+  cross-tenant read. The member list is bounded at 500; `member_count` still
+  carries the true total, so a larger tenant shows the count beside the first
+  names rather than an unbounded fetch on a page nobody pages. Deliberately a
+  separate endpoint rather than an `is_app_admin` bypass in `get_for_user`: an
+  app-admin context already carries every permission at the widest scope, so
+  widening the membership path would have granted full read *and write* of a
+  foreign tenant. (#1245)
+
+## [0.0.424] - 2026-09-14
+
+### Added
+
+- **A written plan for the notification center, before any of it is built.**
+  `docs/design/notification-center-plan.md` sets out ten decisions grounded in the
+  code that exists: a code-defined event catalog reusing the agent spec's
+  `AlertAudience` shape rather than stretching `NotificationSpec` to cover events
+  that are not about one agent; a per-recipient row plus a separate deliveries
+  table for the retryable side channels; why the announcement composer gates on
+  app-admin rather than on any permission. With a phased breakdown, an explicit
+  out-of-scope list and the open questions that do not block starting. Repository
+  only, like the rest of `docs/design/`. (#1598)
+
+## [0.0.423] - 2026-09-14
+
+### Added
+
+- **An agent can be traced without its prompts.** `observability.content` on the
+  agent spec takes `full` (the default, everything as before) or `none` - timing,
+  tokens, cost and tool names, with no message text and no tool arguments. Until
+  now an agent redirecting its traces to a Logfire project, often a client's own,
+  sent the user's message, the model's output and every tool argument and result
+  with no switch: for a deployment whose runs touch health, legal or HR data, a
+  copy of the protected content left the machine per run. The choice is enforced
+  where the agent is instrumented rather than in the Builder, so a spec that says
+  `none` produces content-free spans however the run is started, and it survives
+  the environment-tracing merge - an environment redirects where traces go, not
+  how much they carry. The Builder offers both modes beside the token, locked
+  until one is chosen. `content` is optional with a default, so stored specs load
+  unchanged and `SPEC_VERSION` stays 11. The `redacted` mode from the issue needs
+  a span processor of its own and is tracked in #1616. (#1413)
+
+## [0.0.422] - 2026-09-14
+
+### Fixed
+
+- **The exposure form described a channel lookup differently from the model.**
+  Its checklist still read each tool's short hand-typed blurb from the catalog
+  while the Toolbox panel served the real, docstring-derived description, so the
+  two disagreed about the same tool. Both now read `tool_contracts()`. Two things
+  had to come with it: the real description arrives wrapped in `<summary>` and
+  `<returns>` markup for the model's benefit, which would have rendered as literal
+  tags in a checkbox label, and the fallback tested whether a tool's id was in the
+  contracts rather than whether it had a description, so a tool without a
+  docstring would have rendered blank. (#1473)
+
+### Added
+
+- **A guard against the blurb and the description drifting again.** Every
+  capability's declared tool description is asserted to be a prefix of the one its
+  built toolset serves. `capability_contracts.py` had never been listed in the
+  platform layer's coverage and typing gates either, and now is. (#1473)
+
+## [0.0.421] - 2026-09-14
+
+### Fixed
+
+- **A capability that failed to build once stayed broken until the next
+  redeploy.** `tool_contracts()` cached its whole-catalog build in a bare module
+  global with no lock: a transient failure during one capability's build cached an
+  empty contract set for it and, because the global was then set, every later call
+  returned that empty result for the life of the process. Two requests arriving
+  before the cache warmed also both built the whole catalog. The build now runs
+  under a lock with a re-check inside it, and only a build that completed every
+  capability is cached - a failure still degrades that one answer, and is retried
+  on the next call. Reached routinely since the exposures endpoint became a second
+  caller. (#1621)
+
+## [0.0.420] - 2026-09-14
+
+### Fixed
+
+- **A registry entry with a namespaced key prefilled a tool prefix the form
+  refuses.** Connecting an MCP server from the catalog seeded the Tool prefix
+  field with the raw registry key, so `com.snitcher/snitcher` met a name pattern
+  of lowercase letters, digits and hyphens and could never be submitted. HubSpot
+  worked only because its key is already a valid name. The three places that
+  seeded from the key now slug it - the segment after the last slash, lower-cased
+  and hyphenated, bounded to 32 characters - and a key with nothing usable in it
+  leaves the field blank rather than prefilling a refusal. (#1628)
+
+## [0.0.419] - 2026-09-14
+
+### Security
+
+- **A malformed MCP OAuth token response wrote the token to the logs.**
+  `_token_request` parses the provider's answer with
+  `OAuthToken.model_validate_json`, and a Pydantic `ValidationError` echoes the
+  input it rejected - which, for a token response, is the token. The
+  `logger.exception` beside the raise then wrote a live credential, traceback and
+  all. The failure is now logged as field locations and error types only, through
+  `exc.errors(include_url=False, include_input=False)`, at `error` rather than
+  `exception` so no traceback carries the payload. The refusal shown to the caller
+  was already the class name alone. (#1626)
+
+## [0.0.418] - 2026-09-14
+
+### Fixed
+
+- **Deleting a skill resource answered 500 and rolled the delete back.**
+  `remove_resource` deletes the row and then bumps the skill's version, whose
+  `db.refresh(skill)` walks `skill.resources` - still holding the instance just
+  deleted, which SQLAlchemy refuses to refresh. The collection is expired after
+  the delete, so the refresh reloads it from the table and the route answers 204.
+
+## [0.0.417] - 2026-09-14
+
+### Fixed
+
+- **A Slack bot saved without a signing secret answered 500.** The three channel
+  webhook receivers had drifted: Telegram and Mattermost refuse an event they
+  cannot verify with 403, because a bot with no secret is an unauthenticated
+  endpoint that would run an agent on an organization's budget. Slack alone
+  raised, which sent Slack's retrier a bodiless error instead of a refusal. It
+  now logs which bot to configure and refuses with 403 like its siblings; a wrong
+  signature was already 403 on all three. (#555)
+
+## [0.0.416] - 2026-09-14
+
+### Fixed
+
+- **The knowledge-base howto still sent the reader to a deployment default that
+  no longer exists.** `EMBEDDING_MODEL` went with the rest of the deployment-wide
+  embedding settings, so "leave it at the deployment default" named nothing: the
+  form offers the models the chosen provider serves and preselects the first.
+  Corrected in English and in the three translations. (#1604)
+
+## [0.0.415] - 2026-09-14
+
+### Added
+
+- **The documentation site publishes in four languages.** All 54 published
+  pages and the four files GitHub renders - `README.md`, `CONTRIBUTING.md`,
+  `SECURITY.md`, `CODE_OF_CONDUCT.md` - are translated into Polish, German and
+  Spanish. `mkdocs-static-i18n` in `suffix` mode, so a translation is
+  `<page>.<locale>.md` beside its English source and the English URLs do not
+  move: `/install/` stays and `/pl/install/` appears next to it. One nav, four
+  builds, and a language switcher that keeps the reader on the same page.
+- **A gate that keeps the three translations honest.** `mkdocs build --strict`
+  validates a link's path and not its `#fragment`, so a translated heading
+  silently moves an anchor and every link into it lands at the top of the page,
+  in one language, with a green build. So a translated heading pins the English
+  anchor explicitly, each translation records the fingerprint of the English
+  revision it was made from, and `scripts/check_docs_i18n.py` runs in
+  `make lint`: it names a page with no translation, a translation older than
+  its source, headings that no longer line up and a repository file whose links
+  go somewhere the English one does not. A page rendered from a stale or
+  missing translation carries a notice in the reader's own language.
+  `docs/howto/translate.md` is the workflow, with the glossary and the
+  terminology that has to be exact.
+
+### Fixed
+
+- **A prose line in `docs/file-processing.md` rendered as a heading.** It
+  started at column zero with an issue reference, and Python-Markdown's ATX
+  rule does not require a space after the hashes, so the published page carried
+  an `<h1>` nobody wrote. The translation gate found it by counting anchors.
+
+## [0.0.414] - 2026-09-14
+
+### Added
+
+- **Local services: the servers on the deployment's own network a collection
+  may be pointed at.** A row per organization - or per deployment, registered
+  by its administrator and offered to every organization - of kind `embedding`
+  (an Ollama, reached through its OpenAI-compatible root) or `ocr` (a LiteParse
+  OCR server), with `base_url` validated the way a sandbox host's is. Managed
+  under Knowledge → Integrations behind `connections:manage`, on
+  `/local-services`; migration `0078_local_services`. (#1632)
+- **A self-hosted embedding provider.** `ollama` is in `embedding_providers.json`
+  as a keyless entry with no address of its own: a collection on it names a
+  local service (`embedding_endpoint_id`) where a keyed collection names the
+  vault key, so a knowledge base can stay on the deployment's own hardware. The
+  form asks for a server rather than a key, a key named for it is refused, and
+  five of Ollama's embedding models are catalogued with their widths. (#1632)
+- **An app-scoped collection embeds through a keyless provider, or not at all.**
+  It belongs to no organization and so has no vault to hold a key; it names a
+  deployment-wide local service instead, and choosing OpenRouter or OpenAI for
+  one is refused where the provider is chosen, at creation and on a move,
+  instead of producing a collection that fails on its first document. (#1631)
+- **An OCR server is a per-collection choice.** `ingestion_config.ocr_endpoint_id`
+  names a local service of kind `ocr`; nothing named runs the Tesseract bundled
+  with the worker.
+- **`docs/data-protection.md`** - where personal data lives, what leaves the
+  deployment and under which setting, the controls with their proof or their
+  open issue, what deletion reaches, and a reproducible verification checklist
+  for one deployment. Linked from the security-review table, `SECURITY.md` and
+  the topic map. (#1596)
+
+### Changed
+
+- **Embeddings are paid for with the collection's vault key, and nothing else.**
+  `OPENROUTER_API_KEY` is gone: it was a deployment-wide fallback for one
+  provider, left over from when `openrouter.ai` was hardcoded, and the only
+  reason the catalog carried a `deployment_key` flag, the resolver two fallback
+  states and the form a "Deployment key" row. A new personal or organization
+  collection names its provider from `embedding_providers.json` and the vault
+  key that pays, or is refused on that field; a collection whose key is missing,
+  unusable or never chosen refuses to index or search with a message naming the
+  collection and the reason, and the ingestion flow log says so. A key can be
+  replaced but no longer cleared (`clear_embedding_secret` is removed), because
+  there is nothing to fall back to. `scripts/server-init.sh` no longer asks for
+  the key and `docs/deploy.md` no longer lists it as a prerequisite. The
+  resolution says which of six situations it landed on - a key never chosen,
+  no vault to choose one from, the chosen secret missing, unusable or of the
+  wrong kind, or a provider this build no longer offers - each with its own
+  remedy. (#1596)
+
+### Removed
+
+- **`EMBEDDING_MODEL`, `LLAMAPARSE_API_KEY` and `LITEPARSE_OCR_SERVER_URL` are
+  gone.** Each was one value for every tenant, set where no tenant could see it.
+  The model is chosen from what the collection's provider serves; a LlamaParse
+  key is the vault entry the collection names, and a collection on LlamaParse
+  without one is refused at the form; an OCR server is a local service the
+  collection names. `GET /rag/embedding-models` no longer answers a `default`.
+
+## [0.0.413] - 2026-09-14
+
+### Changed
+
+- **The stack runs Valkey where it used to run Redis.** `redis:7-alpine`
+  resolves to Redis 7.4, and from 7.4.0 Redis is RSALv2 or SSPL-1.0 rather than
+  BSD-3-Clause - neither an OSI-approved licence. Nothing was broken by it: the
+  image is pulled by the operator rather than redistributed here, and RSALv2
+  permits running Redis inside your own application. But the default `docker
+  compose up` started a non-open component without saying so. Every compose file
+  and every CI service now uses `valkey/valkey:8-alpine`, the Linux Foundation
+  fork of Redis 7.2 under BSD-3-Clause. It speaks the same protocol on the same
+  port, so the service name, the `redis://` scheme, the `redis_data` volume and
+  every `REDIS_*` setting are unchanged, and so is the client - only the image,
+  the server binary and the CLI in the healthchecks differ. A deployment on a
+  managed Redis, Valkey or Elasticache is unaffected. The licence review drops
+  to one open finding. (#1603)
+
+## [0.0.412] - 2026-09-14
+
+### Added
+
+- **A licence review of everything the images ship, with generated notices and a
+  check.** `THIRD_PARTY_NOTICES.md` is generated from the two lockfiles by
+  `scripts/license_inventory.py` and lists every distribution in either image with
+  its SPDX licence, source and the evidence the licence was read from. Decisions
+  live in `licenses/policy.toml` (overrides with evidence, review entries for
+  copyleft and share-alike components) and `licenses/components.toml` (images,
+  Debian packages, fonts, glyphs, data files, compose services). `make
+  licenses-check` runs in the `security` job and `make check`: stale notices, a
+  component with no readable licence, a copyleft component with no decision, or a
+  decision about a licence that has since changed all fail it; tracked open
+  findings pass and are counted, and so does a package that ships no licence
+  file without an author to attribute or a text to place beside it. Both images
+  now carry their licence files: the backend image `LICENSE`, `NOTICE`, the
+  notices and the texts of the licences nine wheels declare but do not ship; the
+  frontend image every package's own licence file under `/app/licenses/`, which
+  the standalone build had been dropping, a `NOTICE` and the licence text for a
+  package that publishes none (`@img/sharp-libvips-linux-*` ships an LGPL
+  library with no copy of the LGPL), the fonts' OFL and the brand-mark
+  attributions. `docs/licenses.md` is the review: scope, obligations per licence
+  family and how each is met, hosted-provider terms and model-weight licences as
+  deployment-time decisions, the maintenance workflow and a release checklist.
+  One finding is open and tracked - `redis:7` resolves to Redis 7.4 under
+  RSALv2/SSPLv1 (#1603) - and one is a deployment-time review, the sandbox
+  runtime built at the deployment. The third is settled here: `pymupdf`, the
+  default PDF parser, is AGPL-3.0-only and is kept, so the backend image as a
+  whole is conveyed under AGPL-3.0 terms. Running an unmodified release owes
+  nothing, because this repository is public and Apache-2.0; a deployment that
+  modifies the platform and serves it over a network owes its users the modified
+  source under section 13, and `docs/licenses.md` gives the three exits for a
+  deployment that cannot take those terms. (#1600, #1602)
+
+### Fixed
+
+- **Three prose lines in `docs/code-review.md` rendered as headings.** Each
+  started at column zero with an issue reference, and Python-Markdown's ATX rule
+  does not require a space after the hashes, so the published page carried three
+  `<h1>`s nobody wrote - in the table of contents and in the search index. The
+  built page now has the 14 headings the file declares. (#1605)
+
 ## [0.0.411] - 2026-09-13
 
 ### Security

@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, case, func, or_, select, tuple_
+from sqlalchemy import ColumnElement, and_, case, func, literal, or_, select, tuple_
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -236,7 +236,7 @@ async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None
     if run.started_at is None or run.conversation_id is None:
         return None, None
     position = tuple_(AgentRun.started_at, AgentRun.id)
-    anchor = tuple_(run.started_at, run.id)
+    anchor = tuple_(literal(run.started_at), literal(run.id))
     same_level = (
         AgentRun.parent_run_id.is_(None)
         if run.parent_run_id is None

@@ -167,6 +167,28 @@ export function isReviewed(row: McpServerRow): boolean {
 }
 
 /**
+ * A valid tool-prefix seed from a catalog key.
+ *
+ * The prefilled prefix becomes the tool name the model reads, and the backend's
+ * `NAME_PATTERN` (`^[a-z0-9][a-z0-9-]{0,31}$`) refuses a namespace - so seeding
+ * the field with a key like `com.snitcher/snitcher` made a submit that could
+ * never pass, while `hubspot` happened to be its own name and worked (#1628).
+ * Take the segment after the last `/` - the name, not the namespace it lives in -
+ * lower-case it, reduce every other run of characters to a single hyphen, and
+ * bound it to the pattern's 32. A key with nothing usable in it seeds the empty
+ * string, which leaves the field blank rather than prefilling a refusal.
+ */
+export function slugForPrefix(key: string): string {
+  const name = key.slice(key.lastIndexOf("/") + 1);
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, 32)
+    .replace(/-+$/, "");
+}
+
+/**
  * The catalog, with every connection folded onto the row it belongs to.
  *
  * Catalog order is preserved and custom servers follow, so the list reads as

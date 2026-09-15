@@ -130,6 +130,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     read = await McpConnectionService(db).poll_grant(grant)
     if read is None:
         return 0
+    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
     decisions = await AgentTriggerService(db).prepare_polled_fires(
         organization_id=grant.organization_id,
         event_source=source,

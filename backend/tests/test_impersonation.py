@@ -61,9 +61,15 @@ def _user(*, email: str, is_active: bool = True) -> MagicMock:
 
 
 def _db() -> MagicMock:
-    """A session whose `add` is a plain call, so the audit entry can be read back."""
+    """A session whose `add` is a plain call, so the audit entry can be read back.
+
+    `execute` answers the audit chain's head read with nothing - these are the first
+    entries in their chains - and the advisory-lock take ignores its result.
+    """
     db = MagicMock()
     db.flush = AsyncMock()
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
     return db
 
 

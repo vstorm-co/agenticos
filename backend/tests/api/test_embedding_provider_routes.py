@@ -96,20 +96,40 @@ class TestWhatTheCatalogOffers:
         weights nothing here can call, whose first document failed to index."""
         body = (await client.get(f"{_V1}/rag/embedding-models")).json()
 
-        assert body["default_provider"] == "openrouter"
         providers = {entry["provider"]: entry for entry in body["providers"]}
-        assert "openrouter" in providers
-        assert providers["openrouter"]["deployment_key"] is True
+        assert {"openrouter", "openai"} <= set(providers)
         assert all(entry["models"] for entry in body["providers"])
 
-    async def test_exactly_one_provider_claims_the_deployments_key(self, client: AsyncClient):
-        """The form offers "the deployment's key" only where it applies: that key
-        belongs to one endpoint, and offering it elsewhere offers a collection
-        that cannot index anything."""
+    async def test_no_provider_is_offered_as_the_deployments_key(self, client: AsyncClient):
+        """There is no deployment-wide embedding key, so the catalog carries
+        nothing for the form to offer as one: every collection names a vault
+        key of its own, and the response says which providers and models it
+        may name it for."""
         body = (await client.get(f"{_V1}/rag/embedding-models")).json()
 
-        claiming = [entry for entry in body["providers"] if entry["deployment_key"]]
-        assert len(claiming) == 1
+        assert "default_provider" not in body
+        assert all("deployment_key" not in entry for entry in body["providers"])
+
+    async def test_each_provider_says_whether_it_takes_a_key(self, client: AsyncClient):
+        """The form hides the key select for a keyless endpoint rather than
+        asking for a key nothing will send, so the answer carries the flag."""
+        body = (await client.get(f"{_V1}/rag/embedding-models")).json()
+
+        assert {entry["keyless"] for entry in body["providers"]} == {True, False}
+
+    async def test_the_keyless_provider_is_offered_and_says_so(self, client: AsyncClient):
+        """Its address is a local service the collection names, so the form
+        offers a service select where it would offer a key select."""
+        body = (await client.get(f"{_V1}/rag/embedding-models")).json()
+
+        ollama = next(entry for entry in body["providers"] if entry["provider"] == "ollama")
+        assert ollama["keyless"] is True
+        assert {model["model"] for model in ollama["models"]} >= {"nomic-embed-text", "bge-m3"}
+
+    async def test_there_is_no_deployment_default_model_in_the_answer(self, client: AsyncClient):
+        body = (await client.get(f"{_V1}/rag/embedding-models")).json()
+
+        assert "default" not in body
 
 
 class TestMovingACollection:
@@ -118,7 +138,7 @@ class TestMovingACollection:
     ):
         response = await client.patch(
             f"{_V1}/kb/{_KB_ID}",
-            json={"embedding_provider": "openai", "clear_embedding_secret": True},
+            json={"embedding_provider": "openai"},
         )
 
         assert response.status_code == 200

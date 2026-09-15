@@ -17,7 +17,7 @@ from app.api.exception_handlers import register_exception_handlers
 from app.core.config import settings
 from app.core.middleware import SecurityHeadersMiddleware
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def test_an_ordinary_response_carries_the_security_headers(client: AsyncClient) -> None:

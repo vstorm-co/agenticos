@@ -88,6 +88,7 @@ async def test_get_filters_on_the_preset_the_user_and_the_organization() -> None
     assert {preset_id, user_id, org_id} <= values
 
 
+@pytest.mark.security
 async def test_get_by_name_filters_on_the_name_inside_the_tenant_pair() -> None:
     user_id, org_id = uuid4(), uuid4()
     session = _RecordingSession(_scalar_result(None))

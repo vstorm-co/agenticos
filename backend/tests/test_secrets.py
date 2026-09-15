@@ -38,6 +38,8 @@ from app.repositories import member_repo
 from app.services.organization_secret import OrganizationSecretService
 from tests.test_model_profiles import service_account_json
 
+pytestmark = pytest.mark.security
+
 
 def _ctx(org_id=None) -> AuthContext:
     return AuthContext(

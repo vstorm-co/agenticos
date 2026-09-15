@@ -571,7 +571,7 @@ Files somebody attaches to a message land in `/uploads` — see
 [File processing](../file-processing.md).
 
 **Skills become files too.** An agent with both a workspace and skills gets each
-skill as `/skills/<name>/SKILL.md` with its resources beside it, which is what
+skill as `/workspace/skills/<name>/SKILL.md` with its resources beside it, which is what
 makes a skill's script runnable at all: it is on disk next to the shell that can
 run it. There is deliberately no `run_skill_script` — `execute` already has the
 approval gate and the operator's ceilings behind it, and a second execution path

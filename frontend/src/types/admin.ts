@@ -31,6 +31,29 @@ export interface AdminOrganization {
   created_at: string;
 }
 
+/** One member of a tenant, as the deployment admin inspecting it sees them. */
+export interface AdminOrganizationMember {
+  user_id: string;
+  email: string;
+  name: string | null;
+  role: string;
+}
+
+/**
+ * One organization in full for the admin's per-tenant page (#1245): its members
+ * and roles, size, owner and budget - never the tenant's agents, conversations
+ * or secrets, which the tenant boundary keeps to the tenant.
+ */
+export interface AdminOrganizationDetail extends AdminOrganization {
+  members: AdminOrganizationMember[];
+  /**
+   * The serialized `Decimal` budget, which reaches the wire as a string that
+   * keeps the column's precision - `"50.000000"`. Formatted with `Number(...)`
+   * at the point of use, as the other budget surfaces do.
+   */
+  monthly_budget_usd: string | null;
+}
+
 /**
  * Every status comes from a probe that ran - including `not_checked`, which is
  * a probe that was skipped and says why. There is no invented "unknown".

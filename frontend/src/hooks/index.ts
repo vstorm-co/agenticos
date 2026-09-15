@@ -7,6 +7,7 @@ export {
   type AdminOrgKind,
   type AdminOrgSort,
 } from "./use-admin-organizations";
+export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
 export { useConversationWorkspace } from "./use-conversation-workspace";
@@ -22,6 +23,7 @@ export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-
 export { useDashboardLayout } from "./use-dashboard-layout";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
+export { useLocalServices } from "./use-local-services";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";

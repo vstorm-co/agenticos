@@ -748,7 +748,7 @@ async def run_statuses(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     result = await db.execute(
         select(AgentRun.id, AgentRun.status).where(AgentRun.id.in_(list(run_ids)))
     )
-    return dict(result.all())
+    return dict(result.tuples().all())
 
 
 async def get_recent_messages(

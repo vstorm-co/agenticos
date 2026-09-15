@@ -102,8 +102,8 @@ An agent that has both skills and a
 as well:
 
 ```
-/skills/<name>/SKILL.md      the body, with its name and description
-/skills/<name>/<resource>    each resource, beside it
+/workspace/skills/<name>/SKILL.md      the body, with its name and description
+/workspace/skills/<name>/<resource>    each resource, beside it
 ```
 
 This is what makes a skill's script useful. A skill whose resource is

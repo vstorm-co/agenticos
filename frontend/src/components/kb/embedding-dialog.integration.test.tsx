@@ -28,13 +28,11 @@ vi.mock("@/lib/api-client", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const MODELS = {
-  default: "text-embedding-3-large",
-  default_provider: "openrouter",
   providers: [
     {
       provider: "openrouter",
       name: "OpenRouter",
-      deployment_key: true,
+      keyless: false,
       models: [
         { model: "text-embedding-3-small", dim: 1536 },
         { model: "text-embedding-3-large", dim: 3072 },
@@ -43,7 +41,15 @@ const MODELS = {
     {
       provider: "openai",
       name: "OpenAI",
-      deployment_key: false,
+      keyless: false,
+      models: [{ model: "text-embedding-3-small", dim: 1536 }],
+    },
+    // A keyless endpoint on the deployment's own network that happens to serve
+    // this model at this width: a move the server accepts with no key.
+    {
+      provider: "ollama",
+      name: "Ollama",
+      keyless: true,
       models: [{ model: "text-embedding-3-small", dim: 1536 }],
     },
     // Serves the same model at another width, which is another space: offering
@@ -51,7 +57,7 @@ const MODELS = {
     {
       provider: "elsewhere",
       name: "Elsewhere",
-      deployment_key: false,
+      keyless: false,
       models: [{ model: "text-embedding-3-small", dim: 3072 }],
     },
   ],
@@ -64,6 +70,7 @@ const KB = {
   embedding_dim: 1536,
   embedding_provider: "openrouter",
   embedding_secret_id: null,
+  embedding_endpoint_id: null,
 } as KnowledgeBase;
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -84,6 +91,23 @@ beforeEach(() => {
   save.mockResolvedValue(undefined);
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/rag/embedding-models") return MODELS;
+    if (path === "/local-services")
+      return {
+        items: [
+          {
+            id: "ls-1",
+            organization_id: "org-1",
+            kind: "embedding",
+            provider: "ollama",
+            name: "GPU box",
+            base_url: "http://ollama:11434/v1",
+            is_active: true,
+            created_at: "2026-09-01T00:00:00Z",
+            updated_at: null,
+          },
+        ],
+        total: 1,
+      };
     if (path === "/secrets")
       return {
         items: [
@@ -125,18 +149,44 @@ describe("what this dialog will and will not change", () => {
     expect(screen.queryByRole("option", { name: "Elsewhere" })).toBeNull();
   });
 
-  it("saves the provider and falls back to the deployment's key by its own word", async () => {
-    // A null id means "leave the key alone" on a partial update, so going back to
-    // the deployment's key has to be sayable rather than implied by absence.
+  it("saves the provider alone when no key was chosen, and never asks to clear one", async () => {
+    // A null id means "leave the key alone" on a partial update. There is no
+    // deployment-wide key to go back to, so "clear the key" is not a thing this
+    // dialog can say - the server keeps whatever key the row holds.
     show();
     await userEvent.click(await screen.findByLabelText("Embedding provider"));
     await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(save.mock.calls[0]?.[0]).toEqual({ embedding_provider: "openai" });
+  });
+
+  it("offers no deployment key, and reads as empty until one is chosen", async () => {
+    show();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+
+    expect(screen.getByLabelText("Key")).toHaveTextContent("Choose a key");
+    await userEvent.click(screen.getByLabelText("Key"));
+    expect(screen.queryByRole("option", { name: /Deployment key/ })).toBeNull();
+  });
+
+  it("moving to a keyless provider asks for a server, and sends it with no key", async () => {
+    show();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ollama" }));
+
+    expect(screen.queryByLabelText("Key")).toBeNull();
+    expect(screen.getByText(/Ollama takes no key/)).toBeVisible();
+    await userEvent.click(screen.getByLabelText("Server"));
+    await userEvent.click(await screen.findByRole("option", { name: /GPU box/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalled());
     expect(save.mock.calls[0]?.[0]).toEqual({
-      embedding_provider: "openai",
-      clear_embedding_secret: true,
+      embedding_provider: "ollama",
+      embedding_endpoint_id: "ls-1",
     });
   });
 

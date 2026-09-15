@@ -57,6 +57,7 @@ function kb(id: string, name: string, collection: string): KnowledgeBase {
     embedding_model: "text-embedding-3-large",
     embedding_provider: "openrouter",
     embedding_secret_id: null,
+    embedding_endpoint_id: null,
     embedding_dim: 3072,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,

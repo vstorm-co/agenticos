@@ -133,6 +133,31 @@ def _revealed(value: SecretStr | None) -> str | None:
     return None if value is None else value.get_secret_value()
 
 
+def _refuse_a_client_this_server_will_not_authenticate(server: mcp_oauth.DiscoveredServer) -> None:
+    """Refuse a pre-registered confidential client this flow cannot authenticate.
+
+    Dynamic registration states `client_secret_post` in `client_metadata`, so the
+    server is told how the secret will arrive. A client registered by hand was
+    not, and `exchange_code` and `refresh_tokens` only ever put `client_secret`
+    in the form body - a client configured for `client_secret_basic` would pass
+    consent and then fail every token request, which is the worst moment to find
+    out. Refused here instead, while there is still a form to say it on.
+
+    Silence is taken as consent: RFC 8414 makes
+    `token_endpoint_auth_methods_supported` optional and defaults it to
+    `client_secret_basic`, but servers that omit it in practice accept the body
+    form, and refusing all of them would refuse the case this exists for.
+    """
+    methods = server.metadata.token_endpoint_auth_methods_supported
+    if methods is not None and "client_secret_post" not in methods:
+        raise OAuthError(
+            "This server does not accept a client secret in the token request body "
+            f"(it allows {', '.join(sorted(methods))}), and that is the only way this "
+            "flow sends one. Register the client for client_secret_post, or connect it "
+            "without a secret."
+        )
+
+
 def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload:
     """Fold a fresh token grant/refresh into the stored payload."""
     return payload.model_copy(
@@ -686,7 +711,14 @@ class McpConnectionService:
         return db_connection, tools, error
 
     async def oauth_start_for_org(
-        self, ctx: AuthContext, *, name: str, url: str, catalog_key: str | None = None
+        self,
+        ctx: AuthContext,
+        *,
+        name: str,
+        url: str,
+        catalog_key: str | None = None,
+        client_id: str | None = None,
+        client_secret: SecretStr | None = None,
     ) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
 
@@ -711,6 +743,8 @@ class McpConnectionService:
         return await self._oauth_start(
             name=name,
             url=url,
+            client_id=client_id,
+            client_secret=client_secret,
             existing=await mcp_connection_repo.get_org_scoped_by_name(
                 self.db, organization_id=ctx.organization_id, name=name
             ),
@@ -727,7 +761,14 @@ class McpConnectionService:
         )
 
     async def oauth_start(
-        self, *, user_id: UUID, name: str, url: str, catalog_key: str | None = None
+        self,
+        *,
+        user_id: UUID,
+        name: str,
+        url: str,
+        catalog_key: str | None = None,
+        client_id: str | None = None,
+        client_secret: SecretStr | None = None,
     ) -> str:
         """Begin the OAuth authorization-code flow for a server this person owns.
 
@@ -751,6 +792,8 @@ class McpConnectionService:
         return await self._oauth_start(
             name=name,
             url=url,
+            client_id=client_id,
+            client_secret=client_secret,
             existing=await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name),
             vault_scope=VaultScope.user(user_id),
             create=lambda **kwargs: mcp_connection_repo.create(
@@ -771,6 +814,8 @@ class McpConnectionService:
         existing: McpConnection | None,
         vault_scope: VaultScope,
         create: Callable[..., Awaitable[McpConnection]],
+        client_id: str | None = None,
+        client_secret: SecretStr | None = None,
     ) -> str:
         """The flow both scopes share: discover, register, stage, and hand back a URL.
 
@@ -791,7 +836,16 @@ class McpConnectionService:
         url = await _checked_url(url)
         server = await mcp_oauth.discover(url)  # raises OAuthError if unsupported
         redirect_uri = _oauth_redirect_uri()
-        client_id, client_secret = await mcp_oauth.register_client(server, redirect_uri)
+        if client_id is None:
+            # The common case: the server registers this app on the spot. A
+            # server with no registration endpoint (HubSpot) refuses here, and the
+            # only way past is a client the operator registered by hand and passed
+            # in - its redirect URL must be `redirect_uri` exactly.
+            registered_id, registered_secret = await mcp_oauth.register_client(server, redirect_uri)
+            client_id = registered_id
+            client_secret = SecretStr(registered_secret) if registered_secret else None
+        elif client_secret is not None:
+            _refuse_a_client_this_server_will_not_authenticate(server)
         pkce = mcp_oauth.new_pkce()
         state = secrets.token_urlsafe(32)
         payload = McpOAuthPayload(
