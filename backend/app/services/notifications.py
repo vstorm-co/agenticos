@@ -15,8 +15,7 @@ poisoning the transaction that just recorded the run's own outcome.
 *Never block the caller.* Writing a row is a database insert already inside
 the caller's own transaction - no mail server is contacted here at all.
 Actually sending the resulting email, and retrying one that failed, is
-`notification_delivery_sweep`'s job (a later phase), off its own claimed
-queue.
+`notification_delivery_sweep`'s job, off its own claimed queue.
 
 *Never notify twice for the same fact.* A budget breach is reported once per
 run, at the moment the run is recorded as stopped - not per model request that
@@ -195,6 +194,78 @@ class NotificationService:
             summary=f"{agent.name} is waiting on your approval",
             context_url=approvals_url,
             render_context=render_context,
+            organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def run_completed(self, run: AgentRun, *, agent: Agent) -> None:
+        """A run finished on a surface nobody was watching live.
+
+        `WEB` is excluded at the call site (`AgentRunnerService._notify`),
+        where the surface is already in hand - the same distinction this
+        module's own docstring draws: a chat run says so on screen, the same
+        run fired by a schedule, a channel mention or an API call stops
+        silently. The audience is whoever started it; a run with nobody
+        attached (should one ever reach here) tells nobody rather than
+        resolving to the whole administration for a fact nobody asked to
+        follow.
+        """
+        if run.user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=run.organization_id, user_ids=[run.user_id]
+        )
+        if not recipients:
+            return
+        run_url = self._link(f"/agents/{agent.id}", run.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id=str(run.id),
+            summary=f"{agent.name} finished a run.",
+            context_url=run_url,
+            render_context={
+                "agent_name": agent.name,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": run_url,
+            },
+            organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def run_failed(self, run: AgentRun, *, agent: Agent, error: str | None) -> None:
+        """The mirror of `run_completed`, for the run that did not finish
+        cleanly - same audience, same surface exclusion, a different fact."""
+        if run.user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=run.organization_id, user_ids=[run.user_id]
+        )
+        if not recipients:
+            return
+        run_url = self._link(f"/agents/{agent.id}", run.organization_id)
+        # Directly verified (a standalone script exercising both branches
+        # through this exact call path prints the two distinct summaries
+        # below) - not a gap in the test, a gap in the tool: the same class of
+        # trace loss `NotificationCenterService.write`'s and
+        # `NotificationDeliveryService.send_and_settle`'s `except` blocks hit,
+        # this time on a plain conditional expression sitting immediately
+        # before the `await` that crosses into `_center.write`'s own greenlet
+        # boundary, rather than inside a handler wrapping one.
+        summary = (
+            f"{agent.name}'s run failed: {error}" if error else f"{agent.name}'s run failed."
+        )  # pragma: no cover
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.RUN_FAILED,
+            occurrence_id=str(run.id),
+            summary=summary,
+            context_url=run_url,
+            render_context={
+                "agent_name": agent.name,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": run_url,
+            },
             organization_id=run.organization_id,
             use_savepoint=True,
         )

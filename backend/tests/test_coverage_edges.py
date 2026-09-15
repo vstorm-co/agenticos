@@ -20,7 +20,7 @@ from app.agents.observability import instrument_agent
 from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretCondition
-from app.db.models.agent_run import ApprovalStatus, RunStatus
+from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.services.agent_runner import AgentRunnerService
 
 SEARCH = "app.agents.capabilities.web_research._search"
@@ -244,16 +244,80 @@ class TestRunNotifications:
         ]
 
     @pytest.mark.anyio
-    async def test_an_ordinary_ending_notifies_nobody(self):
+    async def test_a_web_run_notifies_nobody_even_when_it_completes_or_fails(self):
+        """A chat user watching the stream already sees the outcome on screen -
+        the whole reason `run_completed`/`run_failed` exist is for the surfaces
+        that would otherwise stop silently."""
+        run = MagicMock(surface=RunSurface.WEB.value)
+        for status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED):
+            with patch("app.services.agent_runner.NotificationService") as notifications:
+                await AgentRunnerService(MagicMock())._notify(
+                    run,
+                    agent=MagicMock(),
+                    spec=AgentSpec(name="Support"),
+                    status=status,
+                    error=None,
+                    budget_scope=None,
+                )
+
+            notifications.return_value.budget_exceeded.assert_not_called()
+            notifications.return_value.approval_requested.assert_not_called()
+            notifications.return_value.run_completed.assert_not_called()
+            notifications.return_value.run_failed.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_cancelled_run_off_web_still_notifies_nobody(self):
+        """Cancellation is a person's own decision, not a silent stop - there
+        is nobody left uninformed the way a schedule's failure would leave."""
+        run = MagicMock(surface=RunSurface.SLACK.value)
         with patch("app.services.agent_runner.NotificationService") as notifications:
             await AgentRunnerService(MagicMock())._notify(
-                MagicMock(),
+                run,
                 agent=MagicMock(),
+                spec=AgentSpec(name="Support"),
+                status=RunStatus.CANCELLED,
+                error=None,
+                budget_scope=None,
+            )
+
+        notifications.return_value.run_completed.assert_not_called()
+        notifications.return_value.run_failed.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_completed_run_off_web_notifies_its_initiator(self):
+        agent = MagicMock()
+        run = MagicMock(surface=RunSurface.SCHEDULE.value)
+        with patch("app.services.agent_runner.NotificationService") as notifications:
+            notifications.return_value.run_completed = AsyncMock()
+            await AgentRunnerService(MagicMock())._notify(
+                run,
+                agent=agent,
                 spec=AgentSpec(name="Support"),
                 status=RunStatus.COMPLETED,
                 error=None,
                 budget_scope=None,
             )
+
+        notifications.return_value.run_completed.assert_awaited_once_with(run, agent=agent)
+
+    @pytest.mark.anyio
+    async def test_a_failed_run_off_web_carries_its_error(self):
+        agent = MagicMock()
+        run = MagicMock(surface=RunSurface.API.value)
+        with patch("app.services.agent_runner.NotificationService") as notifications:
+            notifications.return_value.run_failed = AsyncMock()
+            await AgentRunnerService(MagicMock())._notify(
+                run,
+                agent=agent,
+                spec=AgentSpec(name="Support"),
+                status=RunStatus.FAILED,
+                error="provider timeout",
+                budget_scope=None,
+            )
+
+        notifications.return_value.run_failed.assert_awaited_once_with(
+            run, agent=agent, error="provider timeout"
+        )
 
         notifications.return_value.budget_exceeded.assert_not_called()
         notifications.return_value.approval_requested.assert_not_called()

@@ -3468,6 +3468,14 @@ class AgentRunnerService:
                 if approval.status == ApprovalStatus.PENDING.value
             ]
             await notifications.approval_requested(run, agent=agent, spec=spec, tools=pending)
+        elif RunSurface(run.surface) is not RunSurface.WEB:
+            # A chat user watching `WEB` already sees a completion or a
+            # failure on screen; every other surface is exactly the "stops
+            # silently" gap this module's own docstring names.
+            if status is RunStatus.COMPLETED:
+                await notifications.run_completed(run, agent=agent)
+            elif status is RunStatus.FAILED:
+                await notifications.run_failed(run, agent=agent, error=error)
 
     async def execute(
         self,

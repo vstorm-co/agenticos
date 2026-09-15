@@ -521,6 +521,81 @@ class TestApprovalRequested:
         assert written.calls[0]["use_savepoint"] is True
 
 
+class TestRunCompletedAndFailed:
+    """A run that ended off a surface nobody was watching live - `WEB`'s
+    exclusion is `_notify`'s job (`tests/test_coverage_edges.py`), not this
+    service's; these tests are about the audience and the write itself."""
+
+    @pytest.mark.anyio
+    async def test_the_initiator_is_told_a_run_completed(self, written):
+        initiator = uuid.uuid4()
+        run = _run(user_id=initiator)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(initiator)):
+            await NotificationService(MagicMock()).run_completed(run, agent=_agent())
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.RUN_COMPLETED
+        assert call["recipients"] == [initiator]
+        assert call["occurrence_id"] == str(run.id)
+        assert call["use_savepoint"] is True
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_initiator_notifies_nobody(self, written):
+        await NotificationService(MagicMock()).run_completed(_run(user_id=None), agent=_agent())
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_an_initiator_no_longer_a_member_notifies_nobody(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).run_completed(
+                _run(user_id=uuid.uuid4()), agent=_agent()
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_the_initiator_is_told_a_run_failed_with_its_reason(self, written):
+        initiator = uuid.uuid4()
+        run = _run(user_id=initiator)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(initiator)):
+            await NotificationService(MagicMock()).run_failed(
+                run, agent=_agent(), error="provider timeout"
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.RUN_FAILED
+        assert call["recipients"] == [initiator]
+        assert "provider timeout" in call["summary"]
+
+    @pytest.mark.anyio
+    async def test_a_failure_with_no_reason_still_notifies(self, written):
+        initiator = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(initiator)):
+            await NotificationService(MagicMock()).run_failed(
+                _run(user_id=initiator), agent=_agent(), error=None
+            )
+
+        assert len(written.calls) == 1
+
+    @pytest.mark.anyio
+    async def test_a_failed_run_with_no_initiator_notifies_nobody(self, written):
+        await NotificationService(MagicMock()).run_failed(
+            _run(user_id=None), agent=_agent(), error="x"
+        )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_a_failed_runs_initiator_no_longer_a_member_notifies_nobody(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).run_failed(
+                _run(user_id=uuid.uuid4()), agent=_agent(), error="x"
+            )
+
+        assert written.calls == []
+
+
 class TestUsageReport:
     @pytest.mark.anyio
     async def test_an_organization_that_ran_nothing_gets_no_report(self, written):

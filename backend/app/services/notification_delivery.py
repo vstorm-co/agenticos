@@ -24,6 +24,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.permissions import ROLE_PERMS, Perm
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
@@ -62,11 +63,11 @@ _DECIDING_ROLES = frozenset(
     role for role, perms in ROLE_PERMS.items() if Perm.APPROVALS_DECIDE in perms
 )
 
-# Every event type a delivery row exists for today has a fixed `EmailKey`
-# except `approval_requested`, which is chosen dynamically in `_render`
-# (Decision 3). An event type with no entry here has no delivery-worthy
-# template yet - nothing currently writes one (#1598's later phases add the
-# producers that would), and `_render` fails the row rather than guessing.
+# The event types with a bespoke template, mapped to it. `approval_requested`
+# is chosen dynamically in `_render` instead (Decision 3); every other event
+# type without an entry here renders through `EmailKey.NOTIFICATION`, the
+# generic fallback off `summary`/`context_url` alone - a bespoke template per
+# event type is not scope this plan takes on (Decision 3's own words).
 _FIXED_EMAIL_KEY: dict[NotificationEventType, EmailKey] = {
     NotificationEventType.BUDGET_EXCEEDED: EmailKey.BUDGET_EXCEEDED,
     NotificationEventType.USAGE_REPORT: EmailKey.USAGE_REPORT,
@@ -149,11 +150,6 @@ class NotificationDeliveryService:
             return "skipped"
 
         email_key, context = self._render(notification, recipient=recipient, role=role)
-        if email_key is None:
-            await self._fail(
-                delivery, claimed_at, f"no email template for event type {event_type.value!r}"
-            )
-            return "failed"
 
         try:
             result = await asyncio.wait_for(
@@ -205,7 +201,7 @@ class NotificationDeliveryService:
 
     def _render(
         self, notification: Notification, *, recipient: User, role: str | None
-    ) -> tuple[EmailKey | None, dict[str, Any]]:
+    ) -> tuple[EmailKey, dict[str, Any]]:
         """What re-derives at send time is the *gate*, never the whole
         rendering (Decision 3) - `render_context`, frozen at write time, is
         used as written for every event type but one. `approval_requested`
@@ -222,7 +218,14 @@ class NotificationDeliveryService:
             # used to build directly; the sweep is what still means it.
             context.pop("approvals_url", None)
             return EmailKey.APPROVAL_PENDING, context
-        return _FIXED_EMAIL_KEY.get(event_type), context
+        fixed = _FIXED_EMAIL_KEY.get(event_type)
+        if fixed is not None:
+            return fixed, context
+        return EmailKey.NOTIFICATION, {
+            "summary": notification.summary,
+            "context_url": notification.context_url or "",
+            "app_name": settings.PROJECT_NAME,
+        }
 
     async def _skip(self, delivery: NotificationDelivery, claimed_at: datetime) -> None:
         await notification_repo.settle_delivery(

@@ -384,8 +384,9 @@ class TestSendAndSettlePreference:
 
     async def test_a_mandatory_event_ignores_the_preference_and_reaches_the_render_step(self, db):
         """The proof the bypass took effect: the preference is off, but the
-        outcome is a template failure (`security_event` has none yet), not a
-        preference skip - so the preference was never consulted at all."""
+        send still happens - had the preference actually been consulted and
+        honoured, this would have short-circuited to `skipped` before ever
+        reaching render or send."""
         owner = await _user(db)
         org = await _org(db, owner)
         admin = await _member(db, org, role="admin")
@@ -409,16 +410,16 @@ class TestSendAndSettlePreference:
             attempts=5,
         )
 
-        outcome = await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
+        with patch(f"{MODULE}.get_email_service", new=_sent()):
+            outcome = await NotificationDeliveryService(db).send_and_settle(
+                delivery.id, claimed_at=now
+            )
 
-        assert outcome == "failed"
-        await db.refresh(delivery)
-        assert delivery.last_error is not None
-        assert "no email template" in delivery.last_error
+        assert outcome == "sent"
 
 
 class TestRenderDispatch:
-    async def test_an_event_type_with_no_template_fails_without_sending(self, db):
+    async def test_an_event_type_with_no_bespoke_template_uses_the_generic_fallback(self, db):
         owner = await _user(db)
         org = await _org(db, owner)
         admin = await _member(db, org, role="admin")
@@ -428,18 +429,24 @@ class TestRenderDispatch:
             recipient=admin,
             organization_id=org.id,
             event_type=NotificationEventType.SECURITY_EVENT,
+            context_url="https://app.example.com/audit",
             claimed_at=now,
             attempts=1,
         )
 
-        with patch(f"{MODULE}.get_email_service") as send:
+        service = AsyncMock()
+        service.send = AsyncMock(return_value=SendResult(provider_message_id="x", accepted=True))
+        with patch(f"{MODULE}.get_email_service", return_value=service):
             outcome = await NotificationDeliveryService(db).send_and_settle(
                 delivery.id, claimed_at=now
             )
-        send.assert_not_called()
-        assert outcome == "failed"
-        await db.refresh(delivery)
-        assert delivery.status == DeliveryStatus.PENDING.value  # attempts remain
+
+        assert outcome == "sent"
+        assert service.send.call_args.kwargs["key"] is EmailKey.NOTIFICATION
+        context = service.send.call_args.kwargs["context"]
+        assert context["context_url"] == "https://app.example.com/audit"
+        assert context["summary"] == "A thing happened"
+        assert context["app_name"]
 
     async def test_budget_exceeded_renders_its_own_key_unchanged(self, db):
         owner = await _user(db)
