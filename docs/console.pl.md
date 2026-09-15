@@ -1,5 +1,5 @@
 ---
-source_sha: "d1e087eb1bf7"
+source_sha: "bfd981f9b3ad"
 ---
 
 # Konsola { #the-console }
@@ -95,6 +95,11 @@ ukryć. Należą do ciebie, nie do organizacji.
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
 | **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
 | **Admin** | Sam deployment: użytkownicy, najemcy, system, ustawienia deploymentu | [Deployment](deployment.md) |
+
+Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
+lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.
+Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
+avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 
 ## Kiedy strona wygląda na pustą { #when-a-page-looks-empty }
 

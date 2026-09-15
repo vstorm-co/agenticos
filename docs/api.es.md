@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd2c8097097"
+source_sha: "faee0acdbe9c"
 ---
 
 # La API HTTP { #the-http-api }
@@ -76,6 +76,23 @@ campos opcionales del cuerpo: `conversation_id` continúa un hilo existente, y
 La ruta lleva un **límite de frecuencia en lugar de una puerta de permisos**. El
 permiso se decide dentro del servicio, contra los grants de ese agent concreto —
 una puerta de rol en una ruta por recurso [no puede verlos](permissions.md).
+
+`PATCH /api/v1/agents/{id}/metadata` fija las **categories** y los **tags** de un
+agent con un cuerpo del estilo `{"categories": [...], "tags": [...]}`, donde una
+lista vacía borra esa faceta. Los valores se normalizan — recortados, con los
+espacios colapsados, plegados en mayúsculas/minúsculas y sin duplicados — y se
+acotan: como mucho 10 categories y 20 tags, cada uno de 32 caracteres como
+máximo, y un elemento más largo responde `422`. Igual que la ruta run, no lleva
+puerta de rol; decide la comprobación `agents:edit` con conciencia de grants
+dentro del servicio, así que un viewer con un grant de edición sobre un agent
+puede etiquetarlo.
+
+`GET /api/v1/agents` filtra ese catálogo con los parámetros de consulta
+repetibles `category` y `tag`: los valores se combinan con **OR dentro de una
+faceta** y **AND entre facetas**, con coincidencia sin distinguir
+mayúsculas/minúsculas (un valor de consulta se pliega como uno almacenado, y un
+valor en blanco se ignora). El filtro solo estrecha lo que ya podías ver — nunca
+cruza una frontera de tenant ni de grant.
 
 ## Streaming { #streaming }
 

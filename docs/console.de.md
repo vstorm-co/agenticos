@@ -1,5 +1,5 @@
 ---
-source_sha: "d1e087eb1bf7"
+source_sha: "bfd981f9b3ad"
 ---
 
 # Die Konsole { #the-console }
@@ -99,6 +99,12 @@ können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
 | **Settings** | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil | [Konfiguration](configuration.md) |
 | **Admin** | Das Deployment selbst: Nutzer, Tenants, System, Deployment-Einstellungen | [Das Deployment](deployment.md) |
+
+Der **Agents**-Katalog lässt sich nach **Category** und **Tag** filtern — den
+editierbaren, organisationslokalen Labels, die auf der Karte jedes Agents
+erscheinen. Die Categories und Tags eines Agents pflegen Sie auf seiner
+Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
+ohne dass eine neue Version veröffentlicht wird.
 
 ## Wenn eine Seite leer aussieht { #when-a-page-looks-empty }
 

@@ -49,6 +49,20 @@ The spec keeps two rules, and they are what make it useful.
     model and no collection, because those are UUIDs nobody outside your
     deployment has - which is why an installed template is a draft.
 
+!!! note "Categories and tags sit beside the spec, not in it"
+
+    An agent row also carries editable **categories** and **tags** —
+    organization-local labels for finding and filtering agents. Like an avatar,
+    they change neither what the agent runs nor what its exported YAML means, so
+    retagging needs no publish and no new version; they are record metadata, not
+    a spec field.
+
+    They stay out of the portable artifact, and this is the whole point of
+    keeping them off the spec: exporting a spec emits no categories or tags,
+    importing one leaves the target's existing categories and tags unchanged
+    (the file carries none, so it neither clears nor overwrites them), and only a
+    clone starts untagged.
+
 ## Version
 
 **A frozen spec.**
