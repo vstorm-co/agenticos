@@ -78,6 +78,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_channel_live_reply.py::TestAnEmptyAnswerTellsItsReasonsApart::test_an_answer_empty_for_any_other_reason_does_not_claim_approval": "an empty answer does not falsely claim approval or budget, message text, no enforcement",
     "tests/test_config.py::TestStoreTls::test_a_plaintext_redis_url_carries_no_tls_parameters": "a plaintext redis URL carries no TLS params, config, keyword coincidental",
     "tests/test_config.py::TestStoreTls::test_both_urls_are_plaintext_by_default": "store URLs are plaintext by default, config default, keyword coincidental",
+    "tests/test_attachments.py::TestThePerTurnTextBudget::test_text_past_the_turn_budget_is_truncated_and_said_once": "a per-turn character budget truncates pasted attachment text, text limit, not spend",
     "tests/test_conversation_search.py::TestWhatARenderedTranscriptCosts::test_the_first_turn_is_written_even_when_it_alone_blows_the_budget": "the first turn is written past the character budget, text limit, not spend",
     "tests/test_conversation_search.py::TestWhatARenderedTranscriptCosts::test_the_window_stops_at_the_budget_and_reports_where": "a character budget bounds transcript rendering, text limit, not a spend budget",
     "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_is_reported_with_the_reason_it_gave": "a budget-stop notification carries reason and scope, notification, no enforcement",

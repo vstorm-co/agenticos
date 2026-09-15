@@ -54,6 +54,46 @@ class Settings(BaseSettings):
     # 20MB attachment passed the client, crossed the wire and was refused by a
     # limit no configuration produced (#498).
     CHAT_MAX_UPLOAD_SIZE_MB: int = 10
+
+    # Processing bounds for the extra chat attachment formats (FA-013). Each has a
+    # concrete default and `gt=0` so a misconfigured `0`/negative is refused at
+    # startup rather than producing an unbounded conversion or a zero-page cap.
+    #
+    # DOC (and other legacy office) conversion runs a managed `soffice` subprocess
+    # (`app/services/office_convert.py`); these bound it. The timeout is far below
+    # RAG's 600s because an interactive upload cannot wait that long, the
+    # concurrency semaphore caps how many LibreOffice processes run at once (the
+    # subprocess bypasses the `run_blocking` admission gate), the grace is the
+    # TERM->KILL window, and the output cap is checked before the converted file is
+    # read back.
+    CHAT_CONVERT_TIMEOUT_SECONDS: int = Field(default=60, gt=0)
+    CHAT_CONVERT_MAX_CONCURRENCY: int = Field(default=2, gt=0)
+    CHAT_CONVERT_KILL_GRACE_SECONDS: float = Field(default=5, gt=0)
+    CHAT_CONVERT_OUTPUT_MAX_BYTES: int = Field(default=20 * 1024 * 1024, gt=0)
+
+    # TIFF is converted to PNG at the point it is shown to the model; a multi-page
+    # scan can be many pages, so the page count is capped and each image is bounded
+    # by pixel count before decode (an explicit per-image check, never a mutation of
+    # the process-global `Image.MAX_IMAGE_PIXELS` the shared file pool would race).
+    CHAT_TIFF_MAX_INLINE_PAGES: int = Field(default=10, gt=0)
+    CHAT_IMAGE_MAX_PIXELS: int = Field(default=40_000_000, gt=0)
+
+    # ZIP-backed office formats (ODF, PPTX) are validated through `safe_unzip`
+    # before a third-party parser opens them, so a small upload cannot decompress
+    # to an unbounded amount of memory. Member sizes are measured by reading each
+    # member, never trusting the forgeable central-directory `file_size`.
+    CHAT_ARCHIVE_MEMBER_MAX_BYTES: int = Field(default=50 * 1024 * 1024, gt=0)
+    CHAT_ARCHIVE_TOTAL_MAX_BYTES: int = Field(default=100 * 1024 * 1024, gt=0)
+    CHAT_ARCHIVE_MAX_MEMBERS: int = Field(default=2000, gt=0)
+
+    # The layered text budget. Stored extracted text is capped so a ZIP/OLE
+    # expansion cannot bloat the row; the per-file and per-turn prompt caps bound
+    # what the no-workspace paste path puts in front of the model, the aggregate
+    # one across every attachment in a single turn.
+    CHAT_PARSED_TEXT_MAX_CHARS: int = Field(default=1_000_000, gt=0)
+    CHAT_PROMPT_TEXT_MAX_CHARS: int = Field(default=200_000, gt=0)
+    CHAT_TURN_TEXT_MAX_CHARS: int = Field(default=500_000, gt=0)
+
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
     # member uploading a fifty-megabyte export is somebody the organization

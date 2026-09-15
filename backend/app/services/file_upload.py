@@ -1,7 +1,11 @@
 """File upload service."""
 
+import codecs
 import io
 import logging
+import re
+import zipfile
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,10 +16,19 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file as chat_file_repo
 from app.services.file_storage import (
+    ALLOWED_EXTENSIONS,
     ALLOWED_MIME_TYPES,
+    canonical_mime,
     classify_file,
+    expected_container,
+    file_extension,
     get_file_storage,
+    has_format_conflict,
+    normalize_media_type,
+    resolve_format,
+    sniff_container,
 )
+from app.services.office_convert import libreoffice_convert
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +42,9 @@ reader: the file itself is one click away in the preview panel.
 
 PREVIEW_CHARS = 240
 """A second bound, for a file whose three lines are one long line each."""
+
+_ARCHIVE_CHUNK = 1024 * 1024
+"""How much of a ZIP member is read at a time when measuring its real size."""
 
 
 def make_preview(parsed_content: str | None) -> str | None:
@@ -49,6 +65,148 @@ def make_preview(parsed_content: str | None) -> str | None:
     return head or None
 
 
+def cap_text(text: str | None, max_chars: int) -> str | None:
+    """Bound extracted text with an explicit truncation marker.
+
+    A small ZIP or OLE upload can expand to very large text; the stored column, the
+    preview and the no-workspace paste all read this, so it is capped once here,
+    before any of them. The marker names both counts so the model knows the rest
+    exists (#1591, §5 #6).
+    """
+    if text is None or len(text) <= max_chars:
+        return text
+    return text[:max_chars] + f"\n…[truncated {max_chars} of {len(text)} chars]"
+
+
+def _decode_declared(data: bytes) -> str | None:
+    """Decode bytes UTF-8 could not, by their BOM or `<?xml encoding=…?>` declaration.
+
+    UTF-32 is tested before UTF-16 because the UTF-32-LE BOM begins with the
+    UTF-16-LE one. Anything with neither a BOM nor a recognisable declaration is
+    `None` — a caught, non-fatal failure like every other parser here.
+    """
+    for bom, encoding in (
+        (codecs.BOM_UTF32_LE, "utf-32"),
+        (codecs.BOM_UTF32_BE, "utf-32"),
+        (codecs.BOM_UTF16_LE, "utf-16"),
+        (codecs.BOM_UTF16_BE, "utf-16"),
+    ):
+        if data.startswith(bom):
+            try:
+                return data.decode(encoding)
+            except UnicodeDecodeError:
+                return None
+    match = re.search(rb"encoding=[\"']([A-Za-z0-9_.\-]+)[\"']", data[:200])
+    if match:
+        try:
+            return data.decode(match.group(1).decode("ascii"))
+        except (LookupError, UnicodeDecodeError):
+            return None
+    return None
+
+
+def safe_unzip(data: bytes) -> io.BytesIO:
+    """Validate a ZIP-backed office file's decompression, then hand back a stream.
+
+    ODF and OOXML are ZIP+XML, and a small upload can decompress to a huge amount of
+    memory. Every member is read through a bounded stream — never trusting the
+    forgeable `ZipInfo.file_size` in the central directory — and the member count and
+    running total are capped. Returns a fresh stream over the *validated* bytes for
+    the parser to open; raises `ValueError` when a bound is exceeded, which each
+    parser turns into a caught `None`.
+    """
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        names = archive.namelist()
+        if len(names) > settings.CHAT_ARCHIVE_MAX_MEMBERS:
+            raise ValueError("archive has too many members")
+        total = 0
+        for name in names:
+            member_total = 0
+            with archive.open(name) as member:
+                while chunk := member.read(_ARCHIVE_CHUNK):
+                    member_total += len(chunk)
+                    if member_total > settings.CHAT_ARCHIVE_MEMBER_MAX_BYTES:
+                        raise ValueError("archive member too large")
+                    total += len(chunk)
+                    if total > settings.CHAT_ARCHIVE_TOTAL_MAX_BYTES:
+                        raise ValueError("archive too large")
+    return io.BytesIO(data)
+
+
+@dataclass(frozen=True)
+class TiffConversion:
+    """The PNGs a TIFF contributes to a turn, and what was left out."""
+
+    images: list[bytes]
+    """One PNG per shown page, metadata stripped, each within the per-page cap."""
+
+    total: int | None
+    """The page count when it is *safely* known — the sequence was exhausted without
+    hitting the page cap. `None` when the bounded walk stopped early, so the count
+    was never established without traversing the whole attacker-controlled IFD chain."""
+
+    omitted: bool
+    """Whether any page was left out — the page cap was reached, or a page could not
+    be decoded or reduced below the per-page byte cap."""
+
+
+def tiff_pages_to_png(
+    data: bytes, *, max_pages: int, max_bytes: int, max_pixels: int
+) -> TiffConversion:
+    """Convert a TIFF's pages to PNG for the model, bomb-guarded and metadata-free.
+
+    TIFF is not accepted by the vision APIs, so it is converted to PNG at the point
+    it is shown. Multi-page scans contribute more than page one, up to `max_pages`.
+
+    The guards do not trust attacker-controlled counts and do not mutate any
+    process-global Pillow state (the file pool is shared): each frame's declared
+    `size` is checked against `max_pixels` *before* it is decoded, the sequence is
+    stopped one frame past the cap rather than reading a total that walks the whole
+    IFD chain, and any decode error is a caught failure (#1591, §7 finding 5).
+    """
+    from PIL import Image, ImageSequence
+
+    images: list[bytes] = []
+    omitted = False
+    total: int | None = None
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            seen = 0
+            for frame in ImageSequence.Iterator(img):
+                if len(images) >= max_pages:
+                    omitted = True
+                    break
+                seen += 1
+                png = _frame_to_png(frame, max_bytes=max_bytes, max_pixels=max_pixels)
+                if png is None:
+                    omitted = True
+                    continue
+                images.append(png)
+            else:
+                # Exhausted without breaking, so every frame was counted and the
+                # total is safe to state — no extra IFD walk needed.
+                total = seen
+    except Exception as exc:  # Pillow raises a wide range on a malformed or bomb TIFF.
+        logger.warning("TIFF conversion failed: %s", exc)
+        return TiffConversion(images=[], total=None, omitted=False)
+    return TiffConversion(images=images, total=total, omitted=omitted)
+
+
+def _frame_to_png(frame: Any, *, max_bytes: int, max_pixels: int) -> bytes | None:
+    """One TIFF frame as PNG bytes, or `None` if it is a bomb or cannot be shrunk."""
+    width, height = frame.size
+    if width * height > max_pixels:
+        return None
+    image = frame.convert("RGB")
+    for divisor in (1, 2, 4, 8):
+        candidate = image if divisor == 1 else image.reduce(divisor)
+        buffer = io.BytesIO()
+        candidate.save(buffer, format="PNG")
+        if buffer.tell() <= max_bytes:
+            return buffer.getvalue()
+    return None
+
+
 class FileUploadService:
     """Service for file upload validation, parsing, and persistence."""
 
@@ -58,29 +216,61 @@ class FileUploadService:
         self.db = db
 
     @staticmethod
-    def validate_upload(content_type: str | None, size: int) -> tuple[bool, str | None]:
-        """Validate a chat attachment's type and size.
+    def validate_upload(
+        content_type: str | None, size: int, filename: str = ""
+    ) -> tuple[bool, str | None]:
+        """Validate a chat attachment's type and size before it is stored.
 
-        The ceiling is `CHAT_MAX_UPLOAD_SIZE_MB`, and it is a setting because it
-        was a literal: `MAX_UPLOAD_SIZE` in `file_storage.py`, 10 MiB, which no
-        operator could raise while `/health` published the knowledge base's 50
-        and the composer checked against that. A 20MB attachment passed the
-        client check, was read into memory, crossed the wire in full and was
-        refused here by a number no configuration produced (#498).
+        The metadata phase, callable before the bytes exist (the channel preflight
+        runs it pre-download). Acceptance is `(normalised MIME ∈ allowlist) OR
+        (extension ∈ allowed set)`, because browsers send `application/octet-stream`
+        for `.msg`, `.odt`, `.xls` and often `.doc`. A *specific* declared MIME that
+        contradicts the extension is refused; the byte phase (`validate_bytes`) then
+        checks the content once it has arrived.
 
-        It is a *different* setting from the knowledge base's rather than the
-        same one, because the two surfaces fail differently at the same size: a
-        document is chunked and read back through retrieval, while an attachment
-        to an agent with no workspace is pasted whole into the prompt.
+        The size ceiling is `CHAT_MAX_UPLOAD_SIZE_MB`, its own setting rather than
+        the knowledge base's, because an attachment to an agent with no workspace is
+        pasted whole into the prompt while a document is chunked — the two surfaces
+        fail differently at the same size (#498).
 
         Returns:
             Tuple of (is_valid, error_message).
         """
-        if content_type not in ALLOWED_MIME_TYPES:
+        normalized = normalize_media_type(content_type)
+        accepted = (
+            normalized in ALLOWED_MIME_TYPES or file_extension(filename) in ALLOWED_EXTENSIONS
+        )
+        if not accepted:
             return False, f"File type '{content_type}' is not supported."
+        if has_format_conflict(content_type, filename):
+            return False, "The file's declared type does not match its extension."
         limit_mb = settings.CHAT_MAX_UPLOAD_SIZE_MB
         if size > limit_mb * 1024 * 1024:
             return False, f"File too large. Maximum size is {limit_mb}MB."
+        return True, None
+
+    @staticmethod
+    def validate_bytes(
+        data: bytes, content_type: str | None, filename: str = ""
+    ) -> tuple[bool, str | None]:
+        """Validate a chat attachment against its own first bytes, once they exist.
+
+        The byte phase: for a format whose container is knowable cheaply — TIFF, the
+        OLE-backed legacy formats, the ZIP-backed OOXML/OpenDocument ones — the magic
+        bytes must match the resolved format. This catches a forged signature and a
+        MIME/extension conflict that only the content reveals, on a file that already
+        cleared `validate_upload`. Formats with no cheap signature (PDF, the text
+        family, the web-safe images) are not sniffed here.
+        """
+        container = expected_container(content_type, filename)
+        if container is None:
+            return True, None
+        if sniff_container(data) != container:
+            return (
+                False,
+                "This file could not be accepted — its contents do not match its "
+                "type or extension.",
+            )
         return True, None
 
     @staticmethod
@@ -93,35 +283,61 @@ class FileUploadService:
         data: bytes,
         file_type: str,
         mime_type: str = "",
+        filename: str = "",
     ) -> str | None:
-        """Parse file content based on file type.
+        """Parse file content into text, dispatched by the canonical format.
 
-        Returns extracted text content or None if parsing fails.
+        Returns extracted text (bounded by `CHAT_PARSED_TEXT_MAX_CHARS`) or `None`
+        when parsing fails or the type carries no text (an image).
 
-        Every branch is blocking CPU work - pymupdf over every page, openpyxl over
-        every cell, a decode of up to `MAX_UPLOAD_SIZE` bytes - with no suspension
-        point, so it runs on the dedicated file pool rather than the request loop,
-        where one large upload would otherwise freeze every other request and agent
-        stream on this worker. The pool is bounded and its own, so a burst of
-        parses cannot exhaust the executor `bcrypt` and DNS share (#1108).
+        Every in-process branch is blocking CPU work — pymupdf over every page,
+        openpyxl over every cell, odfpy/python-pptx over a decompressed archive — with
+        no suspension point, so it runs on the dedicated file pool rather than the
+        request loop (#1108). DOC is the exception: it is an `await` on a managed
+        `soffice` subprocess (`office_convert.py`), already off the loop and bounded
+        by its own semaphore.
         """
+        text = await self._parse_by_format(data, file_type, resolve_format(mime_type, filename))
+        return cap_text(text, settings.CHAT_PARSED_TEXT_MAX_CHARS)
+
+    async def _parse_by_format(self, data: bytes, file_type: str, fmt: str) -> str | None:
         if file_type == "text":
-            return await run_blocking(self._parse_text_content, data, mime_type)
+            return await run_blocking(self._parse_text_content, data)
         if file_type == "pdf":
             return await run_blocking(self._parse_pdf_content, data)
         if file_type == "docx":
             return await run_blocking(self._parse_docx_content, data)
         if file_type == "spreadsheet":
+            if fmt == "xls":
+                return await run_blocking(self._parse_xls_content, data)
+            if fmt == "ods":
+                return await run_blocking(self._parse_ods_content, data)
             return await run_blocking(self._parse_spreadsheet_content, data)
+        if file_type == "document":
+            if fmt == "doc":
+                return await self._parse_doc_content(data)
+            return await run_blocking(self._parse_odt_content, data)
+        if file_type == "presentation":
+            if fmt == "odp":
+                return await run_blocking(self._parse_odp_content, data)
+            return await run_blocking(self._parse_pptx_content, data)
+        if file_type == "email":
+            return await run_blocking(self._parse_msg_content, data)
         return None
 
     @staticmethod
-    def _parse_text_content(data: bytes, mime_type: str) -> str | None:
-        """Extract text content from text-based files."""
+    def _parse_text_content(data: bytes) -> str | None:
+        """Extract text from text-based files.
+
+        UTF-8 first, then a BOM/`encoding=`-declaration fallback: a UTF-16 or UTF-32
+        XML document (common for exported XML) would fail an unconditional UTF-8
+        decode, so its declared encoding is honoured rather than assumed (#1591,
+        §7 #9).
+        """
         try:
             return data.decode("utf-8")
-        except (UnicodeDecodeError, ValueError):
-            return None
+        except UnicodeDecodeError:
+            return _decode_declared(data)
 
     @staticmethod
     def _parse_pdf_pymupdf(data: bytes) -> str | None:
@@ -211,6 +427,159 @@ class FileUploadService:
             logger.warning("Spreadsheet parsing failed: %s", e)
             return None
 
+    @staticmethod
+    def _parse_xls_content(data: bytes) -> str | None:
+        """Extract a legacy `.xls` workbook, mirroring the openpyxl output shape.
+
+        `xlrd` reads the old BIFF format openpyxl cannot. Dates arrive as serial
+        numbers and are rendered back to ISO; a password-protected or otherwise
+        unreadable workbook raises and becomes a caught `None` (#1591, §5 #10).
+        """
+        try:
+            import xlrd
+
+            book: Any = xlrd.open_workbook(file_contents=data, formatting_info=False)
+            blocks: list[str] = []
+            for sheet in book.sheets():
+                rows: list[str] = []
+                for r in range(sheet.nrows):
+                    cells = [_xls_cell(book, sheet.cell(r, c)) for c in range(sheet.ncols)]
+                    while cells and cells[-1] == "":
+                        cells.pop()
+                    if cells:
+                        rows.append("\t".join(cells))
+                if rows:
+                    blocks.append(f"Sheet: {sheet.name}\n" + "\n".join(rows))
+            return "\n\n".join(blocks) or None
+        except Exception as e:
+            logger.warning("XLS parsing failed: %s", e)
+            return None
+
+    @staticmethod
+    def _parse_ods_content(data: bytes) -> str | None:
+        """Extract an OpenDocument spreadsheet as tab-separated sheets."""
+        try:
+            from odf.opendocument import load
+            from odf.table import Table, TableCell, TableRow
+            from odf.teletype import extractText
+
+            document: Any = load(safe_unzip(data))
+            blocks: list[str] = []
+            for table in document.getElementsByType(Table):
+                name = table.getAttribute("name") or "Sheet"
+                rows: list[str] = []
+                for row in table.getElementsByType(TableRow):
+                    cells: list[str] = []
+                    for cell in row.getElementsByType(TableCell):
+                        repeat = int(cell.getAttribute("numbercolumnsrepeated") or 1)
+                        cells.extend([extractText(cell)] * repeat)
+                    while cells and cells[-1] == "":
+                        cells.pop()
+                    if cells:
+                        rows.append("\t".join(cells))
+                if rows:
+                    blocks.append(f"Sheet: {name}\n" + "\n".join(rows))
+            return "\n\n".join(blocks) or None
+        except Exception as e:
+            logger.warning("ODS parsing failed: %s", e)
+            return None
+
+    @staticmethod
+    def _parse_odt_content(data: bytes) -> str | None:
+        """Extract the paragraphs of an OpenDocument text document."""
+        try:
+            from odf.opendocument import load
+            from odf.teletype import extractText
+            from odf.text import P
+
+            document: Any = load(safe_unzip(data))
+            lines = [extractText(p) for p in document.getElementsByType(P)]
+            return "\n".join(line for line in lines if line.strip()) or None
+        except Exception as e:
+            logger.warning("ODT parsing failed: %s", e)
+            return None
+
+    @staticmethod
+    def _parse_odp_content(data: bytes) -> str | None:
+        """Extract the text frames of an OpenDocument presentation."""
+        try:
+            from odf.opendocument import load
+            from odf.teletype import extractText
+            from odf.text import P
+
+            document: Any = load(safe_unzip(data))
+            lines = [extractText(p) for p in document.getElementsByType(P)]
+            return "\n".join(line for line in lines if line.strip()) or None
+        except Exception as e:
+            logger.warning("ODP parsing failed: %s", e)
+            return None
+
+    @staticmethod
+    def _parse_pptx_content(data: bytes) -> str | None:
+        """Extract a PPTX: shape text, table cells and slide notes, per slide."""
+        try:
+            from pptx import Presentation
+
+            presentation: Any = Presentation(safe_unzip(data))
+            slides: list[str] = []
+            for index, slide in enumerate(presentation.slides, start=1):
+                lines: list[str] = []
+                for shape in slide.shapes:
+                    if shape.has_text_frame and shape.text_frame.text.strip():
+                        lines.append(shape.text_frame.text)
+                    if shape.has_table:
+                        for row in shape.table.rows:
+                            lines.append("\t".join(cell.text for cell in row.cells))
+                if slide.has_notes_slide:
+                    notes = slide.notes_slide.notes_text_frame.text
+                    if notes.strip():
+                        lines.append(f"Notes: {notes}")
+                if lines:
+                    slides.append(f"Slide {index}\n" + "\n".join(lines))
+            return "\n\n".join(slides) or None
+        except Exception as e:
+            logger.warning("PPTX parsing failed: %s", e)
+            return None
+
+    @staticmethod
+    def _parse_msg_content(data: bytes) -> str | None:
+        """Extract an Outlook `.msg` (OLE) with olefile, reading the MAPI streams.
+
+        BSD-licensed `olefile` rather than GPL `extract-msg`: the headers and the
+        plain body are read straight from the MAPI property streams, falling back to
+        the tag-stripped HTML body. Embedded attachments are *listed by name*, never
+        recursed — a `.msg` can nest `.msg`s, a zip-bomb-shaped risk this declines
+        (#1591, §5 #1/#10).
+        """
+        try:
+            import olefile
+
+            if not olefile.isOleFile(io.BytesIO(data)):
+                return None
+            ole: Any = olefile.OleFileIO(io.BytesIO(data))
+            try:
+                return _msg_text(ole)
+            finally:
+                ole.close()
+        except Exception as e:
+            logger.warning("MSG parsing failed: %s", e)
+            return None
+
+    async def _parse_doc_content(self, data: bytes) -> str | None:
+        """Extract a legacy `.doc` by converting it through managed LibreOffice.
+
+        The one format with no viable pure-Python reader. Absent `soffice` (a
+        non-Docker dev box) this returns `None` and the model is told the text could
+        not be extracted — the same graceful degradation RAG documents.
+        """
+        try:
+            return await libreoffice_convert(
+                data, suffix=".doc", timeout=settings.CHAT_CONVERT_TIMEOUT_SECONDS
+            )
+        except Exception as e:
+            logger.warning("DOC parsing failed: %s", e)
+            return None
+
     async def upload(
         self,
         *,
@@ -222,14 +591,21 @@ class FileUploadService:
         """Validate, parse, persist, and record a chat file upload.
 
         Raises:
-            BadRequestError: If file type or size is invalid.
+            BadRequestError: If the file's type/size or its content is invalid.
         """
-        is_valid, error = self.validate_upload(content_type, len(file_data))
+        is_valid, error = self.validate_upload(content_type, len(file_data), filename)
+        if not is_valid:
+            raise BadRequestError(message=error or "Invalid file")
+        is_valid, error = self.validate_bytes(file_data, content_type, filename)
         if not is_valid:
             raise BadRequestError(message=error or "Invalid file")
 
-        file_type = self.classify_file(content_type or "", filename)
-        parsed_content = await self.parse_content(file_data, file_type, content_type or "")
+        # The *resolved* MIME is stored, not the caller-declared header: an
+        # `application/octet-stream` `.tiff` becomes `image/tiff`, so the download
+        # route and the inline-conversion path read one trustworthy field (#1591).
+        resolved_mime = canonical_mime(content_type, filename)
+        file_type = self.classify_file(resolved_mime, filename)
+        parsed_content = await self.parse_content(file_data, file_type, resolved_mime, filename)
 
         storage = get_file_storage()
         storage_path = await storage.save(str(user_id), filename, file_data)
@@ -237,7 +613,7 @@ class FileUploadService:
         return await self.create_chat_file(
             user_id=user_id,
             filename=filename,
-            mime_type=content_type or "application/octet-stream",
+            mime_type=resolved_mime,
             size=len(file_data),
             storage_path=storage_path,
             file_type=file_type,
@@ -292,3 +668,104 @@ class FileUploadService:
             file_type=file_type,
             parsed_content=parsed_content,
         )
+
+
+def _xls_cell(book: Any, cell: Any) -> str:
+    """One `.xls` cell as text, mirroring the openpyxl output for consistency."""
+    import xlrd
+
+    if cell.ctype == xlrd.XL_CELL_EMPTY or cell.ctype == xlrd.XL_CELL_BLANK:
+        return ""
+    if cell.ctype == xlrd.XL_CELL_BOOLEAN:
+        return "TRUE" if cell.value else "FALSE"
+    if cell.ctype == xlrd.XL_CELL_DATE:
+        stamp = xlrd.xldate.xldate_as_datetime(cell.value, book.datemode)
+        if (stamp.hour, stamp.minute, stamp.second) == (0, 0, 0):
+            return stamp.date().isoformat()
+        return stamp.isoformat()
+    if cell.ctype == xlrd.XL_CELL_NUMBER:
+        number = cell.value
+        return str(int(number)) if number == int(number) else str(number)
+    return str(cell.value)
+
+
+def _msg_stream(ole: Any, prop: str) -> str | None:
+    """A MAPI string property, preferring the Unicode (`001F`) over the ANSI (`001E`)."""
+    for suffix, encoding in (("001F", "utf-16-le"), ("001E", "cp1252")):
+        name = f"__substg1.0_{prop}{suffix}"
+        if ole.exists(name):
+            return ole.openstream(name).read().decode(encoding, errors="replace").strip()
+    return None
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _msg_html_body(ole: Any) -> str | None:
+    """The HTML body stream, stripped of tags — the fallback when there is no plain body."""
+    name = "__substg1.0_10130102"
+    if not ole.exists(name):
+        return None
+    raw = ole.openstream(name).read()
+    html = raw.decode("utf-8", errors="replace")
+    text = _TAG_RE.sub(" ", html)
+    return " ".join(text.split()) or None
+
+
+def _msg_recipients(ole: Any) -> list[str]:
+    """The recipients, normalised to `Name <addr>` from the `__recip` storages."""
+    storages = sorted(
+        {entry[0] for entry in ole.listdir() if entry[0].startswith("__recip_version1.0_")}
+    )
+    people: list[str] = []
+    for storage in storages:
+        display = _msg_sub(ole, storage, "3001")
+        email = _msg_sub(ole, storage, "39FE") or _msg_sub(ole, storage, "3003")
+        if display and email:
+            people.append(f"{display} <{email}>")
+        elif display or email:
+            people.append(display or email or "")
+    return people
+
+
+def _msg_sub(ole: Any, storage: str, prop: str) -> str | None:
+    for suffix, encoding in (("001F", "utf-16-le"), ("001E", "cp1252")):
+        name = f"{storage}/__substg1.0_{prop}{suffix}"
+        if ole.exists(name):
+            return ole.openstream(name).read().decode(encoding, errors="replace").strip()
+    return None
+
+
+def _msg_attachments(ole: Any) -> list[str]:
+    """The names of embedded attachments — listed, never recursed."""
+    storages = sorted(
+        {entry[0] for entry in ole.listdir() if entry[0].startswith("__attach_version1.0_")}
+    )
+    names: list[str] = []
+    for storage in storages:
+        name = _msg_sub(ole, storage, "3707") or _msg_sub(ole, storage, "3704")
+        if name:
+            names.append(name)
+    return names
+
+
+def _msg_text(ole: Any) -> str | None:
+    """Assemble the readable text of an Outlook message from its MAPI streams."""
+    subject = _msg_stream(ole, "0037")
+    sender = _msg_stream(ole, "0C1A") or _msg_stream(ole, "0C1F")
+    body = _msg_stream(ole, "1000") or _msg_html_body(ole)
+    recipients = _msg_recipients(ole)
+    attachments = _msg_attachments(ole)
+
+    parts: list[str] = []
+    if sender:
+        parts.append(f"From: {sender}")
+    if recipients:
+        parts.append(f"To: {', '.join(recipients)}")
+    if subject:
+        parts.append(f"Subject: {subject}")
+    header = "\n".join(parts)
+    sections = [section for section in (header, body) if section]
+    if attachments:
+        sections.append(f"Attachments: {', '.join(attachments)}")
+    return "\n\n".join(sections) or None

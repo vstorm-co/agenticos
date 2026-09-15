@@ -38,44 +38,274 @@ async def delete_files_best_effort(storage_paths: list[str]) -> None:
             logger.warning("Failed to unlink stored file %s: %s", storage_path, exc)
 
 
+# The canonical MIME strings for the office/legacy/email formats FA-013 adds, so
+# the tables below and the allowlist name one string rather than repeating it.
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_XLSM_MIME = "application/vnd.ms-excel.sheet.macroEnabled.12"
+_PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+_DOC_MIME = "application/msword"
+_XLS_MIME = "application/vnd.ms-excel"
+_MSG_MIME = "application/vnd.ms-outlook"
+_ODT_MIME = "application/vnd.oasis.opendocument.text"
+_ODS_MIME = "application/vnd.oasis.opendocument.spreadsheet"
+_ODP_MIME = "application/vnd.oasis.opendocument.presentation"
+_TIFF_MIME = "image/tiff"
+
 ALLOWED_MIME_TYPES = {
     "image/jpeg",
     "image/png",
     "image/gif",
     "image/webp",
+    _TIFF_MIME,
     "text/plain",
     "text/markdown",
     "text/csv",
     "text/html",
     "text/css",
     "text/xml",
+    "application/xml",
     "text/x-python",
     "text/javascript",
     "text/x-yaml",
     "application/json",
     "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    # Spreadsheets, and only the two OOXML ones. `.xls` is a different format
-    # needing a different reader, and a type accepted here that nothing can parse
-    # is worse than this refusal: an attachment with no text reaches an agent
-    # without a workspace as nothing at all.
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel.sheet.macroEnabled.12",
+    _DOCX_MIME,
+    _DOC_MIME,
+    _ODT_MIME,
+    # Spreadsheets: the two OOXML ones, legacy `.xls` (xlrd) and OpenDocument
+    # `.ods` (odfpy). Each has a reader; a type accepted here that nothing can
+    # parse would reach an agent without a workspace as nothing at all.
+    _XLSX_MIME,
+    _XLSM_MIME,
+    _XLS_MIME,
+    _ODS_MIME,
+    _PPTX_MIME,
+    _ODP_MIME,
+    _MSG_MIME,
     "application/x-yaml",
-}
-
-SPREADSHEET_MIME_TYPES = {
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel.sheet.macroEnabled.12",
 }
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
+# TIFF is accepted but is *not* web-safe: a browser cannot draw it inline, so it is
+# kept out of `RENDER_SAFE_MIME_TYPES` and converted to PNG only at the point it is
+# shown to the model (`attachments.py`).
+#
 # Types safe to render inline on a browser tab from this deployment's own origin.
 # Anything a chat attachment may hold that is not here - `text/html`, an SVG, a
-# spreadsheet - is served as a download rather than displayed, so it cannot run as
-# a script on the origin the app itself is served from (#702).
+# spreadsheet, a TIFF - is served as a download rather than displayed, so it
+# cannot run as a script on the origin the app itself is served from (#702).
 RENDER_SAFE_MIME_TYPES = IMAGE_MIME_TYPES | {"application/pdf"}
+
+# A canonical format token, resolved from the declared MIME + extension + (byte
+# phase) signature, drives parser dispatch and inline conversion - the declared
+# MIME alone cannot, because browsers send `application/octet-stream` for `.msg`,
+# `.odt`, `.xls` and often `.doc`/`.tiff` (#1591, §7 finding 1).
+_MIME_TO_FORMAT = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    _TIFF_MIME: "tiff",
+    "application/pdf": "pdf",
+    _DOCX_MIME: "docx",
+    _DOC_MIME: "doc",
+    _ODT_MIME: "odt",
+    _XLSX_MIME: "xlsx",
+    _XLSM_MIME: "xlsx",
+    _XLS_MIME: "xls",
+    _ODS_MIME: "ods",
+    _PPTX_MIME: "pptx",
+    _ODP_MIME: "odp",
+    _MSG_MIME: "msg",
+}
+
+_EXTENSION_TO_FORMAT = {
+    "png": "png",
+    "jpg": "jpeg",
+    "jpeg": "jpeg",
+    "gif": "gif",
+    "webp": "webp",
+    "tif": "tiff",
+    "tiff": "tiff",
+    "pdf": "pdf",
+    "docx": "docx",
+    "doc": "doc",
+    "odt": "odt",
+    "xlsx": "xlsx",
+    "xlsm": "xlsx",
+    "xls": "xls",
+    "ods": "ods",
+    "pptx": "pptx",
+    "odp": "odp",
+    "msg": "msg",
+}
+
+_FORMAT_TO_MIME = {
+    "png": "image/png",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "tiff": _TIFF_MIME,
+    "pdf": "application/pdf",
+    "docx": _DOCX_MIME,
+    "doc": _DOC_MIME,
+    "odt": _ODT_MIME,
+    "xlsx": _XLSX_MIME,
+    "xls": _XLS_MIME,
+    "ods": _ODS_MIME,
+    "pptx": _PPTX_MIME,
+    "odp": _ODP_MIME,
+    "msg": _MSG_MIME,
+}
+
+_FORMAT_TO_FILE_TYPE = {
+    "png": "image",
+    "jpeg": "image",
+    "gif": "image",
+    "webp": "image",
+    "tiff": "image",
+    "pdf": "pdf",
+    "docx": "docx",
+    "doc": "document",
+    "odt": "document",
+    "xlsx": "spreadsheet",
+    "xls": "spreadsheet",
+    "ods": "spreadsheet",
+    "pptx": "presentation",
+    "odp": "presentation",
+    "msg": "email",
+    "text": "text",
+}
+
+# A per-extension canonical MIME for the text family, so an octet-stream `.xml`
+# or `.csv` is stored with a truthful type rather than the declared blob.
+_EXTENSION_TO_TEXT_MIME = {
+    "txt": "text/plain",
+    "md": "text/markdown",
+    "csv": "text/csv",
+    "html": "text/html",
+    "htm": "text/html",
+    "css": "text/css",
+    "xml": "application/xml",
+    "json": "application/json",
+    "py": "text/x-python",
+    "js": "text/javascript",
+    "yaml": "text/x-yaml",
+    "yml": "text/x-yaml",
+}
+
+# Every extension the allowlist accepts, so a browser that sends
+# `application/octet-stream` (or nothing) for a file it cannot type is validated
+# on the extension instead (#1591, §2.3).
+ALLOWED_EXTENSIONS = (
+    set(_EXTENSION_TO_FORMAT)
+    | set(_EXTENSION_TO_TEXT_MIME)
+    | {"markdown", "ts", "tsx", "toml", "sql", "sh"}
+)
+
+_GENERIC_MIME_TYPES = {"", "application/octet-stream"}
+
+
+def normalize_media_type(content_type: str | None) -> str:
+    """A media type lowercased and stripped of parameters (`; charset=utf-8`)."""
+    if not content_type:
+        return ""
+    return content_type.split(";", 1)[0].strip().lower()
+
+
+def file_extension(filename: str) -> str:
+    """The lowercase extension of a filename, or `""` when it has none."""
+    return filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+
+
+def resolve_format(mime_type: str | None, filename: str) -> str:
+    """The canonical format token for a file.
+
+    A specific, recognised declared MIME wins; the extension is the fallback for a
+    missing or generic (`application/octet-stream`) type, and for a specific type
+    this path does not recognise. Anything else is `"text"` - the historic default
+    of `classify_file`. Validation, not this, rejects a MIME that *contradicts* the
+    extension; here the declared MIME is simply believed when it is specific.
+    """
+    fmt = _MIME_TO_FORMAT.get(normalize_media_type(mime_type))
+    if fmt is not None:
+        return fmt
+    return _EXTENSION_TO_FORMAT.get(file_extension(filename), "text")
+
+
+def canonical_mime(mime_type: str | None, filename: str) -> str:
+    """The MIME to persist on `ChatFile.mime_type`, resolved not just declared.
+
+    For every recognised binary format this is the format's own canonical type, so
+    an `application/octet-stream` `.tiff` is stored as `image/tiff` and the
+    download route and the inline-conversion path read one trustworthy field. For
+    the text family the declared type is kept when it is one we accept, else a
+    per-extension guess, else `text/plain`.
+    """
+    fmt = resolve_format(mime_type, filename)
+    known = _FORMAT_TO_MIME.get(fmt)
+    if known is not None:
+        return known
+    normalized = normalize_media_type(mime_type)
+    if normalized in ALLOWED_MIME_TYPES:
+        return normalized
+    return _EXTENSION_TO_TEXT_MIME.get(file_extension(filename), "text/plain")
+
+
+def sniff_container(data: bytes) -> str | None:
+    """The container a file's own first bytes say it is: TIFF, OLE, ZIP, or `None`.
+
+    Cheap and bounded - a handful of leading bytes - and enough to catch a forged
+    signature that contradicts the resolved format before a parser is handed it.
+    OLE (`D0 CF 11 E0`) backs legacy DOC/XLS/MSG; ZIP (`PK\\x03\\x04`) backs the
+    OOXML and OpenDocument formats; TIFF is little- or big-endian.
+    """
+    if data[:4] in (b"II*\x00", b"MM\x00*"):
+        return "tiff"
+    if data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+        return "ole"
+    if data[:4] == b"PK\x03\x04":
+        return "zip"
+    return None
+
+
+# The container each recognised format must present in the byte phase. A format
+# absent here (PDF, the images beyond TIFF, the text family) is not sniffed.
+_FORMAT_TO_CONTAINER = {
+    "tiff": "tiff",
+    "doc": "ole",
+    "xls": "ole",
+    "msg": "ole",
+    "docx": "zip",
+    "xlsx": "zip",
+    "pptx": "zip",
+    "odt": "zip",
+    "ods": "zip",
+    "odp": "zip",
+}
+
+
+def has_format_conflict(mime_type: str | None, filename: str) -> bool:
+    """Whether a *specific* declared MIME names a different format than the extension.
+
+    `application/msword` on `photo.tiff`, or `image/png` on `payload.doc`: both a
+    recognised, non-generic MIME and a recognised extension, disagreeing. A generic
+    MIME, an unrecognised one, or the text family (which the extension refines
+    rather than contradicts) is not a conflict.
+    """
+    normalized = normalize_media_type(mime_type)
+    mime_fmt = _MIME_TO_FORMAT.get(normalized)
+    ext_fmt = _EXTENSION_TO_FORMAT.get(file_extension(filename))
+    if mime_fmt is None or ext_fmt is None or normalized in _GENERIC_MIME_TYPES:
+        return False
+    return mime_fmt != ext_fmt
+
+
+def expected_container(mime_type: str | None, filename: str) -> str | None:
+    """The container the resolved format must present, or `None` when unsniffed."""
+    return _FORMAT_TO_CONTAINER.get(resolve_format(mime_type, filename))
 
 
 def sniff_image_media_type(path: str) -> str | None:
@@ -138,20 +368,16 @@ MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
 
 def classify_file(mime_type: str, filename: str) -> str:
-    """Classify file type based on MIME type and extension."""
-    if mime_type in IMAGE_MIME_TYPES:
-        return "image"
-    if mime_type == "application/pdf" or filename.lower().endswith(".pdf"):
-        return "pdf"
-    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
-    if ext == "docx" or "wordprocessingml" in mime_type:
-        return "docx"
-    # Its own kind, not "text": the bytes are a zip of XML, so anything that
-    # decodes them as UTF-8 gets mojibake, and the workspace needs to know to
-    # write the extraction beside the original the way it does for a PDF.
-    if ext in {"xlsx", "xlsm"} or mime_type in SPREADSHEET_MIME_TYPES:
-        return "spreadsheet"
-    return "text"
+    """Classify a file into the coarse `file_type` the router and DB row carry.
+
+    Derived from the canonical format (`resolve_format`), so `document`,
+    `presentation` and `email` join the historic `image | pdf | docx | spreadsheet
+    | text`. The office/OpenDocument binaries are their own kinds rather than
+    "text": their bytes are a zip or OLE container that a UTF-8 decode turns to
+    mojibake, and the workspace needs to know to write the extraction beside the
+    original the way it does for a PDF.
+    """
+    return _FORMAT_TO_FILE_TYPE[resolve_format(mime_type, filename)]
 
 
 _UNSAFE_FILENAME_CHARS = re.compile(r"[^\w.\-]+")
