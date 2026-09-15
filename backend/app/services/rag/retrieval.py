@@ -5,6 +5,7 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from uuid import UUID
 
 from rank_bm25 import BM25Okapi
@@ -14,6 +15,20 @@ from app.services.rag.models import SearchResult
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
+
+
+class _Unset:
+    """Sentinel telling an omitted `tenant` argument from an explicit `None`.
+
+    `None` is a real tenant - the deployment-wide, untagged rows an app-scoped
+    collection or the CLI reads - so a caller that has already resolved the
+    authorized knowledge base passes its `vector_tenant` (which may be `None`) and
+    it is used as-is, while a caller that has not (the CLI, the agent capability,
+    which hold only a name) omits it and the store resolves one. A plain `None`
+    default could not tell the two apart (#1684)."""
+
+
+_UNSET = _Unset()
 
 _PARENT_DOC_ID_RE = re.compile(r'parent_doc_id\s*==\s*"([^"]+)"')
 
@@ -48,6 +63,7 @@ class BaseRetrievalService(ABC):
         min_score: float = 0.0,
         filter: str = "",
         organization_id: UUID | None = None,
+        tenant: UUID | _Unset | None = _UNSET,
     ) -> list[SearchResult]:
         pass
 
@@ -95,9 +111,14 @@ class RetrievalService(BaseRetrievalService):
         ]
 
     async def _bm25_search(
-        self, query: str, collection_name: str, limit: int, organization_id: UUID | None = None
+        self,
+        query: str,
+        collection_name: str,
+        limit: int,
+        organization_id: UUID | None = None,
+        tenant: UUID | None = None,
     ) -> list[SearchResult]:
-        docs = await self.store.get_documents(collection_name)
+        docs = await self.store.get_documents(collection_name, tenant)
         if not docs:
             return []
 
@@ -106,6 +127,7 @@ class RetrievalService(BaseRetrievalService):
             query=query,
             limit=min(limit * 10, 100),
             organization_id=organization_id,
+            tenant=tenant,
         )
         if not all_results:
             return []
@@ -135,6 +157,7 @@ class RetrievalService(BaseRetrievalService):
         min_score: float = 0.0,
         filter: str = "",
         organization_id: UUID | None = None,
+        tenant: UUID | _Unset | None = _UNSET,
     ) -> list[SearchResult]:
         # Overfetch so min-score filtering and dedup still leave `limit` results.
         fetch_multiplier = 2
@@ -149,12 +172,26 @@ class RetrievalService(BaseRetrievalService):
 
         start_time = time.time()
 
+        # The tenant whose rows this search may read. A caller that already resolved
+        # and authorized the knowledge base for this name - the `/search` route,
+        # through `CollectionAccessService.readable_all` - passes that base's own
+        # `vector_tenant` (which may legitimately be `None`), so the search reads the
+        # rows of the base the caller was authorized for, never a same-named base in
+        # the caller's organization that the resolver would otherwise prefer without
+        # checking resource access (#1684). A caller that holds only a name - the CLI,
+        # the agent capability - omits it, and the store resolves one from the
+        # collection for the searching organization (its own for an org base, `None`
+        # for an app-scoped one or a caller with no organization).
+        if isinstance(tenant, _Unset):
+            tenant = await self.store.resolve_tenant(collection_name, organization_id)
+
         pipeline_results = await self.store.search(
             collection_name=collection_name,
             query=query,
             parent_doc_id=_parent_doc_id_from_filter(filter),
             limit=limit * fetch_multiplier,
             organization_id=organization_id,
+            tenant=tenant,
         )
 
         search_time = time.time() - start_time
@@ -166,7 +203,7 @@ class RetrievalService(BaseRetrievalService):
 
         if self._hybrid_enabled:
             bm25_results = await self._bm25_search(
-                query, collection_name, limit * fetch_multiplier, organization_id
+                query, collection_name, limit * fetch_multiplier, organization_id, tenant
             )
             if bm25_results:
                 pipeline_results = self._rrf_fuse(pipeline_results, bm25_results)
@@ -230,6 +267,7 @@ class RetrievalService(BaseRetrievalService):
         limit: int = 5,
         min_score: float = 0.0,
         organization_id: UUID | None = None,
+        tenants: Mapping[str, UUID | None] | None = None,
     ) -> list[SearchResult]:
         """Search several collections and merge what they return.
 
@@ -241,9 +279,18 @@ class RetrievalService(BaseRetrievalService):
 
         A collection nobody has ingested into is not a failure: its table does
         not exist yet, and the store reports that as no results.
+
+        `tenants` maps each name to the `vector_tenant` of the knowledge base the
+        caller authorized for it, so each collection is read under the tenant the
+        caller was granted rather than one the store re-resolves from the name
+        (#1684). A name absent from it - or `tenants=None`, the agent capability
+        which holds no authorized base - falls back to that resolution.
         """
         all_results: list[SearchResult] = []
         for name in collection_names:
+            tenant: UUID | _Unset | None = (
+                tenants[name] if tenants is not None and name in tenants else _UNSET
+            )
             all_results.extend(
                 await self.retrieve(
                     query=query,
@@ -251,6 +298,7 @@ class RetrievalService(BaseRetrievalService):
                     limit=limit,
                     min_score=min_score,
                     organization_id=organization_id,
+                    tenant=tenant,
                 )
             )
 

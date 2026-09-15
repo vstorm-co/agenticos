@@ -92,6 +92,29 @@ async def test_a_local_sync_starts_after_its_log_row_is_committed(session, monke
     assert dispatched == [str(sync_log.id)]
 
 
+async def test_a_local_sync_carries_the_authorized_knowledge_base_id(session, monkeypatch) -> None:
+    """The route resolves the base it authorized and passes its id, so the flow can
+    read that base's tenant and stamp the synced rows with it rather than writing
+    them untagged into an org-backed collection (#1684)."""
+    kb_id = uuid4()
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        sync_log_repo, "create", AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    )
+
+    async def flow(*, knowledge_base_id: str | None = None, **_: Any) -> None:
+        captured["knowledge_base_id"] = knowledge_base_id
+
+    monkeypatch.setattr(rag_tasks, "sync_collection_flow", flow)
+
+    await RAGSyncService(session).start_local_sync(
+        collection_name="handbooks", mode="full", path="/srv/docs", knowledge_base_id=kb_id
+    )
+    await _run_deferred(session)
+
+    assert captured["knowledge_base_id"] == str(kb_id)
+
+
 async def test_a_triggered_source_sync_starts_after_its_log_row_is_committed(
     session, monkeypatch
 ) -> None:

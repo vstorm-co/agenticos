@@ -152,7 +152,11 @@ class TestSkippingADroppedCollection:
 class TestWhatTheUploadPathRecords:
     async def test_the_worker_writes_the_chunk_count_it_was_given(self):
         document_id = str(uuid.uuid4())
-        record = MagicMock(organization_id=uuid.uuid4(), ingestion_config={})
+        # No knowledge base, so the worker resolves this document's vector tenant
+        # to None without a repository lookup (#1684).
+        record = MagicMock(
+            organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=None
+        )
         documents = MagicMock(
             get_document=AsyncMock(return_value=record), complete_ingestion=AsyncMock()
         )
@@ -234,7 +238,7 @@ class TestRetiringWhatAReplacementDeleted:
         )
 
         assert result.replaced_document_id == "old-vector-doc"
-        service.store.delete_document.assert_awaited_once_with("docs", "old-vector-doc")
+        service.store.delete_document.assert_awaited_once_with("docs", "old-vector-doc", None)
 
     async def test_a_first_ingest_reports_nothing_replaced(self):
         processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))
