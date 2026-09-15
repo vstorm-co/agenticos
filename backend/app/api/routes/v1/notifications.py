@@ -21,10 +21,13 @@ from app.schemas.notification import (
     FailedDeliveryRead,
     MarkAllReadResult,
     NotificationList,
+    NotificationPreferenceList,
+    NotificationPreferenceRead,
+    NotificationPreferenceUpdate,
     NotificationRead,
     UnreadCountRead,
 )
-from app.services.notification_center import decode_cursor, encode_cursor
+from app.services.notification_center import PreferenceItem, decode_cursor, encode_cursor
 
 router = APIRouter()
 
@@ -49,12 +52,47 @@ async def unread_notification_count(service: NotificationCenterSvc, ctx: Auth) -
     return UnreadCountRead(count=await service.unread_count(ctx))
 
 
+@router.get("/notifications/preferences", response_model=NotificationPreferenceList)
+async def list_notification_preferences(service: NotificationCenterSvc, ctx: Auth) -> Any:
+    """Every `(event_type, channel)` pair the caller may toggle (Decision 4) -
+    a mandatory event type or one of the four legacy-column pairs is never
+    in this list, because there is no preference to show for it."""
+    items = await service.list_preferences(ctx)
+    return NotificationPreferenceList(
+        items=[
+            NotificationPreferenceRead(
+                event_type=item.event_type.value, channel=item.channel.value, enabled=item.enabled
+            )
+            for item in items
+        ]
+    )
+
+
+@router.patch("/notifications/preferences", response_model=NotificationPreferenceRead)
+async def update_notification_preference(
+    data: NotificationPreferenceUpdate, service: NotificationCenterSvc, ctx: Auth
+) -> Any:
+    """Upsert one pair. 400s a mandatory event type or a legacy-column pair -
+    the same refusal `list_notification_preferences` expresses by omission."""
+    item: PreferenceItem = await service.update_preference(
+        ctx, event_type=data.event_type, channel=data.channel, enabled=data.enabled
+    )
+    return NotificationPreferenceRead(
+        event_type=item.event_type.value, channel=item.channel.value, enabled=item.enabled
+    )
+
+
 @router.patch("/notifications/{notification_id}", response_model=NotificationRead)
 async def mark_notification_read(
     notification_id: UUID, service: NotificationCenterSvc, ctx: Auth
 ) -> Any:
     """Mark one of the caller's own rows read. 404s a row they may not (or may
-    no longer) see - the same rule a cross-tenant resource already follows."""
+    no longer) see - the same rule a cross-tenant resource already follows.
+
+    Registered after `PATCH /notifications/preferences`: Starlette matches
+    path routes in registration order, and `{notification_id}` would
+    otherwise swallow `preferences` as its own path parameter.
+    """
     notification, strip_context_url = await service.mark_one_read(ctx, notification_id)
     return NotificationRead.from_row(notification, strip_context_url=strip_context_url)
 

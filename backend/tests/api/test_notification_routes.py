@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
+from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.user import User
 from app.main import app
 from app.services.notification_center import NotificationCenterService
@@ -233,6 +234,104 @@ class TestMarkAllRead:
                 response = await http.post(_url("/mark-all-read"))
         assert response.status_code == 200
         assert response.json() == {"marked": 3}
+
+
+def _stored_preference(**overrides) -> NotificationChannelPreference:
+    fields = {
+        "id": uuid.uuid4(),
+        "user_id": _USER_ID,
+        "event_type": NotificationEventType.RUN_FAILED.value,
+        "channel": "email",
+        "enabled": False,
+    }
+    fields.update(overrides)
+    return NotificationChannelPreference(**fields)
+
+
+class TestPreferences:
+    async def test_lists_every_togglable_pair_with_defaults_applied(self, client: OpenClient):
+        with patch(
+            f"{NOTIFICATION_PATH}.notification_repo.list_channel_preferences",
+            new=AsyncMock(return_value=[_stored_preference()]),
+        ):
+            async with client() as http:
+                response = await http.get(_url("/preferences"))
+        assert response.status_code == 200
+        items = response.json()["items"]
+
+        # Mandatory event types have no preference at all.
+        assert not any(item["event_type"] == "security_event" for item in items)
+        assert not any(item["event_type"] == "configuration_changed" for item in items)
+        # The four legacy-column pairs stay `PATCH /users/me`'s.
+        assert not any(
+            item["event_type"] == "budget_exceeded" and item["channel"] == "email" for item in items
+        )
+        assert any(
+            item["event_type"] == "budget_exceeded" and item["channel"] == "in_app"
+            for item in items
+        )
+        # An untouched pair defaults enabled; the stored one reflects its row.
+        run_completed = next(
+            item
+            for item in items
+            if item["event_type"] == "run_completed" and item["channel"] == "in_app"
+        )
+        assert run_completed["enabled"] is True
+        run_failed_email = next(
+            item
+            for item in items
+            if item["event_type"] == "run_failed" and item["channel"] == "email"
+        )
+        assert run_failed_email["enabled"] is False
+
+    async def test_updating_a_pair_returns_the_new_value(self, client: OpenClient):
+        with patch(
+            f"{NOTIFICATION_PATH}.notification_repo.upsert_channel_preference",
+            new=AsyncMock(
+                return_value=_stored_preference(
+                    event_type=NotificationEventType.RUN_COMPLETED.value,
+                    channel="in_app",
+                    enabled=False,
+                )
+            ),
+        ) as upsert:
+            async with client() as http:
+                response = await http.patch(
+                    _url("/preferences"),
+                    json={"event_type": "run_completed", "channel": "in_app", "enabled": False},
+                )
+        assert response.status_code == 200
+        assert response.json() == {
+            "event_type": "run_completed",
+            "channel": "in_app",
+            "enabled": False,
+        }
+        assert upsert.call_args.kwargs["user_id"] == _USER_ID
+        assert upsert.call_args.kwargs["enabled"] is False
+
+    async def test_a_mandatory_event_type_is_refused(self, client: OpenClient):
+        async with client() as http:
+            response = await http.patch(
+                _url("/preferences"),
+                json={"event_type": "security_event", "channel": "in_app", "enabled": False},
+            )
+        assert response.status_code == 400
+
+    async def test_a_legacy_email_pair_is_refused(self, client: OpenClient):
+        async with client() as http:
+            response = await http.patch(
+                _url("/preferences"),
+                json={"event_type": "budget_exceeded", "channel": "email", "enabled": False},
+            )
+        assert response.status_code == 400
+
+    async def test_an_unknown_event_type_is_rejected(self, client: OpenClient):
+        async with client() as http:
+            response = await http.patch(
+                _url("/preferences"),
+                json={"event_type": "not_a_real_event", "channel": "in_app", "enabled": False},
+            )
+        assert response.status_code == 422
 
 
 DELIVERY_PATH = "app.services.notification_delivery"

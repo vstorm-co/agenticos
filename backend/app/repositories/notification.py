@@ -85,6 +85,50 @@ async def get_legacy_email_preference(
     return await db.scalar(select(getattr(User, column)).where(User.id == user_id))
 
 
+async def list_channel_preferences(
+    db: AsyncSession, *, user_id: uuid.UUID
+) -> list[NotificationChannelPreference]:
+    """Every `(event_type, channel)` this user has explicitly set.
+
+    A pair with no row here has never been touched and defaults to enabled
+    (Decision 4) - that default is the caller's to apply, not this query's,
+    the same split `get_channel_preference` draws for a single pair.
+    """
+    result = await db.execute(
+        select(NotificationChannelPreference).where(
+            NotificationChannelPreference.user_id == user_id
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def upsert_channel_preference(
+    db: AsyncSession, *, user_id: uuid.UUID, event_type: str, channel: str, enabled: bool
+) -> NotificationChannelPreference:
+    """`INSERT ... ON CONFLICT (user_id, event_type, channel) DO UPDATE` (Decision
+    4) - never a plain insert, which would race two concurrent first-time
+    `PATCH`es for the same pair into two rows disagreeing on `enabled`.
+    `updated_at` is set explicitly: the model's `onupdate` fires only on an
+    ORM flush, not on this Core upsert.
+    """
+    stmt = (
+        pg_insert(NotificationChannelPreference)
+        .values(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            event_type=event_type,
+            channel=channel,
+            enabled=enabled,
+        )
+        .on_conflict_do_update(
+            constraint="uq_notification_preferences_user_event_channel",
+            set_={"enabled": enabled, "updated_at": func.now()},
+        )
+        .returning(NotificationChannelPreference)
+    )
+    return (await db.execute(stmt)).scalar_one()
+
+
 async def list_inbox_page(
     db: AsyncSession,
     *,

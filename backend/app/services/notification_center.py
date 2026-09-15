@@ -46,6 +46,37 @@ LEGACY_EMAIL_COLUMN: dict[NotificationEventType, NotificationPreference] = {
 
 _ESCALATION_ROLES = {OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value}
 
+
+def _build_togglable_pairs() -> frozenset[tuple[NotificationEventType, NotificationChannel]]:
+    """Decision 4's preference surface: every `(event_type, channel)` pair
+    this page may show a switch for - every non-mandatory event type's
+    in-app channel, and every non-mandatory, non-legacy event type's email
+    channel. Mandatory event types (`is_mandatory`) have no preference at
+    all; the four `LEGACY_EMAIL_COLUMN` pairs stay `PATCH /users/me`'s."""
+    pairs: set[tuple[NotificationEventType, NotificationChannel]] = set()
+    for event_type in NotificationEventType:
+        if is_mandatory(event_type):
+            continue
+        pairs.add((event_type, NotificationChannel.IN_APP))
+        if event_type not in LEGACY_EMAIL_COLUMN:
+            pairs.add((event_type, NotificationChannel.EMAIL))
+    return frozenset(pairs)
+
+
+# Built once at import time, not per request - the vocabulary is code-defined
+# (Decision 1), not read from anywhere a request could change.
+_TOGGLABLE_PAIRS = _build_togglable_pairs()
+
+
+@dataclass(frozen=True)
+class PreferenceItem:
+    """One `(event_type, channel)` pair's current, defaulted-if-unset value."""
+
+    event_type: NotificationEventType
+    channel: NotificationChannel
+    enabled: bool
+
+
 # A mandatory event's write budget, keyed on (actor_user_id, event_type) -
 # Decision 1's guard against an ordinary write access turning into an
 # unmetered fan-out against every admin in an organization. The audit entry
@@ -336,6 +367,67 @@ class NotificationCenterService:
         return await notification_repo.mark_ids_read(
             self.db, ids=visible_ids, read_at=datetime.now(UTC)
         )
+
+    # -- preferences (Decision 4) -----------------------------------------
+
+    async def list_preferences(self, ctx: AuthContext) -> list[PreferenceItem]:
+        """Every `(event_type, channel)` pair this page may show a switch for.
+
+        Mandatory event types (`security_event`, `configuration_changed`) and
+        the four legacy-column pairs (the email channel of `budget_exceeded`,
+        `approval_requested`, `usage_report`, `agent_usage_report`) are never
+        in this list - the first has no preference at all, the second is
+        still `PATCH /users/me`'s (Decision 4). A pair with no stored row
+        defaults enabled.
+        """
+        user_id = self._require_caller(ctx)
+        stored = await notification_repo.list_channel_preferences(self.db, user_id=user_id)
+        stored_map = {(row.event_type, row.channel): row.enabled for row in stored}
+        # `NotificationEventType`'s own declared order, not the frozenset's -
+        # a set iterates in an order nothing promises, and a page re-sorting
+        # its own toggles between one load and the next is not a page anyone
+        # can scan.
+        return [
+            PreferenceItem(
+                event_type=event_type,
+                channel=channel,
+                enabled=stored_map.get((event_type.value, channel.value), True),
+            )
+            for event_type in NotificationEventType
+            for channel in NotificationChannel
+            if (event_type, channel) in _TOGGLABLE_PAIRS
+        ]
+
+    async def update_preference(
+        self,
+        ctx: AuthContext,
+        *,
+        event_type: NotificationEventType,
+        channel: NotificationChannel,
+        enabled: bool,
+    ) -> PreferenceItem:
+        """Upsert one pair - the whole of `PATCH`, per Decision 4.
+
+        Raises:
+            BadRequestError: `event_type` is mandatory or `(event_type,
+                channel)` is one of the four legacy-column pairs - refused
+                rather than silently writing a row nothing ever reads, which
+                is what accepting it here would otherwise do.
+        """
+        user_id = self._require_caller(ctx)
+        if (event_type, channel) not in _TOGGLABLE_PAIRS:
+            raise BadRequestError(
+                message="This event type is not preference-controlled here",
+                details={"event_type": event_type.value, "channel": channel.value},
+            )
+        row = await notification_repo.upsert_channel_preference(
+            self.db,
+            user_id=user_id,
+            event_type=event_type.value,
+            channel=channel.value,
+            enabled=enabled,
+        )
+        return PreferenceItem(event_type=event_type, channel=channel, enabled=row.enabled)
 
     @staticmethod
     def _require_caller(ctx: AuthContext) -> uuid.UUID:
