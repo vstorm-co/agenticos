@@ -42,7 +42,10 @@ def _compliant(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "POSTGRES_SSLMODE", "verify-full")
     monkeypatch.setattr(settings, "REDIS_SSL", True)
     monkeypatch.setattr(settings, "VAULT_MASTER_KEY", "k" * 64)
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {})
     monkeypatch.setattr(settings, "LOGFIRE_TOKEN", None)
+    monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example")
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://api.example")
     monkeypatch.setattr(deployment_profile, "sso_issuer", lambda: "https://id.corp.example")
 
 

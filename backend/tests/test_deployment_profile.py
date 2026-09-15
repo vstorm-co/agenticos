@@ -26,15 +26,24 @@ from app.services.deployment_profile import AUDIT_FLOOR_DAYS, evaluate
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-def _db(*, deployment=None, profiles=(), checkpoints=1) -> MagicMock:
-    """A session answering the three reads the sheet makes."""
+def _db(
+    *, deployment=None, profiles=(), checkpoints=1, tracing_agents=(), tracing_environments=0
+) -> MagicMock:
+    """A session answering the reads the sheet makes, in the order it makes them.
+
+    `scalar`: the deployment settings, the count of environments carrying their
+    own tracing token, then the audit checkpoints. `execute`: the model profiles,
+    then the published agents that export traces.
+    """
     db = MagicMock()
-    db.scalar = AsyncMock(side_effect=[deployment, checkpoints])
+    db.scalar = AsyncMock(side_effect=[deployment, tracing_environments, checkpoints])
     scalars = MagicMock()
     scalars.all.return_value = list(profiles)
-    result = MagicMock()
-    result.scalars.return_value = scalars
-    db.execute = AsyncMock(return_value=result)
+    models = MagicMock()
+    models.scalars.return_value = scalars
+    agents = MagicMock()
+    agents.all.return_value = list(tracing_agents)
+    db.execute = AsyncMock(side_effect=[models, agents])
     return db
 
 
@@ -79,6 +88,35 @@ class TestInTransit:
         assert outcome == "unmet"
         assert "verifies no certificate" in detail
 
+    async def test_verify_ca_does_not_either(self, monkeypatch) -> None:
+        """It validates the chain and not the hostname, so a server holding any
+        certificate from the same CA satisfies it (#1448 review)."""
+        sheet = await _sheet(_db(), monkeypatch, POSTGRES_SSLMODE="verify-ca")
+
+        outcome, detail = sheet["postgres-tls"]
+        assert outcome == "unmet"
+        assert "hostname" in detail
+
+    async def test_the_browsers_hop_is_checked_too(self, monkeypatch) -> None:
+        """Store and model transport could both pass while a sign-in, a prompt
+        and its answer crossed the client boundary in plaintext."""
+        sheet = await _sheet(
+            _db(), monkeypatch, FRONTEND_URL="http://console.example", PUBLIC_BASE_URL="https://api"
+        )
+
+        outcome, detail = sheet["browser-tls"]
+        assert outcome == "unmet"
+        assert "FRONTEND_URL" in detail and "PUBLIC_BASE_URL" not in detail
+
+    async def test_https_addresses_leave_the_certificate_to_the_proxy(self, monkeypatch) -> None:
+        sheet = await _sheet(
+            _db(), monkeypatch, FRONTEND_URL="https://console", PUBLIC_BASE_URL="https://api"
+        )
+
+        outcome, detail = sheet["browser-tls"]
+        assert outcome == "attested"
+        assert "reverse proxy" in detail
+
     async def test_plaintext_postgres_is_named_as_plaintext(self, monkeypatch) -> None:
         sheet = await _sheet(_db(), monkeypatch, POSTGRES_SSLMODE="")
 
@@ -99,12 +137,33 @@ class TestAtRest:
         assert sheet["vault-key"][0] == "met"
 
     async def test_a_rotation_set_satisfies_it_as_well(self, monkeypatch) -> None:
-        sheet = await _sheet(_db(), monkeypatch, VAULT_MASTER_KEY="", VAULT_MASTER_KEYS={1: "k"})
+        sheet = await _sheet(
+            _db(), monkeypatch, VAULT_MASTER_KEY="", VAULT_MASTER_KEYS={1: "k" * 64}
+        )
 
         assert sheet["vault-key"][0] == "met"
 
     async def test_no_key_at_all_is_unmet(self, monkeypatch) -> None:
         sheet = await _sheet(_db(), monkeypatch, VAULT_MASTER_KEY="", VAULT_MASTER_KEYS={})
+
+        assert sheet["vault-key"][0] == "unmet"
+
+    async def test_a_guessable_key_is_unmet_however_well_it_is_derived(self, monkeypatch) -> None:
+        """HKDF derives a correctly sized wrapping key from anything and cannot
+        add entropy to a one-character secret - so an attacker with the
+        ciphertext recovers the credentials the sheet reports protected."""
+        sheet = await _sheet(_db(), monkeypatch, VAULT_MASTER_KEY="x", VAULT_MASTER_KEYS={})
+
+        outcome, detail = sheet["vault-key"]
+        assert outcome == "unmet"
+        assert "openssl rand -hex 32" in detail
+
+    async def test_one_weak_key_in_a_rotation_set_is_enough_to_fail(self, monkeypatch) -> None:
+        """A rotation set is every key the vault may unwrap with, so a weak one
+        in it is a weak one in use."""
+        sheet = await _sheet(
+            _db(), monkeypatch, VAULT_MASTER_KEY="", VAULT_MASTER_KEYS={1: "k" * 64, 2: "x"}
+        )
 
         assert sheet["vault-key"][0] == "unmet"
 
@@ -121,6 +180,30 @@ class TestAtRest:
 class TestWhereContentGoes:
     async def test_a_model_on_your_own_network_satisfies_it(self, monkeypatch) -> None:
         db = _db(profiles=[_model("Local", "http://ollama:11434/v1")])
+
+        assert (await _sheet(db, monkeypatch))["local-model"][0] == "met"
+
+    async def test_a_public_host_with_a_local_word_in_its_name_does_not(self, monkeypatch) -> None:
+        """A substring test called `https://ollama.vendor.example/v1` local and
+        passed the sheet while prompts left the network (#1448 review)."""
+        db = _db(profiles=[_model("Vendor", "https://ollama.vendor.example/v1")])
+
+        outcome, detail = (await _sheet(db, monkeypatch))["local-model"]
+        assert outcome == "unmet"
+        assert "Vendor" in detail
+
+    async def test_a_private_address_is_local(self, monkeypatch) -> None:
+        db = _db(profiles=[_model("On the rack", "http://10.1.2.3:8000/v1")])
+
+        assert (await _sheet(db, monkeypatch))["local-model"][0] == "met"
+
+    async def test_a_public_address_is_not(self, monkeypatch) -> None:
+        db = _db(profiles=[_model("Somewhere", "https://93.184.216.34/v1")])
+
+        assert (await _sheet(db, monkeypatch))["local-model"][0] == "unmet"
+
+    async def test_a_cluster_name_is_local(self, monkeypatch) -> None:
+        db = _db(profiles=[_model("In cluster", "http://llm.ai.svc.cluster.local/v1")])
 
         assert (await _sheet(db, monkeypatch))["local-model"][0] == "met"
 
@@ -156,6 +239,42 @@ class TestWhereContentGoes:
         outcome, detail = sheet["traces-local"]
         assert outcome == "unmet"
         assert "content" in detail
+
+    async def test_an_agent_carrying_its_own_token_is_unmet_too(self, monkeypatch) -> None:
+        """A deployment with no token of its own could report that nothing left
+        while a published agent exported every run (#1448 review)."""
+        spec = {"observability": {"token_secret_id": str(uuid.uuid4())}}
+        db = _db(tracing_agents=[("Support", spec)])
+
+        outcome, detail = (await _sheet(db, monkeypatch, LOGFIRE_TOKEN=None))["traces-local"]
+        assert outcome == "unmet"
+        assert "1 published agent" in detail
+
+    async def test_an_agent_that_traces_without_content_is_not_counted(self, monkeypatch) -> None:
+        """Timing, tokens, cost and tool names leave; the protected content does
+        not, which is what this control is about."""
+        spec = {"observability": {"token_secret_id": str(uuid.uuid4()), "content": "none"}}
+        db = _db(tracing_agents=[("Support", spec)])
+
+        assert (await _sheet(db, monkeypatch, LOGFIRE_TOKEN=None))["traces-local"][0] == "met"
+
+    async def test_an_agent_with_no_observability_block_is_not_counted(self, monkeypatch) -> None:
+        """Most published specs carry none, and one that does may name no token."""
+        db = _db(
+            tracing_agents=[
+                ("Plain", {"name": "Plain"}),
+                ("Named", {"observability": {"service_name": "support"}}),
+            ]
+        )
+
+        assert (await _sheet(db, monkeypatch, LOGFIRE_TOKEN=None))["traces-local"][0] == "met"
+
+    async def test_an_environment_carrying_a_token_is_unmet(self, monkeypatch) -> None:
+        db = _db(tracing_environments=2)
+
+        outcome, detail = (await _sheet(db, monkeypatch, LOGFIRE_TOKEN=None))["traces-local"]
+        assert outcome == "unmet"
+        assert "2 environment" in detail
 
 
 class TestWhoGetsIn:
@@ -222,7 +341,10 @@ class TestTheSheetItself:
         monkeypatch.setattr(settings, "POSTGRES_SSLMODE", "verify-full")
         monkeypatch.setattr(settings, "REDIS_SSL", True)
         monkeypatch.setattr(settings, "VAULT_MASTER_KEY", "k" * 64)
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {})
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", None)
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example")
+        monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://api.example")
         monkeypatch.setattr(MODULE, "sso_issuer", lambda: "https://id.corp.example")
         db = _db(deployment=_settings(), profiles=[_model("Local", "http://ollama:11434/v1")])
 

@@ -27,12 +27,16 @@ reads as complete and is not.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from ipaddress import ip_address
+from typing import Final, Literal
+from urllib.parse import urlparse
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.credential import ModelProfile
 from app.db.models.deployment_settings import DeploymentSettings
@@ -48,23 +52,35 @@ Outcome = Literal["met", "unmet", "attested"]
 
 ProfileName = Literal["hipaa"]
 
-#: Hosts a model request may reach without leaving the operator's own network.
+#: Host suffixes a model request may reach without leaving the operator's network.
 #:
-#: Not a comprehensive list of self-hosted inference - it is the shape of one.
-#: A profile that tried to enumerate every local stack would go stale; what it
-#: can say is that a request to `api.openai.com` leaves, and a request to
-#: something on this network does not.
-_LOCAL_HINTS = (
-    "localhost",
-    "127.0.0.1",
-    "0.0.0.0",  # noqa: S104 - matched in a URL, never bound to
-    "ollama",
-    "litellm",
-    "vllm",
-    ".local",
-    ".internal",
-    ".svc",
-)
+#: Matched against the **hostname**, and as a suffix or an exact name - never as
+#: a substring of the whole URL. `https://ollama.vendor.example/v1` contains
+#: "ollama" and leaves the network; so does `https://api.internal.attacker.example`
+#: (#1448 review). A private address is recognised separately, because an IP
+#: literal has no suffix to match.
+_LOCAL_NAMES: Final = frozenset({"localhost", "ollama", "litellm", "vllm"})
+_LOCAL_SUFFIXES: Final = (".local", ".internal", ".svc", ".svc.cluster.local")
+
+
+def _is_local_host(url: str) -> bool:
+    """Whether this endpoint is served from the operator's own network.
+
+    Parsed rather than searched. A hostname that *is* one of the known
+    single-label service names, that ends in one of the internal suffixes, or
+    that is a private, loopback or link-local address stays inside; anything else
+    - including a public host with `ollama` somewhere in its name - does not.
+    """
+    host = (urlparse(url).hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    if host in _LOCAL_NAMES or host.endswith(_LOCAL_SUFFIXES):
+        return True
+    try:
+        address = ip_address(host)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
 
 
 @dataclass(frozen=True)
@@ -109,10 +125,11 @@ async def evaluate(db: AsyncSession, profile: ProfileName) -> list[ControlResult
     return [
         _postgres_in_transit(),
         _redis_in_transit(),
+        _browser_in_transit(),
         _credentials_at_rest(),
         _content_at_rest(),
         await _model_requests_stay_here(db),
-        _traces_carry_no_content(),
+        await _traces_carry_no_content(db),
         _who_may_sign_in(row),
         _sign_up_is_closed(row),
         _audit_is_kept_six_years(row),
@@ -121,10 +138,18 @@ async def evaluate(db: AsyncSession, profile: ProfileName) -> list[ControlResult
 
 
 def _postgres_in_transit() -> ControlResult:
-    """§164.312(e)(1). A verified certificate, not merely an encrypted socket."""
+    """§164.312(e)(1). A verified certificate for *this host*, not merely an encrypted socket."""
     mode = settings.POSTGRES_SSLMODE
-    if mode in {"verify-ca", "verify-full"}:
-        return _met("postgres-tls", "§164.312(e)(1)", f"POSTGRES_SSLMODE={mode}")
+    if mode == "verify-full":
+        return _met("postgres-tls", "§164.312(e)(1)", "POSTGRES_SSLMODE=verify-full")
+    if mode == "verify-ca":
+        return _unmet(
+            "postgres-tls",
+            "§164.312(e)(1)",
+            "POSTGRES_SSLMODE=verify-ca validates the chain and not the hostname, so a "
+            "server holding any certificate from the same CA satisfies it; the profile "
+            "asks for verify-full",
+        )
     if mode == "require":
         return _unmet(
             "postgres-tls",
@@ -144,18 +169,71 @@ def _redis_in_transit() -> ControlResult:
     return _unmet("redis-tls", "§164.312(e)(1)", "REDIS_SSL is off: the link is plaintext")
 
 
+#: The shortest master key the profile accepts, in characters.
+#:
+#: `openssl rand -hex 32` is what the documentation tells an operator to run, and
+#: that is 64. HKDF derives a correctly sized wrapping key from anything, but it
+#: cannot put entropy into a secret that has none - so a one-character key
+#: produces ciphertext an attacker recovers, under a sheet reporting the
+#: credentials protected (#1448 review).
+MIN_MASTER_KEY_CHARS: Final = 64
+
+
 def _credentials_at_rest() -> ControlResult:
     """§164.312(a)(2)(iv). Every stored credential is sealed per organization."""
-    if settings.VAULT_MASTER_KEY or settings.VAULT_MASTER_KEYS:
-        return _met(
+    keys = [settings.VAULT_MASTER_KEY, *settings.VAULT_MASTER_KEYS.values()]
+    configured = [key for key in keys if key]
+    if not configured:
+        return _unmet(
             "vault-key",
             "§164.312(a)(2)(iv)",
-            "the vault has a master key, so provider and connector credentials are sealed",
+            "no VAULT_MASTER_KEY: the vault cannot seal anything",
         )
-    return _unmet(
+    weak = sum(1 for key in configured if len(key) < MIN_MASTER_KEY_CHARS)
+    if weak:
+        return _unmet(
+            "vault-key",
+            "§164.312(a)(2)(iv)",
+            f"{weak} of {len(configured)} master key(s) are shorter than "
+            f"{MIN_MASTER_KEY_CHARS} characters. HKDF derives a correctly sized "
+            "wrapping key from anything and cannot add entropy to a guessable one; "
+            "generate with `openssl rand -hex 32`",
+        )
+    return _met(
         "vault-key",
         "§164.312(a)(2)(iv)",
-        "no VAULT_MASTER_KEY: the vault cannot seal anything",
+        f"{len(configured)} master key(s) of full length, so provider and connector "
+        "credentials are sealed per organization",
+    )
+
+
+def _browser_in_transit() -> ControlResult:
+    """§164.312(e)(1), for the hop the other rows do not cover.
+
+    Store and model transport were checked and the browser's was not, so every
+    other row could pass while a sign-in, a prompt and its answer crossed the
+    client boundary in plaintext (#1448 review). What this can see is the
+    addresses this deployment publishes to that browser; terminating TLS is the
+    operator's proxy, and is attested rather than claimed.
+    """
+    published = {
+        "FRONTEND_URL": settings.FRONTEND_URL,
+        "PUBLIC_BASE_URL": settings.PUBLIC_BASE_URL,
+    }
+    plaintext = sorted(name for name, url in published.items() if not url.startswith("https://"))
+    if plaintext:
+        return _unmet(
+            "browser-tls",
+            "§164.312(e)(1)",
+            f"{', '.join(plaintext)} is an http:// address, so the browser reaches "
+            "this deployment in plaintext",
+        )
+    return _attested(
+        "browser-tls",
+        "§164.312(e)(1)",
+        "every published address is https, and `Strict-Transport-Security` is sent "
+        "in a production build. Terminating TLS, and the certificate it presents, "
+        "is the operator's reverse proxy",
     )
 
 
@@ -195,9 +273,7 @@ async def _model_requests_stay_here(db: AsyncSession) -> ControlResult:
             "no model profile is configured yet, so nothing says where a run's content would go",
         )
     remote = sorted(
-        profile.label
-        for profile in profiles
-        if not any(hint in (profile.base_url or "") for hint in _LOCAL_HINTS)
+        profile.label for profile in profiles if not _is_local_host(profile.base_url or "")
     )
     if remote:
         shown = ", ".join(remote[:5]) + (", ..." if len(remote) > 5 else "")
@@ -213,20 +289,62 @@ async def _model_requests_stay_here(db: AsyncSession) -> ControlResult:
     )
 
 
-def _traces_carry_no_content() -> ControlResult:
-    """§164.312(e)(1). A trace with `content: full` copies the run off the machine."""
-    if not settings.LOGFIRE_TOKEN:
-        return _met(
+async def _traces_carry_no_content(db: AsyncSession) -> ControlResult:
+    """§164.312(e)(1). A trace with `content: full` copies the run off the machine.
+
+    The deployment's own token is not the whole question. An agent's
+    `observability.token_secret_id` and a named environment's
+    `logfire_token_secret_id` each attach an exporter of their own, and the
+    content mode still defaults to `full` - so a deployment with no
+    `LOGFIRE_TOKEN` could report that nothing leaves while run content was being
+    exported per agent (#1448 review). Both are read, and the *published* spec is
+    what is read from an agent, because that is what runs.
+    """
+    if settings.LOGFIRE_TOKEN:
+        return _unmet(
             "traces-local",
             "§164.312(e)(1)",
-            "LOGFIRE_TOKEN is unset, so no span leaves this deployment",
+            "LOGFIRE_TOKEN is set: spans reach a hosted project, and an agent's "
+            "observability.content defaults to 'full'",
         )
-    return _unmet(
+
+    exporting = await _agents_exporting_traces(db)
+    environments = await db.scalar(
+        select(func.count())
+        .select_from(AgentEnvironment)
+        .where(AgentEnvironment.logfire_token_secret_id.is_not(None))
+    )
+    if exporting or environments:
+        return _unmet(
+            "traces-local",
+            "§164.312(e)(1)",
+            f"LOGFIRE_TOKEN is unset, but {len(exporting)} published agent(s) and "
+            f"{environments or 0} environment(s) carry a tracing token of their own, "
+            "and observability.content defaults to 'full'",
+        )
+    return _met(
         "traces-local",
         "§164.312(e)(1)",
-        "LOGFIRE_TOKEN is set: spans reach a hosted project, and an agent's "
-        "observability.content defaults to 'full'",
+        "no deployment token, no per-agent token and no per-environment token, so no "
+        "span leaves this deployment",
     )
+
+
+async def _agents_exporting_traces(db: AsyncSession) -> list[str]:
+    """Published agents whose own spec attaches a tracing exporter, with full content."""
+    rows = await db.execute(
+        select(Agent.name, AgentVersion.spec).join(
+            AgentVersion, Agent.current_version_id == AgentVersion.id
+        )
+    )
+    named: list[str] = []
+    for name, spec in rows.all():
+        observability = spec.get("observability") if isinstance(spec, dict) else None
+        if not isinstance(observability, dict) or not observability.get("token_secret_id"):
+            continue
+        if observability.get("content") != "none":
+            named.append(name)
+    return named
 
 
 def sso_issuer() -> str:

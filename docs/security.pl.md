@@ -1,5 +1,5 @@
 ---
-source_sha: "2dd7d32f5e67"
+source_sha: "7f86e2667f07"
 ---
 
 # Bezpieczeństwo { #security }
@@ -180,12 +180,13 @@ Profil sugerujący inaczej byłby twierdzeniem, którego nikt nie obroni.
 | Kontrola | Zabezpieczenie | Spełnia ją |
 |---|---|---|
 | `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` szyfruje i nie weryfikuje żadnego certyfikatu, więc profil go nie przyjmuje |
-| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
-| `vault-key` | §164.312(a)(2)(iv) | Klucz główny vaulta, dzięki któremu każde poświadczenie dostawcy i konektora jest zapieczętowane per organizacja |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Oba magazyny muszą być twoje: dołączone w repozytorium `db` i `redis` nie mają listenera TLS, więc overlay odmawia startu bez `POSTGRES_HOST` i `REDIS_HOST` |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` i `PUBLIC_BASE_URL` po https, z twoim reverse proxy je terminującym. Poświadczane, a adres http jest tu **odrzucany**: każda inna kontrola może przejść, podczas gdy logowanie przechodzi granicę klienta otwartym tekstem |
+| `vault-key` | §164.312(a)(2)(iv) | Klucz główny vaulta o długości co najmniej 64 znaków. HKDF wyprowadza z czegokolwiek klucz opakowujący właściwej długości i nie doda entropii do zgadywalnego sekretu |
 | `content-at-rest` | §164.312(a)(2)(iv) | **Operatora.** Dane Postgresa, wolumen mediów i katalog workspace'ów sandboxa szyfruje wolumen albo dysk, nie ta aplikacja |
-| `local-model` | §164.312(e)(1) | Każdy profil modelu serwowany z twojej sieci. Ten bez `base_url` to z definicji publiczne API dostawcy |
-| `traces-local` | §164.312(e)(1) | Nieustawiony `LOGFIRE_TOKEN`. Span z `observability.content: full` niesie wiadomość, wyjście i każdy argument narzędzia |
-| `sso` | §164.312(d) | `OIDC_ISSUER`. MFA należy do dostawcy tożsamości, i arkusz to mówi, zamiast tego twierdzić |
+| `local-model` | §164.312(e)(1) | Każdy profil modelu serwowany z twojej sieci. Parsowana jest **nazwa hosta** — adres prywatny, `localhost`, gołe `ollama`/`litellm`/`vllm` albo nazwa `.internal`/`.local`/`.svc` — więc `https://ollama.vendor.example` nie jest lokalny, a ten bez `base_url` to z definicji publiczne API dostawcy |
+| `traces-local` | §164.312(e)(1) | Nieustawiony `LOGFIRE_TOKEN` **i** żaden opublikowany agent ani nazwane środowisko nie niesie własnego tokenu tracingu — każdy podpina własny eksporter, a `observability.content` domyślnie to `full` |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. **Jeszcze niedostępne** — generyczne logowanie OIDC to [#1419](https://github.com/vstorm-co/agenticos/issues/1419), więc ta kontrola jest dziś niespełniona na każdym wdrożeniu, co jest prawdą o takim, gdzie ludzie logują się hasłami. MFA należy do dostawcy tożsamości, i arkusz to mówi, zamiast tego twierdzić |
 | `signup` | §164.312(a)(1) | `invite_only` albo `closed` |
 | `audit-retention` | §164.312(b) | Podłoga audytu co najmniej 2190 dni — sześć lat z §164.316(b)(2) |
 | `audit-chain` | §164.312(c)(1) | Łańcuch haszy i jego checkpoint. Wykrywanie, nie zapobieganie — zobacz [Kontrole audytu](#audit-controls-hipaa-164312b-soc-2-cc7) |

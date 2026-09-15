@@ -32,8 +32,16 @@ business associate, which is a contract rather than a configuration flag.
 
 | | |
 |---|---|
-| `docker-compose.hipaa.yml` | An overlay over the repository's `docker-compose.yml`. It sets the transport, sign-in and observability settings the profile asks for, and refuses to start without the ones it cannot default. |
+| `docker-compose.hipaa.yml` | An overlay over the repository's `docker-compose.yml`. It sets `ENVIRONMENT=production` and the transport and observability settings the profile asks for, and refuses to start without the ones it cannot default. |
 | `hipaa.env.example` | Every variable the overlay reads, with what each one is for. Copy it to `.env` beside the compose file and fill it in. |
+
+**Bring your own Postgres and Redis.** The repository's bundled `db` and `redis`
+services are for development: they have no TLS listener and no certificate, so
+`verify-full` cannot connect to either. The overlay therefore requires
+`POSTGRES_HOST` and `REDIS_HOST` and will not start without them, rather than
+coming up on a plaintext socket while the sheet reports TLS. It requires a
+`SECRET_KEY` of your own for the same reason - the repository ships a
+development one, and it signs every session token.
 
 ```bash
 docker compose -f docker-compose.yml -f deploy/profiles/hipaa/docker-compose.hipaa.yml up -d
@@ -49,11 +57,12 @@ transfer unchanged to whatever chart a deployment uses.
 |---|---|---|
 | `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` encrypts and verifies no certificate, which is why the profile does not accept it |
 | `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Redis carries queued work and cached answers |
-| `vault-key` | §164.312(a)(2)(iv) | `VAULT_MASTER_KEY`. Every provider and connector credential is sealed per organization |
+| `vault-key` | §164.312(a)(2)(iv) | `VAULT_MASTER_KEY`, at least 64 characters. HKDF derives a correctly sized wrapping key from anything and cannot add entropy to a guessable secret, so a short one is refused |
 | `content-at-rest` | §164.312(a)(2)(iv) | **The operator's.** The application does not encrypt Postgres data, the media volume or the sandbox workspace root; a volume or a disk does. The sheet names it rather than passing it |
-| `local-model` | §164.312(e)(1) | A model profile whose `base_url` is on your own network — Ollama, vLLM, a LiteLLM proxy. See below |
-| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset. A span with `observability.content: full` carries the message, the output and every tool argument |
-| `sso` | §164.312(d) | `OIDC_ISSUER` and a client pair. Multi-factor authentication is the identity provider's job, and the profile says so rather than pretending to do it |
+| `local-model` | §164.312(e)(1) | Every model profile's `base_url` on your own network — Ollama, vLLM, a LiteLLM proxy. The **hostname** is parsed and matched, not the URL searched, so `https://ollama.vendor.example` does not count as local. See below |
+| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset, **and** no published agent or named environment carrying a tracing token of its own — each attaches an exporter, and `observability.content` defaults to `full` |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` and `PUBLIC_BASE_URL` on https. Terminating it is your reverse proxy's, and is attested; an http address here is refused, because every other control can pass while a sign-in crosses the client boundary in plaintext |
+| `sso` | §164.312(d) | `OIDC_ISSUER` and a client pair. **Not available yet** - generic OIDC sign-in is [#1419](https://github.com/vstorm-co/agenticos/issues/1419), so this control reports unmet on any deployment today, which is the truth about one where people still sign in with passwords. Multi-factor authentication is the identity provider's job, and the profile says so rather than pretending to do it |
 | `signup` | §164.312(a)(1) | `invite_only` or `closed`, set in the console under deployment settings |
 | `audit-retention` | §164.312(b) | The audit floor, six years — §164.316(b)(2)'s number |
 | `audit-chain` | §164.312(c)(1) | On by construction. Detection rather than prevention: anybody holding this database's own credentials can remove both the chain and its checkpoint |

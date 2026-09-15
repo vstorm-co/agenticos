@@ -1,5 +1,5 @@
 ---
-source_sha: "2dd7d32f5e67"
+source_sha: "7f86e2667f07"
 ---
 
 # Seguridad { #security }
@@ -186,12 +186,13 @@ una afirmación que nadie puede sostener.
 | Control | Salvaguarda | Lo satisface |
 |---|---|---|
 | `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` cifra y no verifica certificado alguno, así que el perfil no lo acepta |
-| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
-| `vault-key` | §164.312(a)(2)(iv) | Una clave maestra del vault, con la que toda credencial de proveedor y conector queda sellada por organización |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Ambos almacenes han de ser los tuyos: los `db` y `redis` incluidos no tienen listener TLS, así que la superposición se niega a arrancar sin `POSTGRES_HOST` y `REDIS_HOST` |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` y `PUBLIC_BASE_URL` en https, con tu proxy inverso terminándolo. Atestiguado, y una dirección http aquí se **rechaza**: cualquier otro control puede pasar mientras un inicio de sesión cruza la frontera del cliente en texto plano |
+| `vault-key` | §164.312(a)(2)(iv) | Una clave maestra del vault de al menos 64 caracteres. HKDF deriva de cualquier cosa una clave de envoltura del tamaño correcto y no puede añadir entropía a un secreto adivinable |
 | `content-at-rest` | §164.312(a)(2)(iv) | **De la operadora.** Los datos de Postgres, el volumen de medios y la raíz de workspaces del sandbox los cifra un volumen o un disco, no esta aplicación |
-| `local-model` | §164.312(e)(1) | Todo perfil de modelo servido desde tu propia red. Uno sin `base_url` es, por definición, la API pública del proveedor |
-| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` sin definir. Un span con `observability.content: full` lleva el mensaje, la salida y todos los argumentos de herramienta |
-| `sso` | §164.312(d) | `OIDC_ISSUER`. La autenticación multifactor es del proveedor de identidad, y la hoja lo dice en vez de atribuírsela |
+| `local-model` | §164.312(e)(1) | Todo perfil de modelo servido desde tu propia red. Se analiza el **nombre de host** —una dirección privada, `localhost`, un `ollama`/`litellm`/`vllm` a secas, o un nombre `.internal`/`.local`/`.svc`—, así que `https://ollama.vendor.example` no es local, y uno sin `base_url` es, por definición, la API pública del proveedor |
+| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` sin definir **y** ningún agente publicado ni entorno con nombre que lleve su propio token de trazas: cada uno engancha su exportador, y `observability.content` es `full` por defecto |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. **Todavía no disponible**: el inicio de sesión OIDC genérico es [#1419](https://github.com/vstorm-co/agenticos/issues/1419), así que este control está hoy sin satisfacer en cualquier despliegue, que es la verdad sobre uno donde se entra con contraseñas. La autenticación multifactor es del proveedor de identidad, y la hoja lo dice en vez de atribuírsela |
 | `signup` | §164.312(a)(1) | `invite_only` o `closed` |
 | `audit-retention` | §164.312(b) | Un suelo de auditoría de al menos 2190 días — los seis años de §164.316(b)(2) |
 | `audit-chain` | §164.312(c)(1) | La cadena de hashes y su checkpoint. Detección, no prevención — véase [Controles de auditoría](#audit-controls-hipaa-164312b-soc-2-cc7) |

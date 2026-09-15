@@ -3,38 +3,63 @@
 #   docker compose -f docker-compose.yml \
 #     -f deploy/profiles/hipaa/docker-compose.hipaa.yml up -d
 #
-# It sets the transport and observability settings the profile asks for and
-# refuses to start without the ones it cannot default - an unset `OIDC_ISSUER`
-# stops the stack here rather than producing a deployment that looks configured
-# and accepts passwords.
+# Two things it deliberately does and one it deliberately does not.
 #
-# What this file cannot do is encrypt the volumes: that is the host's, and
-# `agenticos cmd doctor --profile hipaa` names it rather than passing it.
-# See README.md for the whole control sheet and for what the profile is not.
+# It **refuses to start** without the values it cannot default: a `SECRET_KEY`
+# of your own, and a Postgres and Redis of your own. The repository's compose
+# ships a development `SECRET_KEY` that signs access, refresh, reset and
+# magic-link tokens, and its bundled `db` and `redis` have no TLS listener and
+# no certificate at all - so `verify-full` against them cannot connect, and a
+# profile that let the stack come up on either would be a profile you could pass
+# while running on a published signing key over a plaintext socket.
+#
+# It sets `ENVIRONMENT=production`, which is what turns the application's own
+# refusals on: a default `SECRET_KEY` and a default `API_KEY` are rejected there
+# and tolerated in a local build.
+#
+# What it does not do is encrypt the volumes. That is the host's, and
+# `agenticos cmd doctor --profile hipaa` names it rather than passing it. See
+# README.md for the whole control sheet and for what the profile is not.
 
 services:
   app:
     environment:
-      # §164.312(e)(1). `verify-full` verifies the certificate and the hostname;
-      # `require` encrypts and verifies nothing, so the profile does not take it.
+      - ENVIRONMENT=production
+      - SECRET_KEY=${SECRET_KEY:?generate one with `openssl rand -hex 32`; the repository default signs tokens}
+      # §164.312(e)(1). `verify-full` verifies the certificate *and* the
+      # hostname; `verify-ca` validates the chain and not the host, so a server
+      # holding any certificate from the same CA satisfies it.
+      - POSTGRES_HOST=${POSTGRES_HOST:?point at a Postgres with a TLS listener; the bundled `db` has none}
       - POSTGRES_SSLMODE=${POSTGRES_SSLMODE:-verify-full}
+      - REDIS_HOST=${REDIS_HOST:?point at a Redis with a TLS listener; the bundled `redis` has none}
       - REDIS_SSL=${REDIS_SSL:-true}
-      # §164.312(d). No default and no fallback: the stack refuses to start
-      # rather than quietly running on passwords this deployment stores.
-      - OIDC_ISSUER=${OIDC_ISSUER:?the HIPAA profile signs people in through your identity provider}
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:?set the client your provider issued}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:?set the client secret}
+      # §164.312(e)(1), the browser's hop. https, because the doctor refuses an
+      # http address here and a person would otherwise sign in over plaintext.
+      - FRONTEND_URL=${FRONTEND_URL:?the https address your proxy serves the console on}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:?the https address your proxy serves the API on}
       # §164.312(e)(1). Empty rather than absent, so a value inherited from the
-      # host environment cannot switch hosted tracing back on.
+      # host environment cannot switch hosted tracing back on. An agent or an
+      # environment may still carry a token of its own, which the doctor reads.
       - LOGFIRE_TOKEN=
+      # §164.312(d). Passed through rather than required: generic OIDC sign-in
+      # is #1419 and until it lands the application has no such setting, so
+      # demanding them here would stop a stack that could not use them anyway.
+      # The doctor reports the `sso` control unmet meanwhile, which is the truth.
+      - OIDC_ISSUER=${OIDC_ISSUER:-}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
 
   prefect-runner:
     environment:
+      - ENVIRONMENT=production
+      - SECRET_KEY=${SECRET_KEY:?generate one with `openssl rand -hex 32`}
+      - POSTGRES_HOST=${POSTGRES_HOST:?point at a Postgres with a TLS listener}
       - POSTGRES_SSLMODE=${POSTGRES_SSLMODE:-verify-full}
+      - REDIS_HOST=${REDIS_HOST:?point at a Redis with a TLS listener}
       - REDIS_SSL=${REDIS_SSL:-true}
       - LOGFIRE_TOKEN=
 
   frontend:
     environment:
-      # The SSO button, and only it.
+      # The SSO button, and only it, once #1419 has landed.
       - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-oidc}

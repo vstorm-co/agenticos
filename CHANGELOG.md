@@ -29,9 +29,11 @@ Two things are versioned separately from this file and worth knowing about:
   holds a compose overlay that refuses to start without the settings it cannot
   default, plus an annotated env file.
 
-  Ten controls: TLS to Postgres and Redis, a vault key, local inference, no
-  hosted tracing, SSO, closed registration, a six-year audit floor and the audit
-  hash chain - with volume encryption **named** rather than quietly passed,
+  Eleven controls: TLS to Postgres, to Redis and to the browser, a vault key of
+  real length, local inference, no hosted tracing anywhere (the deployment's
+  token, an agent's own, or an environment's), SSO, closed registration, a
+  six-year audit floor and the audit hash chain - with volume encryption
+  **named** rather than quietly passed,
   because a sheet that skipped what it cannot see would read as complete and
   would not be. It answers §164.312 and says so: the administrative (§164.308)
   and physical (§164.310) safeguards are the operator's, and `docs/security.md`

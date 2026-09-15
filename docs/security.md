@@ -173,12 +173,13 @@ nobody can support.
 | Control | Safeguard | Satisfied by |
 |---|---|---|
 | `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` encrypts and verifies no certificate, so the profile does not accept it |
-| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
-| `vault-key` | §164.312(a)(2)(iv) | A vault master key, so every provider and connector credential is sealed per organization |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Both stores must be your own: the repository's bundled `db` and `redis` have no TLS listener, so the overlay refuses to start without `POSTGRES_HOST` and `REDIS_HOST` |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` and `PUBLIC_BASE_URL` on https, with your reverse proxy terminating it. Attested, and an http address here is **refused**: every other control can pass while a sign-in crosses the client boundary in plaintext |
+| `vault-key` | §164.312(a)(2)(iv) | A vault master key of at least 64 characters. HKDF derives a correctly sized wrapping key from anything and cannot add entropy to a guessable secret |
 | `content-at-rest` | §164.312(a)(2)(iv) | **The operator's.** Postgres data, the media volume and the sandbox workspace root are encrypted by a volume or a disk, not by this application |
-| `local-model` | §164.312(e)(1) | Every model profile served from your own network. One with no `base_url` is the vendor's public API by definition |
-| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset. A span with `observability.content: full` carries the message, the output and every tool argument |
-| `sso` | §164.312(d) | `OIDC_ISSUER`. Multi-factor authentication is the identity provider's, and the sheet says so rather than claiming it |
+| `local-model` | §164.312(e)(1) | Every model profile served from your own network. The **hostname** is parsed - a private address, `localhost`, a bare `ollama`/`litellm`/`vllm`, or a `.internal`/`.local`/`.svc` name - so `https://ollama.vendor.example` is not local, and one with no `base_url` is the vendor's public API by definition |
+| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset, **and** no published agent or named environment carrying a tracing token of its own - each attaches an exporter, and `observability.content` defaults to `full` |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. **Not available yet** - generic OIDC sign-in is [#1419](https://github.com/vstorm-co/agenticos/issues/1419), so this control is unmet on any deployment today, which is the truth about one where people sign in with passwords. Multi-factor authentication is the identity provider's, and the sheet says so rather than claiming it |
 | `signup` | §164.312(a)(1) | `invite_only` or `closed` |
 | `audit-retention` | §164.312(b) | An audit floor of at least 2190 days - §164.316(b)(2)'s six years |
 | `audit-chain` | §164.312(c)(1) | The hash chain and its checkpoint. Detection, not prevention - see [Audit controls](#audit-controls-hipaa-164312b-soc-2-cc7) |

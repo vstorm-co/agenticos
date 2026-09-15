@@ -224,7 +224,14 @@ async def _probe_connection(
     return None
 
 
-async def _run() -> int:
+async def _run(profile: str | None = None) -> int:
+    """Every check, in dependency order, and the profile sheet after them.
+
+    The sheet runs inside this one flow rather than beside it because it is
+    database-backed: opening a second session after the database probe has
+    already failed produces a traceback instead of the command's own summary,
+    and does it in the one case the command exists for (#1448 review).
+    """
     failures = 0
     async with get_db_context() as db:
         database = await probe_database(db)
@@ -232,6 +239,8 @@ async def _run() -> int:
 
         if database.status != "healthy":
             error("Nothing else can be checked without a database. Is it running?")
+            if profile:
+                warning(f"The {profile} profile's sheet needs one too, so it is not printed.")
             return 1
 
         status, detail = await _postgres_tls(db)
@@ -263,6 +272,10 @@ async def _run() -> int:
         status, detail = await _sandbox_connections(db)
     failures += _report("sandbox connections", status, detail)
 
+    if profile:
+        info(f"\nAgainst the {profile} profile - technical safeguards only:")
+        failures += await _profile_sheet(profile)
+
     return failures
 
 
@@ -277,7 +290,12 @@ _PROFILE_MARK = {
 
 
 async def _profile_sheet(profile: str) -> int:
-    """Print one row per control and answer how many were unmet."""
+    """Print one row per control and answer how many were unmet.
+
+    Reached only once the database probe has passed, because every row that asks
+    the database would otherwise raise the connection error rather than being
+    reported.
+    """
     from app.services.deployment_profile import evaluate
 
     async with get_db_context() as db:
@@ -313,10 +331,7 @@ def doctor(profile: str | None) -> None:
         agenticos cmd doctor --profile hipaa
     """
     info(f"Checking {settings.PROJECT_NAME} at {settings.POSTGRES_HOST}...")
-    failures = asyncio.run(_run())
-    if profile:
-        info(f"\nAgainst the {profile} profile - technical safeguards only:")
-        failures += asyncio.run(_profile_sheet(profile))
+    failures = asyncio.run(_run(profile))
     if failures:
         error(f"{failures} check(s) failed.")
         raise SystemExit(1)

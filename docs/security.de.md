@@ -1,5 +1,5 @@
 ---
-source_sha: "2dd7d32f5e67"
+source_sha: "7f86e2667f07"
 ---
 
 # Sicherheit { #security }
@@ -191,12 +191,13 @@ niemand stützen kann.
 | Kontrolle | Sicherung | Erfüllt durch |
 |---|---|---|
 | `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` verschlüsselt und prüft kein Zertifikat, das Profil nimmt es deshalb nicht |
-| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true` |
-| `vault-key` | §164.312(a)(2)(iv) | Ein Vault-Masterschlüssel, sodass jedes Anbieter- und Konnektor-Credential je Organisation versiegelt ist |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Beide Stores müssen Ihre eigenen sein: die mitgelieferten `db` und `redis` haben keinen TLS-Listener, also startet das Overlay ohne `POSTGRES_HOST` und `REDIS_HOST` nicht |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` und `PUBLIC_BASE_URL` über https, terminiert von Ihrem Reverse Proxy. Attestiert, und eine http-Adresse wird hier **abgelehnt**: jede andere Kontrolle kann bestehen, während eine Anmeldung im Klartext über die Client-Grenze geht |
+| `vault-key` | §164.312(a)(2)(iv) | Ein Vault-Masterschlüssel von mindestens 64 Zeichen. HKDF leitet aus allem einen richtig dimensionierten Wrapping-Key ab und kann einem ratbaren Geheimnis keine Entropie hinzufügen |
 | `content-at-rest` | §164.312(a)(2)(iv) | **Der Betreiberin.** Postgres-Daten, das Medien-Volume und das Sandbox-Workspace-Verzeichnis verschlüsselt ein Volume oder eine Platte, nicht diese Anwendung |
-| `local-model` | §164.312(e)(1) | Jedes Modellprofil aus dem eigenen Netz. Eines ohne `base_url` ist per Definition die öffentliche API des Anbieters |
-| `traces-local` | §164.312(e)(1) | Nicht gesetztes `LOGFIRE_TOKEN`. Ein Span mit `observability.content: full` trägt die Nachricht, die Ausgabe und jedes Tool-Argument |
-| `sso` | §164.312(d) | `OIDC_ISSUER`. Mehrfaktor-Authentifizierung ist Sache des Identitätsanbieters, und das Blatt sagt es, statt es zu behaupten |
+| `local-model` | §164.312(e)(1) | Jedes Modellprofil aus dem eigenen Netz. Geparst wird der **Hostname** - eine private Adresse, `localhost`, ein bloßes `ollama`/`litellm`/`vllm` oder ein `.internal`/`.local`/`.svc`-Name - `https://ollama.vendor.example` ist also nicht lokal, und eines ohne `base_url` ist per Definition die öffentliche API des Anbieters |
+| `traces-local` | §164.312(e)(1) | Nicht gesetztes `LOGFIRE_TOKEN` **und** kein veröffentlichter Agent und keine benannte Umgebung mit eigenem Tracing-Token - jedes hängt einen eigenen Exporter an, und `observability.content` ist standardmäßig `full` |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. **Noch nicht verfügbar** - generisches OIDC-Sign-in ist [#1419](https://github.com/vstorm-co/agenticos/issues/1419), diese Kontrolle ist heute also auf jedem Deployment unerfüllt, was der Wahrheit über eines entspricht, auf dem man sich mit Passwörtern anmeldet. Mehrfaktor-Authentifizierung ist Sache des Identitätsanbieters, und das Blatt sagt es, statt es zu behaupten |
 | `signup` | §164.312(a)(1) | `invite_only` oder `closed` |
 | `audit-retention` | §164.312(b) | Eine Audit-Untergrenze von mindestens 2190 Tagen - die sechs Jahre aus §164.316(b)(2) |
 | `audit-chain` | §164.312(c)(1) | Die Hash-Kette und ihr Checkpoint. Erkennung, nicht Verhinderung - siehe [Audit-Kontrollen](#audit-controls-hipaa-164312b-soc-2-cc7) |
