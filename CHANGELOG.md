@@ -17,6 +17,42 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **RAG metadata filters, and a server-derived tenant scope on retrieval
+  (FA-039).** `POST /rag/search` and the agent's knowledge tool take structured,
+  narrowing-only business filters — `source`, `document_type` (the stored
+  filetype/mime), `organizational_unit`, and an inclusive `date_from`/`date_to`
+  range — as a typed `filters` object. Semantics are OR within a multi-value
+  field and AND across fields; a missing dimension on a chunk fails closed under
+  a filter for it, and a supplied-but-empty list is rejected rather than read as
+  "match everything". The security-bearing tenant conjunct is built only from the
+  caller's context (never from the request body or a model parameter), so a
+  filter can only narrow, never widen, access — closing the latent cross-tenant
+  read on a collection name two organizations happen to share. An app-scoped,
+  deployment-wide base gets its own scope shape (`AppScope`, matching `tenant IS
+  NULL`) rather than being read through the same equality conjunct an org base
+  is, which previously left it always answering empty. Ingestion now stamps
+  `organization_id` (from trusted worker context) and the business metadata onto
+  every chunk, and `GET /rag/collections/{name}/filter-values` exposes the
+  distinct in-scope `organizational_unit` values so a caller can discover them. A
+  `rag_safe_to_date` SQL helper plus JSONB and partial-date indexes back the
+  filters; an HNSW iterative-scan tuning keeps a selective tenant filter
+  returning a full top-k (requires pgvector ≥ 0.8; a raised `ef_search` is the
+  fallback). Semantic document typing (`document_category`) is deferred, and the
+  shared-table write-path tenant fix shipped separately (#1684).
+
+### Changed
+
+- **BREAKING (deprecation window): a non-`parent_doc_id` `filter` string on
+  `POST /rag/search` is now rejected with 400 instead of being silently
+  ignored.** Only `parent_doc_id` was ever honoured out of the old scalar filter
+  grammar; every other clause was dropped without notice. The field is now
+  deprecated and accepts only a full-match `parent_doc_id == "<id>"` expression
+  (use the structured `filters.parent_doc_id` instead); supplying both the string
+  and `filters.parent_doc_id` is a 400 conflict. Programmatic callers sending any
+  other filter string — which did nothing before — must move to `filters`.
+
 ### Fixed
 
 - **A value somebody submitted can no longer write a log entry of its own.** A
