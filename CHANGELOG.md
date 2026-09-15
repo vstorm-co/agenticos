@@ -45,6 +45,27 @@ Two things are versioned separately from this file and worth knowing about:
   agent loaded had nothing to open. Applies to the stored transcript and to the
   live `tool_result` frame alike. (#1658)
 
+## [0.0.441] - 2026-09-15
+
+### Documentation
+
+- **Logfire is documented as optional, and as a copy of the run when it is on.**
+  The configuration page listed six `LOGFIRE_*` variables and never said that
+  none of them has to be set, or what setting the token actually sends: a trace
+  is the user's message, the model's output and every tool argument and result,
+  because recording that is what an observability backend is for. The section now
+  says so, lists the three things that can point runs at a project - the
+  deployment-wide token, an environment's own token and an agent's `observability`
+  block - and points a deployment over health, legal or HR data at the `content`
+  mode before the token. The security page's Logfire row was also stale: it still
+  said run content leaves regardless of any per-agent setting, which stopped being
+  true when `suppress_content` pinned an agent asking for `none` to content-free
+  instrumentation on the deployment's own tracer too. Both pages now name the two
+  places that guarantee does not reach yet - an inline specialist, which carries
+  no observability block of its own (#1699), and a failed attach - and that the
+  deployment-wide path never reaches a run the Prefect worker executes (#1700).
+  (#1413)
+
 ## [0.0.440] - 2026-09-15
 
 ### Added
