@@ -77,6 +77,16 @@ describe("the query key factory", () => {
     expect(qk.agents.list()).toEqual(qk.agents.list(false));
   });
 
+  it("keys the discovery facet on a sorted copy, so a category selection cannot reuse another's page", () => {
+    // A server-driven facet with no key would let two selections share a stale
+    // cached page.
+    expect(qk.agents.list(false, ["sales"], [])).not.toEqual(qk.agents.list(false, [], []));
+    // The order chips were typed in must not split the cache.
+    expect(qk.agents.list(false, ["b", "a"], ["y", "x"])).toEqual(
+      qk.agents.list(false, ["a", "b"], ["x", "y"]),
+    );
+  });
+
   it("keys sharing by resource type as well as by id", () => {
     // An agent and a skill can hold the same id, and their sharing is not the
     // same row.

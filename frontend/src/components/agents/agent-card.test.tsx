@@ -151,6 +151,21 @@ describe("AgentCard", () => {
     expect(actions.onDelete).toHaveBeenCalled();
   });
 
+  it("shows the agent's categories and tags as chips", () => {
+    mount({ categories: ["sales"], tags: ["urgent", "beta"] });
+
+    expect(screen.getByText("sales")).toBeInTheDocument();
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+    expect(screen.getByText("beta")).toBeInTheDocument();
+  });
+
+  it("draws no metadata chips when a listing carries none", () => {
+    // The fields are optional in the type; the card reads them as `?? []`.
+    mount({});
+
+    expect(screen.queryByText("sales")).toBeNull();
+  });
+
   it("shows who the agent is reachable by, as one chip", () => {
     mount({ visibility: "org" });
 
