@@ -338,7 +338,10 @@ class OrganizationService:
         removed explicitly first: `knowledge_bases.organization_id` is
         `ON DELETE SET NULL`, and nulling an org-scoped row violates
         `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
-        merely carry this org's id are left to the `SET NULL`.
+        merely carry this org's id are left to the `SET NULL` - but that flips
+        their `vector_tenant` to `None` while their rows stay stamped with the
+        deleted org, so the deferred cleanup re-stamps those rows to untagged,
+        matching the `None` read scope again rather than stranding them (#1684).
 
         Two locks, in one order. Each doomed collection's `COLLECTION_TEARDOWN`
         lock is taken first, from a snapshot read without the row lock, and only
@@ -401,6 +404,24 @@ class OrganizationService:
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             collections.append(kb.collection_name)
             await knowledge_base_repo.delete(self.db, kb.id)
+
+        # A personal base carrying this org's id is left standing by the `SET NULL`,
+        # which flips its `vector_tenant` to `None` while its rows stay stamped with
+        # the org - stranding them behind the read side's `IS NULL` scope. Its rows
+        # are re-stamped to untagged after the commit so they match again. Read here,
+        # under the org lock and before the `SET NULL`, while the tag is still the
+        # org's. A name this org also scoped is excluded (`- set(collections)`): its
+        # table is kept alive by the personal base, so it still holds this org's own
+        # torn-down rows, and untagging by org id there would surface those to the
+        # personal base rather than only its own (#1684).
+        restamp_orphans: list[str] = []
+        if self._vector_store is not None:
+            orphan_names = {
+                kb.collection_name
+                for kb in await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
+            }
+            restamp_orphans = sorted(orphan_names - set(collections))
+
         await organization_repo.delete(self.db, org)
 
         # A store is wired only on the teardown path, and it is the signal to clean up
@@ -433,13 +454,14 @@ class OrganizationService:
                     continue
                 to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)
-        if storage_paths or to_drop:
+        restamps = [[collection, str(org.id)] for collection in restamp_orphans]
+        if storage_paths or to_drop or restamps:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
             spawn_after_commit(
                 self.db,
-                dispatch_external_state_cleanup(storage_paths, to_drop),
+                dispatch_external_state_cleanup(storage_paths, to_drop, restamps),
                 name="org_purge_cleanup",
             )
 

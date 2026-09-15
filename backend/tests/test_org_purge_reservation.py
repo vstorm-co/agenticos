@@ -22,6 +22,9 @@ from app.services.organization import OrganizationService
 pytestmark = pytest.mark.anyio
 
 SERVICE = "app.services.organization"
+# `dispatch_external_state_cleanup` is imported inside `purge`, so it is patched
+# where it is defined rather than on the service module.
+SERVICE_TEARDOWN = "app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup"
 
 
 def _kb(collection_name: str) -> MagicMock:
@@ -46,6 +49,7 @@ def _purge(*, snapshot: list[str], authoritative: list[str], lock_free: bool = T
         "knowledge_base_repo": MagicMock(
             list_org_scoped=AsyncMock(side_effect=reads),
             list_by_collection_name=AsyncMock(return_value=[]),
+            list_personal_carrying_org=AsyncMock(return_value=[]),
             delete=AsyncMock(),
         ),
         "rag_document_repo": MagicMock(delete_by_knowledge_base=AsyncMock(return_value=[])),
@@ -144,6 +148,65 @@ class TestWithNoVectorStoreWired:
         mocks["hold_name"].assert_not_awaited()
         mocks["try_hold_name"].assert_not_awaited()
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
+
+
+class TestReStampingOrphanedPersonalBases:
+    """A personal base carrying the deleted org's id is left standing by the
+    `SET NULL`, which flips its `vector_tenant` to `None` while its rows stay stamped
+    with the org - so the purge hands the deferred cleanup a re-stamp to untag them,
+    matching the `None` read scope again rather than stranding them (#1684)."""
+
+    @staticmethod
+    def _dispatched(mocks: dict) -> tuple:
+        return mocks["dispatch"].call_args.args
+
+    async def test_it_dispatches_a_restamp_for_each_orphaned_personal_base(self):
+        org, db, mocks = _purge(snapshot=[], authoritative=[])
+        mocks["knowledge_base_repo"].list_personal_carrying_org = AsyncMock(
+            return_value=[_kb("mybook"), _kb("notes")]
+        )
+        dispatch = MagicMock(return_value=None)
+        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
+            mocks["dispatch"] = dispatch
+            await OrganizationService(db, vector_store=MagicMock()).purge(org)
+
+        _paths, to_drop, restamps = self._dispatched(mocks)
+        assert to_drop == []
+        assert sorted(r[0] for r in restamps) == ["mybook", "notes"]
+        assert {r[1] for r in restamps} == {str(org.id)}
+
+    async def test_a_name_the_org_also_scoped_is_excluded(self):
+        """A personal base sharing a name with an org-scoped one keeps that table
+        alive, so it still holds this org's own torn-down rows; untagging by org id
+        there would surface those, so the shared name is left out of the re-stamp."""
+        org, db, mocks = _purge(snapshot=["shared"], authoritative=["shared"])
+        mocks["knowledge_base_repo"].list_personal_carrying_org = AsyncMock(
+            return_value=[_kb("shared"), _kb("private")]
+        )
+        dispatch = MagicMock(return_value=None)
+        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
+            mocks["dispatch"] = dispatch
+            await OrganizationService(db, vector_store=MagicMock()).purge(org)
+
+        _paths, _to_drop, restamps = self._dispatched(mocks)
+        assert [r[0] for r in restamps] == ["private"]
+
+    async def test_no_dispatch_when_nothing_is_orphaned(self):
+        org, db, mocks = _purge(snapshot=[], authoritative=[])
+        dispatch = MagicMock(return_value=None)
+        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
+            await OrganizationService(db, vector_store=MagicMock()).purge(org)
+
+        dispatch.assert_not_called()
+
+    async def test_without_a_vector_store_no_orphan_lookup_runs(self):
+        """Ordinary organization work does not pay for a teardown it is not doing, so
+        it never reads the personal bases a purge would have re-stamped."""
+        org, db, mocks = _purge(snapshot=[], authoritative=[])
+        with _patched(mocks):
+            await OrganizationService(db).purge(org)
+
+        mocks["knowledge_base_repo"].list_personal_carrying_org.assert_not_awaited()
 
 
 class TestTakingTheLockWithoutWaiting:

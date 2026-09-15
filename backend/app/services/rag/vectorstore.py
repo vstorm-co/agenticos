@@ -118,6 +118,18 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
+    async def restamp_org_to_untagged(self, collection_name: str, tenant: UUID) -> None:
+        """Strip an organization's tag off its rows, making them deployment-wide.
+
+        Used by an organization purge for a personal base the `SET NULL` orphans:
+        its `vector_tenant` flips to `None` while its rows stay stamped with the
+        deleted organization, so they must be re-stamped to untagged to match the
+        `None` read scope again (#1684). Scoped to `tenant`'s own rows on the
+        shared runtime table, so another organization's rows are never touched; a
+        collection with no such table is a no-op, so a durable retry is safe.
+        """
+
+    @abstractmethod
     async def get_collection_info(
         self,
         collection_name: str,
@@ -773,6 +785,35 @@ class PgVectorStore(BaseVectorStore):
             await session.execute(
                 text(f"DELETE FROM {table} WHERE parent_doc_id = :doc_id AND {org_clause}"),
                 {"doc_id": sanitized, **org_params},
+            )
+            await session.commit()
+
+    async def restamp_org_to_untagged(self, collection_name: str, tenant: UUID) -> None:
+        """Drop the `organization_id` tag from the rows this tenant stamped.
+
+        `metadata - 'organization_id'` makes `metadata->>'organization_id'` read
+        `NULL`, which is exactly what the `None` branch of `_org_filter` tests -
+        so the orphaned personal base's rows match its new `vector_tenant=None`,
+        the same as a personal base that never carried an organization (#1684).
+
+        Scoped by `_org_filter(tenant)` to the deleted organization's own rows, so
+        a shared runtime table's other tenants are untouched; the value is bound,
+        never interpolated, and `_table` validates the only interpolated token. A
+        collection whose table was already dropped is skipped, so the durable
+        cleanup's retry is a no-op.
+        """
+        if not await self._collection_exists(collection_name):
+            return
+        table = self._table(collection_name)
+        org_clause, org_params = self._org_filter(tenant)
+        # The only interpolated token is `table`, validated by `_table`; the tenant
+        # is bound through `_org_filter`. S608 is ignored file-wide for that reason.
+        async with self.async_session() as session:
+            await session.execute(
+                text(
+                    f"UPDATE {table} SET metadata = metadata - 'organization_id' WHERE {org_clause}"
+                ),
+                org_params,
             )
             await session.commit()
 
