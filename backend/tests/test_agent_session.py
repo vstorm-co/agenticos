@@ -1326,6 +1326,43 @@ class TestAskingTheUser:
             ("Which region?", "researcher")
         ]
 
+    async def test_two_delegates_asking_at_once_each_keep_their_own_name(self):
+        """The attribution is serialized with the round it names.
+
+        `_ask_lock` already held the wire round, but which question was *open*
+        was marked outside it - so a second delegate reaching `_ask_one` while
+        the first was still waiting overwrote both fields, and the first
+        delegate's answer was persisted as the second's question under the
+        second's name. Both are set inside the lock now.
+        """
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        first_asked = _next_frame(session)
+
+        with bind_subagent_state(SubAgentState(ask_timeout_seconds=300.0, name="researcher")):
+            first = asyncio.create_task(session._ask_one("Which region?", []))
+        await _wait(first_asked)
+
+        # The second delegate reaches `_ask_one` while the first is parked on its
+        # answer, which is the whole of the race.
+        second_asked = _next_frame(session)
+        with bind_subagent_state(SubAgentState(ask_timeout_seconds=300.0, name="deployer")):
+            second = asyncio.create_task(session._ask_one("Which cluster?", []))
+        await asyncio.sleep(0)
+
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+        assert await first == "eu"
+        await _wait(second_asked)
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "blue"}]})
+        assert await second == "blue"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.question, part.answer, part.asked_by) for part in stored] == [
+            ("Which region?", "eu", "researcher"),
+            ("Which cluster?", "blue", "deployer"),
+        ]
+
     async def test_a_question_the_main_agent_asked_names_no_delegate(self):
         """`None` rather than a placeholder: the main agent asking is the ordinary
         case, and the transcript says nothing extra about it."""
