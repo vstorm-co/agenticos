@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.439] - 2026-09-15
+
+### Security
+
+- **`script-src` no longer allows `'unsafe-inline'`.** The console's policy shipped
+  with everything else locked down except its riskiest directive, because the app
+  router inlines its flight data. The middleware now mints a 128-bit nonce per
+  request, writes `'nonce-…' 'strict-dynamic'` into the directive and forwards it on
+  the request headers so Next stamps that nonce onto its own inline scripts; the
+  response carries the same policy. `'unsafe-eval'` stays for the development
+  runtime and `connect-src`, which governs the chat WebSocket, is untouched.
+  Verified against a running frontend: every script tag on the page carries the
+  request's nonce, none is unnonced, and the browser reports no policy violation.
+  There is no `dangerouslySetInnerHTML` carrying a script, no inline `<script>`, no
+  `next/script` and no third-party script anywhere in the console, so every surface
+  shares that profile and `'strict-dynamic'` extends the nonce's trust to the chunks
+  those scripts load. (#1624)
+
 ## [0.0.438] - 2026-09-15
 
 ### Added
