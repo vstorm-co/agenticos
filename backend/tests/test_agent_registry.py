@@ -138,6 +138,10 @@ def _agent(ctx: AuthContext, **overrides):
     agent.name = "Support"
     agent.description = None
     agent.has_avatar = False
+    # Real list[str] columns, not the MagicMocks a bare attribute would be, so the
+    # hand-built AgentRead in list_agents validates them.
+    agent.categories = []
+    agent.tags = []
     agent.draft_spec = _spec().model_dump(mode="json")
     agent.current_version_id = None
     agent.created_at = None

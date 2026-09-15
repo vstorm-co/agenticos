@@ -73,6 +73,8 @@ from app.repositories import (
     skill_repo,
 )
 from app.schemas.agent import (
+    MAX_CATEGORIES,
+    MAX_TAGS,
     AgentRead,
     AgentTemplateCatalog,
     AgentTemplateRead,
@@ -82,6 +84,7 @@ from app.schemas.agent import (
     PublishedModel,
     TemplateIndustryRead,
     TemplateInstallResult,
+    normalize_labels_query,
 )
 from app.services import agent_templates, mcp_catalog, skill_library
 from app.services.access import (
@@ -706,6 +709,8 @@ class AgentRegistryService:
         *,
         shared_with_me: bool = False,
         include_archived: bool = False,
+        categories: Sequence[str] = (),
+        tags: Sequence[str] = (),
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[AgentRead], int]:
@@ -713,7 +718,15 @@ class AgentRegistryService:
 
         `shared_with_me` narrows to what was deliberately shared with them -
         org-visible or explicitly granted, and not their own.
+
+        `categories`/`tags` are the raw discovery-filter query params. They are
+        folded once here with the tolerant query normalizer (over-length items
+        dropped, capped per facet, never raising) and threaded to `list_visible`,
+        which overlaps them against the row - a narrowing on top of the isolation
+        the query already enforces.
         """
+        norm_categories = normalize_labels_query(list(categories), max_items=MAX_CATEGORIES)
+        norm_tags = normalize_labels_query(list(tags), max_items=MAX_TAGS)
         # `None` is `visible_resource_ids` saying the role already reaches every
         # agent, which is exactly what `see_all` tells the query - so both come
         # from the one call rather than from the scope being read twice and the
@@ -741,6 +754,8 @@ class AgentRegistryService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            categories=norm_categories,
+            tags=norm_tags,
             skip=skip,
             limit=limit,
         )
@@ -785,6 +800,8 @@ class AgentRegistryService:
                 current_version_id=agent.current_version_id,
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
+                categories=agent.categories,
+                tags=agent.tags,
                 can_run=agent.id in runnable,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
@@ -2010,6 +2027,22 @@ class AgentRegistryService:
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_color": color})
+
+    async def set_metadata(
+        self, ctx: AuthContext, agent_id: UUID, *, categories: list[str], tags: list[str]
+    ) -> Agent:
+        """Set the agent's discovery categories and tags, or clear them with [].
+
+        Record metadata like the avatar, not the spec: editing takes the same
+        per-resource access check (`AGENTS_EDIT`, grant-aware through `self.get`,
+        so a Viewer holding an explicit edit grant may retag that one agent) but
+        touches no version. The lists arrive already folded by the schema
+        validator, so this only persists them.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        return await agent_repo.update(
+            self.db, agent=agent, update_data={"categories": categories, "tags": tags}
+        )
 
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
         """Where the agent's picture is on disk, for the route that streams it.

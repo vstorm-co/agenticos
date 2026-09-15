@@ -1,16 +1,84 @@
 """Schemas for the agent registry and the tool catalog."""
 
+import unicodedata
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
 from app.schemas.base import BaseSchema
+
+# The longest a single category/tag may be, matching the `String(32)` array
+# column that stores it. Measured on the *folded* value, since `casefold()` can
+# expand text.
+LABEL_MAX_LENGTH = 32
+# How many of each facet an agent may carry - a discovery aid, not a taxonomy.
+MAX_CATEGORIES = 10
+MAX_TAGS = 20
+
+
+def _fold_labels(values: list[str]) -> list[str]:
+    """Canonicalize discovery labels: trim, fold case, drop empties, dedupe.
+
+    The pure value-shaping core both entry points share. In order: collapse
+    internal whitespace runs to one space and trim, NFC-normalize then
+    `str.casefold()` so visually identical spellings (composed vs. decomposed,
+    the full Unicode case map) become one canonical form the plain GIN index can
+    match, drop anything empty after trimming, and de-duplicate preserving
+    first-seen order. Idempotent: re-folding a folded list changes nothing.
+
+    `casefold()` rather than `lower()` because `lower()` leaves `"ß"`/`"ss"` and
+    NFC/NFD variants distinct, splitting one tag into several.
+    """
+    seen: dict[str, None] = {}
+    for value in values:
+        collapsed = " ".join(value.split())
+        if not collapsed:
+            continue
+        folded = unicodedata.normalize("NFC", collapsed).casefold()
+        if folded not in seen:
+            seen[folded] = None
+    return list(seen)
+
+
+def normalize_labels_strict(values: list[str]) -> list[str]:
+    """Fold labels for the write path, raising on an item too long to store.
+
+    Called inside a Pydantic `field_validator`, so a `ValueError` surfaces as a
+    clean 422 rather than reaching the `String(32)` column as a database error.
+    The length check is on the final folded value that will actually be stored,
+    not the trimmed input, because `casefold()` can expand text (`"ß"` -> `"ss"`):
+    a 32-char input can fold past the column width.
+    """
+    folded = _fold_labels(values)
+    for label in folded:
+        if len(label) > LABEL_MAX_LENGTH:
+            raise ValueError(
+                f"A category or tag may be at most {LABEL_MAX_LENGTH} characters after "
+                f"normalization; {label!r} is {len(label)}."
+            )
+    return folded
+
+
+def normalize_labels_query(values: list[str], *, max_items: int) -> list[str]:
+    """Fold labels for the filter path: tolerant, bounded, never raising.
+
+    A bad or oversized discovery query param should quietly narrow the result on
+    that item, not 400 the page. So an over-length item is **dropped** (measured
+    on the same folded value the write path checks) rather than raised on, and
+    never truncated - truncating could turn an invalid label into a
+    valid-but-unintended match. The folded, de-duplicated list is then capped to
+    `max_items`, the same bound the write path enforces, so a runaway filter is
+    trimmed rather than executed. The cap is a parameter because the one helper
+    cannot otherwise know it is folding categories (10) or tags (20).
+    """
+    kept = [label for label in _fold_labels(values) if len(label) <= LABEL_MAX_LENGTH]
+    return kept[:max_items]
 
 
 class PublishedModel(BaseSchema):
@@ -51,6 +119,20 @@ class AgentRead(BaseSchema):
         description=(
             "Chosen default-avatar colour, slot 1-10; null is auto (derived from the id). "
             "Only shown when the agent has no picture. A display choice, not the spec."
+        ),
+    )
+    categories: list[str] = Field(
+        description=(
+            "Editable, org-local discovery categories, normalized (trimmed, case-folded, "
+            "de-duplicated) and stored on the row - not part of the spec, so retagging "
+            "needs no publish. Required, not defaulted: both array columns are NOT NULL, "
+            "so a missing value means a hand-built path forgot them rather than 'none'."
+        ),
+    )
+    tags: list[str] = Field(
+        description=(
+            "Editable, org-local discovery tags, normalized the same way as categories. "
+            "Required for the same reason - a false empty list would hide a regression."
         ),
     )
     shared_user_count: int = Field(
@@ -149,6 +231,24 @@ class AgentAvatarColorRequest(BaseSchema):
         le=10,
         description="Default-avatar colour, slot 1-10; null resets to auto.",
     )
+
+
+class AgentMetadataRequest(BaseSchema):
+    """Editable discovery metadata for an agent - its categories and tags.
+
+    A command body, not a partial `*Update`: both fields are always meant, and an
+    empty list clears that facet. The validator folds each list (trim, case-fold,
+    drop empties, dedupe) and raises on an item longer than the stored width,
+    which surfaces as a 422; `max_length` caps how many of each facet may be sent.
+    """
+
+    categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
+    tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
+
+    @field_validator("categories", "tags", mode="after")
+    @classmethod
+    def _normalize(cls, v: list[str]) -> list[str]:
+        return normalize_labels_strict(v)
 
 
 class AgentPublish(BaseSchema):

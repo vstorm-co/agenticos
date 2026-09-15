@@ -92,6 +92,8 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    categories: Sequence[str] = (),
+    tags: Sequence[str] = (),
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Agent], int]:
@@ -106,6 +108,14 @@ async def list_visible(
             whatever the role's scope: for a role that already sees
             everything, "shared with me" is still a question about grants
             and visibility, not reach.
+        categories: Discovery filter - keep rows whose categories overlap this
+            list (`&&`). Already normalized and bounded by the caller; an empty
+            list applies no predicate. OR within the facet, AND across facets.
+        tags: The same overlap filter over the tags column.
+
+    The category/tag predicates are additional `AND` clauses on both the data and
+    the count query. They can only narrow an already org- and grant-scoped set,
+    never widen it, so a filter cannot surface an agent the caller could not see.
     """
     query = select(Agent).where(Agent.organization_id == organization_id)
     count_query = select(func.count(Agent.id)).where(Agent.organization_id == organization_id)
@@ -113,6 +123,17 @@ async def list_visible(
     if not include_archived:
         query = query.where(Agent.status != AgentStatus.ARCHIVED.value)
         count_query = count_query.where(Agent.status != AgentStatus.ARCHIVED.value)
+
+    # Guard on the (already-normalized) list being non-empty: a blank param that
+    # normalized to `[]` upstream must apply no predicate rather than match `{}`.
+    if categories:
+        overlap = Agent.categories.op("&&")(list(categories))
+        query = query.where(overlap)
+        count_query = count_query.where(overlap)
+    if tags:
+        overlap = Agent.tags.op("&&")(list(tags))
+        query = query.where(overlap)
+        count_query = count_query.where(overlap)
 
     if shared_with_me:
         shared = and_(

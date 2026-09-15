@@ -16,8 +16,10 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
+    ARRAY,
     CheckConstraint,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -87,6 +89,16 @@ class Agent(Base, TimestampMixin):
     # neither what runs nor what exports to git.
     avatar_color: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
+    # Editable discovery metadata, org-local and off the spec for the same reason
+    # the avatar is: categories and tags change neither what runs nor what exports
+    # to git. Stored as scalar arrays so a discovery filter is an array-overlap
+    # (`&&`) answered by a GIN index, not a join table nobody asked for. Never
+    # null - an existing row and a cleared facet are both the empty array.
+    categories: Mapped[list[str]] = mapped_column(
+        ARRAY(String(32)), nullable=False, server_default="{}"
+    )
+    tags: Mapped[list[str]] = mapped_column(ARRAY(String(32)), nullable=False, server_default="{}")
+
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=AgentStatus.DRAFT.value, index=True
     )
@@ -117,6 +129,11 @@ class Agent(Base, TimestampMixin):
         UniqueConstraint("organization_id", "slug", name="uq_agent_org_slug"),
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),
+        # GIN so the discovery filter's `categories && ARRAY[...]` overlap is an
+        # index scan. Declared here as well as in the migration for the reason the
+        # comment above says: a schema built from the models must carry them too.
+        Index("ix_agents_categories", "categories", postgresql_using="gin"),
+        Index("ix_agents_tags", "tags", postgresql_using="gin"),
     )
 
     @property
