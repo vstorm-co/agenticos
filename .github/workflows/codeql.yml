@@ -1,0 +1,81 @@
+# CodeQL, on the pull request that introduces the finding.
+#
+# This repository ran CodeQL through GitHub's **default setup** on a weekly
+# schedule: a finding landed on `main`, after merge, up to a week after the
+# commit that made it. That is a report, not a gate, and #1415 is the difference.
+# Default setup and an advanced workflow cannot both analyse the same repository
+# - GitHub refuses the advanced upload while default setup is configured - so
+# this file **replaces** it rather than joining it. Turning it off is a one-time
+# repository setting, not something a workflow can do:
+#
+#   gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+#
+# The weekly full run is kept here on `schedule`, because a query pack updated
+# after a merge finds things no pull request could have.
+#
+# The language list is the one default setup had. `javascript` and `typescript`
+# are aliases GitHub resolves to `javascript-typescript`, so they are named once;
+# `rust` is the desktop shell (`desktop/src-tauri`), and `actions` is this
+# directory, which is what `zizmor` in pre-commit reads from the other side.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Monday 04:17 UTC. Off the hour on purpose: the top of an hour is when every
+    # cron-scheduled workflow on GitHub queues at once.
+    - cron: "17 4 * * 1"
+
+# Same rule as `ci.yml`, and for the same reason: a pull request cancels its own
+# superseded runs, a push to `main` gets a group of its own so no merge commit
+# is left without an analysis.
+concurrency:
+  group: codeql-${{ github.ref }}-${{ github.event_name == 'push' && github.run_id || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    # Measured against default setup's own weekly runs, which finish the Python
+    # and JavaScript analyses in about six minutes each. Generous enough for a
+    # cold query-pack download, tight enough to end a stall - the same bargain
+    # `ci.yml` documents, and `backend/tests/test_codeql_workflow.py` holds the
+    # ceiling.
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # What the analysis upload needs. Declared per job rather than at the top
+      # so nothing else in this file can write a security event.
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, python, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          languages: ${{ matrix.language }}
+          # Every tree here is analysed from source. Naming it rather than
+          # leaving it to the default keeps a compiled language - `rust`, the
+          # desktop shell - from asking this job to reproduce its toolchain.
+          build-mode: none
+          # `security-extended` over the default pack: this is the analysis a
+          # client's security review asks about, and the extra queries are the
+          # ones that find the things a default pack calls style.
+          queries: security-extended
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          category: /language:${{ matrix.language }}

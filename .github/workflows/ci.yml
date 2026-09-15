@@ -680,6 +680,14 @@ jobs:
       - name: Check the third-party notices against the lockfiles
         run: make licenses-check
 
+      # The console's own lockfile, which nothing here read until #1415: `bun
+      # audit` was on the `SECURITY.md` checklist and in no job, so the two
+      # unauthenticated-RCE advisories against the pinned `next` were sitting in
+      # a green build. Gates at `high`, and exits non-zero on its own, so it
+      # needs none of the verdict-line machinery `make audit` carries.
+      - name: Audit the frontend lockfile for known vulnerabilities
+        run: make audit-frontend
+
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 15

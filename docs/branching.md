@@ -133,12 +133,24 @@ produces no evidence that it did not, so nothing about a run can reveal the
 regression. The same file asserts the other property no run can show — that every
 job bounds its own runtime, below.
 
-Two limits worth stating plainly. **A green stacked pull request was checked against
+One limit worth stating plainly: **a green stacked pull request was checked against
 its parent, not against `main`** — checks belong to a head commit, so retargeting
 carries the old result forward unchanged; that is inherent to stacking rather than
-something a trigger can fix, and it is a reason to keep stacks short. And **CodeQL is
-not configured here**: it runs from GitHub's default setup, whose triggers are not in
-this repository, so whether it reads a stacked pull request is not ours to decide.
+something a trigger can fix, and it is a reason to keep stacks short.
+
+CodeQL used to be the second one. It ran from GitHub's default setup on a weekly
+schedule, whose triggers were not in this repository, so a finding arrived on `main`
+after the merge that introduced it. `.github/workflows/codeql.yml` replaces that
+([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): the analysis runs on
+the pull request, on the same trigger as everything else here, and the weekly full
+run is kept for the query packs that update between merges. The two cannot coexist —
+GitHub refuses an advanced upload while default setup is configured — so switching
+the workflow on means switching default setup off, which is a repository setting
+rather than something the workflow can do:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
 
 ### Every job bounds its own runtime
 

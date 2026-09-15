@@ -1,5 +1,5 @@
 ---
-source_sha: "c8b11ff21e6a"
+source_sha: "06eca1f705c9"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -150,14 +150,28 @@ an einem Lauf die Regression zeigen. Dieselbe Datei prüft die andere Eigenschaf
 die kein Lauf zeigen kann — dass jeder Job seine eigene Laufzeit begrenzt, siehe
 unten.
 
-Zwei Grenzen, die klar gesagt gehören. **Ein grüner gestapelter Pull Request
-wurde gegen sein Elternteil geprüft, nicht gegen `main`** — Checks gehören zu
-einem Head-Commit, also trägt das Umhängen das alte Ergebnis unverändert weiter;
-das liegt am Stapeln selbst und nicht an etwas, das ein Trigger beheben könnte,
-und es ist ein Grund, Stapel kurz zu halten. Und **CodeQL ist hier nicht
-konfiguriert**: es läuft aus GitHubs Standardeinrichtung, deren Trigger nicht in
-diesem Repository liegen, also ist es nicht unsere Entscheidung, ob es einen
-gestapelten Pull Request liest.
+Eine Grenze, die klar gesagt gehört: **ein grüner gestapelter Pull Request wurde
+gegen sein Elternteil geprüft, nicht gegen `main`** — Checks gehören zu einem
+Head-Commit, also trägt das Umhängen das alte Ergebnis unverändert weiter; das
+liegt am Stapeln selbst und nicht an etwas, das ein Trigger beheben könnte, und es
+ist ein Grund, Stapel kurz zu halten.
+
+CodeQL war die zweite. Es lief aus GitHubs Standardeinrichtung auf einem
+wöchentlichen Plan, deren Trigger nicht in diesem Repository liegen, also traf ein
+Fund erst nach dem Merge, der ihn eingeführt hatte, auf `main` ein.
+`.github/workflows/codeql.yml` ersetzt das
+([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): die Analyse läuft am
+Pull Request, auf demselben Trigger wie alles andere hier, und der wöchentliche
+vollständige Lauf bleibt für die Query-Packs, die sich zwischen Merges
+aktualisieren. Beide können nicht nebeneinander bestehen — GitHub weist den Upload
+einer erweiterten Konfiguration ab, solange die Standardeinrichtung konfiguriert
+ist — also heißt dieses Workflow einzuschalten, die Standardeinrichtung
+abzuschalten, und das ist eine Repository-Einstellung und nichts, was das Workflow
+selbst tun kann:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
 
 ### Jeder Job begrenzt seine eigene Laufzeit { #every-job-bounds-its-own-runtime }
 

@@ -117,6 +117,9 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | A spec is refused at publish, never at run time | `validate_spec` (`app/services/agent_registry.py`) — unknown capability, ungranted scope, wrong-kind or cross-org `secret_id`, a personal MCP connection | `test_agent_registry.py`, `test_capability_secrets.py::TestPublishValidation` |
 | A budget is checked before the model request, and cost recorded even on failure | `BudgetGuard.wrap_model_request` gates before the call (`app/agents/capabilities/budget/`); the run's cost is written in a terminal `finally` (`app/services/agent_runner.py`) | `test_spend.py::TestBudgetGuard`, `test_agent_runner.py::…::test_a_failed_run_still_records_its_cost` |
 | An approval is decided exactly once | `ApprovalService.decide` refuses a non-pending row read `for_update` (`app/services/approvals.py`) | `test_approvals_queue.py::TestDecidingTwiceIsRefused` |
+| Static analysis blocks the change that introduces the finding | CodeQL (`security-extended`) on every pull request for Python, JavaScript/TypeScript, Rust and the workflows, plus a weekly full run (`.github/workflows/codeql.yml`) | `test_codeql_workflow.py` |
+| A known-vulnerable dependency fails the pull request | `make audit` over `backend/uv.lock` and `make audit-frontend` over `frontend/bun.lock`, both in the `Security Scan` job and in `make check` | `test_ci_parity.py` |
+| What a release contains can be read without building it | A CycloneDX SBOM per image, generated from the published manifest and attached to the release; [the component inventory](reference/components.md) is the readable index | `test_images_workflow.py::TestTheReleaseCarriesAnInventory` |
 
 ### Confidentiality of credentials · HIPAA §164.312(a)(2)(iv)
 

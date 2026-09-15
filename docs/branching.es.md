@@ -1,5 +1,5 @@
 ---
-source_sha: "c8b11ff21e6a"
+source_sha: "06eca1f705c9"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -145,13 +145,28 @@ dispara no produce prueba alguna de que no lo hizo, así que nada de una ejecuci
 puede revelar la regresión. El mismo fichero afirma la otra propiedad que ninguna
 ejecución puede mostrar — que cada job acota su propio tiempo de ejecución, abajo.
 
-Dos límites que conviene decir con claridad. **Una pull request apilada en verde
-se comprobó contra su madre, no contra `main`** — los checks pertenecen a un commit
-de cabecera, así que reapuntarla arrastra el resultado antiguo sin cambios; eso es
+Un límite que conviene decir con claridad: **una pull request apilada en verde se
+comprobó contra su madre, no contra `main`** — los checks pertenecen a un commit de
+cabecera, así que reapuntarla arrastra el resultado antiguo sin cambios; eso es
 inherente al apilado y no algo que un disparador pueda arreglar, y es una razón
-para mantener las pilas cortas. Y **CodeQL no está configurado aquí**: corre desde
-la configuración por defecto de GitHub, cuyos disparadores no están en este
-repositorio, así que si lee o no una pull request apilada no nos toca decidirlo.
+para mantener las pilas cortas.
+
+CodeQL era el segundo. Corría desde la configuración por defecto de GitHub con una
+periodicidad semanal, cuyos disparadores no están en este repositorio, así que un
+hallazgo llegaba a `main` después del merge que lo introdujo.
+
+`.github/workflows/codeql.yml` lo sustituye
+([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): el análisis corre en
+la pull request, con el mismo disparador que todo lo demás aquí, y la pasada
+completa semanal se conserva para los paquetes de consultas que se actualizan entre
+merges. Los dos no pueden convivir — GitHub rechaza la subida de una configuración
+avanzada mientras la configuración por defecto esté activa — así que encender este
+workflow significa apagar la configuración por defecto, y eso es un ajuste del
+repositorio y no algo que el workflow pueda hacer:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
 
 ### Cada job acota su propio tiempo de ejecución { #every-job-bounds-its-own-runtime }
 

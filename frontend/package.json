@@ -52,7 +52,7 @@
     "cmdk": "^1.1.1",
     "driver.js": "^1.8.0",
     "lucide-react": "^1.27.0",
-    "next": "^16.2.12",
+    "next": "^16.3.5",
     "next-intl": "^4.13.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -72,7 +72,7 @@
     "@types/react-dom": "^19.0.2",
     "tailwindcss": "^4.0.0",
     "@tailwindcss/postcss": "^4.0.0",
-    "postcss": "^8.4.49",
+    "postcss": "^8.5.28",
     "eslint": "^9.17.0",
     "eslint-config-next": "^16.2.12",
     "eslint-config-prettier": "^10.1.8",
@@ -91,6 +91,10 @@
     "jsdom": "^30.0.1",
     "@vitest/coverage-v8": "^4.1.10",
     "@vitest/ui": "^4.1.10"
+  },
+  "overrides": {
+    "nanoid": "^3.3.18",
+    "js-yaml": "^4.3.2"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx,mdx}": [

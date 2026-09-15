@@ -337,3 +337,63 @@ jobs:
           format: table
           exit-code: 0
           severity: CRITICAL,HIGH
+
+  # What is in the images, as a CycloneDX document a client can read without
+  # building anything (#1415). One per image, over the manifest the `publish`
+  # job just pushed, so the inventory names the layers a deployment actually
+  # pulls rather than whatever a source tree would resolve to today.
+  #
+  # Attached to the GitHub release on a `v*` tag, and kept as a run artifact on
+  # every other event - `edge` has an inventory too, it just has nowhere
+  # permanent to live. `docs/reference/components.md` is the human-readable half
+  # and points at these files.
+  sbom:
+    name: sbom ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [resolve, publish]
+    permissions:
+      # `write` for the release upload on a `v*` tag, which is the only thing in
+      # this workflow that writes anything back. The scan job beside it keeps
+      # `read`; widening it there would buy nothing.
+      contents: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - name: Sign in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate the CycloneDX inventory
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          # The `sha-` tag, the one name every event publishes - the same choice
+          # the scan above makes and for the same reason.
+          image: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:sha-${{ needs.resolve.outputs.short }}
+          format: cyclonedx-json
+          artifact-name: sbom-${{ matrix.image == 'backend' && 'api' || 'frontend' }}.cdx.json
+          output-file: sbom-${{ matrix.image == 'backend' && 'api' || 'frontend' }}.cdx.json
+          upload-artifact: true
+          # The action's default is to attach the document to the release when
+          # the run is a release event. This workflow is triggered by the tag
+          # push rather than by a release, so the attach is the explicit step
+          # below.
+          upload-release-assets: false
+
+      # A release exists by the time the tag is pushed - the cut creates it - so
+      # this uploads into it rather than creating one. `--clobber` so a re-run
+      # of a publish replaces the document instead of failing on a name that is
+      # already there.
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          FILE: sbom-${{ matrix.image == 'backend' && 'api' || 'frontend' }}.cdx.json
+        run: gh release upload "$TAG" "$FILE" --clobber --repo "$GITHUB_REPOSITORY"

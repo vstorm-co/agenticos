@@ -1,5 +1,5 @@
 ---
-source_sha: "097a2caa4c8d"
+source_sha: "ed41ce8850a9"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -136,10 +136,11 @@ licencję każdego pakietu w `/usr/share/doc/<package>/copyright` wewnątrz obra
 i publikuje odpowiadające źródła dla każdego binarium, które wysyła, i to na tym
 opiera się źródłowe zobowiązanie GPL i LGPL dla redystrybuowanego obrazu. Obraz
 backendu dokłada LibreOffice (MPL-2.0) i Tesseract (Apache-2.0) jako pakiety
-Debiana, używane bez modyfikacji jako osobne procesy. SBOM per wydanie zaplanowany
-w [#1415](https://github.com/vstorm-co/agenticos/issues/1415) zapisze dokładny
-zbiór pakietów każdego obrazu; zanim to nastąpi, inwentarzem tej warstwy są
-Dockerfile'e i digesty obrazów bazowych.
+Debiana, używane bez modyfikacji jako osobne procesy. SBOM per wydanie zapisuje
+dokładny zbiór pakietów każdego obrazu: `sbom-api.cdx.json` i
+`sbom-frontend.cdx.json` są dołączane do każdego wydania, generowane
+z opublikowanych manifestów, a [inwentarz komponentów](reference/components.md)
+jest ich czytelnym indeksem.
 
 ## Komponent na AGPL { #the-agpl-component }
 
@@ -297,8 +298,10 @@ Zanim wydanie zostanie wycięte, i jako dowód do niego dołączony:
   wydanie faktycznie używa
 - [ ] Jeśli do katalogu albo do tabeli modeli powyżej dołożono rodzinę modeli, jej
   licencję odczytano z aktualnej karty modelu
-- [ ] Gdy będzie już istniał SBOM per wydanie z #1415: jest dołączony do wydania,
-  a jego zbiór komponentów zgadza się z notami dla dwóch obrazów
+- [ ] Wydanie niesie `sbom-api.cdx.json` i `sbom-frontend.cdx.json`, a ich zbiór
+  komponentów zgadza się z notami dla dwóch obrazów
+- [ ] Strona [inwentarza komponentów](reference/components.md) nadal opisuje
+  zbiory, które to wydanie dostarcza
 
 ## Podsumowanie { #recap }
 

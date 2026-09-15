@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- CodeQL runs on every pull request (`security-extended`, for Python,
+  JavaScript/TypeScript, Rust and the workflows) instead of weekly on `main`
+  through GitHub's default setup, so a finding blocks the change that introduced
+  it. The weekly full run is kept for query packs that update between merges.
+  Switching the workflow on means switching default setup off — a repository
+  setting, named in `docs/branching.md`. (#1415)
+- `make audit-frontend` — `bun audit --audit-level=high` over `frontend/bun.lock`
+  — in the `Security Scan` job and in `make check`. Nothing read that lockfile
+  before. (#1415)
+- A CycloneDX SBOM per image, generated from the published manifest and attached
+  to each release as `sbom-api.cdx.json` and `sbom-frontend.cdx.json`; `make sbom`
+  writes the same documents locally from the source tree. (#1415)
+- `docs/reference/components.md`, the readable component inventory: what this
+  project writes, what it depends on, what ships in each image, and the models and
+  services a deployment adds that no image SBOM can see. (#1415)
+
+### Fixed
+
+- Frontend dependency advisories the new audit found: `next` raised past two
+  unauthenticated-RCE advisories, `postcss` past two source-map path-traversal
+  advisories, and `nanoid` and `js-yaml` pinned forward through `overrides`
+  because their parents have not moved. (#1415)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

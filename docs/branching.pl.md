@@ -1,5 +1,5 @@
 ---
-source_sha: "c8b11ff21e6a"
+source_sha: "06eca1f705c9"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -148,13 +148,26 @@ przebiegu nie może ujawnić tej regresji. Ten sam plik asertuje drugą własno�
 której żaden przebieg nie pokaże — że każdy job ogranicza własny czas działania,
 niżej.
 
-Dwa ograniczenia warte wyraźnego powiedzenia. **Zielony stacked pull request był
+Jedno ograniczenie warte wyraźnego powiedzenia: **zielony stacked pull request był
 sprawdzony wobec swojego rodzica, a nie wobec `main`** — checki należą do commita
 head, więc przekierowanie przenosi stary wynik dalej bez zmian; to jest wpisane
 w stackowanie, a nie coś, co wyzwalacz może naprawić, i jest to powód, żeby stosy
-były krótkie. Oraz: **CodeQL nie jest tu konfigurowany** — działa z domyślnego
-setupu GitHuba, którego wyzwalaczy nie ma w tym repozytorium, więc to, czy czyta
-stacked pull request, nie jest naszą decyzją.
+były krótkie.
+
+CodeQL był drugim takim ograniczeniem. Działał z domyślnego setupu GitHuba w cyklu
+tygodniowym, a jego wyzwalaczy nie ma w tym repozytorium, więc znalezisko trafiało
+na `main` już po scaleniu, które je wprowadziło. `.github/workflows/codeql.yml` to
+zastępuje ([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): analiza
+działa na pull requeście, na tym samym wyzwalaczu co wszystko inne tutaj,
+a tygodniowy pełny przebieg zostaje dla paczek zapytań, które aktualizują się
+między scaleniami. Oba nie mogą działać naraz — GitHub odmawia wgrania wyniku
+konfiguracji zaawansowanej, gdy skonfigurowany jest setup domyślny — więc włączenie
+tego workflow oznacza wyłączenie setupu domyślnego, a to ustawienie repozytorium,
+nie coś, co workflow może zrobić sam:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
 
 ### Każdy job ogranicza własny czas działania { #every-job-bounds-its-own-runtime }
 

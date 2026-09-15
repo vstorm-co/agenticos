@@ -291,6 +291,7 @@ nav:
       - reference/spec.md
       - reference/capabilities.md
       - reference/permissions.md
+      - reference/components.md
   - Resources:
       - resources/index.md
       - Development - contributing:

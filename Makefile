@@ -1,4 +1,4 @@
-.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
+.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit audit-frontend sbom licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -527,6 +527,44 @@ audit:
 	uv run --directory backend python3 ../scripts/audit_dependencies.py requirements-audit.txt \
 		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
+# The frontend half of the same job. `make audit` reads `backend/uv.lock`; this
+# reads `frontend/bun.lock`, which nothing checked until #1415 - `bun audit` was
+# a line on the `SECURITY.md` checklist and in no job, so a console dependency
+# advisory was something somebody found by running it by hand.
+#
+# `bun audit` exits 1 on a finding and 0 on none, so unlike `audit` it needs no
+# verdict-line contract: make's own exit status carries the answer. The level is
+# `high`, which is the line this repository gates on - a `moderate` advisory in a
+# build-time dependency is worth knowing and is not worth a red required check.
+#
+# A finding here is fixed by raising the range in `package.json`, or - when the
+# vulnerable package is a transitive dependency whose parent has not moved yet -
+# by an entry in `overrides` there. Both are in the tree at the moment this
+# target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
+# forward through their parents.
+AUDIT_LEVEL ?= high
+
+audit-frontend:
+	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL)
+
+# A CycloneDX component inventory for the two published images, written to
+# `sbom/`. The release workflow runs the same generator against the images it
+# just published and attaches the result to the GitHub release (#1415), so a
+# deployment can answer "what is in it" without building it; this target is the
+# local equivalent, over the source tree rather than an image, and is what
+# `docs/reference/components.md` is regenerated from.
+#
+# Not in `check`: it needs `syft`, which is not part of the documented setup,
+# and it gates nothing - the release workflow is where it is load-bearing.
+SBOM_DIR ?= sbom
+
+sbom:
+	@command -v syft >/dev/null || { echo "syft not installed - https://github.com/anchore/syft"; exit 1; }
+	mkdir -p $(SBOM_DIR)
+	syft scan dir:backend --output cyclonedx-json=$(SBOM_DIR)/sbom-api.cdx.json
+	syft scan dir:frontend --output cyclonedx-json=$(SBOM_DIR)/sbom-frontend.cdx.json
+	@echo "SBOM: written to $(SBOM_DIR)/"
+
 # The other half of the `security` job: what the two images ship and under which
 # licences. `licenses` regenerates THIRD_PARTY_NOTICES.md from the lockfiles;
 # `licenses-check` regenerates it in memory and fails when the committed file is
@@ -597,7 +635,7 @@ test-e2e:
 #     laptop is the database with your own work in it.
 CHECK_DB_PORT ?= 5432
 
-check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit licenses-check
+check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit audit-frontend licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
 	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \

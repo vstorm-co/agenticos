@@ -197,3 +197,55 @@ class TestTheComposeFilesPullWhatTheWorkflowPublishes:
             assert registry != "ghcr.io", (
                 f"the override pins {name} to a registry image; it exists to build from the tree"
             )
+
+
+class TestTheReleaseCarriesAnInventory:
+    """#1415: a client answering "what is in it" without building it.
+
+    The document is generated from the *published manifest*, not from the source
+    tree, so an inventory that silently starts describing a checkout would be a
+    different claim under the same file name. And it is attached to the release
+    only on a `v*` tag - on `main` there is no release to attach it to, and a
+    run artifact is the honest place for `edge`'s inventory.
+    """
+
+    def test_both_images_get_one(self, workflow: dict[str, Any]) -> None:
+        assert set(workflow["jobs"]["sbom"]["strategy"]["matrix"]["image"]) == {
+            "backend",
+            "frontend",
+        }
+
+    def test_it_reads_the_published_image_rather_than_the_tree(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        generate = next(
+            step
+            for step in workflow["jobs"]["sbom"]["steps"]
+            if step.get("uses", "").startswith("anchore/sbom-action")
+        )
+        assert "${{ env.IMAGE_PREFIX }}" in generate["with"]["image"]
+        assert generate["with"]["format"] == "cyclonedx-json"
+
+    def test_it_runs_after_the_publish_it_describes(self, workflow: dict[str, Any]) -> None:
+        assert "publish" in workflow["jobs"]["sbom"]["needs"]
+
+    def test_the_release_upload_happens_only_on_a_version_tag(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        upload = next(
+            step
+            for step in workflow["jobs"]["sbom"]["steps"]
+            if "gh release upload" in step.get("run", "")
+        )
+        assert upload["if"] == "startsWith(github.ref, 'refs/tags/v')"
+
+    def test_only_the_job_that_writes_a_release_holds_contents_write(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        assert workflow["permissions"] == {"contents": "read"}
+        writing = {
+            name
+            for name, job in workflow["jobs"].items()
+            if job.get("permissions", {}).get("contents") == "write"
+        }
+        assert writing == {"sbom"}
