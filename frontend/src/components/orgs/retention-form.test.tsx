@@ -62,19 +62,25 @@ describe("the retention form", () => {
     expect(screen.getAllByText("keptForEver").length).toBeGreaterThan(0);
   });
 
-  it("sends a number for a filled box and null for an empty one", async () => {
+  it("sends nothing at all when nothing was typed", async () => {
+    // An empty box means two different things - "nothing has been said about
+    // this class" and "keep for ever, deliberately" - and only the typing tells
+    // them apart. Sending `null` for every empty box turned opening the page and
+    // saving into overriding every deployment default with "for ever".
     const onSave = renderForm({ requested: { conversations: 30 } });
 
     await userEvent.click(screen.getByRole("button", { name: "save" }));
 
-    expect(onSave).toHaveBeenCalledWith({
-      conversations: 30,
-      runs: null,
-      workspaces: null,
-      memory: null,
-      knowledge_documents: null,
-      audit: null,
-    });
+    expect(onSave).toHaveBeenCalledWith({});
+  });
+
+  it("sends null for a box the person cleared, and that alone", async () => {
+    const onSave = renderForm({ requested: { conversations: 30, runs: 90 } });
+
+    await userEvent.clear(screen.getByLabelText("classes.conversations"));
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+
+    expect(onSave).toHaveBeenCalledWith({ conversations: null });
   });
 
   it("sends what was typed, not what was loaded", async () => {
@@ -85,7 +91,7 @@ describe("the retention form", () => {
     await userEvent.type(box, "90");
     await userEvent.click(screen.getByRole("button", { name: "save" }));
 
-    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ runs: 90 });
+    expect(onSave.mock.calls[0]?.[0]).toEqual({ runs: 90 });
   });
 
   it("follows the policy the server answered with, not what was typed at it", async () => {

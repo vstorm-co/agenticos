@@ -1392,6 +1392,12 @@ Set it at **Organizations → a workspace → Members → Retention**, gated on
 `org:settings`. A sweep runs once a day and **hard-deletes**: a policy that kept
 the rows would not be a policy.
 
+The deployment's own three numbers - `retention_defaults`, `retention_max_days`
+and `audit_retention_floor_days` - are fields on the deployment settings, written
+by an app admin through `PATCH /admin/deployment-settings` like every other
+setting there. There is no console form for them yet; the organization's page is
+where the per-tenant periods are set.
+
 ### The classes
 
 | Class | What leaves with it | Measured from |
@@ -1423,7 +1429,15 @@ Three layers, resolved in `app/core/retention.py` and nowhere else:
 
 Audit runs the other way. The deployment sets a **floor** - the shortest an
 entry may live, six years unless an operator changes it - and an organization
-may lengthen it and never shorten it. A trail an administrator can shorten is
+may lengthen it and never shorten it. **Nothing sweeps audit yet**: the period
+resolves and is reported and an organization is held to the floor, but no entry
+is deleted, because the hash chain and its append-only checkpoint are built on
+entries not going anywhere and a bare delete makes `audit-verify` report the
+retirement as tampering. Retiring a chain verifiably is
+[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+A ceiling still applies to audit where the two do not contradict each other. Where
+they do, the floor wins and the contradiction is reported. A trail an administrator can shorten is
 not a trail, so a period below the floor is **refused** rather than quietly
 raised to it: silently keeping entries longer than the number on the screen is
 its own kind of wrong.

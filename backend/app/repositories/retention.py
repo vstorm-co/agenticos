@@ -25,15 +25,28 @@ from sqlalchemy import CursorResult, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent_run import AgentRun
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_workspace import AgentWorkspace
-from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.rag_document import RAGDocument
+
+#: The statuses a retention sweep may retire.
+#:
+#: `running` is a row a live process still means to finalize and
+#: `awaiting_approval` is somebody's pending decision; deleting either loses work
+#: rather than retiring it. A short window reaches both first, which is exactly
+#: when this matters.
+_RETIRABLE = (
+    RunStatus.COMPLETED,
+    RunStatus.FAILED,
+    RunStatus.CANCELLED,
+    RunStatus.BUDGET_EXCEEDED,
+    RunStatus.GUARDRAIL_BLOCKED,
+)
 
 
 async def organizations_with_retention(
@@ -96,50 +109,58 @@ async def delete_conversations(
     return result.rowcount or 0
 
 
-async def expiring_run_spend(
+async def delete_runs_keeping_their_spend(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> list[tuple[datetime, Decimal, int]]:
-    """What the runs about to be purged cost, grouped by the month they started.
+) -> tuple[int, list[tuple[datetime, Decimal, int]]]:
+    """Delete the oldest finished runs and answer what they cost, atomically.
 
-    Read before the delete for the same reason the file paths are: a month's bill
-    is a sum over these rows, and an organization whose spend fell to zero on the
-    day its retention window passed would have a budget cap that stopped
-    enforcing mid-month.
+    **One statement, and that is the point.** Reading the costs and then deleting
+    the rows lets two overlapping sweeps read the same batch: the first delete
+    wins, the second removes nothing, and its additive upsert of the same figure
+    stays - permanently inflating the month and the budget metered on it. A
+    `DELETE ... RETURNING` cannot be read by a sweep that is not going to remove
+    the row, so the figure kept is exactly the figure lost.
+
+    **Only terminal runs.** `running` is a row a live process still means to
+    finalize and `awaiting_approval` is somebody's pending decision; deleting
+    either loses work rather than retiring it, and a short window reaches both
+    first. Manifests and tool approvals cascade; a delegated child whose parent
+    goes keeps its own row (`parent_run_id` is `SET NULL`) and is retired by its
+    own age like any other run.
+
+    Returns:
+        How many rows went, and their cost grouped by the month they started in -
+        **top-level runs only**, because a parent's `cost_usd` already contains
+        what its delegates spent and the live billing query filters the children
+        out for exactly that reason. Counting both would double-charge the work
+        the moment retention removed it.
     """
-    expiring = _expiring_run_ids(organization_id=organization_id, cutoff=cutoff, limit=limit)
-    period = func.date_trunc("month", AgentRun.started_at)
-    rows = await db.execute(
-        select(period, func.coalesce(func.sum(AgentRun.cost_usd), 0), func.count())
-        .where(AgentRun.id.in_(expiring))
-        .group_by(period)
-    )
-    return [(row[0], Decimal(row[1]), row[2]) for row in rows.all()]
-
-
-async def delete_runs(
-    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> int:
-    """Drop the oldest finished runs started before `cutoff`. Manifests cascade."""
-    expiring = _expiring_run_ids(organization_id=organization_id, cutoff=cutoff, limit=limit)
-    result = cast(
-        CursorResult[Any], await db.execute(delete(AgentRun).where(AgentRun.id.in_(expiring)))
-    )
-    return result.rowcount or 0
-
-
-def _expiring_run_ids(*, organization_id: UUID, cutoff: datetime, limit: int) -> Any:
-    """The oldest runs this pass may take, as a subquery both callers share.
-
-    Both the spend read and the delete must see *the same* rows, or the figure
-    kept would belong to runs that are still there.
-    """
-    return (
+    expiring = (
         select(AgentRun.id)
-        .where(AgentRun.organization_id == organization_id, AgentRun.started_at < cutoff)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at < cutoff,
+            AgentRun.status.in_(_RETIRABLE),
+        )
         .order_by(AgentRun.started_at)
         .limit(limit)
         .scalar_subquery()
     )
+    removed = await db.execute(
+        delete(AgentRun)
+        .where(AgentRun.id.in_(expiring))
+        .returning(AgentRun.started_at, AgentRun.cost_usd, AgentRun.parent_run_id)
+    )
+    rows = removed.all()
+
+    by_month: dict[datetime, tuple[Decimal, int]] = {}
+    for started_at, cost, parent_run_id in rows:
+        if parent_run_id is not None:
+            continue
+        period = started_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        total, count = by_month.get(period, (Decimal(0), 0))
+        by_month[period] = (total + Decimal(cost or 0), count + 1)
+    return len(rows), [(period, total, count) for period, (total, count) in by_month.items()]
 
 
 async def record_purged_spend(
@@ -276,35 +297,6 @@ async def delete_documents(db: AsyncSession, *, document_ids: list[UUID]) -> int
     result = cast(
         CursorResult[Any],
         await db.execute(delete(RAGDocument).where(RAGDocument.id.in_(document_ids))),
-    )
-    return result.rowcount or 0
-
-
-async def delete_audit_entries(
-    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> int:
-    """Drop the oldest audit entries recorded before `cutoff`.
-
-    The one class whose period has a floor rather than a default, resolved by
-    `app/core/retention.py` before this is ever called. The hash chain's
-    checkpoints are left alone: they record how far a chain reached, and rewinding
-    one is what `0080_audit_checkpoints`'s trigger exists to refuse. A verified
-    chain with its oldest entries retired reads as a short chain, which is the
-    truth about a deployment that retires them.
-    """
-    expiring = (
-        select(AppAdminAuditLog.id)
-        .where(
-            AppAdminAuditLog.organization_id == organization_id,
-            AppAdminAuditLog.created_at < cutoff,
-        )
-        .order_by(AppAdminAuditLog.created_at)
-        .limit(limit)
-        .scalar_subquery()
-    )
-    result = cast(
-        CursorResult[Any],
-        await db.execute(delete(AppAdminAuditLog).where(AppAdminAuditLog.id.in_(expiring))),
     )
     return result.rowcount or 0
 

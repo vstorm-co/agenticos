@@ -1,5 +1,5 @@
 ---
-source_sha: "4357a73b3cba"
+source_sha: "7d8da1b9587b"
 ---
 
 # Seguridad { #security }
@@ -119,7 +119,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Las mutaciones relevantes para la governance quedan registradas, dentro de la transacción de la petición | `record_audit` (`app/core/audit.py`) en el servicio que muta — rotación de secretos, vinculación de skill / sincronización / MCP, membresía, compartición, aprobaciones, exportaciones y más; escrito en `app_admin_audit_logs`. No es cobertura general de toda escritura (el CRUD de la base de conocimiento, por ejemplo, no se audita) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | El rastro es legible por un auditor | `GET /audit`, gateado en `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exportar el rastro (CSV/JSONL) | `GET /audit/export` sobre una ventana, con puerta en `audit:read`, registrando su propia lectura en el rastro; las exportaciones de runs, aprobaciones y gasto hacen lo mismo (#1422) | `test_exporting.py` (la exportación y su propia entrada de auditoría) |
-| Un periodo de auditoría que una organización puede alargar y nunca acortar | Un suelo de todo el despliegue (seis años por defecto, HIPAA §164.316(b)(2)); un periodo más corto se rechaza en vez de subirse (`app/core/retention.py`, `app/services/retention.py`). Véase [Retención](governance.md#retention) | `test_retention.py::TestWhichNumberWins` |
+| Un periodo de auditoría que una organización puede alargar y nunca acortar | Un suelo de todo el despliegue (seis años por defecto, HIPAA §164.316(b)(2)); un periodo más corto se rechaza en vez de subirse. El barrido **no** borra entradas de auditoría: la cadena de hashes y su checkpoint se apoyan en que las entradas se quedan, así que retirarlas de forma verificable es [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). Véase [Retención](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
 | Evidencia de manipulación (una cadena de hashes) | **Todavía no** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integridad · HIPAA §164.312(c) · SOC 2 CC8 (gestión del cambio) { #integrity-hipaa-164312c-soc-2-cc8-change-management }

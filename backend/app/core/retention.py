@@ -23,7 +23,17 @@ Three layers decide the number, and this module is the only place they meet:
 
 And audit runs the other way round: the deployment sets a **floor**, and an
 organization may lengthen it and never shorten it. A trail an administrator can
-shorten is not a trail.
+shorten is not a trail. A ceiling still applies to it where the two do not
+contradict each other, and where they do the floor wins and `policy_conflicts`
+reports the contradiction.
+
+**Nothing sweeps audit yet.** The period resolves and is reported, and an
+organization is held to the floor when it sets one - but the sweep does not
+delete audit entries, because the hash chain in `0079_audit_hash_chain` and the
+append-only checkpoint in `0080_audit_checkpoints` are built on entries not going
+anywhere: a bare delete makes `audit-verify` report the retirement as tampering.
+Retiring a chain verifiably is #1622's, and claiming a retention that breaks the
+integrity check would be worse than saying it is not there.
 
 A floor above a ceiling is a contradiction, not a tie to break quietly, so
 `policy_conflicts` reports it and the settings that would create one are
@@ -100,14 +110,21 @@ def effective_policy(
     resolved: dict[RetentionClass, Days] = {}
     for name in RETENTION_CLASSES:
         chosen = org[name] if name in org else default.get(name)
-        if name == AUDIT:
-            # A floor, not a default: the longer of the two wins, and an
-            # organization that set nothing still gets the floor.
-            resolved[name] = floor if chosen is None else max(chosen, floor)
-            continue
         cap = ceiling.get(name)
         if cap is not None and (chosen is None or chosen > cap):
             chosen = cap
+        if name == AUDIT:
+            # A floor as well as a ceiling, and in that order: the ceiling has
+            # already cut a longer request, and the floor then raises a shorter
+            # one. Skipping the ceiling here let an organization ask for longer
+            # than the deployment permitted and get it, while the API reported
+            # the ceiling it was not applying.
+            #
+            # Where the two contradict each other the floor wins and
+            # `policy_conflicts` says so, because a trail that can be shortened
+            # by setting a ceiling is a trail an administrator can shorten.
+            resolved[name] = floor if chosen is None else max(chosen, floor)
+            continue
         resolved[name] = chosen
     return resolved
 

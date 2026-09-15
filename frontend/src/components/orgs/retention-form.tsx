@@ -27,13 +27,23 @@ interface RetentionFormProps {
  * sweeps is frequently not the number in the box beside it - and a page that
  * showed only one of the two would be a page somebody argues with (#1420).
  *
- * An empty box is "keep for ever", which is a real answer here and not a missing
- * one: `null` and unset differ on the wire, and this form sends `null`.
+ * An empty box is ambiguous, and the form resolves it by what was typed rather
+ * than by what it looks like. Cleared by the person, it means "keep for ever" and
+ * sends `null`; never touched, it means this class has no opinion and is left out
+ * of the request entirely - because `null` and absent are different answers on
+ * the wire, and sending `null` for every empty box made opening the page and
+ * saving one row override every deployment default with "for ever".
  */
 export function RetentionForm({ policy, isSaving, saved, onSave }: RetentionFormProps) {
   const t = useTranslations("pages.retention");
   const [draft, setDraft] = useState<Record<string, string>>(() => asText(policy.requested));
   const [shown, setShown] = useState(policy.requested);
+  // Which rows the person actually touched. An empty box means two different
+  // things - "nothing has been said about this class, take the deployment's
+  // default" and "keep for ever, deliberately" - and only the typing tells them
+  // apart. Sending `null` for every empty box turned opening the page and saving
+  // one row into overriding every default with "for ever" (#1420 review).
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
 
   // A save answers with the resolved policy, so the boxes follow what the server
   // stored rather than what was typed at it. Adjusted during render rather than
@@ -42,11 +52,18 @@ export function RetentionForm({ policy, isSaving, saved, onSave }: RetentionForm
   if (shown !== policy.requested) {
     setShown(policy.requested);
     setDraft(asText(policy.requested));
+    setTouched(new Set());
   }
+
+  const edit = (name: RetentionClass, value: string) => {
+    setDraft((current) => ({ ...current, [name]: value }));
+    setTouched((current) => new Set(current).add(name));
+  };
 
   const submit = async () => {
     const days: RetentionDays = {};
     for (const name of RETENTION_CLASSES) {
+      if (!touched.has(name)) continue;
       const raw = draft[name]?.trim() ?? "";
       days[name] = raw === "" ? null : Number(raw);
     }
@@ -84,9 +101,7 @@ export function RetentionForm({ policy, isSaving, saved, onSave }: RetentionForm
                     aria-label={t(`classes.${name}`)}
                     placeholder={t("forEver")}
                     value={draft[name] ?? ""}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, [name]: event.target.value }))
-                    }
+                    onChange={(event) => edit(name, event.target.value)}
                   />
                 </td>
                 <td className="text-muted-foreground px-3 py-2 text-xs">

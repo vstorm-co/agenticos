@@ -1,5 +1,5 @@
 ---
-source_sha: "0e05f1abf28d"
+source_sha: "9a704a95fbdc"
 ---
 
 # Governance { #governance }
@@ -1586,6 +1586,13 @@ Zu setzen unter **Organisationen → ein Workspace → Mitglieder → Aufbewahru
 abgesichert über `org:settings`. Ein Sweep läuft einmal täglich und löscht
 **hart**: eine Richtlinie, die die Zeilen behielte, wäre keine.
 
+Die drei eigenen Zahlen des Deployments - `retention_defaults`,
+`retention_max_days` und `audit_retention_floor_days` - sind Felder der
+Deployment-Einstellungen, von einer App-Administratorin über
+`PATCH /admin/deployment-settings` geschrieben wie jede andere Einstellung dort.
+Ein Konsolenformular dafür gibt es noch nicht; die Seite der Organisation ist der
+Ort für die Fristen je Tenant.
+
 ### Die Klassen { #the-classes }
 
 | Klasse | Was mitgeht | Gemessen ab |
@@ -1617,7 +1624,17 @@ Drei Schichten, aufgelöst in `app/core/retention.py` und sonst nirgends:
 
 Beim Audit läuft es andersherum. Das Deployment setzt eine **Untergrenze** — wie
 kurz ein Eintrag höchstens leben darf, sechs Jahre, bis eine Betreiberin das
-ändert — und eine Organisation darf sie verlängern, nie verkürzen. Eine Spur, die
+ändert — und eine Organisation darf sie verlängern, nie verkürzen. **Audit wird
+noch nicht weggeräumt**: die Frist wird aufgelöst und gemeldet und eine
+Organisation an die Untergrenze gehalten, aber kein Eintrag gelöscht - die
+Hash-Kette und ihr Append-only-Checkpoint stehen darauf, dass Einträge nirgendwo
+hingehen, und ein bloßes Löschen lässt `audit-verify` die Ausmusterung als
+Manipulation melden. Eine Kette nachprüfbar auszumustern ist
+[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+Eine Obergrenze gilt für das Audit weiterhin, wo die beiden einander nicht
+widersprechen. Wo doch, gewinnt die Untergrenze, und der Widerspruch wird
+gemeldet. Eine Spur, die
 eine Administratorin kürzen kann, ist keine Spur, also wird eine Frist unterhalb
 der Untergrenze **abgelehnt** statt still auf sie angehoben: Einträge länger zu
 behalten als die Zahl auf dem Bildschirm sagt, ist ein Fehler eigener Art.

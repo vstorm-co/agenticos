@@ -1,5 +1,5 @@
 ---
-source_sha: "0e05f1abf28d"
+source_sha: "9a704a95fbdc"
 ---
 
 # Governance { #governance }
@@ -1492,6 +1492,12 @@ Ustawisz to w **Organizacje → workspace → Członkowie → Retencja**, za bra
 `org:settings`. Sweep chodzi raz dziennie i **usuwa twardo**: polityka, która
 zostawiałaby wiersze, nie byłaby polityką.
 
+Trzy własne liczby wdrożenia — `retention_defaults`, `retention_max_days` i
+`audit_retention_floor_days` — to pola ustawień wdrożenia, zapisywane przez app
+admina przez `PATCH /admin/deployment-settings` jak każde inne ustawienie tam.
+Formularza w konsoli dla nich jeszcze nie ma; strona organizacji jest miejscem,
+gdzie ustawia się okresy per tenant.
+
 ### Klasy { #the-classes }
 
 | Klasa | Co odchodzi razem z nią | Liczone od |
@@ -1523,7 +1529,15 @@ Trzy warstwy, rozstrzygane w `app/core/retention.py` i nigdzie indziej:
 
 Audyt działa odwrotnie. Wdrożenie ustawia **podłogę** — najkrócej, jak wpis może
 żyć, sześć lat, dopóki operator tego nie zmieni — a organizacja może ją wydłużyć
-i nigdy skrócić. Ścieżka, którą administrator może skrócić, nie jest ścieżką,
+i nigdy skrócić. **Audytu nic jeszcze nie zamiata**: okres się rozstrzyga i jest
+raportowany, a organizacja jest trzymana przy podłodze, ale żaden wpis nie jest
+usuwany, bo łańcuch haszy i jego append-only checkpoint stoją na tym, że wpisy
+nigdzie nie idą, a gołe usunięcie sprawia, że `audit-verify` raportuje wycofanie
+jako manipulację. Weryfikowalne wycofywanie łańcucha to
+[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+Sufit dalej obowiązuje audyt tam, gdzie oba nie są sprzeczne. Tam, gdzie są,
+wygrywa podłoga, a sprzeczność jest raportowana. Ścieżka, którą administrator może skrócić, nie jest ścieżką,
 więc okres poniżej podłogi jest **odrzucany**, a nie po cichu do niej podnoszony:
 trzymanie wpisów dłużej, niż mówi liczba na ekranie, to własny rodzaj błędu.
 

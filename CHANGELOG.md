@@ -30,7 +30,9 @@ Two things are versioned separately from this file and worth knowing about:
   shorten. A daily Prefect flow hard-deletes in batches and records one audit
   entry per organization per sweep, naming the class and the count and never the
   content. A ceiling below the audit floor is reported to the operator rather
-  than resolved. (#1420)
+  than resolved. Audit's own period resolves and is reported but nothing sweeps
+  it: the hash chain and its append-only checkpoint are built on entries staying,
+  so retiring one verifiably is #1622. (#1420)
 - **A purged run still counts toward the month's bill.** A month's spend is a sum
   over `agent_runs`, so removing them would drop an organization's month-to-date
   figure to zero as the window passed and a cap metered on that figure would stop

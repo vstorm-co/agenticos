@@ -1,5 +1,5 @@
 ---
-source_sha: "0e05f1abf28d"
+source_sha: "9a704a95fbdc"
 ---
 
 # Governance { #governance }
@@ -1456,6 +1456,12 @@ Se configura en **Organizaciones → un workspace → Miembros → Retención**,
 protegido por `org:settings`. Un barrido corre una vez al día y **borra de
 verdad**: una política que conservara las filas no sería una política.
 
+Los tres números propios del despliegue —`retention_defaults`,
+`retention_max_days` y `audit_retention_floor_days`— son campos de los ajustes
+del despliegue, escritos por una app admin con `PATCH /admin/deployment-settings`
+como cualquier otro ajuste de ahí. Todavía no hay formulario en la consola para
+ellos; la página de la organización es donde se fijan los periodos por tenant.
+
 ### Las clases { #the-classes }
 
 | Clase | Qué se va con ella | Medido desde |
@@ -1487,7 +1493,15 @@ Tres capas, resueltas en `app/core/retention.py` y en ningún otro sitio:
 
 La auditoría va al revés. El despliegue fija un **suelo** —lo mínimo que puede
 vivir una entrada, seis años mientras nadie lo cambie— y una organización puede
-alargarlo y nunca acortarlo. Un rastro que una administradora puede acortar no es
+alargarlo y nunca acortarlo. **La auditoría todavía no se barre**: el periodo se
+resuelve y se informa, y una organización queda sujeta al suelo, pero no se borra
+ninguna entrada, porque la cadena de hashes y su checkpoint append-only se apoyan
+en que las entradas no se van a ninguna parte, y un borrado a secas hace que
+`audit-verify` informe la retirada como manipulación. Retirar una cadena de forma
+verificable es [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+Un techo sigue aplicándose a la auditoría donde ambos no se contradicen. Donde sí,
+gana el suelo y la contradicción se informa. Un rastro que una administradora puede acortar no es
 un rastro, así que un periodo por debajo del suelo se **rechaza** en lugar de
 subirse en silencio: conservar entradas más tiempo del que dice el número en
 pantalla es un error de su propia clase.

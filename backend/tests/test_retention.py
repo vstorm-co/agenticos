@@ -30,6 +30,7 @@ from app.core.retention import (
     known_periods,
     policy_conflicts,
 )
+from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.retention import RetentionUpdate
 from app.services.retention import BATCH, MAX_BATCHES, RetentionService
 
@@ -112,6 +113,19 @@ class TestWhichNumberWins:
     def test_an_organization_may_keep_audit_longer_than_the_floor(self) -> None:
         policy = effective_policy(
             organization={"audit": 4000}, defaults=None, ceilings=None, audit_floor_days=2190
+        )
+
+        assert policy["audit"] == 4000
+
+    def test_a_compatible_audit_ceiling_still_binds(self) -> None:
+        """A ceiling above the floor is a valid upper bound, and skipping it let
+        an organization ask for longer than the deployment permitted and get it -
+        while the API reported the ceiling it was not applying."""
+        policy = effective_policy(
+            organization={"audit": 5000},
+            defaults=None,
+            ceilings={"audit": 4000},
+            audit_floor_days=2190,
         )
 
         assert policy["audit"] == 4000
@@ -286,12 +300,10 @@ class TestTheSweep:
         """Stub every delete, each answering how many rows one pass took."""
         mocks = {
             "delete_conversations": AsyncMock(return_value=counts.get("conversations", 0)),
-            "delete_runs": AsyncMock(return_value=counts.get("runs", 0)),
+            "delete_runs_keeping_their_spend": AsyncMock(return_value=(counts.get("runs", 0), [])),
             "delete_workspaces": AsyncMock(return_value=counts.get("workspaces", 0)),
             "delete_memory": AsyncMock(return_value=counts.get("memory", 0)),
-            "delete_audit_entries": AsyncMock(return_value=counts.get("audit", 0)),
             "stored_paths_for_expiring_conversations": AsyncMock(return_value=[]),
-            "expiring_run_spend": AsyncMock(return_value=[]),
             "expiring_documents": AsyncMock(return_value=[]),
             "record_purged_spend": AsyncMock(),
             "delete_documents": AsyncMock(return_value=0),
@@ -389,9 +401,9 @@ class TestTheSweep:
         service = _service()
         self._one_organization(monkeypatch, {"runs": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
-        repo = self._repo(monkeypatch, runs=2)
+        repo = self._repo(monkeypatch)
         month = datetime(2026, 8, 1, tzinfo=UTC)
-        repo["expiring_run_spend"].return_value = [(month, Decimal("4.25"), 2)]
+        repo["delete_runs_keeping_their_spend"].return_value = (2, [(month, Decimal("4.25"), 2)])
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         await service.sweep(now=NOW)
@@ -427,13 +439,77 @@ class TestTheSweep:
         self._one_organization(monkeypatch, {"conversations": 30, "runs": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch, conversations=4)
-        repo["delete_runs"].side_effect = RuntimeError("the database said no")
+        repo["delete_runs_keeping_their_spend"].side_effect = RuntimeError("the database said no")
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
 
         assert results[0].removed == {"conversations": 4}
         assert results[0].failed == ["runs"]
+
+    async def test_audit_resolves_to_a_period_and_is_still_not_swept(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The hash chain and its append-only checkpoint are built on entries not
+        going anywhere: a bare delete makes `audit-verify` report the retirement
+        as tampering. Retiring a chain verifiably is #1622's, and a retention that
+        broke the integrity check would be worse than one that says so."""
+        service = _service()
+        self._one_organization(monkeypatch, {"audit": 30})
+        monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
+        self._repo(monkeypatch)
+        audited = AsyncMock()
+        monkeypatch.setattr(f"{MODULE}.record_audit", audited)
+
+        assert await service.sweep(now=NOW) == []
+        audited.assert_not_awaited()
+
+    async def test_a_vector_store_that_does_not_confirm_fails_the_class(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`remove_document` catches its own store failures and answers False
+        rather than raising, so ignoring the answer would delete the only handle
+        to content that is still searchable."""
+        service = _service(remove_vectors=AsyncMock(return_value=False))
+        self._one_organization(monkeypatch, {"knowledge_documents": 30})
+        monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
+        repo = self._repo(monkeypatch)
+        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb", "vec", None)]
+        monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
+
+        results = await service.sweep(now=NOW)
+
+        assert results[0].failed == ["knowledge_documents"]
+        repo["delete_documents"].assert_not_awaited()
+
+    async def test_each_organization_is_committed_on_its_own_for_the_flow(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """One transaction around a whole sweep holds every deleted row and every
+        audit lock until the last tenant is done, and rolls every delete back if a
+        late organization fails - after its files and vectors are already gone."""
+        service = _service()
+        self._one_organization(monkeypatch, {"conversations": 30})
+        monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
+        self._repo(monkeypatch, conversations=1)
+        monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
+        service.db.commit = AsyncMock()
+
+        await service.sweep(now=NOW, commit_each=True)
+
+        service.db.commit.assert_awaited_once()
+
+    async def test_nothing_commits_outside_the_flow(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        service = _service()
+        self._one_organization(monkeypatch, {"conversations": 30})
+        monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
+        self._repo(monkeypatch, conversations=1)
+        monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
+        service.db.commit = AsyncMock()
+
+        await service.sweep(now=NOW)
+
+        service.db.commit.assert_not_awaited()
 
     async def test_the_sweep_records_counts_and_no_content(
         self, monkeypatch: pytest.MonkeyPatch
@@ -474,7 +550,7 @@ class TestTheSweep:
     ) -> None:
         """The other order leaves content searchable with nothing left to find it
         by, which is #992's shape."""
-        remove_vectors = AsyncMock()
+        remove_vectors = AsyncMock(return_value=True)
         service = _service(remove_vectors=remove_vectors)
         self._one_organization(monkeypatch, {"knowledge_documents": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
@@ -521,7 +597,7 @@ class TestTheSweep:
     async def test_a_document_class_with_nothing_expired_removes_nothing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        service = _service(remove_vectors=AsyncMock())
+        service = _service(remove_vectors=AsyncMock(return_value=True))
         self._one_organization(monkeypatch, {"knowledge_documents": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch)
@@ -546,3 +622,33 @@ class TestTheSweep:
 
         assert results[0].failed == ["knowledge_documents"]
         repo["delete_documents"].assert_not_awaited()
+
+
+class TestTheDeploymentsOwnBounds:
+    """The three numbers an app admin sets, on the settings they already write."""
+
+    def test_a_default_and_a_ceiling_are_accepted_per_class(self) -> None:
+        update = DeploymentSettingsUpdate(
+            retention_defaults={"conversations": 90},
+            retention_max_days={"runs": 365},
+            audit_retention_floor_days=2190,
+        )
+
+        assert update.retention_defaults == {"conversations": 90}
+        assert update.retention_max_days == {"runs": 365}
+        assert update.audit_retention_floor_days == 2190
+
+    def test_keeping_a_class_for_ever_is_a_thing_a_deployment_can_say(self) -> None:
+        assert DeploymentSettingsUpdate(retention_defaults={"runs": None}).retention_defaults == {
+            "runs": None
+        }
+
+    def test_a_period_outside_the_bounds_is_refused_by_name(self) -> None:
+        with pytest.raises(ValueError, match="conversations"):
+            DeploymentSettingsUpdate(retention_defaults={"conversations": 0})
+        with pytest.raises(ValueError, match="runs"):
+            DeploymentSettingsUpdate(retention_max_days={"runs": 40000})
+
+    def test_an_audit_floor_outside_the_bounds_is_refused(self) -> None:
+        with pytest.raises(ValueError):
+            DeploymentSettingsUpdate(audit_retention_floor_days=0)

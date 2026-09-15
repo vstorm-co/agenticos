@@ -157,6 +157,48 @@ class TestWhatSurvives:
         assert await organization_spend_since(db, organization.id, month_start) == before
         assert before == Decimal("5.25")
 
+    @pytest.mark.security
+    async def test_a_delegates_cost_is_not_billed_a_second_time(self, db: AsyncSession):
+        """A parent's `cost_usd` already contains what its delegates spent, and
+        the live billing query filters the children out for exactly that reason.
+        Retaining both would double-charge the work the moment retention removed
+        it - and could trip a monthly cap on money nobody spent twice."""
+        organization, user = await _tenant(db)
+        month_start = NOW.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        parent = await _run(db, organization, user, age_days=11, cost="4.00")
+        child = await _run(db, organization, user, age_days=11, cost="1.50")
+        child.parent_run_id = parent.id
+        organization.retention_days = {"runs": 7}
+        await db.flush()
+        before = await organization_spend_since(db, organization.id, month_start)
+
+        await RetentionService(db).sweep(now=NOW)
+
+        assert await _count(db, AgentRun) == 0
+        # The parent's four dollars, once - not five and a half.
+        assert await organization_spend_since(db, organization.id, month_start) == before
+        assert before == Decimal("4.00")
+
+    @pytest.mark.security
+    async def test_a_running_run_is_not_retired_under_it(self, db: AsyncSession):
+        """`running` is a row a live process still means to finalize and
+        `awaiting_approval` is somebody's pending decision; a short window reaches
+        both first, and deleting either loses work rather than retiring it."""
+        organization, user = await _tenant(db)
+        live = await _run(db, organization, user, age_days=120, cost="0")
+        live.status = RunStatus.RUNNING
+        parked = await _run(db, organization, user, age_days=120, cost="0")
+        parked.status = RunStatus.AWAITING_APPROVAL
+        done = await _run(db, organization, user, age_days=120, cost="0")
+        organization.retention_days = {"runs": 30}
+        await db.flush()
+
+        await RetentionService(db).sweep(now=NOW)
+
+        remaining = set((await db.execute(select(AgentRun.id))).scalars().all())
+        assert remaining == {live.id, parked.id}
+        assert done.id not in remaining
+
     async def test_a_second_sweep_adds_to_the_month_rather_than_replacing_it(
         self, db: AsyncSession
     ):
@@ -282,8 +324,9 @@ class TestTheOtherClasses:
         await db.flush()
         removed_vectors: list[tuple[str, str]] = []
 
-        async def remove(collection: str, document_id: str) -> None:
+        async def remove(collection: str, document_id: str) -> bool:
             removed_vectors.append((collection, document_id))
+            return True
 
         with patch("app.services.file_storage.delete_files_best_effort", new=AsyncMock()) as files:
             await RetentionService(db, remove_vectors=remove).sweep(now=NOW)
@@ -293,15 +336,13 @@ class TestTheOtherClasses:
         assert removed_vectors == [("kb_main", "vec-1")]
         files.assert_awaited_with(["uploads/report.pdf"])
 
-    async def test_an_audit_entry_past_a_lowered_floor_goes(self, db: AsyncSession):
-        """The floor is six years by default, so a deployment that retires audit
-        sooner has said so with a number - which is what is exercised here."""
+    async def test_an_audit_entry_is_left_alone_however_short_the_period(self, db: AsyncSession):
+        """The period resolves and is reported; nothing deletes an audit entry.
+        The hash chain and its append-only checkpoint are built on entries not
+        going anywhere, so a bare delete makes `audit-verify` report the
+        retirement as tampering - #1622's to solve."""
         organization, user = await _tenant(db)
-        db.add(
-            DeploymentSettings(singleton=True, signup_mode="open", audit_retention_floor_days=30)
-        )
-        # Written through `record_audit`, because the chain columns are its to
-        # fill - a hand-built row cannot satisfy the hash chain's NOT NULLs.
+        db.add(DeploymentSettings(singleton=True, signup_mode="open", audit_retention_floor_days=1))
         await record_audit(
             db,
             actor_user_id=user.id,
@@ -311,11 +352,12 @@ class TestTheOtherClasses:
         await db.flush()
         entry = (await db.execute(select(AppAdminAuditLog))).scalars().one()
         entry.created_at = NOW - timedelta(days=400)
+        organization.retention_days = {"audit": 1}
         await db.flush()
 
         await RetentionService(db).sweep(now=NOW)
 
-        assert await _count(db, AppAdminAuditLog) == 1  # the sweep's own entry
+        assert await _count(db, AppAdminAuditLog) == 1
 
     async def test_setting_a_period_is_stored_on_the_organization(self, db: AsyncSession):
         organization, user = await _tenant(db)

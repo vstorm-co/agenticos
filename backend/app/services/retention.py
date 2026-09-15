@@ -83,16 +83,16 @@ class SweepResult:
 
 #: Removing one document's vectors from the store that holds them.
 #:
-#: `Awaitable[object]` rather than `Awaitable[None]`: `remove_document` answers
-#: whether it found anything, and a sweep does not care - what it needs is that
-#: the call was made and did not raise.
+#: It answers whether the store confirmed the removal, and a sweep does care:
+#: `remove_document` catches its own failures and returns False, so a caller that
+#: ignored the answer would delete the row while the content stayed searchable.
 #:
 #: Injected rather than built here, because a vector store rides an engine of its
 #: own and the layer that owns that is the worker (`_ingestion_service`, and the
 #: `max_connections` exhaustion in #948 that put it there). A sweep constructed
 #: without one cannot purge documents and says so, which is better than a class
 #: that silently does nothing on every surface but the flow.
-VectorRemover = Callable[[str, str], Awaitable[object]]
+VectorRemover = Callable[[str, str], Awaitable[bool]]
 
 
 class RetentionService:
@@ -155,12 +155,24 @@ class RetentionService:
         )
         return await self._read_for(organization)
 
-    async def sweep(self, *, now: datetime | None = None) -> list[SweepResult]:
+    async def sweep(
+        self, *, now: datetime | None = None, commit_each: bool = False
+    ) -> list[SweepResult]:
         """Apply every organization's policy once, class by class.
 
         Args:
             now: The moment the cutoffs are measured back from. A parameter so a
                 test can freeze it; the flow passes none.
+            commit_each: Commit after each organization. The flow passes true and
+                nothing else does. **This is the third sanctioned commit outside
+                a request** (`docs/architecture.md#the-requests-transaction`), and
+                it is what makes the batching mean anything: one transaction
+                around a whole sweep holds every deleted row, and every
+                transaction-scoped audit lock, until the last tenant is done -
+                blocking production writes for the length of it and rolling every
+                database delete back if a late organization fails, after files and
+                vectors are already gone. A per-tenant boundary keeps what
+                succeeded.
 
         Returns:
             One result per organization that removed something or failed
@@ -187,6 +199,8 @@ class RetentionService:
             if result.total or result.failed:
                 await self._record_sweep(result)
                 results.append(result)
+            if commit_each:
+                await self.db.commit()
         return results
 
     async def _sweep_one(
@@ -195,7 +209,7 @@ class RetentionService:
         result = SweepResult(organization_id=organization_id)
         for name in RETENTION_CLASSES:
             days = policy[name]
-            if days is None:
+            if days is None or name == AUDIT:
                 continue
             cutoff = moment - timedelta(days=days)
             try:
@@ -237,9 +251,10 @@ class RetentionService:
                 await delete_files_best_effort(paths)
             return took
         if name == "runs":
-            # The spend is read and kept *before* the rows go, or the month's
-            # figure it belongs to would fall to zero with them.
-            for period, cost, count in await retention_repo.expiring_run_spend(self.db, **scope):
+            # The delete answers what it removed, in one statement: reading the
+            # costs first lets two overlapping sweeps keep the same figure twice.
+            removed, spend = await retention_repo.delete_runs_keeping_their_spend(self.db, **scope)
+            for period, cost, count in spend:
                 await retention_repo.record_purged_spend(
                     self.db,
                     organization_id=organization_id,
@@ -247,14 +262,19 @@ class RetentionService:
                     cost=cost,
                     runs=count,
                 )
-            return await retention_repo.delete_runs(self.db, **scope)
+            return removed
         if name == "workspaces":
             return await retention_repo.delete_workspaces(self.db, **scope)
         if name == "memory":
             return await retention_repo.delete_memory(self.db, **scope)
-        if name == "knowledge_documents":
-            return await self._purge_documents(organization_id=organization_id, cutoff=cutoff)
-        return await retention_repo.delete_audit_entries(self.db, **scope)
+        # `audit` resolves to a period and is reported, and an organization is
+        # held to the floor when it sets one - but nothing deletes an audit entry
+        # here. The hash chain and its append-only checkpoint are built on entries
+        # not going anywhere, so a bare delete makes `audit-verify` report the
+        # retirement as tampering; retiring a chain verifiably is #1622's. A
+        # retention that broke the integrity check would be worse than one that
+        # says it is not there yet.
+        return await self._purge_documents(organization_id=organization_id, cutoff=cutoff)
 
     async def _purge_documents(self, *, organization_id: UUID, cutoff: datetime) -> int:
         """Uploaded documents, their vectors and their files - in that order.
@@ -280,8 +300,14 @@ class RetentionService:
         from app.services.file_storage import delete_files_best_effort
 
         for _, collection, vector_document_id, _ in expiring:
-            if vector_document_id:
-                await self.remove_vectors(collection, vector_document_id)
+            if not vector_document_id:
+                continue
+            # `IngestionService.remove_document` catches its own store failures
+            # and answers False rather than raising, so discarding the answer
+            # would delete the only handle to content that is still searchable -
+            # with no row left for a later sweep to retry (#992's shape again).
+            if not await self.remove_vectors(collection, vector_document_id):
+                raise RuntimeError("the vector store did not confirm the removal")
         paths = [path for *_, path in expiring if path]
         if paths:
             await delete_files_best_effort(paths)

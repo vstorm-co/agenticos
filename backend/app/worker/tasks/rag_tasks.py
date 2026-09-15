@@ -987,6 +987,12 @@ async def retention_sweep_flow() -> None:
     business, and a sweep that ran hourly would ask every tenant the same
     question twenty-four times for one answer.
 
+    `commit_each` because one transaction around the whole sweep holds every
+    deleted row - and every transaction-scoped audit lock - until the last tenant
+    is done, which blocks production writes for the length of it and rolls every
+    delete back if a late organization fails, after its files and vectors are
+    already gone.
+
     The processor is the deployment's default configuration rather than a
     collection's. What it is used for here is `remove_document`, which deletes by
     id and parses nothing - a document's own ingestion settings decided how it
@@ -1001,7 +1007,7 @@ async def retention_sweep_flow() -> None:
         ) as ingestion,
     ):
         service = RetentionService(db, remove_vectors=ingestion.remove_document)
-        results = await service.sweep()
+        results = await service.sweep(commit_each=True)
 
     for result in results:
         logger.info(
