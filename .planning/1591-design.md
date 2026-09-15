@@ -11,6 +11,13 @@ Branch: `feat/fa013-chat-attachment-formats` (based on `main`).
 > (`app/services/rag/`), which is out of scope except where we deliberately reuse a
 > library it already pulls in.
 
+> Reading guide: the **live artifact for an implementer is §1–§3 plus §6** (current
+> state, design, risks, implementation plan). **§4, §7 and §8 are the review history**
+> — three verdict logs whose findings are already folded into §1–§3/§5/§6. They are
+> kept for provenance, but they describe *how the plan reached its current shape*, not
+> what to build, and they will drift once implementation deviates. Read them only to
+> understand *why* a decision was taken; do not implement from them.
+
 ---
 
 ## 1. Current state (what exists today)
@@ -56,6 +63,21 @@ alongside `text/xml`.
 (LibreOffice-backed, already used by the RAG `LiteParseParser`; LibreOffice + Tesseract
 ship in the backend Dockerfile). RAG's `LITEPARSE_OFFICE_FORMATS` already lists
 `.doc/.xls/.pptx/.odp/.ods/.odt`.
+
+Two facts from this inventory that decide choices later, so they are recorded here
+rather than left implicit:
+
+- **`soffice`/LibreOffice is present in the runtime image.** `backend/Dockerfile`
+  installs `libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress`
+  (plus `tesseract-ocr` with `eng`/`pol`). So the DOC subprocess path (§5 #4, §6.3
+  step 6) has its binary in Docker; §2.6's "absent outside Docker → graceful `None`"
+  is the only remaining case. The PR-description open question about `soffice`
+  availability is answered **yes** for the Docker image and should be closed there.
+- **`pymupdf` is `AGPL-3.0-only`, accepted under `licenses/policy.toml`** with the
+  s.13 network-copyleft obligations recorded in #1602 (closed: *state the terms
+  rather than drop the parser*). It is imported at `file_upload.py:130` for the PDF
+  branch this plan extends. This is the fact that overturns the "permissive project"
+  premise behind the MSG decision — see §4 finding 1 and §5 #1.
 
 ---
 
@@ -227,7 +249,7 @@ branch needs a test. Changes:
 | `python-pptx` | PPTX text | MIT | pure-Python; pulls `lxml` (already transitively present via others) + `XlsxWriter` |
 | `odfpy` | ODT/ODS/ODP | dual **Apache-2.0 / GPL-2.0** (use under Apache-2.0) | pure-Python, tiny |
 | `xlrd` | legacy XLS | BSD-3-Clause | pure-Python, tiny |
-| `extract-msg` | Outlook MSG | BSD-2-Clause | pure-Python; pulls `olefile`, `tzlocal`, `compressed-rtf` |
+| `extract-msg` | Outlook MSG | **GPL-3.0** (not BSD-2 — corrected per §4 finding 1 / §5 #1; **superseded** — MSG now uses `olefile`, BSD-2) | pure-Python; pulls `olefile`, `tzlocal`, `compressed-rtf` |
 | `pillow` | TIFF→PNG | HPND (permissive) | **already present** |
 | `liteparse` | DOC via LibreOffice | (existing) | **already present** |
 
@@ -310,6 +332,27 @@ branch needs a test. Changes:
    remain ungated today; see §7 finding 6 for whether the new logic there warrants gating
    them too.
 
+### 3.1 Scope concentration — the risk lives in two of the eight formats
+
+Five of the eight (XLS, ODS, ODT, ODP, PPTX) are in-process pure-Python readers with the
+existing catch-warn-return-`None` contract. With the XML widening and the `validate_upload`
+split, that is a coherent, low-risk change satisfying most of FA-013. The other two carry
+nearly all the danger and are entangled with gated code:
+
+- **TIFF** forces `AttachmentPlan.inline` to a list → `InlineResult` with truncation
+  metadata (§8 finding F), the Pillow bomb guards, and render-safety changes across
+  `file-kinds.ts`, `message-item.tsx`, `attachment-card.tsx` and `file-render.tsx`.
+- **DOC** is the entire `office_convert.py` subprocess story.
+
+**Decision to record (not defer silently):** whether to ship all eight in one PR or split
+into (a) the five parsers + XML + validation, (b) TIFF and its routing/frontend
+consequences, (c) DOC and the subprocess. A split lets (a) land quickly against the tender
+deadline while (b) and (c) get proportionate review, and stops the gated `attachments.py`
+refactor being reviewed in the same breath as a new subprocess manager. If the team ships
+one PR anyway (e.g. to keep FA-013 atomic), state that here so the coupling is a chosen
+trade-off, not an accident. The implementation order in §6 already sequences the low-risk
+parts first, which makes either choice mechanical.
+
 ---
 
 ## 4. Codex review
@@ -322,6 +365,16 @@ severity:
 1. **Critical — `extract-msg` license.** PyPI metadata lists `extract-msg` as **GPL
    (GPLv3)**, not BSD-2. A release blocker for a permissive project without explicit
    legal sign-off.
+   **Premise correction (post-review):** "a release blocker for a permissive project"
+   is false for *this* repository. `licenses/policy.toml` already accepts `pymupdf` as
+   `AGPL-3.0-only` (#1602 — imported at `file_upload.py:130`, the module this plan
+   extends), so the backend image already conveys under AGPL-3.0 terms — a *stronger*
+   copyleft than the GPL-3.0 `extract-msg` would add. GPLv3 is therefore not an
+   automatic blocker here; it is a decision the repo has a documented process for, and
+   `extract-msg` would add no obligation beyond one already accepted. This reframes §5
+   #1 below: dropping `extract-msg` is a "minimise copyleft surface" choice, not a
+   licence necessity, and it has to be taken *knowingly against #1602* rather than
+   inherited from a premise that does not hold.
 2. **High — extension-fallback validation under-specified.** `validate_upload(content_type,
    size)` has no filename/extension, and the channel preflight
    (`channels/attachments.py`) calls it with only `mime_type` **before download**.
@@ -366,16 +419,33 @@ API, TIFF/DOC isolation, text caps, and frontend TIFF behavior are resolved.
 
 **Accepted (design changed):**
 
-- **#1 (Critical) extract-msg license — ACCEPTED.** Drop `extract-msg` (GPLv3). Parse
-  MSG with a small in-house reader over **`olefile`** (BSD-2-Clause, tiny) reading the
-  standard MAPI property streams: subject `__substg1.0_0037001F/001E`, plain body
-  `__substg1.0_1000001F/001E`, sender `__substg1.0_0C1A001F`, recipients from the
-  `__recip_version1.0_#…` storages, date from `__properties_version1.0`. Prefer the
-  plain-text body stream; fall back to HTML (`1013`) stripped of tags; do **not** parse
-  RTF (avoids `compressed-rtf`). If legal accepts GPLv3 or a company CLA exists,
-  `extract-msg` remains an option — but the plan assumes the olefile route. (`msg-parser`,
-  MIT, is a documented fallback if the in-house reader proves fragile.) `olefile` is
-  BSD-2 and likely already transitive; add it explicitly.
+- **#1 (Critical) extract-msg license — ACCEPTED as a copyleft-surface choice, re-decided
+  against #1602.** The original "GPLv3 blocks a permissive project" reasoning does not hold
+  here (see §4 finding 1's premise correction): the repo already accepts `pymupdf`
+  `AGPL-3.0-only` under `licenses/policy.toml` (#1602), which is stronger copyleft than
+  `extract-msg`'s GPL-3.0. So this is **not** a licence-forced drop.
+  **Two viable routes; the plan picks the first, knowingly:**
+  1. **Preferred — in-house reader over `olefile`** (BSD-2-Clause, tiny), reading the
+     standard MAPI property streams: subject `__substg1.0_0037001F/001E`, plain body
+     `__substg1.0_1000001F/001E`, sender `__substg1.0_0C1A001F`, recipients from the
+     `__recip_version1.0_#…` storages, date from `__properties_version1.0`. Prefer the
+     plain-text body stream; fall back to HTML (`1013`) stripped of tags; do **not** parse
+     RTF (avoids `compressed-rtf`). Rationale: keeps copyleft surface minimal and avoids
+     a second network-copyleft obligation — a legitimate position, but note the cost is a
+     **new, security-relevant parser of attacker-controlled OLE** (UTF-16LE `001F` vs
+     codepage `001E` streams, recipient storages, FILETIME dates, HTML tag stripping) that
+     then has to hit the coverage gate.
+  2. **Accept `extract-msg` (GPL-3.0)** by adding a `[review.python."extract-msg"]` entry
+     to `licenses/policy.toml` with an obligations statement, exactly as #1602 did for
+     `pymupdf`. This removes the hand-written OLE parser from scope entirely.
+  The team should weigh (1)'s fragile parser surface against (2)'s incremental copyleft
+  obligation (which the repo already carries a heavier version of) **with #1602 and
+  `policy.toml` in hand**, rather than defaulting to (1) on a false premise. The plan
+  proceeds with (1) but records (2) as the lower-risk alternative, not merely a legal
+  fallback. (`msg-parser` — license to **verify**, reported BSD / pre-alpha / last
+  released 2019 per §7 finding 7, **not** MIT — is a further fallback if the in-house
+  reader proves fragile.) `olefile` is BSD-2 and likely already transitive; add it
+  explicitly.
 - **#2 (High) validation signature — ACCEPTED.** Change
   `validate_upload(content_type, size)` → `validate_upload(content_type, size, filename)`
   and validate on `(mime ∈ allowlist) OR (ext ∈ ALLOWED_EXTENSIONS)`. Update **all three
@@ -400,6 +470,19 @@ API, TIFF/DOC isolation, text caps, and frontend TIFF behavior are resolved.
   new-dependency-free reliance on liteparse for chat and gives the real bound Codex asked
   for. Absent `soffice` → helper returns `None` → graceful "text could not be extracted".
   (This helper is the one subprocess in the whole feature; everything else is in-process.)
+  **Why a bespoke manager and not `liteparse` (record the trade-off, do not leave it
+  implicit):** the codebase ends up with **two** LibreOffice subprocess managers — the
+  existing RAG `LiteParseParser` and this chat helper — which is a standing maintenance
+  cost, and the chat one is under the 100% gate. That is accepted here because `liteparse`
+  exposes no kill hook and converts DOC via an intermediate PDF, so it cannot give the
+  bounded, killable, profile-isolated subprocess this interactive path needs; changing its
+  behaviour is an upstream change to a shared dependency, out of scope for FA-013. **The
+  unkillable-subprocess defect is not chat-specific:** RAG has it today with a 600s
+  default, and this plan leaves that path untouched — so the repo carries the bug in the
+  RAG path and a bespoke fix in the chat path. Fixing it in `liteparse`/RAG (if that
+  dependency is ours to change) would close both with one implementation, and is recorded
+  as a follow-up (§6.9) rather than taken on here. If a later decision fixes it upstream,
+  this bespoke helper should be re-evaluated against it.
 - **#5 (High) frontend TIFF — ACCEPTED.** Align the frontend "renderable image" decision
   with the backend `RENDER_SAFE_MIME_TYPES` (png/jpeg/gif/webp only). In
   `file-kinds.ts`, stop mapping `tiff`/`image/tiff` to the inline-renderable `image`
@@ -516,6 +599,19 @@ topical, the execution order as this.
      than "where cheap"), and reject a forged signature that contradicts the resolved
      format. Called by `FileUploadService.upload` and by the channel **post-download**
      check.
+   - **Byte-phase rejection on the channel path — define the user-visible outcome.**
+     Today `channels/attachments.py:162` is only a size re-check, so a failure there is a
+     size message. `validate_bytes` adds a *content-based* refusal (forged signature,
+     MIME/extension conflict caught only once bytes arrived) on an attachment that already
+     passed the pre-download preflight and has already been downloaded — and on the channel
+     path the person who sees the result is a Telegram/Slack user who is **not** the
+     browser uploader with an error toast. Specify: a byte-phase failure sends that user a
+     concise, non-leaking refusal ("this file could not be accepted — its contents do not
+     match its type/extension"), distinct from the size message, and does not attach the
+     file to the turn. Name the exact message and add it to the `test_channel_attachments.py`
+     extension in §6.8 (which currently covers only the accept case — `.odt`/`.msg` as
+     octet-stream passing preflight via the new filename argument); add a **reject** case
+     for a forged-signature/conflict attachment on the channel path.
    - Enumerate in the plan which caller invokes which phase; update both docstrings. Full
      per-format OLE-stream verification stays deeper hardening (§7 finding 2), but the two
      named container sniffs are in scope and testable.
@@ -538,6 +634,25 @@ topical, the execution order as this.
    the octet-stream the client sent. Without this, an octet-stream TIFF classified as
    `image` reaches `_inline_images` with no way to know it needs PNG conversion and would
    build an invalid `BinaryContent`.
+   **Legacy rows — "no migration" is true of the schema, not of the data.** After this
+   change `ChatFile.mime_type` means something different for new rows (resolved/canonical)
+   than for existing ones (whatever the client declared, `application/octet-stream`
+   included). Every reader then sees a mixture — including the download route, which hands
+   `mime_type` straight to `FileResponse(media_type=…)` (`_chat_file_bytes.py:69`), and
+   `_inline_images`, whose TIFF branch keys off the canonical format. So an octet-stream
+   `.tiff` uploaded **before** this ships stays `application/octet-stream` forever and will
+   not take the PNG path, while an identical file uploaded after does. **Decision (pick one
+   and state it, do not leave it a side effect):** *legacy rows keep their declared MIME;
+   every reader must tolerate both shapes* — chosen here because a byte-level re-resolution
+   backfill over historical uploads is out of proportion to the benefit for old chat
+   attachments. This still needs **no Alembic revision** (`String(100)` already fits), but
+   it does need a regression test that pins the legacy shape: an existing octet-stream
+   `.tiff`/office row is read by the download route and `_inline_images` without error (the
+   TIFF simply serves as a download and is not PNG-converted). If instead a backfill is
+   preferred, it is a one-off data command (re-resolve `mime_type` from `filename`), still
+   no schema change — but the plan commits to the tolerate-both option unless that command
+   is added. The `file_type` values all fit `String(20)` regardless (`presentation`, 12
+   chars, is the longest).
 6. New module `backend/app/services/office_convert.py` (thick-ish helper, not a route):
    `libreoffice_convert(data: bytes, *, suffix: str, timeout: float) -> str | None` — the
    managed `soffice` subprocess (§5 #4, hardened in §7 findings 3–4). One place owns the
@@ -636,12 +751,33 @@ topical, the execution order as this.
 ### 6.5 Backend — dependencies & gate wiring (`pyproject.toml`, `tests/test_coverage_gate.py`)
 13. Add `xlrd`, `odfpy`, `python-pptx`, `olefile`; run `uv lock`. Confirm `deptry`
     passes (each imported under `app/`; no `DEP002` ignore expected).
-    **License inventory, not a one-line claim (§7 finding 7):** verify each distribution's
-    license from the resolved artifact rather than the README — in particular `odfpy`
-    (PyPI lists LGPL alongside the README's Apache-2.0/GPL-2.0 dual offer, and PyPI is
-    still on the old `1.4.1`; prove Python 3.12 compatibility in CI) and the documented MSG
-    fallback (`msg-parser` is BSD and pre-alpha, last released 2019 — not the "MIT" §5 #1
-    stated). Record the findings in the PR body.
+    **Use the repository's existing licence machinery — do not hand-audit licences.** The
+    repo already has the gate this step was describing by hand: `scripts/license_inventory.py`
+    reads the lockfiles and resolves each distribution's licence from the artifact;
+    `make licenses` regenerates `THIRD_PARTY_NOTICES.md`; `make licenses-check` regenerates
+    it in memory and **fails when a copyleft/share-alike licence has no decision in
+    `licenses/policy.toml`**, and it runs inside `make check` (`Makefile:570`). GPL-2/3,
+    LGPL-2.1/3 and AGPL-3 are all in the review families. So the step reduces to:
+    1. Add the deps, `uv lock`, run `make licenses` to regenerate `THIRD_PARTY_NOTICES.md`.
+    2. Run `make licenses-check` (or `make check`) and write a `[review.python."<dist>"]`
+       entry in `licenses/policy.toml` — with `status`, `obligations` and `fulfilled_by` —
+       for anything that comes back copyleft, copying the existing precedents
+       (`pymupdf` AGPL-3.0-only, `psycopg2-binary` LGPL-3.0-or-later).
+    3. If `extract-msg` is chosen over the in-house reader (§5 #1 route 2), its GPL-3.0
+       entry lands here too.
+    **`odfpy` will almost certainly trip the gate** if the LGPL reading in §7 finding 7 is
+    right — that is a **red `make check`**, not a "verify and note it" item, until its
+    policy entry exists (also still on the old `1.4.1`; prove Python 3.12 compatibility in
+    CI). The documented MSG fallback `msg-parser` is BSD / pre-alpha / last released 2019,
+    **not** the "MIT" §5 #1 originally stated — verify from the artifact.
+    **Touched files this step was missing:** `licenses/policy.toml`,
+    `THIRD_PARTY_NOTICES.md`, and — since `docs/licenses.md` narrates the obligations a
+    deployment takes on — probably `docs/licenses.md`. The decisions live in
+    `policy.toml`/`THIRD_PARTY_NOTICES.md`/`docs/licenses.md`, **not the PR body** (nothing
+    consults a PR body). **§6.8's verification runs `make check`, which runs
+    `licenses-check`** — so without these policy entries the plan's own verification fails
+    at the exact point the new deps land; the entries are part of the change, not a
+    follow-up.
 13a. **Add `app/services/office_convert.py` to the platform gate (§7 finding 6, refined in
     §8 finding G).** The *binding* action is adding it to the **two `include` lists** —
     `[tool.coverage.run] include` **and** `[[tool.ty.overrides]] include` — at the **same
@@ -716,7 +852,11 @@ topical, the execution order as this.
 - `test_spreadsheet_attachment.py` (extend): XLS + ODS produce the same tab-separated shape
   as XLSX; date cells rendered; password-protected XLS → `None`.
 - Channel: extend `test_channel_attachments.py` — a `.odt`/`.msg` arriving as
-  `application/octet-stream` passes preflight via the new filename arg.
+  `application/octet-stream` passes preflight via the new filename arg; **and** a
+  byte-phase rejection case — a forged-signature / MIME-vs-extension-conflict attachment
+  that clears the pre-download preflight is refused at the post-download `validate_bytes`
+  check, the file is not attached to the turn, and the channel user receives the
+  content-mismatch refusal message (distinct from the size message), not a silent drop.
 
 Added after the second review round (§7 finding 10):
 - **Canonical-format dispatch:** end-to-end upload+parse of every ambiguous format with
@@ -765,6 +905,11 @@ Added after the plan review (§8):
 - Upload → `ChatFile` row for a new format has correct `file_type`, **canonical**
   `mime_type` (an octet-stream `.tiff` stored as `image/tiff` per §6.3 step 5a, finding B),
   `parsed_content` (or NULL for TIFF); ownership/download unchanged.
+- **Legacy-row tolerance (§6.3 step 5a):** a pre-existing `ChatFile` with a *declared*
+  `mime_type` (`application/octet-stream` for a `.tiff`/office file, the pre-change shape)
+  is served by the download route and reaches `_inline_images` without error — the TIFF
+  serves as a download and is **not** PNG-converted — proving readers tolerate both the
+  legacy declared MIME and the new canonical MIME.
 
 **Frontend (`frontend/`, vitest, 100%/97.5% gate on touched dirs):**
 - `chat-input.test.tsx`: new extensions/MIME present in `accept`; a new format passes the
@@ -789,6 +934,10 @@ free `String(20)`, so **no migration**), `make docs-build`. Report any unavailab
 - OCR for scanned PDF/TIFF in chat (documented limitation; RAG has LiteParse OCR).
 - MSG RTF-body decoding and embedded-attachment extraction.
 - A dedicated "email"/"presentation" frontend icon polish.
+- The unkillable-LibreOffice-subprocess defect in the **RAG** path (`LiteParseParser`,
+  600s default). This plan gives the chat path a killable helper (§5 #4); fixing it once
+  in `liteparse`/RAG would remove the second subprocess manager and close both paths.
+  Deferred because it is an upstream/shared-dependency change outside FA-013's scope.
 
 ---
 
