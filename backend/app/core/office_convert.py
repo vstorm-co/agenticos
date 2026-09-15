@@ -168,6 +168,8 @@ async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
     try:
         await asyncio.wait_for(proc.wait(), timeout=_KILL_GRACE_SECONDS)
     except TimeoutError:
+        # The grace period expired without a clean exit; fall through to the
+        # finally, which SIGKILLs the whole group.
         pass
     finally:
         _signal_group(proc.pid, signal.SIGKILL)
