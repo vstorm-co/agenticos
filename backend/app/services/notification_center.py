@@ -34,7 +34,10 @@ logger = logging.getLogger(__name__)
 # legacy boolean columns on `User` (Decision 4) - `usage_report` and
 # `agent_usage_report` share one column, since both are the periodic digest the
 # column was named for before this feature split it into two event types.
-_LEGACY_EMAIL_COLUMN: dict[NotificationEventType, NotificationPreference] = {
+# Public: `notification_delivery.py`'s send-time recheck (Decision 3) reads the
+# same authoritative lookup this write-time check does - two copies would be
+# two things that could disagree about what "off" means for one event type.
+LEGACY_EMAIL_COLUMN: dict[NotificationEventType, NotificationPreference] = {
     NotificationEventType.BUDGET_EXCEEDED: "notify_budget_alerts",
     NotificationEventType.APPROVAL_REQUESTED: "notify_approval_requests",
     NotificationEventType.USAGE_REPORT: "notify_usage_reports",
@@ -202,7 +205,7 @@ class NotificationCenterService:
                 continue
             written.append(notification)
 
-            email_enabled = mandatory or await self._email_enabled(recipient_id, event_type)
+            email_enabled = mandatory or await self.email_channel_enabled(recipient_id, event_type)
             if email_enabled:
                 await notification_repo.insert_delivery(
                     self.db,
@@ -219,11 +222,19 @@ class NotificationCenterService:
         )
         return True if stored is None else stored
 
-    async def _email_enabled(self, user_id: uuid.UUID, event_type: NotificationEventType) -> bool:
+    async def email_channel_enabled(
+        self, user_id: uuid.UUID, event_type: NotificationEventType
+    ) -> bool:
         """Exactly one authoritative lookup per event type (Decision 4): the
-        legacy column for the three events it already governs, the preference
-        table for every other event type - the two vocabularies never overlap."""
-        legacy_column = _LEGACY_EMAIL_COLUMN.get(event_type)
+        legacy column for the four events it already governs, the preference
+        table for every other event type - the two vocabularies never overlap.
+
+        Public: also the send-time recheck `notification_delivery.py` performs
+        immediately before calling the email provider (Decision 3), so a
+        preference switched off during a provider outage is honoured by the
+        retry that finally succeeds rather than by the write alone.
+        """
+        legacy_column = LEGACY_EMAIL_COLUMN.get(event_type)
         if legacy_column is not None:
             stored = await notification_repo.get_legacy_email_preference(
                 self.db, user_id=user_id, column=legacy_column

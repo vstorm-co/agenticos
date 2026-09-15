@@ -5,13 +5,13 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.announcement import Announcement
 from app.db.models.notification import Notification
-from app.db.models.notification_delivery import NotificationDelivery
+from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.user import NotificationPreference, User
 
@@ -187,3 +187,117 @@ async def mark_ids_read(db: AsyncSession, *, ids: list[uuid.UUID], read_at: date
 
 async def get_announcement(db: AsyncSession, announcement_id: uuid.UUID) -> Announcement | None:
     return await db.get(Announcement, announcement_id)
+
+
+async def get_notification(db: AsyncSession, notification_id: uuid.UUID) -> Notification | None:
+    """An unscoped lookup - the sweep operates with the platform's own trust,
+    not a caller's, so it is not filtered to one recipient the way `get_own` is."""
+    return await db.get(Notification, notification_id)
+
+
+async def get_delivery(db: AsyncSession, delivery_id: uuid.UUID) -> NotificationDelivery | None:
+    return await db.get(NotificationDelivery, delivery_id)
+
+
+async def claim_pending_deliveries(
+    db: AsyncSession, *, now: datetime, max_attempts: int, limit: int = 100
+) -> list[NotificationDelivery]:
+    """Deliveries due to send, locked so a second sweep tick takes none of them.
+
+    `FOR UPDATE SKIP LOCKED` mirrors `agent_trigger_repo.claim_due` (Decision
+    3): two concurrent sweeps take disjoint rows rather than both sending the
+    same one. Select-and-lock only - the caller stamps `claimed_at`/
+    `claimed_until` and increments `attempts` on the returned rows and flushes
+    them under this same lock, the way `AgentTriggerService.claim_and_advance`
+    does for a trigger.
+    """
+    result = await db.execute(
+        select(NotificationDelivery)
+        .where(
+            NotificationDelivery.status == DeliveryStatus.PENDING.value,
+            NotificationDelivery.attempts < max_attempts,
+            (NotificationDelivery.claimed_until.is_(None))
+            | (NotificationDelivery.claimed_until <= now),
+        )
+        .order_by(NotificationDelivery.created_at.asc())
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    return list(result.scalars().all())
+
+
+async def settle_delivery(
+    db: AsyncSession,
+    *,
+    delivery_id: uuid.UUID,
+    claimed_at: datetime,
+    status: str,
+    last_error: str | None = None,
+) -> bool:
+    """Write a claimed delivery's outcome - but only while still holding the claim.
+
+    Conditioned on `claimed_at` matching the token this worker was issued
+    (Decision 3): a worker whose lease lapsed and was reclaimed by a second
+    sweep matches zero rows here and its late outcome is discarded, rather
+    than overwriting the second worker's.
+    """
+    result = await db.execute(
+        update(NotificationDelivery)
+        .where(
+            NotificationDelivery.id == delivery_id, NotificationDelivery.claimed_at == claimed_at
+        )
+        .values(status=status, last_error=last_error)
+    )
+    return bool(result.rowcount)  # ty: ignore[unresolved-attribute]
+
+
+async def reap_exhausted_deliveries(
+    db: AsyncSession, *, now: datetime, max_attempts: int
+) -> list[uuid.UUID]:
+    """Deliveries that exhausted their claims with no recorded outcome.
+
+    A worker that dies on a row's *last* allowed claim leaves it `pending`,
+    unclaimable (`attempts` already at the bound) and never reaching a
+    terminal state - invisible to both the claim query and the
+    failed-deliveries view. This settles it `failed` outright, no claim
+    needed since the row is already unclaimable, modelled on
+    `RunReaperService.reap_stale` (Decision 3).
+    """
+    result = await db.execute(
+        update(NotificationDelivery)
+        .where(
+            NotificationDelivery.status == DeliveryStatus.PENDING.value,
+            NotificationDelivery.attempts >= max_attempts,
+            NotificationDelivery.claimed_until < now,
+        )
+        .values(
+            status=DeliveryStatus.FAILED.value,
+            last_error="exhausted without a recorded outcome",
+        )
+        .returning(NotificationDelivery.id)
+    )
+    return [row[0] for row in result.all()]
+
+
+async def list_failed_deliveries(
+    db: AsyncSession, *, skip: int, limit: int
+) -> tuple[list[tuple[NotificationDelivery, Notification]], int]:
+    """Terminally failed deliveries, deployment-wide, newest first.
+
+    Joined to `notifications` for the event type and recipient the admin view
+    shows - a `NotificationDelivery` row carries neither on its own. The total
+    is `count(*) OVER()` on the same statement as the rows, not a second query
+    - a window function is evaluated before `LIMIT`/`OFFSET`, so the total is
+    the whole match from the same snapshot the page came from.
+    """
+    result = await db.execute(
+        select(NotificationDelivery, Notification, func.count().over().label("total"))
+        .join(Notification, Notification.id == NotificationDelivery.notification_id)
+        .where(NotificationDelivery.status == DeliveryStatus.FAILED.value)
+        .order_by(NotificationDelivery.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    rows = result.all()
+    total = rows[0].total if rows else 0
+    return [(row[0], row[1]) for row in rows], total

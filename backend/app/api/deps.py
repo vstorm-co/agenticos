@@ -1120,3 +1120,14 @@ def get_notification_center_service(db: DBSession) -> NotificationCenterService:
 NotificationCenterSvc = Annotated[
     NotificationCenterService, Depends(get_notification_center_service)
 ]
+from app.services.notification_delivery import NotificationDeliveryService
+
+
+def get_notification_delivery_service(db: DBSession) -> NotificationDeliveryService:
+    """Create NotificationDeliveryService instance with database session."""
+    return NotificationDeliveryService(db)
+
+
+NotificationDeliverySvc = Annotated[
+    NotificationDeliveryService, Depends(get_notification_delivery_service)
+]

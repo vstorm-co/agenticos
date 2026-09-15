@@ -24,8 +24,11 @@ from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.notification import Notification, NotificationEventType
+from app.db.models.notification_delivery import NotificationDelivery
+from app.db.models.user import User
 from app.main import app
 from app.services.notification_center import NotificationCenterService
+from app.services.notification_delivery import NotificationDeliveryService
 
 pytestmark = pytest.mark.anyio
 
@@ -78,6 +81,57 @@ def client(mock_redis: MagicMock) -> Iterator[OpenClient]:
 
 def _url(suffix: str = "") -> str:
     return f"{settings.API_V1_STR}/notifications{suffix}"
+
+
+def _admin_url(suffix: str = "") -> str:
+    return f"{settings.API_V1_STR}/admin/notifications/deliveries{suffix}"
+
+
+def _delivery_row(**overrides) -> NotificationDelivery:
+    fields = {
+        "id": uuid.uuid4(),
+        "notification_id": uuid.uuid4(),
+        "channel": "email",
+        "status": "failed",
+        "attempts": 5,
+        "last_error": "provider rejected the message",
+        "created_at": datetime.now(UTC),
+    }
+    fields.update(overrides)
+    return NotificationDelivery(**fields)
+
+
+@pytest.fixture
+def admin_client(mock_redis: MagicMock) -> Iterator[OpenClient]:
+    user = User(id=_USER_ID, email="root@example.com", hashed_password="x", is_app_admin=True)
+    app.dependency_overrides[deps.get_current_user] = lambda: user
+    app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+    app.dependency_overrides[deps.get_notification_delivery_service] = lambda: (
+        NotificationDeliveryService(MagicMock())
+    )
+
+    @asynccontextmanager
+    async def open_client() -> AsyncIterator[AsyncClient]:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as opened:
+            yield opened
+
+    yield open_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def non_admin_client(mock_redis: MagicMock) -> Iterator[OpenClient]:
+    user = User(id=_USER_ID, email="member@example.com", hashed_password="x", is_app_admin=False)
+    app.dependency_overrides[deps.get_current_user] = lambda: user
+    app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+
+    @asynccontextmanager
+    async def open_client() -> AsyncIterator[AsyncClient]:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as opened:
+            yield opened
+
+    yield open_client
+    app.dependency_overrides.clear()
 
 
 class TestListing:
@@ -179,3 +233,36 @@ class TestMarkAllRead:
                 response = await http.post(_url("/mark-all-read"))
         assert response.status_code == 200
         assert response.json() == {"marked": 3}
+
+
+DELIVERY_PATH = "app.services.notification_delivery"
+
+
+class TestFailedDeliveries:
+    async def test_an_app_admin_sees_the_failed_deliveries(self, admin_client: OpenClient):
+        notification = _row(event_type=NotificationEventType.BUDGET_EXCEEDED.value)
+        delivery = _delivery_row(notification_id=notification.id)
+        with patch(
+            f"{DELIVERY_PATH}.notification_repo.list_failed_deliveries",
+            new=AsyncMock(return_value=([(delivery, notification)], 1)),
+        ):
+            async with admin_client() as http:
+                response = await http.get(_admin_url())
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1
+        assert body["items"][0]["id"] == str(delivery.id)
+        assert body["items"][0]["notification_id"] == str(notification.id)
+        assert body["items"][0]["event_type"] == NotificationEventType.BUDGET_EXCEEDED.value
+        assert body["items"][0]["attempts"] == 5
+        assert body["items"][0]["last_error"] == "provider rejected the message"
+
+    async def test_an_ordinary_member_is_refused(self, non_admin_client: OpenClient):
+        async with non_admin_client() as http:
+            response = await http.get(_admin_url())
+        assert response.status_code == 403
+
+    async def test_an_unrecognised_status_is_rejected(self, admin_client: OpenClient):
+        async with admin_client() as http:
+            response = await http.get(_admin_url(), params={"status": "sent"})
+        assert response.status_code == 422
