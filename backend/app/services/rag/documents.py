@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import logging
 import re
-import shutil
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -10,6 +10,12 @@ from typing import Any
 import pymupdf
 from docx import Document as DOCXDocument
 
+from app.core.office_convert import (
+    OfficeConversionError,
+    OfficeConversionTimeout,
+    convert_to_pdf,
+    soffice_command,
+)
 from app.services.rag._splitters import (
     MarkdownHeaderSplitter,
     RecursiveCharacterSplitter,
@@ -411,9 +417,9 @@ class LiteParseParser(BaseDocumentParser):
 
     allowed = sorted(LITEPARSE_PDF_FORMATS)
 
-    # Probed once per process. `shutil.which` is a handful of stat calls, but
-    # this is consulted per document to explain a failure, and the answer cannot
-    # change without the container being replaced.
+    # Probed once per process. Resolving the command is a handful of stat calls,
+    # but this is consulted per document to explain a failure, and the answer
+    # cannot change without the container being replaced.
     _libreoffice: bool | None = None
 
     def __init__(
@@ -450,15 +456,13 @@ class LiteParseParser(BaseDocumentParser):
     def libreoffice_available(cls) -> bool:
         """Whether office documents can be converted on this machine.
 
-        Mirrors liteparse's own discovery order (`find_libre_office_command` in
-        `conversion.rs`): the two command names first, then the macOS bundle.
+        Delegates to `office_convert.soffice_command`, the single owner of the
+        discovery order (the two command names, then the macOS bundle), so this
+        gate and the converter that actually spawns `soffice` cannot disagree
+        about whether a machine can convert.
         """
         if cls._libreoffice is None:
-            cls._libreoffice = bool(
-                shutil.which("libreoffice")
-                or shutil.which("soffice")
-                or Path("/Applications/LibreOffice.app/Contents/MacOS/soffice").exists()
-            )
+            cls._libreoffice = soffice_command() is not None
         return cls._libreoffice
 
     def _build(self, *, ocr: bool) -> Any:
@@ -466,7 +470,7 @@ class LiteParseParser(BaseDocumentParser):
 
         return LiteParse(ocr_enabled=ocr, **self._options)
 
-    def _needs_ocr(self, filepath: Path) -> bool:
+    async def _needs_ocr(self, filepath: Path, *, deadline: float) -> bool:
         """Ask the cheap text-layer pass whether OCR is worth running.
 
         This is the single biggest saving LiteParse offers. OCR dominates the
@@ -475,11 +479,20 @@ class LiteParseParser(BaseDocumentParser):
         first turns "OCR every page of every document" into "OCR the documents
         that are actually scans".
 
-        A failure here is not a parse failure - if the check cannot answer, the
-        honest thing is to parse with OCR on rather than to refuse.
+        Like the parse itself, `is_complex` is a synchronous native call, so it
+        runs in a thread bounded by `deadline` rather than on the event loop -
+        otherwise a slow probe would block the worker and spend time the
+        whole-document ceiling does not account for. A failure or a probe that
+        overruns the deadline is not a parse failure: the honest thing is to
+        parse with OCR on rather than to refuse, and the parse's own remaining
+        budget then enforces the ceiling.
         """
+        budget = max(deadline - asyncio.get_running_loop().time(), 0.0)
         try:
-            stats = self._build(ocr=False).is_complex(str(filepath))
+            stats = await asyncio.wait_for(
+                asyncio.to_thread(lambda: self._build(ocr=False).is_complex(str(filepath))),
+                timeout=budget,
+            )
         except Exception:
             logger.warning("LiteParse: complexity check failed for %s", filepath.name)
             return True
@@ -488,21 +501,79 @@ class LiteParseParser(BaseDocumentParser):
     async def parse(self, filepath: Path) -> Document:
         """Parse a document using LiteParse.
 
-        Catches LiteParse exceptions and re-raises as RuntimeError so callers
-        can surface them as a structured ingestion failure instead of an
-        opaque subprocess error.
+        Office formats are converted to PDF first, by a LibreOffice subprocess we
+        own and can kill on timeout, and then read as PDFs; everything else goes
+        straight to LiteParse's native pipeline. Catches the parser's exceptions
+        and re-raises as RuntimeError so callers can surface them as a structured
+        ingestion failure instead of an opaque subprocess error.
         """
+        if filepath.suffix.lower() in LITEPARSE_OFFICE_FORMATS:
+            if not self.libreoffice_available():
+                raise RuntimeError(
+                    f"LiteParse converts {filepath.suffix} through LibreOffice, which is not "
+                    f"installed. Install it (`apt-get install libreoffice`), or choose a parser "
+                    f"that reads {filepath.suffix} directly."
+                )
+            return await self._parse_office(filepath)
 
+        return await self._parse_pdf(filepath, source=filepath)
+
+    async def _parse_office(self, filepath: Path) -> Document:
+        """Convert an office document to PDF ourselves, then parse the PDF.
+
+        LiteParse would shell out to LibreOffice from its Rust core with no way
+        to kill it on timeout (#1685), so a hung conversion leaves an orphaned
+        `soffice` and ties up the worker. Converting through
+        `app.core.office_convert` runs `soffice` in a process group we tear down
+        on timeout or cancellation; the resulting PDF then goes through the
+        ordinary native pipeline - no further LibreOffice - while the document
+        keeps the original file's name and type in its metadata.
+        """
+        # One deadline spans conversion *and* parsing, so `timeout_seconds` is a
+        # ceiling on the whole document rather than one each: a slow conversion
+        # leaves the native parse only the remaining budget.
+        deadline = asyncio.get_running_loop().time() + self.timeout_seconds
+        with tempfile.TemporaryDirectory(prefix="liteparse-office-") as tmp:
+            try:
+                pdf_path = await convert_to_pdf(
+                    filepath, Path(tmp), timeout_seconds=self.timeout_seconds
+                )
+            except OfficeConversionTimeout as e:
+                raise RuntimeError(
+                    f"LiteParse: LibreOffice conversion timed out after "
+                    f"{self.timeout_seconds}s for {filepath.name}"
+                ) from e
+            except OfficeConversionError as e:
+                raise RuntimeError(
+                    f"LiteParse: LibreOffice could not convert {filepath.name} to PDF"
+                ) from e
+            return await self._parse_pdf(pdf_path, source=filepath, deadline=deadline)
+
+    async def _parse_pdf(
+        self, parse_target: Path, *, source: Path, deadline: float | None = None
+    ) -> Document:
+        """Read a PDF (or image) through LiteParse's native pipeline.
+
+        `parse_target` is what LiteParse reads - the file itself for a PDF, or the
+        PDF an office document was converted to. `source` is the original upload,
+        whose name and type the returned document carries. `deadline` is an event-
+        loop timestamp the whole read must finish by; `None` starts a fresh one
+        from the configured ceiling, and the office path passes its own so the
+        OCR preflight and the parse together cannot outlast the conversion's
+        remaining budget.
+        """
         from liteparse.types import ParseError  # type: ignore[import-not-found]
 
-        if filepath.suffix.lower() in LITEPARSE_OFFICE_FORMATS and not self.libreoffice_available():
-            raise RuntimeError(
-                f"LiteParse converts {filepath.suffix} through LibreOffice, which is not "
-                f"installed. Install it (`apt-get install libreoffice`), or choose a parser "
-                f"that reads {filepath.suffix} directly."
-            )
+        loop = asyncio.get_running_loop()
+        if deadline is None:
+            deadline = loop.time() + self.timeout_seconds
 
-        ocr = self.enable_ocr and (not self.auto_ocr or self._needs_ocr(filepath))
+        # The OCR preflight is a synchronous read too, so it spends the deadline
+        # like the parse does; the budget is what remains once it has answered.
+        ocr = self.enable_ocr
+        if ocr and self.auto_ocr:
+            ocr = await self._needs_ocr(parse_target, deadline=deadline)
+        budget = max(deadline - loop.time(), 0.0)
 
         try:
             # The Python binding is synchronous, and a parse is CPU-bound work
@@ -514,17 +585,17 @@ class LiteParseParser(BaseDocumentParser):
             # completion. It is a ceiling on the request, not on the machine,
             # which is why `max_pages` is the setting that actually bounds cost.
             result = await asyncio.wait_for(
-                asyncio.to_thread(self._build(ocr=ocr).parse, str(filepath)),
-                timeout=self.timeout_seconds,
+                asyncio.to_thread(self._build(ocr=ocr).parse, str(parse_target)),
+                timeout=budget,
             )
         except FileNotFoundError as e:
-            raise RuntimeError(f"LiteParse: file not found: {filepath}") from e
+            raise RuntimeError(f"LiteParse: file not found: {source.name}") from e
         except TimeoutError as e:
             raise RuntimeError(
-                f"LiteParse: parse timed out after {self.timeout_seconds}s for {filepath.name}"
+                f"LiteParse: parse timed out after {self.timeout_seconds}s for {source.name}"
             ) from e
         except ParseError as e:
-            raise RuntimeError(f"LiteParse: parse failed for {filepath.name}: {e}") from e
+            raise RuntimeError(f"LiteParse: parse failed for {source.name}: {e}") from e
 
         # `page.markdown` is populated only in markdown mode; `page.text` always
         # holds the spatial-layout rendering, so it is the fallback rather than
@@ -538,7 +609,7 @@ class LiteParseParser(BaseDocumentParser):
 
         return Document(
             pages=pages,
-            metadata=self.get_document_metadata(filepath),
+            metadata=self.get_document_metadata(source),
         )
 
 

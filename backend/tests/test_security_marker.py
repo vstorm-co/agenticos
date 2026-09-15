@@ -110,6 +110,8 @@ EXEMPT: dict[str, str] = {
     "tests/test_vault.py::TestRotation::test_a_secret_sealed_under_the_old_master_key_survives_a_real_rotation": "a secret survives a real master-key rotation, rotation correctness, no refusal",
     "tests/test_vault.py::TestRotation::test_rewrap_preserves_the_secret": "rewrap preserves the secret across a version bump, rotation round-trip, no refusal",
     "tests/test_web_search.py::TestConfiguration::test_a_keyless_method_publishes_without_a_secret": "a keyless web-search method needs no secret, conditional requirement, no refusal",
+    "tests/integration/test_audit_hash_chain.py::TestTheDeploymentChain::test_a_tenant_less_write_chains_and_verifies": "the deployment-wide (tenant-less) audit chain is verified, correctness, not a tenant-isolation refusal",
+    "tests/test_liteparse_office_timeout.py::test_the_conversion_and_parse_share_one_timeout_budget": "a conversion/parse time budget, not a spend budget, no refusal",
 }
 
 
