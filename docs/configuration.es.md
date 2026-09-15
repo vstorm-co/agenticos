@@ -1,5 +1,5 @@
 ---
-source_sha: "1de192f9fbaa"
+source_sha: "2098a1a24b23"
 ---
 
 # Configuración { #configuration }
@@ -378,8 +378,9 @@ defecto, registra el mensaje, la salida y cada llamada a herramienta; `none`
 registra solo tiempo, tokens, coste y nombres de herramienta. Se aplica donde se
 instrumenta el agent, así que se sostiene sea cual sea el token que traza el run
 — con el de nivel de deployment el agent queda fijado a una instrumentación sin
-contenido, y un especialista inline al que delega hereda el modo. Un límite antes
-de confiar en ello: fijar esa instrumentación es best-effort y un fallo se
+contenido, y un especialista al que delega — escrito inline o inventado a mitad
+del run por el modelo — hereda el modo. Un límite antes de confiar en ello:
+fijar esa instrumentación es best-effort y un fallo se
 registra mientras el run sigue.
 
 | Variable | Por defecto | Descripción |

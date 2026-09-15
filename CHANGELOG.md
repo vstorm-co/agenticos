@@ -29,7 +29,11 @@ Two things are versioned separately from this file and worth knowing about:
   its own spans and broke it for every span its specialist produced, in the same
   run. The mode now travels with the conversion while the project deliberately
   does not - a specialist has no Logfire project of its own and is never handed
-  the parent's write token. (#1699)
+  the parent's write token. A specialist the run's model **invents** is covered
+  by the same rule and was the wider half of the hole: it is assembled from a
+  bare spec rather than converted from one, so nothing carried the mode there
+  either, and a specialist nobody reviewed is the last place a run's prompts
+  should start leaving from. (#1699)
 
 - **The `redacted` trace-content mode is decided against, not pending.** Logfire
   is opt-in and exists to record prompts and outputs; a partly-scrubbed export is

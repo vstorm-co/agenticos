@@ -169,7 +169,8 @@ user's message, the model's answer and every tool argument and result. With
 `logfire_token_secret_id` on any environment, nothing is sent and the trace id
 is still recorded locally. A deployment that needs traces without the content sets the agent's
 `observability.content` to `none`, which records timing, tokens, cost and tool
-names and no message text, and which an inline specialist of that agent inherits.
+names and no message text, and which a specialist of that agent inherits, whether
+its author wrote it inline or the run's model invented it.
 
 There is no third mode between the two. An export scrubbed by a PII filter is a
 guarantee nobody can audit - one identifier the filter misses has left, and the

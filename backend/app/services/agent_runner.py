@@ -118,6 +118,8 @@ from app.agents.spec import (
     ObservabilitySpec,
     SpecialistSpec,
     SubagentRef,
+    TraceContent,
+    trace_content_block,
 )
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -1670,7 +1672,10 @@ def _delegate_builder(
 
 
 def _dynamic_builder(
-    delegation: _Delegation, *, profiles: Mapping[str, ModelRequestSpec]
+    delegation: _Delegation,
+    *,
+    profiles: Mapping[str, ModelRequestSpec],
+    trace_content: TraceContent,
 ) -> DynamicSpecialistBuilder:
     """How a specialist a run's model invents becomes an agent of this platform's.
 
@@ -1704,9 +1709,14 @@ def _dynamic_builder(
             # capabilities, no collections, no skills, no MCP connections and no
             # delegates - so a specialist a model wrote cannot reach anything the
             # organization granted the agent that invented it, and cannot delegate
-            # a level further.
+            # a level further. The one thing it does inherit is what may be
+            # recorded about it: a specialist nobody reviewed is the last place a
+            # run's prompts should start leaving from.
             spec=AgentSpec(
-                name=name, instructions=instructions, model_profile_id=profiles[model].profile_id
+                name=name,
+                instructions=instructions,
+                model_profile_id=profiles[model].profile_id,
+                observability=trace_content_block(trace_content),
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
@@ -2521,11 +2531,13 @@ class AgentRunnerService:
             subagents,
             depth_remaining=depth_remaining,
             depth=0,
-            dynamic=await self._dynamic_specialists(delegation, config),
+            dynamic=await self._dynamic_specialists(
+                delegation, config, trace_content=spec.trace_content
+            ),
         )
 
     async def _dynamic_specialists(
-        self, delegation: _Delegation, config: SubagentsConfig
+        self, delegation: _Delegation, config: SubagentsConfig, *, trace_content: TraceContent
     ) -> DynamicSpecialists | None:
         """Whether one agent in the tree may invent specialists, and how it builds one.
 
@@ -2543,7 +2555,7 @@ class AgentRunnerService:
             return None
         profiles = await self._model_catalog(delegation)
         return DynamicSpecialists(
-            build=_dynamic_builder(delegation, profiles=profiles),
+            build=_dynamic_builder(delegation, profiles=profiles, trace_content=trace_content),
             allowed_models=tuple(profiles),
         )
 
@@ -2695,9 +2707,7 @@ class AgentRunnerService:
             _with_shared(
                 specialist.to_agent_spec(
                     fallback_model_profile_id=parent.model_profile_id,
-                    trace_content=(
-                        parent.observability.content if parent.observability else "full"
-                    ),
+                    trace_content=parent.trace_content,
                 ),
                 shared,
             )
@@ -2860,7 +2870,13 @@ class AgentRunnerService:
                     # the one capability `_resolve_delegates` will not share.
                     # Shared, the parent's binding would land on a delegate that
                     # binds none and be read here as the delegate's own.
-                    dynamic=await self._dynamic_specialists(delegation, nested_config),
+                    # And its own trace-content mode, for the same reason: a
+                    # published delegate carries an observability block of its
+                    # own, so what a specialist it invents may record is its
+                    # author's answer rather than its caller's.
+                    dynamic=await self._dynamic_specialists(
+                        delegation, nested_config, trace_content=pinned.trace_content
+                    ),
                 )
             else:
                 # The bound. Built without the capability rather than with one

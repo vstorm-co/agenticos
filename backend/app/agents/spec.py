@@ -72,9 +72,27 @@ ApprovalMode = Literal["default", "required", "never"]
 
 # What a run's traces are allowed to carry. `full` is the default so nothing
 # stored changes behaviour; `none` keeps timing, tokens, cost and tool names but
-# no message text or tool arguments. A `redacted` middle ground - the same PII
-# filter the log pipeline runs, over message text - is a follow-up (#1616).
+# no message text or tool arguments. There is deliberately no `redacted` middle
+# ground: an export a PII filter has been over is a guarantee nobody can audit,
+# because the identifier it missed has already left (#1616).
 TraceContent = Literal["full", "none"]
+
+
+def trace_content_block(content: TraceContent) -> ObservabilitySpec | None:
+    """An observability block that carries a content mode and nothing else.
+
+    What a specialist gets, whether its author wrote it inline or the run's model
+    invented it mid-run. A specialist has no Logfire project of its own and must
+    never be handed the parent's write token, but `content` is not a destination -
+    it is a rule about what may be recorded anywhere, and the run being recorded
+    is the parent's.
+
+    `full` is `None` rather than an empty block: it changes nothing at
+    instrumentation, so writing one into every specialist ever built would be a
+    field that exists to be read as "somebody configured this".
+    """
+    return None if content == "full" else ObservabilitySpec(content=content)
+
 
 _WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
@@ -827,12 +845,7 @@ class SpecialistSpec(BaseModel):
             skill_ids=self.skill_ids,
             context_ids=self.context_ids,
             max_steps=self.max_steps,
-            # Only when it bites: a block naming no project exists purely to
-            # carry the mode, so `full` - which changes nothing - stays absent
-            # rather than writing an empty block into every specialist's spec.
-            observability=(
-                None if trace_content == "full" else ObservabilitySpec(content=trace_content)
-            ),
+            observability=trace_content_block(trace_content),
         )
 
 
@@ -975,6 +988,18 @@ class AgentSpec(BaseModel):
         default=None,
         description="Send this agent's traces to a Logfire project of its own",
     )
+
+    @property
+    def trace_content(self) -> TraceContent:
+        """How much of a run this agent's spans may carry.
+
+        No block at all means `full`, which is what an agent published before the
+        mode existed asks for. Read here rather than at each call site because
+        every specialist this agent builds inherits it, and a caller that forgets
+        the `None` case silently hands the deployment's global instrumentation a
+        specialist with content on.
+        """
+        return self.observability.content if self.observability else "full"
 
     @model_validator(mode="before")
     @classmethod

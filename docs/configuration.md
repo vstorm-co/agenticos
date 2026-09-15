@@ -363,7 +363,8 @@ default, records the message, the output and every tool call; `none` records
 timing, tokens, cost and tool names only. It is applied where the agent is
 instrumented, so it holds whichever token traces the run — under the
 deployment-wide one the agent is pinned to content-free instrumentation instead,
-and an inline specialist the agent delegates to inherits the mode. One limit
+and a specialist the agent delegates to — written inline or invented mid-run by
+the model — inherits the mode. One limit
 before relying on it: attaching that instrumentation is best-effort, and a
 failure is logged while the run continues.
 

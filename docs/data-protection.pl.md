@@ -1,5 +1,5 @@
 ---
-source_sha: "796a3e72be5a"
+source_sha: "06500c4360ef"
 ---
 
 # Ochrona danych { #data-protection }
@@ -174,7 +174,8 @@ specu i bez `logfire_token_secret_id` na żadnym środowisku nic nie jest
 wysyłane, a id trace'u i tak jest zapisywane lokalnie. Wdrożenie, które
 potrzebuje trace'ów bez treści, ustawia agentowi `observability.content` na
 `none`: zapisywane są czas, tokeny, koszt i nazwy narzędzi, a żaden tekst
-wiadomości nie wychodzi — i tryb ten dziedziczy inline specjalista tego agenta.
+wiadomości nie wychodzi — i tryb ten dziedziczy specjalista tego agenta, czy to
+napisany inline przez autora, czy wymyślony przez model w trakcie runu.
 
 Trzeciego trybu pomiędzy nie ma. Eksport wyczyszczony filtrem PII to gwarancja,
 której nikt nie zaudytuje — jeden identyfikator, który filtr przepuści, już

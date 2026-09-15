@@ -1,5 +1,5 @@
 ---
-source_sha: "1de192f9fbaa"
+source_sha: "2098a1a24b23"
 ---
 
 # Konfiguration { #configuration }
@@ -390,8 +390,9 @@ der Standard, zeichnet die Nachricht, die Ausgabe und jeden Tool-Aufruf auf;
 `none` nur Zeit, Tokens, Kosten und Tool-Namen. Er wird dort angewandt, wo der
 Agent instrumentiert wird, hält also unabhängig davon, welches Token den Run
 traced — beim deploymentweiten wird der Agent stattdessen an eine inhaltsfreie
-Instrumentierung geheftet, und ein Inline-Spezialist, an den der Agent
-delegiert, erbt den Modus. Eine Grenze, bevor man sich darauf verlässt: das
+Instrumentierung geheftet, und ein Spezialist, an den der Agent delegiert — inline
+geschrieben oder vom Model mitten im Run erfunden —, erbt den Modus. Eine Grenze,
+bevor man sich darauf verlässt: das
 Anheften dieser Instrumentierung ist Best Effort, ein Fehlschlag wird
 protokolliert und der Run läuft weiter.
 

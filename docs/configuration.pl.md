@@ -1,5 +1,5 @@
 ---
-source_sha: "1de192f9fbaa"
+source_sha: "2098a1a24b23"
 ---
 
 # Konfiguracja { #configuration }
@@ -369,7 +369,8 @@ wiadomość, wyjście i każde wywołanie narzędzia; `none` zapisuje tylko czas
 tokeny, koszt i nazwy narzędzi. Jest stosowany tam, gdzie agent jest
 instrumentowany, więc trzyma niezależnie od tego, który token trace'uje run — przy
 tym na poziomie wdrożenia agent zostaje przypięty do instrumentacji bez treści,
-a inline specjalista, do którego agent deleguje, dziedziczy tryb. Jedno
+a specjalista, do którego agent deleguje — napisany inline albo wymyślony
+w trakcie runu przez model — dziedziczy tryb. Jedno
 ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
 best-effort, a błąd jest logowany, gdy run trwa dalej.
 

@@ -954,6 +954,51 @@ class TestASpecialistTheModelInvents:
         assert dynamic is not None
         assert dynamic.allowed_models == ("fast",)
 
+    async def test_one_the_model_invents_inherits_the_refusal_to_trace_content(self):
+        """A specialist nobody reviewed is the last place a run's prompts should
+        start leaving from. `_dynamic_builder` assembles a bare `AgentSpec`, so
+        without the mode it arrived at `_instrument` asking for nothing and the
+        deployment's global instrumentation traced it with content on (#1699)."""
+        prepared = await _prepare(
+            _delegating(
+                allow_dynamic=True,
+                observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+            ),
+            profiles=[_profile("fast")],
+        )
+
+        spec = prepared.invented(model="fast")["spec"]
+        assert spec.observability is not None
+        assert spec.observability.content == "none"
+        assert spec.observability.token_secret_id is None
+
+    async def test_one_invented_by_a_delegate_follows_that_delegates_own_mode(self):
+        """A published delegate is reviewed on its own spec, so what a specialist
+        it invents may record is its author's answer and not its caller's."""
+        child_id = uuid.uuid4()
+        child = _version(
+            child_id,
+            _delegating(
+                name="Research Bot",
+                allow_dynamic=True,
+                observability=ObservabilitySpec(content="none"),
+            ),
+        )
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            max_depth=2,
+        )
+
+        prepared = await _prepare(parent, versions={child.id: child}, profiles=[_profile("fast")])
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert nested.dynamic is not None
+        with patch(f"{RUNNER}.build_agent", new=prepared.build):
+            nested.dynamic.build(name="skimmer", instructions="Be brief.", model="fast")
+        spec = prepared.build.call_args_list[-1].args[0]
+        assert spec.observability is not None
+        assert spec.observability.content == "none"
+
     async def test_the_catalog_is_read_once_for_the_whole_tree(self):
         """It is a fact about the organization, not about a level, and reading it
         costs a query and a vault unseal per profile. Two nested levels that both

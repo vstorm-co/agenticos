@@ -1,5 +1,5 @@
 ---
-source_sha: "796a3e72be5a"
+source_sha: "06500c4360ef"
 ---
 
 # Datenschutz { #data-protection }
@@ -180,8 +180,9 @@ irgendeinem Spec und ohne `logfire_token_secret_id` auf irgendeinem Environment
 wird nichts gesendet, und die Trace-Id wird trotzdem lokal festgehalten. Ein
 Deployment, das Traces ohne den Inhalt braucht, setzt `observability.content` des
 Agents auf `none`: aufgezeichnet werden Zeit, Tokens, Kosten und Tool-Namen, und
-kein Nachrichtentext verlässt die Maschine — und ein Inline-Spezialist dieses
-Agenten erbt den Modus.
+kein Nachrichtentext verlässt die Maschine — und ein Spezialist dieses Agenten
+erbt den Modus, ob sein Autor ihn inline geschrieben oder das Model des Runs ihn
+erfunden hat.
 
 Einen dritten Modus dazwischen gibt es nicht. Ein durch einen PII-Filter
 bereinigter Export ist eine Zusicherung, die niemand prüfen kann — ein

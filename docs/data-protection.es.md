@@ -1,5 +1,5 @@
 ---
-source_sha: "796a3e72be5a"
+source_sha: "06500c4360ef"
 ---
 
 # Protección de datos { #data-protection }
@@ -177,8 +177,8 @@ argumento y resultado de herramienta. Con `LOGFIRE_TOKEN` sin definir, sin token
 entorno, no se envía nada y el id de la traza se sigue registrando localmente.
 Un deployment que necesite trazas sin el contenido pone el
 `observability.content` del agent en `none`: se registran tiempo, tokens, coste y
-nombres de herramienta, y ningún texto de mensaje sale — y un especialista inline
-de ese agent hereda el modo.
+nombres de herramienta, y ningún texto de mensaje sale — y un especialista de ese
+agent hereda el modo, escrito inline o inventado por el modelo del run.
 
 No hay un tercer modo intermedio. Una exportación depurada por un filtro de PII
 es una garantía que nadie puede auditar — un identificador que el filtro deje
