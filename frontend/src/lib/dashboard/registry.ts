@@ -55,7 +55,8 @@ export type WidgetId =
   | "channels"
   | "knowledge"
   | "activity-rhythm"
-  | "routines";
+  | "routines"
+  | "notifications";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -216,6 +217,9 @@ const holds =
   (permission: Permission): Gate =>
   (can) =>
     can(permission);
+// A card whose primary read (`GET /notifications`) needs nothing beyond being
+// signed in - every membership, including a viewer's, has its own inbox.
+const everyone: Gate = () => true;
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
   "activity-rhythm": {
@@ -254,6 +258,13 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
     seeAll: ROUTES.RAG,
+  },
+  notifications: {
+    id: "notifications",
+    gate: everyone,
+    defaultSpan: "s4",
+    defaultRows: "r3",
+    category: "attention",
   },
   summary: {
     id: "summary",

@@ -124,9 +124,12 @@ describe("visibleSections", () => {
     // whether documents are still arriving, knowledge whether the ones that
     // did ever finished indexing. Routines survives on `agents:view`, which is
     // what its own data needs - the outcome half of each row asks for runs and
-    // is simply not fetched for a reader without them.
+    // is simply not fetched for a reader without them. Notifications survives
+    // on nothing at all - it is the one card in this band gated on being
+    // signed in rather than on any permission.
     expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
       "knowledge-freshness",
+      "notifications",
       "routines",
       "knowledge",
     ]);
@@ -136,8 +139,14 @@ describe("visibleSections", () => {
     ]);
   });
 
-  it("a caller with nothing sees nothing - and no empty headings either", () => {
-    expect(visibleSections(LAYOUTS.steward, () => false, false)).toEqual([]);
+  it("a caller with nothing still sees their own notifications, and nothing else", () => {
+    expect(visibleSections(LAYOUTS.steward, () => false, false)).toEqual([
+      {
+        id: "attention",
+        titleKey: "attention",
+        entries: [{ widget: "notifications", span: "s6", rows: "r3" }],
+      },
+    ]);
   });
 
   it("the app admin passes every gate on their own layout", () => {
@@ -175,8 +184,10 @@ describe("visibleSections", () => {
   it("gives an operator the sandbox section on the strength of connections:view", () => {
     const sections = visibleSections(LAYOUTS.operator, holds(Perm.connectionsView), false);
 
-    expect(sections.map((section) => section.id)).toEqual(["sandboxes"]);
-    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
+    // Attention survives too, on the one card nothing gates: an operator with
+    // no other permission in this list still has their own inbox.
+    expect(sections.map((section) => section.id)).toEqual(["attention", "sandboxes"]);
+    expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual([
       "sandbox-capacity",
       "sandbox-policy",
       "sandbox-sessions",

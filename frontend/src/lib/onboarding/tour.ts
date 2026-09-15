@@ -102,6 +102,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
   // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
   { id: "dashboard-customize", page: ROUTES.DASHBOARD, target: "dashboard-customize" },
+  // The bell itself sits in the sidebar, not this page, and is mounted on every
+  // page alike - but a `TourStep` needs a `page` to ever reach `stepsForPage`
+  // (see its own docstring), so it is anchored here the way `dashboard-customize`
+  // is: "?"-only, ungated, because every membership has its own inbox.
+  { id: "notification-bell", page: ROUTES.DASHBOARD, target: "notification-bell" },
 
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
