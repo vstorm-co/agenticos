@@ -168,12 +168,37 @@ def database_url() -> Iterator[str]:
         asyncio.run(_outside_a_transaction(maintenance, drop))
 
 
+# The FA-039 global helper the runtime vector store's date index and predicate
+# depend on. A real deployment gets it from the prerequisite migration
+# (0081_rag_metadata_prereqs); these tests build the schema from models rather
+# than migrations, so `_ensure_collection`'s partial date index would reference a
+# missing function without this. Kept in step with the migration's own copy.
+_RAG_SAFE_TO_DATE_DDL = r"""
+CREATE OR REPLACE FUNCTION rag_safe_to_date(value text) RETURNS date
+LANGUAGE plpgsql IMMUTABLE AS $$
+BEGIN
+    IF value IS NULL OR value !~ '^\d{4}-\d{2}-\d{2}$' THEN
+        RETURN NULL;
+    END IF;
+    RETURN make_date(
+        substring(value from 1 for 4)::int,
+        substring(value from 6 for 2)::int,
+        substring(value from 9 for 2)::int
+    );
+EXCEPTION WHEN others THEN
+    RETURN NULL;
+END;
+$$;
+"""
+
+
 async def _create_schema(url: str) -> None:
     """Build the schema from the models, once, on a loop of its own."""
     engine = create_async_engine(url)
     try:
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            await connection.execute(text(_RAG_SAFE_TO_DATE_DDL))
     finally:
         await engine.dispose()
 
