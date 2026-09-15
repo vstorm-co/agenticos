@@ -1218,12 +1218,14 @@ the library's own dump of the run's messages is stored whole and replayed exactl
 as the model last saw it, base64 and all, until the next summary replaces it.
 That blob is rows in Postgres and bytes on the wire, every turn in between.
 
-**Where the bytes go.** Into the deployment's own file storage, under a prefix
-per organization. A media URI is a content hash, so two tenants whose runs
-contain the same picture compute the same URI; the organization comes from the
-run rather than from the URI, so a hash is only ever resolved inside the tenant
-that wrote it. The store issues no public URL — a URL a model provider can fetch
-is a URL anybody can.
+**Where the bytes go, and how long they live.** Into the deployment's own file
+storage, at `media/<organization>/<conversation>/<digest>`. The organization is
+the isolation: a media URI is a content hash, so two tenants holding the same
+picture compute the same URI, and the organization comes from the run rather than
+from the URI. The conversation is the lifetime — a content hash records nothing
+about who still references it, so the thread's prefix is removed with the thread
+and the tenant's with the tenant. The store issues no public URL; a URL a model
+provider can fetch is a URL anybody can.
 
 **Offloading is optional; restoring is not.** Binding the capability is the
 decision to offload. Re-inlining happens for every conversation whether or not it

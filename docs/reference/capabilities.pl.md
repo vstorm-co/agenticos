@@ -1,5 +1,5 @@
 ---
-source_sha: "fb51f34b14b2"
+source_sha: "544d485d3728"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1289,12 +1289,13 @@ i odtwarzany dokładnie tak, jak widział go model, razem z base64, aż do kolej
 podsumowania. Ten blob to wiersze w Postgresie i bajty na łączu, w każdej turze
 pomiędzy.
 
-**Gdzie trafiają bajty.** Do własnego magazynu plików wdrożenia, pod prefiks per
-organizacja. URI mediów to hash treści, więc dwóch tenantów, których runy
-zawierają ten sam obrazek, wylicza to samo URI; organizacja pochodzi z runa, a nie
-z URI, więc hash rozwiązuje się wyłącznie wewnątrz tenanta, który go zapisał.
-Magazyn nie wystawia publicznego URL-a — URL, który może pobrać provider modelu,
-może pobrać każdy.
+**Gdzie trafiają bajty i jak długo żyją.** Do własnego magazynu plików wdrożenia,
+pod `media/<organizacja>/<rozmowa>/<digest>`. Organizacja to izolacja: URI mediów
+to hash treści, więc dwóch tenantów z tym samym obrazkiem wylicza to samo URI,
+a organizacja pochodzi z runa, nie z URI. Rozmowa to czas życia — hash treści nie
+zapisuje niczego o tym, kto się do niego jeszcze odwołuje, więc prefiks wątku
+znika razem z wątkiem, a prefiks tenanta razem z tenantem. Magazyn nie wystawia
+publicznego URL-a; URL, który może pobrać provider modelu, może pobrać każdy.
 
 **Odciążanie jest opcjonalne; przywracanie nie.** Podpięcie capability jest
 decyzją o odciążaniu. Ponowne wstawianie treści dzieje się dla każdej rozmowy,

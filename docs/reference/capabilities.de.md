@@ -1,5 +1,5 @@
 ---
-source_sha: "fb51f34b14b2"
+source_sha: "544d485d3728"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1387,12 +1387,15 @@ das Modell ihn zuletzt gesehen hat, Base64 inklusive, bis die nächste
 Zusammenfassung ihn ersetzt. Dieser Blob sind Zeilen in Postgres und Bytes auf der
 Leitung, in jeder Runde dazwischen.
 
-**Wohin die Bytes gehen.** In den eigenen Dateispeicher des Deployments, unter ein
-Präfix pro Organisation. Eine Medien-URI ist ein Inhalts-Hash, zwei Mandanten mit
-demselben Bild berechnen also dieselbe URI; die Organisation kommt aus dem Run und
-nicht aus der URI, ein Hash wird also nur innerhalb des Mandanten aufgelöst, der
-ihn geschrieben hat. Der Speicher gibt keine öffentliche URL aus — eine URL, die
-ein Modellanbieter abrufen kann, kann jeder abrufen.
+**Wohin die Bytes gehen, und wie lange sie leben.** In den eigenen Dateispeicher
+des Deployments, nach `media/<Organisation>/<Konversation>/<Digest>`. Die
+Organisation ist die Isolation: eine Medien-URI ist ein Inhalts-Hash, zwei
+Mandanten mit demselben Bild berechnen dieselbe URI, und die Organisation kommt
+aus dem Run und nicht aus der URI. Die Konversation ist die Lebensdauer — ein
+Inhalts-Hash hält nicht fest, wer ihn noch referenziert, also verschwindet das
+Präfix des Threads mit dem Thread und das des Mandanten mit dem Mandanten. Der
+Speicher gibt keine öffentliche URL aus; eine URL, die ein Modellanbieter abrufen
+kann, kann jeder abrufen.
 
 **Auslagern ist optional, Wiederherstellen nicht.** Die Capability zu binden ist
 die Entscheidung auszulagern. Das Wiedereinsetzen geschieht für jede Konversation,

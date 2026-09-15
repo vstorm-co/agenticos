@@ -7,12 +7,22 @@ land - the local disk by default, an S3 bucket with server-side encryption when
 the deployment configures one (#1423) - rather than in a second place with its
 own backup story.
 
-**Keyed per organization, and that is the whole of the isolation.** A media URI
-is a content hash, so two tenants whose runs contain the same picture compute the
-same URI - and a store that turned a URI straight into a path would let one read
-the other's bytes by presenting a hash it guessed or saw. The organization is
-part of the path and comes from the run, never from the URI, so a hash is only
-ever resolved inside the tenant that wrote it.
+**Keyed per organization and per conversation, and each half earns its place.**
+
+The organization is the isolation. A media URI is a content hash, so two tenants
+whose runs contain the same picture compute the same URI - and a store that
+turned a URI straight into a path would let one read the other's bytes by
+presenting a hash it guessed or saw. The organization comes from the run, never
+from the URI.
+
+The conversation is the *lifetime*. Content-addressed objects have none of their
+own: nothing records that a given digest is still referenced, so replacing a
+summary, deleting a thread or deleting the organization would leave the bytes
+behind for ever. Under a conversation's own prefix the answer is structural - the
+thread's media is deleted with the thread, and the organization's with the
+organization - at the cost of storing the same picture twice if it appears in two
+threads. That is the right trade for a feature whose whole purpose is to stop
+bytes accumulating.
 """
 
 from __future__ import annotations
@@ -28,6 +38,15 @@ from app.services.file_storage import BaseFileStorage, get_file_storage
 if TYPE_CHECKING:  # pragma: no cover - typing only
     pass
 
+CONVERSATION_RESOURCE = "media.conversation_id"
+"""Key the factory puts the run's conversation under.
+
+The prefix offloaded bytes live under, which is the whole of their lifetime: a
+content hash records nothing about who still references it, so the objects are
+deleted with the thread that does. Absent on a run with no conversation, which
+then offloads nothing.
+"""
+
 ORGANIZATION_RESOURCE = "media.organization_id"
 """Key the factory puts the run's organization under, for the builder to read.
 
@@ -40,6 +59,21 @@ that a capability needs and must never fetch itself.
 _EMPTY = MediaContext()
 
 
+def prefix_for(organization_id: UUID, conversation_id: UUID) -> str:
+    """Where one thread's offloaded media lives.
+
+    A function rather than a method, because the two callers that *delete* a
+    prefix - a conversation going, an organization being purged - have no store
+    to ask and no business building one.
+    """
+    return f"media/{organization_id}/{conversation_id}"
+
+
+def organization_prefix_for(organization_id: UUID) -> str:
+    """Every thread's media for one tenant, for the organization teardown."""
+    return f"media/{organization_id}"
+
+
 class OrganizationMediaStore:
     """Offloaded media for one organization, in the deployment's file storage.
 
@@ -48,21 +82,33 @@ class OrganizationMediaStore:
     and the second `put` is a no-op over an existing key.
     """
 
-    def __init__(self, organization_id: UUID, storage: BaseFileStorage | None = None) -> None:
+    def __init__(
+        self,
+        organization_id: UUID,
+        conversation_id: UUID,
+        storage: BaseFileStorage | None = None,
+    ) -> None:
         self._organization_id = organization_id
+        self._conversation_id = conversation_id
         self._storage = storage if storage is not None else get_file_storage()
 
     def _path(self, digest: str) -> str:
-        """Where one digest's bytes live, inside this organization's own prefix."""
-        return f"media/{self._organization_id}/{digest}"
+        """Where one digest's bytes live: this thread's prefix, in this tenant's."""
+        return f"{prefix_for(self._organization_id, self._conversation_id)}/{digest}"
 
     async def put(self, data: bytes, *, context: MediaContext = _EMPTY) -> str:
         """Write the bytes and answer with their canonical URI.
 
-        Deduplicated by construction: the path is the digest, so the same bytes
-        offloaded from two conversations are one object. A re-write is skipped
-        rather than performed - identical content, and a `put` that overwrote
-        would pay for the transfer every turn a long history is replayed.
+        Deduplicated within the thread: the path is the digest, so the same
+        picture offloaded twice from one conversation is one object, and a
+        re-write is skipped rather than performed - identical content, and a
+        `put` that overwrote would pay for the transfer every turn a long history
+        is replayed.
+
+        The skip is an optimisation and never a correctness claim: two turns of
+        one thread offloading the same bytes at the same time may both write, and
+        both write the same thing. That is also why `save_at` does not undo
+        itself on cancellation - see its docstring.
         """
         uri = media_uri_for(data)
         path = self._path(parse_media_uri(uri))

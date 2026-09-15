@@ -7,6 +7,7 @@ Files are organized per-user: {storage_root}/{user_id}/{uuid}_{filename}
 import logging
 import os
 import re
+import shutil
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -36,6 +37,27 @@ async def delete_files_best_effort(storage_paths: list[str]) -> None:
             await storage.delete(storage_path)
         except Exception as exc:
             logger.warning("Failed to unlink stored file %s: %s", storage_path, exc)
+
+
+async def delete_prefix_best_effort(prefix: str) -> None:
+    """Remove everything under one prefix, logging - not raising on - a failure.
+
+    Handed to `spawn_after_commit` by the teardown paths, for
+    `delete_files_best_effort`'s reason: a removal before the commit is undone by
+    a rollback as files already gone, leaving restored rows pointing at nothing
+    (#1293).
+
+    A failure is logged rather than swallowed: the rows that referenced these
+    bytes are gone by now, so nothing else will ever name this prefix and the
+    warning is its only remaining trace.
+    """
+    try:
+        removed = await get_file_storage().delete_prefix(prefix)
+    except Exception as exc:
+        logger.warning("Failed to remove stored prefix %s: %s", prefix, exc)
+        return
+    if removed:
+        logger.info("storage_prefix_removed", extra={"prefix": prefix, "files": removed})
 
 
 ALLOWED_MIME_TYPES = {
@@ -202,6 +224,16 @@ class BaseFileStorage(ABC):
         with anything else it would be the caller's decision, and no caller in
         this codebase makes it.
 
+        **It does not undo itself on cancellation**, which is the one way it
+        differs from :meth:`save`. A cancelled upload leaves an orphan nobody can
+        reach, so `save` removes what it wrote; a cancelled content-addressed
+        write leaves a file *another writer may already be depending on*, because
+        two callers writing the same digest write the same bytes to the same
+        path. Removing it there would break the marker that names it, and the
+        thing it would have saved is a file identical to one that belongs there.
+        The bytes are bounded by the prefix they live under, which is deleted
+        with the thing that references them.
+
         Not abstract, so a backend that cannot honour a caller-chosen key says so
         at the one call site rather than failing to import - and so adding a
         backend does not mean implementing a method it may have no use for.
@@ -217,7 +249,22 @@ class BaseFileStorage(ABC):
         already have: the path is the digest of the bytes, so a second write of
         the same content is a transfer paid for nothing.
         """
-        return self.get_full_path(storage_path) is not None
+        return await run_blocking(self.get_full_path, storage_path) is not None
+
+    async def delete_prefix(self, prefix: str) -> int:
+        """Remove everything stored under one path prefix; returns the count.
+
+        What gives content-addressed media a lifetime. A digest records nothing
+        about who still references it, so the objects are stored under the
+        prefix of the thing that does - a conversation, and a tenant above it -
+        and removed when *it* goes (#55).
+
+        Not abstract, for `save_at`'s reason: a backend with no use for it says
+        so at the call site rather than failing to import.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} cannot delete a prefix"
+        )  # pragma: no cover - every backend in this codebase implements it
 
     def get_full_path(self, storage_path: str) -> Path | None:
         """Return absolute filesystem path if available (local storage only)."""
@@ -272,8 +319,39 @@ class LocalFileStorage(BaseFileStorage):
 
     async def save_at(self, storage_path: str, data: bytes) -> None:
         file_path = self._resolve_safe_path(storage_path)
+        await run_blocking(self._write_at_blocking, file_path, data)
+
+    @staticmethod
+    def _write_at_blocking(file_path: Path, data: bytes) -> None:
+        """Both syscalls on the pool. `mkdir` is one too, and on a network-backed
+        volume it is the slow one."""
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        await write_bytes_cancel_safe(file_path, data)
+        file_path.write_bytes(data)
+
+    async def delete_prefix(self, prefix: str) -> int:
+        """On the pool, and not cancellation-shielded.
+
+        The teardown runs after the commit that removed what referenced these
+        bytes, so a cancellation part-way leaves files nothing points at - which
+        is what the *next* teardown of the same prefix removes, and what the
+        prefix exists to bound. Shielding an `rmtree` of unknown size would hold
+        a pool worker through a shutdown for no gain.
+        """
+        directory = self._resolve_safe_path(prefix)
+        return await run_blocking(self._delete_prefix_blocking, directory)
+
+    @staticmethod
+    def _delete_prefix_blocking(directory: Path) -> int:
+        """Remove a directory and everything in it; answer with the file count.
+
+        Missing is not an error: a conversation that offloaded nothing has no
+        directory, and the teardown must not care.
+        """
+        if not directory.is_dir():
+            return 0
+        count = sum(1 for path in directory.rglob("*") if path.is_file())
+        shutil.rmtree(directory, ignore_errors=True)
+        return count
 
     async def load(self, storage_path: str) -> bytes:
         file_path = self._resolve_safe_path(storage_path)

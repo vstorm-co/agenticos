@@ -1,5 +1,5 @@
 ---
-source_sha: "fb51f34b14b2"
+source_sha: "544d485d3728"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1307,12 +1307,14 @@ guarda entero y se reproduce exactamente como el modelo lo vio por última vez,
 base64 incluido, hasta que el siguiente resumen lo sustituye. Ese blob son filas
 en Postgres y bytes en el cable, en cada turno intermedio.
 
-**Dónde van los bytes.** Al propio almacenamiento de ficheros del despliegue, bajo
-un prefijo por organización. Una URI de medios es un hash de contenido, así que dos
-inquilinos con la misma imagen calculan la misma URI; la organización viene del run
-y no de la URI, de modo que un hash solo se resuelve dentro del inquilino que lo
-escribió. El almacén no emite ninguna URL pública — una URL que puede descargar un
-proveedor de modelos la puede descargar cualquiera.
+**Dónde van los bytes, y cuánto viven.** Al propio almacenamiento de ficheros del
+despliegue, en `media/<organización>/<conversación>/<digest>`. La organización es
+el aislamiento: una URI de medios es un hash de contenido, así que dos inquilinos
+con la misma imagen calculan la misma URI, y la organización viene del run y no de
+la URI. La conversación es el ciclo de vida — un hash de contenido no registra
+quién lo sigue referenciando, así que el prefijo del hilo se va con el hilo y el
+del inquilino con el inquilino. El almacén no emite ninguna URL pública; una URL
+que puede descargar un proveedor de modelos la puede descargar cualquiera.
 
 **Descargar es opcional; restaurar no.** Vincular la capability es la decisión de
 descargar. La reinserción ocurre para toda conversación, siga vinculada o no:

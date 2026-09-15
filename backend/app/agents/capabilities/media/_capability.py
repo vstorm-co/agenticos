@@ -47,6 +47,15 @@ class MediaOffload(AbstractCapability[AgentDepsT]):
     capabilities without a run, where nothing is offloaded rather than offloaded
     somewhere shared."""
 
+    conversation_id: UUID | None = None
+    """Which thread's prefix they live under - the whole of their lifetime.
+
+    Content-addressed objects record nothing about who still references them, so
+    they are stored under the prefix of the thing that does and removed when it
+    goes. `None` is a run with no conversation - a one-shot API call - which
+    offloads nothing, because there would be nothing to delete it with.
+    """
+
     threshold_bytes: int = 32_768
     """Below this, a part is left where it is.
 
@@ -61,11 +70,17 @@ class MediaOffload(AbstractCapability[AgentDepsT]):
     )
 
     def store(self) -> OrganizationMediaStore | None:
-        """This organization's media store, built once, or `None` outside a run."""
-        if self.organization_id is None:
+        """This thread's media store, built once, or `None` where it has no home.
+
+        `None` for a run outside an organization or outside a conversation: a
+        one-shot API call has no thread to hang the bytes on, and an object with
+        nothing that will ever delete it is the failure this capability exists to
+        prevent rather than a smaller history.
+        """
+        if self.organization_id is None or self.conversation_id is None:
             return None
         if self._store is None:
-            self._store = OrganizationMediaStore(self.organization_id)
+            self._store = OrganizationMediaStore(self.organization_id, self.conversation_id)
         return self._store
 
     async def externalize(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -76,10 +91,14 @@ class MediaOffload(AbstractCapability[AgentDepsT]):
         alternative to a smaller history is the history, and losing it costs the
         conversation the compaction it just paid a model to produce.
         """
-        store = self.store()
-        if store is None:
-            return messages
         try:
+            # Inside the guard, because building one is `mkdir` on a volume that
+            # may not be there: a turn that has already paid a model for a
+            # summary must not fail on the step that was going to make it
+            # smaller.
+            store = self.store()
+            if store is None:
+                return messages
             walked = await externalize_media(
                 messages, media_store=store, threshold_bytes=self.threshold_bytes
             )
@@ -92,7 +111,7 @@ class MediaOffload(AbstractCapability[AgentDepsT]):
 
 
 async def restore_stored_media(
-    messages: list[dict[str, Any]], *, organization_id: UUID
+    messages: list[dict[str, Any]], *, organization_id: UUID, conversation_id: UUID
 ) -> list[dict[str, Any]]:
     """Re-inline whatever a stored history references, before it is replayed.
 
@@ -110,8 +129,32 @@ async def restore_stored_media(
     if not messages:
         return messages
     try:
-        walked = await restore_media(messages, media_store=OrganizationMediaStore(organization_id))
+        walked = await restore_media(
+            messages, media_store=OrganizationMediaStore(organization_id, conversation_id)
+        )
     except Exception:
         logger.exception("media_restore_failed", extra={"organization_id": str(organization_id)})
         return messages
     return walked if isinstance(walked, list) else messages
+
+
+async def offloaded_history(
+    capabilities: list[Any], messages: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The compacted history to store, offloaded if the agent asked for it.
+
+    Read off the built agent's capability list rather than passed down, the way
+    the context gauge already is: the surface that persists the turn is the one
+    that decides what is stored. Unbound - or bound on a run with no thread to
+    hang the bytes on - the history is stored as it was.
+
+    Shared by both run paths on purpose. `ChatAgentRunner.run` and
+    `AgentRunnerService._run` each dump `all_messages()` and each hand the result
+    to `keep_summary`, and hooking one of them gave the capability to the
+    WebSocket chat and to nothing else - not the API, not a channel mention, not
+    an embed, not a trigger.
+    """
+    offload = next((cap for cap in capabilities if isinstance(cap, MediaOffload)), None)
+    if offload is None:
+        return messages
+    return await offload.externalize(messages)

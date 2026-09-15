@@ -296,7 +296,7 @@ class TestKeepingASummary:
         the same way the context gauge is (#55)."""
         prepared = _prepared()
         prepared.built.context.summarized = True
-        offload: MediaOffload[object] = MediaOffload(organization_id=None)
+        offload: MediaOffload[object] = MediaOffload(organization_id=None, conversation_id=None)
         offload.externalize = AsyncMock(return_value=[{"kind": "request", "parts": []}])
         # A real list, because `built` is a MagicMock: `.capabilities` on one is
         # another mock, and iterating it yields nothing rather than the entry.

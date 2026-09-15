@@ -26,8 +26,10 @@ Two things are versioned separately from this file and worth knowing about:
   all until the next summary. Bound, the parts over a threshold are written to
   the organization's own media store and replaced with a `media+sha256://…`
   reference; re-inlining happens for every conversation whether or not it is
-  still bound. Built on `pydantic-ai-harness`'s content-addressed stores and
-  walkers. (#55)
+  still bound. The objects live under the thread's own prefix, which is what
+  gives them a lifetime — deleting the thread or the organization removes them —
+  and a run with no thread offloads nothing. Built on `pydantic-ai-harness`'s
+  content-addressed stores and walkers. (#55)
 - `BaseFileStorage.save_at` and `.exists`, for the one caller whose key is the
   digest of its own bytes rather than a name this codebase mints. (#55)
 
