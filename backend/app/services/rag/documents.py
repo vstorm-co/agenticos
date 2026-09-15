@@ -2,7 +2,6 @@ import asyncio
 import hashlib
 import logging
 import re
-import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -15,6 +14,7 @@ from app.core.office_convert import (
     OfficeConversionError,
     OfficeConversionTimeout,
     convert_to_pdf,
+    soffice_command,
 )
 from app.services.rag._splitters import (
     MarkdownHeaderSplitter,
@@ -417,9 +417,9 @@ class LiteParseParser(BaseDocumentParser):
 
     allowed = sorted(LITEPARSE_PDF_FORMATS)
 
-    # Probed once per process. `shutil.which` is a handful of stat calls, but
-    # this is consulted per document to explain a failure, and the answer cannot
-    # change without the container being replaced.
+    # Probed once per process. Resolving the command is a handful of stat calls,
+    # but this is consulted per document to explain a failure, and the answer
+    # cannot change without the container being replaced.
     _libreoffice: bool | None = None
 
     def __init__(
@@ -456,15 +456,13 @@ class LiteParseParser(BaseDocumentParser):
     def libreoffice_available(cls) -> bool:
         """Whether office documents can be converted on this machine.
 
-        Mirrors liteparse's own discovery order (`find_libre_office_command` in
-        `conversion.rs`): the two command names first, then the macOS bundle.
+        Delegates to `office_convert.soffice_command`, the single owner of the
+        discovery order (the two command names, then the macOS bundle), so this
+        gate and the converter that actually spawns `soffice` cannot disagree
+        about whether a machine can convert.
         """
         if cls._libreoffice is None:
-            cls._libreoffice = bool(
-                shutil.which("libreoffice")
-                or shutil.which("soffice")
-                or Path("/Applications/LibreOffice.app/Contents/MacOS/soffice").exists()
-            )
+            cls._libreoffice = soffice_command() is not None
         return cls._libreoffice
 
     def _build(self, *, ocr: bool) -> Any:
@@ -591,7 +589,7 @@ class LiteParseParser(BaseDocumentParser):
                 timeout=budget,
             )
         except FileNotFoundError as e:
-            raise RuntimeError(f"LiteParse: file not found: {parse_target}") from e
+            raise RuntimeError(f"LiteParse: file not found: {source.name}") from e
         except TimeoutError as e:
             raise RuntimeError(
                 f"LiteParse: parse timed out after {self.timeout_seconds}s for {source.name}"
