@@ -825,6 +825,160 @@ class TestSyncCompletedAndFailed:
         assert written.calls == []
 
 
+def _entry(
+    *,
+    action: str,
+    org_id=_UNSET,
+    actor=_UNSET,
+    target_type="user",
+):
+    entry = MagicMock()
+    entry.id = uuid.uuid4()
+    entry.action = action
+    entry.organization_id = uuid.uuid4() if org_id is _UNSET else org_id
+    entry.actor_user_id = uuid.uuid4() if actor is _UNSET else actor
+    entry.target_type = target_type
+    return entry
+
+
+class TestSecurityEventAndConfigurationChanged:
+    """The two mandatory events, wired at the record_audit call sites this
+    plan curates as genuinely security-sensitive (#1598) - impersonation, an
+    organization's own secrets and sandbox connections, an app admin's user
+    management, and the deployment's own settings.
+
+    Rate limiting itself is not this class's job: both methods pass
+    `actor_user_id` through to `NotificationCenterService.write`, which
+    already carries the per-`(actor_user_id, event_type)` mandatory-write
+    limit (built in phase 2, `tests/integration/test_notification_center.py`
+    - `test_a_rate_limited_mandatory_write_writes_nothing` and its sibling).
+    What belongs here is that the id reaches that call correctly."""
+
+    @pytest.mark.anyio
+    async def test_an_org_scoped_entry_reaches_that_organizations_admins(self, written):
+        admin = uuid.uuid4()
+        entry = _entry(action="secret.created", target_type="secret")
+        with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)):
+            await NotificationService(MagicMock()).security_event(entry)
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.SECURITY_EVENT
+        assert call["recipients"] == [admin]
+        assert call["occurrence_id"] == str(entry.id)
+        assert call["organization_id"] == entry.organization_id
+        assert call["actor_user_id"] == entry.actor_user_id
+        assert call["use_savepoint"] is True
+        assert "/vault" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_an_org_scoped_entry_never_reaches_a_deployment_app_admin_alone(self, written):
+        """`_security_audience` never unions in app admins for an org-scoped
+        row - unlike `_administrator_ids` - because an app admin with no
+        membership in this organization has no standing over its secret."""
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(
+                f"{MODULE}.member_repo.list_app_admin_ids",
+                new=AsyncMock(return_value=[uuid.uuid4()]),
+            ),
+        ):
+            await NotificationService(MagicMock()).security_event(
+                _entry(action="secret.created", target_type="secret")
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_an_app_admin_scoped_entry_reaches_deployment_app_admins(self, written):
+        app_admin = uuid.uuid4()
+        entry = _entry(action="admin.user.impersonate", org_id=None, target_type="user")
+        with patch(
+            f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[app_admin])
+        ):
+            await NotificationService(MagicMock()).security_event(entry)
+
+        call = written.calls[0]
+        assert call["recipients"] == [app_admin]
+        assert call["organization_id"] is None
+        assert "?org=" not in call["context_url"]
+        assert "/admin/users" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_an_unrecognised_target_type_falls_back_to_the_admin_console(self, written):
+        with patch(
+            f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[uuid.uuid4()])
+        ):
+            await NotificationService(MagicMock()).security_event(
+                _entry(action="something.new", org_id=None, target_type="something_new")
+            )
+
+        assert written.calls[0]["context_url"].endswith("/admin")
+
+    @pytest.mark.anyio
+    async def test_an_action_with_no_curated_sentence_still_names_itself(self, written):
+        with patch(
+            f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[uuid.uuid4()])
+        ):
+            await NotificationService(MagicMock()).security_event(
+                _entry(action="something.new", org_id=None, target_type=None)
+            )
+
+        assert "something.new" in written.calls[0]["summary"]
+
+    @pytest.mark.anyio
+    async def test_nobody_to_tell_writes_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()):
+            await NotificationService(MagicMock()).security_event(
+                _entry(action="secret.created", target_type="secret")
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_an_actorless_entry_passes_no_actor_through(self, written):
+        """The approval expiry sweep is the one `record_audit` caller with no
+        actor - not one of this plan's curated call sites, but `write`'s own
+        rate limit only turns on for a mandatory event type when
+        `actor_user_id is not None` (`NotificationCenterService.write`), so a
+        null one here must reach it as `None`, not skip the write outright."""
+        admin = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[admin])):
+            await NotificationService(MagicMock()).security_event(
+                _entry(action="secret.created", org_id=None, actor=None, target_type="secret")
+            )
+
+        call = written.calls[0]
+        assert call["recipients"] == [admin]
+        assert call["actor_user_id"] is None
+
+    @pytest.mark.anyio
+    async def test_configuration_changed_always_reaches_app_admins_never_org_admins(self, written):
+        app_admin = uuid.uuid4()
+        entry = _entry(action="deployment.settings_updated", org_id=None, target_type="deployment")
+        with (
+            patch(
+                f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[app_admin])
+            ),
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
+        ):
+            await NotificationService(MagicMock()).configuration_changed(entry)
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.CONFIGURATION_CHANGED
+        assert call["recipients"] == [app_admin]
+        assert call["organization_id"] is None
+        assert call["actor_user_id"] == entry.actor_user_id
+
+    @pytest.mark.anyio
+    async def test_configuration_changed_with_no_app_admins_writes_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_app_admin_ids", new=AsyncMock(return_value=[])):
+            await NotificationService(MagicMock()).configuration_changed(
+                _entry(action="deployment.settings_updated", org_id=None, target_type="deployment")
+            )
+
+        assert written.calls == []
+
+
 class TestUsageReport:
     @pytest.mark.anyio
     async def test_an_organization_that_ran_nothing_gets_no_report(self, written):

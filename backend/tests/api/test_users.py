@@ -278,6 +278,7 @@ async def test_an_admin_password_change_is_audited_by_field_not_by_value(
     superuser_client: AsyncClient,
     mock_user: MockUser,
     mock_db_session,
+    monkeypatch,
 ):
     """The trail records what an administrator changed, never what they typed.
 
@@ -286,6 +287,13 @@ async def test_an_admin_password_change_is_audited_by_field_not_by_value(
     plaintext into `app_admin_audit_logs.details`, a JSONB column that outlives
     the session and is readable by anything that can read the trail (#342).
     """
+    # This test is about the audit entry's own fields (#1598), not the
+    # `security_event` notification the route now also sends - covered
+    # separately in `tests/test_notifications.py`. Left real, it would
+    # resolve an app-admin audience against `mock_db_session`.
+    monkeypatch.setattr(
+        "app.api.routes.v1.admin_users.NotificationService", MagicMock(return_value=AsyncMock())
+    )
     response = await superuser_client.patch(
         f"{settings.API_V1_STR}/admin/users/{mock_user.id}",
         json={"password": "correct-horse-battery", "full_name": "Renamed"},

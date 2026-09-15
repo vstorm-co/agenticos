@@ -52,6 +52,7 @@ from app.schemas.deployment_settings import (
     SignupMode,
 )
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
+from app.services.notifications import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -190,13 +191,14 @@ class DeploymentSettingsService:
             publish_maintenance(on=row.maintenance_mode, message=row.maintenance_message),
             name="deployment_maintenance_publish",
         )
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=actor_user_id,
             action="deployment.settings_updated",
             target_type="deployment",
             details={"fields": sorted(update_data)},
         )
+        await NotificationService(self.db).configuration_changed(entry)
         return await self.read()
 
     async def set_image(
@@ -235,13 +237,14 @@ class DeploymentSettingsService:
             # deployment pointing at a missing file. The replacement is left an
             # orphan on rollback instead, which is the harmless half of the trade.
             spawn_after_commit(self.db, _delete_quietly(previous), name="deployment_image_replaced")
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=actor_user_id,
             action="deployment.settings_updated",
             target_type="deployment",
             details={"fields": [column]},
         )
+        await NotificationService(self.db).configuration_changed(entry)
         return await self.read()
 
     async def clear_image(self, *, actor_user_id: UUID, kind: ImageKind) -> DeploymentSettingsRead:
@@ -258,13 +261,14 @@ class DeploymentSettingsService:
             return await self.read()
         await deployment_settings_repo.upsert(self.db, update_data={column: None})
         spawn_after_commit(self.db, _delete_quietly(previous), name="deployment_image_cleared")
-        await record_audit(
+        entry = await record_audit(
             self.db,
             actor_user_id=actor_user_id,
             action="deployment.settings_updated",
             target_type="deployment",
             details={"fields": [column]},
         )
+        await NotificationService(self.db).configuration_changed(entry)
         return await self.read()
 
     async def image_path(self, kind: ImageKind) -> str | None:

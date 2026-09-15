@@ -55,6 +55,7 @@ from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.notification import NotificationEventType
 from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_run as agent_run_repo
@@ -67,6 +68,40 @@ from app.services.spend import organization_spend_since
 # the spend; a builder can create an agent but is not who gets called when the
 # organization's month runs out.
 _ESCALATION_ROLES = [OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value]
+
+# The console page a security event's `context_url` opens, by the audited
+# entry's `target_type` - the same resource an admin would go check. A type
+# this plan's curated call sites never produce falls back to `/admin`.
+_SECURITY_EVENT_PATH: dict[str, str] = {
+    "secret": "/vault",
+    "sandbox_connection": "/sandboxes",
+    "user": "/admin/users",
+}
+
+# One static sentence per audited action, deliberately not built from
+# `AppAdminAuditLog.details` - that JSONB is written by services with no
+# obligation to keep every field safe for a broad, mandatory notification
+# (`exceptions-security.md`'s "a value, not a row" rule is about API
+# responses, but the same caution applies to an email every admin gets).
+_SECURITY_EVENT_SUMMARY: dict[str, str] = {
+    "admin.user.impersonate": "An administrator started impersonating a user.",
+    "admin.user.impersonation_ended": "An administrator ended an impersonation session.",
+    "admin.user.update": "An administrator updated a user account.",
+    "admin.user.delete": "An administrator deleted a user account.",
+    "secret.created": "A vault secret was created.",
+    "secret.rotated": "A vault secret was rotated.",
+    "secret.updated": "A vault secret was updated.",
+    "secret.deleted": "A vault secret was deleted.",
+    "sandbox_connection.created": "A sandbox connection was created.",
+    "sandbox_connection.deleted": "A sandbox connection was deleted.",
+}
+
+
+def _security_event_summary(entry: AppAdminAuditLog) -> str:
+    return _SECURITY_EVENT_SUMMARY.get(
+        entry.action, f"A privileged action was recorded: {entry.action}"
+    )
+
 
 ReportPeriod = Literal["weekly", "monthly"]
 
@@ -419,6 +454,80 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def security_event(self, entry: AppAdminAuditLog) -> None:
+        """A privileged or access-changing action just landed in the audit
+        trail - the security half of Decision 1's two mandatory events.
+
+        Wired at exactly the `record_audit` call sites this plan curates as
+        genuinely security-sensitive - impersonation starting and ending, an
+        organization's own secrets and sandbox connections, and an app
+        admin's user management - not every `record_audit` call site the
+        codebase has. That call records nearly the whole product's ordinary
+        audit trail (an agent published, a skill renamed, a run exported),
+        and firing a mandatory, un-optable notification for every one of
+        those would turn routine CRUD into a security alert nobody asked for.
+
+        Mandatory means no preference can silence it, which is exactly what
+        makes rate limiting worth it: an actor alternating one secret's
+        description back and forth produces a distinct `AppAdminAuditLog` row,
+        and therefore a distinct notification, on every write, with no
+        `occurrence_id` to collapse them. `NotificationCenterService.write`
+        already carries this guard - `actor_user_id` is what turns it on for a
+        mandatory event type, keyed on `(actor_user_id, event_type)`; the
+        audit entry, already written by the time this runs, is never affected
+        by the notification being skipped.
+        """
+        recipients = await self._security_audience(entry.organization_id)
+        if not recipients:
+            return
+        path = _SECURITY_EVENT_PATH.get(entry.target_type or "", "/admin")
+        url = self._deployment_or_org_link(path, entry.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id=str(entry.id),
+            summary=_security_event_summary(entry),
+            context_url=url,
+            render_context={
+                "action": entry.action,
+                "app_name": settings.PROJECT_NAME,
+                "url": url,
+            },
+            organization_id=entry.organization_id,
+            actor_user_id=entry.actor_user_id,
+            use_savepoint=True,
+        )
+
+    async def configuration_changed(self, entry: AppAdminAuditLog) -> None:
+        """The mirror of `security_event`, wired at `deployment_settings.py`'s
+        three `record_audit` calls, every one of them `action=
+        "deployment.settings_updated"`. Always deployment-wide - a setting
+        has no organization to attribute the change to - so the audience is
+        always the deployment's own app admins, never `org_admins`. Rate
+        limited by `actor_user_id` the same way `security_event` is, under
+        its own event type's bucket - an actor's settings changes never eat
+        into the allowance a security event from the same actor would need.
+        """
+        recipients = set(await member_repo.list_app_admin_ids(self.db))
+        if not recipients:
+            return
+        url = f"{self._frontend}/admin/settings"
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.CONFIGURATION_CHANGED,
+            occurrence_id=str(entry.id),
+            summary="The deployment's settings were updated.",
+            context_url=url,
+            render_context={
+                "action": entry.action,
+                "app_name": settings.PROJECT_NAME,
+                "url": url,
+            },
+            organization_id=None,
+            actor_user_id=entry.actor_user_id,
+            use_savepoint=True,
+        )
+
     async def usage_report(
         self, organization_id: UUID, *, period: ReportPeriod, window_start: datetime
     ) -> bool:
@@ -597,6 +706,15 @@ class NotificationService:
         path = f"/rag/{collection_id}" if collection_id is not None else "/rag"
         return self._link(path, organization_id)
 
+    def _deployment_or_org_link(self, path: str, organization_id: UUID | None) -> str:
+        """`_link`, minus the `?org=` when there is none to name - an
+        app-admin audience row (impersonation, an app admin's own user
+        management) has no organization at all, and `?org=None` would name
+        one that does not exist."""
+        if organization_id is None:
+            return f"{self._frontend}{path}"
+        return self._link(path, organization_id)
+
     async def _ingestion_audience(
         self, initiator_user_id: UUID | None, organization_id: UUID
     ) -> set[UUID]:
@@ -623,6 +741,22 @@ class NotificationService:
         )
         app_admins = await member_repo.list_app_admin_ids(self.db)
         return set(by_role) | set(app_admins)
+
+    async def _security_audience(self, organization_id: UUID | None) -> set[UUID]:
+        """`org_admins` when the entry belongs to one organization, else the
+        deployment's own app admins - never both, unlike `_administrator_ids`.
+        An organization's own owner/admin has no standing over another
+        organization's secret, so an org-scoped `security_event` reaches only
+        that organization's escalation roles; an app-admin-audience row
+        (impersonation, an app admin's own user management) has no
+        organization to scope owners/admins by at all.
+        """
+        if organization_id is not None:
+            by_role = await member_repo.list_member_ids_by_role(
+                self.db, organization_id=organization_id, roles=_ESCALATION_ROLES
+            )
+            return set(by_role)
+        return set(await member_repo.list_app_admin_ids(self.db))
 
     async def _audience_ids(
         self,

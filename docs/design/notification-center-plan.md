@@ -1171,6 +1171,25 @@ retention has cleared the individual deliveries.
    detector. Is that coverage sufficient, or does the issue expect events
    `record_audit` does not yet cover?
 
+   **Resolved during implementation.** `record_audit` turned out to have 23
+   callers, not the "a dozen more" section 0 estimated - most of them
+   ordinary product CRUD (`agent.created`, `skill.updated`, `context.deleted`,
+   `mcp_connection.created`, `member.role_changed`, a run export, a share).
+   Wiring every one of them as a mandatory, un-optable `security_event` would
+   turn the whole product's audit trail into an admin-facing alert stream.
+   Asked and answered explicitly: `security_event`/`configuration_changed`
+   are wired at exactly the five files section 0 already named by
+   example - `services/impersonation.py` (both calls),
+   `services/organization_secret.py` (all three), `services/
+   sandbox_connection.py` (both), `services/deployment_settings.py` (all
+   three, always `configuration_changed`) and `api/routes/v1/admin_users.py`
+   (both) - twelve call sites total. `record_audit` now returns the entry it
+   wrote so these twelve can follow it with a
+   `NotificationService.security_event`/`configuration_changed` call; every
+   other caller is unaffected and produces no notification. The other ~18
+   files stay audit-only. Revisit if a later issue asks for a specific one
+   of them by name.
+
 ## Resolved in review
 
 Six automated review passes (Codex) against this plan. Outcomes below.
