@@ -172,3 +172,15 @@ class Notification(Base, TimestampMixin):
             f"<Notification(id={self.id}, event_type={self.event_type}, "
             f"recipient={self.recipient_user_id})>"
         )
+
+
+# How long a *read* notification is kept, and the outer bound past which any
+# row is dropped regardless of read state (#1598, Decision 8) - ahead of
+# #1420, which does not exist yet; this is a bounded default rather than an
+# integration with a per-organization mechanism this plan cannot predict.
+# `announcements` is deliberately untouched by the sweep these constants
+# bound: deleting the per-recipient rows a broadcast fanned out to does not
+# delete the announcement itself, which is what `record_audit`'s
+# `announcement_id` (Decision 5) keeps pointing at.
+NOTIFICATION_READ_RETENTION_DAYS = 90
+NOTIFICATION_OUTER_RETENTION_DAYS = 365

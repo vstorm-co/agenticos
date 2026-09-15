@@ -10,12 +10,17 @@ recorded outcome.
 
 import logging
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from prefect import flow
 
+from app.db.models.notification import (
+    NOTIFICATION_OUTER_RETENTION_DAYS,
+    NOTIFICATION_READ_RETENTION_DAYS,
+)
 from app.db.session import get_worker_db_context
+from app.repositories import notification_repo
 from app.services.notification_delivery import NotificationDeliveryService
 
 logger = logging.getLogger(__name__)
@@ -62,3 +67,35 @@ async def notification_delivery_sweep_flow() -> dict[str, int]:
     if counts["failed"] or counts["reaped"]:
         logger.warning("Notification delivery sweep: %s", counts)
     return counts
+
+
+@flow(name="notification-retention-sweep", log_prints=True)
+async def notification_retention_sweep_flow() -> int:
+    """Drop notifications past their retention window (Decision 8).
+
+    A read notification is dropped once it has sat around, read, for
+    `NOTIFICATION_READ_RETENTION_DAYS` - nobody is coming back to a read
+    inbox item ninety days later. An unread one gets the benefit of the
+    doubt until `NOTIFICATION_OUTER_RETENTION_DAYS`, so it does not vanish
+    out from under someone who genuinely has not looked, but even that
+    grace has a ceiling: a row that old is dropped either way. Daily,
+    matching `sweep_sandbox_operations_flow`: the exact hour a row leaves is
+    nobody's business, and a delete over a many-day-old boundary is cheap
+    run once rather than hourly.
+    """
+    now = datetime.now(UTC)
+    read_cutoff = now - timedelta(days=NOTIFICATION_READ_RETENTION_DAYS)
+    outer_cutoff = now - timedelta(days=NOTIFICATION_OUTER_RETENTION_DAYS)
+    async with get_worker_db_context() as db:
+        removed = await notification_repo.delete_expired(
+            db, read_cutoff=read_cutoff, outer_cutoff=outer_cutoff
+        )
+    logger.info(
+        "notification_retention_swept",
+        extra={
+            "removed": removed,
+            "read_retention_days": NOTIFICATION_READ_RETENTION_DAYS,
+            "outer_retention_days": NOTIFICATION_OUTER_RETENTION_DAYS,
+        },
+    )
+    return removed

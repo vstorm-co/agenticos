@@ -91,5 +91,6 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "weekly-usage-report",
         "monthly-usage-report",
         "notification-delivery-sweep",
+        "notification-retention-sweep",
     }
     assert captured_runner.start.await_count == 1
