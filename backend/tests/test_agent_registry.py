@@ -2698,10 +2698,7 @@ class TestAvatar:
         """Same answer as having none. A caller cannot act on the difference, and
         the alternative is a 500 from a missing file."""
         ctx = _ctx()
-        storage = MagicMock()
-        missing = MagicMock()
-        missing.exists.return_value = False
-        storage.get_full_path.return_value = missing
+        storage = MagicMock(exists=AsyncMock(return_value=False))
 
         with (
             patch(
@@ -2714,13 +2711,11 @@ class TestAvatar:
             await AgentRegistryService(_db()).avatar_path(ctx, uuid.uuid4())
 
     @pytest.mark.anyio
-    async def test_a_stored_avatar_is_answered_with_the_file_on_disk(self):
+    async def test_a_stored_avatar_is_answered_with_its_storage_path(self):
+        """The path the backend wrote, not a path on this host: the route resolves
+        it through the backend, which may be an object store (#1423)."""
         ctx = _ctx()
-        storage = MagicMock()
-        stored = MagicMock()
-        stored.exists.return_value = True
-        stored.__str__ = lambda _self: "/data/avatars/agents/x/logo.png"
-        storage.get_full_path.return_value = stored
+        storage = MagicMock(exists=AsyncMock(return_value=True))
 
         with (
             patch(
@@ -2731,8 +2726,8 @@ class TestAvatar:
         ):
             path = await AgentRegistryService(_db()).avatar_path(ctx, uuid.uuid4())
 
-        assert path == "/data/avatars/agents/x/logo.png"
-        assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
+        assert path == "avatars/agents/x/logo.png"
+        storage.exists.assert_awaited_once_with("avatars/agents/x/logo.png")
 
     @pytest.mark.anyio
     async def test_choosing_a_colour_writes_the_slot(self):

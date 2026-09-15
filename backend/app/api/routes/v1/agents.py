@@ -22,7 +22,6 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
@@ -34,6 +33,7 @@ from app.api.deps import (
     limit_agent_run,
     require,
 )
+from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
@@ -66,7 +66,6 @@ from app.schemas.agent import (
 )
 from app.services import mcp_catalog, mcp_listing
 from app.services.capability_contracts import tool_contracts
-from app.services.file_storage import sniff_image_media_type
 
 router = APIRouter()
 
@@ -454,22 +453,20 @@ async def set_agent_avatar_color(
 
 @router.get(
     "/{agent_id}/avatar",
-    response_class=FileResponse,
+    response_class=Response,
     response_model=None,
 )
-async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> FileResponse:
+async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Response:
     """Stream the agent's picture to someone entitled to see the agent."""
-    path = await service.avatar_path(ctx, agent_id)
+    stored = await service.avatar_path(ctx, agent_id)
     # The type comes from the file's own bytes, not its stored name, and it is
     # refused if the bytes are not an image: the avatar is served from the app's
     # own origin, so a file whose bytes are HTML must never be served as something
     # a browser runs, whatever it was named (#1035, same class as #702).
-    media_type = sniff_image_media_type(path)
-    if media_type is None:
+    response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
+    if response is None:
         raise NotFoundError(message="This agent has no avatar", details={"agent_id": str(agent_id)})
-    return FileResponse(
-        path=path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
-    )
+    return response
 
 
 @router.post(

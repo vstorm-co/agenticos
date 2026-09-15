@@ -353,6 +353,38 @@ class Settings(BaseSettings):
     # paying for the bytes twice stops being worth it.
     SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
+    # Where uploaded files live: chat attachments, avatars, branding images and
+    # the original of every knowledge-base document. `local` is the default and
+    # writes under `MEDIA_DIR`, which is honest for a single host with an
+    # encrypted volume and stops being enough at the second API replica or the
+    # first client who wants their own KMS key (#1423).
+    #
+    # This is a deployment-time choice, not a per-organization one, and it does
+    # not migrate what the other backend already holds.
+    FILE_STORAGE_BACKEND: Literal["local", "s3"] = "local"
+    FILE_STORAGE_S3_BUCKET: str = ""
+    # Empty for AWS; the address of the service for MinIO or another
+    # S3-compatible store.
+    FILE_STORAGE_S3_ENDPOINT: str | None = None
+    FILE_STORAGE_S3_REGION: str = "us-east-1"
+    # Left empty, boto3's own credential chain answers - an instance profile, an
+    # IRSA role, `~/.aws/credentials` - which is what a deployment on AWS should
+    # be using rather than a key pair in an environment file.
+    FILE_STORAGE_S3_ACCESS_KEY: str = ""
+    FILE_STORAGE_S3_SECRET_KEY: str = ""
+    # MinIO and most compatible stores address a bucket by path rather than by
+    # subdomain, and a virtual-host request to one fails DNS rather than S3.
+    FILE_STORAGE_S3_PATH_STYLE: bool = False
+    # Every key this deployment writes sits under this prefix, so one bucket can
+    # hold more than one deployment without their keys meeting.
+    FILE_STORAGE_S3_PREFIX: str = ""
+    # Server-side encryption asked of the store on every write. `sse-s3` is the
+    # bucket's own key, `sse-kms` the key named below - the one a client brings.
+    # `none` exists because MinIO refuses SSE-S3 without a KES server behind it,
+    # so a compatible store with no KMS has somewhere to be; `doctor` reports it
+    # as unconfigured rather than healthy.
+    FILE_STORAGE_S3_ENCRYPTION: Literal["sse-s3", "sse-kms", "none"] = "sse-s3"
+    FILE_STORAGE_S3_KMS_KEY_ID: str | None = None
     S3_RAG_ENDPOINT: str | None = None
     S3_RAG_ACCESS_KEY: str = ""
     S3_RAG_SECRET_KEY: str = ""

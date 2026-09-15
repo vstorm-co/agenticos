@@ -314,7 +314,7 @@ names no author is in the evidence column below.
 | @img/sharp-libvips-linux-x64 | 1.2.4 | LGPL-3.0-or-later | https://github.com/lovell/sharp-libvips | package.json license; review accepted |
 | @img/sharp-linux-arm64 | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | @img/sharp-linux-x64 | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
-| @next/env | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
+| @next/env | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license; no licence file, attributed to Next.js Team <support@vercel.com> |
 | @next/swc-linux-arm64-gnu | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
 | @next/swc-linux-x64-gnu | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
 | @opentelemetry/api | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js | package.json license |
@@ -379,7 +379,7 @@ names no author is in the evidence column below.
 | @swc/core-linux-arm64-gnu | 1.15.47 | Apache-2.0 AND MIT | https://github.com/swc-project/swc | package.json license |
 | @swc/core-linux-x64-gnu | 1.15.47 | Apache-2.0 AND MIT | https://github.com/swc-project/swc | package.json license |
 | @swc/counter | 0.1.3 | Apache-2.0 | https://github.com/swc-project/pkgs | package.json license; no licence file, attributed to 강동윤 <kdy1997.dev@gmail.com> |
-| @swc/helpers | 0.5.15 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
+| @swc/helpers | 0.5.23 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @swc/types | 0.1.28 | Apache-2.0 | https://github.com/swc-project/swc | package.json license |
 | @tanstack/query-core | 5.101.4 | MIT | https://github.com/TanStack/query | package.json license |
 | @tanstack/react-query | 5.101.4 | MIT | https://github.com/TanStack/query | package.json license |
@@ -515,9 +515,9 @@ names no author is in the evidence column below.
 | micromark-util-types | 2.0.2 | MIT | https://github.com/micromark/micromark/tree/main/packages/micromark-util-types | package.json license |
 | module-details-from-path | 1.0.4 | MIT | https://github.com/watson/module-details-from-path | package.json license |
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms | package.json license |
-| nanoid | 3.3.16 | MIT | https://github.com/ai/nanoid | package.json license |
+| nanoid | 3.3.19 | MIT | https://github.com/ai/nanoid | package.json license |
 | negotiator | 1.0.0 | MIT | https://github.com/jshttp/negotiator | package.json license |
-| next | 16.2.12 | MIT | https://github.com/vercel/next.js | package.json license |
+| next | 16.3.5 | MIT | https://github.com/vercel/next.js | package.json license |
 | next-intl | 4.13.4 | MIT | https://github.com/amannn/next-intl | package.json license |
 | next-intl-swc-plugin-extractor | 4.13.4 | MIT | https://github.com/amannn/next-intl | package.json license |
 | node-addon-api | 7.1.1 | MIT | https://github.com/nodejs/node-addon-api | package.json license |
@@ -527,7 +527,7 @@ names no author is in the evidence column below.
 | playwright | 1.62.1 | Apache-2.0 | https://github.com/microsoft/playwright | package.json license |
 | playwright-core | 1.62.1 | Apache-2.0 | https://github.com/microsoft/playwright | package.json license |
 | po-parser | 2.1.1 | MIT | https://github.com/amannn/po-parser | package.json license |
-| postcss | 8.4.31 | MIT | https://github.com/postcss/postcss | package.json license |
+| postcss | 8.5.23 | MIT | https://github.com/postcss/postcss | package.json license |
 | property-information | 7.2.0 | MIT | https://github.com/wooorm/property-information | package.json license |
 | react | 19.2.8 | MIT | https://github.com/react/react | package.json license |
 | react-dom | 19.2.8 | MIT | https://github.com/react/react | package.json license |
@@ -549,7 +549,7 @@ names no author is in the evidence column below.
 | reselect | 5.2.0 | MIT | https://github.com/reduxjs/reselect | package.json license |
 | scheduler | 0.27.0 | MIT | https://github.com/facebook/react | package.json license |
 | semver | 7.8.5 | ISC | https://github.com/npm/node-semver | package.json license |
-| sharp | 0.34.5 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
+| sharp | 0.35.4 | Apache-2.0 | https://github.com/lovell/sharp | package.json license |
 | sonner | 2.0.7 | MIT | https://github.com/emilkowalski/sonner | package.json license |
 | source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js | package.json license |
 | space-separated-tokens | 2.0.2 | MIT | https://github.com/wooorm/space-separated-tokens | package.json license |
@@ -600,5 +600,6 @@ and data files.
 | valkey/valkey | 8-alpine | service image, deployment | BSD-3-Clause | https://github.com/valkey-io/valkey | accepted | Keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. Replaced redis:7-alpine in #1603: Redis is RSALv2 or SSPL-1.0 from 7.4.0, neither OSI-approved, and the default compose path should not start a non-open component without saying so. Valkey is the Linux Foundation fork of Redis 7.2 under BSD-3-Clause. |
 | prefecthq/prefect | 3-latest | service image, deployment | Apache-2.0 | https://github.com/PrefectHQ/prefect | accepted | Attribution and the licence text. Not redistributed by this project. | Pulled by the operator; named here with its source. |
 | traefik | v3.7 | service image, deployment (optional reverse proxy) | MIT | https://github.com/traefik/traefik | accepted | Keep the copyright notice. Not redistributed by this project. | Pulled by the operator; named here with its source. |
+| quay.io/minio/minio (Docker image) | RELEASE.2025-04-22T22-12-26Z | service image, deployment (optional object store) | AGPL-3.0-or-later | https://github.com/minio/minio | accepted | Network copyleft: a modified MinIO offered over a network owes its users the modified source (s.13). | Pulled by the operator from quay.io and run unmodified beside the deployment, behind the `objectstore` compose profile; nothing here is built from or linked against it. It is a separate service this project speaks S3 to, not a component of either published image, and a deployment on AWS S3 or another compatible store runs none of it. Named here because the compose file offers it (#1423). |
 | ghcr.io/vstorm-co/sandboxd | 0.2 | service image, deployment (optional agent sandbox) | MIT (pydantic-ai-backend, Vstorm) | https://github.com/vstorm-co/pydantic-ai-backend | accepted | Keep the copyright notice. | Published by Vstorm under MIT; the image is built from that repository. |
 | Sandbox runtime `workbench` (built by sandboxd from backend/app/core/catalog/sandbox_runtimes.json) | python:3.12-slim plus the listed apt, npm and PyPI packages, resolved at build time | runtime image built at the deployment | Mixed: Node.js (MIT), LibreOffice (MPL-2.0), poppler-utils (GPL-2.0 or GPL-3.0), uv (Apache-2.0 OR MIT), and PyPI packages under their own licences. Not pinned, so not enumerated here. | backend/app/core/catalog/sandbox_runtimes.json | deployment-review | Built and run inside the deployment, never redistributed by this project; GPL tools are used as separate processes. A deployment that redistributes the built image owes the GPL and LGPL source offers for it. | deployment-time review |

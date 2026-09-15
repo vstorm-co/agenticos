@@ -1,20 +1,18 @@
 """Organization CRUD routes."""
 
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.api.deps import CurrentUser, OrganizationSvc, OrganizationTeardownSvc
+from app.api.routes.v1._stored_bytes import stored_image_response
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
     OrganizationRead,
     OrganizationUpdate,
 )
-from app.services.file_storage import sniff_image_media_type
 
 router = APIRouter()
 
@@ -99,16 +97,13 @@ async def get_organization_avatar(
     org, _ = await service.get_for_user(org_id, user.id)
     if not org.avatar_url:
         raise HTTPException(status_code=404, detail="No avatar set")
-    file_path = service.get_avatar_path(org.avatar_url)
-    if not file_path or not Path(file_path).exists():
-        raise HTTPException(status_code=404, detail="Avatar file missing")
     # Pinned to an image type, and refused if it is not one: the type was guessed
     # from the stored filename's suffix, and the upload kept whatever suffix the
     # caller chose, so a stored `x.html` was served as `text/html` - a script on
     # the app's own origin rather than a picture (#702).
-    media_type = sniff_image_media_type(file_path)
-    if media_type is None:
-        raise HTTPException(status_code=404, detail="Avatar file missing")
-    return FileResponse(
-        path=file_path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
+    response = await stored_image_response(
+        org.avatar_url, headers={"X-Content-Type-Options": "nosniff"}
     )
+    if response is None:
+        raise HTTPException(status_code=404, detail="Avatar file missing")
+    return response

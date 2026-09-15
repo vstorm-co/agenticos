@@ -1,8 +1,19 @@
 """File storage service for chat file uploads.
 
-Supports local filesystem storage.
-Files are organized per-user: {storage_root}/{user_id}/{uuid}_{filename}
+Two backends, chosen by `FILE_STORAGE_BACKEND` at deployment time and never per
+organization: the local filesystem, and any S3-compatible object store. Files
+are organized per owner in both - `{owner}/{uuid}_{filename}` is the storage
+path a row records, a directory under `MEDIA_DIR` in one and a key under an
+optional prefix in the other.
+
+Local is the default and stays the honest answer for a single host with an
+encrypted volume. It stops being one the moment there are two API replicas
+sharing no disk, or a client asks for object storage under their own KMS key,
+which is what the S3 backend is for (#1423). Neither migrates what the other
+holds; switching backend leaves the files already written where they were.
 """
+
+from __future__ import annotations
 
 import logging
 import os
@@ -10,9 +21,13 @@ import re
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from app.core.blocking import delete_cancel_safe, run_blocking, write_bytes_cancel_safe
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from botocore.client import BaseClient
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +93,24 @@ IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 RENDER_SAFE_MIME_TYPES = IMAGE_MIME_TYPES | {"application/pdf"}
 
 
+def sniff_image_header(header: bytes) -> str | None:
+    """The image media type a file's first bytes say it is, or `None`.
+
+    The magic-number half of :func:`sniff_image_media_type`, split out because a
+    stored file does not always have a path: an object store hands over bytes,
+    and the same four types have to be recognised either way.
+    """
+    if header.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if header.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
 def sniff_image_media_type(path: str) -> str | None:
     """The image media type a file's own bytes say it is, or `None` to refuse it.
 
@@ -96,15 +129,7 @@ def sniff_image_media_type(path: str) -> str | None:
             header = handle.read(16)
     except OSError:
         return None
-    if header.startswith(b"\xff\xd8\xff"):
-        return "image/jpeg"
-    if header.startswith(b"\x89PNG\r\n\x1a\n"):
-        return "image/png"
-    if header.startswith((b"GIF87a", b"GIF89a")):
-        return "image/gif"
-    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
-        return "image/webp"
-    return None
+    return sniff_image_header(header)
 
 
 _AVATAR_EXTENSIONS = {
@@ -189,8 +214,23 @@ class BaseFileStorage(ABC):
     async def delete(self, storage_path: str) -> None:
         """Delete file by storage path."""
 
+    @abstractmethod
+    async def exists(self, storage_path: str) -> bool:
+        """Whether this backend still holds the file that path names.
+
+        Asked by the paths that decide whether to *advertise* a file - a hosted
+        page's logo URL is only offered when the route behind it would answer
+        something, because a browser cannot tell a 404 from a slow image.
+        """
+
     def get_full_path(self, storage_path: str) -> Path | None:
-        """Return absolute filesystem path if available (local storage only)."""
+        """The absolute filesystem path of a stored file, when there is one.
+
+        `None` on any backend whose files are not on this host, which is what the
+        serving routes read to decide between handing Starlette a path and
+        loading the bytes themselves. Never a signal that the file is missing -
+        :meth:`exists` answers that.
+        """
         return None  # pragma: no cover
 
 
@@ -265,6 +305,9 @@ class LocalFileStorage(BaseFileStorage):
         """
         self._resolve_safe_path(storage_path).unlink(missing_ok=True)
 
+    async def exists(self, storage_path: str) -> bool:
+        return self.get_full_path(storage_path) is not None
+
     def get_full_path(self, storage_path: str) -> Path | None:
         """Return absolute filesystem path for local files."""
         try:
@@ -274,7 +317,191 @@ class LocalFileStorage(BaseFileStorage):
         return file_path if file_path.exists() else None
 
 
+class S3FileStorage(BaseFileStorage):
+    """Store files in an S3-compatible object store, encrypted by the store.
+
+    The same `{owner}/{uuid}_{filename}` storage path every row already records,
+    used as an object key under `FILE_STORAGE_S3_PREFIX`. So a row written by one
+    backend names a readable path under the other once the bytes are copied
+    across, and nothing but this module knows which backend is running.
+
+    **Encryption is asked for on every write** and is the reason this backend
+    exists: `sse-s3` for the bucket's own key, `sse-kms` for a key the client
+    brings. `none` is for a compatible store with no KMS behind it - MinIO
+    refuses SSE-S3 without one - and `doctor` reports it as unconfigured.
+
+    boto3 is synchronous, so every call runs on the same bounded file pool the
+    local backend writes through: a 50 MB upload must not hold the event loop,
+    and a cancelled request must not leave an object whose key the caller never
+    received. There is no `get_full_path`: an object has no path on this host,
+    which is what `BaseFileStorage`'s `None` default already says and what the
+    serving routes read to decide between a file response and the bytes.
+    """
+
+    def __init__(self, client: BaseClient, bucket: str, *, prefix: str = "") -> None:
+        self.client = client
+        self.bucket = bucket
+        self.prefix = prefix.strip("/")
+
+    def _key(self, storage_path: str) -> str:
+        """The object key one storage path names, refusing anything that climbs out.
+
+        `..` in a key is not path traversal the way it is on a filesystem - S3
+        treats it as a literal segment - but a deployment sharing one bucket
+        between prefixes would still have its keys rewritten by a caller who
+        could put one there, and the local backend refuses the same shape. So it
+        is refused here rather than normalised, with the same `ValueError` the
+        local backend raises, which the callers already handle.
+        """
+        cleaned = storage_path.strip("/")
+        if not cleaned or any(part in {"..", "."} for part in cleaned.split("/")):
+            raise ValueError(f"Path escapes storage root: {storage_path}")
+        return f"{self.prefix}/{cleaned}" if self.prefix else cleaned
+
+    def _encryption(self) -> dict[str, str]:
+        """The server-side-encryption arguments every `put_object` carries."""
+        mode = settings.FILE_STORAGE_S3_ENCRYPTION
+        if mode == "sse-s3":
+            return {"ServerSideEncryption": "AES256"}
+        if mode == "sse-kms":
+            args = {"ServerSideEncryption": "aws:kms"}
+            if settings.FILE_STORAGE_S3_KMS_KEY_ID:
+                args["SSEKMSKeyId"] = settings.FILE_STORAGE_S3_KMS_KEY_ID
+            return args
+        return {}
+
+    async def save(self, user_id: str, filename: str, data: bytes) -> str:
+        """The same storage path the local backend would have written.
+
+        `_sanitize_filename` on the owner, which keeps only its last component -
+        so `avatars/orgs/<id>` becomes `<id>`, exactly as on disk. Identical on
+        both backends on purpose: a row written by one names a readable path
+        under the other once the bytes are copied across.
+        """
+        safe_owner = _sanitize_filename(user_id)
+        storage_name = make_storage_filename(filename)
+        storage_path = f"{safe_owner}/{storage_name}"
+        await run_blocking(self._put_blocking, self._key(storage_path), data)
+        return storage_path
+
+    def _put_blocking(self, key: str, data: bytes) -> None:
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=data, **self._encryption())
+
+    async def load(self, storage_path: str) -> bytes:
+        return await run_blocking(self._get_blocking, self._key(storage_path))
+
+    def _get_blocking(self, key: str) -> bytes:
+        """Read one object, translating "no such key" into the error callers expect.
+
+        Every caller of `load` already handles `FileNotFoundError` - a row and its
+        bytes can part company, and the routes answer 404 for it. botocore raises
+        `ClientError` with a code instead, so a missing object would otherwise
+        reach a route as a 500 naming AWS.
+        """
+        from botocore.exceptions import ClientError
+
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=key)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code")
+            if code in {"NoSuchKey", "404", "NoSuchBucket"}:
+                raise FileNotFoundError(f"File not found: {key}") from exc
+            raise
+        body: Any = response["Body"]
+        try:
+            read: bytes = body.read()
+        finally:
+            body.close()
+        return read
+
+    async def delete(self, storage_path: str) -> None:
+        await delete_cancel_safe(self._delete_blocking, self._key(storage_path))
+
+    def _delete_blocking(self, key: str) -> None:
+        """`delete_object` is already idempotent: S3 answers 204 for a key that
+        was never there, which is what the best-effort teardown loops need."""
+        self.client.delete_object(Bucket=self.bucket, Key=key)
+
+    async def exists(self, storage_path: str) -> bool:
+        try:
+            key = self._key(storage_path)
+        except ValueError:
+            return False
+        return await run_blocking(self._head_blocking, key)
+
+    def _head_blocking(self, key: str) -> bool:
+        from botocore.exceptions import ClientError
+
+        try:
+            self.client.head_object(Bucket=self.bucket, Key=key)
+        except ClientError:
+            return False
+        return True
+
+
+def build_s3_client() -> BaseClient:
+    """The boto3 client the S3 backend runs on, built from deployment settings.
+
+    Deployment settings rather than an organization's vault secret, which is the
+    opposite of the S3 *sync connector* beside it and deliberate: a sync source
+    reads a bucket the tenant owns, under the tenant's own key, so the credential
+    belongs to that tenant. This bucket belongs to the deployment and holds every
+    tenant's files, so it is infrastructure - the same kind of setting as the
+    database URL.
+
+    With no key pair configured, boto3's own credential chain answers: an
+    instance profile or an IRSA role, which is what a deployment on AWS should be
+    using rather than a long-lived key in an environment file.
+    """
+    import boto3
+    from botocore.config import Config
+
+    client_kwargs: dict[str, Any] = {"region_name": settings.FILE_STORAGE_S3_REGION}
+    if settings.FILE_STORAGE_S3_ACCESS_KEY and settings.FILE_STORAGE_S3_SECRET_KEY:
+        client_kwargs["aws_access_key_id"] = settings.FILE_STORAGE_S3_ACCESS_KEY
+        client_kwargs["aws_secret_access_key"] = settings.FILE_STORAGE_S3_SECRET_KEY
+    if settings.FILE_STORAGE_S3_ENDPOINT:
+        client_kwargs["endpoint_url"] = settings.FILE_STORAGE_S3_ENDPOINT
+    config = Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "path" if settings.FILE_STORAGE_S3_PATH_STYLE else "auto"},
+    )
+    return boto3.client("s3", **client_kwargs, config=config)
+
+
+_s3_storage: S3FileStorage | None = None
+
+
 def get_file_storage() -> BaseFileStorage:
-    """Factory: create file storage backend based on settings."""
+    """Factory: create file storage backend based on settings.
+
+    The S3 backend is built once and reused. Its client opens a connection pool
+    and reads the credential chain, and this is called per request - a fresh
+    client per attachment would do both every time. The local backend stays
+    per-call: it is a `Path` and an `mkdir`.
+    """
+    if settings.FILE_STORAGE_BACKEND == "s3":
+        global _s3_storage
+        if _s3_storage is None:
+            if not settings.FILE_STORAGE_S3_BUCKET:
+                raise RuntimeError(
+                    "FILE_STORAGE_BACKEND=s3 needs FILE_STORAGE_S3_BUCKET set to the bucket to write to"
+                )
+            _s3_storage = S3FileStorage(
+                build_s3_client(),
+                settings.FILE_STORAGE_S3_BUCKET,
+                prefix=settings.FILE_STORAGE_S3_PREFIX,
+            )
+        return _s3_storage
     media_dir = getattr(settings, "MEDIA_DIR", "media")
     return LocalFileStorage(base_dir=media_dir)
+
+
+def reset_file_storage() -> None:
+    """Forget the built S3 backend, so the next call reads the settings again.
+
+    For tests, which move `FILE_STORAGE_*` between cases, and for nothing else:
+    a running deployment reads its settings once at start.
+    """
+    global _s3_storage
+    _s3_storage = None

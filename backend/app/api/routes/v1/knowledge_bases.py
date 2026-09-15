@@ -8,8 +8,7 @@ app-admin role required by the bulk `/rag` endpoints.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 
 from app.api.deps import (
     Auth,
@@ -21,6 +20,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.knowledge_base import (
@@ -206,7 +206,7 @@ async def download_kb_document(
     service: KnowledgeBaseSvc,
     rag_doc_svc: RAGDocumentSvc,
     ctx: Auth,
-) -> FileResponse:
+) -> Response:
     """Download (or open inline) the original file for a KB document."""
     kb = await service.get(kb_id, ctx=ctx)
     doc = await rag_doc_svc.get_document(str(doc_id))
@@ -215,16 +215,19 @@ async def download_kb_document(
             message="Document not found in this knowledge base",
             details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
         )
-    file_path, filename, mime_type = await rag_doc_svc.get_download_info(str(doc_id))
-    return FileResponse(
-        path=file_path,
-        filename=filename,
+    stored, filename, mime_type = await rag_doc_svc.get_download_info(str(doc_id))
+    response = await stored_file_response(
+        stored,
         media_type=mime_type,
+        attachment_name=filename,
         # The BFF forwards this rather than inventing one, which is why it is here:
         # a stored document does not change, and re-downloading it every time the
         # viewer is opened is a round trip for bytes the browser already has.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+    if response is None:
+        raise NotFoundError(message="File not found on disk")
+    return response
 
 
 @router.get("/{kb_id}/documents/{doc_id}/parsed", response_model=RAGParsedContent)

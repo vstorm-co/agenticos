@@ -125,6 +125,30 @@ def _vault_configured() -> tuple[str, str]:
     return "healthy", "a key is configured"
 
 
+def _file_storage() -> tuple[str, str]:
+    """Which backend holds uploaded files, and whether it encrypts them (#1423).
+
+    Not a failure either way. `local` is the default and the honest answer for a
+    single host with an encrypted volume - this cannot see the volume, so it
+    reports the backend and leaves the claim to the operator. `s3` with
+    encryption switched off is the one worth saying out loud: a compatible store
+    with no KMS behind it is a legitimate configuration and is not what the
+    at-rest row in `docs/security.md` describes.
+    """
+    if settings.FILE_STORAGE_BACKEND != "s3":
+        return "unconfigured", "backend=local - files are on this host's disk, encrypt the volume"
+    bucket = settings.FILE_STORAGE_S3_BUCKET
+    if not bucket:
+        return (
+            "unhealthy",
+            "backend=s3 but FILE_STORAGE_S3_BUCKET is unset - no upload can be stored",
+        )
+    mode = settings.FILE_STORAGE_S3_ENCRYPTION
+    if mode == "none":
+        return "unconfigured", f"backend=s3 bucket={bucket} encryption=none"
+    return "healthy", f"backend=s3 bucket={bucket} encryption={mode}"
+
+
 async def _sandbox_connections(db: AsyncSession) -> tuple[str, str]:
     """Whether every registered sandbox host can actually be reached.
 
@@ -253,6 +277,9 @@ async def _run() -> int:
 
     status, detail = _vault_configured()
     failures += _report("vault", status, detail)
+
+    status, detail = _file_storage()
+    failures += _report("file storage", status, detail)
 
     # A session of its own, after the vault check rather than beside the database
     # ones above: unsealing a connection's credential is meaningless while the
