@@ -43,7 +43,7 @@ each is a boundary a client's review will ask about.
 |---|---|---|
 | The configured model provider | The prompt, the model's output, tool arguments and results | Every run — unless the model runs on the operator's own infrastructure, in which case nothing leaves |
 | The configured channel (Slack, Telegram, Mattermost) | The agent's generated replies — text, images and attachments | Whenever an agent is exposed through that channel; each `send_message` posts to the provider (`app/services/channels/`) |
-| Logfire | Traces, which carry prompts and outputs unless the agent says otherwise | Two independent paths. A per-agent observability token traces that agent, and its `content` mode decides how much the span carries - `none` reduces it to timing, tokens, cost and tool names (#1413). A deployment-wide `LOGFIRE_TOKEN` instruments **every** run in the API process (`app/core/logfire_setup.py`), so with it set, the content of any agent that did not ask for `none` leaves; an agent that did is pinned to content-free instrumentation on that tracer too (`suppress_content`), so the mode holds on both paths, and a specialist of that agent inherits it, written inline or invented mid-run. One gap it does not cover: an attach that fails, which is logged and left. Neither path is on by default, and the deployment-wide one does not reach a run executed by the Prefect worker ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). There is deliberately no filtered middle ground - a partly-scrubbed export is a guarantee nobody can audit ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
+| Logfire | Traces, which carry prompts and outputs unless the agent says otherwise | Two independent paths. A per-agent observability token traces that agent, and its `content` mode decides how much the span carries - `none` reduces it to timing, tokens, cost and tool names (#1413). A deployment-wide `LOGFIRE_TOKEN` instruments **every** run, in the API and in the Prefect worker alike (`app/core/logfire_setup.py`), so with it set, the content of any agent that did not ask for `none` leaves; an agent that did is pinned to content-free instrumentation on that tracer too (`suppress_content`), so the mode holds on both paths, and a specialist of that agent inherits it, written inline or invented mid-run. One gap it does not cover: an attach that fails, which is logged and left. Neither path is on by default. There is deliberately no filtered middle ground - a partly-scrubbed export is a guarantee nobody can audit ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | MCP servers | Tool calls and their arguments | Only for the tools an agent is bound to |
 | A web-search vendor (Tavily, DuckDuckGo) | The search query | Only when the search capability is granted |
 | An embedding provider | Document text, at ingestion | Only for a knowledge base whose provider is remote |
@@ -151,8 +151,8 @@ a budget, an approval, a secret or plaintext but lacks the marker fails
   The BFF forwards the session cookie; the API is where a request is verified.
 - The only data that leaves is what the deployment configured to leave — model
   providers, channels, MCP servers, search and embedding vendors, and Logfire —
-  which is optional, and once a deployment-wide token is set traces every run the
-  API process serves, with the content of every agent that did not ask for `none`.
+  which is optional, and once a deployment-wide token is set traces every run,
+  with the content of every agent that did not ask for `none`.
 - Connector and API credentials are sealed per organization in the one vault;
   short-lived bearer tokens and content at rest (files, messages, RAG, sandboxes)
   are not, with [#1423](https://github.com/vstorm-co/agenticos/issues/1423) the

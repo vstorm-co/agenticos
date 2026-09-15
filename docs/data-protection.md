@@ -152,7 +152,7 @@ one.
 | Accountability | Audit entries share the acting transaction and fail closed; impersonation names both people; bulk exports are recorded | [Governance](governance.md#audit) |
 | Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
 | Tamper evidence on the trail | Every entry joins a per-organization hash chain, and each chain carries a checkpoint at its high-water mark, so a rewritten entry, a dropped tail and a deleted chain are all detectable. `agenticos cmd audit-verify` walks them and exits non-zero on a break | [Governance](governance.md#audit) (#1622, #1648). Detection, not prevention: whoever holds the database's own credentials can re-forge a chain or drop the checkpoint's trigger |
-| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only, and a specialist of that agent inherits it | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616). One path carries no traces at all: a run the Prefect worker executes ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)) |
+| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only, and a specialist of that agent inherits it | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retention on a schedule | Only `sandbox_operations` rows are swept, after 30 days. The stale-run sweep finalizes abandoned runs; it deletes nothing | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
 | Access to one's own data | No export endpoint; no view of one's own memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -176,10 +176,6 @@ There is no third mode between the two. An export scrubbed by a PII filter is a
 guarantee nobody can audit - one identifier the filter misses has left, and the
 operator believes it did not - so the choice is deliberately the whole content or
 none of it ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
-
-One path a review should know about is not reduced but absent: the Prefect worker
-never configures Logfire, so a scheduled run leaves no trace in the project at all
-([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
 
 ### What deletion reaches
 
@@ -288,13 +284,11 @@ deployment until each closes.
 - Files on local disk only, encrypted by the volume or not at all - [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - No self-service view of one's own memory - [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- A run the Prefect worker executes is not traced at all -
-  [#1700](https://github.com/vstorm-co/agenticos/issues/1700).
 
 **Closed, and answered above rather than here:** the audit trail's tamper
 evidence (#1622, #1648), the per-agent trace content mode and its inheritance by
-specialists (#1413, #1699) and the HIPAA
-and SOC 2 controls matrix in [Security](security.md#controls-matrix) (#1412).
+specialists (#1413, #1699), tracing in the process that runs a fired agent
+(#1700), and the HIPAA and SOC 2 controls matrix in [Security](security.md#controls-matrix) (#1412).
 Traces have no filtered middle ground and will not get one
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); `none` is the
 answer for a deployment that may not export content.

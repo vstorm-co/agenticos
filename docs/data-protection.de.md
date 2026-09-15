@@ -1,5 +1,5 @@
 ---
-source_sha: "70b594561386"
+source_sha: "bc2eb9e0e3fc"
 ---
 
 # Datenschutz { #data-protection }
@@ -162,7 +162,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Rechenschaft | Audit-Einträge teilen die handelnde Transaktion und scheitern geschlossen; Impersonation nennt beide Personen; Massenexporte werden festgehalten | [Governance](governance.md#audit) |
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
 | Manipulationsnachweis der Spur | Jeder Eintrag gehört zu einer Hash-Kette je Organisation, und jede Kette trägt einen Checkpoint auf ihrem höchsten Stand, damit ein umgeschriebener Eintrag, ein gekapptes Ende und eine gelöschte Kette allesamt erkennbar sind. `agenticos cmd audit-verify` läuft sie ab und endet bei einem Bruch mit einem Exit-Code ungleich null | [Governance](governance.md#audit) (#1622, #1648). Erkennung, keine Verhinderung: wer die Zugangsdaten der Datenbank selbst hat, schmiedet eine Kette neu oder entfernt den Trigger, der den Checkpoint schützt |
-| Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen, und ein Spezialist dieses Agents erbt den Modus | [Umgebungen](environments.md) (#1413); ein `redacted`-Dazwischen wurde verworfen, [#1616](https://github.com/vstorm-co/agenticos/issues/1616). Ein Pfad trägt gar keine Traces: ein Run, den der Prefect-Worker ausführt ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)) |
+| Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen, und ein Spezialist dieses Agents erbt den Modus | [Umgebungen](environments.md) (#1413); ein `redacted`-Dazwischen wurde verworfen, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Aufbewahrung nach Zeitplan | Nur `sandbox_operations`-Zeilen werden weggeräumt, nach 30 Tagen. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
 | Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -189,11 +189,6 @@ bereinigter Export ist eine Zusicherung, die niemand prüfen kann — ein
 Identifikator, den der Filter übersieht, ist bereits draußen, und der Betreiber
 glaubt das Gegenteil —, die Wahl steht also bewusst zwischen dem ganzen Inhalt
 und keinem ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
-
-Einen Pfad sollte eine Prüfung kennen, weil er nicht gekürzt, sondern abwesend
-ist: der Prefect-Worker konfiguriert Logfire überhaupt nicht, ein geplanter Run
-hinterlässt im Projekt also gar keinen Trace
-([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
 
 ### Was das Löschen erreicht { #what-deletion-reaches }
 
@@ -312,11 +307,10 @@ für jedes Deployment, bis jede von ihnen geschlossen ist.
 - Dateien nur auf lokaler Platte, vom Volume verschlüsselt oder gar nicht — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - Kein Selbstbedienungs-Einblick in das eigene Gedächtnis — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Keine OIDC-Anmeldung — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- Ein Run, den der Prefect-Worker ausführt, wird überhaupt nicht getraced —
-  [#1700](https://github.com/vstorm-co/agenticos/issues/1700).
 
 **Geschlossen, und oben statt hier beantwortet:** der Manipulationsnachweis der
-Audit-Spur (#1622, #1648), der Trace-Inhaltsmodus je Agent und sein Erben durch Spezialisten (#1413, #1699) und die
+Audit-Spur (#1622, #1648), der Trace-Inhaltsmodus je Agent und sein Erben durch Spezialisten (#1413, #1699), das Tracing in dem Prozess, der einen
+gefeuerten Agent ausführt (#1700), und die
 Kontrollmatrix für HIPAA und SOC 2 unter
 [Sicherheit](security.md#controls-matrix) (#1412). Traces haben kein gefiltertes
 Dazwischen und bekommen keines

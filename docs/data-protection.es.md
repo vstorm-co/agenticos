@@ -1,5 +1,5 @@
 ---
-source_sha: "70b594561386"
+source_sha: "bc2eb9e0e3fc"
 ---
 
 # Protección de datos { #data-protection }
@@ -159,7 +159,7 @@ una laguna, y así queda dicho.
 | Rendición de cuentas | Las entradas de auditoría comparten la transacción que actúa y fallan en cerrado; la suplantación nombra a ambas personas; las exportaciones masivas quedan registradas | [Gobernanza](governance.md#audit) |
 | Exportación de auditoría | `GET /audit/export`, CSV o JSONL sobre una ventana, con puerta en `audit:read` y registrada en el propio rastro | [Governance](governance.md#audit) (#1422) |
 | Prueba de no manipulación del rastro | Cada entrada se une a una cadena de hashes por organización, y cada cadena lleva un checkpoint en su marca más alta, de modo que una entrada reescrita, una cola cortada y una cadena borrada son todas detectables. `agenticos cmd audit-verify` las recorre y termina con código distinto de cero ante una rotura | [Gobernanza](governance.md#audit) (#1622, #1648). Detección, no prevención: quien tenga las credenciales de la propia base de datos puede volver a forjar una cadena o quitar el trigger que protege el checkpoint |
-| Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta, y un especialista de ese agent hereda el modo | [Entornos](environments.md) (#1413); un término medio `redacted` se descartó, [#1616](https://github.com/vstorm-co/agenticos/issues/1616). Un camino no lleva trazas en absoluto: un run que ejecuta el worker de Prefect ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)) |
+| Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta, y un especialista de ese agent hereda el modo | [Entornos](environments.md) (#1413); un término medio `redacted` se descartó, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retención programada | Solo se barren las filas de `sandbox_operations`, a los 30 días. El barrido de runs abandonados los finaliza; no borra nada | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
 | Acceso a los propios datos | No hay endpoint de exportación; no hay vista de la propia memoria | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -185,11 +185,6 @@ es una garantía que nadie puede auditar — un identificador que el filtro deje
 pasar ya ha salido, y el operador cree que no —, así que la elección es a
 propósito entre todo el contenido y nada de él
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
-
-Hay un camino que una revisión debería conocer, porque no está recortado sino
-ausente: el worker de Prefect no configura Logfire en absoluto, así que un run
-programado no deja ninguna traza en el proyecto
-([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
 
 ### Qué alcanza el borrado { #what-deletion-reaches }
 
@@ -304,12 +299,11 @@ cualquier deployment hasta que cada una se cierre.
 - Archivos solo en disco local, cifrados por el volumen o nada — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - No hay vista de autoservicio de la memoria propia — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No hay inicio de sesión OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- Un run que ejecuta el worker de Prefect no se traza en absoluto —
-  [#1700](https://github.com/vstorm-co/agenticos/issues/1700).
 
 **Cerradas, y respondidas arriba en vez de aquí:** la prueba de no manipulación
 del rastro de auditoría (#1622, #1648), el modo de contenido de trazas por agent
-y su herencia por los especialistas (#1413, #1699) y la matriz de controles de HIPAA y SOC 2 en
+y su herencia por los especialistas (#1413, #1699), el trazado en el proceso
+que ejecuta un agent disparado (#1700) y la matriz de controles de HIPAA y SOC 2 en
 [Seguridad](security.md#controls-matrix) (#1412). Las trazas no tienen término
 medio filtrado y no lo tendrán
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); para un deployment
