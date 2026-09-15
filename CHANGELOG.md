@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.444] - 2026-09-16
+
 ### Added
 
 - **The connect dialog takes a client registered by hand, so HubSpot can be
