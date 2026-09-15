@@ -1,5 +1,5 @@
 ---
-source_sha: "bdf0839310f4"
+source_sha: "b73ef30c0d82"
 ---
 
 # Bezpieczeństwo { #security }
@@ -138,7 +138,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Kontrola | Mechanizm | Trzymane przez |
 |---|---|---|
 | TLS do PostgreSQL i Redisa | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` raportuje żywy stan Postgresa z `pg_stat_ssl` | Postgres, na żywym połączeniu: `test_store_tls.py`; Redis, przy budowie URL-a i w `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
-| Nagłówki ramkowania i MIME na każdej odpowiedzi; CSP na wszystkich poza endpointami referencji API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), którego `exclude_paths` zdejmują CSP — nie ramkowanie ani MIME — dla OpenAPI, Swaggera i ReDoc; plus CSP frontendu per wdrożenie (`frontend/src/middleware.ts`) | `test_security_headers.py`, w tym `test_an_excluded_path_keeps_its_framing_but_drops_the_csp` |
+| Nagłówki ramkowania i MIME na każdej odpowiedzi; CSP na wszystkich poza endpointami referencji API | `SecurityHeadersMiddleware` (`app/core/middleware.py`), którego `exclude_paths` zdejmują CSP — nie ramkowanie ani MIME — dla OpenAPI, Swaggera i ReDoc; plus CSP frontendu per wdrożenie (`frontend/src/middleware.ts`), którego `script-src` niesie nonce per żądanie i `'strict-dynamic'` zamiast `'unsafe-inline'` | `test_security_headers.py`, w tym `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS i HSTS | Terminowane na reverse proxy — dołączony `nginx/nginx.conf` ustawia HSTS; aplikacja z założenia nie | Sprawa wdrożenia; zobacz listę kontrolną hardeningu |
 | Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed i stronach hostowanych (`app/services/rate_limit.py`); limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
 
