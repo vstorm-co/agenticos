@@ -1,5 +1,5 @@
 ---
-source_sha: "545cf7248027"
+source_sha: "120ab0941f7c"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -117,7 +117,14 @@ origen, para el dictado por voz del chat.
 ## Quién puede registrarse { #who-may-register }
 
 `signup_mode`, aplicado en `app/services/signup_policy.py` —el único lugar— y
-controla **ambos** caminos que acuñan una cuenta.
+controla **todos** los caminos que acuñan una cuenta: el formulario de registro y
+un inicio de sesión a través de un proveedor de identidad. Nada en un callback
+OAuth u OIDC se parece a un registro, y un despliegue con inicio de sesión único
+y el formulario de registro cerrado no estaría cerrado en absoluto si esa rama no
+estuviera controlada, así que `get_or_create_oauth_user` consulta la misma
+política antes de crear la cuenta. Un inicio de sesión SSO rechazado vuelve a la
+página de acceso llevando la frase de la propia política, la misma que muestra el
+formulario de registro.
 
 | Modo | Efecto |
 |---|---|

@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "c26bba9d595f"
 ---
 
 # Configuración { #configuration }
@@ -145,6 +145,81 @@ siguiente petición del mismo origen, y el refresh token vale una semana. El
 frontend canjea el código por el par de tokens de servidor a servidor en
 `POST /api/v1/oauth/exchange`, que lo redime exactamente una vez.
 
+
+### Inicio de sesión único (OIDC genérico) { #single-sign-on-generic-oidc }
+
+Cualquier proveedor de identidad que publique un documento de discovery:
+Microsoft Entra ID, Okta, Keycloak, Auth0, Authentik, Google Workspace por su
+endpoint OIDC. Una empresa que aloja esto por su cuenta ya tiene uno y no va a
+crear contraseñas locales para su plantilla — sin esto, su MFA y su offboarding
+se resuelven dos veces.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (vacío) | La URL del issuer. Vacío significa sin SSO, y el callback responde 404 |
+| `OIDC_CLIENT_ID` | (vacío) | El cliente que el proveedor emitió para este despliegue |
+| `OIDC_CLIENT_SECRET` | (vacío) | Su secreto |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | El callback, registrado en el proveedor |
+| `OIDC_SCOPES` | `openid email profile` | Separados por espacios. Añade el scope propio del proveedor donde lo necesite para los claims |
+| `OIDC_VERIFIED_CLAIM` | (vacío) | Un tercer claim que se acepta como «esta dirección está confirmada», para un proveedor que lo llama de otro modo |
+
+El issuer es la única URL. Authorization, token, userinfo y JWKS salen de
+`<issuer>/.well-known/openid-configuration`, que el proveedor mantiene correcto
+a través de una rotación de claves o un cambio de endpoint — así que no quedan
+más direcciones que equivocar sutilmente. El flujo es authorization code con
+PKCE.
+
+Los claims se leen del ID token, y del endpoint **UserInfo** cuando el ID token no
+los lleva. Un proveedor puede guardar `email` y su claim de verificación en
+UserInfo y no poner ninguno en el token, así que leer solo el token rechazaría a
+un proveedor perfectamente conforme a una petición de una identidad válida.
+
+Dos botones en el frontend, configurados allí:
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | Añade `oidc` para mostrar el botón de SSO; solo `oidc` deja únicamente SSO |
+| `OIDC_DISPLAY_NAME` | `SSO` | Cómo llama el botón al proveedor: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (vacío) | `google`, `github` o `microsoft` — las marcas que la página de inicio de sesión ya lleva. Cualquier otra cosa dibuja una llave simple |
+
+Dónde vive cada issuer, y qué registrar:
+
+| Proveedor | Issuer | Registra la redirect URI como |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions |
+| **Okta** | `https://<org>.okta.com` (o `/oauth2/<id>` de un authorization server propio) | Una sign-in redirect URI en una aplicación **Web** |
+| **Keycloak** | `https://<host>/realms/<realm>` | Una valid redirect URI en un cliente confidencial con el standard flow activado |
+
+Dos cosas que la plataforma exige del proveedor al que se la apunte:
+
+- **La dirección tiene que estar confirmada.** Se aceptan dos claims: el estándar
+  `email_verified` y el `xms_edov` de Entra ID, que es lo que Entra envía en su
+  lugar —no emite `email_verified` en absoluto— y que es un claim **opcional** que
+  se activa en el registro de la aplicación: un tenant de Entra que no lo haya
+  activado no envía ninguno de los dos y todos los accesos se rechazan.
+  `OIDC_VERIFIED_CLAIM` nombra un tercero para un proveedor que lo llame de otra
+  forma. Ausente cuenta como no confirmado: una dirección sin confirmar significa
+  que cualquiera en ese proveedor puede reclamar la dirección de trabajo de otra
+  persona, y la lista de dominios permitidos de abajo se sostiene sobre que una
+  dirección signifique algo.
+- **Un `sub` estable.** La cuenta se indexa por él, no por la dirección, así que
+  quien cambie de apellido o cuyo dominio sea comprado conserva su historial — y
+  el siguiente titular de una dirección liberada no la hereda. Se guarda **con el
+  issuer como espacio de nombres**, porque un `sub` es único dentro de su issuer y
+  en ningún otro sitio: apuntar el despliegue a otro tenant o realm no puede
+  entonces meter a un principal nuevo en la cuenta de uno antiguo.
+
+La política de registro se aplica aquí exactamente como se aplica al formulario
+de registro: un despliegue `invite_only` rechaza un inicio de sesión SSO de
+alguien a quien nadie invitó, y una lista de dominios permitidos rechaza una
+dirección fuera de ella, con la misma frase en la página de acceso. Véase
+[Quién puede registrarse](deployment.md#who-may-register). Mapear los grupos de
+un proveedor a roles dentro de una organización no forma parte de esto; la gente
+entra, y una administradora la coloca.
+
+SAML y SCIM no están implementados. La mayoría de los proveedores de identidad
+que usa una empresa mediana hablan OIDC, y estos ajustes son todo lo que
+necesitan.
 
 ## Base de datos (PostgreSQL) { #database-postgresql }
 

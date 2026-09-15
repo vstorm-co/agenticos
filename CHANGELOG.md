@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Single sign-on against the deployment's own identity provider.** A generic
+  OpenID Connect provider configured by discovery - Entra ID, Okta, Keycloak,
+  anything that publishes a document: `OIDC_ISSUER` plus a client pair, and the
+  authorization, token, userinfo and JWKS endpoints come from the provider
+  rather than from four more settings to get subtly wrong. Authorization code
+  with PKCE. A company self-hosting this runs an identity provider already and
+  will not mint local passwords for its staff, so without this its MFA and its
+  offboarding were solved twice. The sign-in page shows it under the name the
+  deployment gives it (`OIDC_DISPLAY_NAME`) with a mark of its choosing
+  (`OIDC_ICON`), in English and Polish. (#1419)
+
+### Changed
+
+- **A provider sign-in now requires `email_verified`, and absent counts as
+  false.** Both providers, not only the new one: an unverified address means
+  anybody at that provider can claim anybody else's work address, and the
+  sign-up policy's domain allow-list is built on an address meaning something.
+  The account is keyed on `sub` rather than on the address, as it already was.
+- **A sign-in the sign-up policy refuses now says why.** `invite_only` and the
+  domain allow-list already gated `get_or_create_oauth_user`, but the refusal
+  was caught by the callback's catch-all and shown as "Sign-in failed. Please
+  try again." beside every timeout. The policy's own sentence - the one the
+  registration form shows - is carried to the sign-in page instead. (#1419)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

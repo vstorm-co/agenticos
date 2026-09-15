@@ -1,5 +1,5 @@
 ---
-source_sha: "545cf7248027"
+source_sha: "120ab0941f7c"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -125,7 +125,14 @@ auf dieser Origin erlaubt, für die Spracherkennung im Chat.
 ## Wer sich registrieren darf { #who-may-register }
 
 `signup_mode`, angewendet in `app/services/signup_policy.py` — der einen Stelle,
-und sie kontrolliert **beide** Pfade, die ein Konto prägen.
+und sie kontrolliert **jeden** Pfad, der ein Konto prägt: das
+Registrierungsformular und eine Anmeldung über einen Identitätsanbieter. Nichts
+an einem OAuth- oder OIDC-Callback sieht nach einer Registrierung aus, und ein
+Deployment mit Single Sign-on und geschlossenem Registrierungsformular wäre
+überhaupt nicht geschlossen, wenn dieser Zweig ungesichert wäre — deshalb fragt
+`get_or_create_oauth_user` dieselbe Richtlinie, bevor es das Konto anlegt. Eine
+abgewiesene SSO-Anmeldung landet wieder auf der Anmeldeseite und trägt den
+eigenen Satz der Richtlinie, denselben, den das Registrierungsformular zeigt.
 
 | Modus | Wirkung |
 |---|---|

@@ -100,6 +100,9 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | API keys compared in constant time | `secrets.compare_digest` (`app/api/deps.py`) | `test_auth.py`, webhook HMAC checks in the channel adapters |
 | DB-backed sessions with revocation | `sessions` table + `SessionService`; token bound to a `sid` claim (`app/services/session.py`, `app/api/routes/v1/sessions.py`) | `test_session_verify.py`, `test_session_revocation.py` |
 | Login rate limiting | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Single sign-on against the deployment's own identity provider | Generic OIDC by discovery — authorization code with PKCE, `email_verified` required, the account keyed on `sub` (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; configured in [Single sign-on](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
+| The sign-up policy gates SSO as it gates the form | `check_may_register` inside `get_or_create_oauth_user` — `invite_only` and the domain allow-list refuse a provider sign-in too (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
+| Group-to-role mapping, SAML, SCIM | **Not yet** — people sign in through the provider; an administrator places them | — |
 
 ### Audit controls · HIPAA §164.312(b) · SOC 2 CC7
 
