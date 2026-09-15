@@ -66,6 +66,9 @@ def _row(*, vector_document_id: str | None, storage_path: str = "") -> MagicMock
         collection_name="docs",
         vector_document_id=vector_document_id,
         storage_path=storage_path,
+        # The tenant the chunks were stamped with; the vector delete carries it so
+        # it cannot reach another org's document in a shared-named collection (#1684).
+        organization_id=None,
     )
 
 
@@ -83,7 +86,7 @@ class TestDeletingATrackedDocument:
         ingestion.remove_document.assert_not_awaited()
 
         await _run_deferred(db)
-        ingestion.remove_document.assert_awaited_once_with("docs", "vector-doc-1")
+        ingestion.remove_document.assert_awaited_once_with("docs", "vector-doc-1", None)
 
     async def test_a_document_with_no_vectors_asks_for_nothing(self, monkeypatch):
         """One that failed to index. There is nothing in the store to remove, and

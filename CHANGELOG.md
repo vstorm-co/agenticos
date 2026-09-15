@@ -17,7 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.436] - 2026-09-15
+### Fixed
+
+- **RAG ingestion no longer crosses tenants on a shared collection name.** A
+  `rag_<collection>` runtime table is keyed by collection name only, and a name
+  is not unique across organizations - two that pick the same name share one
+  physical table. The ingestion replace/dedup path found and deleted a document
+  with no tenant predicate, so one organization could overwrite and delete
+  another's document, and a search could read another's chunk content. Every
+  chunk now records its ingesting organization, and the existence lookup, the
+  replace-delete, deletes, listings, counts, chunk reads and search all scope to
+  it. A schema change stamps existing rows for a collection owned by a single
+  organization; rows in a name shared by several are left untagged, since they
+  carry no evidence of which wrote which (#1684).
 
 ### Changed
 

@@ -234,7 +234,7 @@ class TestRetiringWhatAReplacementDeleted:
         )
 
         assert result.replaced_document_id == "old-vector-doc"
-        service.store.delete_document.assert_awaited_once_with("docs", "old-vector-doc")
+        service.store.delete_document.assert_awaited_once_with("docs", "old-vector-doc", None)
 
     async def test_a_first_ingest_reports_nothing_replaced(self):
         processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))

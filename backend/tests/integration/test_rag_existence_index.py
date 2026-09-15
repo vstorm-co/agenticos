@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.db.vector_tables import (
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
+    VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
 )
 from app.services.rag.vectorstore import PgVectorStore
@@ -103,6 +104,8 @@ async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEng
         VECTOR_SOURCE_PATH_INDEX_SUFFIX,
         VECTOR_FILENAME_INDEX_SUFFIX,
         VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+        # The tenant key every row-level op scopes by (#1684).
+        VECTOR_ORG_INDEX_SUFFIX,
     ):
         name = f"{TABLE}{suffix}"
         assert name in defs

@@ -16,6 +16,7 @@ from app.db.vector_tables import (
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_INDEX_SUFFIX,
+    VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
     is_runtime_vector_table,
@@ -67,8 +68,17 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
-    async def insert_document(self, collection_name: str, document: Document) -> None:
-        pass
+    async def insert_document(
+        self, collection_name: str, document: Document, organization_id: UUID | None = None
+    ) -> None:
+        """Write a document's chunks, stamped with the ingesting tenant.
+
+        `organization_id` is the trusted organization the ingest runs for; it is
+        recorded on every chunk so the shared runtime table (a collection name is
+        not unique across tenants) can be scoped per tenant afterwards. `None` is
+        a deployment-wide write - the CLI, a local-path sync - and stamps no
+        tenant, which is the tag the deployment-wide reads match (#1684).
+        """
 
     @abstractmethod
     async def search(
@@ -86,8 +96,16 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    async def delete_document(self, collection_name: str, document_id: str) -> None:
-        pass
+    async def delete_document(
+        self, collection_name: str, document_id: str, organization_id: UUID | None = None
+    ) -> None:
+        """Remove one document's chunks, only within the caller's tenant.
+
+        `organization_id` scopes the delete to the rows the tenant wrote, so a
+        collection name shared across tenants cannot have one org delete
+        another's document (#1684). `None` matches only the untagged,
+        deployment-wide rows.
+        """
 
     @abstractmethod
     async def get_collection_info(
@@ -100,22 +118,34 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    async def get_documents(self, collection_name: str) -> list[DocumentInfo]:
-        pass
+    async def get_documents(
+        self, collection_name: str, organization_id: UUID | None = None
+    ) -> list[DocumentInfo]:
+        """Every document the tenant holds in a collection.
+
+        `organization_id` scopes the listing to the caller's own rows on a
+        shared runtime table (#1684); `None` lists only the untagged,
+        deployment-wide rows.
+        """
 
     @abstractmethod
     async def get_document_chunks(
-        self, collection_name: str, document_id: str
+        self, collection_name: str, document_id: str, organization_id: UUID | None = None
     ) -> list[DocumentChunk]:
         """Every stored chunk of one document, in document order.
 
         Document order means (page_num, chunk_num) ascending - the order the
         splitter produced them - so callers can reconstruct what the parse
         looked like. An unknown document or collection is an empty list.
+
+        `organization_id` scopes the read to the caller's own rows, so a shared
+        collection name does not expose another tenant's chunks (#1684).
         """
 
-    async def get_document_list(self, collection_name: str) -> RAGDocumentList:
-        docs = await self.get_documents(collection_name)
+    async def get_document_list(
+        self, collection_name: str, organization_id: UUID | None = None
+    ) -> RAGDocumentList:
+        docs = await self.get_documents(collection_name, organization_id)
         return RAGDocumentList(
             items=[
                 RAGDocumentItem(
@@ -132,9 +162,20 @@ class BaseVectorStore(ABC):
         )
 
     async def find_existing_document(
-        self, collection_name: str, *, source_path: str, content_hash: str
+        self,
+        collection_name: str,
+        *,
+        source_path: str,
+        content_hash: str,
+        organization_id: UUID | None = None,
     ) -> DocumentInfo | None:
         """The stored document this file refers to, found by one precedence.
+
+        `organization_id` is the trusted ingesting tenant: the search is confined
+        to the rows that tenant wrote, so a collection name shared across tenants
+        cannot have one org match, replace or delete another's document (#1684).
+        This reference implementation gets that confinement for free, because
+        `get_documents` already scopes to the tenant.
 
         **One precedence, both answers about one document.** A `source_path`
         match anywhere in the collection beats a `filename` match anywhere in it,
@@ -154,7 +195,7 @@ class BaseVectorStore(ABC):
         overrides it with an indexed lookup per key (#1102). Both answer `None`
         for no match - never an empty document, a stored hash of `""` included.
         """
-        docs = await self.get_documents(collection_name)
+        docs = await self.get_documents(collection_name, organization_id)
         filename = Path(source_path).name if source_path else ""
         by_filename: DocumentInfo | None = None
         by_hash: DocumentInfo | None = None
@@ -189,15 +230,29 @@ class BaseVectorStore(ABC):
         await self._ensure_collection(name)
 
     def _build_chunk_metadata(
-        self, chunk: "DocumentPageChunk", document: Document
+        self,
+        chunk: "DocumentPageChunk",
+        document: Document,
+        organization_id: UUID | None = None,
     ) -> dict[str, Any]:
-        return {
+        metadata: dict[str, Any] = {
             "page_num": chunk.page_num,
             "chunk_num": chunk.chunk_num,
             "has_images": bool(getattr(chunk, "images", None)),
             "image_count": len(getattr(chunk, "images", [])),
             **document.metadata.model_dump(),
         }
+        # The trusted tenant tag, injected here at the store boundary rather than
+        # carried on `Document`/`DocumentMetadata`: those flow from the parser and
+        # the uploader, and a tenant key that could be set from parsed content or
+        # an uploaded field is a tenant key an attacker chooses (#1684). Stored as
+        # text so `metadata->>'organization_id'` - what every scoped query reads
+        # and what the hash index is built on - compares against it directly. Left
+        # off entirely when there is no tenant, so the deployment-wide `IS NULL`
+        # scope matches it.
+        if organization_id is not None:
+            metadata["organization_id"] = str(organization_id)
+        return metadata
 
     def _sanitize_id(self, document_id: str) -> str:
         """Sanitize document_id to prevent filter injection."""
@@ -409,6 +464,27 @@ class PgVectorStore(BaseVectorStore):
             return f"(embedding::halfvec({dim}))"
         return "embedding"
 
+    @staticmethod
+    def _org_filter(organization_id: UUID | None) -> tuple[str, dict[str, Any]]:
+        """The tenant conjunct for the shared runtime table, and its bound param.
+
+        Every row carries its ingesting organization in
+        `metadata->>'organization_id'` (stamped by `_build_chunk_metadata`), and
+        a tenant may only find, replace, delete or read the rows it wrote - the
+        whole of the #1684 fix, since a collection name is not unique across
+        tenants and they share one physical table.
+
+        `None` is the deployment-wide caller - the CLI, a local-path sync - and
+        matches only rows with no tenant tag. It is `IS NULL` deliberately, not a
+        dropped predicate: without a conjunct the deployment-wide caller would
+        read and delete across every tenant, which is the defect inverted rather
+        than fixed. The clause is built from these two literals alone; the value
+        is always bound.
+        """
+        if organization_id is None:
+            return "(metadata->>'organization_id') IS NULL", {}
+        return "(metadata->>'organization_id') = :org", {"org": str(organization_id)}
+
     async def _ensure_collection(self, name: str) -> None:
         """Create table for collection if not exists."""
         table = self._table(name)
@@ -449,6 +525,11 @@ class PgVectorStore(BaseVectorStore):
                 (VECTOR_SOURCE_PATH_INDEX_SUFFIX, "source_path"),
                 (VECTOR_FILENAME_INDEX_SUFFIX, "filename"),
                 (VECTOR_CONTENT_HASH_INDEX_SUFFIX, "content_hash"),
+                # The tenant key every row-level op scopes by (#1684). Hash, like
+                # the others: the lookups are equality only, and
+                # `0080_scope_rag_rows_by_org` backfills the collections created
+                # before this key existed.
+                (VECTOR_ORG_INDEX_SUFFIX, "organization_id"),
             ):
                 await session.execute(
                     text(
@@ -471,7 +552,9 @@ class PgVectorStore(BaseVectorStore):
             )
             return result.scalar() is not None
 
-    async def insert_document(self, collection_name: str, document: Document) -> None:
+    async def insert_document(
+        self, collection_name: str, document: Document, organization_id: UUID | None = None
+    ) -> None:
         """Write a document's chunks, a batch of rows per statement.
 
         One statement per `_CHUNK_INSERT_BATCH` chunks rather than one per chunk:
@@ -511,7 +594,9 @@ class PgVectorStore(BaseVectorStore):
                             "parent_doc_id": chunk.parent_doc_id,
                             "content": chunk.chunk_content,
                             "embedding": str(vectors[i]),
-                            "metadata": json.dumps(self._build_chunk_metadata(chunk, document)),
+                            "metadata": json.dumps(
+                                self._build_chunk_metadata(chunk, document, organization_id)
+                            ),
                         }
                         for i, chunk in batch
                     ],
@@ -541,7 +626,9 @@ class PgVectorStore(BaseVectorStore):
 
         `organization_id` scopes which tenant's knowledge base the query embeds
         through, so a name shared across organizations does not embed on another
-        tenant's credential (#913).
+        tenant's credential (#913) - and, since #1684, which rows the query may
+        read: a collection name shared across tenants must not return another
+        organization's chunk content.
         """
         table = self._table(collection_name)
         if not await self._collection_exists(collection_name):
@@ -549,11 +636,15 @@ class PgVectorStore(BaseVectorStore):
         embedder, dim = await self._for_collection(collection_name, organization_id)
         query_vector = embedder.embed_query(query)
 
-        where_clause = "WHERE parent_doc_id = :doc_id" if parent_doc_id else ""
+        org_clause, org_params = self._org_filter(organization_id)
+        conditions = [org_clause]
+        if parent_doc_id:
+            conditions.append("parent_doc_id = :doc_id")
+        where_clause = "WHERE " + " AND ".join(conditions)
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
         query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
-        params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit}
+        params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit, **org_params}
         if parent_doc_id:
             params["doc_id"] = parent_doc_id
 
@@ -597,14 +688,20 @@ class PgVectorStore(BaseVectorStore):
 
         `organization_id` scopes the width lookup to the caller's own knowledge
         base, so a collection name shared across tenants does not resolve - and
-        unseal the vault key of - another organization's row (#913).
+        unseal the vault key of - another organization's row (#913). Since #1684
+        it also scopes the count, so a shared name reports the caller's own vector
+        total rather than every tenant's summed together.
         """
         _, dim = await self._for_collection(collection_name, organization_id)
         if not await self._collection_exists(collection_name):
             return CollectionInfo(name=collection_name, total_vectors=0, dim=dim)
         table = self._table(collection_name)
+        org_clause, org_params = self._org_filter(organization_id)
         async with self.async_session() as session:
-            result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+            result = await session.execute(
+                text(f"SELECT COUNT(*) FROM {table} WHERE {org_clause}"),
+                org_params,
+            )
             count = result.scalar() or 0
         return CollectionInfo(name=collection_name, total_vectors=count, dim=dim)
 
@@ -614,28 +711,44 @@ class PgVectorStore(BaseVectorStore):
             await session.execute(text(f"DROP TABLE IF EXISTS {table}"))
             await session.commit()
 
-    async def delete_document(self, collection_name: str, document_id: str) -> None:
+    async def delete_document(
+        self, collection_name: str, document_id: str, organization_id: UUID | None = None
+    ) -> None:
         table = self._table(collection_name)
         sanitized = self._sanitize_id(document_id)
+        # The tenant conjunct is what stops one org deleting another's document
+        # from the shared table (#1684): matching a `parent_doc_id` alone reaches
+        # every tenant's rows under that id, which is how the replace path could
+        # delete across tenants.
+        org_clause, org_params = self._org_filter(organization_id)
         async with self.async_session() as session:
             await session.execute(
-                text(f"DELETE FROM {table} WHERE parent_doc_id = :doc_id"),
-                {"doc_id": sanitized},
+                text(f"DELETE FROM {table} WHERE parent_doc_id = :doc_id AND {org_clause}"),
+                {"doc_id": sanitized, **org_params},
             )
             await session.commit()
 
-    async def get_documents(self, collection_name: str) -> list[DocumentInfo]:
+    async def get_documents(
+        self, collection_name: str, organization_id: UUID | None = None
+    ) -> list[DocumentInfo]:
         # Return an empty list for non-existent collections instead of silently
         # creating them via _ensure_collection. `get_collection_info` answers the
         # same question the same way.
         if not await self._collection_exists(collection_name):
             return []
         table = self._table(collection_name)
+        # Scoped to the caller's tenant on the shared table (#1684); the reference
+        # `find_existing_document` reads this, so the scope reaches the lookup too.
+        org_clause, org_params = self._org_filter(organization_id)
         async with self.async_session() as session:
             # Ordered so a lookup that falls back to a filename match does not
             # depend on heap order (#548).
             result = await session.execute(
-                text(f"SELECT parent_doc_id, metadata FROM {table} ORDER BY parent_doc_id, id")
+                text(
+                    f"SELECT parent_doc_id, metadata FROM {table} "
+                    f"WHERE {org_clause} ORDER BY parent_doc_id, id"
+                ),
+                org_params,
             )
             rows = result.fetchall()
         results = [
@@ -648,7 +761,12 @@ class PgVectorStore(BaseVectorStore):
         return self._group_documents(results)
 
     async def find_existing_document(
-        self, collection_name: str, *, source_path: str, content_hash: str
+        self,
+        collection_name: str,
+        *,
+        source_path: str,
+        content_hash: str,
+        organization_id: UUID | None = None,
     ) -> DocumentInfo | None:
         """Look the document up by its indexed metadata keys, not a full scan (#1102).
 
@@ -658,6 +776,11 @@ class PgVectorStore(BaseVectorStore):
         first hit. Each statement returns one document, so the id and hash a
         caller reads name one document, which is the #548 invariant.
 
+        Every statement carries the tenant conjunct, so the match is confined to
+        the rows the ingesting organization wrote (#1684): a collection name
+        shared across tenants cannot let one org find - and then replace or
+        delete - another's document.
+
         The expression indexes these lean on are built by `_ensure_collection`;
         a collection predating them still answers correctly, at a scan, until
         its next ingest rebuilds them through that same path.
@@ -666,10 +789,14 @@ class PgVectorStore(BaseVectorStore):
             return None
         table = self._table(collection_name)
         filename = Path(source_path).name if source_path else ""
+        org_clause, org_params = self._org_filter(organization_id)
         async with self.async_session() as session:
             if source_path:
                 hit = await self._first_document(
-                    session, table, "metadata->>'source_path' = :v", {"v": source_path}
+                    session,
+                    table,
+                    f"metadata->>'source_path' = :v AND {org_clause}",
+                    {"v": source_path, **org_params},
                 )
                 if hit is not None:
                     return hit
@@ -679,14 +806,17 @@ class PgVectorStore(BaseVectorStore):
                     table,
                     "metadata->>'filename' = :v AND ("
                     "coalesce(metadata->>'source_path', '') = '' "
-                    "OR metadata->>'source_path' = :v)",
-                    {"v": filename},
+                    f"OR metadata->>'source_path' = :v) AND {org_clause}",
+                    {"v": filename, **org_params},
                 )
                 if hit is not None:
                     return hit
             if content_hash:
                 hit = await self._first_document(
-                    session, table, "metadata->>'content_hash' = :v", {"v": content_hash}
+                    session,
+                    table,
+                    f"metadata->>'content_hash' = :v AND {org_clause}",
+                    {"v": content_hash, **org_params},
                 )
                 if hit is not None:
                     return hit
@@ -723,17 +853,23 @@ class PgVectorStore(BaseVectorStore):
         return grouped[0] if grouped else None
 
     async def get_document_chunks(
-        self, collection_name: str, document_id: str
+        self, collection_name: str, document_id: str, organization_id: UUID | None = None
     ) -> list[DocumentChunk]:
         # Same answer for "no such collection" as get_documents: empty, not an
         # UndefinedTableError dressed up as a 500.
         if not await self._collection_exists(collection_name):
             return []
         table = self._table(collection_name)
+        # Scoped to the caller's tenant, so a shared collection name cannot read
+        # back another organization's chunk content (#1684).
+        org_clause, org_params = self._org_filter(organization_id)
         async with self.async_session() as session:
             result = await session.execute(
-                text(f"SELECT content, metadata FROM {table} WHERE parent_doc_id = :doc_id"),
-                {"doc_id": self._sanitize_id(document_id)},
+                text(
+                    f"SELECT content, metadata FROM {table} "
+                    f"WHERE parent_doc_id = :doc_id AND {org_clause}"
+                ),
+                {"doc_id": self._sanitize_id(document_id), **org_params},
             )
             rows = result.fetchall()
         chunks = []

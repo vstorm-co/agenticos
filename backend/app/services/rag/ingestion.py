@@ -4,6 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import UUID
 
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.failures import IngestionStage, failure_summary
@@ -51,10 +52,22 @@ class IngestionService:
         processor: DocumentProcessor,
         vector_store: BaseVectorStore,
         on_event: Callable[..., Awaitable[None]] | None = None,
+        organization_id: UUID | None = None,
     ):
         self.processor = processor
         self.store = vector_store
         self._on_event = on_event
+        # The trusted tenant this ingester works for, bound once from server
+        # context (the uploading document's organization, the sync source's, the
+        # flow's) rather than passed per file. It stamps every chunk written and
+        # scopes every existing-document lookup and replace-delete, so one
+        # organization cannot find, overwrite or delete another's document in a
+        # collection whose name they happen to share (#1684). `None` is a
+        # deployment-wide ingester - the CLI, a local-path sync - which owns no
+        # tenant's rows and whose writes carry no tenant tag. Bound rather than
+        # per-call because `ingest_file` has many callers and an argument each of
+        # them may omit is one some caller will (the trap #992 was).
+        self._organization_id = organization_id
 
     async def _emit(self, event: str, data: dict[str, object]) -> None:
         if self._on_event:
@@ -81,7 +94,10 @@ class IngestionService:
         """
         try:
             doc = await self.store.find_existing_document(
-                collection_name, source_path=source_path, content_hash=content_hash
+                collection_name,
+                source_path=source_path,
+                content_hash=content_hash,
+                organization_id=self._organization_id,
             )
         except Exception as exc:
             logger.warning("Could not check for existing document: %s", exc, exc_info=True)
@@ -158,11 +174,14 @@ class IngestionService:
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,
+                organization_id=self._organization_id,
             )
 
             if existing_id:
                 try:
-                    await self.store.delete_document(collection_name, existing_id)
+                    await self.store.delete_document(
+                        collection_name, existing_id, self._organization_id
+                    )
                 except Exception:
                     # The ingest *succeeded*: the document asked for is stored.
                     # Failing here used to be reported as a failed ingest, which
@@ -226,12 +245,26 @@ class IngestionService:
             message=f"Failed to process {filename}",
         )
 
-    async def remove_document(self, collection_name: str, document_id: str) -> bool:
-        """Wipes all traces of a document from the vector store."""
+    async def remove_document(
+        self, collection_name: str, document_id: str, organization_id: UUID | None = None
+    ) -> bool:
+        """Wipes all traces of a document from the vector store.
+
+        `organization_id` scopes the delete to one tenant's rows on the shared
+        runtime table (#1684). A caller that holds the document's own row - the
+        tracking service - passes its `organization_id`, which is exactly the
+        tenant the chunks were stamped with at ingest; the collection-name delete
+        route passes nothing and the ingester's bound tenant stands in. They
+        agree for every reachable document, because a tracked row and its vectors
+        are stamped with the same organization at upload.
+        """
         try:
             await self.store.delete_document(
                 collection_name=collection_name,
                 document_id=document_id,
+                organization_id=(
+                    organization_id if organization_id is not None else self._organization_id
+                ),
             )
             await self._emit(
                 "rag.document.deleted",

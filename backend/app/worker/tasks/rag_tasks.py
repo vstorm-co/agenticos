@@ -170,6 +170,12 @@ async def _ingestion_service(
                 resolver=_announcing_resolver(organization_id),
                 engine=engine,
             ),
+            # The flow's own tenant, stamped on every chunk it writes and used to
+            # scope the existing-document lookup and the replace-delete, so a
+            # collection name shared across tenants keeps each org's documents its
+            # own (#1684). `None` for the local-path sync, which belongs to no
+            # tenant - the same reason its document rows carry no organization.
+            organization_id=organization_id,
         )
     finally:
         await engine.dispose()

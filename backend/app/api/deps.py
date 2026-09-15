@@ -1032,9 +1032,18 @@ DocumentProcessorSvc = Annotated[DocumentProcessor, Depends(get_document_process
 def get_ingestion_service(
     processor: DocumentProcessorSvc,
     vector_store: VectorStoreSvc,
+    ctx: Auth,
 ) -> IngestionService:
-    """Create IngestionService instance."""
-    return IngestionService(processor=processor, vector_store=vector_store)
+    """Create IngestionService instance bound to the caller's tenant.
+
+    The organization comes off the request's auth context, never a body or a
+    filename: it scopes which rows an ingest may find, replace or delete on a
+    runtime table that a collection name shared across tenants makes common
+    (#1684).
+    """
+    return IngestionService(
+        processor=processor, vector_store=vector_store, organization_id=ctx.organization_id
+    )
 
 
 IngestionSvc = Annotated[IngestionService, Depends(get_ingestion_service)]

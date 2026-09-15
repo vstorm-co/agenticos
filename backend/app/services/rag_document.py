@@ -496,6 +496,10 @@ class RAGDocumentService:
         collection_name = doc.collection_name
         vector_document_id = doc.vector_document_id
         storage_path = doc.storage_path
+        # The tenant the chunks were stamped with at ingest - this row's own -
+        # so the vector delete is scoped to them and cannot reach another org's
+        # document in a collection whose name they share (#1684).
+        organization_id = doc.organization_id
         await rag_document_repo.delete(self.db, doc.id)
 
         from app.core.background import spawn_after_commit
@@ -503,7 +507,9 @@ class RAGDocumentService:
         if vector_document_id:
             spawn_after_commit(
                 self.db,
-                ingestion_service.remove_document(collection_name, vector_document_id),
+                ingestion_service.remove_document(
+                    collection_name, vector_document_id, organization_id
+                ),
                 name="delete-document-vectors",
             )
         if storage_path:
@@ -562,7 +568,9 @@ class RAGDocumentService:
                 details={"doc_id": doc_id, "status": doc.status},
             )
 
-        chunks = await vector_store.get_document_chunks(doc.collection_name, doc.vector_document_id)
+        chunks = await vector_store.get_document_chunks(
+            doc.collection_name, doc.vector_document_id, doc.organization_id
+        )
 
         pages: list[RAGParsedPage] = []
         for chunk in chunks:

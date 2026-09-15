@@ -97,7 +97,7 @@ class RetrievalService(BaseRetrievalService):
     async def _bm25_search(
         self, query: str, collection_name: str, limit: int, organization_id: UUID | None = None
     ) -> list[SearchResult]:
-        docs = await self.store.get_documents(collection_name)
+        docs = await self.store.get_documents(collection_name, organization_id)
         if not docs:
             return []
 

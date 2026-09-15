@@ -236,7 +236,7 @@ async def list_documents(
 ) -> Any:
     """List all documents in a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_document_list(collection.collection_name)
+    return await vector_store.get_document_list(collection.collection_name, ctx.organization_id)
 
 
 @router.post(
