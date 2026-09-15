@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import NotificationsSettingsPage from "./page";
 import { apiClient } from "@/lib/api-client";
 import type { User } from "@/types";
+import type { NotificationPreference } from "@/lib/notification-preferences-api";
 
 /**
  * The guard for a page that once lied.
@@ -15,6 +16,13 @@ import type { User } from "@/types";
  * `NotificationService` consults before sending - so what this file pins is
  * the page's half of that contract: a switch renders the stored value, a flip
  * sends exactly one field to the server, and nothing touches `localStorage`.
+ *
+ * The second section (#1598, Decision 4) is the same contract one layer up:
+ * `useNotificationPreferences` is mocked here rather than exercised for real
+ * - its own wiring to `GET`/`PATCH /notifications/preferences` is
+ * `use-notification-preferences.test.ts`'s job - so what this file pins for
+ * it is that the page renders exactly the fourteen togglable pairs the
+ * backend's `_TOGGLABLE_PAIRS` produces, in the shape the hook hands back.
  */
 
 vi.mock("@/lib/api-client", () => ({
@@ -27,10 +35,25 @@ vi.mock("sonner", () => ({
 }));
 
 const setUser = vi.fn();
+const setPreference = vi.fn();
 let currentUser: Partial<User>;
+let currentPreferences: NotificationPreference[];
+let preferencesLoading: boolean;
 
 vi.mock("@/hooks", () => ({
   useAuth: () => ({ user: currentUser }),
+  useNotificationPreferences: () => ({
+    preferences: currentPreferences,
+    isLoading: preferencesLoading,
+    error: null,
+    isEnabled: (eventType: string, channel: string) => {
+      const stored = currentPreferences.find(
+        (p) => p.event_type === eventType && p.channel === channel,
+      );
+      return stored?.enabled ?? true;
+    },
+    setPreference,
+  }),
 }));
 
 vi.mock("@/stores", () => ({
@@ -55,18 +78,40 @@ describe("the notifications settings page", () => {
     vi.clearAllMocks();
     localStorage.clear();
     currentUser = makeUser();
+    currentPreferences = [];
+    preferencesLoading = false;
   });
 
-  it("offers one switch per email the backend actually gates", () => {
+  it("offers one legacy switch per email PATCH /users/me still gates", () => {
     render(<NotificationsSettingsPage />);
 
     // Mirrors NotificationService: budget_exceeded, approval_requested,
-    // usage_report. A fourth switch here means a sender was added without
-    // wiring its preference, or a toggle was invented without a sender.
+    // usage_report - each event's *email* channel, unchanged by Decision 4.
+    // A fourth switch here means a sender was added without wiring its
+    // preference, or a toggle was invented without a sender.
     expect(screen.getByRole("switch", { name: "Budget alerts" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Approval requests" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(3);
+  });
+
+  it("offers exactly the fourteen togglable pairs the backend produces", () => {
+    render(<NotificationsSettingsPage />);
+
+    // Four events offer both channels (2 switches each), five offer only
+    // in-app (1 each): 4*2 + 5 = 13... no - run_completed, run_failed,
+    // ingestion_completed, ingestion_failed and announcement each offer both
+    // (5*2 = 10); budget_exceeded, approval_requested, usage_report and
+    // agent_usage_report offer only in-app (4*1 = 4). 10 + 4 = 14, plus the
+    // three legacy email switches above = 17 switches on the page total.
+    expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Per-agent usage report - In-app" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: "Per-agent usage report - Email" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(17);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {
@@ -125,6 +170,33 @@ describe("the notifications settings page", () => {
 
     // The original bug: preferences that lived and died in the browser.
     expect(localStorage.length).toBe(0);
+  });
+
+  it("renders a stored preference rather than the unset default", () => {
+    currentPreferences = [{ event_type: "run_failed", channel: "email", enabled: false }];
+    render(<NotificationsSettingsPage />);
+
+    expect(screen.getByRole("switch", { name: "Run failed - Email" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Run failed - In-app" })).toBeChecked();
+  });
+
+  it("flipping a preference switch calls setPreference with the pair and the new value", async () => {
+    setPreference.mockResolvedValue(undefined);
+    render(<NotificationsSettingsPage />);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Run completed - In-app" }));
+
+    expect(setPreference).toHaveBeenCalledWith("run_completed", "in_app", false);
+  });
+
+  it("disables every preference switch while the list is still loading", () => {
+    preferencesLoading = true;
+    render(<NotificationsSettingsPage />);
+
+    expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeDisabled();
+    // The legacy switches above answer to their own `saving` state, not this
+    // one - they must not go dark for a request they have nothing to do with.
+    expect(screen.getByRole("switch", { name: "Budget alerts" })).not.toBeDisabled();
   });
 
   it("still names every email that cannot be switched off", () => {
