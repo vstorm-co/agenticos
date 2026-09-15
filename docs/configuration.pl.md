@@ -1,5 +1,5 @@
 ---
-source_sha: "1a26fb09fa79"
+source_sha: "9d8160596d6d"
 ---
 
 # Konfiguracja { #configuration }
@@ -342,6 +342,38 @@ Jedynym poświadczeniem modelu, które zostaje w środowisku, jest klucz do
 embeddingów — zobacz RAG poniżej.
 
 ## Obserwowalność (Logfire) { #observability-logfire }
+
+Opcjonalna i wyłączona, dopóki nie ustawisz tokena. Nic w tej sekcji nie musi być
+skonfigurowane: bez `LOGFIRE_TOKEN` platforma działa w pełni, a run wciąż zapisuje
+lokalnie swoje trace id. Token kupuje same trace'y, a trace jest kopią runu —
+wiadomością użytkownika, wyjściem modelu i każdym argumentem oraz wynikiem
+narzędzia — bo zapisywanie dokładnie tego jest zadaniem backendu obserwowalności.
+Ustawienie tokena jest więc decyzją o tym, dokąd może trafić treść runów, a nie
+tylko o dashboardach. Wdrożenie nad danymi medycznymi, prawnymi lub HR najpierw
+czyta, [co opuszcza maszynę](data-protection.md#traces).
+
+Trzy rzeczy mogą skierować runy do projektu i nakładają się na siebie:
+
+- `LOGFIRE_TOKEN` stąd instrumentuje Pydantic AI globalnie, więc każdy run trafia
+  do projektu samego wdrożenia. Konfigurują go dwa procesy: API przy starcie
+  (`app/main.py`) oraz odpalony run w workerze Prefect, który ustawia się sam, bo
+  każdy flow run dostaje własny podproces. Spany workera niosą
+  `<nazwa usługi>-worker`, więc w jednym projekcie da się odróżnić wolny run
+  zaplanowany od wolnej tury czatu.
+- [Środowisko](environments.md#tracing-per-environment) może nieść własny token
+  zapisu, zapieczętowany w vaulcie, który przekierowuje związane z nim runy.
+- Blok [`observability`](reference/spec.md#observability) agenta nazywa projekt
+  jego własny — zwykle klienta.
+
+Tryb `content` agenta decyduje, ile niesie każdy span: `full`, domyślny, zapisuje
+wiadomość, wyjście i każde wywołanie narzędzia; `none` zapisuje tylko czas,
+tokeny, koszt i nazwy narzędzi. Jest stosowany tam, gdzie agent jest
+instrumentowany, więc trzyma niezależnie od tego, który token trace'uje run — przy
+tym na poziomie wdrożenia agent zostaje przypięty do instrumentacji bez treści,
+a specjalista, do którego agent deleguje — napisany inline albo wymyślony
+w trakcie runu przez model — dziedziczy tryb. Jedno
+ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
+best-effort, a błąd jest logowany, gdy run trwa dalej.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|

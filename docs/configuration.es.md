@@ -1,5 +1,5 @@
 ---
-source_sha: "1a26fb09fa79"
+source_sha: "9d8160596d6d"
 ---
 
 # Configuración { #configuration }
@@ -350,6 +350,39 @@ La única credencial de modelo que se queda en el entorno es la de embeddings �
 RAG más abajo.
 
 ## Observabilidad (Logfire) { #observability-logfire }
+
+Opcional, apagada hasta que se pone un token. Nada de esta sección hace falta
+configurarlo: sin `LOGFIRE_TOKEN` la plataforma funciona entera, y un run sigue
+registrando localmente su propio trace id. Lo que compra un token son las trazas,
+y una traza es una copia del run — el mensaje del usuario, la salida del modelo y
+cada argumento y resultado de herramienta —, porque registrar eso es para lo que
+sirve un backend de observabilidad. Poner el token es una decisión sobre adónde
+puede ir el contenido de los runs, no solo sobre dashboards. Un deployment sobre
+datos de salud, legales o de RR. HH. lee antes
+[qué sale de la máquina](data-protection.md#traces).
+
+Tres cosas pueden apuntar los runs a un proyecto, y se superponen:
+
+- El `LOGFIRE_TOKEN` de aquí instrumenta Pydantic AI globalmente, así que todo
+  run exporta al proyecto del propio deployment. Lo configuran dos procesos: la
+  API al arrancar (`app/main.py`) y un run disparado en el worker de Prefect, que
+  se configura solo porque cada flow run recibe su propio subproceso. Los spans
+  del worker llevan `<nombre de servicio>-worker`, de modo que un proyecto puede
+  distinguir un run programado lento de un turno de chat lento.
+- Un [entorno](environments.md#tracing-per-environment) puede llevar su propio
+  token de escritura, sellado en el vault, que redirige los runs ligados a él.
+- El bloque [`observability`](reference/spec.md#observability) de un agent nombra
+  un proyecto propio — el de un cliente, normalmente.
+
+El modo `content` del agent decide cuánto lleva cada span: `full`, el valor por
+defecto, registra el mensaje, la salida y cada llamada a herramienta; `none`
+registra solo tiempo, tokens, coste y nombres de herramienta. Se aplica donde se
+instrumenta el agent, así que se sostiene sea cual sea el token que traza el run
+— con el de nivel de deployment el agent queda fijado a una instrumentación sin
+contenido, y un especialista al que delega — escrito inline o inventado a mitad
+del run por el modelo — hereda el modo. Un límite antes de confiar en ello:
+fijar esa instrumentación es best-effort y un fallo se
+registra mientras el run sigue.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|

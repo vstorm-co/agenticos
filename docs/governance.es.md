@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "f4f13f232634"
 ---
 
 # Governance { #governance }
@@ -1373,12 +1373,24 @@ filas sean inmutables.
 
 Hay dos borrados que la cadena no puede detectar por sí sola, porque las filas que
 quedan siguen siendo internamente consistentes: recortar las entradas más nuevas de
-una cadena y borrar por completo la cadena de una organización — esto último
-simplemente la quita del conjunto que `audit-verify` recorre. Detectar cualquiera de
-los dos requiere un punto de control terminal por organización, guardado donde el
-operador de la base de datos no alcance; ese anclaje es un trabajo posterior
-planificado y, hasta que exista, una ejecución limpia no certifica que no se haya
-truncado nada.
+una cadena y borrar por completo la cadena de una organización. En su lugar los
+detecta un **checkpoint** — una marca de nivel máximo por organización que
+`record_audit` avanza junto a cada entrada, bajo un trigger de base de datos que le
+rechaza retroceder o ser borrado. `audit-verify` señala una cadena cuya cabeza está
+por detrás de su checkpoint, o un checkpoint cuya cadena ha desaparecido.
+
+Conviene decir con precisión qué cubre ese trigger, porque es fácil leer de más.
+Cierra el camino de escritura ordinario — un administrador de la aplicación actuando
+a través del producto, y un error en este código — que es el modelo de amenazas para
+el que está escrito este rastro.
+
+No es un control frente a quien tenga las credenciales de la propia base de datos. La
+aplicación y sus migraciones se conectan con el mismo rol, y ese rol es propietario de
+la tabla de checkpoints: puede eliminar el trigger, y un `TRUNCATE` vacía la tabla sin
+llegar a disparar un trigger de borrado por fila. Un superusuario puede hacer ambas
+cosas. Cerrarlo requiere la marca de nivel máximo guardada donde los roles de esta
+base no alcanzan — un almacén de solo anexado o con bloqueo de objetos fuera de ella
+—, lo que sigue siendo un trabajo posterior planificado.
 
 Dos escrituras auditadas para una misma organización no pueden bifurcar la cadena:
 cada una añade bajo un bloqueo por organización, así que se serializan en una sola

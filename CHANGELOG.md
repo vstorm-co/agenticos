@@ -17,6 +17,112 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.443] - 2026-09-15
+
+### Fixed
+
+- **A scheduled or event-fired run now reaches the deployment's Logfire project.**
+  `setup_logfire()` and `instrument_pydantic_ai()` were called from the FastAPI
+  lifespan and nowhere else, and `serve()` gives every flow run a subprocess of
+  its own - so a deployment that set `LOGFIRE_TOKEN` saw its interactive runs and
+  none of the runs a trigger fired, with nothing saying which was missing. The
+  fired-run flow now configures both for itself, under a `-worker` service name so
+  one project can separate a slow scheduled run from a slow chat turn, and the
+  run's `logfire_trace_id` is no longer null for want of a tracer to read it from.
+  It sets the log redaction up in the same breath, which that flow had also never
+  done. An agent with an `observability` token of its own was never affected:
+  `instrument_agent` configures an instance per agent, wherever the run executes.
+  (#1700)
+
+## [0.0.442] - 2026-09-15
+
+### Fixed
+
+- **An inline specialist no longer exports the prompts its parent asked to keep
+  out of the traces.** `content="none"` was enforced on the agent that asked for
+  it and on nothing it delegated to: `SpecialistSpec.to_agent_spec` dropped the
+  observability block along with the budget and the connections, so the generated
+  spec asked for nothing, `_instrument` returned immediately, and the deployment's
+  global Pydantic AI instrumentation traced the specialist with content on. An
+  agent published over health, legal or HR data therefore kept the guarantee for
+  its own spans and broke it for every span its specialist produced, in the same
+  run. The mode now travels with the conversion while the project deliberately
+  does not - a specialist has no Logfire project of its own and is never handed
+  the parent's write token. A specialist the run's model **invents** is covered
+  by the same rule and was the wider half of the hole: it is assembled from a
+  bare spec rather than converted from one, so nothing carried the mode there
+  either, and a specialist nobody reviewed is the last place a run's prompts
+  should start leaving from. (#1699)
+
+- **The `redacted` trace-content mode is decided against, not pending.** Logfire
+  is opt-in and exists to record prompts and outputs; a partly-scrubbed export is
+  a guarantee nobody can audit, so the choice stays the whole content or none of
+  it. The pages that pointed at it as planned work say so. (#1616)
+
+## [0.0.441] - 2026-09-15
+
+### Documentation
+
+- **Logfire is documented as optional, and as a copy of the run when it is on.**
+  The configuration page listed six `LOGFIRE_*` variables and never said that
+  none of them has to be set, or what setting the token actually sends: a trace
+  is the user's message, the model's output and every tool argument and result,
+  because recording that is what an observability backend is for. The section now
+  says so, lists the three things that can point runs at a project - the
+  deployment-wide token, an environment's own token and an agent's `observability`
+  block - and points a deployment over health, legal or HR data at the `content`
+  mode before the token. The security page's Logfire row was also stale: it still
+  said run content leaves regardless of any per-agent setting, which stopped being
+  true when `suppress_content` pinned an agent asking for `none` to content-free
+  instrumentation on the deployment's own tracer too. Both pages now name the two
+  places that guarantee does not reach yet - an inline specialist, which carries
+  no observability block of its own (#1699), and a failed attach - and that the
+  deployment-wide path never reaches a run the Prefect worker executes (#1700).
+  (#1413)
+
+## [0.0.440] - 2026-09-15
+
+### Added
+
+- **A truncated audit chain, and a chain deleted whole, are detectable.** The hash
+  chain catches an entry that was edited, reordered, inserted or deleted from the
+  middle, because any of those diverges every hash after it. It cannot catch the
+  two deletions that leave the survivors internally consistent: the newest entries
+  dropped, and an organization's chain gone. Each chain now carries a checkpoint -
+  a high-water mark `record_audit` advances beside every entry, under the same
+  per-organization lock the append takes, so it never races the head. `audit-verify`
+  flags a chain whose head is behind its checkpoint, and surfaces a checkpoint whose
+  chain has vanished by unioning the checkpointed organizations into the walk.
+  Backfilled from existing chains, so a deployment with history starts at an
+  accurate mark rather than a floor of zero. (#1648)
+
+  Be precise about the database trigger that refuses a checkpoint moving backwards:
+  it closes the ordinary write path - an app admin acting through the product, and
+  a bug in this codebase - which is the threat model the trail is written against.
+  It is not a control against anybody holding the database's own credentials. The
+  application and its migrations connect as the same role, that role owns the
+  table, and a `TRUNCATE` empties it without firing a row-level delete trigger at
+  all. Closing that needs the mark kept where this database's roles cannot reach,
+  which remains a planned follow-up and is stated as such on the governance page.
+
+## [0.0.439] - 2026-09-15
+
+### Security
+
+- **`script-src` no longer allows `'unsafe-inline'`.** The console's policy shipped
+  with everything else locked down except its riskiest directive, because the app
+  router inlines its flight data. The middleware now mints a 128-bit nonce per
+  request, writes `'nonce-…' 'strict-dynamic'` into the directive and forwards it on
+  the request headers so Next stamps that nonce onto its own inline scripts; the
+  response carries the same policy. `'unsafe-eval'` stays for the development
+  runtime and `connect-src`, which governs the chat WebSocket, is untouched.
+  Verified against a running frontend: every script tag on the page carries the
+  request's nonce, none is unnonced, and the browser reports no policy violation.
+  There is no `dangerouslySetInnerHTML` carrying a script, no inline `<script>`, no
+  `next/script` and no third-party script anywhere in the console, so every surface
+  shares that profile and `'strict-dynamic'` extends the nonce's trust to the chunks
+  those scripts load. (#1624)
+
 ## [0.0.438] - 2026-09-15
 
 ### Added
