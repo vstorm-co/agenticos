@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -94,6 +94,21 @@ describe("ChipsInput", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remove sales" }));
 
     expect(onChange).toHaveBeenLastCalledWith(["urgent"]);
+  });
+
+  it("does not commit the draft when a chip's ✕ is clicked mid-typing", async () => {
+    const onChange = vi.fn();
+    render(<Harness initial={["sales"]} onChange={onChange} />);
+
+    await userEvent.type(box(), "urg");
+    const remove = screen.getByRole("button", { name: "Remove sales" });
+    // A cancelled mousedown (returns false) keeps focus on the input, so blur never
+    // commits "urg"; the click still removes "sales".
+    expect(fireEvent.mouseDown(remove)).toBe(false);
+    await userEvent.click(remove);
+
+    expect(onChange).toHaveBeenLastCalledWith([]);
+    expect(onChange).not.toHaveBeenCalledWith(["sales", "urg"]);
   });
 
   it("removes the last chip on Backspace when the box is empty", async () => {

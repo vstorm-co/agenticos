@@ -61,6 +61,9 @@ export function ChipsInput({
           <button
             type="button"
             aria-label={removeLabel(value)}
+            // Keep focus on the input: a mousedown that blurred it would commit the
+            // in-progress draft as a chip before this click removes the intended one.
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => removeAt(value)}
             disabled={disabled}
             className="hover:text-foreground text-muted-foreground rounded-full outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
