@@ -1024,13 +1024,30 @@ These gate the work; none is a code change, and two would change scope.
   **live security defect with no dependency whatsoever on metadata filters**. It
   should ship as its **own small fix PR now, ahead of FA-039** (scope the dedup
   lookup and the delete, plus a regression test), rather than riding behind this
-  tender feature's backfill and enforcement flag. Doing so also shrinks what the
+  tender feature's backfill and enforcement flag. **This split is now filed as its
+  own issue, #1684.** Doing so also shrinks what the
   §9.6 flag has to protect. The four separable workstreams in this document, by
   urgency: **(1)** the R2 clobber (this precondition, now, standalone); **(2)** the
   filter contract and its enforcement (the FA-039 feature); **(3)** the tenant
   backfill, rollout ordering and enforcement flag (P3); **(4)** ingestion provenance
   (H6/§9.5, both connectors). If (1) lands separately, the rest of §9 assumes its
   scoping is already in place.
+- **P7 — does the staged enforcement flag need to exist at all (PR #1656)?** The
+  §9.6 read-enforcement flag defines its **off-state as today's no-tenant-conjunct
+  behaviour — i.e. the vulnerability** — and it buys exactly one thing: a safe,
+  **rolling** migration of an installed base that already holds pre-FA-039 **untagged**
+  chunks. AgenticOS has no such installed base yet, so on a deployment carrying no
+  legacy untagged chunks there is nothing to roll: the backfill resolves (or finds
+  nothing to resolve), it is verified, and enforcement is simply **on** — no off-state,
+  no off/on test axis (§9.7), and R2's monotonic-mix argument (§9.6 step 4) is moot
+  because there is no mix. So the staged flag is a **named case for deployments that
+  carry legacy untagged chunks, not the default assumption**: confirm with the issue
+  owner whether any target deployment needs the staged path. If none does, enforcement
+  ships on and the flag, its off-state and the doubled off/on test matrix are dropped;
+  if one does, the flag stays **and** step 5's removal follow-up carries a named owner
+  and a concrete target release (§9.6), because a temporary switch in a security path
+  whose off-state is the vulnerability, left with no removal date, is a permanent
+  switch. Either way the flag is not defaulted-in silently.
 
 ### 9.1 Phase 1 — schema & metadata contract (foundational; blocks 2/3/4/5)
 
@@ -1499,7 +1516,12 @@ head**, whatever it is.
      methods preserve the documented legacy behaviour so a tenant can still reach its
      not-yet-tagged chunks.
   5. **remove the temporary flag** in a named follow-up so enforcement cannot later be
-     switched off by accident.
+     switched off by accident. If the flag ships at all (see P7 — it is a named case
+     for deployments carrying legacy untagged chunks, not a silent default), that
+     follow-up **names an owner and fixes a concrete target release now**, mirroring
+     §9.4's shim removal, not an open-ended "future issue": a temporary switch in a
+     security path whose off-state is the vulnerability, left with no removal date, is
+     a permanent switch (PR #1656).
   Steps 1–2 can ship in an earlier PR than 3–5.
 
 *Tests (Phase 6, `test-migrations` + integration, explicit named):* forward/back chain
@@ -1816,3 +1838,16 @@ into §1–§4/§9 above, deltas recorded here. **No production code** — plan-
   not resolvable inside one doc.** whether `.planning/` is tracked repo content or
   `.gitignore`d spans #1654/#1655/#1656 and is a maintainer decision; the reading
   guide records the drift risk (`scripts/docs_drift.py` does not watch the path).
+- **PR-14 (line 1327) — should the staged enforcement flag exist at all.**
+  *Verified:* §9.6's flag defines its off-state as today's no-tenant-conjunct
+  behaviour (the vulnerability), and step 5's removal follow-up named no owner or
+  release — while its sole benefit, a rolling migration, presumes an installed base of
+  legacy untagged chunks that AgenticOS does not yet have. **Valid.** §9.0 adds
+  precondition **P7** (the staged flag is a named case for deployments with legacy
+  untagged chunks, confirmed with the issue owner, not a silent default; where none
+  exists, enforcement ships on with no off-state or off/on test axis), and §9.6 step 5
+  now requires the removal follow-up to name an owner and a concrete target release,
+  mirroring the §9.4 shim.
+- **PR-11 follow-up — the R2 split is now issue #1684.** The cross-tenant
+  write-clobber fix P6 recommends as its own PR ahead of FA-039 has been filed as
+  issue **#1684**; P6 now cites it.
