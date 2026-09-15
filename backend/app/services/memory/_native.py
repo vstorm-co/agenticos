@@ -18,6 +18,7 @@ the conversation's own. Which one that is, is decided in
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -97,17 +98,18 @@ async def write_file(
         if existing is not None and existing.deactivated_at is None:
             return False
         if existing is not None:
-            await memory_repo.update(
+            # Conditional, not a read then a write: two concurrent calls can both
+            # see the row as suppressed, and Postgres would serialize the updates
+            # while telling both they had won - losing the note the first wrote.
+            # The loser is told the name is taken, which is this function's
+            # answer for a live one.
+            return await memory_repo.revive_if_suppressed(
                 db,
-                file=existing,
-                update_data={
-                    "content": content,
-                    "description": description,
-                    "kind": kind,
-                    "deactivated_at": None,
-                },
+                file_id=existing.id,
+                content=content,
+                description=description,
+                kind=kind,
             )
-            return True
         try:
             await memory_repo.create(
                 db,
@@ -143,7 +145,13 @@ async def edit_file(
         )
         if row is None:
             return False
-        await memory_repo.update(db, file=row, update_data={"content": content})
+        await memory_repo.update(
+            db,
+            file=row,
+            # The agent's own write, which is what provenance and ordering read -
+            # `updated_at` moves for a suppression too.
+            update_data={"content": content, "written_at": datetime.now(UTC)},
+        )
         return True
 
 

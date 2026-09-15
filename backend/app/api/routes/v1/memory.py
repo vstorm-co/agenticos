@@ -82,14 +82,22 @@ async def inspect_person_memory(
     ctx: Auth,
     organization_id: UUID = Query(description="The tenant whose store to read"),
     reason: str | None = Query(None, description="Why this read is being made, for the trail"),
+    skip: int = Query(0, ge=0, description="Notes to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max notes to return"),
 ) -> Any:
     """One named person's notes in one named tenant - a deployment admin only.
 
     The tenant is a parameter rather than the caller's active organization: an
     app admin acts across tenants, and a read that silently used whichever
     organization they had selected would be a read nobody could audit properly.
+
+    Paged like the self-service listing, and for a sharper reason: an inspection
+    that could only ever see the first fifty notes of a store holding more is an
+    inspection that cannot answer a subject-access request.
     """
-    return await service.for_person(ctx, organization_id, user_id, reason=reason)
+    return await service.for_person(
+        ctx, organization_id, user_id, skip=skip, limit=limit, reason=reason
+    )
 
 
 @router.delete("/person/{user_id}", response_model=MemoryErasureResult)

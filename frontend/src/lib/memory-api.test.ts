@@ -40,13 +40,25 @@ describe("the memory API", () => {
     await getPersonMemory("u-1", "o-1", "DSAR 41");
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/memory/person/u-1?organization_id=o-1&reason=DSAR+41",
+      "/memory/person/u-1?organization_id=o-1&skip=0&limit=50&reason=DSAR+41",
     );
   });
 
   it("omits the reason where none was given", async () => {
     await getPersonMemory("u-1", "o-1");
 
-    expect(apiClient.get).toHaveBeenCalledWith("/memory/person/u-1?organization_id=o-1");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/person/u-1?organization_id=o-1&skip=0&limit=50",
+    );
+  });
+
+  it("carries a window, so an inspection can reach past the first page", async () => {
+    // An inspection that could only ever see the first fifty notes of a larger
+    // store cannot answer a subject-access request.
+    await getPersonMemory("u-1", "o-1", undefined, 50, 25);
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/person/u-1?organization_id=o-1&skip=50&limit=25",
+    );
   });
 });

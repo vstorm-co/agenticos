@@ -141,13 +141,25 @@ class TestWriteFile:
         suppressed = _row(deactivated_at=datetime(2026, 9, 1, tzinfo=UTC))
         with (
             patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=suppressed)),
-            patch(f"{REPO}.update", new=AsyncMock()) as update,
+            patch(f"{REPO}.revive_if_suppressed", new=AsyncMock(return_value=True)) as revive,
             patch(f"{REPO}.create", new=AsyncMock()) as create,
         ):
             assert await self._write() is True
 
         assert not create.await_count
-        assert update.await_args.kwargs["update_data"]["deactivated_at"] is None
+        assert revive.await_args.kwargs["file_id"] == suppressed.id
+
+    async def test_two_writers_racing_a_suppressed_name_do_not_both_win(self):
+        """Both can read the row as suppressed; Postgres serializes the updates
+        and would tell both they had won, losing the note the first wrote. The
+        loser is told the name is taken, which is this function's answer for a
+        live one."""
+        suppressed = _row(deactivated_at=datetime(2026, 9, 1, tzinfo=UTC))
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=suppressed)),
+            patch(f"{REPO}.revive_if_suppressed", new=AsyncMock(return_value=False)),
+        ):
+            assert await self._write() is False
 
     async def test_a_name_taken_between_the_check_and_the_insert_is_the_same_answer(self):
         """The unique index is the real guard, and a concurrent write is not a
@@ -181,7 +193,11 @@ class TestEditFile:
                 is True
             )
 
-        assert update.await_args.kwargs == {"file": row, "update_data": {"content": "new"}}
+        # And the agent's own write is stamped, which is what provenance and
+        # ordering read - `updated_at` moves for a suppression too.
+        assert update.await_args.kwargs["file"] is row
+        assert update.await_args.kwargs["update_data"]["content"] == "new"
+        assert update.await_args.kwargs["update_data"]["written_at"] is not None
 
     async def test_nothing_of_that_name_edits_nothing(self):
         with (

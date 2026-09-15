@@ -1,5 +1,5 @@
 ---
-source_sha: "606a72953f91"
+source_sha: "3e72bc3937ad"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -219,6 +219,14 @@ ponownie ożywia wiersz z nową treścią. To nie jest cofnięcie wyłączenia: 
 wyłączyłeś, zostaje nadpisane, a wiersz trzyma coś, czego agent nauczył się od
 tamtej pory. Alternatywa — nazwa na zawsze nieużywalna — to magazyn, który po
 cichu odmawia działania i nigdy nie mówi dlaczego.
+
+**Indeks idzie za tym.** `MEMORY.md` jest wklejany w instrukcje każdego żądania,
+więc zatrzymana notatka, której linia w indeksie dalej ją opisuje, to notatka,
+która dalej dociera do modelu. Wyłączenie albo usunięcie notatki usuwa więc te
+linie indeksu, które ją **nazywają**. Linia opisująca notatkę bez nazwania jej
+zostaje — przycinanie jest liniowe i kluczowane po nazwie, bo tym właśnie jest
+indeks — a przywrócenie notatki nie wstawia linii z powrotem: indeks pisze agent,
+a to nie jest miejsce na pisanie prozy jego głosem.
 
 **Cudzą, tylko administrator wdrożenia.** `GET /memory/person/{id}`, z nazwaniem
 tenanta, i odmowa dla wszystkich innych: nie dla Ownera, nie dla Admina, nie dla

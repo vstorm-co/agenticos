@@ -25,7 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.memory_keys import person_owner_key
+from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName
 from app.services.memory import MemoryService
 
@@ -53,7 +53,9 @@ def _note(**overrides):
     """
     fields = {
         "id": uuid.uuid4(),
+        "organization_id": ORG,
         "agent_id": AGENT,
+        "owner_key": person_owner_key(PERSON),
         "name": "prefs",
         "description": "How they like things",
         "content": "Prefers short answers",
@@ -66,14 +68,26 @@ def _note(**overrides):
     return SimpleNamespace(**{**fields, **overrides})
 
 
+def _organization() -> MagicMock:
+    return MagicMock(id=ORG, name="Acme")
+
+
 def _service(*, notes=(), total=None, agents=()) -> MemoryService:
+    """A session answering the two reads a listing makes, in the order it makes them.
+
+    `_agent_names` first - which agent wrote each note - then `_external_stores`,
+    which pairs each agent with the spec that actually runs. One result for both
+    would hand the second loop the first's rows, and the second reads a different
+    shape.
+    """
+    names = MagicMock()
+    names.all.return_value = [(AGENT, "Support")]
+    external = MagicMock()
+    external.all.return_value = [(agent, None) for agent in agents]
     db = MagicMock()
-    scalars = MagicMock()
-    scalars.all.return_value = list(agents)
-    result = MagicMock()
-    result.scalars.return_value = scalars
-    result.all.return_value = [(AGENT, "Support")]
-    db.execute = AsyncMock(return_value=result)
+    # `_agent_names` asks nothing where there are no notes to name an agent for,
+    # so the disclosure read is the first statement on an empty page.
+    db.execute = AsyncMock(side_effect=([names] if notes else []) + [external])
     service = MemoryService(db)
     service._listed = (list(notes), len(notes) if total is None else total)
     return service
@@ -83,6 +97,19 @@ def _listing(service: MemoryService):
     return patch(
         f"{FACADE}.memory_repo.list_for_person", new=AsyncMock(return_value=service._listed)
     )
+
+
+def _tenant_exists(found: object | None = None):
+    """The organization an app admin named, resolved before it is read from."""
+    return patch(
+        f"{FACADE}.organization_repo.get_by_id",
+        new=AsyncMock(return_value=_organization() if found is None else found),
+    )
+
+
+def _index(row: object | None = None):
+    """The store's `MEMORY.md`, for the line a suppression prunes out of it."""
+    return patch(f"{FACADE}.memory_repo.get_by_name", new=AsyncMock(return_value=row))
 
 
 class TestReadingYourOwn:
@@ -150,7 +177,11 @@ class TestReadingSomebodyElses:
 
     async def test_an_app_admin_may_naming_the_tenant_and_the_person(self) -> None:
         service = _service(notes=[_note()])
-        with _listing(service) as listed, patch(f"{FACADE}.record_audit", new=AsyncMock()):
+        with (
+            _listing(service) as listed,
+            _tenant_exists(),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
             page = await service.for_person(
                 _ctx(PERSON, app_admin=True), OTHER_ORG, COLLEAGUE, reason="DSAR 41"
             )
@@ -165,7 +196,7 @@ class TestReadingSomebodyElses:
         being protected."""
         service = _service(notes=[_note()])
         audited = AsyncMock()
-        with _listing(service), patch(f"{FACADE}.record_audit", audited):
+        with _listing(service), _tenant_exists(), patch(f"{FACADE}.record_audit", audited):
             await service.for_person(
                 _ctx(PERSON, app_admin=True), OTHER_ORG, COLLEAGUE, reason="DSAR 41"
             )
@@ -188,6 +219,7 @@ class TestSuppressingAndDeleting:
         updated = AsyncMock()
         with (
             self._owned(row),
+            _index(),
             patch(f"{FACADE}.memory_repo.update", updated),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
         ):
@@ -201,6 +233,7 @@ class TestSuppressingAndDeleting:
         updated = AsyncMock()
         with (
             self._owned(row),
+            _index(),
             patch(f"{FACADE}.memory_repo.update", updated),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
         ):
@@ -227,6 +260,7 @@ class TestSuppressingAndDeleting:
         owned = AsyncMock(return_value=row)
         with (
             patch(f"{FACADE}.memory_repo.get_owned", owned),
+            _index(),
             patch(f"{FACADE}.memory_repo.delete", new=AsyncMock()),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
         ):
@@ -240,6 +274,7 @@ class TestSuppressingAndDeleting:
         audited = AsyncMock()
         with (
             patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            _index(),
             patch(f"{FACADE}.memory_repo.delete", new=AsyncMock()),
             patch(f"{FACADE}.record_audit", audited),
         ):
@@ -247,3 +282,155 @@ class TestSuppressingAndDeleting:
 
         assert audited.await_args.kwargs["details"] == {"agent_id": str(AGENT), "name": "prefs"}
         assert "content" not in audited.await_args.kwargs["details"]
+
+
+class TestWhatStopsReachingTheModel:
+    """The index is spliced into every request, so a stopped note is not stopped
+    while its index line still describes it (#1594 review)."""
+
+    @staticmethod
+    def _index_row(content: str) -> SimpleNamespace:
+        return _note(name=INDEX_NAME, content=content)
+
+    async def test_suppressing_a_note_drops_its_line_from_the_index(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        service = _service()
+        row = _note()
+        index = self._index_row("- prefs: how they like things\n- travel: where they go")
+        updated = AsyncMock()
+        with (
+            patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            patch(f"{FACADE}.memory_repo.get_by_name", new=AsyncMock(return_value=index)),
+            patch(f"{FACADE}.memory_repo.update", updated),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            await service.set_active(_ctx(PERSON), row.id, active=False)
+
+        pruned = updated.await_args_list[-1].kwargs["update_data"]["content"]
+        assert pruned == "- travel: where they go"
+
+    async def test_deleting_one_drops_its_line_too(self) -> None:
+        """Outright deletion leaves the same stale line behind."""
+        service = _service()
+        row = _note()
+        index = self._index_row("- prefs: how they like things")
+        updated = AsyncMock()
+        with (
+            patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            patch(f"{FACADE}.memory_repo.get_by_name", new=AsyncMock(return_value=index)),
+            patch(f"{FACADE}.memory_repo.update", updated),
+            patch(f"{FACADE}.memory_repo.delete", new=AsyncMock()),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            await service.delete_note(_ctx(PERSON), row.id)
+
+        assert updated.await_args.kwargs["update_data"]["content"] == ""
+
+    async def test_a_store_with_no_index_is_left_alone(self) -> None:
+        service = _service()
+        row = _note()
+        updated = AsyncMock()
+        with (
+            patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            patch(f"{FACADE}.memory_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch(f"{FACADE}.memory_repo.update", updated),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            await service.set_active(_ctx(PERSON), row.id, active=False)
+
+        assert updated.await_count == 1  # the note itself, and not the index
+
+    async def test_an_index_line_that_names_nothing_is_kept(self) -> None:
+        """Line-level and keyed on the note's name, which is what the index is.
+        A line describing the note without naming it survives, and the docs say
+        so rather than leaving somebody to assume otherwise."""
+        service = _service()
+        row = _note()
+        index = self._index_row("- they dislike long answers")
+        updated = AsyncMock()
+        with (
+            patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            patch(f"{FACADE}.memory_repo.get_by_name", new=AsyncMock(return_value=index)),
+            patch(f"{FACADE}.memory_repo.update", updated),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            await service.set_active(_ctx(PERSON), row.id, active=False)
+
+        assert updated.await_count == 1
+
+    async def test_suppressing_the_index_itself_does_not_prune_it_against_itself(self) -> None:
+        service = _service()
+        row = _note(name=INDEX_NAME)
+        by_name = AsyncMock()
+        with (
+            patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            patch(f"{FACADE}.memory_repo.get_by_name", by_name),
+            patch(f"{FACADE}.memory_repo.update", new=AsyncMock()),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            await service.set_active(_ctx(PERSON), row.id, active=False)
+
+        by_name.assert_not_awaited()
+
+    async def test_restoring_a_note_leaves_the_index_alone(self) -> None:
+        """The agent writes the index; restoring a note is not this code's cue to
+        put a line back into prose it did not author."""
+        service = _service()
+        row = _note(deactivated_at=datetime(2026, 9, 1, tzinfo=UTC))
+        by_name = AsyncMock()
+        with (
+            patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            patch(f"{FACADE}.memory_repo.get_by_name", by_name),
+            patch(f"{FACADE}.memory_repo.update", new=AsyncMock()),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            await service.set_active(_ctx(PERSON), row.id, active=True)
+
+        by_name.assert_not_awaited()
+
+
+class TestTheTenantAnAdminNames:
+    async def test_an_organization_that_does_not_exist_is_not_found(self) -> None:
+        """An empty inventory under a mistyped id is indistinguishable from a
+        person with no memory - and the audit column has no foreign key, so the
+        trail would be recorded under a tenant that never existed."""
+        service = _service()
+        with (
+            patch(f"{FACADE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+            pytest.raises(NotFoundError),
+        ):
+            await service.for_person(_ctx(PERSON, app_admin=True), OTHER_ORG, COLLEAGUE)
+
+    async def test_the_window_reaches_the_query(self) -> None:
+        """An inspection that could only see the first fifty notes cannot answer
+        a subject-access request."""
+        service = _service(notes=[])
+        with (
+            _listing(service) as listed,
+            _tenant_exists(),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            await service.for_person(
+                _ctx(PERSON, app_admin=True), OTHER_ORG, COLLEAGUE, skip=50, limit=25
+            )
+
+        assert (listed.await_args.kwargs["skip"], listed.await_args.kwargs["limit"]) == (50, 25)
+
+
+class TestProvenanceOnEverySurface:
+    async def test_a_suppress_answers_with_the_agent_name_the_listing_gives(self) -> None:
+        """The same note serialized by two endpoints must not disagree about
+        whether it has provenance."""
+        # One note, so the one statement this path makes is the name lookup.
+        service = _service(notes=[_note()])
+        row = _note()
+        with (
+            patch(f"{FACADE}.memory_repo.get_owned", new=AsyncMock(return_value=row)),
+            _index(),
+            patch(f"{FACADE}.memory_repo.update", new=AsyncMock()),
+            patch(f"{FACADE}.record_audit", new=AsyncMock()),
+        ):
+            note = await service.set_active(_ctx(PERSON), row.id, active=False)
+
+        assert note.agent_name == "Support"

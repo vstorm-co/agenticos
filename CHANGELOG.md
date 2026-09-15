@@ -30,7 +30,10 @@ Two things are versioned separately from this file and worth knowing about:
   while staying there to be looked at and restored - the middle answer for a note
   that is wrong or too personal and that somebody is not yet sure they want gone.
   An agent writing the same name again revives the row with the new content,
-  which is documented rather than left to be discovered. (#1594)
+  which is documented rather than left to be discovered. The index the capability
+  splices into every request follows: suppressing or deleting a note drops the
+  `MEMORY.md` lines that name it, because a note somebody stopped whose index
+  line still describes it is a note still reaching the model. (#1594)
 - **A deployment administrator can read one named person's store in one named
   tenant.** `GET /memory/person/{id}`, refused to everybody else - not an Owner,
   not an Admin, not an edit grant on the agent that wrote the note - because an

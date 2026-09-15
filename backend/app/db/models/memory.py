@@ -70,6 +70,16 @@ class AgentMemoryFile(Base, TimestampMixin):
     format: Mapped[str] = mapped_column(String(16), nullable=False, default="md")
     kind: Mapped[str] = mapped_column(String(32), nullable=False, default="note")
 
+    written_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    """When the *agent* last wrote this note's content.
+
+    Not `updated_at`, which `TimestampMixin` advances on any write to the row -
+    including the person suppressing or restoring it. Reading provenance off that
+    made the page say an agent had written the note at the moment somebody
+    silenced it, and moved the note to the top of their own listing for having
+    been silenced (#1594 review).
+    """
+
     deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     """When the person whose store this is suppressed the note, or null.
 

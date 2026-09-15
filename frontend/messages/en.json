@@ -3192,6 +3192,9 @@
   },
   "pages": {
     "memory": {
+      "showing": "Showing {from}–{to} of {total}",
+      "newer": "Newer",
+      "older": "Older",
       "title": "Your memory",
       "description": "What the agents here have written down about you, and what you can do about it.",
       "nothingYet": "Nothing written down yet",

@@ -35,12 +35,12 @@ from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
 from app.agents.capabilities.memory_mem0._client import mem0_forget_person
 from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, NotFoundError
-from app.core.memory_keys import is_person_key, person_owner_key
+from app.core.memory_keys import INDEX_NAME, is_person_key, person_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.memory import AgentMemoryFile
-from app.repositories import agent_repo, memory_repo
+from app.repositories import agent_repo, memory_repo, organization_repo
 from app.schemas.memory import MemoryErasureResult, MemoryNoteList, MemoryNoteRead
 from app.services.access import AGENT, resolve_access
 from app.services.organization_secret import OrganizationSecretService
@@ -66,7 +66,14 @@ class MemoryService:
         )
 
     async def for_person(
-        self, ctx: AuthContext, organization_id: UUID, user_id: UUID, *, reason: str | None = None
+        self,
+        ctx: AuthContext,
+        organization_id: UUID,
+        user_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        reason: str | None = None,
     ) -> MemoryNoteList:
         """One named person's notes in one named tenant - the deployment admin's view.
 
@@ -86,7 +93,17 @@ class MemoryService:
             raise AuthorizationError(
                 message="Only a deployment administrator may read another person's memory"
             )
-        notes = await self._notes_for(organization_id, person_owner_key(user_id))
+        # The tenant is resolved before it is read from. A mistyped or deleted id
+        # otherwise answers an empty inventory - indistinguishable from a person
+        # with no memory - and records a trail under an organization that never
+        # existed, because the audit column carries no foreign key.
+        if await organization_repo.get_by_id(self.db, organization_id) is None:
+            raise NotFoundError(
+                message="Organization not found", details={"organization_id": organization_id}
+            )
+        notes = await self._notes_for(
+            organization_id, person_owner_key(user_id), skip=skip, limit=limit
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -116,6 +133,8 @@ class MemoryService:
             file=row,
             update_data={"deactivated_at": None if active else datetime.now(UTC)},
         )
+        if not active:
+            await self._prune_index(row)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -127,12 +146,16 @@ class MemoryService:
             # suppressed would keep the thing the person suppressed.
             details={"agent_id": str(row.agent_id), "name": row.name},
         )
-        return MemoryNoteRead.model_validate(row)
+        names = await self._agent_names({row.agent_id})
+        return MemoryNoteRead.model_validate(row).model_copy(
+            update={"agent_name": names.get(row.agent_id)}
+        )
 
     async def delete_note(self, ctx: AuthContext, file_id: UUID) -> None:
         """Delete one of the caller's own notes outright."""
         row = await self._own_note(ctx, file_id)
         agent_id, name = row.agent_id, row.name
+        await self._prune_index(row)
         await memory_repo.delete(self.db, row)
         await record_audit(
             self.db,
@@ -175,8 +198,70 @@ class MemoryService:
             )
             for row in rows
         ]
-        external = [agent.name for agent, _ in await self._mem0_bindings(organization_id)]
-        return MemoryNoteList(items=items, total=total, external_stores=sorted(set(external)))
+        external = await self._external_stores(organization_id)
+        return MemoryNoteList(items=items, total=total, external_stores=external)
+
+    async def _external_stores(self, organization_id: UUID) -> list[str]:
+        """Agents whose memories live in a service this listing cannot read.
+
+        The **published** spec where there is one, falling back to the draft for
+        an agent that has never been published. Erasure reads the draft
+        deliberately - deleting a namespace that holds nothing is free - but a
+        disclosure read off the draft says the wrong thing in both directions: an
+        agent whose unpublished edit dropped mem0 is still writing there, and one
+        that only added it in a draft has written nothing yet (#1594 review).
+        """
+        rows = await self.db.execute(
+            select(Agent, AgentVersion.spec)
+            .outerjoin(AgentVersion, Agent.current_version_id == AgentVersion.id)
+            .where(Agent.organization_id == organization_id)
+        )
+        named: set[str] = set()
+        for agent, published in rows.all():
+            spec = published if isinstance(published, dict) else agent.draft_spec
+            if any(
+                binding.get("id") == MEMORY_MEM0_CAPABILITY_ID and binding.get("enabled", True)
+                for binding in _capabilities(spec)
+            ):
+                named.add(agent.name)
+        return sorted(named)
+
+    async def _prune_index(self, row: AgentMemoryFile) -> None:
+        """Drop the suppressed note's line from the store's `MEMORY.md`.
+
+        The index is not an ordinary note: the capability splices it into the
+        instructions of every request, so a note stopped by its subject whose
+        index line still describes it is a note still reaching the model - part
+        of exactly what they asked to stop (#1594 review). Deleting the note
+        outright leaves the same stale line.
+
+        Line-level and keyed on the note's name, because that is what the index
+        is: one line per note, naming it. **A line that describes the note
+        without naming it survives**, and `docs/reference/capabilities.md` says
+        so rather than leaving somebody to assume otherwise. The index itself is
+        never pruned against itself.
+        """
+        if row.name == INDEX_NAME:
+            return
+        index = await memory_repo.get_by_name(
+            self.db,
+            organization_id=row.organization_id,
+            agent_id=row.agent_id,
+            owner_key=row.owner_key,
+            name=INDEX_NAME,
+        )
+        if index is None:
+            return
+        kept = [line for line in index.content.splitlines() if row.name not in line]
+        if len(kept) == len(index.content.splitlines()):
+            return
+        await memory_repo.update(
+            self.db,
+            file=index,
+            # Not `written_at`: the agent did not write this, and moving it would
+            # put the index at the top of the person's own listing.
+            update_data={"content": "\n".join(kept)},
+        )
 
     async def _agent_names(self, agent_ids: set[UUID]) -> dict[UUID, str]:
         """Which agent wrote each note. Provenance, and the reason for the join."""

@@ -1,5 +1,5 @@
 ---
-source_sha: "606a72953f91"
+source_sha: "3e72bc3937ad"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -218,6 +218,15 @@ escriba otra vez revive la fila con contenido nuevo. Eso no deshace la
 suspensión: lo que suspendiste queda sobrescrito, y la fila guarda algo que el
 agente ha aprendido desde entonces. La alternativa —un nombre permanentemente
 inservible— es un almacén que se niega a funcionar y nunca dice por qué.
+
+**El índice va detrás.** `MEMORY.md` se inserta en las instrucciones de cada
+petición, así que una nota que detuviste cuya línea del índice sigue
+describiéndola es una nota que sigue llegando al modelo. Suspender o borrar una
+nota elimina, por tanto, las líneas del índice que la **nombran**. Una línea que
+la describe sin nombrarla sobrevive —el recorte es por líneas y se apoya en el
+nombre, que es lo que el índice es— y restaurar una nota no vuelve a poner la
+línea: el índice lo escribe el agente, y este no es el sitio para redactar en su
+voz.
 
 **El de otra persona, solo una administradora del despliegue.**
 `GET /memory/person/{id}`, nombrando el tenant, y rechazado a todos los demás: ni

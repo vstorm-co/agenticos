@@ -1,5 +1,5 @@
 ---
-source_sha: "606a72953f91"
+source_sha: "3e72bc3937ad"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -231,6 +231,15 @@ schreibt, belebt die Zeile also mit neuem Inhalt. Das hebt die Stilllegung nicht
 auf: was Sie stillgelegt haben, wird überschrieben, und die Zeile hält etwas, das
 der Agent seither gelernt hat. Die Alternative - ein dauerhaft unbrauchbarer Name
 - wäre ein Speicher, der stumm den Dienst verweigert.
+
+**Der Index zieht mit.** `MEMORY.md` wird in die Instruktionen jeder Anfrage
+eingefügt; eine von Ihnen gestoppte Notiz, deren Indexzeile sie weiterhin
+beschreibt, erreicht das Modell also weiterhin. Eine Notiz stillzulegen oder zu
+löschen entfernt daher die Indexzeilen, die sie **benennen**. Eine Zeile, die die
+Notiz beschreibt, ohne sie zu benennen, bleibt - das Kürzen ist zeilenweise und
+am Namen orientiert, denn genau das ist der Index - und das Wiederherstellen
+setzt keine Zeile zurück: den Index schreibt der Agent, und dies ist nicht der
+Ort, in seiner Stimme zu formulieren.
 
 **Den einer anderen Person, nur eine Deployment-Administratorin.**
 `GET /memory/person/{id}` mit Nennung des Tenants, und für alle anderen

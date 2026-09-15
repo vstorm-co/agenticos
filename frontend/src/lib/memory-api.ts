@@ -21,6 +21,8 @@ export interface MemoryNote {
   kind: string;
   created_at: string | null;
   updated_at: string | null;
+  /** When the *agent* last wrote the content. Unmoved by a suppression. */
+  written_at: string | null;
   /** Set while the note is suppressed - not listed, not read, not editable by any tool. */
   deactivated_at: string | null;
 }
@@ -55,8 +57,14 @@ export async function getPersonMemory(
   userId: string,
   organizationId: string,
   reason?: string,
+  skip = 0,
+  limit = 50,
 ): Promise<MemoryPage> {
-  const query = new URLSearchParams({ organization_id: organizationId });
+  const query = new URLSearchParams({
+    organization_id: organizationId,
+    skip: String(skip),
+    limit: String(limit),
+  });
   if (reason) query.set("reason", reason);
   return apiClient.get<MemoryPage>(`${ROOT}/person/${userId}?${query}`);
 }

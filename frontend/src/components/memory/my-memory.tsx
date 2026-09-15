@@ -2,9 +2,9 @@
 
 import { Brain, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import { useMyMemory } from "@/hooks";
+import { PAGE_SIZE, useMyMemory } from "@/hooks/use-my-memory";
 import type { MemoryNote } from "@/lib/memory-api";
 import { useFormatter, useTranslations } from "next-intl";
 
@@ -24,9 +24,13 @@ import { useFormatter, useTranslations } from "next-intl";
 export function MyMemory() {
   const t = useTranslations("pages.memory");
   const format = useFormatter();
-  const { page, isLoading, setActive, remove } = useMyMemory();
+  const { page, isLoading, error, skip, showPage, setActive, remove } = useMyMemory();
 
-  if (isLoading || !page) return <LoadingState variant="skeleton-list" rows={3} />;
+  if (isLoading) return <LoadingState variant="skeleton-list" rows={3} />;
+  // Distinct from loading and from an empty store: after the retries are spent
+  // React Query is neither loading nor holding data, and a skeleton that never
+  // resolves tells somebody nothing about why (#1594 review).
+  if (error || !page) return <ErrorState />;
 
   if (page.items.length === 0 && page.external_stores.length === 0) {
     return <EmptyState icon={Brain} title={t("nothingYet")} description={t("nothingYetWhy")} />;
@@ -84,12 +88,43 @@ export function MyMemory() {
           </CardContent>
         </Card>
       ))}
+      {page.total > PAGE_SIZE ? (
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="text-muted-foreground text-xs">
+            {t("showing", {
+              from: skip + 1,
+              to: Math.min(skip + page.items.length, page.total),
+              total: page.total,
+            })}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={skip === 0}
+              onClick={() => showPage(Math.max(0, skip - PAGE_SIZE))}
+            >
+              {t("newer")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={skip + page.items.length >= page.total}
+              onClick={() => showPage(skip + PAGE_SIZE)}
+            >
+              {t("older")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 /** When the note was last written - the provenance that makes it actionable. */
 function when(note: MemoryNote, format: ReturnType<typeof useFormatter>): string {
-  const stamp = note.updated_at ?? note.created_at;
+  // `written_at`, not `updated_at`: the latter moves when *you* suppress the
+  // note, and the page would then say the agent wrote it at that moment.
+  const stamp = note.written_at ?? note.created_at;
   return stamp ? format.dateTime(new Date(stamp), { dateStyle: "medium" }) : "";
 }

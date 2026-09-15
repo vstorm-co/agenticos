@@ -13,8 +13,10 @@ export const qk = {
   },
   health: () => ["health"] as const,
   memory: {
-    /** What the agents in one organization have written down about the caller. */
-    mine: (orgId: string) => ["memory", orgId, "mine"] as const,
+    /** Every page of one organization's notes, for invalidating after a write. */
+    all: (orgId: string) => ["memory", orgId] as const,
+    /** One page of what the agents in one organization have written about the caller. */
+    mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
   },
   organizations: {
     all: () => ["organizations"] as const,

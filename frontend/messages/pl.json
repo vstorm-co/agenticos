@@ -419,6 +419,9 @@
   },
   "pages": {
     "memory": {
+      "showing": "Pokazane {from}–{to} z {total}",
+      "newer": "Nowsze",
+      "older": "Starsze",
       "title": "Twoja pamięć",
       "description": "Co agenci tutaj zapisali o tobie i co możesz z tym zrobić.",
       "nothingYet": "Nic jeszcze nie zapisano",

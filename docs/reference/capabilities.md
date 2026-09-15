@@ -207,6 +207,14 @@ what you suppressed is overwritten, and the row holds something the agent has
 learned since. The alternative - a name permanently unusable - is a store that
 silently refuses to work and never says why.
 
+**The index follows.** `MEMORY.md` is spliced into the instructions of every
+request, so a note you stopped whose index line still describes it is a note
+still reaching the model. Suppressing or deleting a note therefore drops the
+index lines that **name** it. A line that describes the note without naming it
+survives - the pruning is line-level and keyed on the name, because that is what
+the index is - and restoring a note does not put a line back: the agent writes
+the index, and this is not the place to author prose in its voice.
+
 **Somebody else's, only a deployment administrator.** `GET /memory/person/{id}`,
 naming the tenant, and refused to everybody else: not an Owner, not an Admin, not
 somebody holding an edit grant on the agent that wrote the note. The reasoning is
