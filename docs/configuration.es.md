@@ -1,5 +1,5 @@
 ---
-source_sha: "2098a1a24b23"
+source_sha: "9d8160596d6d"
 ---
 
 # Configuración { #configuration }
@@ -363,11 +363,12 @@ datos de salud, legales o de RR. HH. lee antes
 
 Tres cosas pueden apuntar los runs a un proyecto, y se superponen:
 
-- El `LOGFIRE_TOKEN` de aquí instrumenta Pydantic AI globalmente **en el proceso
-  de la API** (`app/main.py`), así que todo run servido ahí exporta al proyecto
-  del propio deployment. Un run ejecutado por el worker de Prefect no queda
-  cubierto, porque ese proceso nunca configura Logfire
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- El `LOGFIRE_TOKEN` de aquí instrumenta Pydantic AI globalmente, así que todo
+  run exporta al proyecto del propio deployment. Lo configuran dos procesos: la
+  API al arrancar (`app/main.py`) y un run disparado en el worker de Prefect, que
+  se configura solo porque cada flow run recibe su propio subproceso. Los spans
+  del worker llevan `<nombre de servicio>-worker`, de modo que un proyecto puede
+  distinguir un run programado lento de un turno de chat lento.
 - Un [entorno](environments.md#tracing-per-environment) puede llevar su propio
   token de escritura, sellado en el vault, que redirige los runs ligados a él.
 - El bloque [`observability`](reference/spec.md#observability) de un agent nombra

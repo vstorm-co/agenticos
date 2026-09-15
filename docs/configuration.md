@@ -348,11 +348,12 @@ reads [what leaves the machine](data-protection.md#traces) before setting it.
 
 Three things can point runs at a project, and they stack:
 
-- `LOGFIRE_TOKEN` here instruments Pydantic AI globally **in the API process**
-  (`app/main.py`), so every run served there exports into the deployment's own
-  project. A run executed by the Prefect worker is not covered, because that
-  process never configures Logfire
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- `LOGFIRE_TOKEN` here instruments Pydantic AI globally, so every run exports
+  into the deployment's own project. Two processes configure it: the API at
+  startup (`app/main.py`), and a fired run in the Prefect worker, which sets
+  itself up because each flow run gets a subprocess of its own. The worker's
+  spans carry `<service name>-worker`, so one project can tell a slow scheduled
+  run from a slow chat turn.
 - An [environment](environments.md#tracing-per-environment) can carry its own
   write token, sealed in the vault, which redirects the runs bound to it.
 - An agent's [`observability`](reference/spec.md#observability) block names a

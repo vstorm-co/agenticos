@@ -1,5 +1,5 @@
 ---
-source_sha: "2098a1a24b23"
+source_sha: "9d8160596d6d"
 ---
 
 # Konfiguration { #configuration }
@@ -374,11 +374,12 @@ vorher, [was das Deployment verlässt](data-protection.md#traces).
 
 Drei Dinge können Runs auf ein Projekt richten, und sie überlagern sich:
 
-- `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global **im API-Prozess**
-  (`app/main.py`), jeder dort bediente Run exportiert also in das Projekt des
-  Deployments selbst. Ein vom Prefect-Worker ausgeführter Run ist nicht erfasst,
-  weil dieser Prozess Logfire nie konfiguriert
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global, jeder Run exportiert
+  also in das Projekt des Deployments selbst. Zwei Prozesse konfigurieren es: die
+  API beim Start (`app/main.py`) und ein ausgelöster Run im Prefect-Worker, der
+  sich selbst einrichtet, weil jeder Flow-Run einen eigenen Subprozess bekommt.
+  Die Spans des Workers tragen `<Dienstname>-worker`, ein Projekt kann einen
+  langsamen geplanten Run also von einer langsamen Chat-Runde unterscheiden.
 - Eine [Umgebung](environments.md#tracing-per-environment) kann ein eigenes
   Schreib-Token tragen, im Vault versiegelt, das die an sie gebundenen Runs
   umleitet.
