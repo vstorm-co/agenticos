@@ -1,6 +1,6 @@
 """OrganizationMember repository (PostgreSQL async)."""
 
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -268,6 +268,41 @@ async def has_any_membership(
     if role is not None:
         conditions.append(OrganizationMember.role == role)
     return (await db.scalar(select(OrganizationMember.id).where(*conditions).limit(1))) is not None
+
+
+async def list_member_ids_for_audience(
+    db: AsyncSession,
+    *,
+    organization_ids: list[UUID] | Literal["all"],
+    role: str | None = None,
+) -> set[UUID]:
+    """Every active member currently matching an announcement's audience
+    spec (#1598, Decision 5) - resolved fresh at send time, the same
+    membership `has_any_membership`/`has_membership_in_any` re-check at read
+    time. `"all organizations"` means everybody who is currently a member of
+    something, not a snapshot of who belonged when it was sent; a
+    role-narrowed spec matches only that role, in any of the named
+    organizations (or in any organization at all, for `"all"`).
+
+    Identity only, no preference filter - the same split every other
+    audience resolver in this feature draws (Decision 4): a channel's
+    preference is applied afterward, per recipient, never folded into who is
+    a candidate at all.
+    """
+    if organization_ids != "all" and not organization_ids:
+        return set()
+    conditions = [User.is_active.is_(True)]
+    if organization_ids != "all":
+        conditions.append(OrganizationMember.organization_id.in_(organization_ids))
+    if role is not None:
+        conditions.append(OrganizationMember.role == role)
+    result = await db.execute(
+        select(User.id)
+        .join(OrganizationMember, OrganizationMember.user_id == User.id)
+        .where(*conditions)
+        .distinct()
+    )
+    return {row[0] for row in result.all()}
 
 
 async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
