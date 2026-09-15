@@ -15,9 +15,10 @@ that question arrives from a security review rather than from a build system.
     and can only be listed by the deployment that chose it. The last section is
     how to write that half down; this page cannot write it for you.
 
-The machine-readable inventory is attached to every release as
-`sbom-api.cdx.json` and `sbom-frontend.cdx.json`, in
-[CycloneDX](https://cyclonedx.org/) 1.6 JSON. Licence evidence for every
+The machine-readable inventory is attached to every release as four
+[CycloneDX](https://cyclonedx.org/) documents — one per image **per
+architecture**, because a published tag is a manifest list and the two variants
+do not contain the same packages. Licence evidence for every
 component is in
 [`THIRD_PARTY_NOTICES.md`](https://github.com/vstorm-co/agenticos/blob/main/THIRD_PARTY_NOTICES.md),
 and the review of what those licences oblige is [Licences and third-party
@@ -33,8 +34,8 @@ both from the same tag rather than from `main`.
 
 | Artifact | Where it is | What names its version |
 |---|---|---|
-| `sbom-api.cdx.json` | the GitHub release assets | the `v*` tag it is attached to |
-| `sbom-frontend.cdx.json` | the GitHub release assets | the same |
+| `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | the GitHub release assets | the `v*` tag they are attached to |
+| `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | the GitHub release assets | the same |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | the same |
 | `THIRD_PARTY_NOTICES.md` | the repository, at that tag | the lockfiles at that commit |
@@ -131,15 +132,19 @@ inventory.
 
 | Artifact | Produced by | When |
 |---|---|---|
-| `sbom-api.cdx.json`, `sbom-frontend.cdx.json` | the `sbom` job in `.github/workflows/images.yml`, from the published manifests | every publish; attached to the release on a `v*` tag |
+| The four release SBOMs | the `sbom` job in `.github/workflows/images.yml`, one per image per architecture, from the published manifests | every publish; attached to the release on a `v*` tag, kept as a run artifact otherwise |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | whenever a lockfile changes; `make licenses-check` fails the build when it is stale |
 | This page | by hand | whenever a component is added, removed or moved between the sets above |
 
-Locally, `make sbom` writes the same CycloneDX documents from the source tree
-rather than from an image. It needs [syft](https://github.com/anchore/syft)
-installed, it is deliberately not part of `make check`, and its output differs
-from the release documents in exactly one way worth knowing: no base-image
-layers, because there is no image.
+`make sbom` writes something else, and the names say so:
+`sbom-source-api.cdx.json` and `sbom-source-frontend.cdx.json` are inventories of
+what the **source tree declares**, not of what an image contains. They carry the
+development and documentation dependency groups if those are installed, and none
+of the layers underneath — no base image, no Debian packages, no built
+artifacts. Useful for reading a dependency set without pulling two images;
+useless as evidence of what a release ships, which is what the four documents
+above are for. It needs [syft](https://github.com/anchore/syft) installed and is
+deliberately not part of `make check`.
 
 To extend the inventory for a deployment, take the release SBOM for the version
 you run, add the components from the section above with the version and the

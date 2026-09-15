@@ -1,5 +1,5 @@
 ---
-source_sha: "06eca1f705c9"
+source_sha: "66365d6bce1a"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -34,6 +34,7 @@ Staging-Branch, den niemand brauchte, und kostete einen zweiten Ort, an dem jede
 |---|---|
 | Kein direkter Push auf `main` | Ruleset — ein Pull Request ist erforderlich |
 | CI grün vor dem Merge | Erforderliche Status-Checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| Kein neuer Code-Scanning-Alert wird gemergt | Merge-Schutz durch Code Scanning im Ruleset. **Nicht** der Status der `analyze`-Jobs selbst, der grün ist, was die Analyse auch gefunden hat — siehe [CodeQL](#codeql-runs-on-the-pull-request) unten |
 | Squash beim Merge | Ruleset — die einzige erlaubte Merge-Methode |
 | Konversationen aufgelöst | Ruleset |
 | Veraltete Freigaben werden bei einem neuen Push verworfen | Ruleset |
@@ -156,22 +157,33 @@ Head-Commit, also trägt das Umhängen das alte Ergebnis unverändert weiter; da
 liegt am Stapeln selbst und nicht an etwas, das ein Trigger beheben könnte, und es
 ist ein Grund, Stapel kurz zu halten.
 
-CodeQL war die zweite. Es lief aus GitHubs Standardeinrichtung auf einem
+### CodeQL läuft am Pull Request { #codeql-runs-on-the-pull-request }
+
+CodeQL war hier die zweite Grenze. Es lief aus GitHubs Standardeinrichtung auf einem
 wöchentlichen Plan, deren Trigger nicht in diesem Repository liegen, also traf ein
 Fund erst nach dem Merge, der ihn eingeführt hatte, auf `main` ein.
 `.github/workflows/codeql.yml` ersetzt das
 ([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): die Analyse läuft am
 Pull Request, auf demselben Trigger wie alles andere hier, und der wöchentliche
 vollständige Lauf bleibt für die Query-Packs, die sich zwischen Merges
-aktualisieren. Beide können nicht nebeneinander bestehen — GitHub weist den Upload
-einer erweiterten Konfiguration ab, solange die Standardeinrichtung konfiguriert
-ist — also heißt dieses Workflow einzuschalten, die Standardeinrichtung
-abzuschalten, und das ist eine Repository-Einstellung und nichts, was das Workflow
-selbst tun kann:
+aktualisieren. Zum Workflow gehören zwei Repository-Einstellungen, und keine davon kann es selbst
+vornehmen. Die erste: die Standardeinrichtung muss abgeschaltet werden — GitHub
+weist den Upload einer erweiterten Konfiguration ab, solange sie konfiguriert ist,
+die beiden können also nicht nebeneinander bestehen:
 
 ```bash
 gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
 ```
+
+Die zweite ist das, was einen Merge tatsächlich verweigert. **Ein grüner
+`analyze`-Job heißt, dass die Analyse gelaufen ist, nicht dass sie nichts gefunden
+hat**: `codeql-action/analyze` lädt seine Ergebnisse hoch und endet mit 0, was auch
+immer darin steht. Den Pull Request blockiert der
+[Merge-Schutz durch Code Scanning](https://docs.github.com/en/code-security/code-scanning/managing-code-scanning-alerts/about-code-scanning-alerts),
+eine Regel im Ruleset von `main` neben den sechs erforderlichen Status-Checks, mit
+einem Werkzeug und einer Schwellenwert-Stufe konfiguriert. Ohne ihn ist der Alert am
+Pull Request und im Security-Tab sichtbar, und nichts hält den Merge auf — also
+dort, wo dieses Repository vorher war, nur langsamer.
 
 ### Jeder Job begrenzt seine eigene Laufzeit { #every-job-bounds-its-own-runtime }
 

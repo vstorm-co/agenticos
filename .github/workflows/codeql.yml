@@ -2,13 +2,22 @@
 #
 # This repository ran CodeQL through GitHub's **default setup** on a weekly
 # schedule: a finding landed on `main`, after merge, up to a week after the
-# commit that made it. That is a report, not a gate, and #1415 is the difference.
-# Default setup and an advanced workflow cannot both analyse the same repository
-# - GitHub refuses the advanced upload while default setup is configured - so
-# this file **replaces** it rather than joining it. Turning it off is a one-time
-# repository setting, not something a workflow can do:
+# commit that made it. This runs the same analysis on the pull request that
+# introduces it, so the alert is attached to that head commit and is there to
+# read before anybody merges.
+#
+# **This job succeeding does not mean it found nothing.** `analyze` uploads the
+# SARIF and exits 0 whatever is in it, so the workflow's status proves the
+# analysis ran. What refuses the merge is GitHub's code-scanning merge
+# protection, a rule on `main`'s ruleset - a repository setting, like the six
+# required status checks beside it. `docs/branching.md` records both, and the
+# other one this file needs:
 #
 #   gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+#
+# Default setup and an advanced workflow cannot both analyse one repository -
+# GitHub refuses the advanced upload while default setup is configured - so this
+# file **replaces** it rather than joining it.
 #
 # The weekly full run is kept here on `schedule`, because a query pack updated
 # after a merge finds things no pull request could have.

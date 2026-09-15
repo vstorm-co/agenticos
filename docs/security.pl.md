@@ -1,5 +1,5 @@
 ---
-source_sha: "fc1111e2c643"
+source_sha: "4a74a6eb2b6c"
 ---
 
 # Bezpieczeństwo { #security }
@@ -124,7 +124,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Spec jest odrzucany przy publikacji, nigdy w czasie runu | `validate_spec` (`app/services/agent_registry.py`) — nieznana capability, nieprzyznany scope, `secret_id` złego rodzaju albo z innej organizacji, osobiste połączenie MCP | `test_agent_registry.py`, `test_capability_secrets.py::TestPublishValidation` |
 | Budżet jest sprawdzany przed żądaniem do modelu, a koszt zapisywany nawet przy błędzie | `BudgetGuard.wrap_model_request` bramkuje przed wywołaniem (`app/agents/capabilities/budget/`); koszt runu jest zapisywany w terminalnym `finally` (`app/services/agent_runner.py`) | `test_spend.py::TestBudgetGuard`, `test_agent_runner.py::…::test_a_failed_run_still_records_its_cost` |
 | Zatwierdzenie jest rozstrzygane dokładnie raz | `ApprovalService.decide` odmawia wierszowi innemu niż oczekujący, odczytanemu `for_update` (`app/services/approvals.py`) | `test_approvals_queue.py::TestDecidingTwiceIsRefused` |
-| Analiza statyczna blokuje zmianę, która wprowadza znalezisko | CodeQL (`security-extended`) na każdym pull requeście dla Pythona, JavaScriptu/TypeScriptu, Rusta i workflowów, plus cotygodniowy pełny przebieg (`.github/workflows/codeql.yml`) | `test_codeql_workflow.py` |
+| Analiza statyczna dosięga zmiany, która wprowadza znalezisko | CodeQL (`security-extended`) na każdym pull requeście dla Pythona, JavaScriptu/TypeScriptu, Rusta i workflowów, plus cotygodniowy pełny przebieg (`.github/workflows/codeql.yml`). Scalenia odmawia ochrona scalania na podstawie code scanningu w rulesecie `main`, a nie status samego joba — zobacz [gałęzie](branching.md#what-is-enforced-and-by-what) | `test_codeql_workflow.py` |
 | Zależność ze znaną podatnością przerywa pull requesta | `make audit` na `backend/uv.lock` i `make audit-frontend` na `frontend/bun.lock`, oba w zadaniu `Security Scan` i w `make check` | `test_ci_parity.py` |
 | To, co zawiera wydanie, da się odczytać bez budowania | SBOM CycloneDX na obraz, generowany z opublikowanego manifestu i dołączany do wydania; [inwentarz komponentów](reference/components.md) jest czytelnym indeksem | `test_images_workflow.py::TestTheReleaseCarriesAnInventory` |
 

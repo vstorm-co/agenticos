@@ -1,5 +1,5 @@
 ---
-source_sha: "1ad52431d0bf"
+source_sha: "d68ab617b471"
 ---
 
 # Das Komponenteninventar { #the-component-inventory }
@@ -21,8 +21,10 @@ und nicht aus einem Build-System.
     Deployment aufgelistet werden, das es gewählt hat. Der letzte Abschnitt sagt,
     wie man diese Hälfte aufschreibt; diese Seite kann es nicht für Sie tun.
 
-Das maschinenlesbare Inventar hängt an jedem Release als `sbom-api.cdx.json` und
-`sbom-frontend.cdx.json`, in [CycloneDX](https://cyclonedx.org/) 1.6 JSON. Die
+Das maschinenlesbare Inventar hängt an jedem Release als vier
+[CycloneDX](https://cyclonedx.org/)-Dokumente — eines pro Image **pro
+Architektur**, denn ein veröffentlichter Tag ist eine Manifest-Liste, und die
+beiden Varianten enthalten nicht dieselben Pakete. Die
 Lizenznachweise für jede Komponente stehen in
 [`THIRD_PARTY_NOTICES.md`](https://github.com/vstorm-co/agenticos/blob/main/THIRD_PARTY_NOTICES.md),
 und die Prüfung dessen, wozu diese Lizenzen verpflichten, in [Lizenzen und
@@ -38,8 +40,8 @@ liest, sollte beides aus demselben Tag lesen und nicht aus `main`.
 
 | Artefakt | Wo es liegt | Was seine Version benennt |
 |---|---|---|
-| `sbom-api.cdx.json` | die Assets des GitHub-Releases | der `v*`-Tag, an dem es hängt |
-| `sbom-frontend.cdx.json` | dieselben | dasselbe |
+| `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | die Assets des GitHub-Releases | der `v*`-Tag, an dem sie hängen |
+| `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | dieselben | dasselbe |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | dasselbe |
 | `THIRD_PARTY_NOTICES.md` | das Repository, an diesem Tag | die Lockfiles in diesem Commit |
@@ -141,15 +143,20 @@ das eigene Inventar des Deployments.
 
 | Artefakt | Erzeugt von | Wann |
 |---|---|---|
-| `sbom-api.cdx.json`, `sbom-frontend.cdx.json` | dem Job `sbom` in `.github/workflows/images.yml`, aus den veröffentlichten Manifesten | bei jeder Veröffentlichung; an das Release angehängt bei einem `v*`-Tag |
+| Die vier Release-SBOMs | dem Job `sbom` in `.github/workflows/images.yml`, eines pro Image pro Architektur, aus den veröffentlichten Manifesten | bei jeder Veröffentlichung; bei einem `v*`-Tag an das Release angehängt, sonst als Lauf-Artefakt |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | wann immer sich ein Lockfile ändert; `make licenses-check` lässt den Build scheitern, wenn es veraltet ist |
 | Diese Seite | von Hand | wann immer eine Komponente hinzukommt, entfällt oder zwischen den obigen Mengen wechselt |
 
-Lokal schreibt `make sbom` dieselben CycloneDX-Dokumente aus dem Quellbaum statt
-aus einem Image. Es braucht ein installiertes
-[syft](https://github.com/anchore/syft), gehört bewusst nicht zu `make check`,
-und sein Ergebnis unterscheidet sich von den Release-Dokumenten in genau einem
-erwähnenswerten Punkt: keine Schichten des Basis-Images, weil es kein Image gibt.
+`make sbom` schreibt etwas anderes, und die Namen sagen das:
+`sbom-source-api.cdx.json` und `sbom-source-frontend.cdx.json` sind Inventare
+dessen, was der **Quellbaum deklariert**, nicht dessen, was ein Image enthält.
+Sie tragen die Entwicklungs- und Dokumentations-Abhängigkeitsgruppen, sofern
+installiert, und keine der Schichten darunter — kein Basis-Image, keine
+Debian-Pakete, keine gebauten Artefakte. Nützlich, um einen Abhängigkeitssatz zu
+lesen, ohne zwei Images zu ziehen; nutzlos als Beleg dafür, was ein Release
+ausliefert — dafür sind die vier Dokumente oben da. Es braucht ein installiertes
+[syft](https://github.com/anchore/syft) und gehört bewusst nicht zu
+`make check`.
 
 Um das Inventar für ein Deployment zu erweitern, nehmen Sie das Release-SBOM für
 die Version, die Sie betreiben, ergänzen die Komponenten aus dem obigen Abschnitt

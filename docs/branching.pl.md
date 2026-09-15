@@ -1,5 +1,5 @@
 ---
-source_sha: "06eca1f705c9"
+source_sha: "66365d6bce1a"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -33,6 +33,7 @@ musiała usiąść, więc została usunięta.
 |---|---|
 | Żadnego bezpośredniego pusha do `main` | Ruleset — wymagany jest pull request |
 | Zielone CI przed mergem | Wymagane status checki: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| Żaden nowy alert code scanningu nie trafia do merge'a | Ochrona scalania na podstawie code scanningu w rulesecie. **Nie** status samych jobów `analyze`, który jest zielony niezależnie od tego, co analiza znalazła — zobacz [CodeQL](#codeql-runs-on-the-pull-request) niżej |
 | Squash przy mergu | Ruleset — jedyna dozwolona metoda merge'owania |
 | Rozwiązane wątki dyskusji | Ruleset |
 | Nieaktualne akceptacje odrzucane przy nowym pushu | Ruleset |
@@ -154,20 +155,32 @@ head, więc przekierowanie przenosi stary wynik dalej bez zmian; to jest wpisane
 w stackowanie, a nie coś, co wyzwalacz może naprawić, i jest to powód, żeby stosy
 były krótkie.
 
-CodeQL był drugim takim ograniczeniem. Działał z domyślnego setupu GitHuba w cyklu
+### CodeQL działa na pull requeście { #codeql-runs-on-the-pull-request }
+
+CodeQL był tu drugim ograniczeniem. Działał z domyślnego setupu GitHuba w cyklu
 tygodniowym, a jego wyzwalaczy nie ma w tym repozytorium, więc znalezisko trafiało
 na `main` już po scaleniu, które je wprowadziło. `.github/workflows/codeql.yml` to
 zastępuje ([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): analiza
 działa na pull requeście, na tym samym wyzwalaczu co wszystko inne tutaj,
 a tygodniowy pełny przebieg zostaje dla paczek zapytań, które aktualizują się
-między scaleniami. Oba nie mogą działać naraz — GitHub odmawia wgrania wyniku
-konfiguracji zaawansowanej, gdy skonfigurowany jest setup domyślny — więc włączenie
-tego workflow oznacza wyłączenie setupu domyślnego, a to ustawienie repozytorium,
-nie coś, co workflow może zrobić sam:
+między scaleniami. Do tego workflow dochodzą dwa ustawienia repozytorium i żadnego z nich nie zrobi
+on sam. Pierwsze: setup domyślny trzeba wyłączyć — GitHub odmawia wgrania wyniku
+konfiguracji zaawansowanej, dopóki jest skonfigurowany, więc oba nie mogą działać
+naraz:
 
 ```bash
 gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
 ```
+
+Drugie jest tym, co faktycznie odmawia scalenia. **Zielony job `analyze` znaczy, że
+analiza się wykonała, a nie że nic nie znalazła**: `codeql-action/analyze` wgrywa
+wyniki i kończy się kodem 0 niezależnie od tego, co w nich jest. Pull requesta
+blokuje
+[ochrona scalania na podstawie code scanningu](https://docs.github.com/en/code-security/code-scanning/managing-code-scanning-alerts/about-code-scanning-alerts),
+reguła w rulesecie `main` obok sześciu wymaganych statusów, konfigurowana narzędziem
+i progiem istotności. Bez niej alert jest widoczny na pull requeście i w zakładce
+Security, a scalenia nic nie zatrzymuje — czyli tam, gdzie to repozytorium było
+wcześniej, tylko wolniej.
 
 ### Każdy job ogranicza własny czas działania { #every-job-bounds-its-own-runtime }
 

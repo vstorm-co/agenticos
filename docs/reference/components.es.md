@@ -1,5 +1,5 @@
 ---
-source_sha: "1ad52431d0bf"
+source_sha: "d68ab617b471"
 ---
 
 # El inventario de componentes { #the-component-inventory }
@@ -21,9 +21,10 @@ desde un sistema de compilación.
     última sección explica cómo anotar esa mitad; esta página no puede
     escribirla por usted.
 
-El inventario legible por máquina se adjunta a cada versión como
-`sbom-api.cdx.json` y `sbom-frontend.cdx.json`, en
-[CycloneDX](https://cyclonedx.org/) 1.6 JSON. La evidencia de licencia de cada
+El inventario legible por máquina se adjunta a cada versión como cuatro
+documentos [CycloneDX](https://cyclonedx.org/) — uno por imagen **por
+arquitectura**, porque una etiqueta publicada es una lista de manifiestos y las
+dos variantes no contienen los mismos paquetes. La evidencia de licencia de cada
 componente está en
 [`THIRD_PARTY_NOTICES.md`](https://github.com/vstorm-co/agenticos/blob/main/THIRD_PARTY_NOTICES.md),
 y la revisión de lo que esas licencias obligan está en [Licencias y avisos de
@@ -39,8 +40,8 @@ versión que ejecuta debería leer ambos desde la misma etiqueta y no desde `mai
 
 | Artefacto | Dónde está | Qué nombra su versión |
 |---|---|---|
-| `sbom-api.cdx.json` | los recursos de la release de GitHub | la etiqueta `v*` a la que se adjunta |
-| `sbom-frontend.cdx.json` | los mismos | lo mismo |
+| `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | los recursos de la release de GitHub | la etiqueta `v*` a la que se adjuntan |
+| `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | los mismos | lo mismo |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | lo mismo |
 | `THIRD_PARTY_NOTICES.md` | el repositorio, en esa etiqueta | los ficheros lock en ese commit |
@@ -141,15 +142,20 @@ al inventario propio del despliegue.
 
 | Artefacto | Lo produce | Cuándo |
 |---|---|---|
-| `sbom-api.cdx.json`, `sbom-frontend.cdx.json` | el trabajo `sbom` en `.github/workflows/images.yml`, a partir de los manifiestos publicados | en cada publicación; se adjunta a la release con una etiqueta `v*` |
+| Los cuatro SBOM de la versión | el trabajo `sbom` en `.github/workflows/images.yml`, uno por imagen por arquitectura, a partir de los manifiestos publicados | en cada publicación; se adjuntan a la release con una etiqueta `v*`, y en otro caso quedan como artefacto del run |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | cuando cambia un fichero lock; `make licenses-check` hace fallar la compilación si está desactualizado |
 | Esta página | a mano | cuando un componente se añade, se elimina o pasa de uno de los conjuntos anteriores a otro |
 
-En local, `make sbom` escribe los mismos documentos CycloneDX desde el árbol de
-fuentes y no desde una imagen. Necesita [syft](https://github.com/anchore/syft)
-instalado, deliberadamente no forma parte de `make check`, y su salida se
-diferencia de los documentos de la versión en exactamente un punto que conviene
-conocer: no hay capas de la imagen base, porque no hay imagen.
+`make sbom` escribe otra cosa, y los nombres lo dicen:
+`sbom-source-api.cdx.json` y `sbom-source-frontend.cdx.json` son inventarios de
+lo que **declara el árbol de fuentes**, no de lo que contiene una imagen. Llevan
+los grupos de dependencias de desarrollo y de documentación si están instalados,
+y ninguna de las capas de debajo — ni imagen base, ni paquetes Debian, ni
+artefactos compilados. Útiles para leer un conjunto de dependencias sin
+descargar dos imágenes; inútiles como evidencia de lo que distribuye una
+versión, para lo cual están los cuatro documentos de arriba. Necesita
+[syft](https://github.com/anchore/syft) instalado y deliberadamente no forma
+parte de `make check`.
 
 Para ampliar el inventario de un despliegue, tome el SBOM de la versión que
 ejecuta, añada los componentes de la sección anterior con la versión y el

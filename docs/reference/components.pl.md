@@ -1,5 +1,5 @@
 ---
-source_sha: "1ad52431d0bf"
+source_sha: "d68ab617b471"
 ---
 
 # Inwentarz komponentów { #the-component-inventory }
@@ -19,9 +19,10 @@ podczas przeglądu bezpieczeństwa, a nie w systemie budowania.
     zostać wypisane wyłącznie przez to wdrożenie, które je wybrało. Ostatnia
     sekcja mówi, jak spisać tę drugą połowę; ta strona nie zrobi tego za Ciebie.
 
-Inwentarz odczytywalny maszynowo jest dołączany do każdego wydania jako
-`sbom-api.cdx.json` i `sbom-frontend.cdx.json`, w formacie
-[CycloneDX](https://cyclonedx.org/) 1.6 JSON. Dowody licencyjne dla każdego
+Inwentarz odczytywalny maszynowo jest dołączany do każdego wydania jako cztery
+dokumenty [CycloneDX](https://cyclonedx.org/) — po jednym na obraz **na
+architekturę**, bo opublikowany tag jest listą manifestów, a oba warianty nie
+zawierają tych samych pakietów. Dowody licencyjne dla każdego
 komponentu znajdziesz w
 [`THIRD_PARTY_NOTICES.md`](https://github.com/vstorm-co/agenticos/blob/main/THIRD_PARTY_NOTICES.md),
 a przegląd tego, do czego te licencje zobowiązują — w [Licencjach i notach
@@ -37,8 +38,8 @@ czytać oba z tego samego tagu, a nie z `main`.
 
 | Artefakt | Gdzie jest | Co nazywa jego wersję |
 |---|---|---|
-| `sbom-api.cdx.json` | zasoby wydania GitHub | tag `v*`, do którego jest dołączony |
-| `sbom-frontend.cdx.json` | tam samo | tak samo |
+| `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | zasoby wydania GitHub | tag `v*`, do którego są dołączone |
+| `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | tam samo | tak samo |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | tak samo |
 | `THIRD_PARTY_NOTICES.md` | repozytorium, na tym tagu | pliki lock w tym commicie |
@@ -136,15 +137,19 @@ do własnego inwentarza wdrożenia.
 
 | Artefakt | Wytwarzany przez | Kiedy |
 |---|---|---|
-| `sbom-api.cdx.json`, `sbom-frontend.cdx.json` | zadanie `sbom` w `.github/workflows/images.yml`, z opublikowanych manifestów | przy każdej publikacji; dołączany do wydania na tagu `v*` |
+| Cztery SBOM-y wydania | zadanie `sbom` w `.github/workflows/images.yml`, po jednym na obraz na architekturę, z opublikowanych manifestów | przy każdej publikacji; dołączane do wydania na tagu `v*`, w pozostałych przypadkach jako artefakt przebiegu |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | gdy zmienia się plik lock; `make licenses-check` przerywa budowanie, gdy plik jest nieaktualny |
 | Ta strona | ręcznie | gdy komponent zostaje dodany, usunięty lub przeniesiony między powyższymi zbiorami |
 
-Lokalnie `make sbom` zapisuje te same dokumenty CycloneDX z drzewa źródeł, a nie
-z obrazu. Wymaga zainstalowanego [syfta](https://github.com/anchore/syft),
-świadomie nie należy do `make check`, a jego wynik różni się od dokumentów
-wydania dokładnie w jednym wartym uwagi punkcie: nie ma warstw obrazu bazowego,
-bo nie ma obrazu.
+`make sbom` zapisuje coś innego i nazwy to mówią: `sbom-source-api.cdx.json`
+i `sbom-source-frontend.cdx.json` są inwentarzami tego, co **deklaruje drzewo
+źródeł**, a nie tego, co zawiera obraz. Niosą grupy zależności deweloperskich
+i dokumentacyjnych, jeśli są zainstalowane, i żadnej z warstw pod spodem — bez
+obrazu bazowego, bez pakietów Debiana, bez zbudowanych artefaktów. Przydatne do
+przeczytania zbioru zależności bez pobierania dwóch obrazów; bezużyteczne jako
+dowód tego, co dostarcza wydanie, do czego służą cztery dokumenty powyżej.
+Wymaga zainstalowanego [syfta](https://github.com/anchore/syft) i świadomie nie
+należy do `make check`.
 
 Aby rozszerzyć inwentarz dla wdrożenia, weź SBOM wydania dla uruchamianej wersji,
 dodaj komponenty z powyższej sekcji wraz z wersją i dostawcą każdego z nich

@@ -21,10 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - CodeQL runs on every pull request (`security-extended`, for Python,
   JavaScript/TypeScript, Rust and the workflows) instead of weekly on `main`
-  through GitHub's default setup, so a finding blocks the change that introduced
-  it. The weekly full run is kept for query packs that update between merges.
-  Switching the workflow on means switching default setup off — a repository
-  setting, named in `docs/branching.md`. (#1415)
+  through GitHub's default setup, so a finding is attached to the commit that
+  introduced it and is readable before the merge. The weekly full run is kept for
+  query packs that update between merges. Two repository settings go with it and
+  a workflow cannot make either — default setup has to be switched off, and
+  refusing the merge is code-scanning merge protection on `main`'s ruleset. Both
+  are named in `docs/branching.md`. (#1415)
 - `make audit-frontend` — `bun audit --audit-level=high` over `frontend/bun.lock`
   — in the `Security Scan` job and in `make check`. Nothing read that lockfile
   before. (#1415)

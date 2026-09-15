@@ -28,6 +28,7 @@ cost a second place for every change to sit, so it was removed.
 |---|---|
 | No direct push to `main` | Ruleset — a pull request is required |
 | CI green before merge | Required status checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| No new code-scanning alert merged | Code-scanning merge protection on the ruleset. **Not** the `analyze` jobs' own status, which is green whatever the analysis found — see [CodeQL](#codeql-runs-on-the-pull-request) below |
 | Squash on merge | Ruleset — the only allowed merge method |
 | Conversations resolved | Ruleset |
 | Stale approvals dismissed on a new push | Ruleset |
@@ -138,19 +139,31 @@ its parent, not against `main`** — checks belong to a head commit, so retarget
 carries the old result forward unchanged; that is inherent to stacking rather than
 something a trigger can fix, and it is a reason to keep stacks short.
 
-CodeQL used to be the second one. It ran from GitHub's default setup on a weekly
+### CodeQL runs on the pull request
+
+CodeQL used to be the second limit here. It ran from GitHub's default setup on a weekly
 schedule, whose triggers were not in this repository, so a finding arrived on `main`
 after the merge that introduced it. `.github/workflows/codeql.yml` replaces that
 ([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): the analysis runs on
 the pull request, on the same trigger as everything else here, and the weekly full
-run is kept for the query packs that update between merges. The two cannot coexist —
-GitHub refuses an advanced upload while default setup is configured — so switching
-the workflow on means switching default setup off, which is a repository setting
-rather than something the workflow can do:
+run is kept for the query packs that update between merges.
+
+Two repository settings go with the workflow, and it can make neither. The first is
+that default setup has to be switched off — GitHub refuses an advanced upload while
+it is configured, so the two cannot coexist:
 
 ```bash
 gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
 ```
+
+The second is what actually refuses a merge. **A green `analyze` job means the
+analysis ran, not that it found nothing**: `codeql-action/analyze` uploads its
+results and exits 0 whatever is in them. Blocking the pull request is
+[code scanning merge protection](https://docs.github.com/en/code-security/code-scanning/managing-code-scanning-alerts/about-code-scanning-alerts),
+a rule on `main`'s ruleset beside the six required status checks, configured with a
+tool and a severity threshold. Without it the alert is visible on the pull request
+and in the Security tab, and nothing stops the merge — which is where this repository
+was before, only slower.
 
 ### Every job bounds its own runtime
 

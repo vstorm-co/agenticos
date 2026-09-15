@@ -547,23 +547,30 @@ AUDIT_LEVEL ?= high
 audit-frontend:
 	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL)
 
-# A CycloneDX component inventory for the two published images, written to
-# `sbom/`. The release workflow runs the same generator against the images it
-# just published and attaches the result to the GitHub release (#1415), so a
-# deployment can answer "what is in it" without building it; this target is the
-# local equivalent, over the source tree rather than an image, and is what
-# `docs/reference/components.md` is regenerated from.
+# A CycloneDX inventory of what the *source tree* declares, written to `sbom/`.
+#
+# **It is not the release SBOM and is named so it cannot be mistaken for one.**
+# The release documents come from `images.yml`, which scans the published
+# manifest per architecture: they carry the base image's Debian packages, the
+# built artifacts, and nothing from a development environment. A `dir:` scan
+# carries the opposite - the dev and docs dependency groups and
+# `devDependencies` if they are installed, and none of the layers underneath -
+# so the two answer different questions and only one of them answers "what is in
+# the image".
+#
+# What this is for: reading a dependency set without pulling two images, and
+# diffing one branch's declared components against another's.
 #
 # Not in `check`: it needs `syft`, which is not part of the documented setup,
-# and it gates nothing - the release workflow is where it is load-bearing.
+# and it gates nothing.
 SBOM_DIR ?= sbom
 
 sbom:
 	@command -v syft >/dev/null || { echo "syft not installed - https://github.com/anchore/syft"; exit 1; }
 	mkdir -p $(SBOM_DIR)
-	syft scan dir:backend --output cyclonedx-json=$(SBOM_DIR)/sbom-api.cdx.json
-	syft scan dir:frontend --output cyclonedx-json=$(SBOM_DIR)/sbom-frontend.cdx.json
-	@echo "SBOM: written to $(SBOM_DIR)/"
+	syft scan dir:backend --output cyclonedx-json=$(SBOM_DIR)/sbom-source-api.cdx.json
+	syft scan dir:frontend --output cyclonedx-json=$(SBOM_DIR)/sbom-source-frontend.cdx.json
+	@echo "SBOM: source-dependency inventories written to $(SBOM_DIR)/ - not the release documents"
 
 # The other half of the `security` job: what the two images ship and under which
 # licences. `licenses` regenerates THIRD_PARTY_NOTICES.md from the lockfiles;
