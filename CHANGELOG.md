@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Every dependency upgraded to its newest release, with one deliberate cap.**
+  The scheduled freshness job had been red; it is green now. Notable moves:
+  Pydantic AI 2.35 -> 2.40, Starlette 1.3 -> 1.6, OpenTelemetry 1.39 -> 1.44,
+  `wrapt` 1 -> 2, `pytest-randomly` 4 -> 5, Next 16.2 -> 16.3, React 19.2 ->
+  19.3. The suite, both coverage gates, the licence inventory and the advisory
+  audit are all clean on it. (#1485)
+- **The MCP SDK is held below 2.0, and the reason is in `pyproject.toml`.** 2.0
+  migrates the whole SDK to `httpx2`, so `create_oauth_metadata_request` returns
+  an `httpx2.Request` that `PinnedAsyncClient` - an `httpx` client - refuses to
+  send. That client is where this platform's SSRF pinning and its `Host`/SNI
+  substitution live, and carrying a second HTTP library through the one path
+  where a remote server chooses the next address is how a check ends up applied
+  by one library and the request made by the other. Migrating the pinned client
+  to `httpx2` is its own change with its own tests; until then the cap is what
+  keeps the scheduled upgrade green rather than perpetually red. (#1485)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

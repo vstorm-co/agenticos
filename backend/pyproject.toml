@@ -59,6 +59,21 @@ dependencies = [
     "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.42.0",
     "genai-prices>=0.1.4",
     "pydantic-ai-slim[mcp]>=2.42.0",
+    # The MCP SDK, held below 2.0 deliberately (#1485).
+    #
+    # 2.0 migrates the whole SDK to `httpx2`, and `create_oauth_metadata_request`
+    # therefore returns an `httpx2.Request` - which `PinnedAsyncClient`, an
+    # `httpx` client, refuses to send. The fix is not a shim: this platform's
+    # SSRF pinning and its `Host`/SNI substitution live in that client
+    # (`app/core/pinned_http.py`, #860), and carrying a second HTTP library
+    # through the one path where a remote server chooses the next address is how
+    # a check ends up applied by one library and the request made by the other.
+    # 2.0 also renames `streamablehttp_client` and drops its `headers` argument.
+    #
+    # Migrating `PinnedAsyncClient` to `httpx2` is the real answer and it is its
+    # own change, with its own tests. Until then this cap is what keeps the
+    # scheduled freshness upgrade green rather than perpetually red.
+    "mcp<2",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
