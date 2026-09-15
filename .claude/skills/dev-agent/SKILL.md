@@ -1,6 +1,6 @@
 ---
 name: dev-agent
-description: AI development agent. Takes a requirements description and drives the full TDD cycle: design → tests → review → implement → review. Commits tests after review and the full implementation when done. Portable across repos — detects the project's own test runner, source/test layout, and CI command rather than assuming one.
+description: AI development agent. Opens a development branch and a stacked design branch up front, drives design and a general implementation plan to a reviewed, merged PR before any code exists, then — once merged — writes tests and the implementation on the development branch with review considered, without pushing. Portable across repos — detects the project's own test runner, source/test layout, branch naming and CI command rather than assuming one.
 user-invocable: true
 ---
 
@@ -17,6 +17,24 @@ user-invocable: true
 - `--max-impl-iterations N` — review rounds for the implementation phase (default: 3)
 - `--resume` — continue from the last checkpoint in `.dev-agent/state.json`
 
+## Shape of the workflow
+
+Two branches, two PRs, one hard human gate:
+
+```
+main ──▶ <dev-branch> (draft PR, open immediately) ──▶ <design-branch> (PR, design.md + implementation-plan.md)
+                ▲                                              │
+                └──────────────── merge, only once you say so ─┘
+                │
+                ▼ (local only, never pushed)
+          tests → review → implementation → review
+```
+
+The design/plan PR is the only one this skill ever expects merged before it keeps going,
+and it never decides that on its own — it always asks (§Phase 3). Everything after that
+merge stays local: this skill does not push the development branch again and does not
+open a third PR.
+
 ---
 
 ## Before the first phase — learn the repo
@@ -24,6 +42,14 @@ user-invocable: true
 This skill runs in any repo, so nothing below is hardcoded. Before Phase 1, determine
 and record (in `.dev-agent/state.json` under `repo_conventions`):
 
+- **Default branch** — `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`,
+  falling back to `git remote show origin | grep 'HEAD branch'`. Branch the development
+  branch from this, not an assumed `main`.
+- **Branch naming** — check recent branch names (`git branch -r`, or
+  `gh pr list --state all --json headRefName --limit 30`) for the prefix vocabulary
+  actually in use (`feat/`, `fix/`, `chore/`, or another scheme) and whether they embed
+  an issue number. Match it for both branches this skill creates; default to `feat/` when
+  nothing in the requirements suggests otherwise (a `fix`/`bug` framing → `fix/`).
 - **Source/test layout** — where implementation and test files live (`src/` + `tests/`,
   `lib/` + `spec/`, a per-package layout, etc.). Look at the existing tree, not a
   convention from another project.
@@ -66,15 +92,22 @@ All agent state lives in `.dev-agent/` (gitignored). The layout is:
 `state.json` schema:
 ```json
 {
-  "phase": "design | tests | review-tests | plan | implementation | review-impl | done",
+  "phase": "branches | design-plan | awaiting-design-merge | tests | review-tests | implementation | review-impl | done",
+  "slug": "<kebab-case, derived from requirements>",
+  "dev_branch": "<e.g. feat/<slug>>",
+  "design_branch": "<e.g. feat/<slug>-design>",
+  "dev_pr_url": "<set once the draft PR exists>",
+  "design_pr_url": "<set once the design/plan PR exists>",
   "review_iteration": 0,
   "ci_fix_iteration": 0,
   "max_test_iterations": 3,
   "max_impl_iterations": 3,
   "requirements_hash": "<sha256 of requirements.md>",
   "last_checkpoint": "<ISO 8601>",
-  "test_commit_sha": "<set at the end of Phase 3>",
+  "test_commit_sha": "<set at the end of Phase 5>",
   "repo_conventions": {
+    "default_branch": "<detected>",
+    "branch_prefix": "<detected>",
     "test_runner": "<detected command>",
     "ci_command": "<detected command>",
     "source_dir": "<detected path>",
@@ -91,24 +124,52 @@ All agent state lives in `.dev-agent/` (gitignored). The layout is:
 
 **New run** (`/dev-agent <requirements>`):
 1. Parse `--max-test-iterations` and `--max-impl-iterations` from args (default both to 3).
-2. Create `.dev-agent/` if it does not exist.
-3. Write the requirements text to `.dev-agent/requirements.md`.
-4. Run the repo-discovery pass above and record `repo_conventions`.
-5. Compute `sha256` of the requirements file and write `state.json` with `phase=design`,
-   all counters at 0, the parsed iteration limits, and `repo_conventions`.
+2. Refuse to start with an unclean working tree (`git status --porcelain` non-empty) —
+   ask the user to commit or stash first; this skill is about to create branches and must
+   not carry someone else's uncommitted work onto them.
+3. Create `.dev-agent/` if it does not exist.
+4. Write the requirements text to `.dev-agent/requirements.md`.
+5. Run the repo-discovery pass above and record `repo_conventions`.
+6. Derive `slug`: a 3–6 word kebab-case summary of the requirements.
+7. Compute `sha256` of the requirements file and write `state.json` with `phase=branches`,
+   `slug`, all counters at 0, the parsed iteration limits, and `repo_conventions`.
 
 **Resume** (`/dev-agent --resume`):
 1. Read `.dev-agent/state.json`.
 2. If it does not exist, tell the user there is nothing to resume.
 3. If `requirements_hash` has changed since the checkpoint, warn the user: "Requirements changed since last checkpoint — continuing anyway. Use `/dev-agent <requirements>` to restart from scratch."
-4. Ask: "Resume from phase **{phase}** (checkpoint: {last_checkpoint})? Or restart from scratch?" If the user chooses restart, delete `.dev-agent/` and re-run as a new run.
-5. Jump to the step matching `state.json.phase`.
+4. Ask: "Resume from phase **{phase}** (checkpoint: {last_checkpoint})? Or restart from scratch?" If the user chooses restart, delete `.dev-agent/` and re-run as a new run. Restarting from scratch does not touch or delete `dev_branch`/`design_branch` or their PRs — those are the user's now; say so.
+5. If the working tree is not on `dev_branch` (or `design_branch`, while `phase` is still `branches`/`design-plan`/`awaiting-design-merge`), check out the branch the phase expects before doing anything else.
+6. Jump to the step matching `state.json.phase`.
 
 ---
 
-### Phase 1 — Design
+### Phase 1 — Branches and the draft PR
 
-**Checkpoint**: set `phase=design` in `state.json`.
+**Checkpoint**: set `phase=branches`.
+
+1. Fetch and check out `repo_conventions.default_branch` at its latest commit
+   (`git fetch origin <default_branch> && git checkout <default_branch> && git merge --ff-only origin/<default_branch>`).
+2. Create the **development branch**, `dev_branch = <repo_conventions.branch_prefix><slug>`,
+   from it: `git checkout -b <dev_branch>`.
+3. Give it one commit that differs from `default_branch` — a new file,
+   `.dev-agent-branch-marker.md`, one line: `Development branch for: <one-line requirements
+   summary>.` (A branch identical to its base cannot open a PR.) Commit it using the
+   detected commit convention.
+4. Push it and open the PR **as a draft**:
+   `gh pr create --draft --base <default_branch> --head <dev_branch> --title "<title>" --body "Tracking branch for: <requirements summary>. Design and an implementation plan land first, on a stacked branch, for review before any code does."`
+   Record the URL as `state.json`'s `dev_pr_url`.
+5. Create the **design branch** from the development branch, locally, and switch to it:
+   `git checkout -b <design_branch>` where `design_branch = <dev_branch>-design`. Do not
+   push it yet — it has no commits of its own until Phase 2 produces something.
+6. Tell the user both branch names and the draft PR URL, then continue directly to
+   Phase 2 — this step needs no confirmation.
+
+---
+
+### Phase 2 — Design & Implementation Plan
+
+**Checkpoint**: set `phase=design-plan`. Working branch: `design_branch`.
 
 Spawn a subagent with these instructions:
 
@@ -120,24 +181,62 @@ Spawn a subagent with these instructions:
 > - Data flow between components
 > - Test strategy: for each component, state whether unit, integration, or e2e tests are appropriate and why
 >
-> Be concrete. Every item in the design must map to something testable.
+> Then produce `.dev-agent/implementation-plan.md` from `design.md` and
+> `requirements.md` alone — no test files exist yet, so this is necessarily a general,
+> component-by-component plan rather than one derived from concrete test cases:
+> - For each file to create or modify: the functions/methods it needs, in the order they
+>   should be written, and each one's contract (what it must do, its inputs/outputs,
+>   non-obvious detail, and dependencies on other functions).
+> - Call out anything the design leaves ambiguous enough that the eventual tests (Phase 4)
+>   could reasonably resolve it either way — the plan is guidance for Phase 6, not a
+>   contract tests must be bent to fit.
+>
+> Be concrete in both documents. Every item in the design must map to something testable.
 
-After the subagent completes, summarise the design in 3–5 bullet points and ask:
+After the subagent completes, summarise both documents and ask:
 
-> "Design complete. Key decisions:
+> "Design and implementation plan complete. Key decisions:
 > - {bullet 1}
 > - {bullet 2}
 > - ...
 >
-> Proceed to writing tests, or would you like to adjust the design first?"
+> Push this for review, or would you like to adjust either document first?"
 
-If the user requests adjustments, update `.dev-agent/design.md` accordingly, then ask again.
+If the user requests adjustments, update the documents accordingly, then ask again.
 
 ---
 
-### Phase 2 — Write Tests (TDD)
+### Phase 3 — Push the design branch, open its PR, and wait
 
-**Checkpoint**: set `phase=tests`.
+**Checkpoint**: set `phase=awaiting-design-merge`.
+
+1. Commit `.dev-agent/design.md` and `.dev-agent/implementation-plan.md` on
+   `design_branch`, using the detected commit convention.
+2. Push `design_branch` and open a PR **against `dev_branch`** (not the default branch):
+   `gh pr create --base <dev_branch> --head <design_branch> --title "<title>" --body "Design and implementation plan for: <requirements summary>."`
+   Record the URL as `state.json`'s `design_pr_url`.
+3. Tell the user, explicitly: the PR is open at `{design_pr_url}`, targeting `{dev_branch}`,
+   and this skill is now pausing — it will not write a single test or line of
+   implementation until that PR is merged.
+4. **Stop here.** Do not poll in a loop and do not proceed on your own judgment. When
+   the user next runs `/dev-agent --resume` (or otherwise nudges this skill to continue):
+   - Check `gh pr view <design_pr_url> --json state,mergedAt`.
+   - If it is not merged, say so and stop again — do not re-check repeatedly within the
+     same turn.
+   - If it **is** merged, still ask: "The design/implementation-plan PR shows merged —
+     proceed to writing tests?" Only continue once the user confirms. Merged-but-unconfirmed
+     is not a green light by itself; this is the one gate this skill never crosses alone.
+5. Once confirmed: check out `dev_branch` and fast-forward it to match the merge —
+   `git checkout <dev_branch> && git fetch origin <dev_branch> && git merge --ff-only origin/<dev_branch>`.
+   This should always be a clean fast-forward, because `dev_branch` never gained local
+   commits of its own beyond the Phase 1 marker; if it is not a clean fast-forward, stop
+   and tell the user rather than guessing at a merge.
+
+---
+
+### Phase 4 — Write Tests (TDD)
+
+**Checkpoint**: set `phase=tests`. Working branch: `dev_branch`.
 
 Spawn a subagent with these instructions:
 
@@ -151,12 +250,12 @@ Spawn a subagent with these instructions:
 > - Write tests BEFORE any implementation (TDD).
 > - Tests must fail right now because there is no implementation — this is expected and correct.
 > - Run the repo's test-collection/dry-run step (e.g. `pytest --collect-only`, `npm test -- --listTests`, the closest equivalent for this test runner) after writing to confirm every test is discovered.
-> - A collection failure caused by importing a module Phase 5 has not created yet is the expected TDD red state — leave it. Fix only errors that are the test file's own fault: a syntax error, a wrong import path, a missing fixture/conftest entry, or a reference to something the design does not call for.
+> - A collection failure caused by importing a module Phase 6 has not created yet is the expected TDD red state — leave it. Fix only errors that are the test file's own fault: a syntax error, a wrong import path, a missing fixture/conftest entry, or a reference to something the design does not call for.
 > - Do NOT write any implementation code — including a stub module, class, or function created only to satisfy an import.
 
 ---
 
-### Phase 3 — Review Loop: Tests
+### Phase 5 — Review Loop: Tests
 
 **Checkpoint**: set `phase=review-tests`, `review_iteration=0`.
 
@@ -179,50 +278,30 @@ assertions:
 Create a git commit for the test files only, using this repo's own commit-message
 convention (see `repo_conventions`; Conventional Commits' `test:` type is a reasonable
 default if the repo uses that style). Record the resulting commit's SHA as
-`state.json`'s `test_commit_sha` — Phase 6 needs it to scope its own review.
+`state.json`'s `test_commit_sha` — Phase 7 needs it to scope its own review. **Do not
+push this commit** — `dev_branch` stays local from here on (§Rules).
 
-**Checkpoint**: set `phase=plan` in `state.json` *before* asking the question below, not
-after the user answers it. Tests are already committed at this point, so if the session
-ends while waiting here, `--resume` must land in Phase 4, not repeat Phase 3 — a repeat
-would find nothing left to review or commit and stall.
+**Checkpoint**: set `phase=implementation` in `state.json` *before* asking the question
+below, not after the user answers it. Tests are already committed at this point, so if the
+session ends while waiting here, `--resume` must land in Phase 6, not repeat Phase 5 — a
+repeat would find nothing left to review or commit and stall.
 
 Ask the user:
 
-> "Tests committed. Review ran {N} round(s) and {X} issues were addressed. Proceed to implementation planning?"
+> "Tests committed locally (not pushed). Review ran {N} round(s) and {X} issues were addressed. Proceed to implementation?"
 
 ---
 
-### Phase 4 — Implementation Planning
-
-**Checkpoint**: set `phase=plan`.
-
-Spawn a subagent with these instructions:
-
-> Read `.dev-agent/design.md` and all test files. Produce `.dev-agent/implementation-plan.md`.
->
-> The plan must be file-by-file and function-by-function:
-> - For each file to create or modify: list the exact functions/methods to implement, in the order they should be written.
-> - For each function: state its contract (what it must do to make the tests pass), any non-obvious implementation detail, and dependencies on other functions.
->
-> The plan is done when following it step-by-step would make all tests pass.
-
-After the subagent completes, summarise the plan and ask:
-
-> "Implementation plan ready.
-> - Files to create/modify: {list}
-> - Estimated steps: {N}
->
-> Proceed with implementation?"
-
----
-
-### Phase 5 — Implement
+### Phase 6 — Implement
 
 **Checkpoint**: set `phase=implementation`.
 
 Spawn a subagent with these instructions:
 
-> Read `.dev-agent/implementation-plan.md` and all test files. Implement the feature step by step.
+> Read `.dev-agent/implementation-plan.md` and all test files. Implement the feature step
+> by step. The plan was written before the tests existed (§Phase 2) — where a test
+> disagrees with the plan on a genuinely ambiguous detail, the test wins; note the
+> deviation rather than silently picking one.
 >
 > Rules:
 > - After each logical chunk (one function or one class), run the repo's test runner
@@ -233,7 +312,7 @@ Spawn a subagent with these instructions:
 
 ---
 
-### Phase 6 — Review Loop: Implementation
+### Phase 7 — Review Loop: Implementation
 
 **Checkpoint**: set `phase=review-impl`, `review_iteration=0`.
 
@@ -241,30 +320,47 @@ Run the **review loop** (below) with `target=implementation`, reviewing every fi
 or modified since the test commit (`git diff --name-only <state.test_commit_sha> -- .
 ':!.dev-agent'`), and `max_iterations = state.max_impl_iterations`. Do not restrict this
 to the source directory alone — a real feature can also touch a migration, a config file,
-or a manifest outside it (this repository's own migrations live under `backend/alembic/`,
-for one), and a review scoped only to `<source_dir>` would ship those unreviewed.
+or a manifest outside it, and a review scoped only to `<source_dir>` would ship those
+unreviewed.
 
 After the loop returns, run the repo's aggregate pre-merge check
 (`repo_conventions.ci_command`) one final time. This must be fully green (no failures of
-any kind). If it fails, self-fix until green. As in Phase 3, pass an explicit base/diff
+any kind). If it fails, self-fix until green. As in Phase 5, pass an explicit base/diff
 reference if this repo's check needs one to compare against the real PR base rather than
 defaulting to the wrong branch on a stacked PR.
 
 Create a git commit for the implementation and any test changes, using this repo's commit
 convention (Conventional Commits' `feat:` type is a reasonable default if the repo uses
-that style).
+that style). **Do not push this commit** (§Rules).
 
 **Checkpoint**: set `phase=done`.
 
 Print a final summary:
 - Phases completed
 - Review rounds in each phase and total issues addressed
-- Commits created
+- Commits created, and that they are local-only
+- The still-open draft PR URL (`dev_pr_url`) and a reminder that pushing `dev_branch` and
+  marking it ready for review are left to the user
 - Any warnings emitted during CI self-fix loops
 
 ---
 
-## The review loop (used by Phases 3 and 6)
+## Rules
+
+- **Local past the design merge.** From Phase 4 onward, nothing on `dev_branch` is
+  pushed and no further PR is opened. The draft PR from Phase 1 stays exactly as opened
+  (still only the marker commit, or whatever the design merge added to it) until the user
+  pushes and un-drafts it themselves.
+- **The design/plan merge is the one gate this skill never crosses on its own** (§Phase 3,
+  step 4) — not on a timer, not because the API says `mergedAt` is set. Always ask.
+- **Branch hygiene.** `dev_branch` never gains local-only commits before the design merge
+  (§Phase 3, step 5 relies on this for a clean fast-forward). If something forces one —
+  a manual detour, a conflict resolution — say so explicitly rather than silently
+  fast-forwarding over lost work.
+
+---
+
+## The review loop (used by Phases 5 and 7)
 
 A bounded loop of automated review → fix, run against either the test files or the
 implementation files, tracking issues that survive multiple rounds.
