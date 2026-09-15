@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.442] - 2026-09-15
+
 ### Fixed
 
 - **An inline specialist no longer exports the prompts its parent asked to keep
