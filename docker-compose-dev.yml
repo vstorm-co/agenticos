@@ -272,6 +272,41 @@ services:
       - backend
     restart: unless-stopped
 
+  # An identity provider to test single sign-on against, off by default.
+  #
+  # `make dev` does not need one and nobody developing a chat surface should pay
+  # for a JVM starting, so it is behind a profile: `docker compose -f
+  # docker-compose-dev.yml --profile sso up -d keycloak`. The realm is imported
+  # rather than clicked together, so the client, its secret and the two users the
+  # SSO spec signs in as are the same on every machine - including the one whose
+  # address the provider has *not* verified, which is the refusal worth a test.
+  #
+  # Point the backend at it with, in `backend/.env`:
+  #   OIDC_ISSUER=http://localhost:8081/realms/agenticos
+  #   OIDC_CLIENT_ID=agenticos
+  #   OIDC_CLIENT_SECRET=e2e-client-secret
+  # and the frontend with OAUTH_PROVIDERS=google,oidc. Then `E2E_OIDC=1 make
+  # test-e2e`; without that variable the SSO spec skips itself.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    profiles: [sso]
+    command: start-dev --import-realm --http-port=8080
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # The issuer the backend discovers has to be the address the *browser* is
+      # sent to as well, or the authorization redirect leaves the browser at a
+      # host only the container network can resolve.
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./e2e-fixtures/keycloak:/opt/keycloak/data/import:ro
+    networks:
+      - backend
+
 networks:
   backend:
     # Named so `docker-compose-dev.frontend.yml`, a project of its own, can join

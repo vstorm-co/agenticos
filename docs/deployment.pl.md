@@ -1,5 +1,5 @@
 ---
-source_sha: "545cf7248027"
+source_sha: "120ab0941f7c"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -117,7 +117,13 @@ origin, na potrzeby zamiany mowy na tekst w czacie.
 ## Kto może się zarejestrować { #who-may-register }
 
 `signup_mode`, stosowany w `app/services/signup_policy.py` — w jednym miejscu,
-i bramkuje **obie** ścieżki, które tworzą konto.
+i bramkuje **każdą** ścieżkę tworzącą konto: formularz rejestracji i logowanie
+przez dostawcę tożsamości. Nic w callbacku OAuth ani OIDC nie wygląda jak
+rejestracja, a wdrożenie z logowaniem jednokrotnym i zamkniętym formularzem
+rejestracji wcale nie byłoby zamknięte, gdyby ta gałąź nie była bramkowana —
+więc `get_or_create_oauth_user` pyta tę samą politykę, zanim utworzy konto.
+Odrzucone logowanie SSO ląduje z powrotem na stronie logowania z własnym zdaniem
+polityki, tym samym, które pokazuje formularz rejestracji.
 
 | Tryb | Skutek |
 |---|---|

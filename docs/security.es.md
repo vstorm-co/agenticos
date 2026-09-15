@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "43d60a1d2506"
 ---
 
 # Seguridad { #security }
@@ -110,7 +110,9 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | JWT (HS256), contraseñas con bcrypt | `app/core/security.py` — `verify_token`, `get_password_hash` | `test_security.py`, `test_auth.py` |
 | Claves de API comparadas en tiempo constante | `secrets.compare_digest` (`app/api/deps.py`) | `test_auth.py`, las comprobaciones HMAC de webhooks en los adaptadores de canal |
 | Sesiones en base de datos con revocación | Tabla `sessions` + `SessionService`; token ligado a un claim `sid` (`app/services/session.py`, `app/api/routes/v1/sessions.py`) | `test_session_verify.py`, `test_session_revocation.py` |
-| Límite de peticiones en el login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Inicio de sesión único contra el propio proveedor de identidad del despliegue | OIDC genérico por discovery — authorization code con PKCE, `email_verified` obligatorio, la cuenta indexada por `sub` (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; se configura en [Inicio de sesión único](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
+| La política de registro controla el SSO igual que el formulario | `check_may_register` dentro de `get_or_create_oauth_user` — `invite_only` y la lista de dominios permitidos también rechazan un acceso por proveedor (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
+| Mapeo de grupos a roles, SAML, SCIM | **Todavía no** — la gente entra por el proveedor y una administradora la coloca | — |
 
 ### Controles de auditoría · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 

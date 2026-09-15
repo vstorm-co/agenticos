@@ -296,6 +296,16 @@ describe("starting an OAuth sign-in", () => {
     );
   });
 
+  it("starts the deployment's own OIDC provider, staged invitation and all (#1419)", async () => {
+    // An `invite_only` deployment that let the SSO button through without the
+    // handle would refuse exactly the invitations that need one.
+    const response = await get({ [stageCookie(FLOW)]: "h" }, "oidc", forFlow(FLOW));
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:8000/api/v1/oauth/oidc/login?invitation_handle=h",
+    );
+  });
+
   it("refuses a provider it does not know, rather than build a redirect from it", async () => {
     const response = await get({ [stageCookie(FLOW)]: "h" }, "../evil", forFlow(FLOW));
 

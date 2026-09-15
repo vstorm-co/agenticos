@@ -12,7 +12,7 @@ import { readPublicConfig } from "@/lib/public-config";
  * deployment. A sign-in with no staged invitation carries none, and the handle is
  * peeked, so it still closes the acceptance after the round trip.
  */
-const PROVIDERS = new Set(["google", "github", "microsoft"]);
+const PROVIDERS = new Set(["google", "github", "microsoft", "oidc"]);
 
 interface RouteParams {
   params: Promise<{ provider: string }>;

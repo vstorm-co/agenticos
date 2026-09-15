@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "43d60a1d2506"
 ---
 
 # Sicherheit { #security }
@@ -114,7 +114,9 @@ SOC 2 CC6–CC8.
 | JWT (HS256), bcrypt-Passwörter | `app/core/security.py` — `verify_token`, `get_password_hash` | `test_security.py`, `test_auth.py` |
 | API-Keys in konstanter Zeit verglichen | `secrets.compare_digest` (`app/api/deps.py`) | `test_auth.py`, HMAC-Prüfungen der Webhooks in den Kanal-Adaptern |
 | DB-gestützte Sessions mit Widerruf | Tabelle `sessions` + `SessionService`; Token an einen `sid`-Claim gebunden (`app/services/session.py`, `app/api/routes/v1/sessions.py`) | `test_session_verify.py`, `test_session_revocation.py` |
-| Rate-Limiting beim Login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Single Sign-on gegen den eigenen Identitätsanbieter des Deployments | Generisches OIDC per Discovery — Authorization Code mit PKCE, `email_verified` erforderlich, das Konto an `sub` gebunden (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; konfiguriert unter [Single Sign-on](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
+| Die Registrierungsrichtlinie sichert SSO wie das Formular | `check_may_register` innerhalb von `get_or_create_oauth_user` — `invite_only` und die Domain-Erlaubnisliste weisen auch eine Anbieter-Anmeldung ab (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
+| Gruppen-zu-Rollen-Zuordnung, SAML, SCIM | **Noch nicht** — Menschen melden sich über den Anbieter an, eine Administratorin ordnet sie ein | — |
 
 ### Audit-Kontrollen · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 

@@ -1406,8 +1406,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
-        ("GET", f"{V1}/oauth/google/login"),
-        ("GET", f"{V1}/oauth/google/callback"),
+        # One pair for every identity provider: `google`, and the deployment's
+        # own `oidc` (#1419). A provider it does not offer is a 404 from
+        # `sign_in_client`, not an authenticated route.
+        ("GET", f"{V1}/oauth/{{provider}}/login"),
+        ("GET", f"{V1}/oauth/{{provider}}/callback"),
         # The sign-in code exchange (#14). The callback redirects the browser
         # with a single-use, one-minute code instead of the tokens; the frontend
         # swaps it here server to server. There is no session yet - the code is

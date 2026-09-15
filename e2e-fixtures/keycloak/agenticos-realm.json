@@ -1,0 +1,61 @@
+{
+  "realm": "agenticos",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "clients": [
+    {
+      "clientId": "agenticos",
+      "name": "AgenticOS",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "e2e-client-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "redirectUris": [
+        "http://localhost:8000/api/v1/oauth/oidc/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "defaultClientScopes": ["openid", "email", "profile"]
+    }
+  ],
+  "users": [
+    {
+      "username": "ada",
+      "email": "ada@corp.example",
+      "emailVerified": true,
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "e2e-password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "unverified",
+      "email": "grace@corp.example",
+      "emailVerified": false,
+      "firstName": "Grace",
+      "lastName": "Hopper",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "e2e-password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
