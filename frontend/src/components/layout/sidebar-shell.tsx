@@ -18,6 +18,9 @@
  * - **Search sits under it** rather than in the destination list: it is an
  *   action, not a place, and what it finds is scoped by the organization
  *   directly above it.
+ * - **The bell sits beside search**, not in the footer with language and
+ *   theme: an unread run failure or a parked approval is worth noticing on
+ *   the way past, not tucked beside a settings icon nobody glances at.
  * - **The destinations scroll on their own.** With enough entries the list has
  *   to move; the organization above and the account below must not move with
  *   it.
@@ -36,6 +39,7 @@
 import type { ReactNode } from "react";
 
 import { LanguageSwitcherIcon } from "@/components/language-switcher";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
 import { OrgSwitcher } from "@/components/teams";
@@ -47,6 +51,7 @@ export function SidebarShell({ children }: { children: ReactNode }) {
       <div className="flex flex-col gap-1 px-3 py-3">
         <OrgSwitcher />
         <SidebarSearch />
+        <NotificationBell />
       </div>
 
       <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">{children}</div>

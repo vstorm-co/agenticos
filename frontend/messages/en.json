@@ -1790,6 +1790,14 @@
           "title": "Nothing ran in this period",
           "description": "The rhythm appears once there are runs to place on it."
         }
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "Your most recent unread notifications.",
+        "empty": {
+          "title": "You're all caught up",
+          "description": "Unread notifications will show up here."
+        }
       }
     },
     "edit": {
@@ -3083,6 +3091,10 @@
       "mcp-filter": {
         "title": "Find a server",
         "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
+      },
+      "notification-bell": {
+        "title": "Stay in the loop",
+        "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for each kind in Settings."
       },
       "org-members": {
         "title": "Who's in it",
@@ -5160,6 +5172,16 @@
       "public-sector": "Public sector and utilities",
       "legal": "Legal and professional services",
       "manufacturing": "Manufacturing and logistics"
+    }
+  },
+  "notifications": {
+    "markAllRead": "Mark all read",
+    "loadMore": "Load more",
+    "failedLoad": "Failed to load notifications",
+    "unreadCount": "{count, plural, =1 {1 unread notification} other {# unread notifications}}",
+    "empty": {
+      "title": "No notifications yet",
+      "description": "Budget alerts, approvals, run failures and more will show up here."
     }
   }
 }
