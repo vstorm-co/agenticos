@@ -615,7 +615,7 @@ async def trigger_sync_source(
 ) -> Any:
     """Trigger a manual sync for a configured source."""
     source = await access.sync_source(ctx, source_id)
-    sync_log = await sync_source_svc.trigger_sync(str(source.id))
+    sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
         status="running",

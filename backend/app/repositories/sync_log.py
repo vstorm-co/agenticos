@@ -47,6 +47,7 @@ async def create(
     mode: str,
     status: str = "running",
     sync_source_id: UUID | None = None,
+    triggered_by_user_id: UUID | None = None,
 ) -> SyncLog:
     """Create a new sync log record."""
     log = SyncLog(
@@ -55,6 +56,7 @@ async def create(
         mode=mode,
         status=status,
         sync_source_id=sync_source_id,
+        triggered_by_user_id=triggered_by_user_id,
     )
     db.add(log)
     await db.flush()

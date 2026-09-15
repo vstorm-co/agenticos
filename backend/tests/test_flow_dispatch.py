@@ -209,6 +209,7 @@ def _failed_document() -> SimpleNamespace:
         storage_path="rag/handbooks/policy.txt",
         collection_name="handbooks",
         filename="policy.txt",
+        ingestion_attempt=1,
     )
 
 

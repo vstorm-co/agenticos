@@ -233,18 +233,24 @@ async def ingest_path_async(
                     # returns `DONE` - the two travel together in `IngestionResult`.
                     assert result.document_id is not None
                     async with get_db_context() as db:
+                        # A fresh row per file, every run, the same as the sync
+                        # worker flows - this command has no retry concept, so
+                        # `attempt` is always `1`, the column's own default.
                         await RAGDocumentService(db).complete_ingestion(
                             doc_id,
                             vector_document_id=result.document_id,
                             chunk_count=result.chunk_count,
                             replaced_document_id=result.replaced_document_id,
+                            attempt=1,
                         )
                 else:
                     error_count += 1
                     tqdm.write(f"  ✗ {filepath.name}: {result.error_message}")
                     async with get_db_context() as db:
                         await RAGDocumentService(db).fail_ingestion(
-                            doc_id, error_message=result.error_message or "Unknown error"
+                            doc_id,
+                            error_message=result.error_message or "Unknown error",
+                            attempt=1,
                         )
             except Exception as e:
                 error_count += 1
@@ -257,6 +263,7 @@ async def ingest_path_async(
                     await RAGDocumentService(db).fail_ingestion(
                         doc_id,
                         error_message=failure_summary(e, stage=IngestionStage.INGEST),
+                        attempt=1,
                     )
 
     async with get_db_context() as db:

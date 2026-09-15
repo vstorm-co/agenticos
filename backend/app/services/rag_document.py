@@ -1,12 +1,13 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 """RAG document service."""
 
-import anyio
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -27,12 +28,15 @@ from app.schemas.rag import (
     RAGTrackedDocumentList,
 )
 from app.services.file_storage import get_file_storage
+from app.services.notifications import NotificationService
 from app.services.spend import assert_organization_within_budget
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
     IngestionOverride,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
@@ -126,6 +130,7 @@ class RAGDocumentService:
         ingestion_override: IngestionOverride | None = None,
         image_description_model: str | None = None,
         embedding_model: str | None = None,
+        initiated_by_user_id: UUID | None = None,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -140,6 +145,11 @@ class RAGDocumentService:
         `replace=false`, mean both to exist. Retiring by that name would delete
         the first one's failed row - its diagnosis, its retry and its stored file
         - for a caller who asked for no such thing.
+
+        `initiated_by_user_id` is who to notify about this document's outcome
+        (#1598) - `dispatch_upload` passes its caller's; a sync or a CLI ingest
+        passes none, and their `ingestion_completed`/`ingestion_failed` falls
+        back to the organization's administrators instead.
         """
         if source_path:
             await rag_document_repo.discard_failed(
@@ -165,6 +175,7 @@ class RAGDocumentService:
             ),
             image_description_model=image_description_model,
             embedding_model=embedding_model,
+            initiated_by_user_id=initiated_by_user_id,
         )
 
     async def dispatch_upload(
@@ -266,6 +277,7 @@ class RAGDocumentService:
             ingestion_override=override,
             image_description_model=image_model,
             embedding_model=collection.embedding_model,
+            initiated_by_user_id=ctx.user_id,
         )
         doc_id = rag_doc.id
 
@@ -277,6 +289,7 @@ class RAGDocumentService:
             filename=filename,
             file_data=file_data,
             replace=replace,
+            attempt=1,
         )
 
         return RAGIngestResponse(
@@ -295,8 +308,15 @@ class RAGDocumentService:
         filename: str,
         file_data: bytes,
         replace: bool,
+        attempt: int,
     ) -> None:
         """Put the file where the worker can read it and dispatch the parse.
+
+        `attempt` has no default: `dispatch_upload` passes `1`, `retry_ingestion`
+        its freshly bumped value, and each is a deliberate choice at the one
+        place that knows which attempt is being dispatched (#1598) - carried
+        through to `complete_ingestion`/`fail_ingestion` at settlement, per
+        Decision 1's "threaded through the call, not read back" rule.
 
         The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
         storage may be somewhere the worker container cannot reach, and the
@@ -324,6 +344,7 @@ class RAGDocumentService:
                 filepath=tmp_path,
                 source_path=filename,
                 replace=replace,
+                attempt=attempt,
             ),
             name=f"ingest-document-{doc_id}",
         )
@@ -335,17 +356,36 @@ class RAGDocumentService:
         *,
         chunk_count: int,
         replaced_document_id: str | None,
+        attempt: int,
     ) -> None:
         """Mark a document as successfully ingested, retiring what it replaced.
 
-        Neither keyword has a default on purpose. `chunk_count` had one, `0`,
-        and all four call sites took it - so every document in the product
-        reported an empty collection that answered searches perfectly well
-        (#147). `replaced_document_id` is the same shape of trap one step on: a
-        call site that omits it leaves a stale row behind and the collection
-        over-reports by exactly the size of the document just replaced.
+        Neither `chunk_count` nor `replaced_document_id` has a default on
+        purpose. `chunk_count` had one, `0`, and all four call sites took it -
+        so every document in the product reported an empty collection that
+        answered searches perfectly well (#147). `replaced_document_id` is the
+        same shape of trap one step on: a call site that omits it leaves a
+        stale row behind and the collection over-reports by exactly the size
+        of the document just replaced. `attempt` is the same shape again, one
+        layer up (#1598): it is the attempt this settlement is *about*,
+        carried from whichever call dispatched it (`dispatch_upload` or
+        `retry_ingestion`, by way of `ingest_document_flow`) rather than read
+        back from `doc.ingestion_attempt` here - a slow attempt settling after
+        a newer retry has already bumped that column would otherwise steal the
+        newer attempt's notification dedup key. A settlement whose `attempt`
+        no longer matches the row's current one belongs to a superseded retry
+        and is silently ignored, matching the delivery sweep's own "who still
+        holds the claim" rule one layer up (Decision 3).
         """
         doc = await self.get_document(doc_id)
+        if attempt != doc.ingestion_attempt:
+            logger.info(
+                "Ignoring a stale ingestion settlement for %s: attempt %d, current %d",
+                doc_id,
+                attempt,
+                doc.ingestion_attempt,
+            )
+            return
         await rag_document_repo.update_status(
             self.db,
             doc.id,
@@ -360,6 +400,9 @@ class RAGDocumentService:
                 vector_document_id=replaced_document_id,
                 keep_id=doc.id,
             )
+        await NotificationService(self.db).ingestion_completed(
+            doc, attempt=attempt, chunk_count=chunk_count
+        )
 
     async def _retire_superseded(
         self, *, collection_name: str, vector_document_id: str, keep_id: UUID
@@ -400,15 +443,32 @@ class RAGDocumentService:
                 name="retire-superseded-cleanup",
             )
 
-    async def fail_ingestion(self, doc_id: str, error_message: str) -> None:
-        """Mark a document ingestion as failed."""
+    async def fail_ingestion(self, doc_id: str, error_message: str, *, attempt: int) -> None:
+        """Mark a document ingestion as failed.
+
+        `attempt` carries the same "no default, threaded from dispatch, never
+        read back" rule `complete_ingestion` documents (#1598): a stale
+        settlement - from an attempt a later retry already superseded - is
+        ignored rather than overwriting a newer attempt's own outcome.
+        """
         doc = await self.get_document(doc_id)
+        if attempt != doc.ingestion_attempt:
+            logger.info(
+                "Ignoring a stale ingestion settlement for %s: attempt %d, current %d",
+                doc_id,
+                attempt,
+                doc.ingestion_attempt,
+            )
+            return
         await rag_document_repo.update_status(
             self.db,
             doc.id,
             status=DocumentStatus.ERROR,
             error_message=error_message,
             completed_at=datetime.now(UTC),
+        )
+        await NotificationService(self.db).ingestion_failed(
+            doc, attempt=attempt, error_message=error_message
         )
 
     async def retry_ingestion(self, doc_id: str) -> RAGDocument:
@@ -425,6 +485,12 @@ class RAGDocumentService:
         nothing - so a retry replaced the diagnosis with a document that would
         stay `processing` for ever, which is worse than the failure it was
         asked to fix.
+
+        Bumps `ingestion_attempt` before dispatching (#1598): this is a
+        resubmission of the same document id, not a new document, so without
+        a counter a second failure would carry the same notification dedup
+        key as the first and the unique constraint would silently drop it -
+        exactly when a person most wants to hear that the retry failed too.
 
         Raises:
             NotFoundError: If document does not exist.
@@ -443,12 +509,14 @@ class RAGDocumentService:
                 details={"doc_id": doc_id, "filename": doc.filename},
             )
         file_data = await get_file_storage().load(doc.storage_path)
+        new_attempt = doc.ingestion_attempt + 1
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
             status=DocumentStatus.PROCESSING,
             error_message="",
             completed_at=None,
+            ingestion_attempt=new_attempt,
         )
         if updated is None:
             raise NotFoundError(message="Document not found", details={"doc_id": doc_id})
@@ -458,6 +526,7 @@ class RAGDocumentService:
             filename=updated.filename,
             file_data=file_data,
             replace=True,
+            attempt=new_attempt,
         )
         return updated
 
