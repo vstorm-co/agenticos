@@ -25,7 +25,7 @@ import {
   type Scope,
 } from "@/components/mcp/mcp-server-list-types";
 import { slugForPrefix } from "@/lib/mcp-servers";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = [
   { value: "none", labelKey: "authChoiceNone", hintKey: "authNoneHint" },
@@ -67,7 +67,10 @@ export function McpConnectionDialog({
 }: McpConnectionDialogProps) {
   return (
     <Dialog open={draft !== null} onOpenChange={(open) => !open && !submitting && onClose()}>
-      <DialogContent className={DIALOG_FORM}>
+      {/* Scrolls as one piece: with OAuth chosen the form carries a client
+          block under the auth choice, and on a laptop viewport a dialog with
+          no ceiling put "Connect & check" below the fold. */}
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
         {draft !== null && (
           <ConnectionForm
             key={draft.existing?.id ?? draft.row.key}

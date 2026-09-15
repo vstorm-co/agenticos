@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { Input, Label } from "@/components/ui";
 
 interface McpOAuthClientFieldsProps {
@@ -30,9 +31,13 @@ export function McpOAuthClientFields({
   onClientSecretChange,
 }: McpOAuthClientFieldsProps) {
   const t = useTranslations("mcp");
-  // What the backend builds from `FRONTEND_URL`, which is this console's own
-  // address - the callback route lives in this app, not behind the API.
-  const redirectUrl = `${window.location.origin}/api/me/mcp-connections/oauth/callback`;
+  // The backend builds the redirect from `FRONTEND_URL`, the deployment's
+  // canonical console origin - which is what `PUBLIC_SITE_URL` configures on
+  // this side. The browser's own origin can differ from it (a port-forward, an
+  // internal hostname), and a redirect URL registered off that would never
+  // match the one the flow sends.
+  const { siteUrl } = usePublicConfig();
+  const redirectUrl = `${siteUrl}/api/me/mcp-connections/oauth/callback`;
 
   return (
     <div className="space-y-3 rounded-md border border-dashed p-3">

@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConnectOwnServerDialog, ConnectServerDialog } from "./connect-server-dialog";
+import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
+import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const create = vi.fn();
@@ -142,12 +144,29 @@ describe("ConnectServerDialog", () => {
       vi.spyOn(window, "open").mockReturnValue(null);
       Object.defineProperty(window, "location", {
         configurable: true,
-        value: { assign: vi.fn(), origin: "https://console.example" },
+        value: { assign: vi.fn(), origin: "http://forwarded.internal:8443" },
       });
       vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
 
-      open({ ...OAUTH_ENTRY, key: "hubspot", name: "HubSpot", url: "https://mcp.hubspot.com" });
-      // The redirect URL the provider has to hold, shown so nobody guesses it.
+      render(
+        <PublicConfigProvider
+          config={{ ...DEFAULT_PUBLIC_CONFIG, siteUrl: "https://console.example" }}
+        >
+          <ConnectServerDialog
+            entry={{
+              ...OAUTH_ENTRY,
+              key: "hubspot",
+              name: "HubSpot",
+              url: "https://mcp.hubspot.com",
+            }}
+            onClose={vi.fn()}
+          />
+        </PublicConfigProvider>,
+        { wrapper },
+      );
+      // The redirect URL the provider has to hold, shown so nobody guesses it -
+      // built from the deployment's configured origin, which is what the
+      // backend registers, not from whatever address this browser came in on.
       expect(
         screen.getByText("https://console.example/api/me/mcp-connections/oauth/callback"),
       ).toBeInTheDocument();
@@ -173,7 +192,7 @@ describe("ConnectServerDialog", () => {
       vi.spyOn(window, "open").mockReturnValue(null);
       Object.defineProperty(window, "location", {
         configurable: true,
-        value: { assign: vi.fn(), origin: "https://console.example" },
+        value: { assign: vi.fn() },
       });
       vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
 
