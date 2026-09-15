@@ -60,6 +60,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_non_api_key_secret_gets_no_stand_in": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/integration/test_notification_center.py::TestMandatoryEvents::test_a_metered_mandatory_write_within_budget_still_writes": "'budget' names the rate-limit allowance, not a spend cap; a write within it succeeds, no refusal",
     "tests/integration/test_notification_center.py::TestListInboxPagination::test_a_fully_gated_backlog_exhausts_its_fetch_budget": "'budget' names the pagination fetch-round bound, not a spend cap; no refusal",
+    "tests/integration/test_notification_delivery.py::TestRenderDispatch::test_budget_exceeded_renders_its_own_key_unchanged": "'budget' names the notification event type (budget_exceeded), not a spend cap; renders successfully, no refusal",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_an_unconditional_api_key_secret_gets_a_probe_value": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_embedding_resolution.py::TestCredentialDegradation::test_a_deleted_secret_degrades_to_no_key": "a missing secret degrades to no key rather than refusing, availability",
     "tests/test_embedding_resolution.py::TestCredentialDegradation::test_a_secret_of_the_wrong_kind_degrades": "a wrong-kind secret degrades to no key rather than refusing, availability",

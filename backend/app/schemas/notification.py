@@ -6,6 +6,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.db.models.notification import Notification
+from app.db.models.notification_delivery import NotificationDelivery
 from app.schemas.base import BaseSchema
 
 
@@ -44,3 +45,40 @@ class UnreadCountRead(BaseSchema):
 
 class MarkAllReadResult(BaseSchema):
     marked: int
+
+
+class FailedDeliveryRead(BaseSchema):
+    """One terminally failed delivery - the operational view, app-admin only.
+
+    Never `render_context`: this is a diagnostic list of what did not send,
+    not a way to read a notification's content out from under its recipient.
+    """
+
+    id: UUID
+    notification_id: UUID
+    event_type: str
+    recipient_user_id: UUID
+    channel: str
+    attempts: int
+    last_error: str | None = None
+    created_at: datetime
+
+    @classmethod
+    def from_row(
+        cls, delivery: NotificationDelivery, notification: Notification
+    ) -> FailedDeliveryRead:
+        return cls(
+            id=delivery.id,
+            notification_id=notification.id,
+            event_type=notification.event_type,
+            recipient_user_id=notification.recipient_user_id,
+            channel=delivery.channel,
+            attempts=delivery.attempts,
+            last_error=delivery.last_error,
+            created_at=delivery.created_at,
+        )
+
+
+class FailedDeliveryList(BaseSchema):
+    items: list[FailedDeliveryRead]
+    total: int

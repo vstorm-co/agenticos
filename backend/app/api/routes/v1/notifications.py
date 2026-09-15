@@ -1,18 +1,24 @@
-"""The notification inbox: a caller's own rows, nothing gated on a `Perm` (#1598).
+"""The notification inbox, and the deployment's own failed-delivery view (#1598).
 
-Every signed-in caller has an inbox, regardless of role - these four routes read
-and write only the caller's own `recipient_user_id`. What each row *shows* is
-still gate-checked (`docs/design/notification-center-plan.md`, Decision 7),
+Every signed-in caller has an inbox, regardless of role - the first four routes
+read and write only the caller's own `recipient_user_id`. What each row *shows*
+is still gate-checked (`docs/design/notification-center-plan.md`, Decision 7),
 inside the service, not at the route layer.
+
+The failed-deliveries view is the other shape entirely: `CurrentAppAdmin`-gated,
+deployment-wide, and diagnostic - a permanent send failure is an operational
+concern, not a tenant one (Decision 3).
 """
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import Auth, NotificationCenterSvc
+from app.api.deps import Auth, CurrentAppAdmin, NotificationCenterSvc, NotificationDeliverySvc
 from app.schemas.notification import (
+    FailedDeliveryList,
+    FailedDeliveryRead,
     MarkAllReadResult,
     NotificationList,
     NotificationRead,
@@ -56,3 +62,19 @@ async def mark_notification_read(
 @router.post("/notifications/mark-all-read", response_model=MarkAllReadResult)
 async def mark_all_notifications_read(service: NotificationCenterSvc, ctx: Auth) -> Any:
     return MarkAllReadResult(marked=await service.mark_all_read(ctx))
+
+
+@router.get("/admin/notifications/deliveries", response_model=FailedDeliveryList)
+async def list_failed_notification_deliveries(
+    service: NotificationDeliverySvc,
+    _user: CurrentAppAdmin,
+    status: Literal["failed"] = Query(
+        "failed", description="Only terminally failed deliveries are listed today"
+    ),
+    skip: int = Query(0, ge=0, description="Items to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max items to return"),
+) -> Any:
+    """Deliveries that exhausted their retries, deployment-wide, newest first."""
+    rows, total = await service.list_failed(skip=skip, limit=limit)
+    items = [FailedDeliveryRead.from_row(delivery, notification) for delivery, notification in rows]
+    return FailedDeliveryList(items=items, total=total)
