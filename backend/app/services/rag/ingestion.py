@@ -57,16 +57,17 @@ class IngestionService:
         self.processor = processor
         self.store = vector_store
         self._on_event = on_event
-        # The trusted tenant this ingester works for, bound once from server
-        # context (the uploading document's organization, the sync source's, the
-        # flow's) rather than passed per file. It stamps every chunk written and
-        # scopes every existing-document lookup and replace-delete, so one
+        # The organization this ingester works for, bound once from server
+        # context (the uploading document's, the sync source's, the flow's)
+        # rather than passed per file. The store resolves it to the collection's
+        # vector tenant - the same knowledge base the embedding key comes from,
+        # an app-scoped base as the deployment-wide fallback - and scopes the
+        # existing-document lookup and the replace-delete to it, so one
         # organization cannot find, overwrite or delete another's document in a
         # collection whose name they happen to share (#1684). `None` is a
-        # deployment-wide ingester - the CLI, a local-path sync - which owns no
-        # tenant's rows and whose writes carry no tenant tag. Bound rather than
-        # per-call because `ingest_file` has many callers and an argument each of
-        # them may omit is one some caller will (the trap #992 was).
+        # deployment-wide ingester - the CLI, a local-path sync. Bound rather
+        # than per-call because `ingest_file` has many callers and an argument
+        # each of them may omit is one some caller will (the trap #992 was).
         self._organization_id = organization_id
 
     async def _emit(self, event: str, data: dict[str, object]) -> None:
@@ -174,7 +175,6 @@ class IngestionService:
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,
-                organization_id=self._organization_id,
             )
 
             if existing_id:

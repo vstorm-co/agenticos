@@ -27,10 +27,13 @@ from sqlalchemy import text
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
 from app.services.rag.models import SearchResult
 from app.services.rag.vectorstore import PgVectorStore
 
-pytestmark = pytest.mark.anyio
+# Every test here is a tenant-isolation refusal, so the whole module carries the
+# security marker the refusal report collects.
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 COLLECTION = "handbook"
 TABLE = f"rag_{COLLECTION}"
@@ -40,16 +43,44 @@ SOURCE_PATH = "/srv/sync/handbook.pdf"
 CONTENT_HASH = "hash-shared"
 
 
-async def _no_resolution(_name: str, _organization_id: object = None) -> None:
-    return
+def _resolved(vector_tenant: uuid.UUID | None) -> ResolvedEmbeddings:
+    return ResolvedEmbeddings(
+        model="text-embedding-3-small",
+        dim=3,
+        api_key="",
+        key_source=EmbeddingKeySource.KEYLESS,
+        base_url="",
+        provider="openrouter",
+        vector_tenant=vector_tenant,
+    )
 
 
-def _store(engine: AsyncEngine) -> PgVectorStore:
+async def _org_scoped_resolver(
+    name: str, organization_id: uuid.UUID | None = None
+) -> ResolvedEmbeddings:
+    """Stand-in for org-scoped collections: the caller's own organization is its
+    vector tenant, so each org resolves to and scopes by its own rows."""
+    return _resolved(organization_id)
+
+
+async def _deployment_wide_resolver(
+    name: str, organization_id: uuid.UUID | None = None
+) -> ResolvedEmbeddings:
+    """Stand-in for an app-scoped collection: deployment-wide, so it resolves to
+    no tenant no matter which organization is reading (#1684)."""
+    return _resolved(None)
+
+
+def _store(engine: AsyncEngine, resolver: object = _org_scoped_resolver) -> PgVectorStore:
     store = PgVectorStore.__new__(PgVectorStore)
     store.async_session = async_sessionmaker(engine, expire_on_commit=False)
     store.dim = 3
-    store.embedder = None  # type: ignore[assignment]  # unread for DDL, see _no_resolution
-    store._resolver = _no_resolution  # type: ignore[assignment]
+    store.embedder = None  # type: ignore[assignment]  # unread for DDL and the scoped ops
+    store._resolver = resolver  # type: ignore[assignment]
+    # The resolver now returns a real resolution, so `_for_collection` reaches its
+    # embedder cache; DDL and the scoped row ops only read the resolved width and
+    # tenant, never build a client.
+    store._services = {}
     return store
 
 
@@ -184,8 +215,10 @@ async def test_search_does_not_leak_another_tenants_chunk_content(engine: AsyncE
 
     store = _store(engine)
     await _seed_both_tenants(store)
+    # The embedder is stubbed so the query does not go to a provider; the tenant
+    # it returns (ORG_A) is what the search must scope its rows by.
     embedder = MagicMock(embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]))
-    store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
+    store._for_collection = AsyncMock(return_value=(embedder, 3, ORG_A))  # type: ignore[method-assign]
 
     results: list[SearchResult] = await store.search(
         COLLECTION, "anything", limit=10, organization_id=ORG_A
@@ -193,6 +226,27 @@ async def test_search_does_not_leak_another_tenants_chunk_content(engine: AsyncE
 
     contents = {r.content for r in results}
     assert contents == {"content of doc-a"}
+
+
+async def test_an_app_scoped_collection_stays_deployment_wide(engine: AsyncEngine) -> None:
+    """A collection that resolves to no tenant - an app-scoped base every
+    organization reads - is not scoped away by a caller's own organization: its
+    untagged rows stay visible, and its writes stay untagged (#1684)."""
+    store = _store(engine, resolver=_deployment_wide_resolver)
+    await store._ensure_collection(COLLECTION)
+    await _insert(store, doc_id="doc-app", organization_id=None)
+    await _insert(store, doc_id="doc-b", organization_id=ORG_B)
+
+    # A member of some organization reads the app collection; it resolves to no
+    # tenant, so the deployment-wide (untagged) row is found and the org-tagged
+    # decoy is not.
+    hit = await store.find_existing_document(
+        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, organization_id=ORG_A
+    )
+    docs = await store.get_documents(COLLECTION, ORG_A)
+
+    assert hit is not None and hit.document_id == "doc-app"
+    assert [d.document_id for d in docs] == ["doc-app"]
 
 
 async def test_the_deployment_wide_caller_sees_only_untagged_rows(engine: AsyncEngine) -> None:

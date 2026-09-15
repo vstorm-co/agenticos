@@ -42,7 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
-from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.session import get_db_context
 from app.repositories import knowledge_base_repo, local_service_repo, organization_secret_repo
 from app.services.rag import embedding_providers
@@ -154,6 +154,16 @@ class ResolvedEmbeddings:
     # Empty, with an empty key, for a provider this build no longer offers.
     base_url: str
     provider: str
+    # The tenant this collection's vectors are stamped and scoped by on the
+    # shared runtime table (#1684). A collection name is not unique across
+    # organizations, so two that pick the same name share one physical table;
+    # this keeps each organization's rows its own. `None` is a deployment-wide
+    # collection - an app-scoped base every organization reads, or one no
+    # knowledge base claims at all - whose rows carry no tenant. Resolution is
+    # already the place that maps a caller's organization to the one knowledge
+    # base it may read for a shared name (#913), so the tenant to scope by rides
+    # home with the key rather than being resolved a second time.
+    vector_tenant: UUID | None = None
 
     def __repr__(self) -> str:
         return (
@@ -230,6 +240,9 @@ async def embeddings_for_collection(
             key_source=key_source,
             base_url=base_url,
             provider=kb.embedding_provider,
+            # An app-scoped base is deployment-wide - every organization reads it,
+            # so its rows carry no tenant; any other scope carries its own (#1684).
+            vector_tenant=None if kb.scope == KBScope.APP.value else kb.organization_id,
         )
 
 

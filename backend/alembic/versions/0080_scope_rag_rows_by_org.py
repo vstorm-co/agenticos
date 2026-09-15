@@ -66,18 +66,22 @@ def _runtime_vector_tables(conn: Connection) -> list[str]:
 def _sole_organization(conn: Connection, collection_name: str) -> str | None:
     """The one organization that owns this collection name, or None if not one.
 
-    None means the name maps to zero organizations (personal/app/local only) or
-    to several (a shared name). Either way its existing rows cannot be attributed
-    to a single tenant and are left untagged.
+    Returns an organization only when *every* knowledge base for the name belongs
+    to that same organization. None means the name maps to zero organizations
+    (personal/app/local only), to several (an org-shared name), or to a mix of one
+    organization and an app-scoped base every organization reads - a legacy app
+    base and an org base can share a name, and its untagged rows might belong to
+    either, so attributing them all to the organization would misassign the
+    deployment-wide ones. Any of those leaves the existing rows untagged.
     """
     rows = conn.execute(
-        text(
-            "SELECT DISTINCT organization_id FROM knowledge_bases "
-            "WHERE collection_name = :c AND organization_id IS NOT NULL"
-        ),
+        text("SELECT DISTINCT organization_id FROM knowledge_bases WHERE collection_name = :c"),
         {"c": collection_name},
     ).fetchall()
-    return str(rows[0][0]) if len(rows) == 1 else None
+    orgs = {row[0] for row in rows}
+    if len(orgs) == 1 and None not in orgs:
+        return str(next(iter(orgs)))
+    return None
 
 
 def upgrade() -> None:

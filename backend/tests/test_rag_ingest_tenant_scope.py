@@ -37,7 +37,9 @@ from app.services.rag.models import (
 )
 from app.services.rag.vectorstore import PgVectorStore
 
-pytestmark = pytest.mark.anyio
+# Every test here is a tenant-isolation refusal, so the whole module carries the
+# security marker the refusal report collects.
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 ORG_A = uuid.uuid4()
 ORG_B = uuid.uuid4()
@@ -73,18 +75,6 @@ class TestTheIngesterThreadsItsBoundTenant:
     Bound rather than passed per file so `ingest_file`'s many callers cannot each
     forget it - the trap #992 was, an argument some caller omits.
     """
-
-    async def test_insert_stamps_the_bound_tenant(self):
-        service, store = _service(ORG_A)
-
-        await service.ingest_file(
-            filepath=Path("handbook.pdf"),
-            collection_name="kb",
-            replace=True,
-            source_path="/srv/sync/handbook.pdf",
-        )
-
-        assert store.insert_document.await_args.kwargs["organization_id"] == ORG_A
 
     async def test_the_existence_lookup_is_scoped_to_the_bound_tenant(self):
         service, store = _service(ORG_A)
@@ -176,15 +166,29 @@ class TestPgVectorStoreScopesEveryRowOp:
     """Each statement carries the tenant conjunct and binds the value (#1684)."""
 
     @staticmethod
-    def _store_over(execute: AsyncMock) -> PgVectorStore:
+    def _store_over(execute: AsyncMock, *, tenant: uuid.UUID | None = ORG_A) -> PgVectorStore:
+        """A store whose collection resolves to `tenant`.
+
+        The row ops resolve the collection's tenant before scoping, so the stub
+        lives on `_tenant` and `_for_collection` rather than on the caller's
+        organization argument - which is why passing an organization does not
+        change what these assert.
+        """
         session = MagicMock(execute=execute, commit=AsyncMock())
         session_ctx = MagicMock()
         session_ctx.__aenter__ = AsyncMock(return_value=session)
         session_ctx.__aexit__ = AsyncMock(return_value=False)
+        embedder = MagicMock(
+            embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]),
+            embed_document=MagicMock(return_value=[[0.1, 0.2, 0.3]]),
+        )
         store = PgVectorStore.__new__(PgVectorStore)
         store.async_session = MagicMock(return_value=session_ctx)
         store._collection_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
         store._table = MagicMock(return_value="rag_kb")  # type: ignore[method-assign]
+        store._ensure_collection = AsyncMock()  # type: ignore[method-assign]
+        store._tenant = AsyncMock(return_value=tenant)  # type: ignore[method-assign]
+        store._for_collection = AsyncMock(return_value=(embedder, 3, tenant))  # type: ignore[method-assign]
         return store
 
     async def test_find_existing_document_binds_the_tenant_on_each_key(self):
@@ -200,9 +204,9 @@ class TestPgVectorStoreScopesEveryRowOp:
             assert "(metadata->>'organization_id') = :org" in statement
             assert call.args[1]["org"] == str(ORG_A)
 
-    async def test_find_existing_document_uses_is_null_for_the_deployment_wide_caller(self):
+    async def test_find_existing_document_uses_is_null_for_the_deployment_wide_collection(self):
         execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
-        store = self._store_over(execute)
+        store = self._store_over(execute, tenant=None)
 
         await store.find_existing_document("kb", source_path="/p/x.pdf", content_hash="h")
 
@@ -242,7 +246,6 @@ class TestPgVectorStoreScopesEveryRowOp:
     async def test_search_scopes_reads_by_tenant(self):
         execute = AsyncMock(return_value=MagicMock(fetchall=MagicMock(return_value=[])))
         store = self._store_over(execute)
-        store._for_collection = AsyncMock(return_value=(MagicMock(embed_query=lambda q: [0.1]), 3))  # type: ignore[method-assign]
 
         await store.search("kb", "query", limit=4, organization_id=ORG_A)
 
@@ -253,7 +256,6 @@ class TestPgVectorStoreScopesEveryRowOp:
     async def test_get_collection_info_counts_only_the_tenants_rows(self):
         execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=2)))
         store = self._store_over(execute)
-        store._for_collection = AsyncMock(return_value=(MagicMock(), 3))  # type: ignore[method-assign]
 
         info = await store.get_collection_info("kb", ORG_A)
 
@@ -263,11 +265,11 @@ class TestPgVectorStoreScopesEveryRowOp:
         assert info.total_vectors == 2
 
 
-class TestInsertActuallyWritesTheTenantIntoTheStatementParams:
-    """`insert_document` renders the tenant into the JSON metadata parameter it
-    binds, which is what the scoped reads later match on."""
+class TestInsertResolvesAndWritesTheTenant:
+    """`insert_document` resolves the collection's tenant and renders it into the
+    JSON metadata parameter it binds, which is what the scoped reads match on."""
 
-    async def test_the_inserted_metadata_json_carries_the_tenant(self):
+    async def test_the_inserted_metadata_json_carries_the_resolved_tenant(self):
         execute = AsyncMock()
         session = MagicMock(execute=execute, commit=AsyncMock())
         session_ctx = MagicMock()
@@ -278,10 +280,10 @@ class TestInsertActuallyWritesTheTenantIntoTheStatementParams:
         store._table = MagicMock(return_value="rag_kb")  # type: ignore[method-assign]
         store._ensure_collection = AsyncMock()  # type: ignore[method-assign]
         store._for_collection = AsyncMock(  # type: ignore[method-assign]
-            return_value=(MagicMock(embed_document=lambda d: [[0.1]]), 3)
+            return_value=(MagicMock(embed_document=lambda d: [[0.1]]), 3, ORG_A)
         )
 
-        await store.insert_document("kb", _document(), ORG_A)
+        await store.insert_document("kb", _document())
 
         rows = execute.await_args.args[1]
         assert json.loads(rows[0]["metadata"])["organization_id"] == str(ORG_A)

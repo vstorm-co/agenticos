@@ -353,6 +353,10 @@ class TestTheIndexedLookupIssuesOneStatementPerKey:
         store.async_session = MagicMock(return_value=session_ctx)
         store._collection_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
         store._table = MagicMock(return_value="rag_kb")  # type: ignore[method-assign]
+        # The lookup resolves the collection's tenant before scoping; a
+        # deployment-wide (None) tenant keeps these precedence assertions about
+        # the source_path/filename/content_hash keys, not the tenant conjunct.
+        store._tenant = AsyncMock(return_value=None)  # type: ignore[method-assign]
         return store
 
     @staticmethod
@@ -431,6 +435,7 @@ class TestGetDocumentsIsDeterministic:
         store.async_session = MagicMock(return_value=session_ctx)
         store._collection_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
         store._table = MagicMock(return_value="collection_kb")  # type: ignore[method-assign]
+        store._tenant = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
         await store.get_documents("kb")
 
