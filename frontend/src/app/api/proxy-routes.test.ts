@@ -27,6 +27,7 @@ import * as kb from "./kb/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
+import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
 import * as dashboardLayout from "./me/dashboard-layout/route";
 import * as dashboardPresets from "./me/dashboard-layout/presets/route";
@@ -97,6 +98,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/mcp-connections/[id]/test", myMcpConnectionTest],
   ["me/mcp-connections/oauth/start", mcpOauthStart],
   ["me/slash-commands", slashCommands],
+  ["notifications", notifications],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],

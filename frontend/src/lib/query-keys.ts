@@ -344,6 +344,9 @@ export const qk = {
   slashCommands: {
     list: () => ["slash-commands", "list"] as const,
   },
+  notifications: {
+    preferences: () => ["notifications", "preferences"] as const,
+  },
   mcpConnections: {
     list: () => ["mcp-connections", "list"] as const,
     workspace: () => ["mcp-connections", "workspace"] as const,
