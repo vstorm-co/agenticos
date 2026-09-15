@@ -55,6 +55,23 @@ def _use_fake(monkeypatch: pytest.MonkeyPatch, script: Path) -> None:
     monkeypatch.setattr(office_convert, "soffice_command", lambda: str(script))
 
 
+def _spy_group_pids(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Record the process-group ids teardown signals, then signal for real.
+
+    Captures the pid convert_to_pdf actually spawned without depending on the
+    fake writing it to a file - which races the conversion timeout under load.
+    """
+    seen: list[int] = []
+    real = office_convert._signal_group
+
+    def spy(pid: int, sig: signal.Signals) -> None:
+        seen.append(pid)
+        real(pid, sig)
+
+    monkeypatch.setattr(office_convert, "_signal_group", spy)
+    return seen
+
+
 async def _wait_gone(pid: int, timeout: float = 5.0) -> bool:
     """Poll until `pid` no longer exists, returning whether it went away."""
     deadline = asyncio.get_running_loop().time() + timeout
@@ -168,21 +185,16 @@ async def test_a_conversion_past_its_deadline_is_killed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A hang raises promptly and the subprocess is gone, not left running."""
-    script = _write_fake_soffice(
-        tmp_path,
-        "(outdir / 'pids.txt').write_text(str(os.getpid()))\ntime.sleep(3600)\n",
-    )
+    script = _write_fake_soffice(tmp_path, "time.sleep(3600)\n")
     _use_fake(monkeypatch, script)
+    pids = _spy_group_pids(monkeypatch)
 
-    # The ceiling is generous enough that the fake has surely started and
-    # recorded its pid before it fires - the interpreter's own startup, not the
-    # kill, is the slow part - so a missing pids.txt would mean a real failure.
     with pytest.raises(OfficeConversionTimeout) as excinfo:
-        await convert_to_pdf(tmp_path / "huge.doc", tmp_path, timeout_seconds=2.0)
+        await convert_to_pdf(tmp_path / "huge.doc", tmp_path, timeout_seconds=0.3)
 
     assert "huge.doc" in str(excinfo.value)
-    pid = int((tmp_path / "pids.txt").read_text())
-    assert await _wait_gone(pid), "soffice was left running after the timeout"
+    assert pids, "teardown never signalled the process group"
+    assert await _wait_gone(pids[0]), "soffice was left running after the timeout"
 
 
 async def test_a_subprocess_that_ignores_sigterm_is_killed(
@@ -192,33 +204,35 @@ async def test_a_subprocess_that_ignores_sigterm_is_killed(
     monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
     script = _write_fake_soffice(
         tmp_path,
-        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-        "(outdir / 'pids.txt').write_text(str(os.getpid()))\n"
-        "time.sleep(3600)\n",
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(3600)\n",
     )
     _use_fake(monkeypatch, script)
+    pids = _spy_group_pids(monkeypatch)
 
     with pytest.raises(OfficeConversionTimeout):
-        await convert_to_pdf(tmp_path / "stubborn.doc", tmp_path, timeout_seconds=2.0)
+        await convert_to_pdf(tmp_path / "stubborn.doc", tmp_path, timeout_seconds=0.3)
 
-    pid = int((tmp_path / "pids.txt").read_text())
-    assert await _wait_gone(pid), "a SIGTERM-ignoring soffice survived"
+    assert pids, "teardown never signalled the process group"
+    assert await _wait_gone(pids[0]), "a SIGTERM-ignoring soffice survived"
 
 
 async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """soffice forks helpers; killing only the launcher would orphan them.
+    """The P1 case: the launcher exits on SIGTERM while a helper ignores it.
 
-    The fake spawns a child in the same process group and both are recorded;
-    tearing the group down must leave neither behind.
+    soffice forks helpers into its group; if teardown waited only on the
+    launcher it would return with a helper still running. The helper here traps
+    SIGTERM and ticks a heartbeat file, so only the group-wide SIGKILL can stop
+    it - a heartbeat that goes still proves the whole group was reaped, without
+    the reap-timing ambiguity of polling for a zombie pid. Teardown is driven
+    directly, after the group is confirmed up, so nothing races an internal
+    timeout.
     """
-    # The helper ticks a heartbeat file while it runs. Once its parent (the
-    # launcher) is killed it may linger as a zombie before init reaps it, so
-    # "is the pid gone" cannot tell killed from not-yet-reaped - a stalled
-    # heartbeat can.
+    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
     child = _write_fake_soffice(
         tmp_path,
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
         "n = 0\n"
         "while True:\n"
         "    (outdir / 'heartbeat.txt').write_text(str(n))\n"
@@ -228,22 +242,30 @@ async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
     )
     parent = _write_fake_soffice(
         tmp_path,
-        f"subprocess.Popen([{str(child)!r}, '--outdir', str(outdir), 'x'])\n"
-        "(outdir / 'launcher_pid.txt').write_text(str(os.getpid()))\n"
-        "time.sleep(3600)\n",
+        f"subprocess.Popen([{str(child)!r}, '--outdir', str(outdir), 'x'])\ntime.sleep(3600)\n",
         name="fake_soffice_parent",
     )
-    _use_fake(monkeypatch, parent)
+    proc = await asyncio.create_subprocess_exec(
+        str(parent),
+        "--outdir",
+        str(tmp_path),
+        "x",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    heartbeat = tmp_path / "heartbeat.txt"
+    for _ in range(500):
+        if heartbeat.exists():
+            break
+        await asyncio.sleep(0.02)
+    assert heartbeat.exists(), "the helper never started"
 
-    with pytest.raises(OfficeConversionTimeout):
-        await convert_to_pdf(tmp_path / "deck.pptx", tmp_path, timeout_seconds=2.0)
+    await office_convert._terminate_process_group(proc)
 
-    launcher_pid = int((tmp_path / "launcher_pid.txt").read_text())
-    assert await _wait_gone(launcher_pid), "the soffice launcher survived"
-
-    ticked = (tmp_path / "heartbeat.txt").read_text()
+    ticked = heartbeat.read_text()
     await asyncio.sleep(0.5)
-    assert (tmp_path / "heartbeat.txt").read_text() == ticked, "a soffice helper kept running"
+    assert heartbeat.read_text() == ticked, "a soffice helper kept running"
 
 
 async def test_cancellation_tears_the_subprocess_down(

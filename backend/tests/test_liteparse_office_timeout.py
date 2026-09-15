@@ -93,10 +93,10 @@ async def test_a_pdf_is_parsed_natively_without_touching_libreoffice(
     sentinel = object()
 
     async def fake_parse_pdf(
-        _self: LiteParseParser, parse_target: Path, *, source: Path, timeout: float | None = None
+        _self: LiteParseParser, parse_target: Path, *, source: Path, deadline: float | None = None
     ) -> object:
         assert parse_target == source
-        assert timeout is None
+        assert deadline is None
         return sentinel
 
     monkeypatch.setattr(LiteParseParser, "_parse_pdf", fake_parse_pdf)
@@ -121,7 +121,7 @@ async def test_an_office_file_is_read_as_the_converted_pdf_but_keeps_its_identit
     seen: dict[str, Path] = {}
 
     async def fake_parse_pdf(
-        _self: LiteParseParser, parse_target: Path, *, source: Path, timeout: float | None = None
+        _self: LiteParseParser, parse_target: Path, *, source: Path, deadline: float | None = None
     ) -> object:
         seen["target"] = parse_target
         seen["source"] = source
@@ -142,8 +142,9 @@ async def test_the_conversion_and_parse_share_one_timeout_budget(
 ) -> None:
     """`timeout_seconds` bounds the whole document, not conversion and parse each.
 
-    A conversion that spends part of the budget must leave the native parse only
-    what remains, so the total wait stays under the configured ceiling (#1685).
+    The parse is handed the conversion's own deadline, so the time already spent
+    converting is subtracted from what the parse may wait - the total stays under
+    the configured ceiling (#1685).
     """
     monkeypatch.setattr(LiteParseParser, "_libreoffice", True)
     converted = tmp_path / "converted.pdf"
@@ -156,9 +157,10 @@ async def test_the_conversion_and_parse_share_one_timeout_budget(
     seen: dict[str, float | None] = {}
 
     async def fake_parse_pdf(
-        _self: LiteParseParser, parse_target: Path, *, source: Path, timeout: float | None = None
+        _self: LiteParseParser, parse_target: Path, *, source: Path, deadline: float | None = None
     ) -> object:
-        seen["timeout"] = timeout
+        remaining = None if deadline is None else deadline - asyncio.get_running_loop().time()
+        seen["remaining"] = remaining
         return object()
 
     monkeypatch.setattr(LiteParseParser, "_parse_pdf", fake_parse_pdf)
@@ -167,5 +169,6 @@ async def test_the_conversion_and_parse_share_one_timeout_budget(
 
     await LiteParseParser(timeout_seconds=1.0).parse(source)
 
-    assert seen["timeout"] is not None
-    assert 0.0 < seen["timeout"] < 1.0
+    remaining = seen["remaining"]
+    assert remaining is not None
+    assert 0.0 < remaining < 1.0

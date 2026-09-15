@@ -540,24 +540,31 @@ class LiteParseParser(BaseDocumentParser):
                 raise RuntimeError(
                     f"LiteParse: LibreOffice could not convert {filepath.name} to PDF"
                 ) from e
-            remaining = deadline - asyncio.get_running_loop().time()
-            return await self._parse_pdf(pdf_path, source=filepath, timeout=remaining)
+            return await self._parse_pdf(pdf_path, source=filepath, deadline=deadline)
 
     async def _parse_pdf(
-        self, parse_target: Path, *, source: Path, timeout: float | None = None
+        self, parse_target: Path, *, source: Path, deadline: float | None = None
     ) -> Document:
         """Read a PDF (or image) through LiteParse's native pipeline.
 
         `parse_target` is what LiteParse reads - the file itself for a PDF, or the
         PDF an office document was converted to. `source` is the original upload,
-        whose name and type the returned document carries. `timeout` is the wait
-        this parse is allowed; `None` means the full configured ceiling, and the
-        office path passes the budget its conversion did not already spend.
+        whose name and type the returned document carries. `deadline` is an event-
+        loop timestamp the whole read must finish by; `None` starts a fresh one
+        from the configured ceiling, and the office path passes its own so the
+        OCR preflight and the parse together cannot outlast the conversion's
+        remaining budget.
         """
         from liteparse.types import ParseError  # type: ignore[import-not-found]
 
-        budget = self.timeout_seconds if timeout is None else max(timeout, 0.0)
+        loop = asyncio.get_running_loop()
+        if deadline is None:
+            deadline = loop.time() + self.timeout_seconds
+
+        # The OCR preflight is a synchronous read too, so it spends the deadline
+        # like the parse does; the budget is what remains once it has answered.
         ocr = self.enable_ocr and (not self.auto_ocr or self._needs_ocr(parse_target))
+        budget = max(deadline - loop.time(), 0.0)
 
         try:
             # The Python binding is synchronous, and a parse is CPU-bound work
