@@ -56,6 +56,7 @@ from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.notification import NotificationEventType
+from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -270,6 +271,154 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def ingestion_completed(
+        self, doc: RAGDocument, *, attempt: int, chunk_count: int
+    ) -> None:
+        """One document finished parsing and indexing.
+
+        Reached from `RAGDocumentService.complete_ingestion`, once per settled
+        attempt - `attempt` is passed in rather than read off `doc` here, the
+        same "carried from dispatch, not read back" rule Decision 1 states for
+        why the occurrence id is `(doc_id, attempt)` and not `(doc_id,
+        doc.ingestion_attempt)`.
+
+        The audience is whoever uploaded it, falling back to the
+        organization's administrators when null: a synced document, or one a
+        CLI ingest tracked, has no personal uploader to tell individually. A
+        document tracked outside any organization at all (a CLI ingest run
+        given none) has no administrators to fall back to either, and tells
+        nobody rather than resolving to an empty scope.
+        """
+        if doc.organization_id is None:
+            return
+        recipients = await self._ingestion_audience(doc.initiated_by_user_id, doc.organization_id)
+        if not recipients:
+            return
+        doc_url = self._collection_link(doc.knowledge_base_id, doc.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.INGESTION_COMPLETED,
+            occurrence_id=f"{doc.id}:{attempt}",
+            summary=f"'{doc.filename}' finished ingesting.",
+            context_url=doc_url,
+            render_context={
+                "filename": doc.filename,
+                "collection_name": doc.collection_name,
+                "collection_id": str(doc.knowledge_base_id) if doc.knowledge_base_id else "",
+                "chunk_count": str(chunk_count),
+                "app_name": settings.PROJECT_NAME,
+                "doc_url": doc_url,
+            },
+            organization_id=doc.organization_id,
+            use_savepoint=True,
+        )
+
+    async def ingestion_failed(self, doc: RAGDocument, *, attempt: int, error_message: str) -> None:
+        """The mirror of `ingestion_completed`, for the document that did not
+        parse or index cleanly - same audience, same per-attempt dedup key."""
+        if doc.organization_id is None:
+            return
+        recipients = await self._ingestion_audience(doc.initiated_by_user_id, doc.organization_id)
+        if not recipients:
+            return
+        doc_url = self._collection_link(doc.knowledge_base_id, doc.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id=f"{doc.id}:{attempt}",
+            summary=f"'{doc.filename}' failed to ingest: {error_message}",
+            context_url=doc_url,
+            render_context={
+                "filename": doc.filename,
+                "collection_name": doc.collection_name,
+                "collection_id": str(doc.knowledge_base_id) if doc.knowledge_base_id else "",
+                "app_name": settings.PROJECT_NAME,
+                "doc_url": doc_url,
+            },
+            organization_id=doc.organization_id,
+            use_savepoint=True,
+        )
+
+    async def sync_completed(
+        self,
+        *,
+        organization_id: UUID,
+        initiator_user_id: UUID | None,
+        occurrence_id: str,
+        collection_name: str,
+        collection_id: UUID | None,
+        ingested: int,
+        updated: int,
+        skipped: int,
+        failed: int,
+    ) -> None:
+        """A connector sync's whole-attempt outcome.
+
+        This is the aggregate signal a per-document `ingestion_completed`
+        cannot give: it fires once per sync run, in addition to - never
+        instead of - whatever per-document events the files inside it
+        produced. A sync that ingested nothing new (nothing changed since the
+        last run) is exactly as silent-worthy as one that failed outright
+        would be loud, so this fires on every ordinary completion regardless
+        of `failed`, not only when something went wrong.
+        """
+        recipients = await self._ingestion_audience(initiator_user_id, organization_id)
+        if not recipients:
+            return
+        collection_url = self._collection_link(collection_id, organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.INGESTION_COMPLETED,
+            occurrence_id=occurrence_id,
+            summary=(
+                f"Sync of '{collection_name}' finished: {ingested} ingested, "
+                f"{updated} updated, {skipped} skipped, {failed} failed."
+            ),
+            context_url=collection_url,
+            render_context={
+                "collection_name": collection_name,
+                "collection_id": str(collection_id) if collection_id else "",
+                "app_name": settings.PROJECT_NAME,
+                "sync_url": collection_url,
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def sync_failed(
+        self,
+        *,
+        organization_id: UUID,
+        initiator_user_id: UUID | None,
+        occurrence_id: str,
+        collection_name: str,
+        collection_id: UUID | None,
+        error: str,
+    ) -> None:
+        """The whole-attempt mirror of `sync_completed`, for a sync that
+        never produced a single per-document event to explain why - a
+        refused connector, a source with no collection, an organization
+        already over its budget before the first file downloaded."""
+        recipients = await self._ingestion_audience(initiator_user_id, organization_id)
+        if not recipients:
+            return
+        collection_url = self._collection_link(collection_id, organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id=occurrence_id,
+            summary=f"Sync of '{collection_name}' failed: {error}",
+            context_url=collection_url,
+            render_context={
+                "collection_name": collection_name,
+                "collection_id": str(collection_id) if collection_id else "",
+                "app_name": settings.PROJECT_NAME,
+                "sync_url": collection_url,
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
     async def usage_report(
         self, organization_id: UUID, *, period: ReportPeriod, window_start: datetime
     ) -> bool:
@@ -439,6 +588,26 @@ class NotificationService:
         """
         separator = "&" if "?" in path else "?"
         return f"{self._frontend}{path}{separator}org={organization_id}"
+
+    def _collection_link(self, collection_id: UUID | None, organization_id: UUID) -> str:
+        """A collection's own page, or the RAG list when there is no specific
+        one - `knowledge_base_id` is nullable (a document a sync recorded
+        against no linked knowledge base), and the fallback still opens
+        somewhere useful rather than a broken link."""
+        path = f"/rag/{collection_id}" if collection_id is not None else "/rag"
+        return self._link(path, organization_id)
+
+    async def _ingestion_audience(
+        self, initiator_user_id: UUID | None, organization_id: UUID
+    ) -> set[UUID]:
+        """Whoever personally asked for this ingestion or sync, falling back
+        to the organization's administrators when nobody did - a synced
+        document, or a scheduled sync, has no natural person to name."""
+        if initiator_user_id is not None:
+            return await member_repo.list_member_ids_for(
+                self.db, organization_id=organization_id, user_ids=[initiator_user_id]
+            )
+        return await self._administrator_ids(organization_id)
 
     async def _administrator_ids(self, organization_id: UUID) -> set[UUID]:
         """Everyone who administers this deployment or this organization.

@@ -596,6 +596,235 @@ class TestRunCompletedAndFailed:
         assert written.calls == []
 
 
+_UNSET = object()
+
+
+def _doc(
+    *, org_id=_UNSET, initiated_by=None, kb_id=None, filename="handbook.pdf", collection="docs"
+):
+    doc = MagicMock()
+    doc.id = uuid.uuid4()
+    doc.organization_id = uuid.uuid4() if org_id is _UNSET else org_id
+    doc.initiated_by_user_id = initiated_by
+    doc.knowledge_base_id = kb_id
+    doc.filename = filename
+    doc.collection_name = collection
+    return doc
+
+
+class TestIngestionCompletedAndFailed:
+    """A single document's own outcome - the per-document half of Decision
+    1's ingestion events, reached once `RAGDocumentService.complete_ingestion`/
+    `fail_ingestion` has confirmed a settlement is not stale."""
+
+    @pytest.mark.anyio
+    async def test_the_uploader_is_told_a_document_finished(self, written):
+        uploader = uuid.uuid4()
+        doc = _doc(initiated_by=uploader)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uploader)):
+            await NotificationService(MagicMock()).ingestion_completed(
+                doc, attempt=1, chunk_count=9
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.INGESTION_COMPLETED
+        assert call["recipients"] == [uploader]
+        assert call["occurrence_id"] == f"{doc.id}:1"
+        assert call["organization_id"] == doc.organization_id
+        assert call["use_savepoint"] is True
+
+    @pytest.mark.anyio
+    async def test_the_occurrence_id_carries_the_attempt_it_settled(self, written):
+        """Not `doc.ingestion_attempt` - the caller's own, passed in (#1598)."""
+        uploader = uuid.uuid4()
+        doc = _doc(initiated_by=uploader)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uploader)):
+            await NotificationService(MagicMock()).ingestion_completed(
+                doc, attempt=3, chunk_count=1
+            )
+
+        assert written.calls[0]["occurrence_id"] == f"{doc.id}:3"
+
+    @pytest.mark.anyio
+    async def test_a_synced_document_falls_back_to_the_administrators(self, written):
+        """No uploader to tell individually - a connector sync's rows carry
+        no `initiated_by_user_id` at all."""
+        admin = uuid.uuid4()
+        doc = _doc(initiated_by=None)
+        with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)):
+            await NotificationService(MagicMock()).ingestion_completed(
+                doc, attempt=1, chunk_count=9
+            )
+
+        assert written.calls[0]["recipients"] == [admin]
+
+    @pytest.mark.anyio
+    async def test_a_document_outside_any_organization_notifies_nobody(self, written):
+        doc = _doc(org_id=None, initiated_by=uuid.uuid4())
+
+        await NotificationService(MagicMock()).ingestion_completed(doc, attempt=1, chunk_count=9)
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_an_uploader_no_longer_a_member_notifies_nobody(self, written):
+        """No admin fallback here, the same as `run_completed`'s: the id was
+        real, not null, so this is not the case the fallback is for."""
+        doc = _doc(initiated_by=uuid.uuid4())
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).ingestion_completed(
+                doc, attempt=1, chunk_count=9
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_the_uploader_is_told_a_document_failed_with_its_reason(self, written):
+        uploader = uuid.uuid4()
+        doc = _doc(initiated_by=uploader)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uploader)):
+            await NotificationService(MagicMock()).ingestion_failed(
+                doc, attempt=2, error_message="unreadable PDF"
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.INGESTION_FAILED
+        assert call["occurrence_id"] == f"{doc.id}:2"
+        assert "unreadable PDF" in call["summary"]
+
+    @pytest.mark.anyio
+    async def test_a_failed_documents_organization_gates_it_too(self, written):
+        doc = _doc(org_id=None, initiated_by=uuid.uuid4())
+
+        await NotificationService(MagicMock()).ingestion_failed(doc, attempt=1, error_message="x")
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_a_failed_documents_uploader_no_longer_a_member_notifies_nobody(self, written):
+        doc = _doc(initiated_by=uuid.uuid4())
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).ingestion_failed(
+                doc, attempt=1, error_message="x"
+            )
+
+        assert written.calls == []
+
+
+class TestSyncCompletedAndFailed:
+    """The whole-attempt half of Decision 1's ingestion events - a connector
+    sync's own outcome, wired at the `rag_tasks.py` call sites rather than
+    inside `RAGSyncService`/`SyncSourceService` (Decision 1's "hooking both
+    double-fires" rule)."""
+
+    @pytest.mark.anyio
+    async def test_the_triggering_user_is_told_the_sync_finished(self, written):
+        triggerer = uuid.uuid4()
+        org_id = uuid.uuid4()
+        kb_id = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(triggerer)):
+            await NotificationService(MagicMock()).sync_completed(
+                organization_id=org_id,
+                initiator_user_id=triggerer,
+                occurrence_id="log-1:2024-01-01",
+                collection_name="docs",
+                collection_id=kb_id,
+                ingested=3,
+                updated=1,
+                skipped=2,
+                failed=0,
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.INGESTION_COMPLETED
+        assert call["recipients"] == [triggerer]
+        assert call["occurrence_id"] == "log-1:2024-01-01"
+        assert call["organization_id"] == org_id
+        assert str(kb_id) in call["render_context"]["collection_id"]
+
+    @pytest.mark.anyio
+    async def test_a_scheduled_syncs_completion_falls_back_to_the_administrators(self, written):
+        admin = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)):
+            await NotificationService(MagicMock()).sync_completed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=None,
+                occurrence_id="log-2:2024-01-01",
+                collection_name="docs",
+                collection_id=None,
+                ingested=0,
+                updated=0,
+                skipped=0,
+                failed=0,
+            )
+
+        assert written.calls[0]["recipients"] == [admin]
+        assert written.calls[0]["render_context"]["collection_id"] == ""
+
+    @pytest.mark.anyio
+    async def test_nobody_to_notify_writes_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).sync_completed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=uuid.uuid4(),
+                occurrence_id="log-3:2024-01-01",
+                collection_name="docs",
+                collection_id=None,
+                ingested=1,
+                updated=0,
+                skipped=0,
+                failed=0,
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_the_triggering_user_is_told_the_sync_failed_with_its_reason(self, written):
+        triggerer = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(triggerer)):
+            await NotificationService(MagicMock()).sync_failed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=triggerer,
+                occurrence_id="src-1:2024-01-01",
+                collection_name="docs",
+                collection_id=None,
+                error="Unknown connector: not_a_real_connector",
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.INGESTION_FAILED
+        assert "Unknown connector" in call["summary"]
+
+    @pytest.mark.anyio
+    async def test_a_failed_syncs_no_initiator_falls_back_to_the_administrators(self, written):
+        admin = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)):
+            await NotificationService(MagicMock()).sync_failed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=None,
+                occurrence_id="src-2:2024-01-01",
+                collection_name="docs",
+                collection_id=None,
+                error="Source has no assigned collection.",
+            )
+
+        assert written.calls[0]["recipients"] == [admin]
+
+    @pytest.mark.anyio
+    async def test_a_failed_sync_with_nobody_to_tell_writes_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).sync_failed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=uuid.uuid4(),
+                occurrence_id="src-3:2024-01-01",
+                collection_name="docs",
+                collection_id=None,
+                error="x",
+            )
+
+        assert written.calls == []
+
+
 class TestUsageReport:
     @pytest.mark.anyio
     async def test_an_organization_that_ran_nothing_gets_no_report(self, written):

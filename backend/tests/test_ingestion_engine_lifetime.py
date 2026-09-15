@@ -110,7 +110,7 @@ class TestAnUploadsEngine:
             with patch("app.services.rag_document.RAGDocumentService", return_value=documents):
                 for _ in range(5):
                     await rag_tasks._run_ingestion(
-                        str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False
+                        str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False, 1
                     )
 
         assert len(ledger.built) == 5
@@ -131,7 +131,7 @@ class TestAnUploadsEngine:
             with patch("app.services.rag_document.RAGDocumentService", return_value=documents):
                 with pytest.raises(RuntimeError):
                     await rag_tasks._run_ingestion(
-                        str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False
+                        str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False, 1
                     )
 
         assert ledger.leaked == 0
@@ -155,7 +155,7 @@ class TestAnUploadsEngine:
                 pytest.raises(RuntimeError),
             ):
                 await rag_tasks._run_ingestion(
-                    str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False
+                    str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False, 1
                 )
 
         assert ledger.leaked == 0
@@ -180,7 +180,7 @@ class TestAnUploadsEngine:
                 pytest.raises(RuntimeError),
             ):
                 await rag_tasks._run_ingestion(
-                    str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False
+                    str(uuid.uuid4()), "docs", "queued/f.md", "f.md", False, 1
                 )
 
         assert ledger.built == []

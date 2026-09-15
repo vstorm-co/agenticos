@@ -190,6 +190,8 @@ class TestIngestionRefusedAtTheCap:
         ):
             documents.return_value.get_document = AsyncMock(return_value=record)
             with pytest.raises(BudgetExceeded):
-                await _run_ingestion(str(uuid.uuid4()), "docs", "unreached/f.pdf", "f.pdf", False)
+                await _run_ingestion(
+                    str(uuid.uuid4()), "docs", "unreached/f.pdf", "f.pdf", False, 1
+                )
 
         pipeline.assert_not_called()

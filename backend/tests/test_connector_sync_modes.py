@@ -700,6 +700,14 @@ class TestASyncLogPassedInIsNotLeftRunning:
             patch.object(rag_tasks, "get_worker_db_context", new=_db),
             patch.object(rag_tasks, "SyncSourceService", return_value=sources),
             patch("app.services.rag_sync.RAGSyncService", return_value=sync_svc),
+            # This class is about `complete_sync`/`update_after_sync`, not the
+            # whole-attempt notification write the same branch also makes
+            # (#1598) - covered separately in `tests/test_notifications.py`
+            # and `tests/test_coverage_edges.py`. Left real, `sync_failed`
+            # would resolve `_knowledge_base_for` and an audience against this
+            # fixture's plain `MagicMock` database.
+            patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+            patch.object(rag_tasks, "NotificationService", return_value=AsyncMock()),
         ):
             yield sources, sync_svc
 

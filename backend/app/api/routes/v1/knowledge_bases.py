@@ -405,7 +405,7 @@ async def trigger_kb_sync_source(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
         )
-    sync_log = await sync_source_svc.trigger_sync(str(source_id))
+    sync_log = await sync_source_svc.trigger_sync(str(source_id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
         status="running",

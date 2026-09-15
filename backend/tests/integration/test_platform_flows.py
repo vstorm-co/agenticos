@@ -1850,6 +1850,7 @@ class TestWhatACollectionReportsItHolds:
             vector_document_id=doc.vector_document_id,
             chunk_count=4,
             replaced_document_id=None,
+            attempt=1,
         )
 
         counts = await rag_document_repo.counts_by_collection(
@@ -1886,6 +1887,7 @@ class TestWhatACollectionReportsItHolds:
             vector_document_id=second.vector_document_id,
             chunk_count=12,
             replaced_document_id=first.vector_document_id,
+            attempt=1,
         )
 
         counts = await rag_document_repo.counts_by_collection(

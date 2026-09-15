@@ -449,8 +449,13 @@ class SyncSourceService:
         await sync_source_repo.delete(self.db, UUID(source_id))
         await self._record(source, "deleted", ctx=ctx)
 
-    async def trigger_sync(self, source_id: str) -> SyncLog:
+    async def trigger_sync(self, source_id: str, *, user_id: UUID | None = None) -> SyncLog:
         """Trigger a manual sync - persists a SyncLog and dispatches the task.
+
+        `user_id` is who to notify about this sync's outcome (#1598) - every
+        HTTP route passes its caller's; `_run_source_sync`'s own scheduler
+        path calls this with none, because nobody personally asked for that
+        run, and its notification falls back to the organization's admins.
 
         Raises:
             NotFoundError: If sync source does not exist.
@@ -469,6 +474,7 @@ class SyncSourceService:
             collection_name=source.collection_name,
             mode=source.sync_mode,
             sync_source_id=source.id,
+            triggered_by_user_id=user_id,
         )
         from app.core.background import spawn_after_commit
         from app.worker.tasks.rag_tasks import sync_single_source_flow

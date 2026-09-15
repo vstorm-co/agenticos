@@ -222,25 +222,43 @@ methods as if they were independent alternative producers, which
 double-writes: `complete_sync`'s hook would key on `log_id`,
 `update_after_sync`'s on `source_id`, the unique constraint sees two
 genuinely different occurrence ids for one failure, and both notifications
-and both emails go out. The one call site with no sync log at
-all — `_run_source_sync`'s "unknown connector" early return, which calls
-only `update_after_sync` because `log_id` is not yet resolved — is the
-exception that rules out picking one service method as universally
-authoritative. So the write sits in `rag_tasks.py`, at exactly three
-points, each firing once per outcome:
+and both emails go out. The call sites with no sync log at
+all — `_run_source_sync`'s "unknown connector" and "source has no assigned
+collection" early returns, both of which call only `update_after_sync`
+because `log_id` is not yet resolved — are the exception that rules out
+picking one service method as universally authoritative. So the write sits
+in `rag_tasks.py`, at these points, each firing once per outcome:
 
-1. `_run_source_sync`'s "unknown connector" early return — the only call to
-   `update_after_sync` this plan hooks — keyed on `(source_id, attempt
-   started-at)`.
+1. `_run_source_sync`'s "unknown connector" **and** "source has no assigned
+   collection" early returns — the only calls to `update_after_sync` this
+   plan hooks — each keyed on `(source_id, attempt started-at)`, the
+   timestamp captured at the top of `_run_source_sync` since neither branch
+   is guaranteed a `SyncLog` row (a scheduler dispatch carries no
+   `sync_log_id`). Implementation found a second branch structurally
+   identical to the first — this section's earlier draft named only the
+   unknown-connector one — and gave it the same treatment; a source with no
+   collection assigned fails just as silently for a per-document event as an
+   unknown connector does.
 2. `_run_source_sync`'s budget-exceeded handler and its ordinary completion
    block, both of which call `complete_sync` immediately before
    `update_after_sync` — the write attaches to the `complete_sync` call,
    keyed on `log_id`. The `update_after_sync` call that follows it in these
    two spots is not independently hooked, because it is the same outcome
-   already recorded a line above.
+   already recorded a line above. The ordinary completion block's write
+   fires on *either* outcome, `ingestion_completed` or `ingestion_failed` —
+   it is the aggregate summary a sync's own per-document events, fired once
+   per file, do not give on their own, not only a failure signal.
 3. `sync_collection_flow`'s own top-level failure (`_update_sync_log` →
-   `complete_sync`), for local-directory syncs, which have no `SyncSource`
-   row and no `update_after_sync` call at all — keyed on `log_id`.
+   `complete_sync`), for local-directory syncs — **not implemented**.
+   `knowledge_base_repo.get_for_collection`'s own docstring names a
+   local-directory sync as "a deployment-level operation" with no
+   organization in hand, and `RAGSyncService.start_local_sync` never sets
+   `sync_source_id`, so a `SyncLog` on this path carries neither an
+   organization nor (through `SyncSource`) a way to resolve one. Every
+   audience this plan resolves — an initiator, or `org_admins` — is
+   organization-scoped; a local-directory sync has neither to fall back
+   between, so implementation left this one path silent rather than invent
+   a third fallback this plan does not otherwise have.
 
 A trigger point wired only to `RAGDocumentService.fail_ingestion` — this
 plan's own earlier draft — reports every failed file and stays silent about

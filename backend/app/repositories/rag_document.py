@@ -118,6 +118,7 @@ async def create(
     ingestion_override: dict[str, object] | None = None,
     image_description_model: str | None = None,
     embedding_model: str | None = None,
+    initiated_by_user_id: UUID | None = None,
 ) -> RAGDocument:
     """Create a new RAG document record."""
     doc = RAGDocument(
@@ -134,6 +135,7 @@ async def create(
         ingestion_override=ingestion_override,
         image_description_model=image_description_model,
         embedding_model=embedding_model,
+        initiated_by_user_id=initiated_by_user_id,
     )
     db.add(doc)
     await db.flush()
@@ -149,8 +151,16 @@ async def update_status(
     vector_document_id: str | None = None,
     chunk_count: int | None = None,
     completed_at: Any = None,
+    ingestion_attempt: int | None = None,
 ) -> RAGDocument | None:
-    """Update the processing status of a RAG document."""
+    """Update the processing status of a RAG document.
+
+    `ingestion_attempt` is bumped only by `retry_ingestion` (#1598), at
+    dispatch time - the value it writes is what `complete_ingestion`/
+    `fail_ingestion` later compare their own passed `attempt` against, to
+    reject a settlement that belongs to an attempt a newer retry has already
+    superseded.
+    """
     doc = await db.get(RAGDocument, doc_id)
     if not doc:
         return None
@@ -163,6 +173,8 @@ async def update_status(
         doc.chunk_count = chunk_count
     if completed_at is not None:
         doc.completed_at = completed_at
+    if ingestion_attempt is not None:
+        doc.ingestion_attempt = ingestion_attempt
     await db.flush()
     return doc
 
