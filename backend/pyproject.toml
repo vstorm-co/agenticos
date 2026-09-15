@@ -144,6 +144,10 @@ dependencies = [
     "croniter>=3.0.0",
     "mem0ai>=2.0.20",
     "requests>=2.34.2",
+    "xlrd>=2.0.2",
+    "odfpy>=1.4.1",
+    "python-pptx>=1.0.2",
+    "olefile>=0.47",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -583,6 +587,11 @@ include = [
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/services/attachments.py",
+    # The one subprocess in the chat attachment feature (#1591): a managed,
+    # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
+    # timeout, a cancellation, a nonzero exit, an oversized output - so it is held
+    # to the same bar as the other security-sensitive services here.
+    "app/services/office_convert.py",
     "app/services/chat_timeline.py",
     "app/services/local_service.py",
     "app/services/sandbox_connection.py",
@@ -862,6 +871,11 @@ include = [
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/services/attachments.py",
+    # The one subprocess in the chat attachment feature (#1591): a managed,
+    # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
+    # timeout, a cancellation, a nonzero exit, an oversized output - so it is held
+    # to the same bar as the other security-sensitive services here.
+    "app/services/office_convert.py",
     "app/services/chat_timeline.py",
     "app/services/local_service.py",
     "app/services/sandbox_connection.py",

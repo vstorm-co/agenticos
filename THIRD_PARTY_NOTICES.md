@@ -23,15 +23,15 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 114 | 227 |
+| MIT | 115 | 227 |
 | Apache-2.0 | 62 | 24 |
 | BSD-3-Clause | 33 | 4 |
 | ISC | 6 | 16 |
-| BSD-2-Clause | 7 | 0 |
+| BSD-2-Clause | 10 | 0 |
 | LGPL-3.0-or-later | 1 | 2 |
 | MPL-2.0 | 3 | 0 |
+| PSF-2.0 | 3 | 0 |
 | Apache-2.0 AND MIT | 0 | 2 |
-| PSF-2.0 | 2 | 0 |
 | 0BSD | 0 | 1 |
 | AGPL-3.0-only | 1 | 0 |
 | Apache-2.0 AND BSD-2-Clause | 1 | 0 |
@@ -41,6 +41,7 @@ names no author is in the evidence column below.
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
 | BSD-3-Clause OR Apache-2.0 | 1 | 0 |
 | CC-BY-4.0 | 0 | 1 |
+| LGPL-2.1-or-later | 1 | 0 |
 | MIT AND ISC | 0 | 1 |
 | MIT AND PSF-2.0 | 1 | 0 |
 | MIT-0 | 1 | 0 |
@@ -50,7 +51,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-240 distributions.
+246 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -99,6 +100,7 @@ names no author is in the evidence column below.
 | cyclopts | 4.22.2 | Apache-2.0 | https://github.com/BrianPugh/cyclopts | License-Expression |
 | dateparser | 1.4.1 | BSD-3-Clause | https://github.com/scrapinghub/dateparser | License-Expression |
 | ddgs | 9.14.4 | MIT | https://github.com/deedy5/ddgs | License-Expression |
+| defusedxml | 0.7.1 | PSF-2.0 | https://github.com/tiran/defusedxml | classifier |
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
 | dnspython | 2.8.0 | ISC | https://github.com/rthalley/dnspython.git | License field |
 | docker | 7.2.0 | Apache-2.0 | https://github.com/docker/docker-py | License-Expression |
@@ -180,6 +182,8 @@ names no author is in the evidence column below.
 | multidict | 6.7.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
 | numpy | 2.5.1 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | https://github.com/numpy/numpy | License-Expression |
 | oauthlib | 3.3.1 | BSD-3-Clause | https://github.com/oauthlib/oauthlib | License field |
+| odfpy | 1.4.1 | LGPL-2.1-or-later | https://github.com/eea/odfpy | override: odfpy-1.4.1 ships no licence file and its License field is empty; its trove classifiers name Apache, GPL and LGPL, but every library source under odf/ (e.g. odf/namespaces.py, odf/office.py) carries the same header - 'This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License ... version 2.1 ... or (at your option) any later version', Copyright (C) 2006-2013 Søren Roug, European Environment Agency. The imported library is therefore taken under LGPL-2.1-or-later.; review accepted; no licence file, attributed to Soren Roug |
+| olefile | 0.47 | BSD-2-Clause | https://www.decalage.info/python/olefileio | licence file text |
 | openai | 3.8.0 | Apache-2.0 | https://github.com/openai/openai-python | License-Expression |
 | openpyxl | 3.1.5 | MIT | https://foss.heptapod.net/openpyxl/openpyxl | License field |
 | opentelemetry-api | 1.39.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
@@ -237,6 +241,7 @@ names no author is in the evidence column below.
 | python-dotenv | 1.2.2 | BSD-3-Clause | https://github.com/theskumar/python-dotenv | License field |
 | python-json-logger | 4.1.0 | BSD-2-Clause | https://nhairs.github.io/python-json-logger | License-Expression |
 | python-multipart | 0.0.32 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
+| python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-slugify | 8.0.4 | MIT | https://github.com/un33k/python-slugify | License field |
 | pytz | 2026.3.post1 | MIT | https://github.com/stub42/pytz.git | License field |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
@@ -292,6 +297,8 @@ names no author is in the evidence column below.
 | websockets | 16.1.1 | BSD-3-Clause | https://github.com/python-websockets/websockets | License-Expression |
 | wrapt | 1.17.3 | BSD-2-Clause | https://wrapt.readthedocs.io/ | licence file text |
 | xai-sdk | 1.17.0 | Apache-2.0 | https://github.com/xai-org/xai-sdk-python | License-Expression |
+| xlrd | 2.0.2 | BSD-2-Clause | http://www.python-excel.org/ | licence file text |
+| xlsxwriter | 3.2.9 | BSD-2-Clause | https://github.com/jmcnamara/XlsxWriter | License field |
 | yarl | 1.24.5 | Apache-2.0 | https://github.com/aio-libs/yarl | License field |
 | zipp | 4.1.0 | MIT | https://github.com/jaraco/zipp | License-Expression |
 
