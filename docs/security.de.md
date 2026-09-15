@@ -1,5 +1,5 @@
 ---
-source_sha: "5c8f43134593"
+source_sha: "0ed0b64331f4"
 ---
 
 # Sicherheit { #security }
@@ -53,7 +53,7 @@ fragen wird.
 |---|---|---|
 | Der konfigurierte Modell-Provider | Der Prompt, die Ausgabe des Modells, Tool-Argumente und -Ergebnisse | Jeder Run — außer das Modell läuft auf der eigenen Infrastruktur des Betreibers, dann verlässt nichts das Deployment |
 | Der konfigurierte Kanal (Slack, Telegram, Mattermost) | Die generierten Antworten des Agents — Text, Bilder und Anhänge | Immer wenn ein Agent über diesen Kanal exponiert ist; jedes `send_message` postet beim Provider (`app/services/channels/`) |
-| Logfire | Traces, die Prompts und Ausgaben tragen, sofern der Agent nichts anderes sagt | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent, und sein `content`-Modus entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run im API-Prozess (`app/core/logfire_setup.py`), mit ihm verlässt also der Inhalt jedes Agenten das Deployment, der nicht `none` verlangt hat; ein Agent, der es verlangt hat, wird auch auf diesem Tracer an eine inhaltsfreie Instrumentierung geheftet (`suppress_content`), der Modus hält also auf beiden Pfaden - mit zwei Lücken, die er noch nicht abdeckt: ein Inline-Spezialist dieses Agenten, der keinen eigenen Observability-Block trägt ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), und ein fehlgeschlagenes Anheften, das protokolliert und belassen wird. Keiner der beiden Pfade ist standardmäßig an, und der deploymentweite erreicht keinen vom Prefect-Worker ausgeführten Run ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Ein gefiltertes Dazwischen wurde erwogen und verworfen ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)): ein PII-Filter über exportiertem Inhalt ist eine Zusage, die niemand prüfen kann, also ist `none` die Antwort für ein Deployment, das keinen Inhalt exportieren darf |
+| Logfire | Traces, die Prompts und Ausgaben tragen, sofern der Agent nichts anderes sagt | Zwei unabhängige Pfade. Ein Observability-Token pro Agent traced diesen Agent, und sein `content`-Modus entscheidet, wie viel der Span trägt - `none` reduziert ihn auf Zeit, Tokens, Kosten und Tool-Namen (#1413). Ein deploymentweites `LOGFIRE_TOKEN` instrumentiert **jeden** Run im API-Prozess (`app/core/logfire_setup.py`), mit ihm verlässt also der Inhalt jedes Agenten das Deployment, der nicht `none` verlangt hat; ein Agent, der es verlangt hat, wird auch auf diesem Tracer an eine inhaltsfreie Instrumentierung geheftet (`suppress_content`), der Modus hält also auf beiden Pfaden, und ein Spezialist dieses Agenten erbt ihn - inline geschrieben oder mitten im Run erfunden. Eine Lücke, die er nicht abdeckt: ein fehlgeschlagenes Anheften, das protokolliert und belassen wird. Keiner der beiden Pfade ist standardmäßig an, und der deploymentweite erreicht keinen vom Prefect-Worker ausgeführten Run ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Ein gefiltertes Dazwischen gibt es bewusst nicht - ein teilweise bereinigter Export ist eine Zusicherung, die niemand prüfen kann ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |
 | Ein Embedding-Provider | Dokumenttext, beim Ingest | Nur für eine Wissensbasis, deren Provider entfernt ist |
@@ -178,9 +178,8 @@ während die Suite wächst.
   [#1423](https://github.com/vstorm-co/agenticos/issues/1423) ist die Antwort auf
   Anwendungsebene für Object Storage.
 - Jede Kontrolle in der Matrix benennt einen Mechanismus und einen Test — und im
-  selben Atemzug ihre Lücken: Manipulationsnachweis, Dateiverschlüsselung auf
-  Anwendungsebene und ein gefiltertes Dazwischen für Traces verlinken je das
-  Issue, das sie bauen würde.
+  selben Atemzug ihre Lücken: Manipulationsnachweis und Dateiverschlüsselung auf
+  Anwendungsebene verlinken je das Issue, das sie bauen würde.
 - Schwachstellen meldest du und die Härtungs-Checkliste führst du aus über
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lies [Datenschutz](data-protection.md) und [Lizenzen](licenses.md) neben dieser

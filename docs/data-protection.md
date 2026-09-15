@@ -152,7 +152,7 @@ one.
 | Accountability | Audit entries share the acting transaction and fail closed; impersonation names both people; bulk exports are recorded | [Governance](governance.md#audit) |
 | Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
 | Tamper evidence on the trail | Every entry joins a per-organization hash chain, and each chain carries a checkpoint at its high-water mark, so a rewritten entry, a dropped tail and a deleted chain are all detectable. `agenticos cmd audit-verify` walks them and exits non-zero on a break | [Governance](governance.md#audit) (#1622, #1648). Detection, not prevention: whoever holds the database's own credentials can re-forge a chain or drop the checkpoint's trigger |
-| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only | [Environments](environments.md) (#1413). Two paths do not honour a `none` yet: an inline specialist of that agent ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)) and a Prefect-executed run, which the worker never instruments at all ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)) |
+| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only, and a specialist of that agent inherits it | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616). One path carries no traces at all: a run the Prefect worker executes ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)) |
 | Retention on a schedule | Only `sandbox_operations` rows are swept, after 30 days. The stale-run sweep finalizes abandoned runs; it deletes nothing | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
 | Access to one's own data | No export endpoint; no view of one's own memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -169,21 +169,16 @@ user's message, the model's answer and every tool argument and result. With
 `logfire_token_secret_id` on any environment, nothing is sent and the trace id
 is still recorded locally. A deployment that needs traces without the content sets the agent's
 `observability.content` to `none`, which records timing, tokens, cost and tool
-names and no message text.
+names and no message text, and which a specialist of that agent inherits, whether
+its author wrote it inline or the run's model invented it.
 
-There is deliberately nothing between the two. A third mode exporting the content
-with a PII filter over it was
-[considered and declined](https://github.com/vstorm-co/agenticos/issues/1616):
-a filter that misses one field is a guarantee nobody can audit, and traces are
-worth much less for the debugging they exist for once the content is cut down. A
-deployment that may not export message text sets `none`, or sets no token at all.
+There is no third mode between the two. An export scrubbed by a PII filter is a
+guarantee nobody can audit - one identifier the filter misses has left, and the
+operator believes it did not - so the choice is deliberately the whole content or
+none of it ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
 
-`none` holds on both the per-agent tracer and the deployment-wide one, with two
-gaps a review should know about: an inline specialist of that agent carries no
-observability block of its own and is not pinned by the parent's
-([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), and the Prefect
-worker never configures Logfire, so a scheduled run is absent from the traces
-rather than reduced in them
+One path a review should know about is not reduced but absent: the Prefect worker
+never configures Logfire, so a scheduled run leaves no trace in the project at all
 ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
 
 ### What deletion reaches
@@ -293,13 +288,12 @@ deployment until each closes.
 - Files on local disk only, encrypted by the volume or not at all - [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - No self-service view of one's own memory - [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- An agent's `content: none` does not reach its inline specialists
-  ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), and a run the
-  Prefect worker executes is not traced at all
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- A run the Prefect worker executes is not traced at all -
+  [#1700](https://github.com/vstorm-co/agenticos/issues/1700).
 
 **Closed, and answered above rather than here:** the audit trail's tamper
-evidence (#1622, #1648), the per-agent trace content mode (#1413) and the HIPAA
+evidence (#1622, #1648), the per-agent trace content mode and its inheritance by
+specialists (#1413, #1699) and the HIPAA
 and SOC 2 controls matrix in [Security](security.md#controls-matrix) (#1412).
 Traces have no filtered middle ground and will not get one
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); `none` is the

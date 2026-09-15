@@ -1,5 +1,5 @@
 ---
-source_sha: "6ae659f3a930"
+source_sha: "2098a1a24b23"
 ---
 
 # Konfiguration { #configuration }
@@ -390,11 +390,11 @@ der Standard, zeichnet die Nachricht, die Ausgabe und jeden Tool-Aufruf auf;
 `none` nur Zeit, Tokens, Kosten und Tool-Namen. Er wird dort angewandt, wo der
 Agent instrumentiert wird, hält also unabhängig davon, welches Token den Run
 traced — beim deploymentweiten wird der Agent stattdessen an eine inhaltsfreie
-Instrumentierung geheftet. Zwei Grenzen, bevor man sich darauf verlässt: das
-Anheften ist Best Effort, ein Fehlschlag wird protokolliert und der Run läuft
-weiter; und ein Inline-Spezialist wird aus einem Spec ohne
-Observability-Block gebaut, seine eigenen Spans tragen also weiterhin Inhalte
-([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
+Instrumentierung geheftet, und ein Spezialist, an den der Agent delegiert — inline
+geschrieben oder vom Model mitten im Run erfunden —, erbt den Modus. Eine Grenze,
+bevor man sich darauf verlässt: das
+Anheften dieser Instrumentierung ist Best Effort, ein Fehlschlag wird
+protokolliert und der Run läuft weiter.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|

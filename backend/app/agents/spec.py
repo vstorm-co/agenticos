@@ -72,11 +72,27 @@ ApprovalMode = Literal["default", "required", "never"]
 
 # What a run's traces are allowed to carry. `full` is the default so nothing
 # stored changes behaviour; `none` keeps timing, tokens, cost and tool names but
-# no message text or tool arguments. There is deliberately nothing between them:
-# a `redacted` middle ground running the log pipeline's PII filter over exported
-# message text was declined (#1616), because a filter that misses one field is a
-# guarantee nobody can audit.
+# no message text or tool arguments. There is deliberately no `redacted` middle
+# ground: an export a PII filter has been over is a guarantee nobody can audit,
+# because the identifier it missed has already left (#1616).
 TraceContent = Literal["full", "none"]
+
+
+def trace_content_block(content: TraceContent) -> ObservabilitySpec | None:
+    """An observability block that carries a content mode and nothing else.
+
+    What a specialist gets, whether its author wrote it inline or the run's model
+    invented it mid-run. A specialist has no Logfire project of its own and must
+    never be handed the parent's write token, but `content` is not a destination -
+    it is a rule about what may be recorded anywhere, and the run being recorded
+    is the parent's.
+
+    `full` is `None` rather than an empty block: it changes nothing at
+    instrumentation, so writing one into every specialist ever built would be a
+    field that exists to be read as "somebody configured this".
+    """
+    return None if content == "full" else ObservabilitySpec(content=content)
+
 
 _WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
@@ -781,7 +797,12 @@ class SpecialistSpec(BaseModel):
         """The specialist's capabilities as the registry consumes them."""
         return [capability.to_binding() for capability in self.capabilities]
 
-    def to_agent_spec(self, *, fallback_model_profile_id: UUID | None) -> AgentSpec:
+    def to_agent_spec(
+        self,
+        *,
+        fallback_model_profile_id: UUID | None,
+        trace_content: TraceContent = "full",
+    ) -> AgentSpec:
         """This specialist as the spec the factory already knows how to build.
 
         The one method that keeps "one spec type, one validator, one builder" true
@@ -801,6 +822,17 @@ class SpecialistSpec(BaseModel):
         subagents - so they arrive at their `AgentSpec` defaults: no cap of its
         own (the run's caps bind), no alerts of its own, no Logfire project of its
         own, no connections, and no delegating further.
+
+        `trace_content` is the one part of the parent's observability block that
+        has to come with it, and the caller passes the parent's. A project is a
+        destination and a specialist has none of its own; `content` is a rule
+        about what may be recorded *anywhere*, and the run it is recorded in
+        belongs to the parent. Dropping it left an agent published with
+        `content="none"` exporting its specialist's prompts, outputs and tool
+        arguments to the deployment's own project through the global
+        instrumentation - the guarantee held for the agent and not for the run
+        (#1699). `full` is the default, so a caller with no parent to speak for -
+        promoting a specialist into a draft agent - converts as it always did.
         """
         return AgentSpec(
             name=self.name,
@@ -813,6 +845,7 @@ class SpecialistSpec(BaseModel):
             skill_ids=self.skill_ids,
             context_ids=self.context_ids,
             max_steps=self.max_steps,
+            observability=trace_content_block(trace_content),
         )
 
 
@@ -955,6 +988,18 @@ class AgentSpec(BaseModel):
         default=None,
         description="Send this agent's traces to a Logfire project of its own",
     )
+
+    @property
+    def trace_content(self) -> TraceContent:
+        """How much of a run this agent's spans may carry.
+
+        No block at all means `full`, which is what an agent published before the
+        mode existed asks for. Read here rather than at each call site because
+        every specialist this agent builds inherits it, and a caller that forgets
+        the `None` case silently hands the deployment's global instrumentation a
+        specialist with content on.
+        """
+        return self.observability.content if self.observability else "full"
 
     @model_validator(mode="before")
     @classmethod

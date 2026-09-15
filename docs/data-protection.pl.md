@@ -1,5 +1,5 @@
 ---
-source_sha: "6df44392c690"
+source_sha: "70b594561386"
 ---
 
 # Ochrona danych { #data-protection }
@@ -156,7 +156,7 @@ jest luką — i tak jest nazwany.
 | Rozliczalność | Wpisy audytu dzielą transakcję działającą i zawodzą zamknięte; podszycie nazywa obie osoby; eksporty masowe są zapisywane | [Nadzór](governance.md#audit) |
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
 | Dowód nienaruszalności śladu | Każdy wpis wchodzi w łańcuch haszy danej organizacji, a każdy łańcuch ma checkpoint na swoim najwyższym stanie, więc przepisany wpis, urwany koniec i skasowany łańcuch są wykrywalne. `agenticos cmd audit-verify` przechodzi je i kończy się kodem niezerowym przy naruszeniu | [Nadzór](governance.md#audit) (#1622, #1648). Wykrywanie, nie zapobieganie: kto ma poświadczenia samej bazy, ten przekuje łańcuch od nowa albo zdejmie trigger pilnujący checkpointu |
-| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413). Dwie ścieżki jeszcze nie respektują `none`: inline specjalista tego agenta ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)) i run wykonany przez Prefect, którego worker w ogóle nie instrumentuje ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)) |
+| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi, a tryb ten dziedziczy specjalista tego agenta | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616). Jedna ścieżka nie niesie trace'ów w ogóle: run wykonany przez workera Prefect ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)) |
 | Retencja według harmonogramu | Zamiatane są tylko wiersze `sandbox_operations`, po 30 dniach. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
 | Dostęp do własnych danych | Brak endpointu eksportu; brak wglądu we własną pamięć | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -174,21 +174,17 @@ specu i bez `logfire_token_secret_id` na żadnym środowisku nic nie jest
 wysyłane, a id trace'u i tak jest zapisywane lokalnie. Wdrożenie, które
 potrzebuje trace'ów bez treści, ustawia agentowi `observability.content` na
 `none`: zapisywane są czas, tokeny, koszt i nazwy narzędzi, a żaden tekst
-wiadomości nie wychodzi.
+wiadomości nie wychodzi — i tryb ten dziedziczy specjalista tego agenta, czy to
+napisany inline przez autora, czy wymyślony przez model w trakcie runu.
 
-Pomiędzy nimi celowo nie ma nic. Trzeci tryb, eksportujący treść przepuszczoną
-przez filtr PII, został [rozważony i odrzucony](https://github.com/vstorm-co/agenticos/issues/1616):
-filtr, który przeoczy jedno pole, to gwarancja, której nikt nie zweryfikuje, a
-trace'y z okrojoną treścią są dużo mniej warte dla debugowania, dla którego
-istnieją. Wdrożenie, które nie może eksportować tekstu wiadomości, ustawia
-`none` albo nie ustawia żadnego tokenu.
+Trzeciego trybu pomiędzy nie ma. Eksport wyczyszczony filtrem PII to gwarancja,
+której nikt nie zaudytuje — jeden identyfikator, który filtr przepuści, już
+wyszedł, a operator sądzi, że nie — więc wybór jest świadomie między całą treścią
+a żadną ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
 
-`none` trzyma zarówno na tracerze per agent, jak i na tym na poziomie wdrożenia,
-z dwiema lukami, o których przegląd powinien wiedzieć: inline specjalista tego
-agenta nie ma własnego bloku observability i nie jest przypięty blokiem rodzica
-([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), a worker Prefect
-w ogóle nie konfiguruje Logfire, więc run z harmonogramu jest w trace'ach
-nieobecny, a nie okrojony
+O jednej ścieżce przegląd powinien wiedzieć, bo nie jest okrojona, tylko
+nieobecna: worker Prefect w ogóle nie konfiguruje Logfire, więc run z
+harmonogramu nie zostawia w projekcie żadnego trace'u
 ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
 
 ### Co obejmuje usunięcie { #what-deletion-reaches }
@@ -298,13 +294,11 @@ wdrożenia, dopóki każdy z nich się nie zamknie.
 - Pliki wyłącznie na dysku lokalnym, szyfrowane przez wolumen albo wcale — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - Brak samoobsługowego wglądu we własną pamięć — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Brak logowania OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- `content: none` agenta nie sięga jego inline specjalistów
-  ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), a run wykonany
-  przez workera Prefect nie jest trace'owany w ogóle
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- Run wykonany przez workera Prefect nie jest trace'owany w ogóle —
+  [#1700](https://github.com/vstorm-co/agenticos/issues/1700).
 
 **Zamknięte i opisane wyżej, a nie tutaj:** dowód nienaruszalności śladu
-audytowego (#1622, #1648), tryb treści trace'u per agent (#1413) oraz macierz
+audytowego (#1622, #1648), tryb treści trace'u per agent i jego dziedziczenie przez specjalistów (#1413, #1699) oraz macierz
 kontroli HIPAA i SOC 2 w [Bezpieczeństwie](security.md#controls-matrix) (#1412).
 Trace'y nie mają stanu pośredniego z filtrem i go nie dostaną
 ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); dla wdrożenia,

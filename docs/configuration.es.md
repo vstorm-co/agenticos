@@ -1,5 +1,5 @@
 ---
-source_sha: "6ae659f3a930"
+source_sha: "2098a1a24b23"
 ---
 
 # Configuración { #configuration }
@@ -378,10 +378,10 @@ defecto, registra el mensaje, la salida y cada llamada a herramienta; `none`
 registra solo tiempo, tokens, coste y nombres de herramienta. Se aplica donde se
 instrumenta el agent, así que se sostiene sea cual sea el token que traza el run
 — con el de nivel de deployment el agent queda fijado a una instrumentación sin
-contenido. Dos límites antes de confiar en ello: fijarla es best-effort y un fallo
-se registra mientras el run sigue; y un especialista inline se construye desde un
-spec sin bloque de observability, así que sus propios spans siguen llevando
-contenido ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
+contenido, y un especialista al que delega — escrito inline o inventado a mitad
+del run por el modelo — hereda el modo. Un límite antes de confiar en ello:
+fijar esa instrumentación es best-effort y un fallo se
+registra mientras el run sigue.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
