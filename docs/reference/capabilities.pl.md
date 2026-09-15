@@ -1,5 +1,5 @@
 ---
-source_sha: "9871a922f9f3"
+source_sha: "544d485d3728"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -48,16 +48,20 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | `clock` | Data i godzina | użytkowe | brak, celowo | — | — |
 | `guardrails` | Guardrails | użytkowe | brak, celowo | — | — |
 | `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
+| `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
 | `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
 | `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Sześć z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
+Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
 `tool_search` wnosi swoją funkcję wyszukiwania dopiero wtedy, gdy opakuje zestaw
 narzędzi zawierający narzędzia odroczone — w izolacji nie deklaruje niczego —
 `guardrails` bada i przepisuje tekst płynący przez run, `compaction` przepisuje
-historię, którą niesie żądanie, a `system_reminders` dokleja tekst sterujący na
-końcu żądania. Żadna z tej szóstki nie zostawia niczego, co człowiek mógłby
+historię, którą niesie żądanie, `media` przepisuje to, jak *zapisywana* jest
+skompaktowana historia, a `system_reminders` dokleja tekst sterujący na końcu
+żądania.
+
+Żadna z tej siódemki nie zostawia niczego, co człowiek mógłby
 zatwierdzić, więc żadna nie deklaruje narzędzia. Capability, która naprawdę nie
 ma narzędzi, mówi to przez `tools=()`, a nie przez pominięcie argumentu — zobacz
 [Dodaj capability](../howto/add-capability.md).
@@ -1264,6 +1268,49 @@ raportuje każdy agent, niezależnie od tego, czy kompaktuje — zobacz
 [jak pełne jest okno kontekstu](../governance.md#how-full-the-context-window-is).
 Ostrzeżenie ma największe znaczenie dla agenta, który *nie* będzie kompaktował,
 bo to on dochodzi do sufitu i dostaje odmowę.
+
+## Odciążanie mediów { #media-offload }
+
+Brak narzędzi. Zapisuje duże części skompaktowanej rozmowy do magazynu i zostawia
+w zapisanej historii referencję `media+sha256://…`. Magazyny adresowane treścią
+i walkery pochodzą z
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Konfiguracja | Domyślnie | |
+|---|---|---|
+| `threshold_bytes` | 32768 | 1 KiB–10 MiB; części co najmniej tej wielkości trafiają poza historię |
+
+**Jest jedno miejsce, w którym media naprawdę się kumulują, i to właśnie ono.**
+Załącznik trafia do modelu raz, w turze, w której został dołączony: zwykła
+historia jest odtwarzana z *tekstu* transkryptu, więc obrazek nie jest wysyłany
+ponownie. Wyjątkiem jest rozmowa [skompaktowana](#context-management) — wtedy
+zrzut wiadomości runa robiony przez bibliotekę jest zapisywany w całości
+i odtwarzany dokładnie tak, jak widział go model, razem z base64, aż do kolejnego
+podsumowania. Ten blob to wiersze w Postgresie i bajty na łączu, w każdej turze
+pomiędzy.
+
+**Gdzie trafiają bajty i jak długo żyją.** Do własnego magazynu plików wdrożenia,
+pod `media/<organizacja>/<rozmowa>/<digest>`. Organizacja to izolacja: URI mediów
+to hash treści, więc dwóch tenantów z tym samym obrazkiem wylicza to samo URI,
+a organizacja pochodzi z runa, nie z URI. Rozmowa to czas życia — hash treści nie
+zapisuje niczego o tym, kto się do niego jeszcze odwołuje, więc prefiks wątku
+znika razem z wątkiem, a prefiks tenanta razem z tenantem. Magazyn nie wystawia
+publicznego URL-a; URL, który może pobrać provider modelu, może pobrać każdy.
+
+**Odciążanie jest opcjonalne; przywracanie nie.** Podpięcie capability jest
+decyzją o odciążaniu. Ponowne wstawianie treści dzieje się dla każdej rozmowy,
+niezależnie od tego, czy capability jest wciąż podpięta, bo rozmowa, której agent
+został potem odpięty, nadal ma w historii markery — a marker, którego nikt nie
+rozwinie, to obrazek podany modelowi w języku, którego on nie czyta.
+
+**Oba kierunki zawodzą miękko.** Utrata podsumowania, za które zapłacono modelowi,
+z powodu czkawki magazynu jest gorsza niż historia większa, niż musiała być.
+Błąd trafia do logu, a historia jest używana w takiej postaci, w jakiej jest.
+
+To nie zmniejsza tego, co *dostaje* model: części są wstawiane z powrotem przed
+wysłaniem żądania, i właśnie to utrzymuje poprawność runa. Przepisanie ich na URL,
+który model pobiera sam, to inna funkcja i wymagałaby publicznego URL-a, którego
+ten magazyn świadomie nie wystawia.
 
 ## Limity wyjścia narzędzi { #tool-output-limits }
 

@@ -43,16 +43,19 @@ tools listed.
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
 | `compaction` | Context management | utility | none, by design | — | — |
+| `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Six of those have no tools on purpose. `thinking` changes how the model runs
+Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
 `tool_search` contributes its search function only once it wraps a toolset that
 has deferred tools — in isolation it declares nothing — `guardrails` inspects and
 rewrites the text flowing through a run, `compaction` rewrites the history a
-request carries, and `system_reminders` appends steering text to the request tail.
-None of the six leaves anything for a person to approve, so none
+request carries, `media` rewrites what a compacted history is *stored* as, and
+`system_reminders` appends steering text to the request tail.
+
+None of the seven leaves anything for a person to approve, so none
 declares a tool. A capability with genuinely no
 tools says so with `tools=()` rather than omitting the argument; see
 [Add a capability](../howto/add-capability.md).
@@ -1195,6 +1198,49 @@ reported by every agent, whether or not it compacts — see
 [how full the context window is](../governance.md#how-full-the-context-window-is).
 The warning matters most to the agent that will *not* compact, which is the one
 that reaches the ceiling and gets refused.
+
+## Media offload
+
+No tools. Writes a compacted conversation's large parts out to storage and leaves
+a `media+sha256://…` reference in the stored history. The content-addressed
+stores and the walkers come from
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Config | Default | |
+|---|---|---|
+| `threshold_bytes` | 32768 | 1 KiB–10 MiB; parts at least this large are stored out of line |
+
+**There is one place media actually piles up, and this is it.** An attachment
+reaches the model once, on the turn it was attached: the ordinary history is
+rebuilt from the transcript's *text*, so a picture is not re-sent on later turns.
+A conversation that has been [compacted](#context-management) is the exception —
+the library's own dump of the run's messages is stored whole and replayed exactly
+as the model last saw it, base64 and all, until the next summary replaces it.
+That blob is rows in Postgres and bytes on the wire, every turn in between.
+
+**Where the bytes go, and how long they live.** Into the deployment's own file
+storage, at `media/<organization>/<conversation>/<digest>`. The organization is
+the isolation: a media URI is a content hash, so two tenants holding the same
+picture compute the same URI, and the organization comes from the run rather than
+from the URI. The conversation is the lifetime — a content hash records nothing
+about who still references it, so the thread's prefix is removed with the thread
+and the tenant's with the tenant. The store issues no public URL; a URL a model
+provider can fetch is a URL anybody can.
+
+**Offloading is optional; restoring is not.** Binding the capability is the
+decision to offload. Re-inlining happens for every conversation whether or not it
+is still bound, because a conversation whose agent was unbound afterwards still
+has markers in its history and a marker nobody re-inlines is a picture the model
+is handed in a language it does not read.
+
+**Both directions fail soft.** Losing a summary a model was paid to produce,
+because a store hiccuped, is worse than a history that is larger than it needed
+to be. A failure is logged and the history is used as it stands.
+
+It does not reduce what the model is *sent*: the parts are re-inlined before the
+request goes out, which is what keeps the run correct. Rewriting them to a URL
+the model fetches itself is a different feature and would need the public URL
+this store deliberately does not issue.
 
 ## Tool output limits
 

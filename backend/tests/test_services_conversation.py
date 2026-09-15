@@ -749,6 +749,7 @@ class TestParticipationDoesNotCarryTheWrite:
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
+            patch("app.services.conversation.spawn_after_commit"),
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.favourite_ids = AsyncMock(return_value=set())
@@ -1087,13 +1088,19 @@ class TestConversationServiceDelete:
         conv_id = uuid4()
         mock_conv = MockConversation(id=conv_id)
 
-        with patch("app.services.conversation.conversation_repo") as mock_repo:
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            # The delete hands the thread's offloaded media prefix to
+            # `spawn_after_commit`, which needs a real session's info bag (#55).
+            patch("app.services.conversation.spawn_after_commit") as spawned,
+        ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.delete_conversation = AsyncMock(return_value=None)
 
             result = await service.delete_conversation(conv_id, organization_id=TEST_ORG_ID)
 
             assert result is True
+            assert spawned.call_args.kwargs["name"] == "delete-conversation-media"
             mock_repo.delete_conversation.assert_called_once_with(
                 service.db, db_conversation=mock_conv
             )

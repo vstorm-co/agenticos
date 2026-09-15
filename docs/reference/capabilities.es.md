@@ -1,5 +1,5 @@
 ---
-source_sha: "9871a922f9f3"
+source_sha: "544d485d3728"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -47,16 +47,19 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `clock` | Fecha y hora | utility | ninguna, a propósito | — | — |
 | `guardrails` | Guardrails | utility | ninguna, a propósito | — | — |
 | `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
+| `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
 | `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Seis de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
+Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
 `tool_search` aporta su función de búsqueda solo cuando envuelve un toolset con
 herramientas diferidas — por sí sola no declara nada —, `guardrails` inspecciona y
 reescribe el texto que circula por un run, `compaction` reescribe el historial que
-lleva una petición, y `system_reminders` añade texto de guía al final de la
-petición. Ninguna de las seis deja nada que aprobar a una persona, así que ninguna
+lleva una petición, `media` reescribe cómo se *almacena* un historial compactado, y
+`system_reminders` añade texto de guía al final de la petición.
+
+Ninguna de las siete deja nada que aprobar a una persona, así que ninguna
 declara una herramienta. Una capability sin herramientas de verdad lo dice con
 `tools=()` en lugar de omitir el argumento; consulta
 [Añadir una capability](../howto/add-capability.md).
@@ -1282,6 +1285,51 @@ estaba la ventana lo informa cada agent, compacte o no; consulta
 [lo lleno que está el context window](../governance.md#how-full-the-context-window-is).
 El aviso importa sobre todo al agent que *no* va a compactar, que es el que llega al
 techo y recibe un rechazo.
+
+## Descarga de medios { #media-offload }
+
+Ninguna herramienta. Escribe las partes grandes de una conversación compactada en
+el almacenamiento y deja en el historial guardado una referencia
+`media+sha256://…`. Los almacenes direccionados por contenido y los recorridos
+vienen de
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Configuración | Por defecto | |
+|---|---|---|
+| `threshold_bytes` | 32768 | 1 KiB–10 MiB; las partes de ese tamaño o mayores se guardan fuera del historial |
+
+**Hay un sitio donde los medios se acumulan de verdad, y es este.** Un adjunto
+llega al modelo una vez, en el turno en que se adjuntó: el historial ordinario se
+reconstruye a partir del *texto* de la transcripción, así que una imagen no se
+reenvía. La excepción es una conversación [compactada](#context-management) —
+entonces el volcado que hace la propia biblioteca de los mensajes del run se
+guarda entero y se reproduce exactamente como el modelo lo vio por última vez,
+base64 incluido, hasta que el siguiente resumen lo sustituye. Ese blob son filas
+en Postgres y bytes en el cable, en cada turno intermedio.
+
+**Dónde van los bytes, y cuánto viven.** Al propio almacenamiento de ficheros del
+despliegue, en `media/<organización>/<conversación>/<digest>`. La organización es
+el aislamiento: una URI de medios es un hash de contenido, así que dos inquilinos
+con la misma imagen calculan la misma URI, y la organización viene del run y no de
+la URI. La conversación es el ciclo de vida — un hash de contenido no registra
+quién lo sigue referenciando, así que el prefijo del hilo se va con el hilo y el
+del inquilino con el inquilino. El almacén no emite ninguna URL pública; una URL
+que puede descargar un proveedor de modelos la puede descargar cualquiera.
+
+**Descargar es opcional; restaurar no.** Vincular la capability es la decisión de
+descargar. La reinserción ocurre para toda conversación, siga vinculada o no:
+una conversación cuyo agent se desvinculó después sigue teniendo marcadores en su
+historial, y un marcador que nadie reinserta es una imagen entregada al modelo en
+un idioma que no lee.
+
+**Ambas direcciones fallan con suavidad.** Perder un resumen por el que se pagó a
+un modelo, porque el almacén tuvo un tropiezo, es peor que un historial más grande
+de lo necesario. El fallo se registra y el historial se usa tal cual.
+
+No reduce lo que se le *envía* al modelo: las partes se reinsertan antes de que
+salga la petición, y eso es lo que mantiene correcto el run. Reescribirlas a una
+URL que el modelo descargue por su cuenta es otra función y necesitaría la URL
+pública que este almacén deliberadamente no emite.
 
 ## Límites de salida de herramientas { #tool-output-limits }
 
