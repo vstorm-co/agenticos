@@ -205,3 +205,34 @@ async def test_metadata_round_trips_stored_normalized(db: AsyncSession) -> None:
     assert cleared is not None
     assert cleared.categories == []
     assert cleared.tags == []
+
+
+async def test_a_clone_starts_untagged(db: AsyncSession) -> None:
+    """Clone copies the draft spec, not the row metadata (Codex #6)."""
+    org, owner = await _org(db)
+    tagged = await _agent(db, org, owner, "Support", categories=["support"], tags=["eu"])
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+    clone = await AgentRegistryService(db).clone(ctx, tagged.id)
+
+    assert clone.id != tagged.id
+    assert clone.categories == []
+    assert clone.tags == []
+
+
+async def test_importing_a_spec_leaves_the_targets_metadata_unchanged(db: AsyncSession) -> None:
+    """Import replaces only the draft, so a tagged target keeps its tags (§9)."""
+    org, owner = await _org(db)
+    tagged = await _agent(db, org, owner, "Support", categories=["support"], tags=["eu"])
+    agent_id, org_id = tagged.id, org.id
+    ctx = AuthContext(user_id=owner.id, organization_id=org_id, role=OrgRoleName.OWNER)
+
+    yaml_text = AgentSpec(name="Renamed").to_yaml()
+    await AgentRegistryService(db).import_spec(ctx, agent_id, yaml_text)
+
+    db.expire_all()
+    reloaded = await agent_repo.get(db, agent_id, organization_id=org_id)
+    assert reloaded is not None
+    assert reloaded.name == "Renamed"
+    assert reloaded.categories == ["support"]
+    assert reloaded.tags == ["eu"]
