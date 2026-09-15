@@ -1,6 +1,5 @@
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -120,19 +119,22 @@ class BaseVectorStore(ABC):
 
     @abstractmethod
     async def restamp_documents_to_untagged(
-        self, collection_name: str, tenant: UUID, document_ids: Sequence[str]
+        self, collection_name: str, tenant: UUID, knowledge_base_id: UUID
     ) -> None:
-        """Strip an organization's tag off named documents' rows, making them untagged.
+        """Strip an organization's tag off a base's own rows, making them untagged.
 
         Used by an organization purge for a personal base the `SET NULL` orphans:
         its `vector_tenant` flips to `None` while its rows stay stamped with the
         deleted organization, so they must be re-stamped to untagged to match the
-        `None` read scope again (#1684). Scoped to `document_ids` - the surviving
-        base's own `parent_doc_id`s - *and* to `tenant`'s tag, so a shared runtime
-        table's other tenants, the deleted org's own torn-down residual rows, and a
-        document deleted before this runs (its id is no longer among the survivors)
-        are all left alone. An empty `document_ids` or a missing table is a no-op, so
-        the durable cleanup's retry is safe.
+        `None` read scope again (#1684). Scoped to the base's *surviving* documents,
+        resolved from `rag_documents` inside the one update statement, *and* to
+        `tenant`'s tag - so a shared runtime table's other tenants, the deleted
+        org's own torn-down residual rows, and a document deleted before this runs
+        are all left alone. Resolving the survivor set in the same statement rather
+        than from a list read earlier closes the window in which a document deleted
+        between the read and the update would be un-deleted here (#1684). A base with
+        no surviving documents or a missing table is a no-op, so the durable
+        cleanup's retry is safe.
         """
 
     @abstractmethod
@@ -795,9 +797,9 @@ class PgVectorStore(BaseVectorStore):
             await session.commit()
 
     async def restamp_documents_to_untagged(
-        self, collection_name: str, tenant: UUID, document_ids: Sequence[str]
+        self, collection_name: str, tenant: UUID, knowledge_base_id: UUID
     ) -> None:
-        """Drop the `organization_id` tag from named documents' rows stamped by a tenant.
+        """Drop the `organization_id` tag from a base's own rows stamped by a tenant.
 
         `metadata - 'organization_id'` makes `metadata->>'organization_id'` read
         `NULL`, which is exactly what the `None` branch of `_org_filter` tests -
@@ -805,28 +807,38 @@ class PgVectorStore(BaseVectorStore):
         the same as a personal base that never carried an organization (#1684).
 
         Two conjuncts, both load-bearing on a runtime table a collection name shares
-        across tenants (#913). `parent_doc_id = ANY(:doc_ids)` confines the update to
-        this base's own documents, so the deleted org's own torn-down residual rows,
-        another tenant's rows, and a document deleted before this ran (dropped from
-        the survivor list the cleanup passes) are never touched - the last is what
-        keeps a concurrently deleted document from being un-deleted here. The
-        `_org_filter(tenant)` conjunct then untags only rows still stamped with the
-        deleted org. Both values are bound; `_table` validates the only interpolated
-        token. An empty id list or a missing table is a no-op, so a retry is safe.
+        across tenants (#913). The `parent_doc_id IN (SELECT ...)` subquery confines
+        the update to the base's *surviving* documents - the `vector_document_id`s
+        `rag_documents` still holds for this knowledge base - so the deleted org's
+        own torn-down residual rows, another tenant's rows, and a document deleted
+        before this runs (its `rag_documents` row is gone, so it is not in the
+        subquery) are never touched. Resolving that set in the *same* statement,
+        rather than from a list read in a separate earlier query, is what closes the
+        window: a document the owner deletes concurrently is either still tracked
+        when this statement's snapshot is taken (untagged here, then removed by its
+        own `tenant=None` cleanup) or already gone (left stamped and never
+        un-deleted), never un-deleted-and-orphaned as a stale id list allowed
+        (#1684). The `_org_filter(tenant)` conjunct then untags only rows still
+        stamped with the deleted org. Every value is bound; `_table` validates the
+        only interpolated token. A base with no surviving documents or a missing
+        table is a no-op, so a retry is safe.
         """
-        if not document_ids or not await self._collection_exists(collection_name):
+        if not await self._collection_exists(collection_name):
             return
         table = self._table(collection_name)
         org_clause, org_params = self._org_filter(tenant)
         # The only interpolated token is `table`, validated by `_table`; the tenant
-        # and the id list are bound. S608 is ignored file-wide for that reason.
+        # and the knowledge-base id are bound. `rag_documents` is a fixed model
+        # table name, not caller input. S608 is ignored file-wide for that reason.
         async with self.async_session() as session:
             await session.execute(
                 text(
                     f"UPDATE {table} SET metadata = metadata - 'organization_id' "
-                    f"WHERE parent_doc_id = ANY(:doc_ids) AND {org_clause}"
+                    f"WHERE {org_clause} AND parent_doc_id IN ("
+                    "SELECT vector_document_id FROM rag_documents "
+                    "WHERE knowledge_base_id = :kb_id AND vector_document_id IS NOT NULL)"
                 ),
-                {"doc_ids": list(document_ids), **org_params},
+                {"kb_id": knowledge_base_id, **org_params},
             )
             await session.commit()
 

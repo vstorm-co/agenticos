@@ -211,7 +211,6 @@ class TestASyncsEngine:
             with (
                 patch("app.services.rag_sync.RAGSyncService", return_value=sync),
                 patch("app.services.rag_document.RAGDocumentService", return_value=documents),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
             ):
                 await rag_tasks._run_sync(str(uuid.uuid4()), "local", "docs", "full", str(tmp_path))
 
@@ -240,10 +239,7 @@ class TestASyncsEngine:
         sync = MagicMock(get_sync_log=AsyncMock(return_value=MagicMock(status="cancelled")))
 
         async with _worker(ledger):
-            with (
-                patch("app.services.rag_sync.RAGSyncService", return_value=sync),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
-            ):
+            with patch("app.services.rag_sync.RAGSyncService", return_value=sync):
                 answer = await rag_tasks._run_sync(
                     str(uuid.uuid4()), "local", "docs", "full", str(tmp_path)
                 )

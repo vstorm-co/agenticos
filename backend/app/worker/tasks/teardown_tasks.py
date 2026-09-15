@@ -60,6 +60,15 @@ _CLEANUP_DEPLOYMENT = "org-purge-cleanup/org-purge-cleanup"
 # are already gone (#1274).
 _MAX_PATHS_PER_RUN = 500
 
+# One run carries at most this many re-stamp entries, bounded for the same reason
+# as the storage paths: an organization with many personal knowledge bases can
+# orphan one entry per base, each an `[collection_name, org_id, kb_id]` triple, and
+# the whole parameter payload has to stay under Prefect's 512 KiB flow-parameter
+# limit or `run_deployment` rejects the run after the organization row is already
+# gone (#1684). The entries are far smaller than a storage path, so the bound is the
+# same order rather than tuned finer.
+_MAX_RESTAMPS_PER_RUN = 500
+
 # The submission is fired after the commit that removed the rows, so a run lost to
 # a transient Prefect outage - or to the deployment not being registered yet
 # during a rollout - has no row left to reconstruct it and no heartbeat to
@@ -91,22 +100,30 @@ async def dispatch_external_state_cleanup(
     #1349). Handed to `spawn_after_commit` by its caller, so it runs only once the
     relational teardown has committed.
 
-    The paths are chunked across runs so no run's parameters approach Prefect's
-    512 KiB limit. Collections and re-stamps ride the first run only -
-    `delete_collection` and `restamp_org_to_untagged` are both idempotent, but
-    re-checking them once is enough. The window none of this closes is
-    commit-to-dispatch: a crash after the commit but before this fires still loses
-    the cleanup, which only a record committed *with* the delete (an outbox) would
-    close - a larger change deferred.
+    The paths and the re-stamps are each chunked across runs so no run's parameters
+    approach Prefect's 512 KiB limit - an organization with enough personal bases
+    would otherwise overflow the first run with re-stamp entries the way a large
+    corpus overflows it with paths (#1684). The two are chunked independently and
+    zipped onto as many runs as the longer needs; collections ride the first run
+    only - `delete_collection` is idempotent, but re-checking them once is enough.
+    The window none of this closes is commit-to-dispatch: a crash after the commit
+    but before this fires still loses the cleanup, which only a record committed
+    *with* the delete (an outbox) would close - a larger change deferred.
     """
     restamps = restamps or []
-    chunks = [
+    path_chunks = [
         storage_paths[i : i + _MAX_PATHS_PER_RUN]
         for i in range(0, len(storage_paths), _MAX_PATHS_PER_RUN)
-    ] or [[]]
-    for index, chunk in enumerate(chunks):
-        first = index == 0
-        await _submit_cleanup_run(chunk, collections if first else [], restamps if first else [])
+    ]
+    restamp_chunks = [
+        restamps[i : i + _MAX_RESTAMPS_PER_RUN]
+        for i in range(0, len(restamps), _MAX_RESTAMPS_PER_RUN)
+    ]
+    run_count = max(len(path_chunks), len(restamp_chunks), 1)
+    for index in range(run_count):
+        paths = path_chunks[index] if index < len(path_chunks) else []
+        run_restamps = restamp_chunks[index] if index < len(restamp_chunks) else []
+        await _submit_cleanup_run(paths, collections if index == 0 else [], run_restamps)
 
 
 async def _submit_cleanup_run(
@@ -221,16 +238,21 @@ async def cleanup_external_state(
     `[collection, org_id, kb_id]` untags that org's rows for that base's own
     surviving documents on a table the base still keeps alive, so its new
     `vector_tenant=None` reaches them again rather than leaving them stranded behind
-    the `IS NULL` read scope (#1684). The base's `parent_doc_id`s are resolved here,
-    at run time, from `rag_documents` - so a document deleted between the org's
-    deletion and this run is no longer among them and its rows are left stamped
-    (untagging them would un-delete it) rather than resurrected. Re-stamping is
-    idempotent - a table already dropped is a no-op and an absent tag strips to
-    nothing - so it is safe under the flow's retries.
+    the `IS NULL` read scope (#1684). The base's surviving `parent_doc_id`s are
+    resolved inside the store's one update statement, from `rag_documents` - so a
+    document deleted before or concurrently with this run is no longer among them
+    and its rows are left stamped (untagging them would un-delete it) rather than
+    resurrected, with no window between a separate read and the update for the id set
+    to go stale. Re-stamping is idempotent - a table already dropped is a no-op and
+    an absent tag strips to nothing - so it is safe under the flow's retries; a
+    re-stamp that fails is raised below so those retries actually re-run it, because
+    a base left stamped with the deleted org is unreadable and undeletable and has no
+    other safety net (#1684).
     """
+    from app.core.exceptions import DatabaseError
     from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
-    from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
+    from app.repositories import collection_teardown_repo, knowledge_base_repo
     from app.services.file_storage import get_file_storage
 
     restamps = restamps or []
@@ -246,6 +268,7 @@ async def cleanup_external_state(
 
     dropped = 0
     restamped = 0
+    restamp_failures: list[str] = []
     if collections or restamps:
         async with _vector_store() as store, get_worker_db_context() as db:
             for collection in collections:
@@ -263,16 +286,18 @@ async def cleanup_external_state(
                 if await _drop_then_release(store, db, collection):
                     dropped += 1
             for collection, org_id, kb_id in restamps:
-                # Best-effort like the drops and unlinks: one bad re-stamp must not
-                # abort the rest. The org row that named this state is committed-gone,
-                # but the personal base survives, so its current documents say which
-                # rows are its own to untag - a document deleted since is already
-                # absent here and stays stamped (#1684).
+                # Isolated per entry so one bad re-stamp does not abort the rest, but
+                # collected rather than swallowed: the org row that named this state
+                # is committed-gone and the personal base survives, so a re-stamp
+                # left undone strands the base behind the IS NULL scope with no sweep
+                # to reattempt it. The store resolves the base's surviving documents
+                # inside its update, so a document deleted since (or concurrently) is
+                # absent and stays stamped rather than un-deleted (#1684).
                 try:
-                    doc_ids = await rag_document_repo.list_vector_document_ids(db, UUID(kb_id))
-                    await store.restamp_documents_to_untagged(collection, UUID(org_id), doc_ids)
+                    await store.restamp_documents_to_untagged(collection, UUID(org_id), UUID(kb_id))
                 except SQLAlchemyError as exc:
                     logger.warning("Failed to re-stamp collection %s: %s", collection, exc)
+                    restamp_failures.append(collection)
                 else:
                     restamped += 1
 
@@ -280,6 +305,14 @@ async def cleanup_external_state(
         "external_state_cleanup",
         extra={"unlinked": len(storage_paths), "dropped": dropped, "restamped": restamped},
     )
+    # Raised after the loop, not inside it, so every entry is attempted and the drops
+    # and unlinks still complete; the flow then fails and its retries re-run the whole
+    # idempotent cleanup, re-attempting the re-stamps that could not commit (#1684).
+    if restamp_failures:
+        raise DatabaseError(
+            message="Failed to re-stamp orphaned personal knowledge bases on organization purge",
+            details={"collections": restamp_failures},
+        )
     return {"unlinked": len(storage_paths), "dropped": dropped, "restamped": restamped}
 
 

@@ -230,25 +230,6 @@ async def _knowledge_base_for(
     return await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
 
 
-async def _config_for_collection(
-    db: AsyncSession, collection_name: str | None, organization_id: UUID | None
-) -> IngestionConfig:
-    """The configuration of the knowledge base behind a collection name.
-
-    A sync writes into a collection the same way an upload does, so it has to
-    read documents the same way too - a collection set to LiteParse that gets
-    PyMuPDF whenever the file arrives from Google Drive is configured in name
-    only.
-
-    Falls back to the deployment defaults when no knowledge base claims the
-    name; `_knowledge_base_for` says which callers that is.
-    """
-    kb = await _knowledge_base_for(db, collection_name, organization_id)
-    return (
-        deployment_defaults() if kb is None else IngestionConfig.model_validate(kb.ingestion_config)
-    )
-
-
 async def _still_ingestable(document_id: str, collection_name: str) -> bool:
     """Whether a parsed file may still be indexed: its tracking row exists and its
     collection is not mid-teardown.
@@ -309,13 +290,24 @@ async def ingest_document_flow(
 
 @flow(name="sync-collection", log_prints=True)
 async def sync_collection_flow(
-    sync_log_id: str, source: str, collection_name: str, mode: str, path: str
+    sync_log_id: str,
+    source: str,
+    collection_name: str,
+    mode: str,
+    path: str,
+    knowledge_base_id: str | None = None,
 ) -> dict[str, Any]:
-    """Sync a collection from a local directory."""
+    """Sync a collection from a local directory.
+
+    `knowledge_base_id` is the base the route authorized this sync to write; it
+    defaults to `None` so a run queued before it existed - an upgrade replaying an
+    old run under the retained deployment name - still binds and stays
+    deployment-wide, as a local sync was before it carried a tenant (#1684).
+    """
     setup_logging()
     logger.info("Starting sync: %s -> %s (mode=%s)", source, collection_name, mode)
     try:
-        return await _run_sync(sync_log_id, source, collection_name, mode, path)
+        return await _run_sync(sync_log_id, source, collection_name, mode, path, knowledge_base_id)
     except Exception as exc:
         logger.exception("Sync failed for %s -> %s", source, collection_name)
         await _update_sync_log(
@@ -446,7 +438,12 @@ async def _run_ingestion(
 
 
 async def _run_sync(
-    sync_log_id: str, source: str, collection_name: str, mode: str, path: str
+    sync_log_id: str,
+    source: str,
+    collection_name: str,
+    mode: str,
+    path: str,
+    knowledge_base_id: str | None = None,
 ) -> dict[str, Any]:
     from app.services.rag_sync import RAGSyncService
 
@@ -464,23 +461,70 @@ async def _run_sync(
     files = [f for f in files if f.suffix.lower() in allowed]
     ingested = updated = skipped = failed = 0
 
-    # No tenant: a local-directory sync names a path on the server, not a
-    # collection somebody's organization owns. The spend is still recorded -
-    # with no organization to bill - because a total that quietly under-reports
-    # is worse than one holding rows nobody claims.
-    ledger = SpendLedger()
-
     async with get_worker_db_context() as db:
-        # Kept, not just passed through: every row this sync writes records which
-        # parser read the document, and the rows used to carry no configuration at
-        # all - so `parser` read `null` for every locally-synced file (#997).
-        ingestion_config = await _config_for_collection(db, collection_name, None)
-        processor = await IngestionConfigService(db).build_processor(None, ingestion_config)
+        # The knowledge base the caller was authorized to write, loaded by the id
+        # the route resolved rather than re-resolved from the name here: `path`
+        # names a server directory, but the *destination* is a real collection, and
+        # re-resolving by name could pick a same-named base in a different scope than
+        # the one authorized (#1684). Its tenant is what every row this sync writes
+        # is stamped and scoped by - `None` for an app-scoped base (deployment-wide,
+        # as a local sync always was) or its organization for an org or personal one,
+        # which normal reads for that collection filter on; writing untagged there
+        # would strand the content from search, listing, count and replace, and could
+        # surface it under an app-scoped base sharing the name (#1684). The
+        # organization also scopes embedding resolution to the right key, answers the
+        # budget, and bills the spend; the base id and both models are recorded on
+        # every document row, the provenance the documents page reads (#992, #997).
+        kb = (
+            None
+            if knowledge_base_id is None
+            else await knowledge_base_repo.get_by_id(db, UUID(knowledge_base_id))
+        )
+        organization_id = None if kb is None else kb.organization_id
+        tenant = None if kb is None else kb.vector_tenant
+        resolved_kb_id = None if kb is None else kb.id
+        ingestion_config = (
+            deployment_defaults()
+            if kb is None
+            else IngestionConfig.model_validate(kb.ingestion_config)
+        )
+        embedding_model = None if kb is None else kb.embedding_model
+        # Only an org-backed collection has an organization whose model profiles an
+        # image-description model could resolve against; a deployment-wide one has
+        # none and records no image model, as a local sync always did.
+        image_description_model = (
+            None
+            if organization_id is None
+            else await IngestionConfigService(db).resolved_image_model(
+                organization_id, ingestion_config
+            )
+        )
+        processor = await IngestionConfigService(db).build_processor(
+            organization_id, ingestion_config
+        )
+        # An org-backed local sync answers to the organization's budget the same way
+        # a connector sync does, and the refusal lands on the sync log rather than
+        # leaving it running (#1684). An app-scoped or unclaimed destination has no
+        # organization and no ceiling to check, as before.
+        if organization_id is not None:
+            try:
+                await assert_organization_within_budget(db, organization_id)
+            except BudgetExceeded as exc:
+                reason = failure_summary(exc, stage=IngestionStage.SYNC)
+                await RAGSyncService(db).complete_sync(
+                    sync_log_id, status="error", error_message=reason
+                )
+                return {"status": "error", "message": reason}
+
+    # The spend is billed to the destination's organization, or to none for an
+    # app-scoped or unclaimed collection - recorded either way, because a total that
+    # quietly under-reports is worse than one holding rows nobody claims.
+    ledger = SpendLedger(organization_id=organization_id)
 
     # Entered after the validations above, so an early "path not found" return
     # builds no engine, and every return inside the loop still disposes one (#948).
     async with _ingestion_service(
-        processor=processor, organization_id=None, tenant=None
+        processor=processor, organization_id=organization_id, tenant=tenant
     ) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
@@ -488,7 +532,7 @@ async def _run_sync(
                 if sync_log_check.status == "cancelled":
                     logger.info("Sync %s cancelled by user", sync_log_id)
                     await _record_embedding_spend(
-                        ledger, organization_id=None, rag_document_id=None
+                        ledger, organization_id=organization_id, rag_document_id=None
                     )
                     return {
                         "status": "cancelled",
@@ -535,14 +579,16 @@ async def _run_sync(
                     # The same address it hands `existing_document` above, so the
                     # row and the lookup name one file (#996).
                     source_path=source_path,
-                    # A path on the server belongs to no tenant and to no
-                    # knowledge base; `POST /rag/sync/local` is the one route
-                    # that still carries `is_app_admin` for exactly that reason.
-                    organization_id=None,
-                    knowledge_base_id=None,
+                    # The destination collection's own, off the knowledge base the
+                    # route authorized: an org or personal base carries its
+                    # organization and its id so the row is tracked, scoped and
+                    # re-stampable; an app-scoped or unclaimed one carries neither
+                    # and its rows stay deployment-wide, as before (#1684, #992).
+                    organization_id=organization_id,
+                    knowledge_base_id=resolved_kb_id,
                     ingestion_config=ingestion_config,
-                    image_description_model=None,
-                    embedding_model=None,
+                    image_description_model=image_description_model,
+                    embedding_model=embedding_model,
                 )
 
                 with metered_by(ledger):
@@ -576,7 +622,7 @@ async def _run_sync(
                 logger.warning("Sync file error %s: %s", filepath.name, e)
                 failed += 1
 
-        await _record_embedding_spend(ledger, organization_id=None, rag_document_id=None)
+        await _record_embedding_spend(ledger, organization_id=organization_id, rag_document_id=None)
 
         async with get_worker_db_context() as db:
             await RAGSyncService(db).complete_sync(

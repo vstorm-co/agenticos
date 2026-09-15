@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
 from app.repositories import knowledge_base_repo
 from app.services.organization import OrganizationService
@@ -89,6 +90,51 @@ async def _seed(store: PgVectorStore) -> None:
     await _insert(store, doc_id="doc-none", tenant=None)
 
 
+async def _make_kb(db: AsyncSession, kb_id: uuid.UUID, *, collection: str = COLLECTION) -> None:
+    """A knowledge base row the tracked documents can reference.
+
+    App-scoped so it needs no organization or owner: the store's re-stamp resolves
+    survivors by `knowledge_base_id` alone, so the base's scope is immaterial to what
+    it does - only that the `rag_documents.knowledge_base_id` foreign key resolves."""
+    db.add(
+        KnowledgeBase(
+            id=kb_id,
+            name=collection,
+            scope=KBScope.APP.value,
+            collection_name=collection,
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+            organization_id=None,
+            owner_user_id=None,
+        )
+    )
+    await db.commit()
+
+
+async def _track(
+    db: AsyncSession, kb_id: uuid.UUID, doc_ids: list[str], *, collection: str = COLLECTION
+) -> None:
+    """Record `rag_documents` rows the store's re-stamp subquery reads as survivors.
+
+    `vector_document_id` is the `parent_doc_id` the runtime rows carry, so a tracked
+    id is a surviving document and an untracked (or deleted) one is absent from the
+    subquery and left stamped."""
+    for doc_id in doc_ids:
+        db.add(
+            RAGDocument(
+                id=uuid.uuid4(),
+                collection_name=collection,
+                filename=f"{doc_id}.pdf",
+                filetype="pdf",
+                status=DocumentStatus.DONE,
+                vector_document_id=doc_id,
+                knowledge_base_id=kb_id,
+            )
+        )
+    await db.commit()
+
+
 @pytest.fixture(autouse=True)
 async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None]:
     async with engine.begin() as conn:
@@ -99,37 +145,70 @@ async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None
 
 
 class TestTheStoreReStamp:
-    async def test_it_untags_only_the_named_organizations_rows(self, engine: AsyncEngine) -> None:
+    async def test_it_untags_only_the_named_organizations_rows(
+        self, engine: AsyncEngine, db: AsyncSession
+    ) -> None:
         """Org A's rows lose the tag and join the untagged, deployment-wide rows;
         Org B's are untouched, and Org A no longer has any tagged rows of its own."""
         store = _store(engine)
         await _seed(store)
+        kb_id = uuid.uuid4()
+        await _make_kb(db, kb_id)
+        await _track(db, kb_id, ["doc-a"])
 
-        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
 
         untagged = {d.document_id for d in await store.get_documents(COLLECTION, None)}
         assert untagged == {"doc-a", "doc-none"}
         assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_B)] == ["doc-b"]
         assert await store.get_documents(COLLECTION, ORG_A) == []
 
-    async def test_it_untags_only_the_named_documents_leaving_other_org_rows(
-        self, engine: AsyncEngine
+    async def test_it_untags_only_the_bases_surviving_documents(
+        self, engine: AsyncEngine, db: AsyncSession
     ) -> None:
-        """The document-id scope is what keeps the deleted org's own torn-down
-        residual rows - and any row the survivor list omits - stamped, so untagging
-        one document does not resurrect another (#1684)."""
+        """The survivor subquery is what keeps the deleted org's own torn-down
+        residual rows - and any row no `rag_documents` row still tracks - stamped, so
+        untagging one document does not resurrect another (#1684)."""
         store = _store(engine)
         await store._ensure_collection(COLLECTION)
         await _insert(store, doc_id="doc-a", tenant=ORG_A)
-        await _insert(store, doc_id="residual", tenant=ORG_A)  # a row not in the survivor list
+        await _insert(store, doc_id="residual", tenant=ORG_A)  # a row nothing tracks
+        kb_id = uuid.uuid4()
+        await _make_kb(db, kb_id)
+        await _track(db, kb_id, ["doc-a"])  # residual is deliberately not tracked
 
-        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
 
         assert [d.document_id for d in await store.get_documents(COLLECTION, None)] == ["doc-a"]
         assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["residual"]
 
+    async def test_a_document_untracked_since_is_left_stamped_not_un_deleted(
+        self, engine: AsyncEngine, db: AsyncSession
+    ) -> None:
+        """The survivors are resolved inside the update, so a document whose tracking
+        row is gone by the time the re-stamp runs - deleted before or concurrently -
+        is absent from the subquery and stays stamped rather than being un-deleted,
+        closing the stale-id-list window (#1684)."""
+        store = _store(engine)
+        await store._ensure_collection(COLLECTION)
+        await _insert(store, doc_id="doc-a", tenant=ORG_A)
+        kb_id = uuid.uuid4()
+        await _make_kb(db, kb_id)
+        await _track(db, kb_id, ["doc-a"])
+        # The owner deletes the document between what a pre-listing read would have
+        # captured and the update: its tracking row is gone, its vector rows are not.
+        await db.execute(text("DELETE FROM rag_documents WHERE vector_document_id = 'doc-a'"))
+        await db.commit()
+
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
+
+        # Still stamped with the deleted org, so the IS NULL read scope does not
+        # surface it - not resurrected as searchable, untracked content.
+        assert await store.get_documents(COLLECTION, None) == []
+        assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["doc-a"]
+
     async def test_the_untagged_rows_are_reachable_by_the_read_paths(
-        self, engine: AsyncEngine
+        self, engine: AsyncEngine, db: AsyncSession
     ) -> None:
         """`find`, the count and the chunk read all see Org A's rows once they are
         untagged and queried at `vector_tenant=None` - the base's new scope."""
@@ -137,8 +216,11 @@ class TestTheStoreReStamp:
 
         store = _store(engine)
         await _seed(store)
+        kb_id = uuid.uuid4()
+        await _make_kb(db, kb_id)
+        await _track(db, kb_id, ["doc-a"])
 
-        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
 
         found = await store.find_existing_document(
             COLLECTION, source_path="/srv/doc-a.pdf", content_hash="", tenant=None
@@ -155,39 +237,39 @@ class TestTheStoreReStamp:
         assert len(chunks) == 1
         assert "content of doc-a" in {r.content for r in results}
 
-    async def test_empty_ids_or_a_missing_table_is_a_noop(self, engine: AsyncEngine) -> None:
-        """The durable cleanup retries, and a base with no documents or a collection
-        whose table was already dropped must not raise - there is nothing to untag."""
+    async def test_no_survivors_or_a_missing_table_is_a_noop(
+        self, engine: AsyncEngine, db: AsyncSession
+    ) -> None:
+        """The durable cleanup retries, and a base with no surviving documents or a
+        collection whose table was already dropped must not raise - nothing to untag."""
         store = _store(engine)
         await _seed(store)
+        kb_id = uuid.uuid4()
+        await _make_kb(db, kb_id)  # no tracked documents at all
 
-        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, [])  # no ids
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)  # no survivors
         assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["doc-a"]
 
         async with engine.begin() as conn:
             await conn.execute(text(f"DROP TABLE IF EXISTS {TABLE}"))
-        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, ["doc-a"])  # no table
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)  # no table
         assert not await store._collection_exists(COLLECTION)
 
 
 class TestTheDeferredCleanup:
     async def test_it_untags_the_orphaned_rows_through_the_real_cleanup(
-        self, engine: AsyncEngine
+        self, engine: AsyncEngine, db: AsyncSession
     ) -> None:
-        """The production path: `cleanup_external_state` resolves the base's own
-        document ids and, on its own store, untags exactly those rows. Only the id
-        resolution is stubbed; the store UPDATE runs against the real table."""
-        from unittest.mock import AsyncMock, patch
-
+        """The production path: `cleanup_external_state` hands the store the base's id
+        and tenant, and the store resolves the base's surviving documents and untags
+        exactly those rows on the real table (#1684)."""
         store = _store(engine)
         await _seed(store)
+        kb_id = uuid.uuid4()
+        await _make_kb(db, kb_id)
+        await _track(db, kb_id, ["doc-a"])
 
-        kb_id = str(uuid.uuid4())
-        with patch(
-            "app.repositories.rag_document_repo.list_vector_document_ids",
-            AsyncMock(return_value=["doc-a"]),
-        ):
-            result = await cleanup_external_state([], [], [[COLLECTION, str(ORG_A), kb_id]])
+        result = await cleanup_external_state([], [], [[COLLECTION, str(ORG_A), str(kb_id)]])
 
         assert result["restamped"] == 1
         reader = _store(engine)

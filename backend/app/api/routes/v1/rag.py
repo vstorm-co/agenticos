@@ -261,7 +261,12 @@ async def search_documents(
     from it - see `CollectionAccessService.readable_all`.
     """
     names = request.collection_names or [request.collection_name]
-    collections = [kb.collection_name for kb in await access.readable_all(ctx, names)]
+    # The authorized knowledge base for each name carries the tenant its rows are
+    # scoped by; threading it through means the search reads the base the caller was
+    # authorized for, not a same-named base in their organization the store would
+    # otherwise resolve without checking resource access (#1684).
+    kbs = await access.readable_all(ctx, names)
+    collections = [kb.collection_name for kb in kbs]
     if len(collections) > 1:
         results = await retrieval_service.retrieve_multi(
             query=request.query,
@@ -269,6 +274,7 @@ async def search_documents(
             limit=request.limit,
             min_score=request.min_score,
             organization_id=ctx.organization_id,
+            tenants={kb.collection_name: kb.vector_tenant for kb in kbs},
         )
     else:
         results = await retrieval_service.retrieve(
@@ -278,6 +284,7 @@ async def search_documents(
             min_score=request.min_score,
             filter=request.filter or "",
             organization_id=ctx.organization_id,
+            tenant=kbs[0].vector_tenant,
         )
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)
@@ -477,6 +484,10 @@ async def trigger_local_sync(
         collection_name=collection.collection_name,
         mode=request.mode,
         path=request.path,
+        # The base the caller was authorized to write, so the sync stamps its rows
+        # with that base's tenant instead of writing them untagged into an
+        # org-backed collection where normal reads would never see them (#1684).
+        knowledge_base_id=collection.id,
     )
     return RAGSyncResponse(
         id=str(sync_log.id),

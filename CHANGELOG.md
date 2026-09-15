@@ -30,6 +30,15 @@ Two things are versioned separately from this file and worth knowing about:
   it. A schema change stamps existing rows for a collection owned by a single
   organization; rows in a name shared by several are left untagged, since they
   carry no evidence of which wrote which (#1684).
+- **The tenant scope now reaches the last three paths that could still cross it.**
+  A local-directory sync into an org- or personal-backed collection stamps its
+  rows with that collection's tenant instead of writing them untagged; a search
+  reads under the tenant of the knowledge base the caller was authorized for
+  rather than one re-resolved from the name; and the organization-purge re-stamp
+  resolves a surviving base's documents inside its own update, closing the window
+  in which a document deleted at that moment could be un-deleted, and fails the
+  cleanup so its retries re-run rather than stranding a base stamped with the
+  removed organization (#1684).
 
 ## [0.0.440] - 2026-09-15
 
