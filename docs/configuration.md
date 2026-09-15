@@ -346,14 +346,27 @@ backend is for. Setting the token is therefore a decision about where run conten
 may go, not only about dashboards. A deployment over health, legal or HR data
 reads [what leaves the machine](data-protection.md#traces) before setting it.
 
-Two paths send traces, and they are independent. `LOGFIRE_TOKEN` here instruments
-**every** run into the deployment's own project. An agent's
-[`observability`](reference/spec.md#observability) block redirects that one
-agent's runs into a project of its own — a client's, usually — and its `content`
-mode decides how much each span carries: `full`, the default, records the
-message, the output and every tool call; `none` records timing, tokens, cost and
-tool names only. `none` holds on both paths, so an agent that asks for it exports
-no content even when the deployment-wide token is what traces the run.
+Three things can point runs at a project, and they stack:
+
+- `LOGFIRE_TOKEN` here instruments Pydantic AI globally **in the API process**
+  (`app/main.py`), so every run served there exports into the deployment's own
+  project. A run executed by the Prefect worker is not covered, because that
+  process never configures Logfire
+  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- An [environment](environments.md#tracing-per-environment) can carry its own
+  write token, sealed in the vault, which redirects the runs bound to it.
+- An agent's [`observability`](reference/spec.md#observability) block names a
+  project of its own — a client's, usually.
+
+The agent's `content` mode decides how much each span carries: `full`, the
+default, records the message, the output and every tool call; `none` records
+timing, tokens, cost and tool names only. It is applied where the agent is
+instrumented, so it holds whichever token traces the run — under the
+deployment-wide one the agent is pinned to content-free instrumentation instead.
+Two limits before relying on it: attaching that is best-effort, and a failure is
+logged while the run continues; and an inline specialist is built from a spec
+carrying no observability block, so its own spans still hold content
+([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
 
 | Variable | Default | Description |
 |----------|---------|-------------|

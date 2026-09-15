@@ -1,5 +1,5 @@
 ---
-source_sha: "88bcd0ebc65e"
+source_sha: "6ae659f3a930"
 ---
 
 # Konfiguration { #configuration }
@@ -372,15 +372,29 @@ ist damit eine Entscheidung darüber, wohin Run-Inhalte gehen dürfen, nicht nur
 über Dashboards. Ein Deployment über Gesundheits-, Rechts- oder HR-Daten liest
 vorher, [was das Deployment verlässt](data-protection.md#traces).
 
-Zwei Pfade senden Traces, und sie sind unabhängig voneinander. `LOGFIRE_TOKEN`
-hier instrumentiert **jeden** Run in das Projekt des Deployments selbst. Der
-[`observability`](reference/spec.md#observability)-Block eines Agenten leitet die
-Runs dieses einen Agenten in ein eigenes Projekt um — meist das eines Kunden —
-und sein `content`-Modus entscheidet, wie viel jeder Span trägt: `full`, der
-Standard, zeichnet die Nachricht, die Ausgabe und jeden Tool-Aufruf auf; `none`
-nur Zeit, Tokens, Kosten und Tool-Namen. `none` hält auf beiden Pfaden, ein Agent,
-der es verlangt, exportiert also auch dann keine Inhalte, wenn das
-deploymentweite Token den Run traced.
+Drei Dinge können Runs auf ein Projekt richten, und sie überlagern sich:
+
+- `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global **im API-Prozess**
+  (`app/main.py`), jeder dort bediente Run exportiert also in das Projekt des
+  Deployments selbst. Ein vom Prefect-Worker ausgeführter Run ist nicht erfasst,
+  weil dieser Prozess Logfire nie konfiguriert
+  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- Eine [Umgebung](environments.md#tracing-per-environment) kann ein eigenes
+  Schreib-Token tragen, im Vault versiegelt, das die an sie gebundenen Runs
+  umleitet.
+- Der [`observability`](reference/spec.md#observability)-Block eines Agenten
+  benennt ein eigenes Projekt — meist das eines Kunden.
+
+Der `content`-Modus des Agenten entscheidet, wie viel jeder Span trägt: `full`,
+der Standard, zeichnet die Nachricht, die Ausgabe und jeden Tool-Aufruf auf;
+`none` nur Zeit, Tokens, Kosten und Tool-Namen. Er wird dort angewandt, wo der
+Agent instrumentiert wird, hält also unabhängig davon, welches Token den Run
+traced — beim deploymentweiten wird der Agent stattdessen an eine inhaltsfreie
+Instrumentierung geheftet. Zwei Grenzen, bevor man sich darauf verlässt: das
+Anheften ist Best Effort, ein Fehlschlag wird protokolliert und der Run läuft
+weiter; und ein Inline-Spezialist wird aus einem Spec ohne
+Observability-Block gebaut, seine eigenen Spans tragen also weiterhin Inhalte
+([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|

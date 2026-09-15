@@ -1,5 +1,5 @@
 ---
-source_sha: "88bcd0ebc65e"
+source_sha: "6ae659f3a930"
 ---
 
 # Configuración { #configuration }
@@ -361,15 +361,27 @@ puede ir el contenido de los runs, no solo sobre dashboards. Un deployment sobre
 datos de salud, legales o de RR. HH. lee antes
 [qué sale de la máquina](data-protection.md#traces).
 
-Dos caminos envían trazas, y son independientes. El `LOGFIRE_TOKEN` de aquí
-instrumenta **todos** los runs hacia el proyecto del propio deployment. El bloque
-[`observability`](reference/spec.md#observability) de un agent redirige los runs
-de ese agent a un proyecto propio — el de un cliente, normalmente — y su modo
-`content` decide cuánto lleva cada span: `full`, el valor por defecto, registra el
-mensaje, la salida y cada llamada a herramienta; `none` registra solo tiempo,
-tokens, coste y nombres de herramienta. `none` se sostiene en ambos caminos, así
-que un agent que lo pide no exporta contenido ni siquiera cuando es el token a
-nivel de deployment el que traza el run.
+Tres cosas pueden apuntar los runs a un proyecto, y se superponen:
+
+- El `LOGFIRE_TOKEN` de aquí instrumenta Pydantic AI globalmente **en el proceso
+  de la API** (`app/main.py`), así que todo run servido ahí exporta al proyecto
+  del propio deployment. Un run ejecutado por el worker de Prefect no queda
+  cubierto, porque ese proceso nunca configura Logfire
+  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- Un [entorno](environments.md#tracing-per-environment) puede llevar su propio
+  token de escritura, sellado en el vault, que redirige los runs ligados a él.
+- El bloque [`observability`](reference/spec.md#observability) de un agent nombra
+  un proyecto propio — el de un cliente, normalmente.
+
+El modo `content` del agent decide cuánto lleva cada span: `full`, el valor por
+defecto, registra el mensaje, la salida y cada llamada a herramienta; `none`
+registra solo tiempo, tokens, coste y nombres de herramienta. Se aplica donde se
+instrumenta el agent, así que se sostiene sea cual sea el token que traza el run
+— con el de nivel de deployment el agent queda fijado a una instrumentación sin
+contenido. Dos límites antes de confiar en ello: fijarla es best-effort y un fallo
+se registra mientras el run sigue; y un especialista inline se construye desde un
+spec sin bloque de observability, así que sus propios spans siguen llevando
+contenido ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|

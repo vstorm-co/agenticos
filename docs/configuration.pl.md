@@ -1,5 +1,5 @@
 ---
-source_sha: "88bcd0ebc65e"
+source_sha: "6ae659f3a930"
 ---
 
 # Konfiguracja { #configuration }
@@ -352,14 +352,27 @@ Ustawienie tokena jest więc decyzją o tym, dokąd może trafić treść runów
 tylko o dashboardach. Wdrożenie nad danymi medycznymi, prawnymi lub HR najpierw
 czyta, [co opuszcza maszynę](data-protection.md#traces).
 
-Trace'y wysyłają dwie ścieżki i są one niezależne. `LOGFIRE_TOKEN` stąd
-instrumentuje **każdy** run do projektu samego wdrożenia. Blok
-[`observability`](reference/spec.md#observability) agenta przekierowuje runy tego
-jednego agenta do jego własnego projektu — zwykle klienta — a jego tryb `content`
-decyduje, ile niesie każdy span: `full`, domyślny, zapisuje wiadomość, wyjście
-i każde wywołanie narzędzia; `none` zapisuje tylko czas, tokeny, koszt i nazwy
-narzędzi. `none` trzyma na obu ścieżkach, więc agent, który o niego poprosi, nie
-eksportuje treści nawet wtedy, gdy run trace'uje token na poziomie wdrożenia.
+Trzy rzeczy mogą skierować runy do projektu i nakładają się na siebie:
+
+- `LOGFIRE_TOKEN` stąd instrumentuje Pydantic AI globalnie **w procesie API**
+  (`app/main.py`), więc każdy run obsłużony tam trafia do projektu samego
+  wdrożenia. Run wykonany przez workera Prefect nie jest objęty, bo ten proces
+  nigdy nie konfiguruje Logfire
+  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- [Środowisko](environments.md#tracing-per-environment) może nieść własny token
+  zapisu, zapieczętowany w vaulcie, który przekierowuje związane z nim runy.
+- Blok [`observability`](reference/spec.md#observability) agenta nazywa projekt
+  jego własny — zwykle klienta.
+
+Tryb `content` agenta decyduje, ile niesie każdy span: `full`, domyślny, zapisuje
+wiadomość, wyjście i każde wywołanie narzędzia; `none` zapisuje tylko czas,
+tokeny, koszt i nazwy narzędzi. Jest stosowany tam, gdzie agent jest
+instrumentowany, więc trzyma niezależnie od tego, który token trace'uje run — przy
+tym na poziomie wdrożenia agent zostaje przypięty do instrumentacji bez treści.
+Dwa ograniczenia, zanim na tym polegasz: podpięcie jej jest best-effort, a błąd
+jest logowany, gdy run trwa dalej; oraz inline specjalista jest budowany ze specu
+bez bloku observability, więc jego własne spany wciąż niosą treść
+([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
