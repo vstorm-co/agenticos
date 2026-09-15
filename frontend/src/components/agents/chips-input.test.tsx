@@ -158,4 +158,23 @@ describe("ChipsInput", () => {
     expect(box()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove sales" })).toBeDisabled();
   });
+
+  it("counts a supplementary character as one toward maxLength, matching the backend", () => {
+    // Each emoji below is a surrogate pair - two UTF-16 units, one code point.
+    // A native `maxLength` counting units would cut this to one emoji; the
+    // backend's `len(label)` counts code points and allows both.
+    render(<Harness maxLength={2} />);
+
+    fireEvent.change(box(), { target: { value: "😀😀" } });
+
+    expect((box() as HTMLInputElement).value).toBe("😀😀");
+  });
+
+  it("clamps a draft past maxLength to whole code points, not UTF-16 units", () => {
+    render(<Harness maxLength={1} />);
+
+    fireEvent.change(box(), { target: { value: "😀😀" } });
+
+    expect((box() as HTMLInputElement).value).toBe("😀");
+  });
 });

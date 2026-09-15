@@ -367,6 +367,45 @@ class TestMetadata:
         assert len(list_visible.call_args.kwargs["tags"]) == 20
 
     @pytest.mark.anyio
+    async def test_list_agents_returns_nothing_when_every_category_is_invalid(self):
+        """An all-invalid facet must not broaden into an unfiltered listing.
+
+        Every supplied category is over the stored width, so none folds to a
+        valid label - the query must answer empty rather than falling back to
+        "no predicate" and returning every agent the caller can see.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([_agent(ctx)], 1)),
+            ) as list_visible,
+        ):
+            rows, total = await AgentRegistryService(_db()).list_agents(ctx, categories=["x" * 40])
+
+        assert rows == []
+        assert total == 0
+        assert list_visible.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_list_agents_returns_nothing_when_every_tag_is_invalid(self):
+        """The same guard applies to the tags facet, independently of categories."""
+        ctx = _ctx(OrgRoleName.OWNER)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([_agent(ctx)], 1)),
+            ) as list_visible,
+        ):
+            rows, total = await AgentRegistryService(_db()).list_agents(ctx, tags=["y" * 40])
+
+        assert rows == []
+        assert total == 0
+        assert list_visible.await_count == 0
+
+    @pytest.mark.anyio
     async def test_a_listed_agent_carries_its_categories_and_tags(self):
         """The hand-built list row reads the columns, not a false empty list."""
         ctx = _ctx(OrgRoleName.OWNER)

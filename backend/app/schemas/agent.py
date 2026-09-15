@@ -26,21 +26,27 @@ def _fold_labels(values: list[str]) -> list[str]:
     """Canonicalize discovery labels: trim, fold case, drop empties, dedupe.
 
     The pure value-shaping core both entry points share. In order: collapse
-    internal whitespace runs to one space and trim, NFC-normalize then
-    `str.casefold()` so visually identical spellings (composed vs. decomposed,
-    the full Unicode case map) become one canonical form the plain GIN index can
-    match, drop anything empty after trimming, and de-duplicate preserving
-    first-seen order. Idempotent: re-folding a folded list changes nothing.
+    internal whitespace runs to one space and trim, NFC-normalize, fold case with
+    `str.casefold()`, then NFC-normalize *again* so visually identical spellings
+    (composed vs. decomposed, the full Unicode case map) become one canonical
+    form the plain GIN index can match, drop anything empty after trimming, and
+    de-duplicate preserving first-seen order. Idempotent: re-folding a folded
+    list changes nothing.
 
     `casefold()` rather than `lower()` because `lower()` leaves `"ß"`/`"ss"` and
-    NFC/NFD variants distinct, splitting one tag into several.
+    NFC/NFD variants distinct, splitting one tag into several. The second
+    normalization matters because `casefold()` can itself produce a decomposed
+    sequence even from NFC input - Greek `"ΐ"` folds to a byte-distinct but
+    canonically equivalent spelling depending on which precomposed or combining
+    form of the letter it started from - so skipping it leaves two case-fold
+    outputs that array-overlap compares as different strings.
     """
     seen: dict[str, None] = {}
     for value in values:
         collapsed = " ".join(value.split())
         if not collapsed:
             continue
-        folded = unicodedata.normalize("NFC", collapsed).casefold()
+        folded = unicodedata.normalize("NFC", unicodedata.normalize("NFC", collapsed).casefold())
         if folded not in seen:
             seen[folded] = None
     return list(seen)
@@ -65,7 +71,7 @@ def normalize_labels_strict(values: list[str]) -> list[str]:
     return folded
 
 
-def normalize_labels_query(values: list[str], *, max_items: int) -> list[str]:
+def normalize_labels_query(values: list[str], *, max_items: int) -> list[str] | None:
     """Fold labels for the filter path: tolerant, bounded, never raising.
 
     A bad or oversized discovery query param should quietly narrow the result on
@@ -76,8 +82,18 @@ def normalize_labels_query(values: list[str], *, max_items: int) -> list[str]:
     `max_items`, the same bound the write path enforces, so a runaway filter is
     trimmed rather than executed. The cap is a parameter because the one helper
     cannot otherwise know it is folding categories (10) or tags (20).
+
+    Returns `None`, not `[]`, when the caller supplied at least one non-blank
+    value and every one of them was dropped for being too long: that facet is
+    unsatisfiable (no stored label can be over the column width), which the
+    caller must treat as "match nothing" rather than "no predicate" - the two
+    read the same as an empty list, but only a blank/absent facet means the
+    latter.
     """
-    kept = [label for label in _fold_labels(values) if len(label) <= LABEL_MAX_LENGTH]
+    folded = _fold_labels(values)
+    kept = [label for label in folded if len(label) <= LABEL_MAX_LENGTH]
+    if folded and not kept:
+        return None
     return kept[:max_items]
 
 

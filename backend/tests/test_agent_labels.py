@@ -42,6 +42,23 @@ def test_fold_unifies_composed_and_decomposed_spellings():
     assert _fold_labels([composed, decomposed]) == ["café"]
 
 
+def test_fold_unifies_spellings_that_only_diverge_after_casefold():
+    """`casefold()` on NFC input can itself produce a decomposed sequence.
+
+    Greek "ΐ" (U+0390) case-folds to a composed spelling, while the dialytika
+    tonos spelling of its uppercase folds to the canonically equivalent but
+    byte-distinct decomposed one - so a second NFC pass after casefold is
+    required for one canonical stored value, matching NFC(casefold(NFC(x))).
+    """
+    lower = "ΐ"
+    upper = "Ϊ́"
+    assert (
+        unicodedata.normalize("NFC", lower).casefold()
+        != unicodedata.normalize("NFC", upper).casefold()
+    )
+    assert _fold_labels([lower, upper]) == [_fold_labels([lower])[0]]
+
+
 def test_fold_dedupes_preserving_first_seen_order():
     assert _fold_labels(["b", "A", "a", "B", "c"]) == ["b", "a", "c"]
 
@@ -79,6 +96,17 @@ def test_query_caps_to_the_facet_bound():
 
 def test_query_of_blank_values_is_empty():
     assert normalize_labels_query(["   ", "\t"], max_items=MAX_TAGS) == []
+
+
+def test_query_of_only_over_length_values_is_none_not_empty():
+    """`None` signals "unsatisfiable", distinct from a blank facet's `[]`.
+
+    A caller that folds `None` into "no predicate" would broaden an invalid
+    filter into an unfiltered listing - the caller must treat it as "match
+    nothing" instead.
+    """
+    assert normalize_labels_query(["x" * 40], max_items=MAX_TAGS) is None
+    assert normalize_labels_query(["x" * 40, "y" * 40], max_items=MAX_TAGS) is None
 
 
 def test_metadata_request_normalizes_duplicates_and_empties():

@@ -100,6 +100,68 @@ describe("MetadataEditor", () => {
     expect(screen.getByText("Sales")).toBeInTheDocument();
   });
 
+  it("adopts a categories prop that changed from outside this editor while idle", () => {
+    const { rerender } = render(<MetadataEditor agentId="a1" categories={["sales"]} tags={[]} />, {
+      wrapper,
+    });
+    expect(screen.getByText("sales")).toBeInTheDocument();
+
+    // Another client retagged the row; the refetched prop should replace the
+    // untouched draft rather than being ignored.
+    rerender(<MetadataEditor agentId="a1" categories={["marketing"]} tags={[]} />);
+
+    expect(screen.getByText("marketing")).toBeInTheDocument();
+    expect(screen.queryByText("sales")).toBeNull();
+  });
+
+  it("keeps a failed save's draft even after the categories prop changes from elsewhere", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("too many"));
+    const { rerender } = render(<MetadataEditor agentId="a1" categories={["sales"]} tags={[]} />, {
+      wrapper,
+    });
+
+    await userEvent.type(categoryBox(), "urgent{Enter}");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("too many"));
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+
+    // Someone else's update to the row must not silently discard the failed,
+    // not-yet-retried attempt.
+    rerender(<MetadataEditor agentId="a1" categories={["marketing"]} tags={[]} />);
+
+    expect(screen.getByText("sales")).toBeInTheDocument();
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+    expect(screen.queryByText("marketing")).toBeNull();
+  });
+
+  it("adopts a tags prop that changed from outside this editor while idle", () => {
+    const { rerender } = render(<MetadataEditor agentId="a1" categories={[]} tags={["eu"]} />, {
+      wrapper,
+    });
+    expect(screen.getByText("eu")).toBeInTheDocument();
+
+    rerender(<MetadataEditor agentId="a1" categories={[]} tags={["apac"]} />);
+
+    expect(screen.getByText("apac")).toBeInTheDocument();
+    expect(screen.queryByText("eu")).toBeNull();
+  });
+
+  it("keeps a failed save's draft even after the tags prop changes from elsewhere", async () => {
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("too many"));
+    const { rerender } = render(<MetadataEditor agentId="a1" categories={[]} tags={["eu"]} />, {
+      wrapper,
+    });
+
+    await userEvent.type(tagBox(), "urgent{Enter}");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("too many"));
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+
+    rerender(<MetadataEditor agentId="a1" categories={[]} tags={["apac"]} />);
+
+    expect(screen.getByText("eu")).toBeInTheDocument();
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+    expect(screen.queryByText("apac")).toBeNull();
+  });
+
   it("disables both editors while a save is in flight", async () => {
     let resolve: ((value: unknown) => void) | undefined;
     vi.mocked(apiClient.patch).mockReturnValue(

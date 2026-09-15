@@ -7,6 +7,20 @@ import { Badge, Input } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 /**
+ * Truncate to `limit` Unicode code points, not UTF-16 code units.
+ *
+ * The native `maxLength` attribute counts UTF-16 units, but the backend's
+ * `len(label)` and the `varchar(32)` column both count code points - so a
+ * label of 17-32 supplementary characters (an emoji, for instance) is valid to
+ * store but `maxLength` would cut it off at 16. `Array.from` splits on code
+ * points, matching Python's `len()` on the same string.
+ */
+function clampToCodePoints(value: string, limit: number): string {
+  const codePoints = Array.from(value);
+  return codePoints.length > limit ? codePoints.slice(0, limit).join("") : value;
+}
+
+/**
  * A chips editor: type a value, commit it as a removable chip.
  *
  * Commit on Enter and on blur; remove the last chip with Backspace on an empty
@@ -76,9 +90,8 @@ export function ChipsInput({
         aria-label={inputLabel}
         value={draft}
         placeholder={placeholder}
-        maxLength={maxLength}
         disabled={disabled || full}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => setDraft(clampToCodePoints(event.target.value, maxLength))}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") {

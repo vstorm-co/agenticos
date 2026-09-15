@@ -724,9 +724,16 @@ class AgentRegistryService:
         dropped, capped per facet, never raising) and threaded to `list_visible`,
         which overlaps them against the row - a narrowing on top of the isolation
         the query already enforces.
+
+        A facet where every supplied value was invalid (too long, once folded)
+        normalizes to `None`, not `[]`: it must not fall back to "no predicate"
+        and broaden into an unfiltered listing, so that case returns empty here
+        rather than reaching `list_visible` at all.
         """
         norm_categories = normalize_labels_query(list(categories), max_items=MAX_CATEGORIES)
         norm_tags = normalize_labels_query(list(tags), max_items=MAX_TAGS)
+        if norm_categories is None or norm_tags is None:
+            return [], 0
         # `None` is `visible_resource_ids` saying the role already reaches every
         # agent, which is exactly what `see_all` tells the query - so both come
         # from the one call rather than from the scope being read twice and the
