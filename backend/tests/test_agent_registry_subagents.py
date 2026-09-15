@@ -391,8 +391,8 @@ class TestInlineSpecialists:
                         _specialist(
                             capabilities=[
                                 {
-                                    "id": "skills",
-                                    "tool_overrides": {"load_skill": {"name": "list_skills"}},
+                                    "id": "context",
+                                    "tool_overrides": {"read_context": {"name": "list_context"}},
                                 }
                             ]
                         )
@@ -402,7 +402,7 @@ class TestInlineSpecialists:
         )
 
         assert problems == [
-            "Specialist 'summariser': Capability 'skills' would offer two tools called list_skills"
+            "Specialist 'summariser': Capability 'context' would offer two tools called list_context"
         ]
 
     async def test_a_specialist_naming_a_model_profile_that_is_gone_is_refused(self, monkeypatch):

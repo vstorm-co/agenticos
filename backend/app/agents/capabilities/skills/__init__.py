@@ -20,9 +20,11 @@ __all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
     name="Skills",
     category="knowledge",
     description="Load the organization's written know-how on demand, one skill at a time.",
-    # The three names come from `pydantic-ai-skills` and are somebody else's to
-    # change; the drift test is what tells us when they did. What each tool
-    # *returns* is this repository's text - see `SKILL_TEXTS`.
+    # The name comes from `pydantic-ai-skills` and is somebody else's to change;
+    # the drift test is what tells us when they did. What the tool *returns* is
+    # this repository's text - see `SKILL_TEXTS`. The skills themselves are not
+    # tools: each is a deferred capability the model opens with
+    # `load_capability`, so there is nothing here to gate or rename for them.
     tools=tuple(
         # The summary each tool's text opens with, so the Builder shows the
         # sentence the model reads first rather than a fourth copy of it.

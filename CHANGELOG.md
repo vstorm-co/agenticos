@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **12**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,34 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+### Changed
+
+- **A skill is now a capability of its own, and the model opens it with
+  `load_capability`.** `pydantic-ai-skills` 2.0 makes each skill a deferred
+  capability: its name and one-line description sit in the catalog the model reads
+  every turn, and pydantic-ai's own `load_capability` pulls the body in. The two
+  tools this platform published to do that by hand — `list_skills` and `load_skill`
+  — are gone, and `read_skill_resource` is the one tool the capability still
+  contributes, offered only when at least one bound skill ships a file to read.
+  `run_skill_script` stays switched off: a skill's files reach a run under
+  `/workspace/skills/`, where the sandbox's own `execute` runs them. The console
+  renders a loaded skill under the `load_capability` step, with the skill's name as
+  the step label. (#1658)
+
+  **`SPEC_VERSION` moves to 12.** A stored binding that gated or renamed
+  `list_skills` or `load_skill` loads with that entry dropped and a warning in the
+  log — publish validation refuses a gate on a tool that does not exist, and a
+  rename of one is not a decision worth carrying forward. Anything the binding said
+  about `read_skill_resource` is left exactly as written.
+
+### Fixed
+
+- **A tool that answers with a structure is recorded as JSON, not as a Python
+  repr.** `str({'instructions': ...})` reaches the browser quoted `'like this'`,
+  which no renderer on the other side can parse — so the step showing what the
+  agent loaded had nothing to open. Applies to the stored transcript and to the
+  live `tool_result` frame alike. (#1658)
 
 ## [0.0.440] - 2026-09-15
 

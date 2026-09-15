@@ -24,6 +24,7 @@ must not make the run inside it unaccountable.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
@@ -103,6 +104,28 @@ def tool_retry_notice(part: RetryPromptPart) -> str:
     )
 
 
+def tool_result_text(content: Any) -> str:
+    """One text form for whatever a tool answered with.
+
+    A tool that answers in text - almost all of them - is recorded as it wrote
+    it. A tool that answers with a structure is recorded as JSON rather than as
+    `str(...)`, because a Python repr arrives on the other side quoted
+    `'like this'`, which no reader and no renderer can parse. `load_capability`
+    is the first tool a run here emits that returns a mapping: what the model
+    got back when it opened a skill.
+
+    `str` is the fallback for a value JSON will not take. A tool return that
+    cannot be serialised must not take the run down with it - the model already
+    has the answer; this only decides what a person reads afterwards.
+    """
+    if isinstance(content, str):
+        return content
+    try:
+        return json.dumps(content, ensure_ascii=False, default=str)
+    except ValueError:
+        return str(content)
+
+
 def _result_text(part: ToolReturnPart | RetryPromptPart) -> str:
     """What the row stores as the call's outcome.
 
@@ -118,7 +141,7 @@ def _result_text(part: ToolReturnPart | RetryPromptPart) -> str:
     if isinstance(part, RetryPromptPart):
         logger.warning("Tool call %s asked the model to retry: %s", part.tool_call_id, part.content)
         return tool_retry_notice(part)
-    return str(part.content)
+    return tool_result_text(part.content)
 
 
 def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:

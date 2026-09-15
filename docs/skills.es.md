@@ -1,5 +1,5 @@
 ---
-source_sha: "2491700b56ff"
+source_sha: "28f925213bbe"
 ---
 
 # Skills { #skills }
@@ -16,9 +16,9 @@ skills le dan la vuelta a eso:
 
 ```mermaid
 flowchart LR
-    A["the agent's context<br/><i>names + one-line descriptions only</i>"] -->|list_skills| B{is one relevant?}
+    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_skill - the body"]
+    B -->|yes| C["load_capability - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -30,10 +30,9 @@ Veinte skills cuestan aproximadamente veinte *descripciones* en lugar de veinte
 
 !!! note "Descubrir es barato, no gratis"
 
-    `list_skills` responde con el nombre y la descripción de cada skill
-    adjuntado, y ese resultado entra en la siguiente petición al modelo — así que
-    cada skill al que está vinculado un agent sí cuesta tokens en un turno en el
-    que se ejecuta el descubrimiento.
+    Cada skill vinculado está en el catálogo de capabilities que el modelo lee en
+    cada turno, con su nombre y su descripción de una línea — así que vincular un
+    skill cuesta tokens tanto si el modelo llega a abrirlo como si no.
 
     Es una línea por skill frente a un cuerpo por skill, y por eso salen las
     cuentas. No es motivo para vincular un catálogo sin límite.
@@ -89,14 +88,20 @@ No tiene ningún efecto sobre lo que ve el agent — el modelo elige por
 
 ## Cómo lee uno un agent { #how-an-agent-reads-one }
 
-A través de la [capability `skills`](reference/capabilities.md#skills), que
-aporta tres herramientas:
+A través de la [capability `skills`](reference/capabilities.md#skills). Cada skill
+que recibe un agent se convierte en una **capability propia**, listada para el
+modelo con su nombre y su descripción y abierta cuando hace falta:
 
-| Herramienta | Qué hace |
+| Cómo | Qué hace |
 |---|---|
-| `list_skills` | Nombres y descripciones de una línea de todo lo vinculado a este agent |
-| `load_skill` | El cuerpo completo de un skill |
+| El catálogo de capabilities | Nombres y descripciones de una línea de todo lo vinculado a este agent |
+| `load_capability` | El cuerpo completo de un skill, traído a la conversación |
 | `read_skill_resource` | Un archivo al lado de un skill |
+
+`load_capability` es la herramienta del propio framework de agents, no una que
+publique esta plataforma, así que un spec no la concede, ni la controla, ni la
+renombra. Lo que la capability aporta como herramienta es `read_skill_resource`, y
+solo cuando al menos uno de los skills vinculados trae un archivo que leer.
 
 Un spec vincula skills por id en `skill_ids`, así que un agent ve los que se le
 dieron y nada más.

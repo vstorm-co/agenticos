@@ -20,6 +20,10 @@
  * tool it exposes. Those fall back to a humanized name and the generic renderer,
  * which is the honest answer for a tool this side has never heard of.
  *
+ * `load_capability` is the exception, and `FRAMEWORK_TOOLS` below is where it is
+ * written down: Pydantic AI contributes it to every agent that has a deferred
+ * capability, so no capability registers it and every skills agent emits it.
+ *
  * Dependency-free on purpose - it is the vocabulary, not the presentation.
  */
 
@@ -48,10 +52,9 @@ export type StepKind =
  * test, a hook and a server component - the components live in
  * `components/chat/tool-results/` and one of them pulls in Recharts.
  *
- * There is no "nothing to open" any more. `list_context` and `list_skills` carried
- * one on the grounds that what comes back is a prompt fragment, and the question
- * they are the answer to - "does it actually see my glossary" - is answered by the
- * list and by nothing else.
+ * There is no "nothing to open" any more. `list_context` carried one on the grounds
+ * that what comes back is a prompt fragment, and the question it is the answer to -
+ * "does it actually see my glossary" - is answered by the list and by nothing else.
  */
 export type ToolRenderer =
   | "chart"
@@ -59,8 +62,7 @@ export type ToolRenderer =
   | "web-search"
   | "rag"
   | "run-python"
-  | "load-skill"
-  | "skill-list"
+  | "loaded-skill"
   | "context-list"
   | "plan"
   | "workspace"
@@ -267,19 +269,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "pastConversation",
   },
 
-  // skills
-  list_skills: {
-    kind: "skill",
-    render: "skill-list",
-    captionKey: "lookingThroughSkills",
-    displayNameKey: "availableSkills",
-  },
-  load_skill: {
-    kind: "skill",
-    render: "load-skill",
-    captionKey: "loadingSkill",
-    displayNameKey: "loadSkill",
-  },
+  // skills - opening one is `load_capability`, in FRAMEWORK_TOOLS below
   read_skill_resource: {
     kind: "skill",
     render: "generic",
@@ -414,9 +404,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
 };
 
+/**
+ * Tools the agent framework contributes, which no capability registers.
+ *
+ * Kept out of `TOOL_CATALOG` so the drift check against the backend registry stays an
+ * exact match in both directions - a surplus row there is a renderer nothing reaches,
+ * and that is the half that hid #144.
+ *
+ * `load_capability` is Pydantic AI's own, and it is how a model opens a skill: every
+ * skill an agent is given is a deferred capability, so this is the call a person sees
+ * where `load_skill` used to be. Without a row it would render as *Load Capability*
+ * over a JSON blob, which says nothing about which skill was opened.
+ */
+export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
+  load_capability: {
+    kind: "skill",
+    render: "loaded-skill",
+    captionKey: "loadingSkill",
+    displayNameKey: "loadSkill",
+  },
+};
+
 /** What this side knows about `name`, or null for a tool it has never heard of. */
 export function toolEntry(name: string): ToolEntry | null {
-  return TOOL_CATALOG[name] ?? null;
+  return TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? null;
 }
 
 /**

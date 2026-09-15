@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { GenericToolResult, RawToolView } from "./generic";
 import { RunPythonResult } from "./run-python";
-import { LoadSkillResult, formatSkillName, parseLoadSkillResult } from "./skills";
+import { LoadedSkillResult, formatSkillName, parseLoadedSkill } from "./skills";
 import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
-import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
+import { ContextListResult, parseContextList } from "./catalogs";
 import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
 
@@ -471,47 +471,49 @@ describe("running Python", () => {
 });
 
 describe("loading a skill", () => {
-  it("shows the description and not the XML it arrived in", () => {
+  it("shows the instructions and not the envelope they arrived in", () => {
     render(
-      <LoadSkillResult
-        resultText={
-          "<skill><name>refunds</name><description>How refunds work.</description></skill>"
-        }
+      <LoadedSkillResult
+        result={{ instructions: "# Skill: refunds\n\nCheck the order date." }}
         status="completed"
       />,
     );
 
-    expect(screen.getByText("How refunds work.")).toBeInTheDocument();
-    expect(screen.queryByText(/<skill>/)).toBeNull();
+    expect(screen.getByText("Check the order date.")).toBeInTheDocument();
+    expect(screen.queryByText(/# Skill:/)).toBeNull();
   });
 
-  it("reads a multi-line description", () => {
-    expect(parseLoadSkillResult("<description>\n  Line one.\n  Line two.\n</description>")).toEqual(
-      { description: "Line one.\n  Line two." },
-    );
+  it("reads the payload whether it arrived as an object or as its JSON", () => {
+    const json = JSON.stringify({ instructions: "# Skill: refunds\n\nAsk for the receipt." });
+
+    expect(parseLoadedSkill(json)).toBe("Ask for the receipt.");
+    expect(parseLoadedSkill({ instructions: "Ask for the receipt." })).toBe("Ask for the receipt.");
   });
 
-  it("finds nothing in a result with no description", () => {
-    expect(parseLoadSkillResult("<skill><name>refunds</name></skill>")).toBeNull();
-    expect(parseLoadSkillResult("<description></description>")).toBeNull();
+  it("finds nothing in a result that carried no instructions", () => {
+    expect(parseLoadedSkill("the tool failed")).toBeNull();
+    expect(parseLoadedSkill([{ instructions: "x" }])).toBeNull();
+    expect(parseLoadedSkill({})).toBeNull();
+    expect(parseLoadedSkill({ instructions: 7 })).toBeNull();
+    expect(parseLoadedSkill({ instructions: "# Skill: refunds\n" })).toBeNull();
   });
 
-  it("renders nothing when there is no description to show", () => {
-    const { container } = render(<LoadSkillResult resultText="<skill/>" status="completed" />);
+  it("renders nothing when there is no body to show", () => {
+    const { container } = render(<LoadedSkillResult result={{}} status="completed" />);
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it("says it is loading, and says when it failed", () => {
-    const { rerender } = render(<LoadSkillResult resultText="" status="running" />);
+    const { rerender } = render(<LoadedSkillResult result={undefined} status="running" />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
 
-    rerender(<LoadSkillResult resultText="" status="error" />);
+    rerender(<LoadedSkillResult result={undefined} status="error" />);
     expect(screen.getByText("Failed to load skill.")).toBeInTheDocument();
   });
 
   it("says it is loading for a result that arrived before the status did", () => {
-    render(<LoadSkillResult resultText="<description>x</description>" status="running" />);
+    render(<LoadedSkillResult result={{ instructions: "x" }} status="running" />);
 
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
@@ -666,10 +668,10 @@ describe("the raw view behind every tool", () => {
 /**
  * What the agent found when it looked, and what it planned.
  *
- * Both used to open nothing: `list_skills` and `list_context` were `render: "none"`
- * on the grounds that a prompt fragment is not something a person reads, and
- * `write_plan` opened its own arguments - the whole ordered list, in JSON, above a
- * rendered copy of the same steps.
+ * Both used to open nothing: `list_context` was `render: "none"` on the grounds that
+ * a prompt fragment is not something a person reads, and `write_plan` opened its own
+ * arguments - the whole ordered list, in JSON, above a rendered copy of the same
+ * steps.
  */
 describe("the catalogs a step looked through", () => {
   it("lists a context file with its description, and one without", () => {
@@ -686,35 +688,11 @@ describe("the catalogs a step looked through", () => {
     expect(screen.getByText("No context files are attached to this agent.")).toBeInTheDocument();
   });
 
-  it("reads the skills mapping whether it arrived as an object or as its JSON", () => {
-    const expected = [{ name: "refunds", description: "How refunds work." }];
+  it("draws the context list it was given", () => {
+    render(<ContextListResult resultText="- glossary: What the acronyms mean." />);
 
-    expect(parseSkillList({ refunds: "How refunds work." })).toEqual(expected);
-    expect(parseSkillList(JSON.stringify({ refunds: "How refunds work." }))).toEqual(expected);
-  });
-
-  it("calls a skill with no description a skill, not a blank line", () => {
-    expect(parseSkillList({ refunds: "" })).toEqual([{ name: "refunds", description: null }]);
-  });
-
-  it("treats anything that is not a mapping as no list", () => {
-    // An error sentence, an empty mapping, a list the library never sends.
-    expect(parseSkillList("the tool failed")).toBeNull();
-    expect(parseSkillList({})).toBeNull();
-    expect(parseSkillList([{ name: "refunds" }])).toBeNull();
-  });
-
-  it("says no skills are attached when the mapping came back empty", () => {
-    render(<SkillListResult result={{}} />);
-
-    expect(screen.getByText("No skills are attached to this agent.")).toBeInTheDocument();
-  });
-
-  it("draws the skill list it was given", () => {
-    render(<SkillListResult result={{ refunds: "How refunds work." }} />);
-
-    expect(screen.getByText("refunds")).toBeInTheDocument();
-    expect(screen.getByText("How refunds work.")).toBeInTheDocument();
+    expect(screen.getByText("glossary")).toBeInTheDocument();
+    expect(screen.getByText("What the acronyms mean.")).toBeInTheDocument();
   });
 });
 

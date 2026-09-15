@@ -1,5 +1,5 @@
 ---
-source_sha: "2491700b56ff"
+source_sha: "28f925213bbe"
 ---
 
 # Skille { #skills }
@@ -16,9 +16,9 @@ odwracają tę zależność:
 
 ```mermaid
 flowchart LR
-    A["the agent's context<br/><i>names + one-line descriptions only</i>"] -->|list_skills| B{is one relevant?}
+    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_skill - the body"]
+    B -->|yes| C["load_capability - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -30,10 +30,9 @@ Dwadzieścia skilli kosztuje mniej więcej dwadzieścia *opisów* zamiast dwudzi
 
 !!! note "Wykrywanie jest tanie, ale nie darmowe"
 
-    `list_skills` odpowiada nazwą i opisem każdego podpiętego skilla, a ten wynik
-    trafia do kolejnego zapytania do modelu — więc każdy skill, do którego agent
-    jest podpięty, faktycznie kosztuje tokeny w turze, w której wykrywanie się
-    uruchamia.
+    Każdy podpięty skill siedzi w katalogu capability, który model czyta w każdej
+    turze — jako nazwa i jednolinijkowy opis. Podpięcie skilla kosztuje więc
+    tokeny niezależnie od tego, czy model kiedykolwiek go otworzy.
 
     To linijka na skilla zamiast całej treści na skilla i dlatego rachunek się spina.
     Nie jest to jednak powód, żeby podpinać nieograniczony katalog.
@@ -87,14 +86,20 @@ kategorii.
 
 ## Jak agent go czyta { #how-an-agent-reads-one }
 
-Przez [capability `skills`](reference/capabilities.md#skills), która wnosi trzy
-narzędzia:
+Przez [capability `skills`](reference/capabilities.md#skills). Każdy skill, który
+agent dostaje, staje się **osobną capability** — wypisaną modelowi z nazwy i opisu,
+a otwieraną na żądanie:
 
-| Narzędzie | Co robi |
+| Jak | Co robi |
 |---|---|
-| `list_skills` | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
-| `load_skill` | Pełna treść jednego skilla |
+| Katalog capability | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
+| `load_capability` | Pełna treść jednego skilla, wciągnięta do rozmowy |
 | `read_skill_resource` | Jeden plik obok skilla |
+
+`load_capability` jest narzędziem samego frameworka agentowego, a nie czymś, co
+publikuje ta platforma — spec go więc nie przyznaje, nie bramkuje i nie zmienia mu
+nazwy. Jako narzędzie ta capability wnosi `read_skill_resource`, i tylko wtedy, gdy
+przynajmniej jeden z podpiętych skilli wiezie ze sobą plik do odczytania.
 
 Spec podpina skille po id w `skill_ids`, więc agent widzi te, które dostał, i nic
 poza tym.

@@ -66,7 +66,13 @@ logger = logging.getLogger(__name__)
 # `use_personal_when_available` is withdrawn: it substituted a credential in
 # private conversations only, which left a personal account working in a direct
 # message and silently absent from the channel next to it.
-SPEC_VERSION = 11
+#
+# 12 withdraws two of the `skills` capability's tools. `pydantic-ai-skills` 2.0
+# makes each skill a deferred capability, so the catalog the model reads is its
+# own and `load_capability` opens a skill - which leaves `list_skills` and
+# `load_skill` as names for a mechanism nobody calls. A binding that gated or
+# renamed either is migrated by dropping that entry.
+SPEC_VERSION = 12
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -80,6 +86,8 @@ _WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
 _THINKING_CAPABILITY = "thinking"
+_SKILLS_CAPABILITY = "skills"
+_WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", "load_skill"})
 _THINKING_SETTING = "thinking"
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
@@ -191,6 +199,46 @@ class CapabilityBindingSpec(BaseModel):
                 **(data.get("tool_overrides") or {}),
             },
         }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_the_skills_tools_version_12_withdrew(cls, data: Any) -> Any:
+        """Let a version-11 skills binding load without its withdrawn tools.
+
+        `list_skills` and `load_skill` were this platform's names for a
+        mechanism pydantic-ai now owns: each skill is a deferred capability, and
+        the model reads the catalog in its own capability list and opens one
+        with `load_capability`. Neither name is a tool any more, so a binding
+        that gated or renamed one is refused at publish - which would make every
+        stored spec that did so unpublishable, and a rename of a tool that no
+        longer exists is not a decision worth preserving.
+
+        Dropped rather than refused, and said out loud, for the reason
+        `_MODEL_SETTINGS_WITHDRAWN` is: `extra="forbid"` does not apply to these
+        keys, but publish validation does, and an agent nobody touched should
+        not stop republishing. `read_skill_resource` survives the move and is
+        left exactly as the binding states it.
+        """
+        if not isinstance(data, dict) or data.get("id") != _SKILLS_CAPABILITY:
+            return data
+        migrated = dict(data)
+        for key in ("tool_approval", "tool_overrides"):
+            stated = data.get(key)
+            if not isinstance(stated, dict):
+                continue
+            withdrawn = _WITHDRAWN_SKILL_TOOLS & stated.keys()
+            if not withdrawn:
+                continue
+            logger.warning(
+                "Dropping `%s` for skills tools this spec version no longer exposes: %s. "
+                "A skill is loaded with `load_capability` now, which needs no gate of its own.",
+                key,
+                ", ".join(sorted(withdrawn)),
+            )
+            migrated[key] = {
+                tool_id: value for tool_id, value in stated.items() if tool_id not in withdrawn
+            }
+        return migrated
 
     def to_binding(self) -> CapabilityBinding:
         return CapabilityBinding(
