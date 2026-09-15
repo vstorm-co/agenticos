@@ -169,6 +169,7 @@ async def test_a_blank_filter_is_a_no_op(db: AsyncSession) -> None:
     assert len(items) == 2
 
 
+@pytest.mark.security
 async def test_a_filter_never_crosses_a_tenant(db: AsyncSession) -> None:
     org_a, owner_a = await _org(db)
     org_b, owner_b = await _org(db)

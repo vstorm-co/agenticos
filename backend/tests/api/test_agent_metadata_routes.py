@@ -119,6 +119,7 @@ async def test_too_many_categories_are_refused_at_the_edge(owner_client: OpenCli
     assert response.status_code == 422
 
 
+@pytest.mark.security
 async def test_a_cross_tenant_target_is_a_not_found(owner_client: OpenClient):
     """The org filter in the repo read means another tenant's agent is missing."""
     with patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=None)):
