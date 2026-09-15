@@ -17,6 +17,46 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.439] - 2026-09-15
+
+### Security
+
+- **`script-src` no longer allows `'unsafe-inline'`.** The console's policy shipped
+  with everything else locked down except its riskiest directive, because the app
+  router inlines its flight data. The middleware now mints a 128-bit nonce per
+  request, writes `'nonce-…' 'strict-dynamic'` into the directive and forwards it on
+  the request headers so Next stamps that nonce onto its own inline scripts; the
+  response carries the same policy. `'unsafe-eval'` stays for the development
+  runtime and `connect-src`, which governs the chat WebSocket, is untouched.
+  Verified against a running frontend: every script tag on the page carries the
+  request's nonce, none is unnonced, and the browser reports no policy violation.
+  There is no `dangerouslySetInnerHTML` carrying a script, no inline `<script>`, no
+  `next/script` and no third-party script anywhere in the console, so every surface
+  shares that profile and `'strict-dynamic'` extends the nonce's trust to the chunks
+  those scripts load. (#1624)
+
+## [0.0.438] - 2026-09-15
+
+### Added
+
+- **Skills under `.claude/skills/`, for the work around the code rather than in
+  it.** `vstorm-code-review` runs a staged pipeline of subagents - scope,
+  correctness, security, quality, verification, judge - all grading against one
+  finding taxonomy, so a candidate is raised, filed or refuted with proof and never
+  silently re-surfaced after a fix; findings are posted to the pull request with
+  stable ids and a reviewed-commit marker, which is what lets a re-review reconcile
+  instead of starting over. Executing anything the pull request itself defines is
+  treated as a boundary: an isolated environment with no ambient credentials, or
+  static verification and an `unverified` finding. `dev-agent` drives a resumable
+  loop that takes design and plan through a reviewed PR before any code exists,
+  then writes tests and implementation with review between. `pr-comments` works
+  through a PR's threads on that PR's own branch, `pr-description` writes a
+  description from the diff and the existing body, `review-map` projects a diff
+  onto the architecture for a reviewer, `resolve-changelog-conflict` resolves this
+  file from whichever git operation is actually in progress, and `ste-writing`
+  rewrites prose into Simplified Technical English. Repository only - nothing here
+  ships in an image. (#1639)
+
 ## [0.0.437] - 2026-09-15
 
 ### Fixed
