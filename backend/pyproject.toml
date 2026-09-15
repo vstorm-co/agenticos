@@ -612,6 +612,10 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/notification_catalog.py",
+    "app/services/notification_center.py",
+    "app/repositories/notification.py",
+    "app/api/routes/v1/notifications.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
     "app/services/portals/__init__.py",
@@ -921,6 +925,10 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/notification_catalog.py",
+    "app/services/notification_center.py",
+    "app/repositories/notification.py",
+    "app/api/routes/v1/notifications.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
     "app/services/portals/__init__.py",

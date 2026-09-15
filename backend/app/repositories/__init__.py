@@ -59,6 +59,8 @@ from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import mcp_registry_server as mcp_registry_server_repo
 from app.repositories import organization_secret as organization_secret_repo
 
+from app.repositories import notification as notification_repo
+
 __all__ = [
     "user_repo",
     "session_repo",
@@ -105,4 +107,5 @@ __all__ = [
     "skill_repo",
     "context_repo",
     "memory_repo",
+    "notification_repo",
 ]

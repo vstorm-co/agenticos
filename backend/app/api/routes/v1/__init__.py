@@ -53,6 +53,7 @@ from app.api.routes.v1 import admin_deployment_settings
 from app.api.routes.v1 import branding
 from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
+from app.api.routes.v1 import notifications
 
 v1_router = APIRouter()
 
@@ -62,6 +63,7 @@ v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 v1_router.include_router(users.router, prefix="/users", tags=["users"])
 v1_router.include_router(permissions.router, tags=["permissions"])
 v1_router.include_router(audit.router, tags=["audit"])
+v1_router.include_router(notifications.router, tags=["notifications"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
 v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])

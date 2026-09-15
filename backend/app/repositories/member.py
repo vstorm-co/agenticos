@@ -254,6 +254,84 @@ async def list_app_admin_emails(
     return [row[0] for row in result.all()]
 
 
+async def list_member_ids_by_role(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    roles: list[str],
+) -> list[UUID]:
+    """User ids of the members holding one of `roles` - no preference filter.
+
+    The id-based sibling of `list_emails_by_role` (#1598): a notification write
+    must happen once per resolved *person*, independent of any channel's
+    preference, which is applied per channel afterward - unlike the email
+    functions above, which fold a preference into who is returned at all.
+    """
+    result = await db.execute(
+        select(User.id)
+        .join(OrganizationMember, OrganizationMember.user_id == User.id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.role.in_(roles),
+            User.is_active.is_(True),
+        )
+    )
+    return [row[0] for row in result.all()]
+
+
+async def list_app_admin_ids(db: AsyncSession) -> list[UUID]:
+    """User ids of the deployment's app admins - no preference filter.
+
+    The id-based sibling of `list_app_admin_emails` (#1598), for the same
+    reason `list_member_ids_by_role` is: the notification write path resolves
+    identity first and applies a channel's preference afterward.
+    """
+    result = await db.execute(
+        select(User.id).where(User.is_app_admin.is_(True), User.is_active.is_(True))
+    )
+    return [row[0] for row in result.all()]
+
+
+async def has_membership_in_any(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    organization_ids: list[UUID],
+    role: str | None = None,
+) -> bool:
+    """Whether `user_id` currently belongs to any of `organization_ids`.
+
+    `role`, when given, narrows to that role - an announcement's audience can
+    be narrowed to owners and admins (Decision 5), and a member demoted out of
+    that role no longer qualifies even though their plain membership survives.
+    """
+    conditions = [
+        OrganizationMember.user_id == user_id,
+        OrganizationMember.organization_id.in_(organization_ids),
+    ]
+    if role is not None:
+        conditions.append(OrganizationMember.role == role)
+    return (await db.scalar(select(OrganizationMember.id).where(*conditions).limit(1))) is not None
+
+
+async def has_any_membership(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    role: str | None = None,
+) -> bool:
+    """Whether `user_id` currently belongs to any organization at all.
+
+    The "all organizations" half of an announcement's audience (Decision 5):
+    reaching everybody means everybody who is currently a member of something,
+    not a hardcoded list of organizations that existed when it was sent.
+    """
+    conditions = [OrganizationMember.user_id == user_id]
+    if role is not None:
+        conditions.append(OrganizationMember.role == role)
+    return (await db.scalar(select(OrganizationMember.id).where(*conditions).limit(1))) is not None
+
+
 async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
     result = await db.execute(
         select(func.count(OrganizationMember.id)).where(
