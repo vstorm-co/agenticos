@@ -207,6 +207,43 @@ class TestPrepare:
         assert prepared.deps is built.deps
 
     @pytest.mark.anyio
+    async def test_a_surface_that_can_show_a_compaction_notice_gets_its_sink_onto_the_deps(self):
+        """Whether the person can be told a summary is running is a property of
+        the *surface*, not of the run - so it is set on the built deps here
+        rather than threaded through the fourteen arguments of `_assemble`.
+
+        A surface that passes none is left as the agent was built: the field
+        defaults to `None` and the compaction capability sends nowhere (#936).
+        """
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        built = MagicMock()
+
+        async def sink(event: object) -> None: ...
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+        ):
+            prepared = await service.prepare(ctx, agent.id, on_compaction=sink)
+
+        assert prepared.built.deps.on_compaction is sink
+
+    @pytest.mark.anyio
     async def test_a_collection_that_is_gone_or_foreign_narrows_the_agent_instead_of_failing_the_run(
         self,
     ):

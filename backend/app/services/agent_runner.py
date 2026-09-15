@@ -106,7 +106,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, Workspac
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
-from app.agents.deps import AgentDeps
+from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
@@ -1895,6 +1895,7 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        on_compaction: CompactionSink | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -1924,6 +1925,12 @@ class AgentRunnerService:
                 The run row records the model that actually ran, so a cheaper or
                 stronger model chosen for one conversation stays attributable
                 and stays inside the same budget.
+            on_compaction: Where to tell a live surface that a summary is
+                running. A compaction takes tens of seconds and says nothing, so
+                a surface that streams and does not attach this simply stops for
+                the length of it - which is the failure `CompactionSink`'s own
+                docstring was written for, and which the widget's socket had
+                because only the dashboard's chat passed one (#936).
             environment_id: Run the version this environment pins instead of
                 the default. Falls back to the exposure's environment - a bot
                 bound to `dev` serves dev without every caller re-deriving it -
@@ -1944,7 +1951,7 @@ class AgentRunnerService:
         )
         spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
-        return await self._assemble(
+        prepared = await self._assemble(
             ctx,
             agent=agent,
             spec=spec,
@@ -1967,6 +1974,12 @@ class AgentRunnerService:
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
         )
+        if on_compaction is not None:
+            # Set on the built deps rather than passed into `_assemble`: it is a
+            # property of the *surface*, not of the run, and `_assemble` already
+            # takes fourteen arguments about the run.
+            prepared.built.deps.on_compaction = on_compaction
+        return prepared
 
     async def _allowed_approval_mode(
         self, ctx: AuthContext, requested: ApprovalMode, *, surface: RunSurface
@@ -3517,6 +3530,7 @@ class AgentRunnerService:
         outbound_refused: list[str] | None = None,
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
+        on_compaction: CompactionSink | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3561,6 +3575,7 @@ class AgentRunnerService:
             acts_for_sender=acts_for_sender,
             exposure=exposure,
             environment_id=environment_id,
+            on_compaction=on_compaction,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
