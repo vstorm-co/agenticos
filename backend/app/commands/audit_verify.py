@@ -72,8 +72,16 @@ def audit_verify(organization_id: UUID | None) -> None:
             success(f"{label}: {result.entries_checked} entries verified")
         else:
             first_break = result.first_break
+            # A checkpoint break names a seq whose entry is *gone* - truncation, or
+            # the whole chain - so there is no id to print. "(entry None)" read as a
+            # null id on a row that exists, which is the wrong thing to go looking for.
+            at = (
+                f"seq {first_break.seq}"
+                if first_break.entry_id is None
+                else f"seq {first_break.seq} (entry {first_break.entry_id})"
+            )
             error(
-                f"{label}: broke at seq {first_break.seq} (entry {first_break.entry_id}) - "
+                f"{label}: broke at {at} - "
                 f"{first_break.reason}; {result.entries_checked} entries checked before it"
             )
     if broken:

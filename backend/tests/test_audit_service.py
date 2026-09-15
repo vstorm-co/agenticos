@@ -358,8 +358,14 @@ async def test_a_rewritten_entry_is_caught_by_its_own_hash() -> None:
     entries = _linked_chain(org, 4)
     entries[2].action = "action.tampered"
 
-    with patch(
-        "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         result = await AuditService(MagicMock()).verify_chain(org)
 
@@ -377,8 +383,14 @@ async def test_a_broken_link_is_caught_by_prev_hash() -> None:
     entries = _linked_chain(org, 4)
     entries[2].prev_hash = "0" * 64
 
-    with patch(
-        "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         result = await AuditService(MagicMock()).verify_chain(org)
 

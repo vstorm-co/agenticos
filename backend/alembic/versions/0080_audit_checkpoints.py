@@ -10,11 +10,23 @@ for the deployment-wide, null-organization chain).
 
 `record_audit` advances a chain's checkpoint under the same per-organization lock
 it appends the entry under, so the checkpoint never lags or races the chain. A
-`BEFORE UPDATE OR DELETE` trigger forbids the row moving backwards or being
-deleted through the application's database role - which is the audit trail's threat
-model, an app admin's bypass. It is not proof against a Postgres superuser, who can
-drop the trigger and delete both the entries and this row; closing that needs a
-checkpoint kept outside this database, tracked as the next step in #1648.
+`BEFORE UPDATE OR DELETE` trigger refuses a row that moves backwards or is deleted.
+
+**What that trigger is and is not.** It closes the ordinary write path: an app
+admin acting through the product, and a bug in this codebase, cannot rewind a
+checkpoint, which is what makes truncation detectable in the threat model the audit
+trail is written against. It is not a control against anybody holding the
+database's own credentials. Alembic and the runtime connect as the same
+`POSTGRES_USER`, so that role owns this table: it can `DROP TRIGGER`, and a
+`TRUNCATE` removes every row without firing a row-level `DELETE` trigger at all.
+A superuser can do both and more. Anyone with those credentials can therefore
+remove the checkpoints and then truncate the chains, and `audit-verify` sees a
+short chain with nothing to compare it against.
+
+Closing that is not a trigger's job - it needs a copy of the high-water mark kept
+where this database's roles cannot reach it, an append-only or object-locked store
+outside it. That is the next step on #1648, and `docs/governance.md` states the
+boundary rather than leaving a reader to infer it.
 
 Backfilled from the existing chains so a deployment that already has audit history
 starts with an accurate high-water mark rather than a floor of zero (#1648).
@@ -48,6 +60,15 @@ $$ LANGUAGE plpgsql;
 
 # Head hash joined to the per-organization maximum, `IS NOT DISTINCT FROM` so the
 # null-organization (deployment-wide) chain groups as one rather than dropping out.
+# `SHARE` blocks `INSERT` while allowing reads, and is taken before the statement
+# below rather than left to the insert's own snapshot. Without it a worker still
+# running pre-0080 code can append an entry after the backfill reads the chain: that
+# entry gets no checkpoint advance, and if it is later dropped as the tail before
+# the next audited write, the survivors match the stale checkpoint exactly and
+# verification calls the truncated chain intact. The lock is held to the end of the
+# migration's transaction, which is the length of one `INSERT ... SELECT`.
+_LOCK_CHAINS = "LOCK TABLE app_admin_audit_logs IN SHARE MODE"
+
 _BACKFILL = """
 INSERT INTO app_admin_audit_checkpoints
     (id, organization_id, max_seq, entry_count, head_entry_hash, created_at)
@@ -92,6 +113,7 @@ def upgrade() -> None:
         "FOR EACH ROW EXECUTE FUNCTION app_admin_audit_checkpoint_guard()"
     )
 
+    op.execute(_LOCK_CHAINS)
     op.execute(_BACKFILL)
 
 

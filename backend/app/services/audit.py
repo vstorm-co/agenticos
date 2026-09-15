@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.core.permissions import AuthContext
+    from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
     from app.db.models.audit_log import AppAdminAuditLog
 
 # What the export ships, matching the fields the read model exposes on the tab -
@@ -249,6 +250,16 @@ class AuditService:
         that verifies is evidence of no tampering by anyone who did not also defeat
         those, not proof of none. `docs/governance.md` states the boundary (#1648).
         """
+        # The checkpoint is read *before* the entries, and the comparison below only
+        # flags a chain that is behind it. Both reads run under READ COMMITTED, so an
+        # audited write committing between them is visible to one and not the other -
+        # and in this order that write lands in `entries`, leaving the chain ahead of
+        # a checkpoint that has not caught up, which is not a truncation. Reading the
+        # checkpoint second inverts it: the chain looks short against a checkpoint
+        # that already moved, and `audit-verify` reports an intact trail as tampered.
+        checkpoint = await audit_log_repo.checkpoint_for_org(
+            self.db, organization_id=organization_id
+        )
         entries = await audit_log_repo.chain_for_org(self.db, organization_id=organization_id)
         prev_hash: str | None = None
         for index, entry in enumerate(entries):
@@ -286,21 +297,26 @@ class AuditService:
                 )
             prev_hash = entry.entry_hash
 
-        truncation = await self._truncation_break(organization_id, entries)
+        truncation = self._truncation_break(organization_id, entries, checkpoint)
         return ChainVerification(
             organization_id=organization_id,
             entries_checked=len(entries),
             first_break=truncation,
         )
 
-    async def _truncation_break(
-        self, organization_id: UUID | None, entries: list[AppAdminAuditLog]
+    def _truncation_break(
+        self,
+        organization_id: UUID | None,
+        entries: list[AppAdminAuditLog],
+        checkpoint: AppAdminAuditCheckpoint | None,
     ) -> ChainBreak | None:
         """The break a checkpoint reveals that the hash walk cannot: a chain whose
-        head is behind the recorded high-water mark, or gone entirely."""
-        checkpoint = await audit_log_repo.checkpoint_for_org(
-            self.db, organization_id=organization_id
-        )
+        head is behind the recorded high-water mark, or gone entirely.
+
+        Takes the checkpoint its caller already read rather than reading its own, so
+        the two halves of the comparison come from one point in the walk - see
+        `verify_chain` for why the order of those reads is what makes a concurrent
+        audited write harmless."""
         if checkpoint is None:
             return None
         if not entries:

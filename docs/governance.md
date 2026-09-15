@@ -1311,11 +1311,21 @@ Two deletions the chain cannot catch on its own, because the surviving rows stay
 internally consistent: dropping the newest entries from a chain, and deleting an
 organization's chain outright. These are caught instead by a **checkpoint** — a
 per-organization high-water mark `record_audit` advances beside every entry, under
-a database trigger that forbids it moving backwards or being deleted. `audit-verify`
-flags a chain whose head is behind its checkpoint, or a checkpoint whose chain is
-gone. A Postgres superuser can still drop that trigger and delete both the entries
-and the checkpoint; closing that last gap needs a checkpoint kept outside this
-database, which remains a planned follow-up.
+a database trigger that refuses it moving backwards or being deleted.
+`audit-verify` flags a chain whose head is behind its checkpoint, or a checkpoint
+whose chain is gone.
+
+Be precise about what that trigger covers, because it is easy to read as more. It
+closes the ordinary write path — an app admin acting through the product, and a bug
+in this codebase — which is the threat model the trail is written against.
+
+It is not a control against anybody holding the database's own credentials. The
+application and its migrations connect as the same role, and that role owns the
+checkpoint table: it can drop the trigger, and a `TRUNCATE` empties the table
+without firing a row-level delete trigger at all. A superuser can do both. Closing
+that needs the high-water mark kept where this database's roles cannot reach it —
+an append-only or object-locked store outside it — which remains a planned
+follow-up.
 
 Two audited writes for one organization cannot fork the chain: each appends under
 a per-organization lock, so they serialize into a single line rather than both
