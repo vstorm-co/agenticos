@@ -2622,6 +2622,7 @@
     "you": "(you)"
   },
   "nav": {
+    "memory": "Memory",
     "account": "Account",
     "activity": "Activity",
     "admin": "Admin",
@@ -3096,6 +3097,10 @@
         "title": "What each role may do",
         "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
       },
+      "my-memory": {
+        "title": "What agents remember about you",
+        "body": "Agents keep notes between conversations. This is yours: read what was written, stop a note being used without destroying it, or delete it outright. A note in an external memory service is named here but not shown."
+      },
       "orgs-new": {
         "title": "Your organizations",
         "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
@@ -3186,6 +3191,19 @@
     "you": "(you)"
   },
   "pages": {
+    "memory": {
+      "title": "Your memory",
+      "description": "What the agents here have written down about you, and what you can do about it.",
+      "nothingYet": "Nothing written down yet",
+      "nothingYetWhy": "Agents write a note when they learn something worth keeping between conversations. Nothing here means none of them has.",
+      "externalStores": "These agents also keep memories in an external service, which this page cannot read: {agents}.",
+      "writtenBy": "Written by {agent} · {when}",
+      "anAgent": "an agent",
+      "suppressed": "Suppressed",
+      "suppress": "Stop using this note",
+      "restore": "Use this note again",
+      "delete": "Delete this note"
+    },
     "admin": {
       "active": "Active",
       "active24h": "Active 24h",
@@ -3347,7 +3365,6 @@
       "availability": "Availability",
       "budget": "Budget",
       "build": "Build",
-      "memory": "Memory",
       "capabilities": "Capabilities",
       "catalog": "Catalog",
       "channels": "Channels",
