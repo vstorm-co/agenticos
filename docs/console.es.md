@@ -1,5 +1,5 @@
 ---
-source_sha: "d1e087eb1bf7"
+source_sha: "2cbc8434a68e"
 ---
 
 # La consola { #the-console }
@@ -17,10 +17,12 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y cinco tarjetas. No las verás todas: **cada tarjeta está
+Existen treinta y seis tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
-puedes leer nunca se monta y sus consultas nunca se lanzan. Una banda vacía
-desaparece junto con su título en lugar de quedarse ahí vacía.
+puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
+propias notificaciones, más abajo, que solo necesitan que hayas iniciado
+sesión. Una banda vacía desaparece junto con su título en lugar de quedarse ahí
+vacía.
 
 Llegan agrupadas en bandas:
 
@@ -28,7 +30,7 @@ Llegan agrupadas en bandas:
 |---|---|
 | *(sin título, arriba del todo)* | El resumen del que el resto de la página es el detalle |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
-| **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, salud de MCP, conocimiento obsoleto |
+| **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, salud de MCP, conocimiento obsoleto, tus [notificaciones](#the-bell) más recientes |
 | **Usage** | Runs, resultados, superficies, latencia, gasto, mezcla de modelos, comparación de versiones |
 | **People** | Miembros, usuarios activos, valoraciones, quién hace qué |
 | **Sandboxes** | [Capacidad, sesiones en curso, política](sandbox.md) |
@@ -49,6 +51,24 @@ instantánea que querías conservar.
     Una disposición guardada puede reordenar y ocultar, pero no puede revelar. El
     filtrado por permisos corre después de resolver la disposición, venga esta de
     la de serie o de una que tú guardaste.
+
+## La campana { #the-bell }
+
+Junto al buscador, en la barra lateral: un contador en marcha de lo que aún no
+has leído, y un clic abre la lista misma. A diferencia del widget de arriba,
+abrirla trae la página completa que estás mirando, no una vista previa de
+cinco tarjetas — **Load more** sigue paginando hacia atrás por todo lo que
+todavía no ha caducado.
+
+Una fila con un destino es un enlace; una sin él — el anuncio propio de un
+admin, la mayoría de las veces — solo se puede marcar como leída. Marcar una
+como leída, o todas a la vez, actualiza el contador al instante; nada aquí
+espera a que se recargue la página.
+
+Qué llega aquí y qué se puede desactivar le toca explicarlo a
+[Governance](governance.md#alerts) — esta página es solo los dos sitios donde
+lo lees: la campana para lo que acaba de pasar, la tarjeta del dashboard para
+lo que sigue sin leer la próxima vez que abras la página.
 
 ## Chat { #chat }
 
@@ -106,10 +126,13 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y cinco widgets protegidos por permisos** que
-  ordenas tú, guardados por persona y por organización.
+- El dashboard son **treinta y seis widgets** que ordenas tú, guardados por
+  persona y por organización — todos menos tus propias notificaciones
+  protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la
   comprobación de permisos corre la última.
+- **La campana** es un contador de no leídas en marcha con la lista completa a
+  un clic, sin importar en qué página estés.
 - **Chat, Slack y la API son el mismo runner**, así que lo que ves en la consola
   es lo que recibe un cliente.
 - **Los comandos de barra son tuyos**, incluidos los de serie, y puedes ocultar

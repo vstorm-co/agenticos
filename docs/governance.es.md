@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "4d1d8b96f1d7"
 ---
 
 # Governance { #governance }
@@ -1197,6 +1197,40 @@ Cada alerta de aquí trata de un run que nadie está mirando. Un run de chat que
 detiene por su budget lo dice en pantalla; el mismo run iniciado por una mención de
 Slack, por un horario o por una llamada a la API se detiene en silencio, y lo primero
 que alguien sabe de ello es cuando pregunta por qué el agent se ha callado.
+
+### En la aplicación, junto con el correo { #in-app-alongside-email }
+
+Cada alerta de esta sección escribe dos cosas: el correo que se describe más
+abajo, y una fila en **la campana** de [la consola](console.md#the-bell) — el
+propio buzón de la consola, no una copia del correo. La fila *es* la entrega
+en la aplicación; no hace falta que nada más tenga éxito para que aparezca. El
+correo es un segundo canal, reintentado de forma independiente a partir de la
+misma escritura, que es por lo que uno puede fallar — una dirección rebotada,
+un relay SMTP caído — sin que el otro se entere jamás.
+
+Los dos canales se activan por separado, evento a evento, en **Settings →
+Notifications** — una persona puede conservar la fila en la aplicación para
+las aprobaciones y apagar su correo, o al revés. La misma página lleva además
+cada uno de los demás eventos que entrega el buzón: un run que termina o falla
+desatendido, la ingesta de un documento que se completa o falla, y el propio
+anuncio de un app admin (**Console** → **Announcements**), dirigido por
+organización y, opcionalmente, por rol.
+
+A diferencia de todo lo de arriba, un evento de seguridad o un cambio de
+configuración no se puede apagar en ninguno de los dos canales. Llega a los
+owners y admins de esa misma organización — no a la audiencia `admins` más
+amplia de arriba, y nunca a los app admins del deployment, salvo que la propia
+acción no tenga organización a la que atribuirla, en cuyo caso la recibe en su
+lugar cada app admin.
+
+Nada de esto ensancha lo que documenta esta página: es el mismo buzón donde
+aterrizan las alertas configuradas en el agent de arriba, y la regla de
+exclusión de abajo se sigue aplicando a todo lo que se puede apagar.
+
+Una fila se retira del buzón en cuanto lleva noventa días *leída*, o un año
+sin importar si llegó a abrirse — un barrido en segundo plano, no algo que
+dispare una persona. Lo que sobrevive a eso es el propio rastro de auditoría
+([Auditoría](#audit)), del que el buzón es un aviso, nunca el registro.
 
 ### Configurado en el agent { #configured-on-the-agent }
 

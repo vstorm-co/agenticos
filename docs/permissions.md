@@ -52,7 +52,10 @@ A boolean on the user, entirely outside organizations. Two effects:
 
 1. **A gate on deployment routes.** `CurrentAppAdmin` guards `/admin/users`,
    `/admin/stats`, `/admin/conversations` (a listing, never a transcript),
-   `/admin/ratings` and the bulk `/rag` endpoints.
+   `/admin/ratings`, `/admin/announcements` and the bulk `/rag` endpoints.
+   Announcements sit here rather than behind a `Perm` because every entry in
+   the permission catalog resolves against one organization, and none of them
+   can express "every organization" ([Governance](governance.md#alerts)).
 2. **A bypass in `AuthContext.permissions`**, which returns every permission at
    `Scope.ALL` - in every organization, including ones where they hold no
    membership.

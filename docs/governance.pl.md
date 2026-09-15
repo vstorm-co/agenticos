@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "4d1d8b96f1d7"
 ---
 
 # Governance { #governance }
@@ -1226,6 +1226,39 @@ Każdy alert tutaj dotyczy runa, na którego nikt nie patrzy. Run czatu, który
 zatrzymuje się na swoim budżecie, mówi o tym na ekranie; ten sam run uruchomiony
 wzmianką na Slacku, harmonogramem albo wywołaniem API zatrzymuje się po cichu, a
 pierwsze, co ktokolwiek o tym słyszy, to czyjeś pytanie, dlaczego agent zamilkł.
+
+### W aplikacji, obok e-maila { #in-app-alongside-email }
+
+Każdy alert w tej sekcji zapisuje dwie rzeczy: e-mail opisany niżej oraz wiersz
+przy **dzwonku** w [Konsoli](console.md#the-bell) — jej własnej skrzynce, a nie
+kopii maila. Wiersz *jest* dostarczeniem w aplikacji; nic dodatkowego nie musi
+się powieść, żeby się pojawił. E-mail to drugi, niezależnie ponawiany kanał z
+tego samego zapisu, dlatego jeden może zawieść — odbity adres, padły przekaźnik
+SMTP — a drugi nigdy się o tym nie dowie.
+
+Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
+**Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
+zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
+każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
+błąd runa, zakończenie albo błąd ingestii dokumentu oraz własne ogłoszenie
+administratora aplikacji (**Console** → **Announcements**), adresowane do
+organizacji i, opcjonalnie, do roli.
+
+W przeciwieństwie do wszystkiego powyżej, zdarzenia bezpieczeństwa i zmiany
+konfiguracji nie da się wyłączyć na żadnym z kanałów. Trafiają do właścicieli i
+administratorów tej konkretnej organizacji — nie do szerszej grupy odbiorców
+`admins` powyżej, i nigdy do administratorów aplikacji wdrożenia, chyba że sama
+akcja nie ma organizacji, której można by ją przypisać — wtedy trafia zamiast
+tego do każdego administratora aplikacji. Nic z tego nie poszerza tego, co
+dokumentuje ta strona: to ta sama skrzynka, do której trafiają alerty
+konfigurowane na agencie powyżej, a reguła rezygnacji poniżej wciąż dotyczy
+wszystkiego, co można wyłączyć.
+
+Wiersz znika ze skrzynki, gdy przeleżał w niej dziewięćdziesiąt dni jako
+*przeczytany*, albo rok niezależnie od tego, czy w ogóle został otwarty — to
+zamiatanie w tle, a nie coś, co uruchamia człowiek. Tym, co przetrwa dłużej,
+jest sam ślad audytowy ([Audyt](#audit)), którego skrzynka jest tylko
+powiadomieniem, nigdy zapisem.
 
 ### Konfigurowane na agencie { #configured-on-the-agent }
 

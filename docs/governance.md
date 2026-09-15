@@ -1139,6 +1139,35 @@ budget says so on screen; the same run started by a Slack mention, a schedule or
 an API call stops silently, and the first anyone hears of it is somebody asking
 why the agent went quiet.
 
+### In-app, alongside email
+
+Every alert in this section writes two things: the email described below, and a
+row at **the bell** in [Console](console.md#the-bell) - the console's own inbox,
+not a copy of the mail. The row *is* the in-app delivery; nothing further has to
+succeed for it to show up. Email is a second, independently retried channel off
+the same write, which is why one can fail - a bounced address, a down SMTP relay
+- without the other ever knowing.
+
+Both channels are switched independently, per event, at **Settings →
+Notifications** - a person can keep the in-app row for approvals and turn its
+email off, or the other way round. The same page also carries every other event
+the inbox delivers: a run finishing or failing unattended, a document's ingestion
+completing or failing, and an app admin's own broadcast (**Console** →
+**Announcements**), addressed by organization and, optionally, role.
+
+Unlike everything above, a security event or a configuration change cannot be
+turned off on either channel. It reaches that organization's own owners and
+admins - not the wider `admins` audience above, and never the deployment's app
+admins unless the action itself has no organization to attribute it to, in which
+case every app admin gets it instead. None of this widens what this page
+documents: it is the same inbox the agent-configured alerts above land in, and
+the opt-out rule below still applies to everything that can be turned off.
+
+A row is dropped from the inbox once it has sat there ninety days *read*, or a
+year regardless of whether it was ever opened - a background sweep, not
+something a person triggers. What survives past that is the audit trail itself
+([Audit](#audit)), which the inbox is a notice of, never the record of.
+
 ### Configured on the agent
 
 Who hears about an agent is part of the agent's spec, under **Limits → Alerts**.
