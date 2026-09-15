@@ -6,10 +6,17 @@ from pydantic import Field, field_validator
 
 from app.schemas.base import BaseSchema
 from app.services.rag.config import DEFAULT_COLLECTION_NAME
+from app.services.rag.filters import RetrievalFilters
 
 
 class RAGSearchRequest(BaseSchema):
-    """Parameters for a vector search query."""
+    """Parameters for a vector search query.
+
+    Business metadata filters go in the structured `filters` object (source,
+    document type, organizational unit, date range, parent document). The tenant
+    conjunct is never expressible here — it is server-derived from the caller's
+    context, so a supplied filter can only narrow, never widen, access.
+    """
 
     collection_name: str = Field(
         DEFAULT_COLLECTION_NAME, description="Target collection for search"
@@ -20,8 +27,16 @@ class RAGSearchRequest(BaseSchema):
     query: str = Field(..., description="Natural language search query")
     limit: int = Field(default=4, ge=1, le=20)
     min_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    filters: RetrievalFilters | None = Field(
+        None, description="Structured business filters (narrowing only)."
+    )
     filter: str | None = Field(
-        None, description="Scalar filter expression (e.g. 'filetype == \"pdf\"')"
+        None,
+        deprecated=True,
+        description=(
+            'Deprecated. Only a full-match `parent_doc_id == "<id>"` expression is '
+            "accepted; any other string is rejected. Use `filters.parent_doc_id` instead."
+        ),
     )
 
 
@@ -38,6 +53,20 @@ class RAGSearchResponse(BaseSchema):
     """List of results found in the vector store."""
 
     results: list[RAGSearchResult]
+
+
+class RAGFilterValues(BaseSchema):
+    """Distinct in-scope values for a free-form filter dimension.
+
+    Makes `organizational_unit` — the one author-supplied, corpus-dependent
+    filter dimension — discoverable, so a caller narrows on values that exist
+    rather than guessing a value the corpus does not use (which returns silently
+    empty, fail-closed). Tenant- and collection-scoped like every other read.
+    """
+
+    organizational_unit: list[str] = Field(
+        default_factory=list, description="Distinct organizational-unit values in scope."
+    )
 
 
 class RAGCollectionInfo(BaseSchema):

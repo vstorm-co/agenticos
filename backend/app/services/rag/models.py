@@ -4,9 +4,18 @@ Structures used to interface with the RAG feature."""
 
 import uuid
 from enum import StrEnum
-from typing import Any
+from typing import Any, NewType
 
 from pydantic import BaseModel, Field, computed_field, model_validator
+
+# The parser-created `Document.id` stamped on every chunk as `parent_doc_id`,
+# distinct from the relational `RAGDocument.id` UUID (which records it separately
+# as `RAGDocument.vector_document_id`, a `String(255)`). Filters and the scope's
+# authorized-document set both carry *vector* document ids; a trusted relational
+# id must be translated to its `vector_document_id` before it reaches the store,
+# or the predicate matches nothing. The newtype keeps the two namespaces from
+# being compared by accident (FA-039, design R6).
+VectorDocumentId = NewType("VectorDocumentId", str)
 
 
 class DocumentImage(BaseModel):
@@ -38,13 +47,33 @@ class DocumentPageChunk(DocumentPage):
 
 
 class DocumentMetadata(BaseModel):
-    """Metadata of a document."""
+    """Metadata of a document.
+
+    The FA-039 filter dimensions are typed fields rather than free-form
+    `additional_info`, so `PgVectorStore._build_chunk_metadata` (which already
+    dumps `model_dump()` onto every chunk) writes them per chunk with no change
+    to the write path. They are all optional so existing stored JSONB stays
+    readable (missing keys take the default).
+
+    - `organization_id` is **security-bearing**: it is the tenant conjunct the
+      store ANDs into every retrieval query, and it is written only from trusted
+      worker context (never from an uploader form or model input).
+    - `source`, `document_type`, `organizational_unit`, `doc_date` are business
+      metadata; `document_type` is the stored filetype/extension (FA-039 P1;
+      a richer semantic `document_category` is deferred), `doc_date` is a pure
+      calendar date normalized to ISO `YYYY-MM-DD` at ingestion.
+    """
 
     filename: str
     filesize: int
     filetype: str
     source_path: str = ""  # original path: local path, s3://bucket/key, gdrive://file_id
     content_hash: str = ""  # SHA256 hash for deduplication
+    organization_id: str | None = None
+    source: str | None = None
+    document_type: str | None = None
+    organizational_unit: str | None = None
+    doc_date: str | None = None  # ISO YYYY-MM-DD
     additional_info: dict[str, Any] | None = None
 
 
