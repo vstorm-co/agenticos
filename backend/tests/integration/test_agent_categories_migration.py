@@ -1,10 +1,10 @@
-"""The 0080 revision, exercised at the row and index level.
+"""The 0081 revision, exercised at the row and index level.
 
 `tests/test_migrations.py` runs the whole chain forwards and back; it never
 inserts a row at a revision or inspects a column or index, so it cannot show
 that a pre-existing agent gains an empty array, that the two indexes are GIN, or
 that the downgrade removes both. This does: upgrade to 0079, insert an agent,
-upgrade to 0080, assert the defaults and the `gin` access method, then downgrade
+upgrade to 0081, assert the defaults and the `gin` access method, then downgrade
 and assert the columns and indexes are gone.
 
 It owns a database of its own - created here, dropped when the module is done -
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.anyio
 MIGRATION_DATABASE = f"agenticos_agent_cats_mig_test_p{os.getpid()}"
 _MAINTENANCE_DATABASE = "postgres"
 _BASE_REVISION = "0079_audit_hash_chain"
-_TARGET_REVISION = "0080_agent_categories_tags"
+_TARGET_REVISION = "0081_agent_categories_tags"
 
 
 def _url(database: str) -> str:
