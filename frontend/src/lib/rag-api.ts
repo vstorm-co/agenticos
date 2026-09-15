@@ -13,13 +13,24 @@ import { qk } from "./query-keys";
 import type { KBParsedContent } from "@/types";
 import type { JsonSchema } from "@/types/agents";
 
+/** Narrowing-only business filters (FA-039). None of these can widen access:
+ * the tenant conjunct is server-derived and not expressible here. */
+export interface RetrievalFilters {
+  source?: string[];
+  document_type?: string[];
+  organizational_unit?: string[];
+  date_from?: string; // YYYY-MM-DD
+  date_to?: string; // YYYY-MM-DD
+  parent_doc_id?: string;
+}
+
 export interface RAGSearchRequest {
   query: string;
   collection_name?: string;
   collection_names?: string[];
   limit?: number;
   min_score?: number;
-  filter?: string;
+  filters?: RetrievalFilters;
 }
 
 export interface RAGSearchResult {
