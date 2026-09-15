@@ -1,5 +1,5 @@
 ---
-source_sha: "8299bb8e882e"
+source_sha: "4a74a6eb2b6c"
 ---
 
 # Seguridad { #security }
@@ -128,6 +128,9 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Un spec se rechaza al publicar, nunca en tiempo de ejecución | `validate_spec` (`app/services/agent_registry.py`) — capability desconocida, scope no concedido, `secret_id` de tipo equivocado o de otra organización, una conexión MCP personal | `test_agent_registry.py`, `test_capability_secrets.py::TestPublishValidation` |
 | El budget se comprueba antes de la petición al modelo, y el coste se registra incluso si falla | `BudgetGuard.wrap_model_request` gatea antes de la llamada (`app/agents/capabilities/budget/`); el coste del run se escribe en un `finally` terminal (`app/services/agent_runner.py`) | `test_spend.py::TestBudgetGuard`, `test_agent_runner.py::…::test_a_failed_run_still_records_its_cost` |
 | Una aprobación se decide exactamente una vez | `ApprovalService.decide` rechaza una fila que no esté pendiente leída `for_update` (`app/services/approvals.py`) | `test_approvals_queue.py::TestDecidingTwiceIsRefused` |
+| El análisis estático alcanza el cambio que introduce el hallazgo | CodeQL (`security-extended`) en cada pull request para Python, JavaScript/TypeScript, Rust y los workflows, más una pasada completa semanal (`.github/workflows/codeql.yml`). El merge lo rechaza la protección de merge por code scanning en el ruleset de `main`, no el estado del propio job — véase [ramas](branching.md#what-is-enforced-and-by-what) | `test_codeql_workflow.py` |
+| Una dependencia con una vulnerabilidad conocida hace fallar el pull request | `make audit` sobre `backend/uv.lock` y `make audit-frontend` sobre `frontend/bun.lock`, ambos en el trabajo `Security Scan` y en `make check` | `test_ci_parity.py` |
+| Lo que contiene una versión puede leerse sin compilarla | Un SBOM CycloneDX por imagen, generado desde el manifiesto publicado y adjuntado a la release; [el inventario de componentes](reference/components.md) es el índice legible | `test_images_workflow.py::TestTheReleaseCarriesAnInventory` |
 
 ### Confidencialidad de las credenciales · HIPAA §164.312(a)(2)(iv) { #confidentiality-of-credentials-hipaa-164312a2iv }
 
