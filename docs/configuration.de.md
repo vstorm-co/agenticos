@@ -1,5 +1,5 @@
 ---
-source_sha: "6ae659f3a930"
+source_sha: "9d8160596d6d"
 ---
 
 # Konfiguration { #configuration }
@@ -374,11 +374,12 @@ vorher, [was das Deployment verlässt](data-protection.md#traces).
 
 Drei Dinge können Runs auf ein Projekt richten, und sie überlagern sich:
 
-- `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global **im API-Prozess**
-  (`app/main.py`), jeder dort bediente Run exportiert also in das Projekt des
-  Deployments selbst. Ein vom Prefect-Worker ausgeführter Run ist nicht erfasst,
-  weil dieser Prozess Logfire nie konfiguriert
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- `LOGFIRE_TOKEN` hier instrumentiert Pydantic AI global, jeder Run exportiert
+  also in das Projekt des Deployments selbst. Zwei Prozesse konfigurieren es: die
+  API beim Start (`app/main.py`) und ein ausgelöster Run im Prefect-Worker, der
+  sich selbst einrichtet, weil jeder Flow-Run einen eigenen Subprozess bekommt.
+  Die Spans des Workers tragen `<Dienstname>-worker`, ein Projekt kann einen
+  langsamen geplanten Run also von einer langsamen Chat-Runde unterscheiden.
 - Eine [Umgebung](environments.md#tracing-per-environment) kann ein eigenes
   Schreib-Token tragen, im Vault versiegelt, das die an sie gebundenen Runs
   umleitet.
@@ -390,11 +391,11 @@ der Standard, zeichnet die Nachricht, die Ausgabe und jeden Tool-Aufruf auf;
 `none` nur Zeit, Tokens, Kosten und Tool-Namen. Er wird dort angewandt, wo der
 Agent instrumentiert wird, hält also unabhängig davon, welches Token den Run
 traced — beim deploymentweiten wird der Agent stattdessen an eine inhaltsfreie
-Instrumentierung geheftet. Zwei Grenzen, bevor man sich darauf verlässt: das
-Anheften ist Best Effort, ein Fehlschlag wird protokolliert und der Run läuft
-weiter; und ein Inline-Spezialist wird aus einem Spec ohne
-Observability-Block gebaut, seine eigenen Spans tragen also weiterhin Inhalte
-([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
+Instrumentierung geheftet, und ein Spezialist, an den der Agent delegiert — inline
+geschrieben oder vom Model mitten im Run erfunden —, erbt den Modus. Eine Grenze,
+bevor man sich darauf verlässt: das
+Anheften dieser Instrumentierung ist Best Effort, ein Fehlschlag wird
+protokolliert und der Run läuft weiter.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|

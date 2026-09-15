@@ -152,7 +152,7 @@ one.
 | Accountability | Audit entries share the acting transaction and fail closed; impersonation names both people; bulk exports are recorded | [Governance](governance.md#audit) |
 | Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
 | Tamper evidence on the trail | None yet | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only | [Environments](environments.md) (#1413); `redacted` is [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retention on a schedule | Only `sandbox_operations` rows are swept, after 30 days. The stale-run sweep finalizes abandoned runs; it deletes nothing | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
 | Access to one's own data | No export endpoint; no view of one's own memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -169,8 +169,13 @@ user's message, the model's answer and every tool argument and result. With
 `logfire_token_secret_id` on any environment, nothing is sent and the trace id
 is still recorded locally. A deployment that needs traces without the content sets the agent's
 `observability.content` to `none`, which records timing, tokens, cost and tool
-names and no message text. Anything between the two - the content exported with
-a PII filter over it - is [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
+names and no message text, and which a specialist of that agent inherits, whether
+its author wrote it inline or the run's model invented it.
+
+There is no third mode between the two. An export scrubbed by a PII filter is a
+guarantee nobody can audit - one identifier the filter misses has left, and the
+operator believes it did not - so the choice is deliberately the whole content or
+none of it ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
 
 ### What deletion reaches
 

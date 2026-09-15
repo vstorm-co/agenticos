@@ -1,5 +1,5 @@
 ---
-source_sha: "674521d32d87"
+source_sha: "8299bb8e882e"
 ---
 
 # Seguridad { #security }
@@ -51,7 +51,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 |---|---|---|
 | El proveedor de modelos configurado | El prompt, la salida del modelo, los argumentos y resultados de las herramientas | Cada run — salvo que el modelo corra en la infraestructura del propio operador, en cuyo caso no sale nada |
 | El canal configurado (Slack, Telegram, Mattermost) | Las respuestas generadas por el agent — texto, imágenes y adjuntos | Siempre que un agent esté expuesto por ese canal; cada `send_message` publica en el proveedor (`app/services/channels/`) |
-| Logfire | Trazas, que llevan prompts y salidas salvo que el agent diga otra cosa | Dos caminos independientes. Un token de observabilidad por agent traza ese agent, y su modo `content` decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs del proceso de la API (`app/core/logfire_setup.py`), así que con él puesto sale el contenido de todo agent que no haya pedido `none`; el que sí lo pidió queda fijado a una instrumentación sin contenido también en ese tracer (`suppress_content`), de modo que el modo se sostiene en ambos caminos - con dos huecos que aún no cubre: un especialista inline de ese agent, que no lleva bloque de observability propio ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), y una fijación que falla, que se registra y se deja. Ninguno de los dos caminos está activo por defecto, y el de nivel de deployment no alcanza un run ejecutado por el worker de Prefect ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Un término medio filtrado es [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Trazas, que llevan prompts y salidas salvo que el agent diga otra cosa | Dos caminos independientes. Un token de observabilidad por agent traza ese agent, y su modo `content` decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs, tanto en la API como en el worker de Prefect (`app/core/logfire_setup.py`), así que con él puesto sale el contenido de todo agent que no haya pedido `none`; el que sí lo pidió queda fijado a una instrumentación sin contenido también en ese tracer (`suppress_content`), de modo que el modo se sostiene en ambos caminos, y un especialista de ese agent lo hereda - escrito inline o inventado a mitad del run. Un hueco que no cubre: una fijación que falla, que se registra y se deja. Ninguno de los dos caminos está activo por defecto. No hay término medio filtrado a propósito - una exportación parcialmente depurada es una garantía que nadie puede auditar ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | Servidores MCP | Llamadas a herramientas y sus argumentos | Solo para las herramientas a las que el agent está ligado |
 | Un proveedor de búsqueda web (Tavily, DuckDuckGo) | La consulta de búsqueda | Solo cuando se concede la capability de búsqueda |
 | Un proveedor de embeddings | El texto del documento, en la ingesta | Solo para una base de conocimiento cuyo proveedor sea remoto |
@@ -173,9 +173,8 @@ mantiene la lista completa a medida que crece la suite.
   [#1423](https://github.com/vstorm-co/agenticos/issues/1423) es la respuesta a
   nivel de aplicación para el almacenamiento de objetos.
 - Cada control de la matriz nombra un mecanismo y un test, y nombra sus huecos en
-  la misma frase — la evidencia de manipulación, el cifrado de archivos a nivel de
-  aplicación y un término medio filtrado para las trazas enlazan la issue que los
-  construiría.
+  la misma frase — la evidencia de manipulación y el cifrado de archivos a nivel
+  de aplicación enlazan la issue que los construiría.
 - Informa de vulnerabilidades y ejecuta la lista de endurecimiento desde
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lee [Protección de datos](data-protection.md) y [Licencias](licenses.md) junto a
