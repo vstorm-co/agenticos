@@ -103,3 +103,28 @@ class RAGDocument(TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    # Who to notify about this document's outcome (#1598) - set from the
+    # caller's AuthContext at upload time, an upload always has one. SET NULL:
+    # deleting the uploader must not delete their document, only make its
+    # completion/failure notification fall back to the collection's admins.
+    initiated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Bumped by `retry_ingestion` at dispatch time, threaded through to
+    # `complete_ingestion`/`fail_ingestion` as an explicit parameter rather than
+    # read back from this column at settlement (#1598). `retry_ingestion`
+    # reparses the same document id, so without a counter a second failure
+    # would share its predecessor's notification dedup key
+    # `(doc_id, ingestion_attempt)` and be silently suppressed by the unique
+    # constraint - exactly when a person most wants to hear the retry failed
+    # too. Reading this column back at settlement, instead of carrying the
+    # dispatched value through the call, would let a slow attempt that
+    # finishes after a newer retry has already bumped it settle under the
+    # newer attempt's number; `complete_ingestion`/`fail_ingestion` reject a
+    # settlement whose passed attempt no longer matches this column.
+    ingestion_attempt: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
