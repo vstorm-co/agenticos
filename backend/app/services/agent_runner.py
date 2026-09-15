@@ -2683,11 +2683,22 @@ class AgentRunnerService:
         `agent_id` and `agent_version_id` are left unset, which is what tells the
         recorder there is no agent to attribute a run row to. Its cost is the
         parent's, and the tool call in the transcript is the record.
+
+        The parent's trace-content mode comes with it. A specialist has no Logfire
+        project of its own and gains none here, but `content="none"` is a promise
+        about the run rather than about one agent in it, and a specialist whose
+        spec carried no observability block at all was instrumented by the
+        deployment's global default with content on (#1699).
         """
         ctx = delegation.ctx
         spec = _without_delegation(
             _with_shared(
-                specialist.to_agent_spec(fallback_model_profile_id=parent.model_profile_id),
+                specialist.to_agent_spec(
+                    fallback_model_profile_id=parent.model_profile_id,
+                    trace_content=(
+                        parent.observability.content if parent.observability else "full"
+                    ),
+                ),
                 shared,
             )
         )

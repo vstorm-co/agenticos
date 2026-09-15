@@ -40,6 +40,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import (
     AgentSpec,
+    ObservabilitySpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
     SpecialistSpec,
@@ -467,6 +468,37 @@ class TestWhatAnInlineSpecialistCanReach:
         prepared = await _prepare(_delegating(inline=[_specialist()]))
 
         assert prepared.built("summariser")["extra_toolsets"] == []
+
+    async def test_a_specialist_inherits_the_parents_refusal_to_trace_content(self):
+        """The parent's `content="none"` is a promise about the run, not about one
+        agent in it. A specialist's spec carried no observability block at all, so
+        the deployment's global instrumentation traced it with content on and the
+        run's prompts left anyway (#1699)."""
+        spec = _delegating(
+            inline=[_specialist()],
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+        )
+
+        prepared = await _prepare(spec)
+
+        built = prepared.built("summariser")["spec"]
+        assert built.observability is not None
+        assert built.observability.content == "none"
+        # The mode travels; the destination does not. A specialist has no project
+        # of its own and must not be handed the parent's write token.
+        assert built.observability.token_secret_id is None
+
+    async def test_a_specialist_of_a_parent_that_traces_in_full_carries_no_block(self):
+        """`full` changes nothing, so it stays absent rather than writing an empty
+        observability block into every specialist ever built."""
+        spec = _delegating(
+            inline=[_specialist()],
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4()),
+        )
+
+        prepared = await _prepare(spec)
+
+        assert prepared.built("summariser")["spec"].observability is None
 
 
 class TestSharingACapabilityWithADelegate:

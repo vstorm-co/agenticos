@@ -779,7 +779,12 @@ class SpecialistSpec(BaseModel):
         """The specialist's capabilities as the registry consumes them."""
         return [capability.to_binding() for capability in self.capabilities]
 
-    def to_agent_spec(self, *, fallback_model_profile_id: UUID | None) -> AgentSpec:
+    def to_agent_spec(
+        self,
+        *,
+        fallback_model_profile_id: UUID | None,
+        trace_content: TraceContent = "full",
+    ) -> AgentSpec:
         """This specialist as the spec the factory already knows how to build.
 
         The one method that keeps "one spec type, one validator, one builder" true
@@ -799,6 +804,17 @@ class SpecialistSpec(BaseModel):
         subagents - so they arrive at their `AgentSpec` defaults: no cap of its
         own (the run's caps bind), no alerts of its own, no Logfire project of its
         own, no connections, and no delegating further.
+
+        `trace_content` is the one part of the parent's observability block that
+        has to come with it, and the caller passes the parent's. A project is a
+        destination and a specialist has none of its own; `content` is a rule
+        about what may be recorded *anywhere*, and the run it is recorded in
+        belongs to the parent. Dropping it left an agent published with
+        `content="none"` exporting its specialist's prompts, outputs and tool
+        arguments to the deployment's own project through the global
+        instrumentation - the guarantee held for the agent and not for the run
+        (#1699). `full` is the default, so a caller with no parent to speak for -
+        promoting a specialist into a draft agent - converts as it always did.
         """
         return AgentSpec(
             name=self.name,
@@ -811,6 +827,12 @@ class SpecialistSpec(BaseModel):
             skill_ids=self.skill_ids,
             context_ids=self.context_ids,
             max_steps=self.max_steps,
+            # Only when it bites: a block naming no project exists purely to
+            # carry the mode, so `full` - which changes nothing - stays absent
+            # rather than writing an empty block into every specialist's spec.
+            observability=(
+                None if trace_content == "full" else ObservabilitySpec(content=trace_content)
+            ),
         )
 
 

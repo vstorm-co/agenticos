@@ -1,5 +1,5 @@
 ---
-source_sha: "a20c296fac18"
+source_sha: "796a3e72be5a"
 ---
 
 # Datenschutz { #data-protection }
@@ -162,7 +162,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Rechenschaft | Audit-Einträge teilen die handelnde Transaktion und scheitern geschlossen; Impersonation nennt beide Personen; Massenexporte werden festgehalten | [Governance](governance.md#audit) |
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
 | Manipulationsnachweis der Spur | Noch keiner | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); `redacted` ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); ein `redacted`-Dazwischen wurde verworfen, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Aufbewahrung nach Zeitplan | Nur `sandbox_operations`-Zeilen werden weggeräumt, nach 30 Tagen. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
 | Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -180,8 +180,14 @@ irgendeinem Spec und ohne `logfire_token_secret_id` auf irgendeinem Environment
 wird nichts gesendet, und die Trace-Id wird trotzdem lokal festgehalten. Ein
 Deployment, das Traces ohne den Inhalt braucht, setzt `observability.content` des
 Agents auf `none`: aufgezeichnet werden Zeit, Tokens, Kosten und Tool-Namen, und
-kein Nachrichtentext verlässt die Maschine. Alles dazwischen — der Inhalt durch
-einen PII-Filter — ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
+kein Nachrichtentext verlässt die Maschine — und ein Inline-Spezialist dieses
+Agenten erbt den Modus.
+
+Einen dritten Modus dazwischen gibt es nicht. Ein durch einen PII-Filter
+bereinigter Export ist eine Zusicherung, die niemand prüfen kann — ein
+Identifikator, den der Filter übersieht, ist bereits draußen, und der Betreiber
+glaubt das Gegenteil —, die Wahl steht also bewusst zwischen dem ganzen Inhalt
+und keinem ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
 
 ### Was das Löschen erreicht { #what-deletion-reaches }
 

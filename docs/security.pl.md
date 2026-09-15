@@ -1,5 +1,5 @@
 ---
-source_sha: "674521d32d87"
+source_sha: "ab80af979145"
 ---
 
 # Bezpieczeństwo { #security }
@@ -48,7 +48,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 |---|---|---|
 | Skonfigurowany provider modelu | Prompt, wyjście modelu, argumenty i wyniki narzędzi | Każdy run — chyba że model działa na własnej infrastrukturze operatora, wtedy nic nie wychodzi |
 | Skonfigurowany kanał (Slack, Telegram, Mattermost) | Wygenerowane odpowiedzi agenta — tekst, obrazy i załączniki | Zawsze, gdy agent jest wystawiony przez ten kanał; każde `send_message` publikuje u providera (`app/services/channels/`) |
-| Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run w procesie API (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach - z dwiema lukami, których jeszcze nie obejmuje: inline specjalista tego agenta, który nie ma własnego bloku observability ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), oraz nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona, a ta na poziomie wdrożenia nie sięga runu wykonanego przez workera Prefect ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Stan pośredni z filtrem to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run w procesie API (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach, a inline specjalista go dziedziczy. Jedna luka, której nie obejmuje: nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona, a ta na poziomie wdrożenia nie sięga runu wykonanego przez workera Prefect ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Stanu pośredniego z filtrem świadomie nie ma - częściowo wyczyszczony eksport to gwarancja, której nikt nie zaudytuje ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |
 | Provider embeddingów | Tekst dokumentu, przy ingest | Tylko dla bazy wiedzy, której provider jest zdalny |
@@ -167,8 +167,8 @@ budżet, zatwierdzenie, sekret albo tekst jawny, a nie ma markera, wywala
   RAG, sandboksy) nie są, a [#1423](https://github.com/vstorm-co/agenticos/issues/1423)
   jest odpowiedzią na poziomie aplikacji dla object storage.
 - Każda kontrola w macierzy nazywa mechanizm i test, i tym samym tchem nazywa
-  swoje luki — dowód nienaruszalności, szyfrowanie plików na poziomie aplikacji
-  i stan pośredni dla trace'ów linkują issue, które by je zbudowały.
+  swoje luki — dowód nienaruszalności i szyfrowanie plików na poziomie aplikacji
+  linkują issue, które by je zbudowały.
 - Podatności zgłaszaj i listę kontrolną hardeningu uruchamiaj z
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   obok tej strony czytaj [Ochronę danych](data-protection.md) i

@@ -1,5 +1,5 @@
 ---
-source_sha: "a20c296fac18"
+source_sha: "796a3e72be5a"
 ---
 
 # Ochrona danych { #data-protection }
@@ -156,7 +156,7 @@ jest luką — i tak jest nazwany.
 | Rozliczalność | Wpisy audytu dzielą transakcję działającą i zawodzą zamknięte; podszycie nazywa obie osoby; eksporty masowe są zapisywane | [Nadzór](governance.md#audit) |
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
 | Dowód nienaruszalności śladu | Jeszcze nie ma | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); `redacted` to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retencja według harmonogramu | Zamiatane są tylko wiersze `sandbox_operations`, po 30 dniach. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
 | Dostęp do własnych danych | Brak endpointu eksportu; brak wglądu we własną pamięć | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
@@ -174,8 +174,12 @@ specu i bez `logfire_token_secret_id` na żadnym środowisku nic nie jest
 wysyłane, a id trace'u i tak jest zapisywane lokalnie. Wdrożenie, które
 potrzebuje trace'ów bez treści, ustawia agentowi `observability.content` na
 `none`: zapisywane są czas, tokeny, koszt i nazwy narzędzi, a żaden tekst
-wiadomości nie wychodzi. Cokolwiek pomiędzy — treść przepuszczona przez filtr PII
-— to [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
+wiadomości nie wychodzi — i tryb ten dziedziczy inline specjalista tego agenta.
+
+Trzeciego trybu pomiędzy nie ma. Eksport wyczyszczony filtrem PII to gwarancja,
+której nikt nie zaudytuje — jeden identyfikator, który filtr przepuści, już
+wyszedł, a operator sądzi, że nie — więc wybór jest świadomie między całą treścią
+a żadną ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
 
 ### Co obejmuje usunięcie { #what-deletion-reaches }
 

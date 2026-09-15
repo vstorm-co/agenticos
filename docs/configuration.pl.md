@@ -1,5 +1,5 @@
 ---
-source_sha: "6ae659f3a930"
+source_sha: "1de192f9fbaa"
 ---
 
 # Konfiguracja { #configuration }
@@ -368,11 +368,10 @@ Tryb `content` agenta decyduje, ile niesie każdy span: `full`, domyślny, zapis
 wiadomość, wyjście i każde wywołanie narzędzia; `none` zapisuje tylko czas,
 tokeny, koszt i nazwy narzędzi. Jest stosowany tam, gdzie agent jest
 instrumentowany, więc trzyma niezależnie od tego, który token trace'uje run — przy
-tym na poziomie wdrożenia agent zostaje przypięty do instrumentacji bez treści.
-Dwa ograniczenia, zanim na tym polegasz: podpięcie jej jest best-effort, a błąd
-jest logowany, gdy run trwa dalej; oraz inline specjalista jest budowany ze specu
-bez bloku observability, więc jego własne spany wciąż niosą treść
-([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
+tym na poziomie wdrożenia agent zostaje przypięty do instrumentacji bez treści,
+a inline specjalista, do którego agent deleguje, dziedziczy tryb. Jedno
+ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
+best-effort, a błąd jest logowany, gdy run trwa dalej.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|

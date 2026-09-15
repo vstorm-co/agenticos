@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **An inline specialist no longer exports the prompts its parent asked to keep
+  out of the traces.** `content="none"` was enforced on the agent that asked for
+  it and on nothing it delegated to: `SpecialistSpec.to_agent_spec` dropped the
+  observability block along with the budget and the connections, so the generated
+  spec asked for nothing, `_instrument` returned immediately, and the deployment's
+  global Pydantic AI instrumentation traced the specialist with content on. An
+  agent published over health, legal or HR data therefore kept the guarantee for
+  its own spans and broke it for every span its specialist produced, in the same
+  run. The mode now travels with the conversion while the project deliberately
+  does not - a specialist has no Logfire project of its own and is never handed
+  the parent's write token. (#1699)
+
+- **The `redacted` trace-content mode is decided against, not pending.** Logfire
+  is opt-in and exists to record prompts and outputs; a partly-scrubbed export is
+  a guarantee nobody can audit, so the choice stays the whole content or none of
+  it. The pages that pointed at it as planned work say so. (#1616)
+
 ## [0.0.441] - 2026-09-15
 
 ### Documentation
