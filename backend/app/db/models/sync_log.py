@@ -33,3 +33,15 @@ class SyncLog(TimestampMixin, Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Who to notify about this sync's outcome (#1598) - set by
+    # SyncSourceService.trigger_sync from the caller who dispatched it. Null on
+    # a run the scheduler started (check_scheduled_syncs_flow): nobody
+    # personally asked for it, so its notification falls back to the
+    # organization's admins rather than resolving to nobody. SET NULL: deleting
+    # the triggering user must not delete the sync's history.
+    triggered_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
