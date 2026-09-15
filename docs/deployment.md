@@ -78,6 +78,12 @@ headers, defined in `frontend/src/lib/csp.ts` and
 glyphs and avatars, `frame-src 'self' blob:` for document previews, `object-src
 'none'`, `base-uri 'self'` and `frame-ancestors 'none'`.
 
+`script-src` carries no `'unsafe-inline'`. The middleware mints a per-request
+nonce, writes `'nonce-…' 'strict-dynamic'` into the directive, and Next stamps
+that nonce onto its own inline scripts — so a script injected into the page has
+no nonce and does not run. `'unsafe-eval'` remains, because Next's development
+runtime needs it.
+
 The policy is stamped per request by the frontend's middleware, because the two
 public URLs are read from the server's environment at runtime and a header set
 at build could only name `localhost`. The other headers are constants and are
