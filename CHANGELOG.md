@@ -17,6 +17,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **`agenticos cmd data-protection-report` prints the evidence a data-protection
+  review of one deployment asks for.** The verification checklist on the data
+  protection page was a page of SQL to paste into `psql` by hand plus a shell
+  pipeline for the one question SQL cannot answer, which is not something a
+  reviewer can reproduce or an operator can re-run on a schedule. The command
+  replaces both: the settings that decide what leaves, every provider and
+  endpoint an agent can reach, the credentials held by purpose, the collections
+  and who embeds them, the servers on the deployment's own network, the MCP
+  servers, sync sources and channel bots, where runs are traced and how much
+  content a span carries, how much of each store a retention period would reach,
+  and the files under `MEDIA_DIR` that no row points at any more. It prints
+  configuration and counts only - no message text, no document, no secret value
+  and no hint of one, and a setting holding a credential is reported as set or
+  unset - so the output is attachable to a review as it stands. The
+  unreferenced-file count is derived from a declared list of every media-path
+  column, which a test holds against the models so a new column cannot silently
+  turn its files into apparent orphans. (#1596)
+
+### Documentation
+
+- **The data protection page stopped describing implemented controls as gaps.**
+  Three of the open conditions it listed have closed since it was written, and a
+  review reading it would have been told the platform lacks controls it has: the
+  audit trail's tamper evidence now exists as a per-organization hash chain with
+  a checkpoint at each chain's high-water mark and `agenticos cmd audit-verify`
+  to walk them (#1622, #1648), the HIPAA and SOC 2 controls matrix is on the
+  security page (#1412), and the filtered trace-content mode the page listed as
+  pending was considered and declined (#1616) rather than still coming - so
+  `none` is the answer for a deployment that may not export message text, and
+  the page now says which two paths do not honour it yet (#1699, #1700). The
+  verification section is now the command above rather than SQL nobody can
+  re-run identically. (#1596)
+
 ## [0.0.441] - 2026-09-15
 
 ### Documentation

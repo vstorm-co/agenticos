@@ -72,8 +72,10 @@ ApprovalMode = Literal["default", "required", "never"]
 
 # What a run's traces are allowed to carry. `full` is the default so nothing
 # stored changes behaviour; `none` keeps timing, tokens, cost and tool names but
-# no message text or tool arguments. A `redacted` middle ground - the same PII
-# filter the log pipeline runs, over message text - is a follow-up (#1616).
+# no message text or tool arguments. There is deliberately nothing between them:
+# a `redacted` middle ground running the log pipeline's PII filter over exported
+# message text was declined (#1616), because a filter that misses one field is a
+# guarantee nobody can audit.
 TraceContent = Literal["full", "none"]
 
 _WITHDRAWN_MCP_FLAG = "use_personal_when_available"
