@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.440] - 2026-09-15
+
+### Added
+
+- **A truncated audit chain, and a chain deleted whole, are detectable.** The hash
+  chain catches an entry that was edited, reordered, inserted or deleted from the
+  middle, because any of those diverges every hash after it. It cannot catch the
+  two deletions that leave the survivors internally consistent: the newest entries
+  dropped, and an organization's chain gone. Each chain now carries a checkpoint -
+  a high-water mark `record_audit` advances beside every entry, under the same
+  per-organization lock the append takes, so it never races the head. `audit-verify`
+  flags a chain whose head is behind its checkpoint, and surfaces a checkpoint whose
+  chain has vanished by unioning the checkpointed organizations into the walk.
+  Backfilled from existing chains, so a deployment with history starts at an
+  accurate mark rather than a floor of zero. (#1648)
+
+  Be precise about the database trigger that refuses a checkpoint moving backwards:
+  it closes the ordinary write path - an app admin acting through the product, and
+  a bug in this codebase - which is the threat model the trail is written against.
+  It is not a control against anybody holding the database's own credentials. The
+  application and its migrations connect as the same role, that role owns the
+  table, and a `TRUNCATE` empties it without firing a row-level delete trigger at
+  all. Closing that needs the mark kept where this database's roles cannot reach,
+  which remains a planned follow-up and is stated as such on the governance page.
+
 ## [0.0.439] - 2026-09-15
 
 ### Security
