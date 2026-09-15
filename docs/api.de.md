@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd2c8097097"
+source_sha: "faee0acdbe9c"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -80,6 +80,23 @@ Die Route trägt eine **Rate-Limitierung und kein Berechtigungs-Tor**. Über die
 Berechtigung entscheidet der Service, anhand der Grants genau dieses Agents — ein
 Rollen-Tor auf einer Route für eine einzelne Ressource
 [kann sie nicht sehen](permissions.md).
+
+`PATCH /api/v1/agents/{id}/metadata` setzt die **Categories** und **Tags** eines
+Agents mit einem Body wie `{"categories": [...], "tags": [...]}`, wobei eine leere
+Liste den jeweiligen Aspekt löscht. Die Werte werden normalisiert — getrimmt,
+Leerraum zusammengefasst, in der Groß-/Kleinschreibung gefaltet und dedupliziert
+— und begrenzt: höchstens 10 Categories und 20 Tags, jeweils höchstens 32
+Zeichen, ein längeres Element antwortet mit `422`. Wie die Run-Route trägt sie
+kein Rollen-Tor; es entscheidet die grant-bewusste Prüfung `agents:edit` im
+Service, sodass ein Viewer mit einem Edit-Grant auf einem Agent diesen mit Tags
+versehen darf.
+
+`GET /api/v1/agents` filtert diesen Katalog über die wiederholbaren
+Query-Parameter `category` und `tag`: Werte verknüpfen **OR innerhalb eines
+Aspekts** und **AND über Aspekte hinweg**, ohne Rücksicht auf Groß-/Kleinschreibung
+(ein Query-Wert wird so gefaltet wie ein gespeicherter, und ein leerer Wert wird
+ignoriert). Der Filter engt nur ein, was Sie ohnehin schon sehen konnten — er
+überschreitet nie eine Tenant- oder Grant-Grenze.
 
 ## Streaming { #streaming }
 
