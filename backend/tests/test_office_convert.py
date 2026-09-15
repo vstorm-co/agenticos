@@ -308,3 +308,46 @@ async def test_tearing_down_an_already_exited_process_is_a_noop() -> None:
     await office_convert._terminate_process_group(proc)
     # The group is gone; signalling it again must still not raise.
     office_convert._signal_group(proc.pid, signal.SIGTERM)
+
+
+async def test_teardown_kills_the_group_even_when_cancelled_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second cancellation during the grace wait must not skip the SIGKILL.
+
+    An overlapping timeout-and-shutdown cancel can interrupt teardown while it
+    waits out the grace period; if that skipped the kill, a SIGTERM-ignoring
+    soffice would survive - the exact orphan this guards against.
+    """
+    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 30.0)
+    script = _write_fake_soffice(
+        tmp_path,
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "(outdir / 'up.txt').write_text('1')\n"
+        "time.sleep(3600)\n",
+    )
+    proc = await asyncio.create_subprocess_exec(
+        str(script),
+        "--outdir",
+        str(tmp_path),
+        "x",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    up = tmp_path / "up.txt"
+    for _ in range(500):
+        if up.exists():
+            break
+        await asyncio.sleep(0.02)
+
+    task = asyncio.ensure_future(office_convert._terminate_process_group(proc))
+    await asyncio.sleep(0.2)  # let it send SIGTERM and settle into the grace wait
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    # The finally-block SIGKILL fired despite the cancellation; reaping confirms
+    # the process died from it rather than still running.
+    returncode = await asyncio.wait_for(proc.wait(), timeout=5)
+    assert returncode == -signal.SIGKILL

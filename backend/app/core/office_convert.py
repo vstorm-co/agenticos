@@ -157,11 +157,20 @@ async def _terminate_process_group(proc: asyncio.subprocess.Process) -> None:
     ignores it keeps running, and waiting only on the launcher would return with
     that helper still alive - the very orphan this function exists to prevent. A
     final `SIGKILL` to an already-empty group is a harmless no-op.
+
+    The `SIGKILL` is in a `finally`, so a second cancellation while the grace
+    wait is in progress - an overlapping timeout-and-worker-shutdown race - still
+    fires it. `os.killpg` is synchronous, so the kill cannot itself be
+    interrupted, and the group never outlives the teardown even when the reap
+    that follows is cut short by that cancellation.
     """
     _signal_group(proc.pid, signal.SIGTERM)
-    with contextlib.suppress(TimeoutError):
+    try:
         await asyncio.wait_for(proc.wait(), timeout=_KILL_GRACE_SECONDS)
-    _signal_group(proc.pid, signal.SIGKILL)
+    except TimeoutError:
+        pass
+    finally:
+        _signal_group(proc.pid, signal.SIGKILL)
     await proc.wait()
 
 
