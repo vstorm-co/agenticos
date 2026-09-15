@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "ef24e4b63c09"
 ---
 
 # Configuración { #configuration }
@@ -58,6 +58,18 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Lo que un **desconocido** puede subir a una página alojada. Un techo por encima de `CHAT_MAX_UPLOAD_SIZE_MB`, nunca una forma de saltárselo |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede apuntar un servicio de memoria mem0 autoalojado. Un `base_url` viene del spec de un agent, así que sin una lista de permitidos un Builder que puede vincular (pero no leer) una clave mem0 compartida podría apuntarla a su propio servidor y capturar la clave desde la cabecera de la petición. Vacío rechaza mem0 autoalojado y solo permite la nube gestionada; añade un hostname de confianza para habilitar un despliegue autoalojado. Ver [secretos](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Tamaño del pool de hilos dedicado que ejecuta el trabajo bloqueante con archivos — parsear una subida y leer o escribir sus bytes. Se mantiene fuera del executor por defecto compartido de `asyncio`, que también ejecuta `bcrypt` y el DNS de hosts fijados, para que una ráfaga de subidas no deje el inicio de sesión y las peticiones salientes en cola detrás de ella ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Súbelo en una máquina que parsea muchas subidas a la vez. Tiene que ser un entero positivo — un `0` o un valor negativo se rechaza al arrancar |
+| `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Cuánto puede durar una conversión de DOC a texto con LibreOffice antes de ser terminada. Muy por debajo de los 600s de la base de conocimiento porque esto es una subida interactiva |
+| `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Cuántas conversiones de LibreOffice pueden ejecutarse a la vez. El subproceso evita `FILE_IO_MAX_WORKERS`, así que se acota por separado |
+| `CHAT_CONVERT_KILL_GRACE_SECONDS` | `5` | La espera entre `TERM` y `KILL` cuando una conversión se detiene por la fuerza |
+| `CHAT_CONVERT_OUTPUT_MAX_BYTES` | `20971520` (20 MiB) | Tope del archivo de salida de una conversión, comprobado antes de leerlo |
+| `CHAT_TIFF_MAX_INLINE_PAGES` | `10` | Cuántas páginas de un TIFF de varias páginas se convierten a PNG y se muestran al modelo |
+| `CHAT_IMAGE_MAX_PIXELS` | `40000000` (~40 MP) | Cota de píxeles por imagen comprobada antes de decodificar una página TIFF — una protección contra bombas de descompresión |
+| `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Tope del tamaño descomprimido por miembro de un archivo de oficina basado en ZIP (ODF, PPTX) |
+| `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Tope del tamaño descomprimido total de un archivo de oficina basado en ZIP |
+| `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Tope del número de miembros de un archivo de oficina basado en ZIP |
+| `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Tope del texto extraído almacenado, para que un ZIP/OLE pequeño no infle la fila |
+| `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Tope por archivo del texto parseado que se pega en un prompt sin workspace |
+| `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Tope agregado del texto de adjuntos en un turno |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | El techo de gasto mensual con el que arranca una organización **nueva**, en USD, para que no esté a un agent desbocado de una factura sorpresa. Se aplica solo en la creación; las organizaciones existentes no se tocan y a cualquier organización se le puede quitar el tope después. Tiene que ser positivo; déjalo **vacío** para que las organizaciones empiecen sin tope (la postura anterior, de adhesión voluntaria) |
 
 ### El tamaño de una petición, frente al tamaño de un archivo { #the-size-of-a-request-as-opposed-to-the-size-of-a-file }

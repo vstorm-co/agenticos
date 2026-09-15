@@ -52,6 +52,18 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a self-hosted mem0 memory service may point at. A `base_url` comes from an agent spec, so without an allowlist a Builder who can bind (but not read) a shared mem0 key could aim it at their own server and capture the key from the request header. Empty refuses self-hosted mem0 and allows only the managed cloud; add a trusted hostname to enable a self-hosted deployment. See [secrets](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
+| `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | How long a single DOC → text LibreOffice conversion may run before it is killed. Far below the knowledge base's 600s because this is an interactive upload |
+| `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | How many LibreOffice conversions may run at once. The subprocess bypasses `FILE_IO_MAX_WORKERS`, so this bounds it separately |
+| `CHAT_CONVERT_KILL_GRACE_SECONDS` | `5` | The wait between `TERM` and `KILL` when a conversion is force-stopped |
+| `CHAT_CONVERT_OUTPUT_MAX_BYTES` | `20971520` (20 MiB) | Ceiling on a conversion's output file, checked before it is read back |
+| `CHAT_TIFF_MAX_INLINE_PAGES` | `10` | How many pages of a multi-page TIFF are converted to PNG and shown to the model |
+| `CHAT_IMAGE_MAX_PIXELS` | `40000000` (~40 MP) | Per-image pixel bound checked before a TIFF page is decoded — a decompression-bomb guard |
+| `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Decompressed-size cap per member of a ZIP-backed office file (ODF, PPTX) |
+| `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Total decompressed-size cap across a ZIP-backed office file |
+| `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Member-count cap for a ZIP-backed office file |
+| `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Cap on stored extracted text, so a small ZIP/OLE cannot expand the row |
+| `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Per-file cap on the parsed text pasted into a no-workspace prompt |
+| `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Aggregate cap on attachment text across one turn |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
 
 ### The size of a request, as opposed to the size of a file

@@ -14,7 +14,7 @@ When a user uploads a file in the chat interface, the following pipeline runs:
 ```mermaid
 flowchart TD
     U["Upload<br/><code>POST /api/v1/files/upload</code>"] --> V["Validate<br/>MIME against the allowed list, size limit"]
-    V --> C["Classify<br/>image · pdf · docx · spreadsheet · text"]
+    V --> C["Classify<br/>image · pdf · docx · spreadsheet · document · presentation · email · text"]
     C --> P["Parse<br/>extract text — images skip this"]
     P --> S["Store<br/><code>media/{user_id}/</code>"]
     S --> R["Record<br/>a <code>ChatFile</code> row"]
@@ -92,10 +92,15 @@ a file it can open, and one without gets the text in its prompt.
 | Category | MIME Types | Extensions | Processing |
 |----------|-----------|------------|------------|
 | **Images** | image/jpeg, image/png, image/webp, image/gif | .jpg, .png, .webp, .gif | Stored as-is. Sent to LLM as `BinaryContent` for vision analysis. |
+| **TIFF** | image/tiff | .tiff, .tif | Stored as-is; converted to PNG page(s) at the point it is shown to the model, capped at `CHAT_TIFF_MAX_INLINE_PAGES`. Not shown inline in the browser — served as a download. |
 | **PDF** | application/pdf | .pdf | Text extracted via configured PDF parser. Appended to prompt as context. |
-| **DOCX** | application/vnd.openxmlformats-officedocument.wordprocessingml.document | .docx | Paragraphs extracted via `python-docx`. Appended to prompt as context. |
-| **Spreadsheet** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12 | .xlsx, .xlsm | Every sheet read via `openpyxl`, named, rows tab-separated. Appended to prompt as context. `.xls` is refused — a different format needing a different reader. |
-| **Text** | text/plain, text/markdown | .txt, .md | UTF-8 decoded directly. Appended to prompt as context. |
+| **DOCX** | …wordprocessingml.document | .docx | Paragraphs extracted via `python-docx`. Appended to prompt as context. |
+| **DOC** | application/msword | .doc | Converted to text through a managed LibreOffice (`soffice`) subprocess. Needs LibreOffice in the image; absent, the text is reported as unavailable. |
+| **Spreadsheet** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12, application/vnd.ms-excel, …opendocument.spreadsheet | .xlsx, .xlsm, .xls, .ods | Every sheet read, named, rows tab-separated — `openpyxl` for OOXML, `xlrd` for legacy `.xls`, `odfpy` for `.ods`. Appended to prompt as context. |
+| **Presentation** | …presentationml.presentation, …opendocument.presentation | .pptx, .odp | Shape text, table cells and slide notes via `python-pptx` (`.pptx`) or `odfpy` (`.odp`). Appended to prompt as context. |
+| **Document (OpenDocument)** | …opendocument.text | .odt | Paragraphs via `odfpy`. Appended to prompt as context. |
+| **Email** | application/vnd.ms-outlook | .msg | Headers and body read from the OLE/MAPI streams via `olefile` (BSD); embedded attachments listed by name, not recursed. Appended to prompt as context. |
+| **Text** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | UTF-8 decoded directly (XML by its declared BOM/encoding). Appended to prompt as context. |
 
 ### Where an attachment goes depends on the agent
 
@@ -109,9 +114,10 @@ gets the file instead of the text:
 
 | Attachment | No workspace | With a workspace |
 |---|---|---|
-| text, csv, md, json | parsed text pasted inline | written to `uploads/`, message carries a reference and a 20-line head |
-| pdf, docx, spreadsheet | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it; reference and a 20-line head |
+| text, csv, md, json, xml | parsed text pasted inline | written to `uploads/`, message carries a reference and a 20-line head |
+| pdf, docx, spreadsheet, document, presentation, email | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it (`email` always gets it — `lit` cannot read `.msg`); reference and a 20-line head |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
+| tiff | PNG page(s) as `BinaryContent`, page cap noted | original `.tiff` written; PNG page(s) shown, page cap noted |
 
 **The extracted text comes with it only where nothing can read the original.** A
 `.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
@@ -133,6 +139,16 @@ Parsing still happens server-side either way, because the *text* is what an agen
 with no workspace gets and what the 20-line head in the message comes from.
 Accepting the upload without parsing would reach an agent with a workspace as
 unreadable bytes and an agent without one as nothing at all.
+
+**Limitations.** A scanned PDF or TIFF yields an image, not OCR text — the chat
+path has no OCR (the knowledge base does, through LiteParse). Office and DOCX tables
+are flattened to tab-separated or newline text. DOC needs LibreOffice in the image;
+without it the text is reported as unavailable. A `.msg`'s embedded attachments are
+listed by name, not extracted. A multi-page TIFF shows up to
+`CHAT_TIFF_MAX_INLINE_PAGES` pages to the model; an agent with a workspace opens the
+rest from the original on disk. Extracted text is capped at
+`CHAT_PARSED_TEXT_MAX_CHARS`, and per-file and per-turn prompt budgets bound what a
+no-workspace agent is pasted.
 
 **A refused write is said once, about the workspace.** A run whose workspace will
 not take a file is a run whose shell and file tools will fail too, and a per-file
@@ -239,10 +255,10 @@ The `ChatFile` database model tracks uploaded files:
 | `id` | UUID | Primary key |
 | `user_id` | UUID/FK | Owner (used for access control) |
 | `filename` | String | Original filename |
-| `mime_type` | String | MIME type (e.g. `application/pdf`) |
+| `mime_type` | String | Resolved (canonical) MIME type — an `application/octet-stream` `.tiff` is stored as `image/tiff`, so the download and inline-conversion paths read one trustworthy field. Rows uploaded before FA-013 keep their declared type; readers tolerate both. |
 | `size` | Integer | File size in bytes |
 | `storage_path` | String | Relative path in storage |
-| `file_type` | String | Classified type: `image`, `pdf`, `docx`, `spreadsheet`, `text` |
+| `file_type` | String | Classified type: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Extracted text content (NULL for images) |
 | `message_id` | UUID/FK | Linked message (set when message is sent) |
 | `created_at` | DateTime | Upload timestamp |
