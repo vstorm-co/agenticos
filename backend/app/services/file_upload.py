@@ -46,6 +46,18 @@ PREVIEW_CHARS = 240
 _ARCHIVE_CHUNK = 1024 * 1024
 """How much of a ZIP member is read at a time when measuring its real size."""
 
+_ODS_MAX_CELLS = 1_000_000
+"""How many cells one OpenDocument spreadsheet may expand to across all sheets.
+
+A cell may carry `table:number-columns-repeated`, and the value is attacker-chosen:
+a 1.5 KB `.ods` can declare a billion repeats and make `[text] * repeat` allocate an
+unbounded list — a post-decompression bomb `safe_unzip` cannot see, because the
+expansion is semantic rather than ZIP inflation (#1591, §7 finding 3). Each repeat is
+clamped to what is left of this budget, and extraction stops once it is spent; the
+bound is far above any real sheet, so trailing empty runs (which are popped anyway)
+and genuine data are untouched.
+"""
+
 
 def make_preview(parsed_content: str | None) -> str | None:
     """The head of a file's extracted text, for a client to render beside its name.
@@ -382,7 +394,12 @@ class FileUploadService:
         try:
             from docx import Document as DOCXDocument
 
-            doc: Any = DOCXDocument(io.BytesIO(data))
+            # Through `safe_unzip` like the other ZIP-backed formats: a DOCX is a
+            # ZIP of XML, so a small upload can decompress to a huge amount of
+            # memory. `python-docx` opening the raw bytes would skip the member,
+            # total-size and member-count guards the ODF/PPTX parsers already apply
+            # (#1591, §7 finding 1).
+            doc: Any = DOCXDocument(safe_unzip(data))
             return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except Exception as e:
             logger.warning("DOCX parsing failed: %s", e)
@@ -410,7 +427,11 @@ class FileUploadService:
         try:
             from openpyxl import load_workbook
 
-            workbook: Any = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+            # Through `safe_unzip`, the same guard the ODF/PPTX parsers use: an XLSX
+            # is a ZIP of XML and `read_only=True` bounds the cells materialised, not
+            # the decompression of shared strings or workbook metadata, so a small
+            # upload could still expand without limit (#1591, §7 finding 1).
+            workbook: Any = load_workbook(safe_unzip(data), read_only=True, data_only=True)
             try:
                 blocks: list[str] = []
                 for sheet in workbook.worksheets:
@@ -470,20 +491,33 @@ class FileUploadService:
 
             document: Any = load(safe_unzip(data))
             blocks: list[str] = []
+            budget = _ODS_MAX_CELLS
             for table in document.getElementsByType(Table):
                 name = table.getAttribute("name") or "Sheet"
                 rows: list[str] = []
                 for row in table.getElementsByType(TableRow):
                     cells: list[str] = []
                     for cell in row.getElementsByType(TableCell):
-                        repeat = int(cell.getAttribute("numbercolumnsrepeated") or 1)
+                        # Clamped to the remaining budget: the repeat count is
+                        # attacker-controlled, so an unclamped `[text] * repeat`
+                        # allocates an unbounded list (#1591, §7 finding 3).
+                        repeat = max(
+                            1, min(int(cell.getAttribute("numbercolumnsrepeated") or 1), budget)
+                        )
                         cells.extend([extractText(cell)] * repeat)
+                        budget -= repeat
+                        if budget <= 0:
+                            break
                     while cells and cells[-1] == "":
                         cells.pop()
                     if cells:
                         rows.append("\t".join(cells))
+                    if budget <= 0:
+                        break
                 if rows:
                     blocks.append(f"Sheet: {name}\n" + "\n".join(rows))
+                if budget <= 0:
+                    break
             return "\n\n".join(blocks) or None
         except Exception as e:
             logger.warning("ODS parsing failed: %s", e)

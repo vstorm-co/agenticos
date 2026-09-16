@@ -290,6 +290,85 @@ class TestXmlDecoding:
         assert FileUploadService._parse_text_content(b"\xff\xfe\xff\xfe\x00") is None
 
 
+class TestZipBackedFormatsRunThroughTheGuard:
+    """DOCX and XLSX are ZIP+XML like ODF/PPTX, so they must pass through
+    `safe_unzip` before their parser opens them; otherwise a decompression bomb
+    reaches `python-docx`/`openpyxl` unbounded (#1591, §7 finding 1)."""
+
+    def _docx(self, text: str) -> bytes:
+        from docx import Document
+
+        document = Document()
+        document.add_paragraph(text)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def _xlsx(self, value: str) -> bytes:
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        workbook.active["A1"] = value
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue()
+
+    def test_a_valid_docx_still_parses(self):
+        assert FileUploadService._parse_docx_content(self._docx("Hello world")) == "Hello world"
+
+    def test_a_valid_xlsx_still_parses(self):
+        text = FileUploadService._parse_spreadsheet_content(self._xlsx("hi"))
+        assert text is not None and "hi" in text
+
+    def test_a_docx_tripping_the_member_cap_is_refused(self, monkeypatch):
+        from app.core import config as config_module
+
+        docx = self._docx("Hello world")
+        monkeypatch.setattr(config_module.settings, "CHAT_ARCHIVE_MEMBER_MAX_BYTES", 1)
+
+        assert FileUploadService._parse_docx_content(docx) is None
+
+    def test_an_xlsx_tripping_the_member_cap_is_refused(self, monkeypatch):
+        from app.core import config as config_module
+
+        xlsx = self._xlsx("hi")
+        monkeypatch.setattr(config_module.settings, "CHAT_ARCHIVE_MEMBER_MAX_BYTES", 1)
+
+        assert FileUploadService._parse_spreadsheet_content(xlsx) is None
+
+
+class TestOdsRepetitionIsBounded:
+    """A tiny ODS can declare a colossal `number-columns-repeated`; the parser must
+    not allocate `[text] * repeat` unbounded (#1591, §7 finding 3)."""
+
+    def _ods_repeated(self, repeat: int) -> bytes:
+        from odf.opendocument import OpenDocumentSpreadsheet
+        from odf.table import Table, TableCell, TableRow
+        from odf.text import P
+
+        document = OpenDocumentSpreadsheet()
+        table = Table(name="S")
+        row = TableRow()
+        cell = TableCell(numbercolumnsrepeated=str(repeat))
+        cell.addElement(P(text="x"))
+        row.addElement(cell)
+        table.addElement(row)
+        document.spreadsheet.addElement(table)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def test_a_billion_column_repeat_does_not_allocate_a_billion_cells(self):
+        # Returns bounded text rather than exhausting memory; the cap is far below a
+        # billion, so the extraction is capped, not the process.
+        text = FileUploadService._parse_ods_content(self._ods_repeated(1_000_000_000))
+
+        assert text is not None
+        # ~1M cells of "x" joined by tabs, not a billion: bounded by the cell budget
+        # (the "Sheet: S" header and the absent trailing tab account for the slack).
+        assert len(text) <= fu._ODS_MAX_CELLS * 2 + 100
+
+
 class TestArchiveBombGuards:
     def _zip(self, members: dict[str, bytes]) -> bytes:
         import zipfile
