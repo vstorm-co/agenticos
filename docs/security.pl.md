@@ -1,5 +1,6 @@
 ---
-source_sha: "674521d32d87"
+source_sha: "fc8c04bccc9c"
+source_sha: "fc8c04bccc9c"
 ---
 
 # Bezpieczeństwo { #security }
@@ -48,7 +49,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 |---|---|---|
 | Skonfigurowany provider modelu | Prompt, wyjście modelu, argumenty i wyniki narzędzi | Każdy run — chyba że model działa na własnej infrastrukturze operatora, wtedy nic nie wychodzi |
 | Skonfigurowany kanał (Slack, Telegram, Mattermost) | Wygenerowane odpowiedzi agenta — tekst, obrazy i załączniki | Zawsze, gdy agent jest wystawiony przez ten kanał; każde `send_message` publikuje u providera (`app/services/channels/`) |
-| Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run w procesie API (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach - z dwiema lukami, których jeszcze nie obejmuje: inline specjalista tego agenta, który nie ma własnego bloku observability ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)), oraz nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona, a ta na poziomie wdrożenia nie sięga runu wykonanego przez workera Prefect ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)). Stan pośredni z filtrem to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Logfire | Trace'y, które niosą prompty i wyjścia, chyba że agent mówi inaczej | Dwie niezależne ścieżki. Token observability per agent trace'uje tego agenta, a jego tryb `content` decyduje, ile niesie span - `none` sprowadza go do czasu, tokenów, kosztu i nazw narzędzi (#1413). `LOGFIRE_TOKEN` na poziomie wdrożenia instrumentuje **każdy** run, tak samo w API jak w workerze Prefect (`app/core/logfire_setup.py`), więc przy nim ustawionym wychodzi treść każdego agenta, który nie poprosił o `none`; agent, który poprosił, jest przypięty do instrumentacji bez treści również na tym tracerze (`suppress_content`), więc tryb trzyma na obu ścieżkach, a specjalista tego agenta go dziedziczy - napisany inline albo wymyślony w trakcie runu. Jedna luka, której nie obejmuje: nieudane podpięcie, które jest logowane i zostawione. Żadna ze ścieżek nie jest domyślnie włączona. Stanu pośredniego z filtrem świadomie nie ma - częściowo wyczyszczony eksport to gwarancja, której nikt nie zaudytuje ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |
 | Provider embeddingów | Tekst dokumentu, przy ingest | Tylko dla bazy wiedzy, której provider jest zdalny |
@@ -84,6 +85,74 @@ Backend plików zgodny z S3, z szyfrowaniem po stronie serwera, jest odpowiedzi�
 na poziomie aplikacji dla object storage i jest śledzony w
 [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 
+## Co jest trzymane o jednej osobie i co się z tym dzieje { #what-is-held-about-one-person-and-what-happens-to-it }
+
+RODO art. 15 pyta, co o kimś trzymasz, a art. 17 każe to usunąć. Na oba odpowiada
+ta tabela, i to celowo: inwentarz, który wymienia tabelę przy eksporcie i zapomina
+o niej przy usuwaniu, jest gorszy niż żaden, bo czyta się jak kompletny.
+
+Linia, którą rysuje, to **o** kimś kontra **stworzone przez** kogoś. To, co jest
+o osobie, idzie razem z nią; to, co stworzyła na rzecz organizacji — agent,
+na którym pracuje zespół, baza wiedzy, zapisane poświadczenie — jest przekazywane
+dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy zespół.
+
+| Tabela | Przy usunięciu | W eksporcie | Dlaczego |
+|---|---|---|---|
+| `users` | Usuwany | Profil, bez hasha hasła | Samo konto |
+| `conversations`, `messages`, `tool_calls` | Kaskada | Wątki, które zaczęli, z każdą turą | Ich własne, a transkrypt bez co drugiej tury nie odpowiada na nic |
+| `chat_files` | Kaskada; bajty odpinane po commicie | Nie wypisywane | Wiersz kaskadował, a plik nie — czyli dane zatrzymane po żądaniu usunięcia ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `message_ratings` | Kaskada | Tak | Wyrażona opinia |
+| `sessions` | Kaskada | Urządzenie, adres i czasy — nigdy poświadczenie, bo jest hashem | Gdzie się logowali |
+| `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskada | Układy i skróty | Ustawienia osobiste, dla nikogo innego bez znaczenia |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Czyszczone jawnie**, pod blokadą, którą bierze też równoległy zapis | Tak | Klucz jako łańcuch znaków bez klucza obcego: nic nie kaskadowało, więc każda notatka przeżywała konto — a run zapisujący notatkę w trakcie usuwania odtworzyłby ją |
+| `agent_workspaces` (`scope = user`) | **Czyszczone jawnie** | Nie | `owner_ref` jest łańcuchem znaków z tego samego powodu co `owner_key`, więc nie podąża za nim żadna kaskada, a workspace oparty o stan trzyma same pliki |
+| `organization_members` | Kaskada | Do których organizacji, jako kto, od kiedy | Wiersz wskazujący wprost na tę osobę, widoczny już dla administratora |
+| `channel_identities` | **Czyszczone jawnie** | Tak | `SET NULL` zostawiał wiersz z id Slacka, nazwą i nazwą wyświetlaną osoby, której już nie ma, powiązany z nikim |
+| `agent_runs` | `SET NULL` — zachowywane | Runy, które uruchomili, i ile kosztowały | Wydatek jest zapisem organizacji; anonimowy run wciąż liczy się do miesiąca |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — zachowywane | Nie | Stworzone *dla organizacji*. Usunięcie zabrałoby pracę zespołu razem z osobą |
+| `organization_secrets` | `SET NULL`, a sekret prywatny awansuje do organizacji | Nie | Poświadczenie, na którym działa organizacja. Awans jest tym, co nie pozwala bezpańskiemu sekretowi zablokować usunięcia |
+| `organizations` | Org osobista usuwana; współdzielona, którą stworzyli, przechodzi na innego właściciela | Nie | Nikt nie może zostać z organizacją bez właściciela |
+| `resource_grants` | Kaskada po obdarowanym; `SET NULL` po nadającym | Nie | Uprawnienie *dla* nich jest ich; uprawnienie, które *nadali*, jest zapisem organizacji, kto co może |
+| `app_admin_audit_logs` | **Zachowywane**, id aktora zostaje | **Nie** | Zapis organizacji o tym, co się w niej działo. Wpis nazywający usunięte konto jest uczciwy; wpis z wyciętym aktorem jest gorszy niż bezużyteczny, a osoba nie może go zabrać ze sobą |
+| `embed_visitors` | Nietykane | Nie | Odwiedzający to klucz przeglądarki, nigdy konto — nie ma tu nic o osobie z loginem |
+
+!!! warning "Czego usunięcie nie dosięga — i mówią to dokumenty, a nie wdrożenie po fakcie"
+
+    **Skonfigurowany zewnętrzny magazyn pamięci.** `mem0` trzyma to, co agent
+    zapamiętał, w cudzym systemie, a to wdrożenie może poprosić o zapomnienie
+    tylko dopóki ma poświadczenie organizacji. `MemoryService.forget_person`
+    robi to dla osoby, która wciąż jest członkiem; notatki usuniętego konta
+    w zewnętrznym magazynie należą do operatora.
+
+    **Kopie zapasowe.** Usunięcie kasuje wiersze z żywej bazy. Harmonogram kopii,
+    który uruchamia wdrożenie, trzyma je do swojej rotacji i żadne usunięcie na
+    poziomie aplikacji tego nie zmienia.
+
+    **Własna retencja providera modelu.** To, co zostało wysłane, by odpowiedzieć
+    na turę, podlega polityce providera — opisują to [modele](models.md), a to
+    wdrożenie tego nie kontroluje.
+
+### Samoobsługa i to, co dokłada administrator { #self-service-and-what-an-administrator-adds }
+
+Osoba nie potrzebuje administratora w zwykłych przypadkach.
+`GET /me/data/export` to cała powyższa tabela w jednym dokumencie JSON, z limitem
+na godzinę i wpisem w audycie — również wtedy, gdy ktoś eksportuje samego siebie,
+bo eksport ma kształt wycieku, gdy wywołujący nie jest tym, za kogo się podaje.
+
+Dokument powstaje i serializuje się w całości, więc jest ograniczony:
+`PERSONAL_DATA_EXPORT_MAX_CHARS` (domyślnie 16 milionów znaków) to tyle tekstu
+rozmów, ile jeden dokument może unieść, a konto trzymające więcej dostaje odmowę
+z obiema liczbami zamiast po cichu niepełnego dokumentu. Wytworzenie takiego
+jest zadaniem operatora, wprost z bazy.
+`DELETE /conversations/{id}` usuwa jeden wątek, jego tury i pliki, które z nimi
+przyszły, sprawdzone wobec własności wywołującego (FA-015).
+
+Administrator dokłada dwie rzeczy i obie są audytowane:
+`GET /admin/users/{id}/export`, który **wymaga powodu** — czytanie całej historii
+rozmów kolegi jest uzasadnione jakieś dwa razy w roku i za każdym razem poważne —
+oraz `DELETE /admin/users/{id}`, gdzie powód jest opcjonalny, bo offboarding
+zwykle nie ma czego tłumaczyć.
+
 ## Macierz kontroli { #controls-matrix }
 
 Jeden wiersz na kontrolę, mechanizm, który ją realizuje, i test, który trzyma ją
@@ -106,7 +175,9 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | JWT (HS256), hasła przez bcrypt | `app/core/security.py` — `verify_token`, `get_password_hash` | `test_security.py`, `test_auth.py` |
 | Klucze API porównywane w stałym czasie | `secrets.compare_digest` (`app/api/deps.py`) | `test_auth.py`, sprawdzenia HMAC webhooków w adapterach kanałów |
 | Sesje w bazie danych z unieważnianiem | Tabela `sessions` + `SessionService`; token związany z claimem `sid` (`app/services/session.py`, `app/api/routes/v1/sessions.py`) | `test_session_verify.py`, `test_session_revocation.py` |
-| Limitowanie prób logowania | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Logowanie jednokrotne przez własnego dostawcę tożsamości wdrożenia | Generyczne OIDC przez discovery — authorization code z PKCE, wymagane `email_verified`, konto kluczowane po `sub` (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; konfiguracja w [Logowaniu jednokrotnym](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
+| Polityka rejestracji bramkuje SSO tak samo jak formularz | `check_may_register` wewnątrz `get_or_create_oauth_user` — `invite_only` i lista dozwolonych domen odmawiają też logowaniu przez dostawcę (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
+| Mapowanie grup na role, SAML, SCIM | **Jeszcze nie** — ludzie logują się przez dostawcę, a administrator ich umieszcza | — |
 
 ### Kontrole audytowe · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 
@@ -115,6 +186,8 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Mutacje istotne dla governance zapisywane w transakcji żądania | `record_audit` (`app/core/audit.py`) w mutującym serwisie — rotacja sekretu, podpięcie skilla / synchronizacji / MCP, członkostwo, udostępnianie, zatwierdzenia, eksporty i więcej; zapisywane do `app_admin_audit_logs`. To nie jest pokrycie każdego zapisu (CRUD bazy wiedzy, choćby, nie jest audytowany) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Ślad jest czytelny dla audytora | `GET /audit`, bramkowane na `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Eksport śladu (CSV/JSONL) | `GET /audit/export` w oknie czasu, bramkowany na `audit:read`, zapisujący własny odczyt w śladzie; eksporty runów, zatwierdzeń i wydatków robią to samo (#1422) | `test_exporting.py` (eksport i jego własny wpis audytowy) |
+| Okres audytu, który organizacja może wydłużyć i nigdy skrócić | Podłoga na poziomie wdrożenia (domyślnie sześć lat, HIPAA §164.316(b)(2)); krótszy okres jest odrzucany, a nie podnoszony. Sweep **nie** usuwa wpisów audytowych — łańcuch haszy i jego checkpoint stoją na tym, że wpisy zostają, więc weryfikowalne wycofanie to [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). Zobacz [Retencję](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
+| Osoba może odczytać i usunąć własne dane | `GET /me/data/export` (limit na godzinę, audytowany także przy własnym żądaniu) oraz `DELETE /conversations/{id}` w zakresie własności wywołującego; eksport administratora wymaga powodu (`app/services/personal_data.py`) | `test_personal_data.py` |
 | Dowód nienaruszalności (łańcuch haszy) | **Jeszcze nie** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integralność · HIPAA §164.312(c) · SOC 2 CC8 (zarządzanie zmianą) { #integrity-hipaa-164312c-soc-2-cc8-change-management }
@@ -151,6 +224,71 @@ przyjąć na wiarę. Test, którego nazwa albo moduł wspomina tenanta, uprawnie
 budżet, zatwierdzenie, sekret albo tekst jawny, a nie ma markera, wywala
 `tests/test_security_marker.py`, co trzyma listę kompletną w miarę rozrostu suite.
 
+## Profil HIPAA i czego nie twierdzi { #the-hipaa-profile-and-what-it-does-not-claim }
+
+Przegląd bezpieczeństwa nie pyta „czy to oprogramowanie jest zgodne”. HHS nie
+certyfikuje żadnego oprogramowania, a OCR nie uznaje prywatnych certyfikacji.
+Pyta **czy możemy to uruchomić wewnątrz naszego zgodnego środowiska i czy da się
+to udowodnić** — a odpowiedzią jest konfiguracja dostarczona z produktem plus
+komenda sprawdzająca działające wdrożenie względem niej (#1448).
+
+```bash
+uv run agenticos cmd doctor --profile hipaa
+```
+
+Jeden wiersz na kontrolę, każdy nazywający ustawienie, które ją spełnia, albo to,
+które jej nie spełnia, i niezerowy exit przy jakiejkolwiek porażce, żeby dało się
+to odpalić w CI klienta. Konfiguracja to `deploy/profiles/hipaa/`: overlay compose
+odmawiający startu bez ustawień, których nie może domyślnie przyjąć, i opisany
+plik env.
+
+**Ten akapit czytaj jednym tchem z profilem.** Odpowiada on na **techniczne**
+zabezpieczenia, §164.312, i tylko na nie. Zabezpieczenia administracyjne
+(§164.308 — analiza ryzyka, szkolenia, polityka sankcji, plan ciągłości, umowy z
+business associate) i fizyczne (§164.310) należą do operatora i zawsze będą.
+Profil sugerujący inaczej byłby twierdzeniem, którego nikt nie obroni.
+
+### Arkusz { #the-sheet }
+
+| Kontrola | Zabezpieczenie | Spełnia ją |
+|---|---|---|
+| `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` szyfruje i nie weryfikuje żadnego certyfikatu, więc profil go nie przyjmuje |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Oba magazyny muszą być twoje: dołączone w repozytorium `db` i `redis` nie mają listenera TLS, więc overlay odmawia startu bez `POSTGRES_HOST` i `REDIS_HOST` |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` i `PUBLIC_BASE_URL` po https, z twoim reverse proxy je terminującym. Poświadczane, a adres http jest tu **odrzucany**: każda inna kontrola może przejść, podczas gdy logowanie przechodzi granicę klienta otwartym tekstem |
+| `vault-key` | §164.312(a)(2)(iv) | Klucz główny vaulta o długości co najmniej 64 znaków. HKDF wyprowadza z czegokolwiek klucz opakowujący właściwej długości i nie doda entropii do zgadywalnego sekretu |
+| `content-at-rest` | §164.312(a)(2)(iv) | **Operatora.** Dane Postgresa, wolumen mediów i katalog workspace'ów sandboxa szyfruje wolumen albo dysk, nie ta aplikacja |
+| `local-model` | §164.312(e)(1) | Każdy profil modelu serwowany z twojej sieci. Parsowana jest **nazwa hosta** — adres prywatny, `localhost`, gołe `ollama`/`litellm`/`vllm` albo nazwa `.internal`/`.local`/`.svc` — więc `https://ollama.vendor.example` nie jest lokalny, a ten bez `base_url` to z definicji publiczne API dostawcy |
+| `traces-local` | §164.312(e)(1) | Nieustawiony `LOGFIRE_TOKEN` **i** żaden opublikowany agent ani nazwane środowisko nie niesie własnego tokenu tracingu — każdy podpina własny eksporter, a `observability.content` domyślnie to `full` |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. **Jeszcze niedostępne** — generyczne logowanie OIDC to [#1419](https://github.com/vstorm-co/agenticos/issues/1419), więc ta kontrola jest dziś niespełniona na każdym wdrożeniu, co jest prawdą o takim, gdzie ludzie logują się hasłami. MFA należy do dostawcy tożsamości, i arkusz to mówi, zamiast tego twierdzić |
+| `signup` | §164.312(a)(1) | `invite_only` albo `closed` |
+| `audit-retention` | §164.312(b) | Podłoga audytu co najmniej 2190 dni — sześć lat z §164.316(b)(2) |
+| `audit-chain` | §164.312(c)(1) | Łańcuch haszy i jego checkpoint. Wykrywanie, nie zapobieganie — zobacz [Kontrole audytu](#audit-controls-hipaa-164312b-soc-2-cc7) |
+
+Trzy wyniki i to środkowy waży. `ok` i `!!` to odpowiedzi tego kodu. `--` to
+kontrola, która naprawdę należy do operatora, **nazwana**, a nie po cichu
+zaliczona — arkusz pomijający to, czego nie widzi, czytałby się jako kompletny i
+nie byłby — i nie wywala komendy, bo kontrola, której stąd nikt nie udowodni, to
+kontrola, której nikt nigdy by nie przeszedł.
+
+### Kto jest business associate { #who-is-the-business-associate }
+
+Klient uruchamiający to na własnej infrastrukturze dostaje oprogramowanie. Nikt
+tutaj nie dotyka jego PHI i żadna umowa nie jest potrzebna. Wdrożenie prowadzone
+dla niego przez kogoś innego czyni tego kogoś business associate, a to umowa, nie
+flaga w konfiguracji.
+
+### Dlaczego profil domyślnie bierze model lokalny { #why-the-profile-defaults-to-a-local-model }
+
+Hostowany model zabiera ze sobą treść każdego uruchomienia, więc jego użycie
+oznacza umowę z tym dostawcą — a te umowy są węższe, niż ludzie zakładają.
+Organizacja z włączonym HIPAA u dużego dostawcy zwykle wyklucza wykonywanie kodu
+i pobieranie z sieci, czyli dokładnie kształt capability `sandbox`,
+`code_execution` i `web_fetch`. Klient, który taką umowę podpisze, a potem
+zbuduje agenta na tych capability, dowiaduje się o tym w trakcie incydentu.
+
+Lokalna inferencja usuwa to pytanie i dlatego jest domyślną wartością profilu, a
+nie sugestią.
+
 ## Podsumowanie { #recap }
 
 - Ufaj infrastrukturze operatora; nie ufaj żadnemu żądaniu do niej. Granicami,
@@ -167,8 +305,8 @@ budżet, zatwierdzenie, sekret albo tekst jawny, a nie ma markera, wywala
   RAG, sandboksy) nie są, a [#1423](https://github.com/vstorm-co/agenticos/issues/1423)
   jest odpowiedzią na poziomie aplikacji dla object storage.
 - Każda kontrola w macierzy nazywa mechanizm i test, i tym samym tchem nazywa
-  swoje luki — dowód nienaruszalności, szyfrowanie plików na poziomie aplikacji
-  i stan pośredni dla trace'ów linkują issue, które by je zbudowały.
+  swoje luki — dowód nienaruszalności i szyfrowanie plików na poziomie aplikacji
+  linkują issue, które by je zbudowały.
 - Podatności zgłaszaj i listę kontrolną hardeningu uruchamiaj z
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   obok tej strony czytaj [Ochronę danych](data-protection.md) i

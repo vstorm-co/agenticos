@@ -1,5 +1,5 @@
 ---
-source_sha: "6ae659f3a930"
+source_sha: "e1fd7c9ab8a0"
 ---
 
 # Configuración { #configuration }
@@ -56,6 +56,8 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `MAX_UPLOAD_SIZE_MB` | `50` | Tope de un documento de la base de conocimiento, y el número del que se deriva el techo de la petición completa que se describe abajo. Un documento de este tamaño se trocea y se convierte en embeddings, no se guarda de una pieza |
 | `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | Lo que se puede adjuntar en el chat. Tiene su propio ajuste y no el de arriba, porque un adjunto a un agent sin workspace se pega entero en el prompt — así que las dos superficies fallan de forma distinta con el mismo tamaño. Eran 10 MiB fijos que ningún operador podía subir ([#498](https://github.com/vstorm-co/agenticos/issues/498)); el contenedor del frontend lee el mismo `CHAT_MAX_UPLOAD_SIZE_MB` en tiempo de ejecución, así que dale un solo valor a los dos contenedores o el composer rechazará un archivo que el servidor sí aceptaría |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Lo que un **desconocido** puede subir a una página alojada. Un techo por encima de `CHAT_MAX_UPLOAD_SIZE_MB`, nunca una forma de saltárselo |
+| `ML_MAX_UPLOAD_SIZE_MB` | `25` | Lo que puede enviar una llamada a los [servicios de ML](ml-services.md) — un documento a parsear, un escaneo a reconocer, una grabación a transcribir. Un ajuste propio porque los bytes se parsean o se mandan a un motor dentro de una petición en vez de escribirse a disco, así que el techo trata de lo que puede ocupar una sola llamada síncrona. Está en los 25 MB del cliente de transcripción, el menor techo de motor detrás de esa superficie |
+| `ML_MAX_CONCURRENT_PARSES` | `4` | Cuántos documentos parsea a la vez un worker para los [servicios de ML](ml-services.md). Un límite de tasa cuenta arranques y no ve lo que sigue en marcha, así que sin esto la asignación de un minuto de llamadas OCR son otros tantos reconocimientos en vuelo. Por encima, el llamante recibe un rechazo con `Retry-After` en lugar de una cola |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede apuntar un servicio de memoria mem0 autoalojado. Un `base_url` viene del spec de un agent, así que sin una lista de permitidos un Builder que puede vincular (pero no leer) una clave mem0 compartida podría apuntarla a su propio servidor y capturar la clave desde la cabecera de la petición. Vacío rechaza mem0 autoalojado y solo permite la nube gestionada; añade un hostname de confianza para habilitar un despliegue autoalojado. Ver [secretos](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Tamaño del pool de hilos dedicado que ejecuta el trabajo bloqueante con archivos — parsear una subida y leer o escribir sus bytes. Se mantiene fuera del executor por defecto compartido de `asyncio`, que también ejecuta `bcrypt` y el DNS de hosts fijados, para que una ráfaga de subidas no deje el inicio de sesión y las peticiones salientes en cola detrás de ella ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Súbelo en una máquina que parsea muchas subidas a la vez. Tiene que ser un entero positivo — un `0` o un valor negativo se rechaza al arrancar |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | El techo de gasto mensual con el que arranca una organización **nueva**, en USD, para que no esté a un agent desbocado de una factura sorpresa. Se aplica solo en la creación; las organizaciones existentes no se tocan y a cualquier organización se le puede quitar el tope después. Tiene que ser positivo; déjalo **vacío** para que las organizaciones empiecen sin tope (la postura anterior, de adhesión voluntaria) |
@@ -127,6 +129,7 @@ Validación en producción: `API_KEY` no puede usar el valor por defecto con
 | `GOOGLE_CLIENT_SECRET` | (empty) | Client secret de Google OAuth2 |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | URL de callback de OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | URL del frontend para las redirecciones de OAuth2 |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | El esquema que la carcasa de escritorio registra para un inicio de sesión entregado al navegador del sistema ([Desktop](desktop.md#signing-in)). El callback construye una redirección con él, así que es un ajuste y no algo que elija quien llama |
 
 Cómo conseguir el par: [consola de Google Cloud](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.
@@ -145,6 +148,81 @@ siguiente petición del mismo origen, y el refresh token vale una semana. El
 frontend canjea el código por el par de tokens de servidor a servidor en
 `POST /api/v1/oauth/exchange`, que lo redime exactamente una vez.
 
+
+### Inicio de sesión único (OIDC genérico) { #single-sign-on-generic-oidc }
+
+Cualquier proveedor de identidad que publique un documento de discovery:
+Microsoft Entra ID, Okta, Keycloak, Auth0, Authentik, Google Workspace por su
+endpoint OIDC. Una empresa que aloja esto por su cuenta ya tiene uno y no va a
+crear contraseñas locales para su plantilla — sin esto, su MFA y su offboarding
+se resuelven dos veces.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (vacío) | La URL del issuer. Vacío significa sin SSO, y el callback responde 404 |
+| `OIDC_CLIENT_ID` | (vacío) | El cliente que el proveedor emitió para este despliegue |
+| `OIDC_CLIENT_SECRET` | (vacío) | Su secreto |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | El callback, registrado en el proveedor |
+| `OIDC_SCOPES` | `openid email profile` | Separados por espacios. Añade el scope propio del proveedor donde lo necesite para los claims |
+| `OIDC_VERIFIED_CLAIM` | (vacío) | Un tercer claim que se acepta como «esta dirección está confirmada», para un proveedor que lo llama de otro modo |
+
+El issuer es la única URL. Authorization, token, userinfo y JWKS salen de
+`<issuer>/.well-known/openid-configuration`, que el proveedor mantiene correcto
+a través de una rotación de claves o un cambio de endpoint — así que no quedan
+más direcciones que equivocar sutilmente. El flujo es authorization code con
+PKCE.
+
+Los claims se leen del ID token, y del endpoint **UserInfo** cuando el ID token no
+los lleva. Un proveedor puede guardar `email` y su claim de verificación en
+UserInfo y no poner ninguno en el token, así que leer solo el token rechazaría a
+un proveedor perfectamente conforme a una petición de una identidad válida.
+
+Dos botones en el frontend, configurados allí:
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | Añade `oidc` para mostrar el botón de SSO; solo `oidc` deja únicamente SSO |
+| `OIDC_DISPLAY_NAME` | `SSO` | Cómo llama el botón al proveedor: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (vacío) | `google`, `github` o `microsoft` — las marcas que la página de inicio de sesión ya lleva. Cualquier otra cosa dibuja una llave simple |
+
+Dónde vive cada issuer, y qué registrar:
+
+| Proveedor | Issuer | Registra la redirect URI como |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions |
+| **Okta** | `https://<org>.okta.com` (o `/oauth2/<id>` de un authorization server propio) | Una sign-in redirect URI en una aplicación **Web** |
+| **Keycloak** | `https://<host>/realms/<realm>` | Una valid redirect URI en un cliente confidencial con el standard flow activado |
+
+Dos cosas que la plataforma exige del proveedor al que se la apunte:
+
+- **La dirección tiene que estar confirmada.** Se aceptan dos claims: el estándar
+  `email_verified` y el `xms_edov` de Entra ID, que es lo que Entra envía en su
+  lugar —no emite `email_verified` en absoluto— y que es un claim **opcional** que
+  se activa en el registro de la aplicación: un tenant de Entra que no lo haya
+  activado no envía ninguno de los dos y todos los accesos se rechazan.
+  `OIDC_VERIFIED_CLAIM` nombra un tercero para un proveedor que lo llame de otra
+  forma. Ausente cuenta como no confirmado: una dirección sin confirmar significa
+  que cualquiera en ese proveedor puede reclamar la dirección de trabajo de otra
+  persona, y la lista de dominios permitidos de abajo se sostiene sobre que una
+  dirección signifique algo.
+- **Un `sub` estable.** La cuenta se indexa por él, no por la dirección, así que
+  quien cambie de apellido o cuyo dominio sea comprado conserva su historial — y
+  el siguiente titular de una dirección liberada no la hereda. Se guarda **con el
+  issuer como espacio de nombres**, porque un `sub` es único dentro de su issuer y
+  en ningún otro sitio: apuntar el despliegue a otro tenant o realm no puede
+  entonces meter a un principal nuevo en la cuenta de uno antiguo.
+
+La política de registro se aplica aquí exactamente como se aplica al formulario
+de registro: un despliegue `invite_only` rechaza un inicio de sesión SSO de
+alguien a quien nadie invitó, y una lista de dominios permitidos rechaza una
+dirección fuera de ella, con la misma frase en la página de acceso. Véase
+[Quién puede registrarse](deployment.md#who-may-register). Mapear los grupos de
+un proveedor a roles dentro de una organización no forma parte de esto; la gente
+entra, y una administradora la coloca.
+
+SAML y SCIM no están implementados. La mayoría de los proveedores de identidad
+que usa una empresa mediana hablan OIDC, y estos ajustes son todo lo que
+necesitan.
 
 ## Base de datos (PostgreSQL) { #database-postgresql }
 
@@ -363,11 +441,12 @@ datos de salud, legales o de RR. HH. lee antes
 
 Tres cosas pueden apuntar los runs a un proyecto, y se superponen:
 
-- El `LOGFIRE_TOKEN` de aquí instrumenta Pydantic AI globalmente **en el proceso
-  de la API** (`app/main.py`), así que todo run servido ahí exporta al proyecto
-  del propio deployment. Un run ejecutado por el worker de Prefect no queda
-  cubierto, porque ese proceso nunca configura Logfire
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- El `LOGFIRE_TOKEN` de aquí instrumenta Pydantic AI globalmente, así que todo
+  run exporta al proyecto del propio deployment. Lo configuran dos procesos: la
+  API al arrancar (`app/main.py`) y un run disparado en el worker de Prefect, que
+  se configura solo porque cada flow run recibe su propio subproceso. Los spans
+  del worker llevan `<nombre de servicio>-worker`, de modo que un proyecto puede
+  distinguir un run programado lento de un turno de chat lento.
 - Un [entorno](environments.md#tracing-per-environment) puede llevar su propio
   token de escritura, sellado en el vault, que redirige los runs ligados a él.
 - El bloque [`observability`](reference/spec.md#observability) de un agent nombra
@@ -378,10 +457,10 @@ defecto, registra el mensaje, la salida y cada llamada a herramienta; `none`
 registra solo tiempo, tokens, coste y nombres de herramienta. Se aplica donde se
 instrumenta el agent, así que se sostiene sea cual sea el token que traza el run
 — con el de nivel de deployment el agent queda fijado a una instrumentación sin
-contenido. Dos límites antes de confiar en ello: fijarla es best-effort y un fallo
-se registra mientras el run sigue; y un especialista inline se construye desde un
-spec sin bloque de observability, así que sus propios spans siguen llevando
-contenido ([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
+contenido, y un especialista al que delega — escrito inline o inventado a mitad
+del run por el modelo — hereda el modo. Un límite antes de confiar en ello:
+fijar esa instrumentación es best-effort y un fallo se
+registra mientras el run sigue.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
@@ -894,6 +973,7 @@ esta.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Por dirección, y **dos contadores separados de este tamaño**: uno para `widget.js`, otro para la admisión — el `/config` del widget más el handshake del socket de cualquiera de las dos superficies. Ver más abajo |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
+| `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 
 **Lo que recibe un llamante rechazado** es el sobre de error propio de esta API con

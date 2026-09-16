@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -28,6 +29,7 @@ from app.repositories import (
     conversation_repo,
     conversation_share_repo,
     message_rating_repo,
+    personal_data_repo,
 )
 from app.schemas.conversation import (
     ConversationAgent,
@@ -42,6 +44,7 @@ from app.schemas.conversation import (
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 from app.services.access import AGENT, resolve_access
 from app.services.channels import membership as channel_membership
+from app.services.file_storage import delete_files_best_effort
 from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
@@ -665,6 +668,25 @@ class ConversationService:
         organization_id: UUID,
         user_id: UUID | None = None,
     ) -> bool:
+        """Delete one thread, its turns, and the files that arrived with them.
+
+        `user_id` is what makes this self-service: a person deletes their own
+        chat history without an administrator, and the ownership check is inside
+        `get_conversation` rather than at the route, so every caller gets it
+        (FA-015).
+
+        **The attachments' bytes are unlinked, and they were not.**
+        `chat_files.message_id` is `ON DELETE CASCADE` from `messages`, which
+        cascades from `conversations` - so deleting a thread removed every row
+        that named a file and left the file itself on disk: personal data kept
+        after somebody asked for it to be deleted, and reachable by nothing
+        (#1421). The paths are read before the delete, because afterwards there
+        is nothing left to read them from.
+
+        The unlink is handed to `spawn_after_commit` for the reason #1293 gives:
+        an unlink before the commit is undone by a rollback as a file already
+        gone, leaving a restored row pointing at nothing.
+        """
         conversation = await self.get_conversation(
             conversation_id,
             organization_id=organization_id,
@@ -672,7 +694,14 @@ class ConversationService:
             for_write=True,
             include_favourite=False,
         )
+        attachments = await personal_data_repo.attachment_paths_in(self.db, conversation_id)
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
+        if attachments:
+            spawn_after_commit(
+                self.db,
+                delete_files_best_effort(attachments),
+                name="delete-conversation-attachments",
+            )
         return True
 
     async def get_message(self, message_id: UUID) -> Message:
@@ -982,4 +1011,19 @@ class ConversationService:
         ids, malformed = _file_uuids(file_ids)
         if malformed:
             raise BadRequestError(message="Invalid file id", details={"file_ids": malformed})
-        return await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        # Every requested id has to resolve to a row of theirs that nothing has
+        # claimed yet. Returning only what matched ran the turn on silently
+        # partial input - billed, answered, and missing the document the caller
+        # believed it had sent - and an already-linked file was worse: the model
+        # received it while `_attach` updated no row, so the new turn could not
+        # show the file it had actually used (#936).
+        by_id = {row.id: row for row in rows}
+        unknown = [str(file_id) for file_id in ids if file_id not in by_id]
+        claimed = [str(row.id) for row in rows if row.message_id is not None]
+        if unknown or claimed:
+            raise BadRequestError(
+                message="Those files cannot be attached to this message",
+                details={"unknown": unknown, "already_attached": claimed},
+            )
+        return rows

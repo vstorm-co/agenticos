@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchemaForm } from "./schema-form";
@@ -899,5 +899,64 @@ describe("a choice that names a service", () => {
     await userEvent.click(screen.getByLabelText("Strategy"));
     const option = await screen.findByRole("option", { name: "Summarize" });
     expect(option.querySelector("svg")).toBeNull();
+  });
+});
+
+describe("a masked multiline field", () => {
+  it("renders a textarea rather than an input, so a pasted PEM keeps its lines", () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            private_key: {
+              type: "string",
+              title: "Private key",
+              format: "password",
+              "x-textarea": true,
+            },
+          },
+        }}
+        value={{}}
+        onChange={onChange}
+        idPrefix="secret"
+      />,
+    );
+
+    const field = screen.getByLabelText("Private key");
+    // A browser strips line breaks out of an <input> value, which is how the
+    // PEM's header, body and footer collapsed into a key that would not sign.
+    expect(field.tagName).toBe("TEXTAREA");
+
+    fireEvent.change(field, { target: { value: "-----BEGIN-----\nbody\n-----END-----" } });
+    expect(String(onChange.mock.calls.at(-1)?.[0].private_key)).toContain("\n");
+  });
+
+  it("masks it until the reveal is pressed, because a paste is checked once", async () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            private_key: {
+              type: "string",
+              title: "Private key",
+              format: "password",
+              "x-textarea": true,
+            },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="secret"
+      />,
+    );
+
+    const field = screen.getByLabelText("Private key");
+    expect(field.className).toContain("text-security:disc");
+
+    await userEvent.click(screen.getByRole("button", { name: /Private key/ }));
+    expect(screen.getByLabelText("Private key").className).not.toContain("text-security:disc");
   });
 });
