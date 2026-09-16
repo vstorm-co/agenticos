@@ -24,7 +24,7 @@ from driver import REQUEST_TIMEOUT, Traffic, drive, headers
 from metrics import Recorder
 from probes import Probes, sample_forever
 from report import render
-from scenario import MIX, PHASES, Phase
+from scenario import MIX, PHASES, Phase, peak_concurrency
 from seed import Fixture, sign_in
 
 HERE = Path(__file__).resolve().parent
@@ -81,10 +81,11 @@ async def measure(arguments: argparse.Namespace) -> str:
     session, _ = sign_in(fixture.base_url, arguments.email, arguments.password)
     access_token = str(session.headers["Authorization"]).removeprefix("Bearer ")
     session.close()
+    connections = arguments.connections or peak_concurrency(phases)
     async with httpx.AsyncClient(
         base_url=f"{fixture.base_url}/api/v1",
         timeout=REQUEST_TIMEOUT,
-        limits=httpx.Limits(max_connections=arguments.connections),
+        limits=httpx.Limits(max_connections=connections),
     ) as client:
         loop = asyncio.get_running_loop()
         recorder = Recorder()
@@ -111,7 +112,7 @@ async def measure(arguments: argparse.Namespace) -> str:
             )
         )
         try:
-            await drive(traffic, phases=phases, mix=MIX, on_phase=_announce)
+            offered = await drive(traffic, phases=phases, mix=MIX, on_phase=_announce)
         finally:
             stop.set()
             await sampler
@@ -125,6 +126,8 @@ async def measure(arguments: argparse.Namespace) -> str:
         seconds=seconds,
         title=arguments.title,
         topology=arguments.topology,
+        offered=offered,
+        connections=connections,
     )
 
 
@@ -175,10 +178,11 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--connections",
         type=int,
-        default=200,
+        default=0,
         help=(
-            "Sockets the driver may hold open. Above the offered rate times the "
-            "slowest workload, or the driver queues and measures itself."
+            "Sockets the driver may hold open. 0 derives it from the scenario - "
+            "the peak offered rate times the slowest request - because a cap "
+            "below that makes the driver queue and measure itself."
         ),
     )
     parser.add_argument(

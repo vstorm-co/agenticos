@@ -41,6 +41,17 @@ class Sample:
     detail: str = ""
     """What went wrong, for a failed sample. Grouped in the report."""
 
+    @property
+    def finished_at(self) -> float:
+        """When this request came back, seconds since the run began.
+
+        Throughput is asked of *completions*, and a request issued inside a phase
+        can finish well outside it - which is exactly what happens when the
+        server is behind. Dividing a phase's issued count by the phase's length
+        would therefore reproduce the offered schedule and call it throughput.
+        """
+        return self.started_at + self.duration_ms / 1000
+
 
 @dataclass
 class Recorder:
@@ -145,6 +156,11 @@ class RunSummary:
 
     def workload(self, name: str) -> WorkloadSummary | None:
         return next((entry for entry in self.workloads if entry.workload == name), None)
+
+
+def completed_between(samples: Iterable[Sample], start: float, end: float) -> list[Sample]:
+    """The samples that *finished* inside a window, whoever issued them."""
+    return [sample for sample in samples if start <= sample.finished_at < end]
 
 
 def summarize(samples: Iterable[Sample], *, label: str, seconds: float) -> RunSummary:

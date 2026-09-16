@@ -1,5 +1,5 @@
 ---
-source_sha: "759aacac1abe"
+source_sha: "a434e301f063"
 ---
 
 # Pruebas de carga y resiliencia { #load-and-resilience-testing }
@@ -108,12 +108,27 @@ dentro de los números.
 Cuatro cosas tienen que estar en su sitio, y `run.py` se niega a arrancar sin
 cualquiera de ellas en vez de medir un despliegue que no puede hacer el trabajo:
 
-1. una base de datos migrada y Redis — basta con `make dev`;
-2. el modelo stub respondiendo — `make load-stub-model` en otra terminal;
+1. una base de datos migrada y Redis;
+2. el modelo stub respondiendo, **en una dirección que la API alcance** — ver abajo;
 3. la fixture — `make load-seed`, una vez;
 4. Prefect, si la carga `trigger_fire` va a significar algo. Sin él un webhook se
    acepta y su despacho falla, cosa que el informe muestra como 500 en esa carga en
    lugar de esconderlo.
+
+### Dónde tiene que escuchar el stub { #where-the-stub-has-to-listen }
+
+Es la *API* la que llama al stub, no el driver, así que la dirección sembrada en
+el model profile tiene que funcionar desde donde corre la API. Dos topologías:
+
+| La API corre | Bind | Seed |
+|---|---|---|
+| En este host (`uv run uvicorn …`) | `127.0.0.1` (por defecto) | `http://127.0.0.1:4020` (por defecto) |
+| En el stack de Compose (`make dev`) | `LOAD_STUB_BIND=0.0.0.0` | `LOAD_STUB_URL=http://host.docker.internal:4020` |
+
+El loopback dentro del contenedor `app` es el contenedor, no el host, así que allí
+la segunda fila no es opcional — y equivocarse hace fallar el preflight con un
+mensaje sobre una colección vacía en lugar de sobre una dirección, porque los
+embeddings tampoco llegan al stub.
 
 ```bash
 make load-stub-model                       # terminal uno
@@ -145,12 +160,31 @@ topología del informe debería decir cuándo se hizo:
 harness. Acortar una ejecución bajando su *tasa* sería otro experimento con el
 mismo nombre.
 
+`--connections` acota los sockets del propio driver y por defecto se deriva del
+escenario: la tasa pico por la petición más lenta, 3240 con las fases incluidas.
+Un tope por debajo convierte una ejecución de llegada abierta en una cerrada justo
+durante el burst, es decir cuando importa: las peticiones se encolan dentro del
+cliente y parte de la latencia que informa es del propio driver.
+
 ## Leer el informe { #reading-the-report }
 
-Tres secciones, en el orden en que se hacen las preguntas: qué se ejecutó, qué
-pasó, y si aprobó. El veredicto va al final a propósito — un veredicto arriba
-invita a leer solo eso, y los recuentos de muestras que hay debajo son los que
-dicen si una cola es un hallazgo o tres peticiones.
+Cuatro secciones, en el orden en que se hacen las preguntas: qué se ejecutó, qué
+pasó durante `sustain`, qué pasó durante `recover`, y si aprobó. El veredicto va
+al final a propósito — un veredicto arriba invita a leer solo eso, y los recuentos
+de muestras que hay debajo son los que dicen si una cola es un hallazgo o tres
+peticiones.
+
+La cabecera lleva dos números que conviene mirar antes que nada. **Ofrecidas
+frente a registradas** tiene que cuadrar: toda petición ofrecida deja una muestra,
+con éxito o no, incluida una abandonada al terminar la ejecución, y un déficit
+significa que las tasas de error se calculan sobre un denominador menor que la
+carga — el informe lo dice en un aviso y se declara inservible. **Envíos tardíos**
+es el driver admitiendo que se quedó atrás de su propio calendario y pasó a ser
+parte de la medición.
+
+El rendimiento de la fase sostenida se muestra dos veces: las finalizaciones que
+cayeron dentro de la ventana y las peticiones ofrecidas durante ella. Divergen
+cuando el despliegue va por detrás, que es la única vez que el número interesa.
 
 Los percentiles son de **rango más cercano**, no interpolados: un p99 interpolado
 sobre noventa muestras es un número entre dos mediciones que nada observó. Y la
@@ -158,6 +192,13 @@ latencia se mide solo sobre las peticiones **con éxito**. Una petición rechaza
 3 ms no es una petición rápida, y dejarla entrar en la distribución es como una
 ejecución que se cayó informa de sus mejores percentiles de la historia; los fallos
 se cuentan aparte y se nombran.
+
+La CPU es una diferencia del tiempo de CPU acumulado del proceso en cada intervalo
+de muestreo, no el `%CPU` de `ps` — procps lo define como tiempo de CPU sobre toda
+la vida del proceso y dice abiertamente que no es utilización, así que muestrearlo
+promediaría justo la saturación corta que un burst busca provocar. La resolución
+es por tanto la del reloj de `ps` sobre el intervalo de muestreo, que en Linux es
+un segundo de cada dos.
 
 ## Qué no mide esta suite { #what-this-suite-does-not-measure }
 
@@ -184,12 +225,19 @@ Por ahora hay dos ejecuciones, en la misma máquina, con un solo ajuste distinto
 | | `2026-09-16-macbook-default-pool.md` | `2026-09-16-macbook-pool-raised.md` |
 |---|---|---|
 | Pool | 5 + 10 de overflow (por defecto) | 20 + 30 de overflow |
-| Sostenido 12/s | todos los umbrales cumplidos, sin fallos | todos cumplidos, `api_read` p95 138 → 66 ms |
-| Ejecución completa, con el burst | **falló el 30% de las peticiones**, 5132 timeouts de pool | falló el 0,2%, ni un solo timeout de pool |
+| Sostenido 12/s | todos los umbrales cumplidos, sin fallos | todos los umbrales cumplidos |
+| Ejecución completa, con el burst | **fallaron 1537 de 4740**, 6559 timeouts de pool | fallaron 13, ni un solo timeout de pool |
+| **Después del burst** | **66–100% sigue fallando** | **ningún fallo; la latencia drena** |
 
 El hallazgo, y la razón de que haya dos: **la restricción que ata esta carga es el
-pool de conexiones, no la CPU.** Ambas ejecuciones llegaron al 99% de *un* núcleo
-en una máquina de diez, porque había un worker. Así que el orden para subir cosas
-es el pool y después `UVICORN_WORKERS` — y su producto tiene que quedar por debajo
-del `max_connections` de la base de datos, ya que un solo worker llegó a 92 de los
-100 por defecto. Cada archivo de resultado lleva todo el razonamiento.
+pool de conexiones, no la CPU.** Ambas ejecuciones llegaron a cerca del 90% de *un*
+núcleo en una máquina de diez, porque había un worker. Así que el orden para subir
+cosas es el pool y después `UVICORN_WORKERS` — y su producto tiene que quedar por
+debajo del `max_connections` de la base de datos, ya que un solo worker llegó a 84
+de los 100 por defecto.
+
+La fila de la recuperación es la primera que hay que leer. Con el pool por defecto,
+una petición que no consigue conexión espera los treinta segundos completos de
+`DB_POOL_TIMEOUT`, así que el atasco sobrevive al burst que lo creó y el despliegue
+sigue fallando a un ritmo que diez minutos antes llevaba con holgura. Cada archivo
+de resultado lleva todo el razonamiento.

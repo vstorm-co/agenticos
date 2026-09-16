@@ -39,6 +39,8 @@ def _load(name: str) -> ModuleType:
 metrics = _load("metrics")
 scenario = _load("scenario")
 thresholds = _load("thresholds")
+probes = _load("probes")
+seed = _load("seed")
 
 
 def _sample(**overrides: object) -> object:
@@ -244,3 +246,92 @@ def _threshold(workload: str, metric: str, limit: float) -> object:
         unit="ms" if metric != "error_rate" else "fraction",
         rationale="x" * 61,
     )
+
+
+class TestWhenARequestFinished:
+    def test_a_sample_knows_when_it_came_back(self) -> None:
+        sample = _sample(started_at=10.0, duration_ms=2500.0)
+
+        assert sample.finished_at == 12.5
+
+    def test_completions_are_counted_in_the_window_they_landed_in(self) -> None:
+        """A request issued inside a phase can finish well outside it.
+
+        Which is exactly what happens when the server is behind - so dividing a
+        phase's issued count by the phase's length reproduces the offered
+        schedule and calls it throughput.
+        """
+        inside = _sample(started_at=59.0, duration_ms=500.0)
+        spilled = _sample(started_at=59.0, duration_ms=30_000.0)
+
+        landed = metrics.completed_between([inside, spilled], 0.0, 60.0)
+
+        assert landed == [inside]
+
+
+class TestReadingCpuTime:
+    @pytest.mark.parametrize(
+        ("printed", "seconds"),
+        [
+            ("01:02:03", 3723.0),
+            ("12:34.56", 754.56),
+            ("1-02:03:04", 93784.0),
+            ("0:00.00", 0.0),
+        ],
+    )
+    def test_both_spellings_of_cpu_time_parse(self, printed: str, seconds: float) -> None:
+        """procps prints `[[DD-]HH:]MM:SS` and BSD `ps` prints `MM:SS.ss`."""
+        assert probes.cpu_seconds(printed) == pytest.approx(seconds)
+
+    @pytest.mark.parametrize("printed", ["", "  ", "nonsense", "x-01:02"])
+    def test_anything_unreadable_answers_none_rather_than_a_number(self, printed: str) -> None:
+        assert probes.cpu_seconds(printed) is None
+
+    def test_the_first_reading_is_not_counted_as_an_idle_moment(self) -> None:
+        """It has nothing to difference against, so it carries memory only."""
+        samples = [
+            probes.ResourceSample(at=0.0, cpu_percent=-1.0, rss_mb=120.0),
+            probes.ResourceSample(at=2.0, cpu_percent=64.0, rss_mb=180.0),
+        ]
+
+        cpu, peak_rss, final_rss = probes.summarize(samples)
+
+        assert (cpu, peak_rss, final_rss) == (64.0, 180.0, 180.0)
+
+    def test_nothing_sampled_reports_zeros_rather_than_raising(self) -> None:
+        assert probes.summarize([]) == (0.0, 0.0, 0.0)
+
+    def test_the_peak_pool_is_the_most_it_ever_held(self) -> None:
+        held = [
+            probes.PoolSample(at=0.0, connections=4, active=1),
+            probes.PoolSample(at=2.0, connections=27, active=7),
+        ]
+
+        assert probes.peak_pool(held) == (27, 7)
+        assert probes.peak_pool([]) == (0, 0)
+
+
+class TestTheDriverSizesItselfToTheScenario:
+    def test_the_connection_ceiling_follows_the_peak_rate(self) -> None:
+        """Capped below this, the client queues and the run measures itself."""
+        assert scenario.peak_concurrency(scenario.PHASES, slowest_request_seconds=90.0) == 36 * 90
+
+
+class TestSeedingRefusesAPartialCorpus:
+    def test_a_failure_the_command_printed_is_not_a_success(self) -> None:
+        """`rag-ingest` counts a per-file failure, prints it, and exits zero."""
+        output = "  x record-00003.txt: no embedding credential\nDone: 39 ingested\nFailed: 1 files"
+
+        with pytest.raises(RuntimeError, match="failed to index"):
+            seed._accounted(output, expected=40)
+
+    def test_files_the_command_never_mentioned_are_refused_too(self) -> None:
+        with pytest.raises(RuntimeError, match="accounted for neither"):
+            seed._accounted("Done: 12 ingested", expected=40)
+
+    def test_a_complete_corpus_is_accepted(self) -> None:
+        assert seed._accounted("Done: 40 ingested", expected=40) == 40
+
+    def test_documents_already_present_count_as_accounted_for(self) -> None:
+        """`new_only` skips what is unchanged, which is still a complete index."""
+        assert seed._accounted("Done: 5 ingested, 35 skipped", expected=40) == 40

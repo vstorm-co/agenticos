@@ -31,7 +31,11 @@ Two things are versioned separately from this file and worth knowing about:
   rather than worker-pool driving, because a closed loop slows its own offered
   rate exactly when the server does. `make load-stub-model`, `make load-seed`,
   `make load-test`; the workload, the thresholds and what the suite does not
-  claim are in `docs/load-testing.md`. #1597
+  claim are in `docs/load-testing.md`. Every offered request leaves a sample,
+  including one abandoned at the end of a run, so an overloaded run cannot
+  improve its own error rate by losing requests; the report shows the recovery
+  phase on its own, since that is what tells a deployment that absorbed a spike
+  from one that stayed on the floor. #1597
 
 ## [0.0.444] - 2026-09-16
 

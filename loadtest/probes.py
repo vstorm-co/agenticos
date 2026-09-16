@@ -50,21 +50,51 @@ class Probes:
             self.unavailable.append(what)
 
 
-def process_snapshot(pid: int) -> ResourceSample | None:
-    """CPU and resident memory for one process, through `ps`.
+def cpu_seconds(text: str) -> float | None:
+    """`ps`'s cumulative CPU time, as seconds.
+
+    Two spellings to read: procps prints `[[DD-]HH:]MM:SS` and BSD `ps` on macOS
+    prints `MM:SS.ss`. Both are parsed the same way - split on colons, take the
+    day part off the front if there is one - because the difference is only where
+    the sub-second digits are.
+    """
+    raw = text.strip()
+    if not raw:
+        return None
+    days = 0.0
+    if "-" in raw:
+        head, _, raw = raw.partition("-")
+        try:
+            days = float(head)
+        except ValueError:
+            return None
+    clock = 0.0
+    try:
+        for part in raw.split(":"):
+            clock = clock * 60 + float(part)
+    except ValueError:
+        return None
+    return days * 86400 + clock
+
+
+def process_snapshot(pid: int) -> tuple[float, float] | None:
+    """Cumulative CPU seconds and resident megabytes for one process, through `ps`.
 
     `ps` rather than `psutil`: this harness adds no dependency to the backend,
     and what is wanted here is a number a person could have read themselves.
-    The CPU figure is the process's average since it started for the first
-    sample and close to instantaneous afterwards, which is why the report shows
-    the series rather than one value.
+
+    **Cumulative time, not `%cpu`.** procps defines `%CPU` as CPU time over the
+    process's whole lifetime and says outright that it is not real utilization,
+    so sampling it repeatedly gives a lifetime average that flattens exactly the
+    short saturation a burst is meant to produce. The caller differences these
+    against the wall clock instead, which is utilization.
     """
     binary = shutil.which("ps")
     if binary is None:
         return None
     try:
         result = subprocess.run(  # noqa: S603 - a literal argv, no shell
-            [binary, "-o", "%cpu=,rss=", "-p", str(pid)],
+            [binary, "-o", "time=,rss=", "-p", str(pid)],
             capture_output=True,
             text=True,
             check=False,
@@ -75,8 +105,11 @@ def process_snapshot(pid: int) -> ResourceSample | None:
     fields = result.stdout.split()
     if len(fields) != 2:
         return None
+    seconds = cpu_seconds(fields[0])
+    if seconds is None:
+        return None
     try:
-        return ResourceSample(at=0.0, cpu_percent=float(fields[0]), rss_mb=float(fields[1]) / 1024)
+        return seconds, float(fields[1]) / 1024
     except ValueError:
         return None
 
@@ -133,6 +166,7 @@ async def sample_forever(
     if pid is None:
         probes.note_unavailable("process CPU and memory: pass --api-pid")
     loop = asyncio.get_running_loop()
+    previous: tuple[float, float] | None = None
     try:
         while not stop.is_set():
             at = loop.time() - started
@@ -142,9 +176,24 @@ async def sample_forever(
                     probes.note_unavailable(f"process CPU and memory: pid {pid} is not readable")
                     pid = None
                 else:
-                    probes.resources.append(
-                        ResourceSample(at=at, cpu_percent=sample.cpu_percent, rss_mb=sample.rss_mb)
-                    )
+                    used, rss = sample
+                    if previous is not None:
+                        before_at, before_used = previous
+                        span = at - before_at
+                        if span > 0:
+                            probes.resources.append(
+                                ResourceSample(
+                                    at=at,
+                                    cpu_percent=(used - before_used) / span * 100,
+                                    rss_mb=rss,
+                                )
+                            )
+                    else:
+                        # The first reading has nothing to difference against, so
+                        # it contributes memory only - recording it with a zero
+                        # CPU would put a dip in the series that never happened.
+                        probes.resources.append(ResourceSample(at=at, cpu_percent=-1.0, rss_mb=rss))
+                    previous = (at, used)
             if connection is not None:
                 pool = await pool_snapshot(connection)
                 if pool is None:
@@ -197,11 +246,15 @@ def summarize(samples: list[ResourceSample]) -> tuple[float, float, float]:
     The last of the three is the one that answers "did this leak": a run whose
     memory climbed through the burst and stayed there afterwards looks identical
     to one that recovered, in every number except this.
+
+    A CPU of `-1` marks the first reading, which had nothing to difference
+    against; it is skipped rather than counted as an idle moment.
     """
     if not samples:
         return 0.0, 0.0, 0.0
+    measured = [sample.cpu_percent for sample in samples if sample.cpu_percent >= 0]
     return (
-        max(sample.cpu_percent for sample in samples),
+        max(measured) if measured else 0.0,
         max(sample.rss_mb for sample in samples),
         samples[-1].rss_mb,
     )

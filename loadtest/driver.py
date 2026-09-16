@@ -39,6 +39,12 @@ A ceiling on the *measurement*, not on the server: a request abandoned here is
 recorded as a timeout, which is what it was to the caller. Longer than any
 threshold in `thresholds.py`, so a timeout is always a finding rather than an
 artefact of the driver being impatient.
+
+Applied as a wall clock around the whole call, not as `httpx`'s `timeout=`.
+That one is four separate *inactivity* deadlines - pool, connect, write, read -
+so a request can spend the full interval waiting for a connection and then
+another reading, which is how a ceiling of sixty seconds produced successful
+samples over two minutes.
 """
 
 STREAM_TIMEOUT = 90.0
@@ -91,6 +97,7 @@ async def agent_run(traffic: Traffic, phase: str) -> Sample:
             headers=headers(traffic),
             timeout=STREAM_TIMEOUT,
         ),
+        deadline=STREAM_TIMEOUT,
     )
 
 
@@ -185,6 +192,7 @@ async def chat_stream(traffic: Traffic, phase: str) -> Sample:
     clock = asyncio.get_running_loop().time
     opened = clock()
     first_token: float | None = None
+    finished = False
     try:
         async with asyncio.timeout(STREAM_TIMEOUT):
             async with websockets.connect(
@@ -217,6 +225,7 @@ async def chat_stream(traffic: Traffic, phase: str) -> Sample:
                             detail="the socket answered an error frame",
                         )
                     if kind == "complete":
+                        finished = True
                         break
     except TimeoutError:
         return _failed("chat_stream", phase, began, opened, "timed out")
@@ -224,6 +233,14 @@ async def chat_stream(traffic: Traffic, phase: str) -> Sample:
         return _failed("chat_stream", phase, began, opened, type(failure).__name__)
     except OSError as failure:
         return _failed("chat_stream", phase, began, opened, type(failure).__name__)
+    if not finished:
+        # The iterator ends without raising when the server closes the socket
+        # cleanly - a 1001 during a graceful restart, say. That is a turn with no
+        # answer in it, and counting it as a success is how a restart mid-run
+        # *improves* the stream error rate.
+        return _failed(
+            "chat_stream", phase, began, opened, "the socket closed before the answer finished"
+        )
     return Sample(
         workload="chat_stream",
         phase=phase,
@@ -269,6 +286,7 @@ async def _timed(
     workload: str,
     phase: str,
     call: Callable[[], Awaitable[httpx.Response]],
+    deadline: float = REQUEST_TIMEOUT,
 ) -> Sample:
     """Issue one HTTP request and record what happened to it, whatever that was.
 
@@ -281,7 +299,15 @@ async def _timed(
     began = clock() - traffic.started
     opened = clock()
     try:
-        response = await call()
+        # A wall clock around the whole call. `httpx`'s own `timeout=` is four
+        # separate inactivity deadlines - pool, connect, write, read - so a
+        # request can wait its full timeout for a connection and then spend
+        # another on the read, which is how a "60 second" ceiling produced
+        # successful samples over two minutes.
+        async with asyncio.timeout(deadline):
+            response = await call()
+    except TimeoutError:
+        return _failed(workload, phase, began, opened, "timed out")
     except httpx.TimeoutException:
         return _failed(workload, phase, began, opened, "timed out")
     except httpx.HTTPError as failure:
@@ -297,28 +323,64 @@ async def _timed(
     )
 
 
+@dataclass(frozen=True)
+class Offered:
+    """What the driver actually managed to do, as opposed to what it intended.
+
+    A load result is only as good as the load it offered, so both numbers are
+    reported. `issued` is what the schedule called for; `late` counts the
+    requests the driver was already behind on when it dispatched them, which is
+    the driver admitting it became part of the measurement.
+    """
+
+    issued: int
+    late: int
+    worst_lateness_ms: float
+
+
 async def drive(
     traffic: Traffic,
     *,
     phases: tuple[Phase, ...] = PHASES,
     mix: tuple[WorkloadShare, ...] = MIX,
     on_phase: Callable[[Phase], None] | None = None,
-) -> None:
+) -> Offered:
     """Offer work at each phase's rate, and wait for what is still in flight.
 
     The schedule is absolute rather than cumulative - each request's due time is
     computed from the phase's start - so a slow dispatch does not push the whole
-    run later and quietly reduce the offered rate. When the driver falls behind
-    its own schedule it says so in the report rather than pretending it kept up.
+    run later and quietly reduce the offered rate.
+
+    **Every offered request records a sample, including one abandoned at the
+    end.** The drain has a deadline, and what is still running when it expires
+    used to be cancelled silently - so an overloaded run lost those requests from
+    the numerator *and* the denominator, and reported a better error rate for
+    having fallen over harder. They are recorded as abandoned instead, which is
+    what they were.
     """
     shares = normalized(mix)
     clock = asyncio.get_running_loop().time
     in_flight: set[asyncio.Task[None]] = set()
     issued = 0
+    late = 0
+    worst_lateness = 0.0
     elapsed = 0.0
 
-    async def one(name: str, phase: str) -> None:
-        traffic.recorder.record(await WORKLOADS[name](traffic, phase))
+    async def one(name: str, phase: str, began: float) -> None:
+        try:
+            traffic.recorder.record(await WORKLOADS[name](traffic, phase))
+        except asyncio.CancelledError:
+            traffic.recorder.record(
+                Sample(
+                    workload=name,
+                    phase=phase,
+                    started_at=began,
+                    duration_ms=(clock() - traffic.started - began) * 1000,
+                    ok=False,
+                    detail="abandoned when the run ended",
+                )
+            )
+            raise
 
     for phase in phases:
         if on_phase is not None:
@@ -330,16 +392,40 @@ async def drive(
             delay = due - clock()
             if delay > 0:
                 await asyncio.sleep(delay)
+            elif delay < -_LATE_AFTER_SECONDS:
+                late += 1
+                worst_lateness = max(worst_lateness, -delay * 1000)
             name = pick(issued, shares)
             issued += 1
-            task = asyncio.create_task(one(name, phase.name))
+            task = asyncio.create_task(one(name, phase.name, clock() - traffic.started))
             in_flight.add(task)
             task.add_done_callback(in_flight.discard)
         elapsed += phase.seconds
 
-    if in_flight:
-        with contextlib.suppress(TimeoutError):
-            async with asyncio.timeout(STREAM_TIMEOUT):
-                await asyncio.gather(*in_flight, return_exceptions=True)
-    for task in in_flight:
+    await _drain(in_flight)
+    return Offered(issued=issued, late=late, worst_lateness_ms=worst_lateness)
+
+
+_LATE_AFTER_SECONDS = 0.05
+"""How far behind its own schedule a dispatch may be before it is counted late.
+
+Fifty milliseconds: one scheduling hop on a busy loop is tens of microseconds, so
+anything at this scale is the driver queueing rather than jitter.
+"""
+
+
+async def _drain(in_flight: set[asyncio.Task[None]]) -> None:
+    """Wait for what is still running, then cancel and account for the rest."""
+    if not in_flight:
+        return
+    remaining = set(in_flight)
+    with contextlib.suppress(TimeoutError):
+        async with asyncio.timeout(STREAM_TIMEOUT):
+            await asyncio.gather(*remaining, return_exceptions=True)
+            return
+    for task in remaining:
         task.cancel()
+    # Awaited, not merely cancelled: the sample each task records on its way out
+    # is written inside its own `except CancelledError`, so returning here would
+    # leave the accounting to a coroutine nobody waited for.
+    await asyncio.gather(*remaining, return_exceptions=True)

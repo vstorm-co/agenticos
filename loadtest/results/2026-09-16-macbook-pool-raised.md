@@ -1,9 +1,10 @@
 # Load and resilience run — 2026-09-16, pool raised
 
 - **Machine** — macOS-26.5-arm64-arm-64bit · arm64 · Python 3.12.9
-- **Topology** — one uvicorn worker on the host with DB_POOL_SIZE=20 and DB_MAX_OVERFLOW=30 (50 connections), Postgres 17 + pgvector and Redis in containers, Prefect server and runner on the host, the load stub model local; RATE_LIMIT_RUN_PER_MINUTE raised so the limiter does not bound the experiment
+- **Topology** — one uvicorn worker on the host with DB_POOL_SIZE=20 and DB_MAX_OVERFLOW=30 (50 connections), Postgres 17 + pgvector and Redis in containers, Prefect server and runner on the host, the load stub model local; RATE_LIMIT_RUN_PER_MINUTE raised so the limiter does not bound the experiment; the collection holds 40 documents in 160 vectors
 - **Duration** — 346s over 4 phases
-- **Requests** — 4740 offered, 11 failed
+- **Requests** — 4740 offered, 4740 recorded, 13 failed
+- **Driver** — up to 3240 concurrent sockets; **1 dispatches were late**, worst by 300ms
 
 ## The workload
 
@@ -27,22 +28,42 @@
 
 Every threshold is judged against this one.
 
-Throughput: **12.0 requests a second** completed.
+Throughput: **12.0 requests a second** completed
+inside the window, against 12.0 a second offered. The two
+diverge when the deployment is behind, which is the point of showing both.
 
 | Workload | Calls | Failed | Error rate | p50 ms | p95 ms | p99 ms | Worst ms |
 |---|---|---|---|---|---|---|---|
-| `agent_run` | 325 | 0 | 0.00% | 910 | 1111 | 1192 | 1380 |
-| `api_read` | 973 | 0 | 0.00% | 21 | 66 | 141 | 534 |
-| `chat_stream` | 430 | 0 | 0.00% | 967 | 1119 | 1219 | 1579 |
-| `ingest` | 109 | 0 | 0.00% | 49 | 68 | 81 | 233 |
-| `rag_query` | 258 | 0 | 0.00% | 54 | 95 | 177 | 412 |
-| `trigger_fire` | 65 | 0 | 0.00% | 43 | 72 | 2163 | 2163 |
+| `agent_run` | 325 | 0 | 0.00% | 901 | 1090 | 1165 | 1293 |
+| `api_read` | 973 | 0 | 0.00% | 25 | 78 | 124 | 314 |
+| `chat_stream` | 430 | 0 | 0.00% | 976 | 1161 | 1243 | 1304 |
+| `ingest` | 109 | 0 | 0.00% | 52 | 74 | 187 | 202 |
+| `rag_query` | 258 | 0 | 0.00% | 54 | 130 | 275 | 295 |
+| `trigger_fire` | 65 | 0 | 0.00% | 47 | 57 | 64 | 64 |
 
 Time to first token, which is the half of a stream a person feels:
 
 | Workload | Streams | p50 ms | p95 ms | p99 ms |
 |---|---|---|---|---|
-| `chat_stream` | 430 | 508 | 636 | 733 |
+| `chat_stream` | 430 | 512 | 664 | 735 |
+
+No request failed.
+
+
+## The recovery phase
+
+The same rate as `sustain`, offered after the burst. A deployment that came
+back and one that stayed degraded are identical during the burst and differ
+only here.
+
+| Workload | Calls | Failed | Error rate | p50 ms | p95 ms | p99 ms | Worst ms |
+|---|---|---|---|---|---|---|---|
+| `agent_run` | 107 | 0 | 0.00% | 1023 | 7589 | 10286 | 10934 |
+| `api_read` | 325 | 0 | 0.00% | 40 | 2169 | 5702 | 8082 |
+| `chat_stream` | 144 | 0 | 0.00% | 1081 | 11562 | 15072 | 15462 |
+| `ingest` | 35 | 0 | 0.00% | 61 | 5949 | 7297 | 7297 |
+| `rag_query` | 88 | 0 | 0.00% | 67 | 5442 | 7850 | 7850 |
+| `trigger_fire` | 21 | 0 | 0.00% | 55 | 4582 | 8719 | 8719 |
 
 No request failed.
 
@@ -51,23 +72,23 @@ No request failed.
 
 | Workload | Calls | Failed | Error rate | p50 ms | p95 ms | p99 ms | Worst ms |
 |---|---|---|---|---|---|---|---|
-| `agent_run` | 710 | 0 | 0.00% | 1018 | 9402 | 13258 | 18990 |
-| `api_read` | 2134 | 0 | 0.00% | 35 | 4339 | 10980 | 21175 |
-| `chat_stream` | 948 | 11 | 1.16% | 1060 | 21743 | 29570 | 35972 |
-| `ingest` | 236 | 0 | 0.00% | 61 | 7364 | 15047 | 17756 |
-| `rag_query` | 570 | 0 | 0.00% | 66 | 7998 | 13505 | 25936 |
-| `trigger_fire` | 142 | 0 | 0.00% | 53 | 3877 | 9092 | 13666 |
+| `agent_run` | 710 | 0 | 0.00% | 1022 | 10587 | 16037 | 24388 |
+| `api_read` | 2134 | 0 | 0.00% | 40 | 4023 | 10199 | 20646 |
+| `chat_stream` | 948 | 13 | 1.37% | 1083 | 21741 | 28788 | 35559 |
+| `ingest` | 236 | 0 | 0.00% | 64 | 8986 | 14464 | 20837 |
+| `rag_query` | 570 | 0 | 0.00% | 68 | 8367 | 13221 | 17264 |
+| `trigger_fire` | 142 | 0 | 0.00% | 54 | 5910 | 8384 | 8719 |
 
 ### What failed
 
 | Workload | Reason | Count |
 |---|---|---|
-| `chat_stream` | timed out | 11 |
+| `chat_stream` | timed out | 13 |
 
 ## The machine while it ran
 
-- Peak CPU **99%** of one core; peak resident memory **598 MB**, finishing at **565 MB**.
-- Peak database connections **92**, of which **19** executing at once.
+- Peak CPU **94%** of one core; peak resident memory **600 MB**, finishing at **241 MB**.
+- Peak database connections **84**, of which **14** executing at once.
 
 ## Against the proposed thresholds
 
@@ -77,12 +98,12 @@ finding.
 
 | Workload | Metric | Limit | Measured | Samples | |
 |---|---|---|---|---|---|
-| `api_read` | p95 | 300.00 ms | 65.88 ms | 973 | pass |
+| `api_read` | p95 | 300.00 ms | 78.18 ms | 973 | pass |
 | `api_read` | error_rate | 0.10% | 0.00% | 973 | pass |
-| `chat_stream` | first_token_p95 | 1500.00 ms | 636.09 ms | 430 | pass |
+| `chat_stream` | first_token_p95 | 1500.00 ms | 664.14 ms | 430 | pass |
 | `chat_stream` | error_rate | 1.00% | 0.00% | 430 | pass |
-| `agent_run` | p95 | 5000.00 ms | 1110.75 ms | 325 | pass |
-| `rag_query` | p95 | 1200.00 ms | 94.96 ms | 258 | pass |
+| `agent_run` | p95 | 5000.00 ms | 1089.62 ms | 325 | pass |
+| `rag_query` | p95 | 1200.00 ms | 129.90 ms | 258 | pass |
 | `ingest` | error_rate | 0.00% | 0.00% | 109 | pass |
 | `trigger_fire` | error_rate | 0.00% | 0.00% | 65 | pass |
 
@@ -91,17 +112,18 @@ finding.
 Written by hand after the run; everything above it is the report the harness
 printed. The only difference from `2026-09-16-macbook-default-pool.md` is
 `DB_POOL_SIZE=20` and `DB_MAX_OVERFLOW=30` — fifty connections instead of
-fifteen. Nothing else changed: same machine, same mix, same rates, same stub.
+fifteen. Nothing else changed: same machine, same mix, same rates, same stub,
+same 40-document collection.
 
-**The burst stops being a failure.** Across the whole run, including the 36/s
-phase, 11 requests failed out of 4740 — 0.2%, all of them chat sockets that timed
-out — against 30% before. The API log holds no `QueuePool` timeout at all, where
-the previous run held 5132.
+**The burst stops being a failure.** 13 requests failed out of 4740 — 0.3%, all
+of them chat sockets that timed out — against 1537 before. The API log holds no
+`QueuePool` timeout at all, where the previous run held 6559.
 
-**And the sustained phase gets faster.** `api_read` p95 falls from 138 ms to 66
-ms and `rag_query` p95 from 268 ms to 95 ms, at the same offered rate: the
-default pool was already queueing at 12 requests a second, just not enough to
-fail.
+**And it recovers.** The recovery phase has **no failures at all**: after three
+times the offered rate, at the same rate it was comfortable at before, everything
+is answered. Latency is still elevated there — `api_read` p95 at 2.2 s against
+73 ms during `sustain` — so the backlog is real and draining, which is what
+recovery looks like as opposed to what collapse looks like.
 
 ### The recommendation
 
@@ -112,9 +134,9 @@ fail.
    ten-core machine in both runs. Capacity per host is workers × the per-worker
    rate, not the rate above.
 3. **Keep the product of the two under the database's `max_connections`.** This
-   run peaked at **92** connections from one worker; Postgres allows 100 by
-   default, so four workers at this pool size would exhaust it and the failure
-   would look exactly like the first run. Either size the pool as
+   run peaked at **84** connections from one worker; Postgres allows 100 by
+   default, so two such workers would exhaust it and the failure would look
+   exactly like the first run. Either size the pool as
    `max_connections / workers` with headroom, or put PgBouncer in front.
 
 ### What this does not establish

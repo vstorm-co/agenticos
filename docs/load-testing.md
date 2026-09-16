@@ -103,12 +103,27 @@ expect the provider's own latency and rate limits in the numbers.
 Four things have to be in place, and `run.py` refuses to start without any of
 them rather than measuring a deployment that cannot do the work:
 
-1. a migrated database and Redis — `make dev` is enough;
-2. the stub model answering — `make load-stub-model` in another terminal;
+1. a migrated database and Redis;
+2. the stub model answering, **at an address the API can reach** — see below;
 3. the fixture — `make load-seed`, once;
 4. Prefect, if the `trigger_fire` workload is to mean anything. Without it a
    webhook is accepted and its dispatch fails, which the report shows as 500s on
    that workload rather than hiding.
+
+### Where the stub has to listen
+
+The *API* calls the stub, not the driver, so the address seeded into the model
+profile has to work from wherever the API runs. Two topologies:
+
+| The API runs | Bind | Seed |
+|---|---|---|
+| On this host (`uv run uvicorn …`) | `127.0.0.1` (the default) | `http://127.0.0.1:4020` (the default) |
+| In the Compose stack (`make dev`) | `LOAD_STUB_BIND=0.0.0.0` | `LOAD_STUB_URL=http://host.docker.internal:4020` |
+
+Loopback inside the `app` container is the container, not the host, so the second
+row is not optional there — and getting it wrong fails preflight with a message
+about an empty collection rather than about an address, because the embeddings
+never reach the stub either.
 
 ```bash
 make load-stub-model                       # terminal one
@@ -140,12 +155,30 @@ should say when they were:
 harness itself. Shortening a run by lowering its *rate* would be a different
 experiment wearing the same name.
 
+`--connections` bounds the driver's own sockets, and defaults to the scenario's
+peak rate times the slowest request — 3240 for the shipped phases. A cap below
+that turns an open-arrival run into a closed one during the burst, exactly when
+it matters: requests queue inside the client, and some of the latency the report
+shows is the driver's own.
+
 ## Reading the report
 
-Three sections, in the order the questions get asked: what was run, what
-happened, and whether it passed. The verdict is last on purpose — a verdict at
-the top invites somebody to read only that, and the sample counts underneath it
-are what say whether a tail is a finding or three requests.
+Four sections, in the order the questions get asked: what was run, what happened
+during `sustain`, what happened during `recover`, and whether it passed. The
+verdict is last on purpose — a verdict at the top invites somebody to read only
+that, and the sample counts underneath it are what say whether a tail is a
+finding or three requests.
+
+The header carries two numbers worth checking before anything else. **Offered
+against recorded** must match: every offered request leaves a sample, succeeded
+or failed, including one abandoned when the run ended, and a shortfall means the
+error rates are computed over a denominator smaller than the load — the report
+says so in a banner and calls itself unusable. **Late dispatches** is the driver
+admitting it fell behind its own schedule and became part of the measurement.
+
+Throughput is shown twice for the sustained phase: completions that landed inside
+the window, and requests offered during it. They diverge when the deployment is
+behind, which is the only time the number is interesting.
 
 Percentiles are **nearest-rank**, not interpolated: an interpolated p99 over
 ninety samples is a number between two measurements that nothing observed. And
@@ -153,6 +186,13 @@ latency is measured over **successful** requests only. A request refused in 3 ms
 is not a fast request, and letting it into the distribution is how a run that
 fell over reports its best percentiles ever; the failures are counted separately
 and named.
+
+CPU is a difference of the process's cumulative CPU time across each sampling
+interval, not `ps`'s `%CPU` — procps defines that as CPU time over the process's
+whole lifetime and says outright that it is not utilization, so sampling it would
+average away the short saturation a burst is meant to cause. The resolution is
+therefore the granularity of `ps`'s clock over the sampling interval, which on
+Linux is one second in two.
 
 ## What this suite does not measure
 
@@ -178,12 +218,19 @@ Two runs are committed so far, on the same machine, differing in one setting:
 | | `2026-09-16-macbook-default-pool.md` | `2026-09-16-macbook-pool-raised.md` |
 |---|---|---|
 | Pool | 5 + 10 overflow (the defaults) | 20 + 30 overflow |
-| Sustained 12/s | every threshold met, no failures | every threshold met, `api_read` p95 138 → 66 ms |
-| Whole run, burst included | **30% of requests failed**, 5132 pool timeouts | 0.2% failed, no pool timeout at all |
+| Sustained 12/s | every threshold met, no failures | every threshold met |
+| Whole run, burst included | **1537 of 4740 failed**, 6559 pool timeouts | 13 failed, no pool timeout at all |
+| **After the burst** | **66–100% still failing** | **no failures; latency draining** |
 
 The finding, and the reason there are two: **the connection pool is the binding
-constraint on this workload, not CPU.** Both runs peaked at 99% of *one* core on
-a ten-core machine, because there was one worker. So the order to raise things in
-is the pool, then `UVICORN_WORKERS` — and their product has to stay under the
-database's `max_connections`, since one worker already peaked at 92 of the
-default 100. Each result file carries the whole reasoning.
+constraint on this workload, not CPU.** Both runs peaked around 90% of *one* core
+on a ten-core machine, because there was one worker. So the order to raise things
+in is the pool, then `UVICORN_WORKERS` — and their product has to stay under the
+database's `max_connections`, since one worker already peaked at 84 of the
+default 100.
+
+The recovery row is the one to read first. With the default pool, a request that
+cannot get a connection waits the full `DB_POOL_TIMEOUT` of thirty seconds, so
+the backlog outlives the burst that created it and the deployment is still
+failing at a rate it handled comfortably ten minutes earlier. Each result file
+carries the whole reasoning.

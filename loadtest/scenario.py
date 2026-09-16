@@ -127,6 +127,21 @@ CANCELLED_STREAM_SHARE = 0.20
 """How many chat turns are abandoned before the answer finishes."""
 
 
+def peak_concurrency(
+    phases: tuple[Phase, ...] = PHASES, *, slowest_request_seconds: float = 90.0
+) -> int:
+    """How many requests can be in flight at once if the server stops answering.
+
+    The highest offered rate times the longest a request may take. It is what an
+    open-arrival driver has to be *able* to hold: capped below this, the client's
+    own connection pool fills during a burst and later requests queue inside the
+    driver instead of reaching the deployment - so the run becomes a closed loop
+    at exactly the moment it was supposed to stop being one, and some of the
+    latency it reports is its own.
+    """
+    return int(max(phase.rate_per_second for phase in phases) * slowest_request_seconds)
+
+
 def normalized(mix: tuple[WorkloadShare, ...] = MIX) -> tuple[WorkloadShare, ...]:
     """The mix with its shares scaled to sum to one.
 

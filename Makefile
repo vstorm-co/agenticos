@@ -572,13 +572,22 @@ test-e2e:
 # `docs/load-testing.md` has the prerequisites and how to read the report.
 LOAD_STUB_PORT ?= 4020
 LOAD_DOCUMENTS ?= 40
+# Where the stub listens, and the address the *API* reaches it on. They differ
+# whenever the API is not on this host: `make dev` runs it in a container, where
+# loopback is the container itself, so that topology needs
+# `LOAD_STUB_BIND=0.0.0.0 LOAD_STUB_URL=http://host.docker.internal:4020`.
+# docs/load-testing.md states both, because seeding the wrong one fails preflight
+# with a message about an empty collection rather than about an address.
+LOAD_STUB_BIND ?= 127.0.0.1
+LOAD_STUB_URL ?= http://127.0.0.1:$(LOAD_STUB_PORT)
 
 load-stub-model:
-	uv run --directory backend python ../loadtest/stub_model.py --port $(LOAD_STUB_PORT)
+	uv run --directory backend python ../loadtest/stub_model.py \
+		--host $(LOAD_STUB_BIND) --port $(LOAD_STUB_PORT)
 
 load-seed:
 	uv run --directory backend python ../loadtest/seed.py \
-		--stub-url http://127.0.0.1:$(LOAD_STUB_PORT) --documents $(LOAD_DOCUMENTS)
+		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
 
 # `API_PID` and `DATABASE_URL` are optional; without them the run measures
 # requests and says which probes it could not take.

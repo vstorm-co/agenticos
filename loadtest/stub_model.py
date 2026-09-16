@@ -213,6 +213,15 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help=(
+            "Loopback by default, because this answers anything that asks. A "
+            "deployment whose API runs in a container cannot reach loopback on "
+            "the host and needs 0.0.0.0 here - see docs/load-testing.md."
+        ),
+    )
+    parser.add_argument(
         "--first-token-ms",
         type=float,
         default=400.0,
@@ -247,7 +256,7 @@ def main() -> None:
         timeout_rate=arguments.timeout_rate,
         embedding_dim=arguments.embedding_dim,
     )
-    uvicorn.run(build(behaviour), host="127.0.0.1", port=arguments.port, log_level="warning")
+    uvicorn.run(build(behaviour), host=arguments.host, port=arguments.port, log_level="warning")
 
 
 if __name__ == "__main__":

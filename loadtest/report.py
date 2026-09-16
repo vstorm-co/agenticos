@@ -19,10 +19,11 @@ from __future__ import annotations
 import platform
 from collections.abc import Iterable
 
-from metrics import RunSummary, Sample, WorkloadSummary, summarize
+from driver import Offered
+from metrics import RunSummary, Sample, WorkloadSummary, completed_between, summarize
 from probes import Probes, peak_pool
 from probes import summarize as summarize_resources
-from scenario import Phase, WorkloadShare
+from scenario import Phase, WorkloadShare, schedule
 from thresholds import Verdict, judge
 
 
@@ -108,6 +109,27 @@ def _verdicts(verdicts: Iterable[Verdict]) -> list[str]:
     return lines
 
 
+def _phase_summary(
+    samples: list[Sample], phases: tuple[Phase, ...], name: str
+) -> tuple[RunSummary, RunSummary]:
+    """One phase, twice: what it issued, and what completed inside its window.
+
+    The first answers "how did the requests offered during this phase fare"; the
+    second answers "how much did the deployment actually get through while it was
+    happening". They differ exactly when the server is behind, which is when the
+    difference matters - dividing issued requests by the phase length reproduces
+    the offered schedule and calls it throughput.
+    """
+    window = next(((start, end) for label, start, end in schedule(phases) if label == name), None)
+    issued = [sample for sample in samples if sample.phase == name]
+    length = next((phase.seconds for phase in phases if phase.name == name), 0.0)
+    completed = completed_between(samples, *window) if window else []
+    return (
+        summarize(issued, label=name, seconds=length),
+        summarize(completed, label=f"{name} completions", seconds=length),
+    )
+
+
 def render(
     samples: list[Sample],
     *,
@@ -117,14 +139,15 @@ def render(
     seconds: float,
     title: str,
     topology: str,
+    offered: Offered,
+    connections: int,
 ) -> str:
     """The whole report for one run."""
     whole = summarize(samples, label="whole run", seconds=seconds)
-    sustained = [sample for sample in samples if sample.phase == "sustain"]
-    sustain_seconds = next((phase.seconds for phase in phases if phase.name == "sustain"), 0.0)
-    steady = summarize(sustained, label="sustain", seconds=sustain_seconds)
+    steady, steady_completions = _phase_summary(samples, phases, "sustain")
+    recovered, _ = _phase_summary(samples, phases, "recover")
     cpu, peak_rss, final_rss = summarize_resources(probes.resources)
-    connections, active = peak_pool(probes.pools)
+    db_connections, db_active = peak_pool(probes.pools)
 
     lines = [
         f"# {title}",
@@ -132,7 +155,13 @@ def render(
         f"- **Machine** — {machine()}",
         f"- **Topology** — {topology}",
         f"- **Duration** — {seconds:.0f}s over {len(phases)} phases",
-        f"- **Requests** — {whole.total} offered, {whole.failed} failed",
+        f"- **Requests** — {offered.issued} offered, {whole.total} recorded, {whole.failed} failed",
+        f"- **Driver** — up to {connections} concurrent sockets; "
+        + (
+            f"**{offered.late} dispatches were late**, worst by {offered.worst_lateness_ms:.0f}ms"
+            if offered.late
+            else "every dispatch was on schedule"
+        ),
         "",
         "## The workload",
         "",
@@ -148,11 +177,46 @@ def render(
         for phase in phases
     )
 
+    if offered.issued != whole.total:
+        lines.extend(
+            [
+                "",
+                f'!!! danger "{offered.issued - whole.total} offered requests recorded nothing"',
+                "",
+                "    Every offered request is supposed to leave a sample, succeeded or",
+                "    failed. A shortfall here means the error rates below are computed",
+                "    over a denominator smaller than the load actually offered, so they",
+                "    understate the failure. Treat this run as unusable.",
+            ]
+        )
+
     lines.extend(["", "## The sustained phase", "", "Every threshold is judged against this one."])
-    lines.extend(["", f"Throughput: **{steady.throughput:.1f} requests a second** completed.", ""])
+    lines.extend(
+        [
+            "",
+            f"Throughput: **{steady_completions.throughput:.1f} requests a second** completed",
+            f"inside the window, against {steady.throughput:.1f} a second offered. The two",
+            "diverge when the deployment is behind, which is the point of showing both.",
+            "",
+        ]
+    )
     lines.extend(_workload_table(steady))
     lines.extend(_first_token_table(steady))
     lines.extend(_failures(steady))
+
+    lines.extend(
+        [
+            "",
+            "## The recovery phase",
+            "",
+            "The same rate as `sustain`, offered after the burst. A deployment that came",
+            "back and one that stayed degraded are identical during the burst and differ",
+            "only here.",
+            "",
+        ]
+    )
+    lines.extend(_workload_table(recovered))
+    lines.extend(_failures(recovered))
 
     lines.extend(["", "## The whole run, every phase together", ""])
     lines.extend(_workload_table(whole))
@@ -166,7 +230,8 @@ def render(
         )
     if probes.pools:
         lines.append(
-            f"- Peak database connections **{connections}**, of which **{active}** executing at once."
+            f"- Peak database connections **{db_connections}**, of which "
+            f"**{db_active}** executing at once."
         )
     for missing in probes.unavailable:
         lines.append(f"- Not measured: {missing}.")

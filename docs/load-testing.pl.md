@@ -1,5 +1,5 @@
 ---
-source_sha: "759aacac1abe"
+source_sha: "a434e301f063"
 ---
 
 # Testy obciążeniowe i odpornościowe { #load-and-resilience-testing }
@@ -107,12 +107,26 @@ z jego własnymi opóźnieniami i limitami w liczbach.
 Cztery rzeczy muszą być na miejscu, a `run.py` odmawia startu bez którejkolwiek z
 nich, zamiast mierzyć wdrożenie, które nie może wykonać pracy:
 
-1. zmigrowana baza i Redis — wystarczy `make dev`;
-2. odpowiadający model stub — `make load-stub-model` w drugim terminalu;
+1. zmigrowana baza i Redis;
+2. odpowiadający model stub, **pod adresem, do którego API sięgnie** — patrz niżej;
 3. fikstura — `make load-seed`, raz;
 4. Prefect, jeśli obciążenie `trigger_fire` ma cokolwiek znaczyć. Bez niego
    webhook jest przyjmowany, a jego dyspozycja zawodzi, co raport pokazuje jako
    500 na tym obciążeniu, zamiast to ukrywać.
+
+### Gdzie ma słuchać stub { #where-the-stub-has-to-listen }
+
+To *API* woła stub, nie driver, więc adres zasiany w model profile musi działać
+stamtąd, gdzie API działa. Dwie topologie:
+
+| API działa | Bind | Seed |
+|---|---|---|
+| Na tym hoście (`uv run uvicorn …`) | `127.0.0.1` (domyślnie) | `http://127.0.0.1:4020` (domyślnie) |
+| W stosie Compose (`make dev`) | `LOAD_STUB_BIND=0.0.0.0` | `LOAD_STUB_URL=http://host.docker.internal:4020` |
+
+Loopback w kontenerze `app` to kontener, a nie host, więc drugi wiersz nie jest
+tam opcjonalny — a pomyłka wywraca preflight komunikatem o pustej kolekcji, a nie
+o adresie, bo osadzenia też nie dotrą do stuba.
 
 ```bash
 make load-stub-model                       # terminal pierwszy
@@ -143,12 +157,30 @@ raporcie powinna powiedzieć, kiedy to zrobiono:
 harnessu. Skrócenie przebiegu przez obniżenie *tempa* byłoby innym eksperymentem
 pod tą samą nazwą.
 
+`--connections` ogranicza własne gniazda drivera i domyślnie bierze szczytowe
+tempo scenariusza razy najwolniejsze żądanie — 3240 dla dostarczonych faz. Limit
+poniżej tego zamienia przebieg z otwartym napływem w zamknięty dokładnie w
+burście, czyli wtedy, kiedy to ma znaczenie: żądania kolejkują się w kliencie, a
+część opóźnień w raporcie należy do samego drivera.
+
 ## Czytanie raportu { #reading-the-report }
 
-Trzy sekcje, w kolejności, w jakiej padają pytania: co uruchomiono, co się stało
-i czy przeszło. Werdykt jest ostatni celowo — werdykt na górze zachęca, żeby
-przeczytać tylko jego, a liczby próbek pod nim mówią, czy ogon to wniosek, czy
-trzy żądania.
+Cztery sekcje, w kolejności, w jakiej padają pytania: co uruchomiono, co się
+działo w `sustain`, co w `recover` i czy przeszło. Werdykt jest ostatni celowo —
+werdykt na górze zachęca, żeby przeczytać tylko jego, a liczby próbek pod nim
+mówią, czy ogon to wniosek, czy trzy żądania.
+
+Nagłówek niesie dwie liczby, które warto sprawdzić przed wszystkim innym.
+**Zaoferowane wobec zapisanych** muszą się zgadzać: każde zaoferowane żądanie
+zostawia próbkę, udaną albo nie, łącznie z porzuconym na koniec przebiegu, a
+niedobór oznacza, że odsetki błędów liczone są z mianownika mniejszego niż
+obciążenie — raport mówi to w banerze i nazywa sam siebie bezużytecznym.
+**Spóźnione wysyłki** to przyznanie drivera, że wypadł z własnego harmonogramu i
+sam stał się częścią pomiaru.
+
+Przepustowość dla fazy ustalonej pokazana jest dwa razy: ukończenia, które
+wylądowały w oknie, i żądania zaoferowane w tym czasie. Rozjeżdżają się, gdy
+wdrożenie nie nadąża, a tylko wtedy ta liczba jest ciekawa.
 
 Percentyle są **najbliższej rangi**, nie interpolowane: interpolowany p99 z
 dziewięćdziesięciu próbek to liczba pomiędzy dwoma pomiarami, której nic nie
@@ -156,6 +188,13 @@ zaobserwowało. A opóźnienie liczy się tylko po **udanych** żądaniach. Żą
 odrzucone w 3 ms nie jest szybkim żądaniem, a wpuszczenie go do rozkładu jest tym,
 jak przebieg, który się przewrócił, raportuje swoje najlepsze percentyle w
 historii; porażki są liczone osobno i nazwane.
+
+CPU to różnica skumulowanego czasu procesora procesu w każdym interwale
+próbkowania, a nie `%CPU` z `ps` — procps definiuje to jako czas procesora przez
+całe życie procesu i wprost mówi, że to nie jest wykorzystanie, więc próbkowanie
+tego uśredniłoby krótkie nasycenie, które burst ma wywołać. Rozdzielczość jest
+więc rozdzielczością zegara `ps` na interwał próbkowania, czyli na Linuksie jedna
+sekunda na dwie.
 
 ## Czego ten zestaw nie mierzy { #what-this-suite-does-not-measure }
 
@@ -181,12 +220,19 @@ Na razie są dwa przebiegi, na tej samej maszynie, różniące się jednym ustaw
 | | `2026-09-16-macbook-default-pool.md` | `2026-09-16-macbook-pool-raised.md` |
 |---|---|---|
 | Pula | 5 + 10 overflow (domyślnie) | 20 + 30 overflow |
-| Ustalone 12/s | wszystkie progi spełnione, zero porażek | wszystkie progi spełnione, `api_read` p95 138 → 66 ms |
-| Cały przebieg, z burstem | **30% żądań zawiodło**, 5132 timeouty puli | 0,2% zawiodło, ani jednego timeoutu puli |
+| Ustalone 12/s | wszystkie progi spełnione, zero porażek | wszystkie progi spełnione |
+| Cały przebieg, z burstem | **1537 z 4740 zawiodło**, 6559 timeoutów puli | 13 zawiodło, ani jednego timeoutu puli |
+| **Po burście** | **66–100% wciąż zawodzi** | **zero porażek, opóźnienia opadają** |
 
 Wniosek i powód, dla którego są dwa: **wiążącym ograniczeniem tego obciążenia jest
-pula połączeń, a nie procesor.** Oba przebiegi osiągnęły szczyt 99% *jednego*
+pula połączeń, a nie procesor.** Oba przebiegi osiągnęły szczyt około 90% *jednego*
 rdzenia na dziesięciordzeniowej maszynie, bo worker był jeden. Kolejność
 podnoszenia jest więc taka: najpierw pula, potem `UVICORN_WORKERS` — a ich iloczyn
-musi zmieścić się pod `max_connections` bazy, skoro jeden worker osiągnął już 92 z
-domyślnych 100. Każdy plik wyniku niesie całe rozumowanie.
+musi zmieścić się pod `max_connections` bazy, skoro jeden worker osiągnął już 84 z
+domyślnych 100.
+
+Wiersz o odbudowie trzeba przeczytać pierwszy. Przy domyślnej puli żądanie, które
+nie dostanie połączenia, czeka pełne trzydzieści sekund `DB_POOL_TIMEOUT`, więc
+zaległość przeżywa burst, który ją stworzył, i wdrożenie nadal zawodzi przy tempie,
+które dziesięć minut wcześniej obsługiwało spokojnie. Każdy plik wyniku niesie
+całe rozumowanie.

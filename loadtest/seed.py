@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from shutil import rmtree
 from typing import Any
 
 import httpx
@@ -158,9 +160,25 @@ def stub_secret(console: Console) -> str:
 
 
 def model_profile(console: Console, *, secret_id: str, stub_url: str) -> str:
-    """The profile the load agent runs on, pointed at the stub."""
+    """The profile the load agent runs on, pointed at the stub.
+
+    A profile found by name is checked against the address this seeding was
+    asked for. Re-seeding after `--stub-url` or `LOAD_STUB_PORT` changed would
+    otherwise keep the old endpoint, and the run would measure a stub that is no
+    longer the one running - or fail preflight for a reason nothing explains. It
+    refuses rather than recreating, because the published agent's spec names this
+    profile by id and replacing it would leave the agent pointing at nothing.
+    """
+    wanted = f"{stub_url}/v1"
     for row in console.get("/providers/model-profiles").get("items", []):
         if row.get("label") == "Load stub":
+            found = str(row.get("base_url") or "")
+            if found != wanted:
+                raise RuntimeError(
+                    f"The 'Load stub' model profile points at {found or 'no address'}, and this "
+                    f"seeding wants {wanted}. Delete the profile and the load agent in Settings, "
+                    f"or seed with --stub-url {found.removesuffix('/v1')}."
+                )
             return str(row["id"])
     created = console.post(
         "/providers/model-profiles",
@@ -260,8 +278,16 @@ def document(index: int) -> bytes:
 
 
 def corpus(directory: Path, count: int) -> Path:
-    """Write the synthetic corpus to disk for the ingestion command to read."""
-    directory.mkdir(parents=True, exist_ok=True)
+    """Write the synthetic corpus to disk for the ingestion command to read.
+
+    The directory is emptied first. `rag-ingest` walks it recursively, so a
+    previous seeding at a hundred documents left sixty files behind that a later
+    `--documents 40` would still submit - two runs reporting the same fixture
+    size while measuring collections of different sizes.
+    """
+    if directory.exists():
+        rmtree(directory)
+    directory.mkdir(parents=True)
     for index in range(count):
         (directory / f"record-{index:05d}.txt").write_bytes(document(index))
     return directory
@@ -304,7 +330,63 @@ def ingest(*, name: str, count: int) -> int:
     )
     if result.returncode != 0:
         raise RuntimeError(f"rag-ingest failed:\n{result.stdout[-1500:]}\n{result.stderr[-1500:]}")
-    return count
+    return _accounted(result.stdout, expected=count)
+
+
+_FAILED = re.compile(r"Failed:\s*(\d+) files")
+_DONE = re.compile(r"Done:\s*(\d+) ingested")
+_SKIPPED = re.compile(r",\s*(\d+) skipped")
+
+
+def _accounted(output: str, *, expected: int) -> int:
+    """How many documents the command actually indexed, refusing a short corpus.
+
+    The exit status cannot answer this: `ingest_path_async` counts a per-file
+    failure, prints it, and still returns zero. So its own summary is read
+    instead - "Done: N ingested" and "Failed: N files" - and every submitted file
+    has to be accounted for as ingested or skipped.
+
+    It matters because nothing downstream would notice. A run seeded against half
+    an index measures retrieval over half an index and reports the size it asked
+    for, and preflight cannot catch it: one search result is enough to look
+    healthy.
+    """
+    failed = _FAILED.search(output)
+    if failed and int(failed.group(1)):
+        raise RuntimeError(
+            f"{failed.group(1)} of {expected} documents failed to index (usually the "
+            f"embedding endpoint). The command says which:\n{output[-1200:]}"
+        )
+    done = _DONE.search(output)
+    skipped = _SKIPPED.search(output)
+    indexed = int(done.group(1)) if done else 0
+    unchanged = int(skipped.group(1)) if skipped else 0
+    if indexed + unchanged < expected:
+        raise RuntimeError(
+            f"{indexed} indexed and {unchanged} unchanged, against {expected} submitted - "
+            f"the command accounted for neither the rest nor a failure:\n{output[-1200:]}"
+        )
+    return expected
+
+
+def vectors(console: Console, *, name: str, expected: int) -> int:
+    """The collection's vector count, refused if it cannot hold the corpus.
+
+    A floor rather than an equality: how many chunks a document makes is the
+    splitter's business, so the only safe statement is that a corpus of
+    `expected` documents cannot be represented by fewer than `expected` vectors.
+    The exact accounting is the command's own, above; this catches what that one
+    cannot - an index that was dropped, or was never the collection the agent
+    searches.
+    """
+    stats = console.get(f"/rag/collections/{name}/info")
+    total = int(stats.get("total_vectors") or 0)
+    if total < expected:
+        raise RuntimeError(
+            f"Collection {name} holds {total} vectors for {expected} documents, so "
+            "retrieval would be measured against an index that is not there."
+        )
+    return total
 
 
 def trigger(console: Console, *, agent_id: str) -> tuple[str | None, str | None]:
@@ -351,10 +433,11 @@ def build(*, base_url: str, stub_url: str, email: str, password: str, documents:
     agent_id = agent(console, profile_id=profile_id)
     name = collection(console, endpoint_id=endpoint_id)
     added = ingest(name=name, count=documents)
+    chunks = vectors(console, name=name, expected=documents)
     trigger_id, trigger_source = trigger(console, agent_id=agent_id)
     print(f"  organization {organization_id}")
     print(f"  agent        {agent_id}")
-    print(f"  collection   {name} ({added} documents indexed)")
+    print(f"  collection   {name} ({added} documents, {chunks} vectors)")
     print(f"  trigger      {trigger_id or 'skipped'}")
     return Fixture(
         base_url=base_url,
