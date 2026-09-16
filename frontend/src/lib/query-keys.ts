@@ -12,6 +12,12 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  memory: {
+    /** Every page of one organization's notes, for invalidating after a write. */
+    all: (orgId: string) => ["memory", orgId] as const,
+    /** One page of what the agents in one organization have written about the caller. */
+    mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
+  },
   organizations: {
     all: () => ["organizations"] as const,
     list: () => ["organizations", "list"] as const,

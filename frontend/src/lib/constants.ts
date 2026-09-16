@@ -16,6 +16,7 @@ export const ROUTES = {
   SETTINGS_ACCOUNT: "/settings/account",
   SETTINGS_NOTIFICATIONS: "/settings/notifications",
   SETTINGS_SLASH_COMMANDS: "/settings/slash-commands",
+  SETTINGS_MEMORY: "/settings/memory",
   MCP_SERVERS: "/mcp-servers",
   CHANNELS: "/channels",
   RAG: "/rag",

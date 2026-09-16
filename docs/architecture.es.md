@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2926284b34"
+source_sha: "64e1d5a17218"
 ---
 
 # Arquitectura { #architecture }
@@ -939,8 +939,10 @@ dice cómo encontrar los documentos, publicado al asistente como JSON Schema.
 - **Rutas → servicios → repositorios.** Una ruta nunca importa un repositorio.
 - Un repositorio usa `db.flush()` y `db.refresh()`, **nunca** `db.commit()`. La
   sesión de la petición hace commit una vez, antes de que la respuesta se escriba.
-- El camino del run de un agent es la única excepción sancionada: hace commit antes
-  de la llamada al modelo y otra vez en el `finally` terminal.
+- El camino del run de un agent es la excepción sancionada principal: hace commit
+  antes de la llamada al modelo y otra vez en el `finally` terminal.
+  `MLService._record_failure` es la otra, por la razón especular — un registro de uso
+  sobre un *rechazo* tiene que sobrevivir al rollback que ese rechazo provoca.
 - El trabajo en segundo plano que lee una fila que esta petición escribió se
   entrega con **`spawn_after_commit`**, nunca con `spawn`.
 - Un dominio fino es un módulo; uno grueso es un subpaquete con una fachada, y nada
