@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.451] - 2026-09-16
+
 ### Added
 
 - **A person can read what agents here have written down about them.** Settings
