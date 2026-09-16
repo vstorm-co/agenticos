@@ -96,12 +96,14 @@ async def notification_delivery_sweep_flow() -> dict[str, int]:
 async def notification_retention_sweep_flow() -> int:
     """Drop notifications past their retention window (Decision 8).
 
-    A read notification is dropped once it has sat around, read, for
-    `NOTIFICATION_READ_RETENTION_DAYS` - nobody is coming back to a read
-    inbox item ninety days later. An unread one gets the benefit of the
-    doubt until `NOTIFICATION_OUTER_RETENTION_DAYS`, so it does not vanish
-    out from under someone who genuinely has not looked, but even that
-    grace has a ceiling: a row that old is dropped either way. Daily,
+    Both cutoffs are age since the row was *created*, never since it was
+    read - see `notification_repo.delete_expired`'s own docstring for why. A
+    read notification is dropped once it has existed for
+    `NOTIFICATION_READ_RETENTION_DAYS`; nobody is coming back to a read
+    inbox item that old. An unread one gets the benefit of the doubt until
+    `NOTIFICATION_OUTER_RETENTION_DAYS`, so it does not vanish out from
+    under someone who genuinely has not looked, but even that grace has a
+    ceiling: a row that old is dropped either way. Daily,
     matching `sweep_sandbox_operations_flow`: the exact hour a row leaves is
     nobody's business, and a delete over a many-day-old boundary is cheap
     run once rather than hourly.

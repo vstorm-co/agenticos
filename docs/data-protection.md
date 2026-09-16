@@ -321,7 +321,7 @@ deployment until each closes.
 **In the code, tracked:**
 
 - Traces carry full content unless an agent sets `observability.content` to `none`; no filtered middle ground - [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- No scheduled retention - [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
+- Scheduled retention covers `sandbox_operations` and `notifications`; every other table keeps its rows until account deletion reconciles them - [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Attachment bytes and a person's memory survive their owner's deletion; no
   personal data export; the erasure inventory -
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).

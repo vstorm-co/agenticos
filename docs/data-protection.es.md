@@ -1,5 +1,5 @@
 ---
-source_sha: "2ffcb61f087d"
+source_sha: "dec48e072081"
 ---
 
 # Protección de datos { #data-protection }
@@ -162,7 +162,7 @@ una laguna, y así queda dicho.
 | Exportación de auditoría | `GET /audit/export`, CSV o JSONL sobre una ventana, con puerta en `audit:read` y registrada en el propio rastro | [Governance](governance.md#audit) (#1422) |
 | Prueba de no manipulación del rastro | Todavía ninguna | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta | [Entornos](environments.md) (#1413); `redacted` es [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retención programada | Las filas de `sandbox_operations`, a los 30 días; las filas de `notifications`, una *leída* a los 90 días y cualquier fila al año sin excepción — las propias `announcements` quedan excluidas, así que lo que se envió sigue siendo consultable desde el rastro de auditoría una vez que sus envíos caducan. El barrido de runs abandonados los finaliza; no borra nada | [Gobernanza](governance.md#alerts); el resto es [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retención programada | Las filas de `sandbox_operations`, a los 30 días; las filas de `notifications` — una *leída* a los 90 días, y cualquier fila al año sin importar el estado. Los propios `announcements` quedan excluidos, así que lo enviado sigue siendo consultable en el rastro de auditoría después de que sus entregas caduquen. El barrido de runs abandonados los finaliza; no borra nada | [Gobernanza](governance.md#alerts); el resto es [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
 | Acceso a los propios datos | No hay endpoint de exportación; no hay vista de la propia memoria | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Identidad corporativa | Inicio de sesión con Google y contraseñas; todavía sin OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
@@ -339,7 +339,7 @@ cualquier deployment hasta que cada una se cierre.
 **En el código, con seguimiento:**
 
 - Las trazas llevan contenido completo salvo que un agent ponga `observability.content` en `none`; no hay término medio filtrado — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- No hay retención programada — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
+- La retención programada cubre `sandbox_operations` y `notifications`; el resto de tablas conserva sus filas hasta que se elimina la cuenta — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Los bytes de los adjuntos y la memoria de una persona sobreviven al borrado de
   su propietario; no hay exportación de datos personales; el inventario de
   supresión — [#1421](https://github.com/vstorm-co/agenticos/issues/1421).

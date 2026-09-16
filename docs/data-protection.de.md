@@ -1,5 +1,5 @@
 ---
-source_sha: "2ffcb61f087d"
+source_sha: "dec48e072081"
 ---
 
 # Datenschutz { #data-protection }
@@ -165,7 +165,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
 | Manipulationsnachweis der Spur | Noch keiner | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); `redacted` ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Aufbewahrung nach Zeitplan | `sandbox_operations`-Zeilen, nach 30 Tagen; `notifications`-Zeilen, eine *gelesene* nach 90 Tagen und jede Zeile nach einem Jahr unabhängig davon — `announcements` selbst sind ausgenommen, sodass, was gesendet wurde, über die Audit-Spur beantwortbar bleibt, nachdem ihre Zustellungen abgelaufen sind. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [Governance](governance.md#alerts); der Rest ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Aufbewahrung nach Zeitplan | `sandbox_operations`-Zeilen, nach 30 Tagen; `notifications`-Zeilen — eine *gelesene* nach 90 Tagen, und jede Zeile nach einem Jahr in jedem Fall. `announcements` selbst sind ausgenommen, sodass das Gesendete über die Audit-Spur beantwortbar bleibt, nachdem seine Zustellungen gealtert sind. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [Governance](governance.md#alerts); der Rest ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
 | Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Unternehmensidentität | Google-Anmeldung und Passwörter; noch kein OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
@@ -345,7 +345,7 @@ zutreffend für jedes Deployment, bis jede einzelne geschlossen ist.
 **Im Code, verfolgt:**
 
 - Traces tragen vollen Inhalt, sofern ein Agent `observability.content` nicht auf `none` setzt; ein gefiltertes Dazwischen gibt es nicht — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- Keine geplante Aufbewahrung — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
+- Geplante Aufbewahrung gilt für `sandbox_operations` und `notifications`; jede andere Tabelle behält ihre Zeilen bis zur Kontolöschung — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Anhang-Bytes und das Memory einer Person überleben die Löschung ihres
   Besitzers; kein Export personenbezogener Daten; die Löschinventur —
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
