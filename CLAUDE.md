@@ -223,6 +223,7 @@ retranslated is how a stale translation stops being visible.
 | Authenticating and calling the HTTP API | `docs/api.md` |
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
+| The load suite: the workload, the thresholds, the measured runs | `docs/load-testing.md` |
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |

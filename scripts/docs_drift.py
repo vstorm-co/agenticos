@@ -98,6 +98,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/schemas/deployment_settings.py", "docs/deployment.md"),
     ("frontend/src/lib/branding.ts", "docs/deployment.md"),
     ("backend/app/commands/", "docs/commands.md"),
+    ("loadtest/", "docs/load-testing.md"),
     ("Makefile", "docs/commands.md"),
     ("backend/app/api/routes/", "docs/architecture.md"),
     ("backend/alembic/versions/", "docs/architecture.md"),
