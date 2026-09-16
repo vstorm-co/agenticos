@@ -34,7 +34,7 @@ from app.services.agent_chat import (
     requested_model_profile_id,
 )
 from app.services.agent_runner import PersonalServiceGap
-from app.services.attachments import load_message_attachments
+from app.services.attachments import load_turn_attachments
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
@@ -346,7 +346,7 @@ class AgentSession:
             # depends on whether the agent has a workspace, and only `prepare`
             # knows that - so the routing happens one layer down.
             attachments = (
-                await self._attached_files(prompt.message_id)
+                await self._attached_files(prompt.message_id, file_ids)
                 if file_ids and prompt.message_id is not None
                 else []
             )
@@ -707,18 +707,21 @@ class AgentSession:
                 exclude_message_id=prompt_message_id,
             )
 
-    async def _attached_files(self, message_id: UUID) -> list[ChatFile]:
-        """The rows for the files this turn attached, read by their message (#1756).
+    async def _attached_files(self, message_id: UUID, file_ids: list[Any]) -> list[ChatFile]:
+        """The rows for the files this turn attached (#1756).
 
         Read on their own session: the turn's own session is opened later and
         held for the run, and this is a lookup rather than part of that unit of
-        work. Loaded by `message_id` rather than the frame's `file_ids` because
-        `persist_user_turn` has already linked them here (and enforced ownership,
-        #706) - re-validating those ids as unlinked would reject the turn's own
-        just-linked files and drop every attachment before the model call.
+        work. Read by id and kept where the row is linked to this turn's message
+        or still unlinked: `persist_user_turn` has already linked the frame's ids
+        (and enforced ownership, #706), so re-validating them as unlinked would
+        reject the turn's own just-linked files - while a file its best-effort
+        link left unlinked must still reach the model rather than be dropped.
         """
         async with get_db_context() as file_db:
-            return await load_message_attachments(file_db, message_id)
+            return await load_turn_attachments(
+                file_db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
+            )
 
     async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
         """Where this surface's frames go: to the member who is watching.

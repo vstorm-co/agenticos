@@ -237,12 +237,13 @@ class TestReadingAttachments:
 
 
 class TestTheRunReadsItsOwnTurn:
-    """`list_message_attachments` is how a run loads what it just linked (#1756).
+    """`list_turn_attachments` is how a run loads what it just linked (#1756).
 
     `persist_user_turn` links the frame's files to the new message and then the
     run reads them back. Reading them with `list_attached_files` refused the
     turn's own just-linked files as "already attached" and dropped every
-    attachment before the model call - so the run reads by the message instead.
+    attachment before the model call - so the run reads its own ids, keeping the
+    row where it is linked to this message or still unlinked.
     """
 
     async def test_it_returns_the_files_linked_to_the_message(self, db) -> None:
@@ -256,19 +257,30 @@ class TestTheRunReadsItsOwnTurn:
             db, message_id=message.id, file_ids=[upload.id], user_id=owner.id
         )
 
-        rows = await ConversationService(db).list_message_attachments(message.id)
+        rows = await ConversationService(db).list_turn_attachments(
+            message.id, [str(upload.id)], user_id=owner.id
+        )
 
         assert [row.id for row in rows] == [upload.id]
 
-    async def test_a_message_with_no_attachments_reads_empty(self, db) -> None:
+    async def test_a_failed_best_effort_link_still_reaches_the_model(self, db) -> None:
+        """`persist_user_turn` swallows a non-refusal link failure and runs on;
+        the upload stays unlinked. Reading only by the message would drop it and
+        bill an answer that ignored its attachment, so an unlinked own upload is
+        still read."""
         owner = await _member(db)
         message = await _message(db, owner)
+        unlinked = await _upload(db, owner)
 
-        assert await ConversationService(db).list_message_attachments(message.id) == []
+        rows = await ConversationService(db).list_turn_attachments(
+            message.id, [str(unlinked.id)], user_id=owner.id
+        )
 
-    async def test_it_reads_only_this_message_not_another_turn(self, db) -> None:
-        """Scoped to the message the turn wrote, so one turn never inlines a
-        sibling turn's files."""
+        assert [row.id for row in rows] == [unlinked.id]
+
+    async def test_a_file_on_another_message_is_skipped(self, db) -> None:
+        """A row already on a different turn is not this turn's - and never
+        reaches here, since `persist_user_turn` refuses to re-link one."""
         owner = await _member(db)
         mine = await _message(db, owner)
         other = await _message(db, owner)
@@ -277,4 +289,24 @@ class TestTheRunReadsItsOwnTurn:
             db, message_id=other.id, file_ids=[upload.id], user_id=owner.id
         )
 
-        assert await ConversationService(db).list_message_attachments(mine.id) == []
+        assert (
+            await ConversationService(db).list_turn_attachments(
+                mine.id, [str(upload.id)], user_id=owner.id
+            )
+            == []
+        )
+
+    async def test_the_read_is_scoped_to_the_caller(self, db) -> None:
+        """By id, but still the caller's own only - an attacker naming a victim's
+        unlinked upload reads nothing (#706)."""
+        victim = await _member(db)
+        theirs = await _upload(db, victim)
+        attacker = await _member(db)
+        mine = await _message(db, attacker)
+
+        assert (
+            await ConversationService(db).list_turn_attachments(
+                mine.id, [str(theirs.id)], user_id=attacker.id
+            )
+            == []
+        )

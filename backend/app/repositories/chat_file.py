@@ -32,21 +32,6 @@ async def get_many(db: AsyncSession, file_ids: Iterable[UUID], *, user_id: UUID)
     return list(result.scalars().all())
 
 
-async def list_for_message(db: AsyncSession, message_id: UUID) -> list[ChatFile]:
-    """The files linked to one message, in upload order.
-
-    How a run reads its own turn's attachments (#1756). `persist_user_turn` has
-    already linked the frame's `file_ids` to this message and enforced ownership
-    (#706), so the run loads by the message rather than re-checking those ids as
-    unlinked - the unlinked-guard in `list_attached_files`, which exists for a
-    *fresh* submission, would otherwise reject the turn's own just-linked files.
-    """
-    result = await db.execute(
-        select(ChatFile).where(ChatFile.message_id == message_id).order_by(ChatFile.created_at)
-    )
-    return list(result.scalars().all())
-
-
 async def get_in_conversation(
     db: AsyncSession, file_id: UUID, *, conversation_id: UUID
 ) -> ChatFile | None:

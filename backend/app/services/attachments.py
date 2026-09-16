@@ -615,8 +615,13 @@ async def load_attached_files(db: Any, file_ids: list[str], *, user_id: UUID) ->
     return await get_conversation_service(db).list_attached_files(file_ids, user_id=user_id)
 
 
-async def load_message_attachments(db: Any, message_id: UUID) -> list[ChatFile]:
-    """This turn's attachments, read by the message they were just linked to (#1756)."""
+async def load_turn_attachments(
+    db: Any, message_id: UUID, file_ids: list[str], *, user_id: UUID
+) -> list[ChatFile]:
+    """This turn's attachments: linked to its message or the caller's own still-
+    unlinked uploads, read by id rather than by the frame's re-validated ids (#1756)."""
     from app.api.deps import get_conversation_service
 
-    return await get_conversation_service(db).list_message_attachments(message_id)
+    return await get_conversation_service(db).list_turn_attachments(
+        message_id, file_ids, user_id=user_id
+    )

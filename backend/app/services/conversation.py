@@ -999,16 +999,27 @@ class ConversationService:
                 details={"file_ids": sorted(set(ids))},
             )
 
-    async def list_message_attachments(self, message_id: UUID) -> list[Any]:
-        """This turn's attachments, read by the message they were linked to (#1756).
+    async def list_turn_attachments(
+        self, message_id: UUID, file_ids: list[str], *, user_id: UUID
+    ) -> list[Any]:
+        """This turn's attachments: the caller's own files among `file_ids` that
+        are linked to this turn's message or still unlinked (#1756).
 
         The run's own load path, distinct from `list_attached_files`: that one
         validates a *fresh* submission and refuses an already-linked id, which is
-        exactly what the turn's files are once `persist_user_turn` has linked them
-        to `message_id`. Ownership was enforced at link time (#706), so reading by
-        the message is the same reach without the unlinked-guard fighting it.
+        exactly what the turn's files are once `persist_user_turn` has linked them.
+        Loaded by id (the primary key) and scoped to the caller (#706), so it does
+        not full-scan `chat_files` on the unindexed `message_id`. A file a
+        best-effort `link_files_to_message` left unlinked is still read, so a
+        transient link failure does not silently drop the turn's attachments; a
+        file already on a *different* message is skipped - `persist_user_turn`
+        refuses to re-link one, so it never reaches here.
         """
-        return await chat_file_repo.list_for_message(self.db, message_id)
+        ids, _ = _file_uuids(file_ids)
+        rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        kept = [row for row in rows if row.message_id in (message_id, None)]
+        kept.sort(key=lambda row: row.created_at)
+        return kept
 
     async def list_attached_files(self, file_ids: list[str], *, user_id: UUID) -> list[Any]:
         """The caller's rows behind the ids a client sent; anybody else's resolve to nothing (#706).
