@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import logging
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from app.services.rag.ingestion import IngestionService
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from app.services.rag.filters import Source
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,12 @@ class BaseDocumentSource(ABC):
     Implementations fetch files from external sources (Google Drive, S3, etc.)
     and download them locally for ingestion into the RAG pipeline.
     """
+
+    #: Canonical ingestion origin stamped on every document this source syncs,
+    #: so a document brought in through the `rag-sync-*` CLI is filterable by
+    #: `source` exactly as one brought in through the worker connector flow is
+    #: (FA-039). A subclass that omits it fails fast on the first sync.
+    SOURCE: ClassVar[Source]
 
     @abstractmethod
     async def list_files(
@@ -111,6 +119,7 @@ class BaseDocumentSource(ABC):
                         filepath=local_path,
                         collection_name=collection_name,
                         source_path=source_uri,
+                        source=self.SOURCE.value,
                     )
                     if ingest_result.status.value == "done":
                         result.ingested += 1

@@ -16,7 +16,7 @@ called.
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import SecretStr
@@ -29,7 +29,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 from app.services.rag.connectors import CONNECTOR_REGISTRY, BaseSyncConnector, RemoteFile
 from app.services.rag.connectors.google_drive import GoogleDriveConnector
 from app.services.rag.connectors.s3 import S3Connector
+from app.services.rag.filters import Source
 from app.services.rag.remote_names import checked_drive_folder_id, destination_within
+from app.services.rag.sources.base import SourceFile
 from app.services.rag.sources.google_drive import GoogleDriveSource
 from app.services.rag.sources.s3 import S3Source
 
@@ -342,6 +344,28 @@ class TestTheLegacyCliSources:
 
         assert local == sync_dir / "evil.txt"
         assert not (tmp_path / "evil.txt").exists()
+
+    async def test_a_cli_synced_document_is_stamped_with_its_connector_source(
+        self, tmp_path: Path
+    ) -> None:
+        """`rag-sync-s3`/`rag-sync-gdrive` reach `sources/`, which — unlike the
+        worker connector flow — omitted `source`, so documents synced this way
+        stored `source = null` and never matched a `source=["s3"]` filter."""
+        source = S3Source.__new__(S3Source)
+        source.list_files = AsyncMock(  # type: ignore[method-assign]
+            return_value=[SourceFile(id="k1", name="report.pdf", path="folder/report.pdf")]
+        )
+        source.download_file = AsyncMock(return_value=tmp_path / "report.pdf")  # type: ignore[method-assign]
+        ingestion = MagicMock()
+        ingestion.ingest_file = AsyncMock(return_value=MagicMock(status=MagicMock(value="done")))
+
+        await source.sync(collection_name="docs", ingestion_service=ingestion)
+
+        assert ingestion.ingest_file.await_args.kwargs["source"] == "s3"
+
+    async def test_each_cli_source_carries_a_valid_vocabulary_origin(self) -> None:
+        assert GoogleDriveSource.SOURCE is Source.GDRIVE
+        assert S3Source.SOURCE is Source.S3
 
 
 class TestTheDriveIdentifierItself:
