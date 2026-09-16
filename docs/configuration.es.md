@@ -1,5 +1,5 @@
 ---
-source_sha: "601036aa3b7d"
+source_sha: "47698df01548"
 ---
 
 # Configuración { #configuration }
@@ -572,6 +572,40 @@ de Drive con la propia dirección de correo de la cuenta de servicio**: es un
 principal como cualquier otro, y una carpeta que nadie ha compartido con él se lista
 como vacía en vez de como rechazada.
 
+## Ficheros subidos en reposo { #uploaded-files-at-rest }
+
+Dónde viven los adjuntos del chat, los avatares, las imágenes de marca y los
+originales de los documentos de la base de conocimiento. Un backend por
+despliegue, nunca por organización, y cambiarlo no mueve lo que el otro ya tiene.
+
+| Variable | Por defecto | Descripción |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` escribe bajo `MEDIA_DIR`; `s3` escribe en un bucket compatible con S3 |
+| `FILE_STORAGE_S3_BUCKET` | (vacío) | El bucket. Obligatorio con el backend `s3`; sin él la API rechaza cualquier subida |
+| `FILE_STORAGE_S3_ENDPOINT` | (ninguno) | Vacío para AWS. La dirección del servicio para MinIO u otro almacén compatible |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | Región de AWS |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (vacío) | En AWS déjelo **vacío**: responde entonces la propia cadena de credenciales de boto3, es decir un perfil de instancia o un rol IRSA en lugar de una clave de larga vida en un fichero de entorno |
+| `FILE_STORAGE_S3_SECRET_KEY` | (vacío) | La otra mitad, igual |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` para MinIO y la mayoría de almacenes compatibles, que direccionan el bucket por ruta. Una petición de tipo virtual-host falla en DNS antes que en S3 |
+| `FILE_STORAGE_S3_PREFIX` | (vacío) | Toda clave que escribe este despliegue queda debajo, de modo que un bucket puede alojar más de un despliegue sin que sus claves se crucen |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | Lo que se le pide al almacén en cada escritura: `sse-s3` (la propia clave del bucket), `sse-kms` (la clave de abajo) o `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (ninguno) | El id o ARN de la clave KMS. **Obligatorio** con el modo `sse-kms`: S3 lee un `aws:kms` sin nombre como su propia clave gestionada por AWS `aws/s3` y no como la clave por defecto del bucket, así que dejarlo vacío cifraría bajo una clave que nadie eligió |
+
+!!! warning "`none` es para un almacén sin KMS y no es cifrado"
+
+    MinIO rechaza SSE-S3 mientras no haya un servidor KES configurado, así que un
+    almacén compatible sin KMS necesita `none` para funcionar — y un despliegue
+    que corre así tiene el cifrado que le dan sus volúmenes y nada más.
+    `agenticos cmd doctor` informa de esa configuración como no configurada en
+    lugar de sana, y la fila de reposo en
+    [seguridad](security.md#what-is-encrypted-where) dice lo mismo.
+
+Un bucket en el que escriba el despliegue necesita `s3:PutObject`,
+`s3:GetObject`, `s3:DeleteObject` y `s3:ListBucket`, y con el modo `sse-kms`
+además `kms:Encrypt`, `kms:Decrypt` y `kms:GenerateDataKey` sobre la clave. Un
+MinIO local lo arranca `make docker-minio` en `:9000` con
+`minioadmin` / `minioadmin`.
+
 ### Sincronización con S3/MinIO { #s3minio-sync }
 
 | Variable | Por defecto | Descripción |
@@ -581,6 +615,11 @@ como vacía en vez de como rechazada.
 | `S3_RAG_SECRET_KEY` | (empty) | Secret key, igual |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Nombre del bucket |
 | `S3_RAG_REGION` | `us-east-1` | Región de AWS. La región propia de una credencial gana donde la tenga |
+
+Esto es el *conector de sincronización*, que lee un bucket propiedad de un
+inquilino — no el almacenamiento de ficheros del propio despliegue descrito
+arriba. Se configuran por separado, y es deliberado: uno es infraestructura, el
+otro son los datos de un inquilino.
 
 **El par de claves de aquí es el de la CLI, no el de una fuente de sincronización.**
 Una fuente `s3` nombra un secreto `aws_credentials` en el vault de su organización,

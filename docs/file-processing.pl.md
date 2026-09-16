@@ -1,5 +1,5 @@
 ---
-source_sha: "b259d7cf49a0"
+source_sha: "c0c8a6cf4278"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -249,15 +249,44 @@ zadziałać w ogóle, bo wołała metodę `parse_async`, której binding nie def
 
 ### Przechowywanie { #storage }
 
-Pliki zapisuje `FileStorageService` w katalogu `media/`:
+Każdy wgrany plik — załącznik z czatu, avatar, znak wdrożenia, oryginał dokumentu
+bazy wiedzy — przechodzi przez jeden backend magazynu, wybrany przez
+`FILE_STORAGE_BACKEND` w czasie wdrożenia i nigdy per organizacja. Niezależnie od
+backendu wiersz zapisuje tę samą **ścieżkę magazynu**: `{owner}/{uuid}_{filename}`.
+
+`local`, domyślny, zapisuje je pod `MEDIA_DIR`:
 
 ```
 media/
   {user_id}/
-    document.pdf
-    screenshot.png
+    a1b2c3d4e5f6_document.pdf
+    f6e5d4c3b2a1_screenshot.png
     ...
 ```
+
+`s3` zapisuje te same ścieżki jako klucze obiektów w buckecie zgodnym z S3, pod
+`FILE_STORAGE_S3_PREFIX`, i prosi magazyn o zaszyfrowanie każdego z nich —
+domyślnie SSE-S3, a SSE-KMS kluczem, który nazywa wdrożenie. Ustawienia znajdziesz
+w [konfiguracji](configuration.md#uploaded-files-at-rest).
+
+!!! info "Który backend uruchomić i czego każdy od Ciebie wymaga"
+
+    Lokalny jest uczciwą odpowiedzią dla jednego hosta: zaszyfruj wolumen, a pliki
+    są chronione tak jak dysk. Przestaje nią być przy drugiej replice API — dwa
+    kontenery, dwa dyski, a plik wgrany do jednego jest 404 na drugim — oraz gdy
+    klient chce mieć pliki pod kluczem, który kontroluje.
+
+    Zmiana backendu nie przenosi tego, co trzyma już ten drugi, i nic tego tutaj
+    nie migruje. To decyzja podejmowana przy stawianiu wdrożenia; późniejsza zmiana
+    wymaga ręcznego skopiowania plików, a ścieżki są po obu stronach takie same,
+    więc kopia wystarczy.
+
+    Workspace'y agentów nie są w żadnym z backendów. Workspace `state` żyje w tej
+    bazie danych, a `docker` w magazynie hosta sandboksa, więc storage obiektowy
+    nie zmienia tego, gdzie są — zobacz [sandbox](sandbox.md).
+
+`agenticos cmd doctor` wypisuje, którego backendu używa działające wdrożenie
+i czy szyfrowanie jest włączone.
 
 ### Model ChatFile { #chatfile-model }
 

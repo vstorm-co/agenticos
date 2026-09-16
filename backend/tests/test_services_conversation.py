@@ -749,6 +749,7 @@ class TestParticipationDoesNotCarryTheWrite:
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
+            patch("app.services.conversation.spawn_after_commit"),
             patch(
                 "app.services.conversation.personal_data_repo.attachment_paths_in",
                 new=AsyncMock(return_value=[]),
@@ -1093,9 +1094,12 @@ class TestConversationServiceDelete:
 
         with (
             patch("app.services.conversation.conversation_repo") as mock_repo,
-            # The delete reads the thread's attachment paths first, so the bytes
-            # can be unlinked after the commit - the rows cascade away and the
-            # files would not (#1421).
+            # The delete hands the thread's offloaded media prefix to
+            # `spawn_after_commit`, which needs a real session's info bag (#55),
+            # and reads its attachment paths first so the bytes can be unlinked
+            # after the commit - the rows cascade away and the files would not
+            # (#1421).
+            patch("app.services.conversation.spawn_after_commit") as spawned,
             patch(
                 "app.services.conversation.personal_data_repo.attachment_paths_in",
                 new=AsyncMock(return_value=[]),
@@ -1107,6 +1111,7 @@ class TestConversationServiceDelete:
             result = await service.delete_conversation(conv_id, organization_id=TEST_ORG_ID)
 
             assert result is True
+            assert spawned.call_args.kwargs["name"] == "delete-conversation-media"
             mock_repo.delete_conversation.assert_called_once_with(
                 service.db, db_conversation=mock_conv
             )

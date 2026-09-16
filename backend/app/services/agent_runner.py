@@ -95,6 +95,7 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import offloaded_history
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
     dump_plan,
@@ -1651,6 +1652,7 @@ def _delegate_builder(
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
             run_id=delegation.run.id,
+            conversation_id=delegation.run.conversation_id,
             user_id=delegation.user_id,
             user_name=delegation.user_name,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
@@ -2381,6 +2383,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
+            conversation_id=run.conversation_id,
             # The guard keeps a subject-less context stringifying to None, never "None".
             user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
@@ -4062,8 +4065,13 @@ class AgentRunnerService:
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
             if prepared.built.context.summarized:
-                summarized = ModelMessagesTypeAdapter.dump_python(
-                    result.all_messages(), mode="json"
+                # Offloaded before it is stored, if the agent asked for it. The
+                # chat runner does the same with the same helper: hooking one of
+                # the two gave the capability to the WebSocket chat and to
+                # nothing else (#55).
+                summarized = await offloaded_history(
+                    prepared.built.capabilities,
+                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
             new_messages = result.new_messages()
             called = tool_calls_in(new_messages)

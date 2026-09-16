@@ -67,15 +67,20 @@ plainly because a review will find it:
   equality, not vault-sealed. Whoever holds the value can use it, so they are
   protected by expiry and single use rather than encryption. Session refresh
   tokens are the exception that is hashed at rest (`sessions.refresh_token_hash`).
-- **Uploaded and chat files** sit on the API container's filesystem in the clear
-  (`app/services/file_storage.py`) — protected only by volume encryption.
+- **Uploaded and chat files** sit wherever `FILE_STORAGE_BACKEND` puts them
+  (`app/services/file_storage.py`). On `local`, the default, that is the API
+  container's filesystem in the clear, protected only by volume encryption. On
+  `s3` they are objects in a bucket the deployment names, and every write asks
+  the store to encrypt them — SSE-S3, or SSE-KMS under a key the client
+  controls. `agenticos cmd doctor` prints which of the three a running
+  deployment is in.
 - **Message bodies, `rag_documents` and their vectors, and sandbox workspaces**
   are stored as plaintext columns, pgvector rows and workspace files. The vault
   seals credentials, not content; at-rest protection for these is disk-level.
 
-An S3-compatible file backend with server-side encryption is the app-level answer
-for object storage and is tracked in
-[#1423](https://github.com/vstorm-co/agenticos/issues/1423).
+The S3 backend is a deployment-time choice and does not migrate what the local
+one already holds; [configuration](configuration.md#uploaded-files-at-rest) has
+the settings and [file processing](file-processing.md#storage) the reasoning.
 
 ## What is held about one person, and what happens to it
 
@@ -173,6 +178,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Single sign-on against the deployment's own identity provider | Generic OIDC by discovery — authorization code with PKCE, `email_verified` required, the account keyed on `sub` (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; configured in [Single sign-on](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
 | The sign-up policy gates SSO as it gates the form | `check_may_register` inside `get_or_create_oauth_user` — `invite_only` and the domain allow-list refuse a provider sign-in too (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
 | Group-to-role mapping, SAML, SCIM | **Not yet** — people sign in through the provider; an administrator places them | — |
+| A replayed refresh token ends its chain and is recorded | Rotation keeps the hash it replaced; a refresh matching it is the reuse case in RFC 6819 §5.2.2.3 and closes that session with an audit entry (`SessionService.detect_refresh_reuse`) | `test_session_revocation.py::TestReusingASpentRefreshToken` |
 
 ### Audit controls · HIPAA §164.312(b) · SOC 2 CC7
 
@@ -194,6 +200,9 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | An approval is decided exactly once | `ApprovalService.decide` refuses a non-pending row read `for_update` (`app/services/approvals.py`) | `test_approvals_queue.py::TestDecidingTwiceIsRefused` |
 | Data is deleted on a schedule, per class and per organization | A daily sweep hard-deletes conversations, runs, workspaces, memory and uploaded documents past their period, recording counts and never content (`app/services/retention.py`, `app/worker/tasks/rag_tasks.py`). See [Retention](governance.md#retention) | `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | A purged run still counts toward the month's bill | The sweep keeps a per-month total on `purged_run_spend` before the rows go, summed by `app/services/spend.py` — otherwise a cap metered on the figure stops enforcing mid-month | `tests/integration/test_retention_sweep.py::TestWhatSurvives` |
+| Static analysis reaches the change that introduces the finding | CodeQL (`security-extended`) on every pull request for Python, JavaScript/TypeScript, Rust and the workflows, plus a weekly full run (`.github/workflows/codeql.yml`). The merge is refused by code-scanning merge protection on `main`'s ruleset, not by the job's own status — see [branching](branching.md#what-is-enforced-and-by-what) | `test_codeql_workflow.py` |
+| A known-vulnerable dependency fails the pull request | `make audit` over `backend/uv.lock` and `make audit-frontend` over `frontend/bun.lock`, both in the `Security Scan` job and in `make check` | `test_ci_parity.py` |
+| What a release contains can be read without building it | A CycloneDX SBOM per image, generated from the published manifest and attached to the release; [the component inventory](reference/components.md) is the readable index | `test_images_workflow.py::TestTheReleaseCarriesAnInventory` |
 
 ### Confidentiality of credentials · HIPAA §164.312(a)(2)(iv)
 
@@ -296,12 +305,11 @@ rather than a suggestion.
   which is optional, and once a deployment-wide token is set traces every run,
   with the content of every agent that did not ask for `none`.
 - Connector and API credentials are sealed per organization in the one vault;
-  short-lived bearer tokens and content at rest (files, messages, RAG, sandboxes)
-  are not, with [#1423](https://github.com/vstorm-co/agenticos/issues/1423) the
-  app-level answer for object storage.
+  short-lived bearer tokens and the rest of the content at rest (messages, RAG,
+  sandboxes) are not. Uploaded files are the one that moved: `FILE_STORAGE_BACKEND=s3`
+  puts them in an object store that encrypts every write.
 - Every control in the matrix names a mechanism and a test, and names its gaps in
-  the same breath — tamper evidence and app-level file encryption each link the
-  issue that would build them.
+  the same breath — tamper evidence links the issue that would build it.
 - Report vulnerabilities and run the hardening checklist from
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   read [Data protection](data-protection.md) and [Licences](licenses.md) beside

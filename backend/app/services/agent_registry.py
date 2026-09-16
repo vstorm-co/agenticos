@@ -2045,7 +2045,11 @@ class AgentRegistryService:
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_color": color})
 
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
-        """Where the agent's picture is on disk, for the route that streams it.
+        """The storage path of the agent's picture, for the route that streams it.
+
+        The path the storage backend wrote, not a path on this host: an object
+        store has no second kind, and the route hands this to the one place that
+        knows how to turn either into a response (#1423).
 
         Reading the picture goes through the same access check as reading the
         agent: an avatar is not public just because it is an image, and an
@@ -2056,12 +2060,11 @@ class AgentRegistryService:
                 gone - indistinguishable to a caller, and deliberately so.
         """
         agent = await self.get(ctx, agent_id)
-        path = get_file_storage().get_full_path(agent.avatar_url) if agent.avatar_url else None
-        if path is None or not path.exists():
+        if not agent.avatar_url or not await get_file_storage().exists(agent.avatar_url):
             raise NotFoundError(
                 message="This agent has no avatar", details={"agent_id": str(agent_id)}
             )
-        return str(path)
+        return agent.avatar_url
 
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Permanently remove an agent, its versions and its shares."""

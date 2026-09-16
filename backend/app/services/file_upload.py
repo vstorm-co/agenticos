@@ -768,11 +768,6 @@ class FileUploadService:
         await get_file_storage().delete(chat_file.storage_path)
         await chat_file_repo.delete(self.db, db_file=chat_file)
 
-    def get_file_path(self, storage_path: str) -> str | None:
-        """Resolve a storage path to an absolute filesystem path."""
-        full_path = get_file_storage().get_full_path(storage_path)
-        return str(full_path) if full_path is not None else None
-
     async def get_user_file(self, file_id: Any, user_id: Any) -> ChatFile:
         """Get a file by ID, verifying ownership.
 

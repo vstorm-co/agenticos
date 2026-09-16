@@ -27,6 +27,158 @@ Two things are versioned separately from this file and worth knowing about:
   unlinked-guard still protects a fresh submission without rejecting the turn's
   own files. (#1756)
 
+## [0.0.463] - 2026-09-16
+
+### Added
+
+- CodeQL runs on every pull request (`security-extended`, for Python,
+  JavaScript/TypeScript, Rust and the workflows) instead of weekly on `main`
+  through GitHub's default setup, so a finding is attached to the commit that
+  introduced it and is readable before the merge. The weekly full run is kept for
+  query packs that update between merges. Two repository settings go with it and
+  a workflow cannot make either — default setup has to be switched off, and
+  refusing the merge is code-scanning merge protection on `main`'s ruleset. Both
+  are named in `docs/branching.md`. (#1415)
+- `make audit-frontend` — `bun audit --audit-level=high` over `frontend/bun.lock`
+  — in the `Security Scan` job and in `make check`. Nothing read that lockfile
+  before. (#1415)
+- A CycloneDX SBOM per image, generated from the published manifest and attached
+  to each release as `sbom-api.cdx.json` and `sbom-frontend.cdx.json`; `make sbom`
+  writes the same documents locally from the source tree. (#1415)
+- `docs/reference/components.md`, the readable component inventory: what this
+  project writes, what it depends on, what ships in each image, and the models and
+  services a deployment adds that no image SBOM can see. (#1415)
+
+### Fixed
+
+- Frontend dependency advisories the new audit found: `next` raised past two
+  unauthenticated-RCE advisories, `postcss` past two source-map path-traversal
+  advisories, and `nanoid` and `js-yaml` pinned forward through `overrides`
+  because their parents have not moved. (#1415)
+
+## [0.0.462] - 2026-09-16
+
+### Added
+
+- **`agenticos cmd data-protection-report` prints the evidence a data-protection
+  review of one deployment asks for.** The verification checklist on the data
+  protection page was a page of SQL to paste into `psql` by hand plus a shell
+  pipeline for the one question SQL cannot answer, which is not something a
+  reviewer can reproduce or an operator can re-run on a schedule. The command
+  replaces both: the settings that decide what leaves, every provider and
+  endpoint an agent can reach, the credentials held by purpose, the collections
+  and who embeds them, the servers on the deployment's own network, the MCP
+  servers, trigger portals, sync sources and channel bots, the capabilities that
+  reach an address of their own with no row naming it, where runs are traced and
+  how much content a span carries, how much of each store a retention period
+  would reach, and the files under `MEDIA_DIR` that no row points at any more.
+  It prints configuration and counts only - no message text, no document, no
+  secret value and no hint of one, a setting holding a credential is reported as
+  set or unset, a URL's query string is redacted because it can be the
+  credential, and the unreferenced files are a directory and a count rather than
+  filenames a person uploaded - so the output is attachable to a review as it
+  stands. Tracing and the capability inventory are read off every version that
+  can run, the default one and each environment's pinned one, rather than off
+  the default alone. The unreferenced-file count is derived from a declared list
+  of every media-path column, and the capability inventory from a declared
+  classification of every registered capability, both of which a test holds
+  against the code so neither list can rot into a plausible wrong answer.
+  (#1596)
+
+### Documentation
+
+- **The data protection page stopped describing implemented controls as gaps.**
+  Three of the open conditions it listed have closed since it was written, and a
+  review reading it would have been told the platform lacks controls it has: the
+  audit trail's tamper evidence now exists as a per-organization hash chain with
+  a checkpoint at each chain's high-water mark and `agenticos cmd audit-verify`
+  to walk them (#1622, #1648), the HIPAA and SOC 2 controls matrix is on the
+  security page (#1412), and the filtered trace-content mode the page listed as
+  pending was decided against (#1616) rather than still coming - so `none` is
+  the answer for a deployment that may not export message text. The
+  verification section is now the command above rather than SQL nobody can
+  re-run identically. (#1596)
+
+## [0.0.461] - 2026-09-16
+
+### Added
+
+- An S3-compatible file-storage backend beside the local disk, selected by
+  `FILE_STORAGE_BACKEND=s3`. Every write asks the store for server-side
+  encryption — SSE-S3 by default, SSE-KMS under a key the deployment names — and
+  a `FILE_STORAGE_S3_PREFIX` keeps two deployments in one bucket apart. An
+  upload is cancellation-safe the way the local one is, and a download is
+  streamed in bounded chunks rather than held whole. Local stays the default and
+  nothing migrates between them; it is a deployment-time choice. `agenticos cmd doctor` prints which backend is running and whether
+  encryption is on, and `make docker-minio` starts a MinIO to develop against.
+  (#1423)
+
+### Changed
+
+- The seven routes that serve a stored file — both avatars, an agent's, a hosted
+  page's logo, the deployment's mark, a chat attachment and a knowledge-base
+  download — resolve it through the storage backend rather than through a path on
+  this host, so they answer on either backend. A local backend still streams from
+  disk. (#1423)
+- The deployment's logo and favicon are typed from the file's own bytes rather
+  than from the suffix its uploader chose, which is what the avatar routes
+  already did. The set of types served is unchanged. (#1423)
+
+## [0.0.460] - 2026-09-16
+
+### Added
+
+- A persisted `ask_user` question records which delegate asked it, and the
+  transcript says so — "Asked by researcher" rather than "Asked you" where a
+  specialist put the question. `ask_parent` hands the surface the question and
+  nothing else, so this needed `SubAgentState.name` upstream
+  (subagents-pydantic-ai 0.2.22, the new floor). A question the main agent asked
+  itself, and every question stored before this, names nobody. (#1042)
+
+## [0.0.459] - 2026-09-16
+
+### Fixed
+
+- The cost journey's last step waits for the API to report a priced run before
+  asking Activity to draw its row, so a failure says which of the five things it
+  crosses did not happen instead of `element(s) not found`. Every other wait in
+  that spec names what it was waiting for, `nowThere` moved out of
+  `seed.setup.ts` as `nowListed` / `nowMatching` so specs and fixtures share one
+  "the write has landed" step, and a failing `e2e` job now uploads
+  `test-results/` — the screenshot, the video, the trace and Playwright's
+  `error-context.md` — beside the HTML report. (#162)
+
+## [0.0.458] - 2026-09-16
+
+### Added
+
+- Refresh-token reuse detection. Rotation re-keys a session row in place, so a
+  stolen refresh token presented after the legitimate user has rotated failed
+  exactly like a typo — no signal, no audit entry, and the live session the thief
+  was racing went on running. The row now keeps the hash rotation replaced, a
+  refresh matching it is the reuse case in RFC 6819 §5.2.2.3, and the response is
+  to end that chain and record it. The caller still learns only "invalid or
+  expired". One hash, not a history: it catches the window the pattern is about
+  and says so. Migration `0085_refresh_reuse`. (#1519)
+
+## [0.0.457] - 2026-09-16
+
+### Added
+
+- A `media` capability that keeps a compacted conversation's pictures out of the
+  database. An attachment reaches the model once and the ordinary history is
+  rebuilt from text, so nothing piles up there — but a compacted conversation
+  stores the library's own dump of the run's messages and replays it base64 and
+  all until the next summary. Bound, the parts over a threshold are written to
+  the organization's own media store and replaced with a `media+sha256://…`
+  reference; re-inlining happens for every conversation whether or not it is
+  still bound. The objects live under the thread's own prefix, which is what
+  gives them a lifetime — deleting the thread or the organization removes them —
+  and a run with no thread offloads nothing. Built on `pydantic-ai-harness`'s
+  content-addressed stores and walkers. (#55)
+- `BaseFileStorage.save_at` and `.exists`, for the one caller whose key is the
+  digest of its own bytes rather than a name this codebase mints. (#55)
+
 ## [0.0.456] - 2026-09-16
 
 ### Changed

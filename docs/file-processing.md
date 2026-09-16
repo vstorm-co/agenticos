@@ -236,15 +236,44 @@ not define.
 
 ### Storage
 
-Files are saved by `FileStorageService` to the `media/` directory:
+Every uploaded file — a chat attachment, an avatar, the deployment's mark, the
+original of a knowledge-base document — goes through one storage backend, chosen
+by `FILE_STORAGE_BACKEND` at deployment time and never per organization. Whatever
+the backend, a row records the same **storage path**: `{owner}/{uuid}_{filename}`.
+
+`local`, the default, writes them under `MEDIA_DIR`:
 
 ```
 media/
   {user_id}/
-    document.pdf
-    screenshot.png
+    a1b2c3d4e5f6_document.pdf
+    f6e5d4c3b2a1_screenshot.png
     ...
 ```
+
+`s3` writes the same paths as object keys in an S3-compatible bucket, under
+`FILE_STORAGE_S3_PREFIX`, and asks the store to encrypt every one of them —
+SSE-S3 by default, SSE-KMS with a key the deployment names. See
+[configuration](configuration.md#uploaded-files-at-rest) for the settings.
+
+!!! info "Which backend to run, and what each one asks of you"
+
+    Local is the honest answer for a single host: encrypt the volume, and the
+    files are as protected as the disk. It stops being one at the second API
+    replica — two containers, two disks, and a file uploaded to one is a 404 on
+    the other — and when a client wants their files under a key they control.
+
+    Switching backend does not move what the other one already holds, and
+    nothing here migrates it. It is a decision taken when the deployment is set
+    up; a later switch needs the files copied across by hand, and the paths are
+    the same on both sides so a copy is enough.
+
+    Agent workspaces are not in either backend. A `state` workspace lives in this
+    database and a `docker` one in the sandbox host's own storage, so an object
+    store does not change where they are — see [the sandbox](sandbox.md).
+
+`agenticos cmd doctor` prints which backend a running deployment uses and whether
+encryption is on.
 
 ### ChatFile model
 

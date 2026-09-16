@@ -17,6 +17,7 @@ from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -44,7 +45,7 @@ from app.schemas.conversation import (
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 from app.services.access import AGENT, resolve_access
 from app.services.channels import membership as channel_membership
-from app.services.file_storage import delete_files_best_effort
+from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,18 @@ class ConversationService:
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
             return await self._from_transcript(conversation_id, limit, exclude_message_id)
+        # Re-inline whatever the stored history references before it is parsed
+        # (#55). Unconditional: offloading is the `media` capability's decision,
+        # but a conversation whose agent was unbound afterwards still has markers
+        # in its history, and a marker nobody re-inlines is a picture the model
+        # is handed in a language it does not read. A history carrying none costs
+        # one tree walk that changes nothing.
+        if conversation.organization_id is not None:
+            summary = await restore_stored_media(
+                summary,
+                organization_id=conversation.organization_id,
+                conversation_id=conversation_id,
+            )
         try:
             replayed = ModelMessagesTypeAdapter.validate_python(summary)
         except ValidationError:
@@ -702,6 +715,15 @@ class ConversationService:
                 delete_files_best_effort(attachments),
                 name="delete-conversation-attachments",
             )
+        # And whatever the `media` capability offloaded out of this thread's
+        # compacted history. Those objects are content-addressed, so nothing
+        # records that they are still referenced - the thread's own prefix is
+        # their lifetime, and this is where it ends (#55).
+        spawn_after_commit(
+            self.db,
+            delete_prefix_best_effort(prefix_for(organization_id, conversation_id)),
+            name="delete-conversation-media",
+        )
         return True
 
     async def get_message(self, message_id: UUID) -> Message:

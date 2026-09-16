@@ -1,5 +1,5 @@
 ---
-source_sha: "619b63ccc31b"
+source_sha: "cb93ec8bdf86"
 ---
 
 # Polecenia { #commands }
@@ -362,6 +362,19 @@ uv run agenticos cmd audit-skill-bindings
 # evidence, not proof. Exits non-zero when any chain fails, so a cron can gate on it.
 uv run agenticos cmd audit-verify
 uv run agenticos cmd audit-verify --org <org-id>
+
+# Wypisz konfigurację, o którą pyta przegląd ochrony danych tego wdrożenia:
+# ustawienia decydujące o tym, co wychodzi na zewnątrz, każdy provider i endpoint,
+# do którego może sięgnąć agent, trzymane poświadczenia według przeznaczenia,
+# kolekcje i to, kto liczy dla nich embeddingi, serwery we własnej sieci, serwery
+# MCP, źródła synchronizacji i boty kanałów, gdzie trafiają trace'y runów i ile
+# treści niesie span, ile w każdym magazynie objęłaby polityka retencji oraz pliki
+# pod MEDIA_DIR, na które nie wskazuje już żaden wiersz. Wyłącznie konfiguracja i
+# liczby - żadnej treści wiadomości, żadnego dokumentu, żadnej wartości sekretu ani
+# jej podpowiedzi - więc wynik można załączyć w takiej postaci, w jakiej jest.
+# --older-than to rozważany okres retencji, w dniach.
+uv run agenticos cmd data-protection-report
+uv run agenticos cmd data-protection-report --older-than 90
 
 # Re-wrap every stored secret under the current master key - the staged rotation
 # docs/secrets.md describes. Configure the old and new key side by side in
