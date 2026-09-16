@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chat attachments reach the model again.** A chat turn linked its uploaded
+  file to the new message and then re-validated it as *unlinked*, which failed
+  and dropped every attachment before the model call — the turn looked skipped,
+  with no reply. The run now reads its own turn's files directly, keeping the row
+  where it is linked to this message or still unlinked, so `list_attached_files`'
+  unlinked-guard still protects a fresh submission without rejecting the turn's
+  own files. (#1756)
+
 ## [0.0.456] - 2026-09-16
 
 ### Changed
