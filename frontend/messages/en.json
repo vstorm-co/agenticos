@@ -1793,10 +1793,10 @@
       },
       "notifications": {
         "title": "Notifications",
-        "description": "Your most recent unread notifications.",
+        "description": "Your most recent notifications.",
         "empty": {
-          "title": "You're all caught up",
-          "description": "Unread notifications will show up here."
+          "title": "Nothing here yet",
+          "description": "Notifications will show up here."
         }
       }
     },
