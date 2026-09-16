@@ -394,11 +394,11 @@ class TestReadGateNone:
             summary="Run completed",
             organization_id=org.id,
         )
-        rows, strip = await service.list_inbox(
+        rows, gates = await service.list_inbox(
             _ctx(recipient, org, role="viewer"), after=None, limit=10
         )
         assert len(rows) == 1
-        assert strip[rows[0].id] is False
+        assert gates[rows[0].id].strip_context_url is False
 
 
 class TestReadGateApprovalDegrade:
@@ -412,20 +412,28 @@ class TestReadGateApprovalDegrade:
             recipients=[decider.id, non_decider.id],
             event_type=NotificationEventType.APPROVAL_REQUESTED,
             occurrence_id="approval-1",
-            summary="A tool call needs a decision",
+            summary="jarvis is waiting on your approval",
             context_url="https://app.example.com/approvals/1",
+            render_context={"agent_name": "jarvis"},
             organization_id=org.id,
         )
 
-        decider_rows, decider_strip = await service.list_inbox(
+        decider_rows, decider_gates = await service.list_inbox(
             _ctx(decider, org, role="operator"), after=None, limit=10
         )
-        assert decider_strip[decider_rows[0].id] is False
+        decider_gate = decider_gates[decider_rows[0].id]
+        assert decider_gate.strip_context_url is False
+        assert decider_gate.summary_override is None
 
-        non_decider_rows, non_decider_strip = await service.list_inbox(
+        non_decider_rows, non_decider_gates = await service.list_inbox(
             _ctx(non_decider, org, role="member"), after=None, limit=10
         )
-        assert non_decider_strip[non_decider_rows[0].id] is True
+        non_decider_gate = non_decider_gates[non_decider_rows[0].id]
+        assert non_decider_gate.strip_context_url is True
+        # The same fact the email channel already sends this reader
+        # (`notification_delivery.py`'s `APPROVAL_PENDING` key) - never the
+        # stored, decider-flavoured summary asking them to act.
+        assert non_decider_gate.summary_override == "jarvis's run is held, waiting on an approval"
 
 
 class TestReadGateOrgAdminOrAppAdmin:
@@ -945,8 +953,8 @@ class TestListInboxNoRows:
         org = await _org(db, owner)
         recipient = await _member(db, org, role="member")
         service = NotificationCenterService(db)
-        rows, strip = await service.list_inbox(
+        rows, gates = await service.list_inbox(
             _ctx(recipient, org, role="member"), after=None, limit=10
         )
         assert rows == []
-        assert strip == {}
+        assert gates == {}
