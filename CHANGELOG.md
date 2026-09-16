@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.447] - 2026-09-16
+
 ### Changed
 
 - **The desktop shell hands sign-in to the system browser.** Google's
