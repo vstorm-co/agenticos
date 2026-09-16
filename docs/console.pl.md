@@ -1,5 +1,5 @@
 ---
-source_sha: "2cbc8434a68e"
+source_sha: "02c6139a530f"
 ---
 
 # Konsola { #the-console }
@@ -67,8 +67,8 @@ aktualizuje licznik; nic tutaj nie czeka na przeładowanie strony.
 
 To, co tu trafia i co można wyłączyć, wyjaśnia [Governance](governance.md#alerts)
 — ta strona to tylko dwa miejsca, w których to czytasz: dzwonek dla tego, co
-się właśnie wydarzyło, karta na dashboardzie dla tego, co wciąż nieprzeczytane
-przy następnym otwarciu strony.
+się właśnie wydarzyło, karta na dashboardzie dla kilku najnowszych, przy
+następnym otwarciu strony.
 
 ## Chat { #chat }
 

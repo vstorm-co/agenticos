@@ -1,5 +1,5 @@
 ---
-source_sha: "2cbc8434a68e"
+source_sha: "02c6139a530f"
 ---
 
 # La consola { #the-console }
@@ -68,7 +68,7 @@ espera a que se recargue la página.
 Qué llega aquí y qué se puede desactivar le toca explicarlo a
 [Governance](governance.md#alerts) — esta página es solo los dos sitios donde
 lo lees: la campana para lo que acaba de pasar, la tarjeta del dashboard para
-lo que sigue sin leer la próxima vez que abras la página.
+un puñado de las más recientes, la próxima vez que abras la página.
 
 ## Chat { #chat }
 

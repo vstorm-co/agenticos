@@ -60,8 +60,8 @@ once, updates the count immediately; nothing here waits on a page reload.
 
 What lands here and what can be turned off is [Governance's](governance.md#alerts)
 to explain — this page is only the two places you read it: the bell for what
-just happened, the dashboard card for what is still unread the next time you
-open the page.
+just happened, the dashboard card for a handful of the most recent, the next
+time you open the page.
 
 ## Chat
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "2cbc8434a68e"
+source_sha: "02c6139a530f"
 ---
 
 # Die Konsole { #the-console }
@@ -70,8 +70,8 @@ Zählung sofort; nichts hier wartet auf ein Neuladen der Seite.
 Was hier landet und was sich abschalten lässt, zu erklären, ist Sache von
 [Governance](governance.md#alerts) — diese Seite ist nur die beiden Stellen,
 an denen Sie es lesen: die Glocke für das, was gerade passiert ist, die
-Dashboard-Karte für das, was beim nächsten Öffnen der Seite noch ungelesen
-ist.
+Dashboard-Karte für eine Handvoll der neuesten, beim nächsten Öffnen der
+Seite.
 
 ## Chat { #chat }
 
