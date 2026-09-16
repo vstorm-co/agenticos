@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.443"
+version = "0.0.451"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -59,6 +59,21 @@ dependencies = [
     "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.42.0",
     "genai-prices>=0.1.4",
     "pydantic-ai-slim[mcp]>=2.42.0",
+    # The MCP SDK, held below 2.0 deliberately (#1485).
+    #
+    # 2.0 migrates the whole SDK to `httpx2`, and `create_oauth_metadata_request`
+    # therefore returns an `httpx2.Request` - which `PinnedAsyncClient`, an
+    # `httpx` client, refuses to send. The fix is not a shim: this platform's
+    # SSRF pinning and its `Host`/SNI substitution live in that client
+    # (`app/core/pinned_http.py`, #860), and carrying a second HTTP library
+    # through the one path where a remote server chooses the next address is how
+    # a check ends up applied by one library and the request made by the other.
+    # 2.0 also renames `streamablehttp_client` and drops its `headers` argument.
+    #
+    # Migrating `PinnedAsyncClient` to `httpx2` is the real answer and it is its
+    # own change, with its own tests. Until then this cap is what keeps the
+    # scheduled freshness upgrade green rather than perpetually red.
+    "mcp<2",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -356,6 +371,11 @@ ignore = [
 # shells out to `git` by name with a literal argv it builds itself (S603, S607) -
 # the same partial-path invocation already accepted for `tests/test_migrations.py`.
 "../scripts/**" = ["T201", "S603", "S607"]
+# The load harness is a console tool with the same shape: it prints its progress
+# and its report to stdout (T201), because a load run is watched while it runs and
+# its output is redirected into a results file afterwards. It is not imported by
+# the application - nothing under `app/` may import it - and it carries no gate.
+"../loadtest/**" = ["T201"]
 # Postgres cannot parameterise an identifier, so a table name must be
 # interpolated. `_validate_collection_name` rejects anything but
 # [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is
@@ -618,6 +638,7 @@ include = [
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
+    "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
@@ -715,9 +736,27 @@ include = [
     # on every route. Gated because it is a refusal path nobody exercises on purpose
     # and because it goes away the moment upstream guards it.
     "app/core/otel_compat.py",
+    # Whether a running deployment matches a security profile. A control that
+    # passed on a deployment that does not satisfy it is a sheet somebody puts in
+    # front of an auditor, so every branch of every control is held to the gate
+    # (#1448).
+    "app/services/deployment_profile.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
+    # The standalone ML services (FA-069). Held here because the surface is one
+    # another Urban Stack component calls with a key and no person watching: the
+    # refusals are the contract, the tenant scoping on a call record is what keeps
+    # one integrator's usage out of another's, and a branch nobody exercises on
+    # purpose is exactly the one an unattended caller finds.
+    "app/services/ml/catalog.py",
+    "app/services/ml/pii.py",
+    "app/services/ml/parsing.py",
+    "app/services/ml/facade.py",
+    "app/db/models/ml_service_call.py",
+    "app/repositories/ml_service_call.py",
+    "app/schemas/ml.py",
+    "app/api/routes/v1/ml.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -927,6 +966,7 @@ include = [
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
+    "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
@@ -1024,9 +1064,27 @@ include = [
     # on every route. Gated because it is a refusal path nobody exercises on purpose
     # and because it goes away the moment upstream guards it.
     "app/core/otel_compat.py",
+    # Whether a running deployment matches a security profile. A control that
+    # passed on a deployment that does not satisfy it is a sheet somebody puts in
+    # front of an auditor, so every branch of every control is held to the gate
+    # (#1448).
+    "app/services/deployment_profile.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
+    # The standalone ML services (FA-069). Held here because the surface is one
+    # another Urban Stack component calls with a key and no person watching: the
+    # refusals are the contract, the tenant scoping on a call record is what keeps
+    # one integrator's usage out of another's, and a branch nobody exercises on
+    # purpose is exactly the one an unattended caller finds.
+    "app/services/ml/catalog.py",
+    "app/services/ml/pii.py",
+    "app/services/ml/parsing.py",
+    "app/services/ml/facade.py",
+    "app/db/models/ml_service_call.py",
+    "app/repositories/ml_service_call.py",
+    "app/schemas/ml.py",
+    "app/api/routes/v1/ml.py",
 ]
 branch = true
 omit = [

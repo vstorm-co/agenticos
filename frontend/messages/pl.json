@@ -42,6 +42,7 @@
     "logout": "Wyloguj"
   },
   "nav": {
+    "memory": "Pamięć",
     "dashboard": "Panel",
     "chat": "Czat",
     "knowledge": "Wiedza",
@@ -417,6 +418,22 @@
     }
   },
   "pages": {
+    "memory": {
+      "showing": "Pokazane {from}–{to} z {total}",
+      "newer": "Nowsze",
+      "older": "Starsze",
+      "title": "Twoja pamięć",
+      "description": "Co agenci tutaj zapisali o tobie i co możesz z tym zrobić.",
+      "nothingYet": "Nic jeszcze nie zapisano",
+      "nothingYetWhy": "Agent zapisuje notatkę, gdy nauczy się czegoś, co warto zachować między rozmowami. Pusto tutaj znaczy, że żaden tego nie zrobił.",
+      "externalStores": "Ci agenci trzymają pamięć również w zewnętrznej usłudze, której ta strona nie czyta: {agents}.",
+      "writtenBy": "Zapisał {agent} · {when}",
+      "anAgent": "agent",
+      "suppressed": "Wyłączona",
+      "suppress": "Przestań używać tej notatki",
+      "restore": "Używaj tej notatki znowu",
+      "delete": "Usuń tę notatkę"
+    },
     "kb": {
       "search": "Szukaj",
       "retry": "Spróbuj ponownie",
@@ -1690,6 +1707,10 @@
         "title": "Co może każda rola",
         "body": "Macierz uprawnień, rola po roli: czego każda może dotknąć i jak daleko sięga. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę, nigdy go nie zawęzi."
       },
+      "my-memory": {
+        "title": "Co agenci pamiętają o tobie",
+        "body": "Agenci trzymają notatki między rozmowami. To są twoje: przeczytaj, co zapisano, przestań używać notatki bez jej niszczenia albo usuń ją zupełnie. Notatka w zewnętrznej usłudze pamięci jest tu nazwana, ale nie pokazana."
+      },
       "orgs-new": {
         "title": "Twoje organizacje",
         "body": "Wszystko jest przypisane do organizacji. Utwórz jedną albo przełączaj się między tymi, do których należysz — każda trzyma swoich agentów, klucze i wiedzę osobno."
@@ -1758,7 +1779,7 @@
     "authNoCredentials": "Brak danych uwierzytelniających",
     "authNoneHint": "Serwer jest otwarty albo stoi w sieci, do której tylko Ty masz dostęp.",
     "authOauth": "OAuth",
-    "authOauthHint": "Zaloguj się u providera. Odkrywane z metadanych samego serwera — nie ma tu czego konfigurować.",
+    "authOauthHint": "Zaloguj się u providera. Odkrywane z metadanych samego serwera — zwykle nie ma tu czego konfigurować.",
     "authTokenHint": "Stałe dane uwierzytelniające, wysyłane jako `Authorization: Bearer`.",
     "authentication": "Uwierzytelnianie",
     "authentication2": "Uwierzytelnianie",
@@ -1767,6 +1788,7 @@
     "category": "Kategoria",
     "checkConnection": "Sprawdź połączenie",
     "checkFailed": "Sprawdzenie się nie powiodło",
+    "clientSecretNeedsId": "Client secret wymaga client ID, do którego należy.",
     "connect": "Podłącz dla",
     "connect2": "Podłącz dla",
     "connectAction": "Podłącz",
@@ -1799,6 +1821,13 @@
     "needsAuthorization": "Wymaga autoryzacji",
     "notCatalog": "poza katalogiem",
     "notConnected": "Niepodłączony",
+    "oauthClientId": "Client ID",
+    "oauthClientSecret": "Client secret",
+    "oauthClientSecretHint": "Zaszyfrowany razem z resztą logowania i nigdy więcej niepokazywany. Zostaw puste dla klienta publicznego.",
+    "oauthOwnClient": "Własny klient (opcjonalnie)",
+    "oauthOwnClientHint": "Większość serwerów rejestruje tę aplikację sama — zostaw te pola puste. Provider, który tego odmawia, np. HubSpot, wydaje dane tylko dla aplikacji założonej w jego własnym portalu: załóż ją tam, wpisz jej poniższy redirect URL i wklej tu jej dane.",
+    "oauthRedirectUrl": "Redirect URL",
+    "oauthRedirectUrlHint": "Wpisz u providera dokładnie w tej postaci.",
     "pasteHere": "Wklej go tutaj",
     "redirecting": "Przekierowywanie…",
     "removeStoredCredential": "Usuń zapisane dane uwierzytelniające",

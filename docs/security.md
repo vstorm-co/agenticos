@@ -207,6 +207,71 @@ not taken on trust. A test whose name or module mentions a tenant, a permission,
 a budget, an approval, a secret or plaintext but lacks the marker fails
 `tests/test_security_marker.py`, which keeps the list complete as the suite grows.
 
+## The HIPAA profile, and what it does not claim
+
+A security review does not ask "is this software compliant". HHS certifies no
+software and OCR recognises no private certification. It asks **can we run this
+inside our compliant environment, and can you prove it** - and the answer is a
+configuration shipped with the product plus a command that checks a running
+deployment against it (#1448).
+
+```bash
+uv run agenticos cmd doctor --profile hipaa
+```
+
+One row per control, each naming the setting that satisfies it or the one that
+does not, and a non-zero exit on any failure so it can run in a client's own CI.
+The configuration is `deploy/profiles/hipaa/`: a compose overlay that refuses to
+start without the settings it cannot default, and an annotated env file.
+
+**Read this line in the same breath as the profile.** It answers the
+**technical** safeguards, §164.312, and only those. Administrative safeguards
+(§164.308 - risk analysis, workforce training, a sanction policy, a contingency
+plan, business associate agreements) and physical safeguards (§164.310) belong
+to the operator and always will. A profile implying otherwise would be a claim
+nobody can support.
+
+### The sheet
+
+| Control | Safeguard | Satisfied by |
+|---|---|---|
+| `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` encrypts and verifies no certificate, so the profile does not accept it |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Both stores must be your own: the repository's bundled `db` and `redis` have no TLS listener, so the overlay refuses to start without `POSTGRES_HOST` and `REDIS_HOST` |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` and `PUBLIC_BASE_URL` on https, with your reverse proxy terminating it. Attested, and an http address here is **refused**: every other control can pass while a sign-in crosses the client boundary in plaintext |
+| `vault-key` | §164.312(a)(2)(iv) | A vault master key of at least 64 characters. HKDF derives a correctly sized wrapping key from anything and cannot add entropy to a guessable secret |
+| `content-at-rest` | §164.312(a)(2)(iv) | **The operator's.** Postgres data, the media volume and the sandbox workspace root are encrypted by a volume or a disk, not by this application |
+| `local-model` | §164.312(e)(1) | Every model profile served from your own network. The **hostname** is parsed - a private address, `localhost`, a bare `ollama`/`litellm`/`vllm`, or a `.internal`/`.local`/`.svc` name - so `https://ollama.vendor.example` is not local, and one with no `base_url` is the vendor's public API by definition |
+| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset, **and** no published agent or named environment carrying a tracing token of its own - each attaches an exporter, and `observability.content` defaults to `full` |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. **Not available yet** - generic OIDC sign-in is [#1419](https://github.com/vstorm-co/agenticos/issues/1419), so this control is unmet on any deployment today, which is the truth about one where people sign in with passwords. Multi-factor authentication is the identity provider's, and the sheet says so rather than claiming it |
+| `signup` | §164.312(a)(1) | `invite_only` or `closed` |
+| `audit-retention` | §164.312(b) | An audit floor of at least 2190 days - §164.316(b)(2)'s six years |
+| `audit-chain` | §164.312(c)(1) | The hash chain and its checkpoint. Detection, not prevention - see [Audit controls](#audit-controls-hipaa-164312b-soc-2-cc7) |
+
+Three outcomes, and the middle one carries weight. `ok` and `!!` are this code's
+answers. `--` is a control that is genuinely the operator's, **named** rather
+than quietly passed - a sheet that skipped what it cannot see would read as
+complete and would not be - and it does not fail the command, because a control
+nobody can evidence from here is one nobody could ever pass.
+
+### Who is the business associate
+
+A client running this on their own infrastructure gets software. Nobody here
+touches their PHI, and no agreement is needed. A deployment somebody else
+operates for them makes that operator a business associate, which is a contract
+and not a configuration flag.
+
+### Why the profile defaults to a local model
+
+A hosted model takes the content of every run with it, so using one means an
+agreement with that vendor - and those agreements are narrower than people
+expect. A HIPAA-enabled organization at a major vendor typically excludes code
+execution and web fetch, which is the exact shape of the `sandbox`,
+`code_execution` and `web_fetch` capabilities here. A client who signs one and
+then builds an agent on those capabilities finds out during an incident.
+
+Local inference removes the question, which is why it is the profile's default
+rather than a suggestion.
+
 ## Recap
 
 - Trust the operator's infrastructure; trust no request into it. The boundaries

@@ -81,6 +81,7 @@ parent's check.
 | `app_admin_audit_logs` | Who changed access or spent money - the organization trail and the deployment admin's share one table | Actor, impersonator, IP address, the action and a `details` map. The map mostly names fields, but some entries hold values: the impersonated account's email, the email of an account an admin deleted, a publish note | Accountability. See [Governance](governance.md#audit) |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Strangers on a hosted page and people on Slack, Telegram or Mattermost | A random visitor key; a platform user id, username and display name; the chat id | Resuming the right thread |
 | `message_ratings` | Thumbs and comments on answers | The rater and their comment | Quality review |
+| `ml_service_calls` | Every call to the [ML services](ml-services.md) | The organization, who asked, which service, byte and unit counts, the duration and how it ended - **none of what was submitted and none of what came back** | Usage reporting, and an operator's view of an integration that is failing |
 | `agent_workspaces`, `sandbox_operations` | Files an agent worked on and the log of what it ran | For the `state` backend the files themselves, as JSON; for a container the session id and every command, target and result summary | The sandbox. See [The sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credentials and where they point | Sealed ciphertext only, with a hint; the provider, model and `base_url` in clear | Reaching providers. See [Secrets](secrets.md) |
 
@@ -155,7 +156,7 @@ one.
 | Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retention on a schedule | Only `sandbox_operations` rows are swept, after 30 days. The stale-run sweep finalizes abandoned runs; it deletes nothing | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
-| Access to one's own data | No export endpoint; no view of one's own memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
+| Access to one's own data | A person reads what every agent here has written down about them at Settings → Memory, and may suppress a note, restore it or delete it. Reading somebody *else's* store is the deployment administrator's alone - not an organization role - and is audited with the actor, the tenant, the subject and a reason, never the content. External (mem0) stores are named rather than listed | [Reading it, and erasing it](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. No export endpoint yet: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Enterprise identity | Google sign-in and passwords; no OIDC yet | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
 | The controls matrix a security review reads | This page and [Rolling it out](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) adds the HIPAA and SOC 2 mapping |
 | Public surfaces | A hosted page's visitor key is random, never derived from the person; admission and uploads are rate-limited per address, the address held in a Redis key for the window and nowhere else | [Channels](channels.md#a-hosted-page) |
@@ -330,7 +331,6 @@ deployment until each closes.
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - No tamper evidence on the audit trail - [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Files on local disk only, encrypted by the volume or not at all - [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- No self-service view of one's own memory - [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 - The HIPAA and SOC 2 controls matrix - [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
 

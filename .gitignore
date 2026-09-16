@@ -134,3 +134,10 @@ node_modules/
 # artifacts for one run. Transient by construction, and a `git add -A` mid-run
 # would otherwise commit somebody's half-finished requirements.
 .dev-agent/
+
+# The load harness writes a fixture carrying a live access token, and generates
+# its corpus rather than shipping one - a corpus in the repository is a corpus
+# somebody has to license, review and translate, and what retrieval time depends
+# on is how many chunks there are rather than what they say.
+loadtest/fixture.json
+loadtest/corpus/

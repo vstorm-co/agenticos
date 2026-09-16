@@ -168,6 +168,11 @@ def run_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
 
 
+def ml_limit() -> Limit:
+    """What one caller may ask the standalone ML services for, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
+
+
 def export_limit() -> Limit:
     """What one caller may ask for a personal-data export, per hour.
 
