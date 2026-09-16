@@ -12,6 +12,15 @@
 
 import type { AuthProvider } from "@/lib/auth-glyphs.generated";
 
+/**
+ * A button the sign-in page can offer.
+ *
+ * `AuthProvider` is the *glyph* table - the brand marks those pages ship - and
+ * `oidc` deliberately is not in it: a generic OpenID Connect provider has no
+ * brand, which is the point of it being generic.
+ */
+export type SignInProvider = AuthProvider | "oidc";
+
 export interface PublicConfig {
   /** The API origin the browser calls directly: OAuth login, embed uploads, `/docs`. */
   apiUrl: string;
@@ -29,7 +38,25 @@ export interface PublicConfig {
    */
   chatMaxUploadSizeMb: number;
   /** The identity providers the sign-in page offers, in the order configured. */
-  oauthProviders: readonly AuthProvider[];
+  oauthProviders: readonly SignInProvider[];
+  /**
+   * What the generic OIDC button calls the provider behind it.
+   *
+   * `oidc` is whatever identity provider the deployment pointed itself at, so
+   * unlike `google` it has no name of its own to print. A company signs in with
+   * "Acme SSO" or "Okta", not with a protocol acronym - and the default says the
+   * one true thing about a provider nobody named (#1419).
+   */
+  oidcDisplayName: string;
+  /**
+   * The brand mark the generic button draws, or null for a plain key.
+   *
+   * One of the marks the auth pages already ship: a deployment on Entra ID picks
+   * `microsoft`. An unrecognised value is null rather than an error - a mark is
+   * decoration, and a sign-in page that will not render because of one is worse
+   * than a generic glyph.
+   */
+  oidcIcon: AuthProvider | null;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -38,12 +65,18 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   siteUrl: "http://localhost:3000",
   chatMaxUploadSizeMb: 10,
   oauthProviders: ["google"],
+  oidcDisplayName: "SSO",
+  oidcIcon: null,
 };
 
 const AUTH_PROVIDERS: readonly AuthProvider[] = ["google", "github", "microsoft"];
 
 function isAuthProvider(value: string): value is AuthProvider {
   return (AUTH_PROVIDERS as readonly string[]).includes(value);
+}
+
+function isSignInProvider(value: string): value is SignInProvider {
+  return value === "oidc" || isAuthProvider(value);
 }
 
 function origin(value: string | undefined, fallback: string): string {
@@ -58,13 +91,18 @@ function megabytes(value: string | undefined, fallback: number): number {
 
 function providers(
   value: string | undefined,
-  fallback: readonly AuthProvider[],
-): readonly AuthProvider[] {
+  fallback: readonly SignInProvider[],
+): readonly SignInProvider[] {
   if (value === undefined) return fallback;
   return value
     .split(",")
     .map((name) => name.trim().toLowerCase())
-    .filter(isAuthProvider);
+    .filter(isSignInProvider);
+}
+
+function icon(value: string | undefined): AuthProvider | null {
+  const name = value?.trim().toLowerCase() ?? "";
+  return isAuthProvider(name) ? name : null;
 }
 
 /**
@@ -86,5 +124,7 @@ export function readPublicConfig(env: Readonly<Record<string, string | undefined
       DEFAULT_PUBLIC_CONFIG.chatMaxUploadSizeMb,
     ),
     oauthProviders: providers(env.OAUTH_PROVIDERS, DEFAULT_PUBLIC_CONFIG.oauthProviders),
+    oidcDisplayName: env.OIDC_DISPLAY_NAME?.trim() || DEFAULT_PUBLIC_CONFIG.oidcDisplayName,
+    oidcIcon: icon(env.OIDC_ICON),
   };
 }

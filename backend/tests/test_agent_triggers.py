@@ -2276,6 +2276,34 @@ class TestCreatingFromAPortalPreset:
         assert repo.create.await_args.kwargs["event_config"] == {"actions": ["opened"]}
         assert repo.create.await_args.kwargs["portal_key"] == "github"
 
+    async def test_an_app_trigger_remembers_the_repository_it_was_created_for(self):
+        """An App portal registers nothing, and the row still has to hold a target.
+
+        `provider_target` is what `prepare_app_fires` matches a delivery against,
+        and only the auto-registration branch used to write it - so an App trigger
+        saved a null one and every correctly signed delivery was skipped for not
+        matching (#1072).
+        """
+        agent = _agent()
+        service = _service(agent)
+        adapter = MagicMock()
+        adapter.register_webhook = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
+            )
+            result = await service.create(_ctx(), agent.id, _preset_create(portal_key="github_app"))
+
+        assert result.provider_target == "acme/api"
+        assert result.delivery_mode == "app_webhook"
+        # An App is already delivering; registering a per-repository hook would be
+        # a second delivery of the same events.
+        adapter.register_webhook.assert_not_awaited()
+
     async def test_the_hook_is_registered_only_after_every_row_this_create_writes(self):
         """The provider-side hook is the one effect the transaction cannot roll
         back, so it is the last step: were it registered before the run-log and the
