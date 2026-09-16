@@ -97,7 +97,9 @@ colleague's account must not delete the agent the team depends on.
 | `message_ratings` | Cascade | Yes | An opinion they expressed |
 | `sessions` | Cascade | Device, address and times — never the credential, which is a hash | Where they signed in |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Cascade | Layouts and shortcuts | Personal settings, meaningless to anybody else |
-| `agent_memory_files` (`owner_key = person:<id>`) | **Purged explicitly** | Yes | A string key with no foreign key: nothing cascaded, so every note survived the account |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Purged explicitly**, under a lock a concurrent write takes too | Yes | A string key with no foreign key: nothing cascaded, so every note survived the account — and a run writing one mid-deletion would have recreated it |
+| `agent_workspaces` (`scope = user`) | **Purged explicitly** | No | `owner_ref` is a string for the same reason `owner_key` is, so no cascade follows it, and a state-backed workspace holds the files themselves |
+| `organization_members` | Cascade | Which organizations, as what, since when | A row naming them directly, already visible to an administrator |
 | `channel_identities` | **Purged explicitly** | Yes | `SET NULL` left the row holding a Slack id, a username and a display name about somebody who is gone, linked to nobody |
 | `agent_runs` | `SET NULL` — retained | Runs they started, and what each cost | Spend is the organization's record; an anonymous run still counts against the month |
 | `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — retained | No | Created *for the organization*. Removing them would take the team's work with the person |
@@ -129,7 +131,13 @@ A person does not need an administrator for the ordinary cases.
 `GET /me/data/export` is the whole table above in one JSON document, rate-limited
 per hour and recorded in the audit trail — including when somebody exports
 themselves, because an export is the shape of a breach when the caller is not who
-they claim to be. `DELETE /conversations/{id}` removes one thread, its turns and
+they claim to be.
+
+The document is assembled and serialized whole, so it is bounded:
+`PERSONAL_DATA_EXPORT_MAX_CHARS` (16 million characters by default) is how much
+conversation text one document may carry, and an account holding more is refused
+with both numbers rather than answered with a silently partial document. Producing
+that one is the operator's job, from the database. `DELETE /conversations/{id}` removes one thread, its turns and
 the files that arrived with it, checked against the caller's own ownership
 (FA-015).
 
@@ -170,7 +178,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Governance-relevant mutations recorded, in the request's transaction | `record_audit` (`app/core/audit.py`) at the mutating service — secret rotation, skill / sync / MCP binding, membership, sharing, approvals, exports and more; written to `app_admin_audit_logs`. It is not blanket coverage of every write (knowledge-base CRUD, for one, is not audited) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | The trail is readable by an auditor | `GET /audit`, gated on `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exporting the trail (CSV/JSONL) | `GET /audit/export` over a window, gated on `audit:read`, recording its own read in the trail; the run, approval and spend exports each do the same (#1422) | `test_exporting.py` (the export and its own audit entry) |
-| A person may read out and remove their own data | `GET /me/data/export` (rate-limited per hour, audited even for one's own request) and `DELETE /conversations/{id}` scoped to the caller's own ownership; an administrator's export requires a reason (`app/services/personal_data.py`) | `test_personal_data.py` |
+| A person may read out and remove their own data | `GET /me/data/export` (rate-limited per hour, bounded in size, audited even for one's own request) and `DELETE /conversations/{id}` scoped to the caller's own ownership; an administrator's export takes the same limit and requires a reason that says something (`app/services/personal_data.py`) | `test_personal_data.py`, `test_personal_data_export_routes.py` |
 | Tamper evidence (a hash chain) | **Not yet** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integrity · HIPAA §164.312(c) · SOC 2 CC8 (change management)

@@ -1,7 +1,8 @@
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from pydantic import StringConstraints
 
 from app.api.deps import (
     CurrentAppAdmin,
@@ -9,6 +10,7 @@ from app.api.deps import (
     ImpersonationSvc,
     PersonalDataSvc,
     UserSvc,
+    limit_personal_data_export,
 )
 from app.core.audit import record_audit
 from app.schemas.personal_data import PersonalDataExport
@@ -95,16 +97,20 @@ async def update_user(
     return user
 
 
-@router.get("/{user_id}/export", response_model=PersonalDataExport)
+@router.get(
+    "/{user_id}/export",
+    response_model=PersonalDataExport,
+    dependencies=[Depends(limit_personal_data_export)],
+)
 async def export_user_data(
     user_id: UUID,
     service: PersonalDataSvc,
     admin: CurrentAppAdmin,
-    reason: str = Query(
-        min_length=3,
-        max_length=500,
-        description="Why this export was made. Recorded in the audit trail.",
-    ),
+    reason: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=3, max_length=500),
+        Query(description="Why this export was made. Recorded in the audit trail."),
+    ],
 ) -> Any:
     """Everything this deployment holds about one person, for a data-protection request.
 
@@ -117,7 +123,12 @@ async def export_user_data(
     legitimate act about twice a year and a serious one every time; an entry
     saying only that it happened tells whoever reviews the trail nothing they
     can act on. It is recorded verbatim, so it is also the administrator's own
-    account of why.
+    account of why - stripped before it is measured, because three spaces
+    satisfied a length check and told the trail nothing.
+
+    **Rate-limited like `/me/data/export`, on the same counter.** The threat the
+    limit exists for is a stolen privileged session walking the deployment's
+    people, and that session uses this route rather than that one.
     """
     return await service.export(user_id, actor_user_id=admin.id, reason=reason)
 

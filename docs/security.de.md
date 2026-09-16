@@ -1,5 +1,5 @@
 ---
-source_sha: "3077f62aab31"
+source_sha: "f0e22f2ebfda"
 ---
 
 # Sicherheit { #security }
@@ -112,7 +112,9 @@ nicht den Agenten löschen, von dem das Team abhängt.
 | `message_ratings` | Kaskade | Ja | Eine geäußerte Meinung |
 | `sessions` | Kaskade | Gerät, Adresse und Zeiten — nie das Credential, das ein Hash ist | Wo sie sich angemeldet haben |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskade | Layouts und Kurzbefehle | Persönliche Einstellungen, für niemanden sonst bedeutsam |
-| `agent_memory_files` (`owner_key = person:<id>`) | **Ausdrücklich bereinigt** | Ja | Ein String-Schlüssel ohne Fremdschlüssel: nichts kaskadierte, jede Notiz überlebte das Konto |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Ausdrücklich bereinigt**, unter einer Sperre, die ein gleichzeitiger Schreibvorgang ebenfalls nimmt | Ja | Ein String-Schlüssel ohne Fremdschlüssel: nichts kaskadierte, jede Notiz überlebte das Konto — und ein Run, der währenddessen schreibt, hätte sie neu angelegt |
+| `agent_workspaces` (`scope = user`) | **Ausdrücklich bereinigt** | Nein | `owner_ref` ist aus demselben Grund ein String wie `owner_key`, also folgt ihm keine Kaskade, und ein zustandsgestützter Workspace hält die Dateien selbst |
+| `organization_members` | Kaskade | Welche Organisationen, als was, seit wann | Eine Zeile, die sie direkt benennt und die eine Administratorin ohnehin sieht |
 | `channel_identities` | **Ausdrücklich bereinigt** | Ja | `SET NULL` ließ die Zeile mit einer Slack-ID, einem Benutzernamen und einem Anzeigenamen einer Person zurück, die es nicht mehr gibt, verknüpft mit niemandem |
 | `agent_runs` | `SET NULL` — behalten | Runs, die sie gestartet haben, und was jeder kostete | Ausgaben sind die Aufzeichnung der Organisation; ein anonymer Run zählt weiter für den Monat |
 | `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — behalten | Nein | *Für die Organisation* erstellt. Sie zu entfernen nähme die Arbeit des Teams mit der Person mit |
@@ -145,7 +147,14 @@ Für die gewöhnlichen Fälle braucht eine Person keine Administratorin.
 `GET /me/data/export` ist die ganze obige Tabelle in einem JSON-Dokument,
 stündlich limitiert und in der Audit-Spur festgehalten — auch wenn jemand sich
 selbst exportiert, denn ein Export hat die Form eines Lecks, wenn der Aufrufer
-nicht der ist, für den er sich ausgibt. `DELETE /conversations/{id}` entfernt
+nicht der ist, für den er sich ausgibt.
+
+Es wird als Ganzes aufgebaut und
+serialisiert und ist deshalb begrenzt: `PERSONAL_DATA_EXPORT_MAX_CHARS`
+(standardmäßig 16 Millionen Zeichen) ist, wie viel Gesprächstext ein Dokument
+tragen darf; ein Konto mit mehr wird mit beiden Zahlen abgewiesen statt mit einem
+stillschweigend unvollständigen Dokument beantwortet. Dieses zu erzeugen, ist
+Sache der Betreiberin, direkt aus der Datenbank. `DELETE /conversations/{id}` entfernt
 einen Thread, seine Runden und die Dateien, die mit ihnen kamen, geprüft gegen
 den eigenen Besitz des Aufrufers (FA-015).
 

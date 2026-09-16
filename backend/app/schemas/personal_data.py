@@ -31,6 +31,16 @@ class PersonalDataExport(BaseModel):
             "second turn removed answers nothing."
         )
     )
+    tool_calls: list[dict[str, Any]] = Field(
+        description=(
+            "What the agents did to answer those turns, with the arguments sent and "
+            "what came back - a transcript without them says an agent did something "
+            "and not what."
+        )
+    )
+    memberships: list[dict[str, Any]] = Field(
+        description="Which organizations they belong to, as what, and since when."
+    )
     ratings: list[dict[str, Any]] = Field(description="Answers they marked good or bad.")
     sessions: list[dict[str, Any]] = Field(
         description="Where and when they signed in. Never the credential; the row holds a hash."
@@ -52,4 +62,7 @@ class PersonalDataPurge(BaseModel):
     memory_notes: int = Field(description="Notes agents held about them, across organizations.")
     channel_identities: int = Field(
         description="Platform accounts removed rather than left unlinked."
+    )
+    workspaces: int = Field(
+        description="User-scoped agent workspaces, which no cascade reaches either."
     )

@@ -508,8 +508,16 @@ class TestUserServicePostgresql:
         with (
             patch("app.services.user.user_repo") as mock_repo,
             patch("app.services.user.organization_repo") as mock_org_repo,
+            # The two erasure steps of `delete` are repositories of their own:
+            # the files to unlink, and the purge of what no cascade reaches.
+            # `tests/integration/test_personal_data.py` is where both are tested
+            # against a real database (#1421).
+            patch("app.services.user.personal_data_repo") as mock_personal,
+            patch("app.services.user.PersonalDataService") as mock_purge,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_personal.attachment_paths_of = AsyncMock(return_value=[])
+            mock_purge.return_value.purge = AsyncMock()
             mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
@@ -624,8 +632,16 @@ class TestUserServicePostgresql:
         with (
             patch("app.services.user.user_repo") as mock_repo,
             patch("app.services.user.organization_repo") as mock_org_repo,
+            # The two erasure steps of `delete` are repositories of their own:
+            # the files to unlink, and the purge of what no cascade reaches.
+            # `tests/integration/test_personal_data.py` is where both are tested
+            # against a real database (#1421).
+            patch("app.services.user.personal_data_repo") as mock_personal,
+            patch("app.services.user.PersonalDataService") as mock_purge,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_personal.attachment_paths_of = AsyncMock(return_value=[])
+            mock_purge.return_value.purge = AsyncMock()
             mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[uuid4(), uuid4()])
@@ -665,8 +681,16 @@ class TestUserServicePostgresql:
         with (
             patch("app.services.user.user_repo") as mock_repo,
             patch("app.services.user.organization_repo") as mock_org_repo,
+            # The two erasure steps of `delete` are repositories of their own:
+            # the files to unlink, and the purge of what no cascade reaches.
+            # `tests/integration/test_personal_data.py` is where both are tested
+            # against a real database (#1421).
+            patch("app.services.user.personal_data_repo") as mock_personal,
+            patch("app.services.user.PersonalDataService") as mock_purge,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_personal.attachment_paths_of = AsyncMock(return_value=[])
+            mock_purge.return_value.purge = AsyncMock()
             mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[lone_admin])

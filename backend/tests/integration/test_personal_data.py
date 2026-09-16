@@ -22,18 +22,21 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.memory_keys import person_owner_key
 from app.db.models.agent import Agent
+from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message
+from app.db.models.conversation import Message, ToolCall
+from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
 from app.repositories import conversation_repo, personal_data_repo, session_repo, user_repo
 from app.services.conversation import ConversationService
 from app.services.file_storage import LocalFileStorage, delete_files_best_effort
+from app.services.memory import _native
 from app.services.personal_data import PersonalDataService
 from app.services.user import UserService
 
@@ -124,6 +127,121 @@ class TestTheExport:
             "What is the window?",
             "Thirty days.",
         ]
+
+    async def test_it_carries_what_the_agent_did_to_answer_them(self, db):
+        """A transcript without the tool calls says an agent did something and
+        not what: the arguments sent out and the answer that came back are as
+        much about the person as the turn that caused them."""
+        user = await _person(db, "export-tools@example.com")
+        user_id = user.id
+        organization, _ = await _org_and_agent(db)
+        conversation = await conversation_repo.create_conversation(
+            db, organization_id=organization.id, user_id=user_id, title="With a lookup"
+        )
+        message = await conversation_repo.create_message(
+            db, conversation_id=conversation.id, role="assistant", content="Looking."
+        )
+        db.add(
+            ToolCall(
+                id=uuid4(),
+                message_id=message.id,
+                tool_call_id="call-1",
+                tool_name="search_orders",
+                args={"email": "export-tools@example.com"},
+                result="one order",
+                status="completed",
+                started_at=datetime.now(UTC),
+            )
+        )
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert [row["tool_name"] for row in export.tool_calls] == ["search_orders"]
+        assert export.tool_calls[0]["args"] == {"email": "export-tools@example.com"}
+
+    async def test_it_carries_which_organizations_they_belong_to(self, db):
+        """A row referencing them directly that an administrator can already see
+        through `admin_detail`, so leaving it out made the claim untrue in the
+        one place a reader could check it."""
+        user = await _person(db, "export-membership@example.com")
+        user_id = user.id
+        organization, _ = await _org_and_agent(db)
+        db.add(
+            OrganizationMember(
+                id=uuid4(), organization_id=organization.id, user_id=user_id, role="member"
+            )
+        )
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert [(row["organization"], row["role"]) for row in export.memberships] == [
+            ("Acme", "member")
+        ]
+
+    async def test_the_archive_flag_and_the_layout_are_the_values_on_the_row(self, db):
+        """Both were exported as `null` for every person: the model's attributes
+        are `is_archived` and `entries`, and a missing name answered `None` -
+        which reads as "we hold nothing" for data that is on the row."""
+        user = await _person(db, "export-shapes@example.com")
+        user_id = user.id
+        organization, _ = await _org_and_agent(db)
+        conversation = await conversation_repo.create_conversation(
+            db, organization_id=organization.id, user_id=user_id, title="Put away"
+        )
+        conversation.is_archived = True
+        db.add(
+            DashboardLayout(
+                id=uuid4(),
+                user_id=user_id,
+                organization_id=organization.id,
+                entries=[{"widget": "spend", "column": 1}],
+            )
+        )
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert export.conversations[0]["is_archived"] is True
+        assert export.dashboard_layouts[0]["entries"] == [{"widget": "spend", "column": 1}]
+
+    async def test_the_profile_carries_the_account_and_no_credential(self, db):
+        """Everything stored about the account that is theirs to have - and the
+        password hash, the credential version and the app-admin flag are not."""
+        user = await _person(db, "export-profile@example.com")
+        user_id = user.id
+        user.avatar_color = 3
+        user.notify_budget_alerts = False
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert export.profile["avatar_color"] == 3
+        assert export.profile["notify_budget_alerts"] is False
+        assert "hashed_password" not in export.profile
+        assert "is_app_admin" not in export.profile
+
+    async def test_more_text_than_one_document_can_carry_is_refused(self, db, monkeypatch):
+        """The document is assembled and serialized whole, so without a ceiling
+        the caller decides how much memory a worker spends. A refusal, because a
+        partial answer to an art. 15 request that does not say it is partial is
+        worse than none."""
+        monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", 10)
+        user = await _person(db, "export-too-large@example.com")
+        user_id = user.id
+        organization, _ = await _org_and_agent(db)
+        conversation = await conversation_repo.create_conversation(
+            db, organization_id=organization.id, user_id=user_id, title="Long"
+        )
+        await conversation_repo.create_message(
+            db, conversation_id=conversation.id, role="user", content="x" * 50
+        )
+
+        with pytest.raises(BadRequestError) as refusal:
+            await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert refusal.value.details == {"characters": 50, "limit": 10}
 
     async def test_it_carries_what_agents_wrote_down_about_them(self, db):
         """The least obvious half of "what do you hold about me", and the one a
@@ -261,6 +379,52 @@ class TestWhatDeletionRemoves:
         assert remaining == 0
 
     @pytest.mark.security
+    async def test_their_own_workspace_goes_with_the_account(self, db):
+        """`agent_workspaces.owner_ref` is a string for the same reason
+        `owner_key` is, so no cascade follows it - and a state-backed workspace
+        holds the person's files themselves."""
+        user = await _person(db, "purge-workspace@example.com")
+        user_id = user.id
+        organization, agent = await _org_and_agent(db)
+        db.add(
+            AgentWorkspace(
+                id=uuid4(),
+                organization_id=organization.id,
+                agent_id=agent.id,
+                scope="user",
+                scope_key=uuid4().hex,
+                owner_ref=person_owner_key(user_id),
+                backend="state",
+            )
+        )
+        await db.flush()
+
+        purged = await PersonalDataService(db).purge(user_id)
+
+        assert purged.workspaces == 1
+        left = (
+            await db.execute(
+                select(func.count())
+                .select_from(AgentWorkspace)
+                .where(AgentWorkspace.owner_ref == person_owner_key(user_id))
+            )
+        ).scalar_one()
+        assert left == 0
+
+    async def test_a_note_cannot_be_written_about_an_account_that_is_gone(self, db):
+        """`owner_key` has no foreign key, so nothing in the database stopped a
+        run recreating what the purge had just removed."""
+        user = await _person(db, "purge-race@example.com")
+        user_id = user.id
+        organization, agent = await _org_and_agent(db)
+        await user_repo.delete(db, user_id)
+        await db.flush()
+
+        written = await _native._person_still_exists(db, person_owner_key(user_id))
+
+        assert written is False
+        assert await _native._person_still_exists(db, "room:slack:C123") is True
+
     async def test_nobody_else_s_notes_or_identities_are_touched(self, db):
         """The purge is keyed on the person, and a key built from a uuid is not a
         prefix match waiting to happen - but a deletion that reached a

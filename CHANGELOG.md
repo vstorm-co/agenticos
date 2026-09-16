@@ -20,11 +20,14 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - `GET /me/data/export` — everything this deployment holds about you as one JSON
-  document: your threads with every turn in them, what you rated, where you
-  signed in, what agents wrote down about you, the platform accounts you linked,
-  the runs you started and what they cost. Rate-limited per hour and audited,
-  including when you export yourself. `GET /admin/users/{id}/export` is the
-  administrator's half and **requires a reason**. (#1421)
+  document: your threads with every turn in them and what the agents did to
+  answer them, what you rated, where you signed in, which organizations you
+  belong to, what agents wrote down about you, the platform accounts you linked,
+  the runs you started and what they cost. Rate-limited per hour, bounded in size
+  (`PERSONAL_DATA_EXPORT_MAX_CHARS`, refused rather than silently partial) and
+  audited, including when you export yourself. `GET /admin/users/{id}/export` is
+  the administrator's half: the same limit, and a **reason that has to say
+  something** — three spaces used to satisfy it. (#1421)
 - `docs/security.md` gains the inventory both GDPR art. 15 and art. 17 are
   answered from: every table holding something about a person, whether it
   cascades, is purged explicitly or is retained, and why — with what erasure does
@@ -35,9 +38,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Deleting an account now removes what no cascade reached: the notes every agent
   wrote about that person, in every organization (`agent_memory_files` is keyed
-  by a string with no foreign key, so every note survived the account), and their
+  by a string with no foreign key, so every note survived the account), their
   platform identities, which `SET NULL` left holding a Slack id and a display
-  name linked to nobody. (#1421)
+  name linked to nobody, their user-scoped agent workspaces, whose `owner_ref` is
+  a string no cascade follows, and the bytes of every file they attached to a
+  thread, which `chat_files` cascaded the rows away from and left on disk. A run
+  writing a note while the account is being deleted no longer recreates one: the
+  write and the purge take the same lock, and the write that loses finds no
+  account to write about. (#1421)
 - Deleting a conversation unlinks the bytes of the files attached to it. The rows
   cascaded away with the thread and the files stayed on disk — data kept after
   somebody asked for it to be deleted, and reachable by nothing. (#1421, FA-015)

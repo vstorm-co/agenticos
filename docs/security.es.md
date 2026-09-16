@@ -1,5 +1,5 @@
 ---
-source_sha: "3077f62aab31"
+source_sha: "f0e22f2ebfda"
 ---
 
 # Seguridad { #security }
@@ -109,7 +109,9 @@ agent del que depende el equipo.
 | `message_ratings` | Cascada | Sí | Una opinión que expresaron |
 | `sessions` | Cascada | Dispositivo, dirección y horas — nunca la credencial, que es un hash | Dónde iniciaron sesión |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Cascada | Disposiciones y atajos | Ajustes personales, sin sentido para nadie más |
-| `agent_memory_files` (`owner_key = person:<id>`) | **Purgado explícitamente** | Sí | Una clave de texto sin clave foránea: nada cascadeaba, así que cada nota sobrevivía a la cuenta |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Purgado explícitamente**, bajo un bloqueo que también toma una escritura concurrente | Sí | Una clave de texto sin clave foránea: nada cascadeaba, así que cada nota sobrevivía a la cuenta — y una ejecución que escribiera durante el borrado la habría recreado |
+| `agent_workspaces` (`scope = user`) | **Purgado explícitamente** | No | `owner_ref` es texto por la misma razón que `owner_key`, así que ninguna cascada lo sigue, y un workspace respaldado por estado guarda los propios ficheros |
+| `organization_members` | Cascada | A qué organizaciones pertenece, como qué y desde cuándo | Una fila que la nombra directamente y que un administrador ya ve |
 | `channel_identities` | **Purgado explícitamente** | Sí | `SET NULL` dejaba la fila con un id de Slack, un nombre de usuario y un nombre visible de alguien que ya no está, vinculada a nadie |
 | `agent_runs` | `SET NULL` — se conservan | Runs que iniciaron y lo que costó cada uno | El gasto es el registro de la organización; un run anónimo sigue contando para el mes |
 | `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — se conservan | No | Creados *para la organización*. Quitarlos se llevaría el trabajo del equipo con la persona |
@@ -142,7 +144,13 @@ Una persona no necesita un administrador para los casos ordinarios.
 `GET /me/data/export` es toda la tabla anterior en un documento JSON, limitado por
 hora y registrado en el rastro de auditoría — también cuando alguien se exporta a
 sí mismo, porque una exportación tiene la forma de una fuga cuando quien llama no
-es quien dice ser. `DELETE /conversations/{id}` quita un hilo, sus turnos y los
+es quien dice ser.
+
+Se arma y se serializa entero, así que está acotado:
+`PERSONAL_DATA_EXPORT_MAX_CHARS` (16 millones de caracteres por defecto) es
+cuánto texto de conversación puede llevar un documento, y una cuenta que tiene
+más recibe un rechazo con ambas cifras en lugar de un documento silenciosamente
+parcial. Producir ese es tarea del operador, desde la base de datos. `DELETE /conversations/{id}` quita un hilo, sus turnos y los
 ficheros que llegaron con ellos, comprobado contra la propiedad de quien llama
 (FA-015).
 

@@ -18,16 +18,18 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
+from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
 from app.db.models.user_slash_command import UserSlashCommand
 
@@ -57,6 +59,49 @@ async def messages_in(db: AsyncSession, conversation_ids: list[UUID]) -> list[Me
         .order_by(Message.conversation_id, Message.ordinal)
     )
     return list(result.scalars().all())
+
+
+async def tool_calls_in(db: AsyncSession, message_ids: list[UUID]) -> list[ToolCall]:
+    """What the agent did on their behalf, with the arguments and the answer.
+
+    A tool call holds what was sent out to answer them and what came back - an
+    address looked up, a document retrieved, a row read - which is theirs as
+    much as the turn that caused it. The transcript without it says an agent did
+    something and not what.
+    """
+    if not message_ids:
+        return []
+    result = await db.execute(
+        select(ToolCall)
+        .where(ToolCall.message_id.in_(message_ids))
+        .order_by(ToolCall.message_id, ToolCall.started_at)
+    )
+    return list(result.scalars().all())
+
+
+async def memberships_of(db: AsyncSession, user_id: UUID) -> list[dict[str, Any]]:
+    """Which organizations they belong to, and as what.
+
+    A row referencing the person directly, and one they cannot see anywhere else
+    in an export: `admin_detail` already shows it to an administrator, so
+    leaving it out made "everything about you" untrue in the one place a reader
+    could check.
+    """
+    result = await db.execute(
+        select(
+            OrganizationMember.id,
+            Organization.name,
+            OrganizationMember.role,
+            OrganizationMember.joined_at,
+        )
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .where(OrganizationMember.user_id == user_id)
+        .order_by(Organization.name)
+    )
+    return [
+        {"id": str(row_id), "organization": name, "role": role, "joined_at": joined_at}
+        for row_id, name, role, joined_at in result.all()
+    ]
 
 
 async def ratings_of(db: AsyncSession, user_id: UUID) -> list[MessageRating]:
@@ -168,6 +213,71 @@ async def attachment_paths_in(db: AsyncSession, conversation_id: UUID) -> list[s
     return [path for path in result.scalars().all() if path]
 
 
+async def export_size(db: AsyncSession, conversation_ids: list[UUID]) -> int:
+    """How many characters of message content one export would carry.
+
+    The export is assembled in memory and serialized in one response, and
+    `MessageCreate.content` has no ceiling - so without a preflight the caller
+    decides how much memory the worker spends, and five concurrent exports of a
+    conversation somebody has been filling take the process with them. Counted
+    in the database, where the rows already are.
+    """
+    if not conversation_ids:
+        return 0
+    total = await db.scalar(
+        select(func.coalesce(func.sum(func.length(Message.content)), 0)).where(
+            Message.conversation_id.in_(conversation_ids)
+        )
+    )
+    return int(total or 0)
+
+
+async def attachment_paths_of(db: AsyncSession, user_id: UUID) -> list[str]:
+    """Where every file this person attached to any of their threads is stored.
+
+    The account-deletion counterpart of `attachment_paths_in`. `chat_files`
+    cascades from `users`, so the rows go with the account and the bytes stay:
+    an erasure that leaves the uploads on disk has not erased them.
+    """
+    result = await db.execute(
+        select(ChatFile.storage_path).where(
+            ChatFile.user_id == user_id, ChatFile.storage_path.is_not(None)
+        )
+    )
+    return [path for path in result.scalars().all() if path]
+
+
+async def workspaces_of(db: AsyncSession, owner_ref: str) -> list[AgentWorkspace]:
+    """The workspaces that are this person's own, by the string that names them."""
+    result = await db.execute(
+        select(AgentWorkspace).where(
+            AgentWorkspace.scope == "user", AgentWorkspace.owner_ref == owner_ref
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def purge_workspaces_of(db: AsyncSession, owner_ref: str) -> int:
+    """Delete their user-scoped workspaces, which no cascade reaches.
+
+    `agent_workspaces.owner_ref` is a string, like `agent_memory_files.owner_key`
+    and for the same reason - a workspace can belong to a conversation, an agent
+    or a person - so there is no foreign key to follow when the person goes. The
+    row survives holding a dangling owner reference, and a state-backed
+    workspace holds the files themselves (#1421).
+
+    Returns:
+        How many workspaces were removed, for the audit entry.
+    """
+    result = await db.execute(
+        sa_delete(AgentWorkspace).where(
+            AgentWorkspace.scope == "user", AgentWorkspace.owner_ref == owner_ref
+        )
+    )
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
 def as_rows(items: list[Any], fields: tuple[str, ...]) -> list[dict[str, Any]]:
     """The named fields of each row, as JSON-ready values.
 
@@ -176,5 +286,11 @@ def as_rows(items: list[Any], fields: tuple[str, ...]) -> list[dict[str, Any]]:
     meaningful to them - a hashed credential, an internal flag, a foreign key to
     a row they cannot see. Adding a column to a table must not silently add it to
     what every person can download.
+
+    `getattr` without a default on purpose: a field named here that the model
+    does not have is a mistake in this file, and answering it with `null` made
+    every exported conversation say `archived: null` and every dashboard layout
+    `widgets: null` - a value that reads as "we hold nothing" for data that is
+    right there on the row.
     """
-    return [{field: getattr(item, field, None) for field in fields} for item in items]
+    return [{field: getattr(item, field) for field in fields} for item in items]

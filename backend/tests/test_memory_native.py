@@ -32,6 +32,11 @@ OWNER = f"person:{uuid4()}"
 async def _fake_session():
     session = MagicMock()
     session.rollback = AsyncMock()
+    # `execute` is the advisory lock a write takes before it asks whether the
+    # person still exists; `scalar` is that question, answered yes by default so
+    # a test about writing is not also a test about erasure (#1421).
+    session.execute = AsyncMock()
+    session.scalar = AsyncMock(return_value=True)
     yield session
 
 

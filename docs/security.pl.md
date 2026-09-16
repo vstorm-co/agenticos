@@ -1,5 +1,5 @@
 ---
-source_sha: "3077f62aab31"
+source_sha: "f0e22f2ebfda"
 ---
 
 # Bezpieczeństwo { #security }
@@ -103,7 +103,9 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 | `message_ratings` | Kaskada | Tak | Wyrażona opinia |
 | `sessions` | Kaskada | Urządzenie, adres i czasy — nigdy poświadczenie, bo jest hashem | Gdzie się logowali |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskada | Układy i skróty | Ustawienia osobiste, dla nikogo innego bez znaczenia |
-| `agent_memory_files` (`owner_key = person:<id>`) | **Czyszczone jawnie** | Tak | Klucz jako łańcuch znaków bez klucza obcego: nic nie kaskadowało, więc każda notatka przeżywała konto |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Czyszczone jawnie**, pod blokadą, którą bierze też równoległy zapis | Tak | Klucz jako łańcuch znaków bez klucza obcego: nic nie kaskadowało, więc każda notatka przeżywała konto — a run zapisujący notatkę w trakcie usuwania odtworzyłby ją |
+| `agent_workspaces` (`scope = user`) | **Czyszczone jawnie** | Nie | `owner_ref` jest łańcuchem znaków z tego samego powodu co `owner_key`, więc nie podąża za nim żadna kaskada, a workspace oparty o stan trzyma same pliki |
+| `organization_members` | Kaskada | Do których organizacji, jako kto, od kiedy | Wiersz wskazujący wprost na tę osobę, widoczny już dla administratora |
 | `channel_identities` | **Czyszczone jawnie** | Tak | `SET NULL` zostawiał wiersz z id Slacka, nazwą i nazwą wyświetlaną osoby, której już nie ma, powiązany z nikim |
 | `agent_runs` | `SET NULL` — zachowywane | Runy, które uruchomili, i ile kosztowały | Wydatek jest zapisem organizacji; anonimowy run wciąż liczy się do miesiąca |
 | `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — zachowywane | Nie | Stworzone *dla organizacji*. Usunięcie zabrałoby pracę zespołu razem z osobą |
@@ -135,6 +137,12 @@ Osoba nie potrzebuje administratora w zwykłych przypadkach.
 `GET /me/data/export` to cała powyższa tabela w jednym dokumencie JSON, z limitem
 na godzinę i wpisem w audycie — również wtedy, gdy ktoś eksportuje samego siebie,
 bo eksport ma kształt wycieku, gdy wywołujący nie jest tym, za kogo się podaje.
+
+Dokument powstaje i serializuje się w całości, więc jest ograniczony:
+`PERSONAL_DATA_EXPORT_MAX_CHARS` (domyślnie 16 milionów znaków) to tyle tekstu
+rozmów, ile jeden dokument może unieść, a konto trzymające więcej dostaje odmowę
+z obiema liczbami zamiast po cichu niepełnego dokumentu. Wytworzenie takiego
+jest zadaniem operatora, wprost z bazy.
 `DELETE /conversations/{id}` usuwa jeden wątek, jego tury i pliki, które z nimi
 przyszły, sprawdzone wobec własności wywołującego (FA-015).
 
