@@ -1,5 +1,5 @@
 ---
-source_sha: "dd0f6d8e10dd"
+source_sha: "87a5e8e9d4e1"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -241,7 +241,12 @@ Tres modos, que es lo único que varía de verdad entre servidores.
 
     1. **Descubrir** — sondear el servidor, resolver su servidor de autorización,
        obtener los metadatos RFC 8414.
-    2. **Registrar** — registro dinámico de cliente, RFC 7591.
+    2. **Registrar** — registro dinámico de cliente, RFC 7591. Un servidor que no
+       publica endpoint de registro — el de HubSpot es uno — rechaza aquí, y la
+       única salida es un cliente que registraste a mano en el proveedor: el
+       diálogo de conexión acepta su client ID y su secret bajo *Tu propio
+       cliente*, y muestra la redirect URL que el proveedor tiene que guardar
+       exactamente así.
     3. **Consentir** — una URL de autorización PKCE con `state` y un indicador de
        recurso RFC 8707; el navegador va allí.
     4. **Intercambiar** — el callback cambia el código por tokens, y luego redirige

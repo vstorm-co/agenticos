@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from app.api.deps import CurrentUser, OrganizationSvc, OrganizationTeardownSvc
+from app.api.deps import CurrentUser, OrganizationSvc, OrganizationTeardownSvc, RetentionSvc
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.schemas.organization import (
     OrganizationCreate,
@@ -13,6 +13,7 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
+from app.schemas.retention import RetentionRead, RetentionUpdate
 
 router = APIRouter()
 
@@ -57,6 +58,32 @@ async def update_organization(
     """Update organization name or avatar. Requires Admin or Owner role."""
     org = await service.update(org_id, data, requester_id=user.id)
     return await service.read_for_user(org.id, user.id)
+
+
+@router.get("/{org_id}/retention", response_model=RetentionRead)
+async def get_organization_retention(
+    org_id: UUID,
+    service: RetentionSvc,
+    user: CurrentUser,
+) -> Any:
+    """How long this organization keeps each class of data, and what bounds it.
+
+    Three answers rather than one: what was asked for, what actually sweeps, and
+    what the deployment allows - a page showing only the last cannot explain why
+    the number it displays is not the number somebody typed.
+    """
+    return await service.read(org_id, requester_id=user.id)
+
+
+@router.put("/{org_id}/retention", response_model=RetentionRead)
+async def set_organization_retention(
+    org_id: UUID,
+    data: RetentionUpdate,
+    service: RetentionSvc,
+    user: CurrentUser,
+) -> Any:
+    """Set what this organization keeps. Requires Admin or Owner role."""
+    return await service.update(org_id, data, actor_user_id=user.id)
 
 
 @router.delete("/{org_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

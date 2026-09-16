@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -32,6 +33,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
     organization_secret_repo,
+    personal_data_repo,
     rag_document_repo,
     session_repo,
     user_repo,
@@ -45,8 +47,9 @@ from app.schemas.user import (
 )
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
-from app.services.file_storage import avatar_filename, get_file_storage
+from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
 from app.services.organization import OrganizationService
+from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
 
 if TYPE_CHECKING:
@@ -460,9 +463,37 @@ class UserService:
         )
 
     async def delete(self, user_id: UUID) -> User:
+        """Remove the account, what is about the person, and nothing the team owns.
+
+        Three steps, in this order and for reasons each has its own comment:
+        lock, hand on what the organization owns, and only then delete. The
+        purge between the second and the third is what no cascade reaches -
+        agent notes keyed by a string, platform identities the key merely
+        unlinks, and workspaces owned by a string reference (#1421). Inside the
+        same transaction, so a deletion that fails afterwards takes it with it.
+
+        The one thing that cannot be inside it is the files: the bytes under
+        `MEDIA_DIR` are unlinked after the commit, because an unlink a rollback
+        undoes leaves a restored row pointing at nothing.
+        """
         user, locked_heirs = await self._lock_for_delete(user_id)
         await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
+        # Read before the row goes. `chat_files` cascades from `users`, so the
+        # rows naming each upload disappear with the account and the bytes stay
+        # on disk - an erasure that leaves the person's documents where they
+        # were has not erased them, and nothing left can find them afterwards
+        # (#1421).
+        attachments = await personal_data_repo.attachment_paths_of(self.db, user_id)
+        await PersonalDataService(self.db).purge(user_id)
         await user_repo.delete(self.db, user_id)
+        if attachments:
+            # After the commit, for the reason #1293 gives: an unlink undone by
+            # a rollback leaves a restored row pointing at a file that is gone.
+            spawn_after_commit(
+                self.db,
+                delete_files_best_effort(attachments),
+                name="delete-account-attachments",
+            )
         return user
 
     async def _lock_for_delete(self, user_id: UUID) -> tuple[User, frozenset[UUID]]:

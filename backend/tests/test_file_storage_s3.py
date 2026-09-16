@@ -88,6 +88,26 @@ class _Client:
         if Key not in self.objects:
             raise _client_error("404")
 
+    def get_paginator(self, name: str) -> _Paginator:
+        assert name == "list_objects_v2"
+        return _Paginator(self.objects)
+
+    def delete_objects(self, *, Bucket: str, Delete: dict[str, Any]) -> None:
+        for entry in Delete["Objects"]:
+            self.deleted.append(entry["Key"])
+            self.objects.pop(entry["Key"], None)
+
+
+class _Paginator:
+    """One page of keys, which is all `delete_prefix` needs to be right about."""
+
+    def __init__(self, objects: dict[str, bytes]) -> None:
+        self.objects = objects
+
+    def paginate(self, *, Bucket: str, Prefix: str) -> list[dict[str, Any]]:
+        matched = [{"Key": key} for key in self.objects if key.startswith(Prefix)]
+        return [{"Contents": matched}] if matched else [{}]
+
 
 def _client_error(code: str) -> Exception:
     from botocore.exceptions import ClientError
@@ -283,6 +303,39 @@ class TestSavingIsCancellationSafe:
 
         assert client.objects == {}, "the object the cancelled put wrote is still there"
         assert client.deleted, "nothing was deleted, so nothing undid the put"
+
+    async def test_a_content_addressed_write_lands_on_the_key_it_was_given(self) -> None:
+        """`save_at` is the media store's, whose key is the digest of its bytes -
+        and it does not undo itself on cancellation, because two callers writing
+        one digest write identical bytes to one object (#55)."""
+        client = _Client()
+
+        await S3FileStorage(client, "files").save_at("media/org/conv/abc123", b"png")
+
+        assert client.objects["media/org/conv/abc123"] == b"png"
+
+    async def test_a_prefix_goes_with_everything_under_it(self) -> None:
+        """Without this an S3 deployment would keep every picture any compacted
+        history ever held: a digest records nothing about who references it."""
+        client = _Client()
+        storage = S3FileStorage(client, "files")
+        await storage.save_at("media/org/conv/a", b"1")
+        await storage.save_at("media/org/conv/b", b"2")
+        await storage.save_at("media/org/other/c", b"3")
+
+        removed = await storage.delete_prefix("media/org/conv")
+
+        assert removed == 2
+        assert list(client.objects) == ["media/org/other/c"]
+
+    async def test_a_prefix_nothing_is_under_deletes_nothing(self) -> None:
+        """A conversation that never offloaded a picture is the common case, and
+        an empty page must not become an empty `delete_objects` call."""
+        client = _Client()
+
+        removed = await S3FileStorage(client, "files").delete_prefix("media/org/empty")
+
+        assert (removed, client.deleted) == (0, [])
 
     async def test_an_uncancelled_upload_is_left_alone(self) -> None:
         client = _Client()

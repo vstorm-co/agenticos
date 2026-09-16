@@ -1,5 +1,5 @@
 ---
-source_sha: "19e1cf45e6f9"
+source_sha: "f7f1f1d75aa0"
 ---
 
 # Berechtigungen { #permissions }
@@ -94,7 +94,18 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 **Globale** Berechtigungen sind binär und organisationsweit: `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `connections:view`, `connections:manage`, `mcp:manage`,
-`channels:manage`, `runs:view`, `audit:read`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`.
+
+!!! example "Warum `ml:invoke` nicht `agents:run` ist"
+
+    Die [ML-Dienste](ml-services.md) ruft eine andere Komponente mit einem
+    Schlüssel auf, ohne Unterhaltung und ohne Agent. Sie in `agents:run` zu
+    falten, gäbe jeder solchen Integration auch die Möglichkeit, das
+    Modellbudget der Organisation auszugeben - nur weil beides "die Plattform um
+    Arbeit bitten" heißt.
+
+    Jede Rolle außer `viewer` hält es, denn die Struktur eines Dokuments zu
+    lesen ist keine privilegierte Handlung; Geld für ein Modell auszugeben schon.
 
 !!! example "Warum `connections:view` und `connections:manage` zwei sind"
 
@@ -145,9 +156,9 @@ benutzerdefinierte Rollen.
 |---|---|---|---|---|
 | `owner` | besitzt die Organisation | alles `ALL` | `ALL` | alles, einschließlich `org:delete` |
 | `admin` | führt sie im Tagesgeschäft | alles `ALL` | `ALL` | alles **außer** `org:delete` |
-| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view` |
-| `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view` |
-| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | keines |
+| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
+| `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
+| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
 | `viewer` | liest | `view` `SHARED` | keines | keines |
 
 Der Unterschied zwischen `builder` und `admin` ist der interessante: Ein Builder

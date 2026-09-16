@@ -61,6 +61,21 @@ class Settings(BaseSettings):
     # from an address nobody knows. It is a ceiling on top of the allowlist and
     # the chat path's own ceiling, never a way past either.
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
+    # What one call to the standalone ML services may submit - a document to
+    # parse, a scan to recognise, a recording to transcribe. Its own number
+    # because the work is different in kind from storing a file: the bytes are
+    # parsed or sent to an engine inside one request rather than written down,
+    # so the ceiling is about what a single synchronous call may occupy. It sits
+    # at the transcription client's own 25 MB, which is the smallest engine
+    # ceiling behind this surface and so the first one a larger file would meet.
+    ML_MAX_UPLOAD_SIZE_MB: int = 25
+    # How many documents this worker parses at once for the ML services. The
+    # rate limit counts starts and cannot see what is still running, so without
+    # this a minute's allowance of OCR calls is that many recognitions in flight,
+    # each of them minutes of CPU. Over it, a caller is refused with a
+    # `Retry-After` rather than queued: a caller told to come back can, and one
+    # parked behind four minutes of other people's scans has already given up.
+    ML_MAX_CONCURRENT_PARSES: int = 4
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     # Size of the dedicated thread pool that runs blocking file work - parsing an
@@ -193,9 +208,39 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
+    # The scheme the desktop shell registers for the sign-in return (#1532).
+    #
+    # Google's authorization endpoint refuses an embedded user-agent, and the
+    # handoff it asks for is the system browser with the result deep-linked back
+    # to the app. A setting rather than a query parameter, because the callback
+    # builds a redirect out of it: a scheme a caller could choose would be an open
+    # redirect into whatever URL handler that machine has registered.
+    DESKTOP_DEEP_LINK_SCHEME: str = "agenticos"
+
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"
+
+    # A generic OpenID Connect provider - Entra ID, Okta, Keycloak, anything that
+    # publishes a discovery document. A company deploying this on its own
+    # infrastructure runs an identity provider and will not mint local passwords
+    # for its staff; without this, its MFA and its offboarding are solved twice
+    # (#1419). Configured by discovery alone: the issuer is the only URL, and the
+    # authorization, token and JWKS endpoints come from
+    # `<issuer>/.well-known/openid-configuration` rather than from three more
+    # settings a deployment can get subtly wrong.
+    OIDC_ISSUER: str = ""
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/oidc/callback"
+    # Beyond `openid email profile` a deployment may need its provider's own
+    # scope to get the claims back - Entra ID's `User.Read`, a Keycloak client
+    # scope. Space-separated, as the OAuth parameter itself is.
+    OIDC_SCOPES: str = "openid email profile"
+    # A provider's own name for "this address is confirmed", beyond the two
+    # recognised already (`email_verified`, and Entra ID's `xms_edov`). Empty
+    # unless a deployment's provider names it something else again.
+    OIDC_VERIFIED_CLAIM: str = ""
 
     VAULT_MASTER_KEY: str = ""
     # Every master key the vault may unwrap with, by version - the staged form
@@ -277,6 +322,22 @@ class Settings(BaseSettings):
     # caller rather than on their address: the endpoint is authenticated, and an
     # office behind one NAT is not one caller.
     RATE_LIMIT_RUN_PER_MINUTE: int = 30
+    # How often one caller may ask for a personal-data export, per hour rather
+    # than per minute. It is the one route that assembles everything about a
+    # person into a single document, which is the shape of a data breach when
+    # the caller is not who they claim to be - and nobody legitimately needs it
+    # twice in a day. Low enough that a stolen session cannot quietly walk the
+    # deployment's people, high enough that a person retrying a failed download
+    # is not locked out (#1421).
+    RATE_LIMIT_EXPORT_PER_HOUR: int = 5
+    # How much conversation text one personal-data export may carry, in
+    # characters. The document is assembled and serialized whole, and a message
+    # has no length ceiling of its own, so without this the caller decides how
+    # much memory a worker spends and five concurrent exports of a thread
+    # somebody has been filling take the container with them. Roughly 16 MB of
+    # text, which is far more than any real transcript and far less than the
+    # 2560 MB the shipped container has (#1421).
+    PERSONAL_DATA_EXPORT_MAX_CHARS: int = 16_000_000
     # How often one address may ask to be admitted to a widget or a hosted page,
     # per minute. Admission only - what a visitor may say once admitted is the
     # embed's own `rate_limit_per_minute`, counted per visitor.
@@ -301,6 +362,12 @@ class Settings(BaseSettings):
     # address bounds a brute force against one account. Low, because a person
     # signing in does it a handful of times and a script does it thousands.
     RATE_LIMIT_AUTH_PER_MINUTE: int = 10
+    # How many ML service calls one caller gets per minute. These are the
+    # heaviest synchronous endpoints on the API - an OCR pass is CPU-bound
+    # seconds on a thread, a transcription is a call to somebody else's engine -
+    # so the ceiling is about what one integration can do to a worker, not about
+    # what a stranger can reach: this surface is authenticated.
+    RATE_LIMIT_ML_PER_MINUTE: int = 30
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

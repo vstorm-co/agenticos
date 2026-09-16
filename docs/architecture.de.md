@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2926284b34"
+source_sha: "c263822f4476"
 ---
 
 # Architektur { #architecture }
@@ -236,6 +236,22 @@ den niemand geradesteht.
 
 Beide Grenzen sind gegen eine echte Datenbank in
 `tests/integration/test_run_commit_boundary.py` nachgewiesen.
+
+### Der eine andere frühe Commit { #the-one-other-early-commit }
+
+`SessionService.detect_refresh_reuse` ist der zweite, und zwar aus dem
+umgekehrten Grund: nicht weil die Transaktion zu lange gehalten würde, sondern
+weil sie gleich verworfen wird. Ein Refresh-Token, der zu keiner lebenden Session
+passte, kann die Wiedergabe eines Tokens sein, den eine Session weggedreht hat —
+die Antwort ist, diese Kette zu beenden und das festzuhalten, und dann den Aufrufer
+abzuweisen, was `AuthenticationError` durch den *Exception*-Zweig des
+Session-Kontexts wirft und die Anfrage zurückrollt.
+
+Ohne Commit ist das ein 401, eine weiterhin lebende kompromittierte Kette und kein
+Eintrag darüber, dass etwas geschehen ist.
+`test_the_response_survives_the_refusal_that_follows_it` rollt nach dem Aufruf
+zurück und prüft, was geblieben ist
+([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
 
 Sichtbarkeit schneidet in beide Richtungen. Alles, was früher schloss „die Zeile
 eines laufenden Runs kann nicht gesehen werden“, schließt jetzt über eine Zeile,
@@ -955,8 +971,15 @@ durchgearbeitetes Beispiel.
 - **Routes → Services → Repositories.** Eine Route importiert nie ein Repository.
 - Ein Repository nutzt `db.flush()` und `db.refresh()`, **nie** `db.commit()`. Die
   Session der Anfrage committet einmal, bevor die Antwort geschrieben wird.
-- Der Pfad eines Agent-Runs ist die eine erlaubte Ausnahme: Er committet vor dem
-  Modellaufruf und erneut im abschließenden `finally`.
+- Der Pfad eines Agent-Runs ist die wichtigste erlaubte Ausnahme: Er committet vor
+  dem Modellaufruf und erneut im abschließenden `finally`. `MLService._record_failure`
+  ist die andere, aus dem spiegelbildlichen Grund — ein Nutzungsdatensatz über eine
+  *Ablehnung* muss das Rollback überleben, das diese Ablehnung auslöst.
+- Zwei erlaubte Ausnahmen. Der Pfad eines Agent-Runs committet vor dem
+  Modellaufruf und erneut im abschließenden `finally`;
+  `SessionService.detect_refresh_reuse` committet die soeben widerrufene Session
+  und den Eintrag, der sagt warum — denn sein Aufrufer wirft unmittelbar danach
+  einen 401, und das Zurückrollen würde beides rückgängig machen.
 - Hintergrundarbeit, die eine Zeile liest, die diese Anfrage geschrieben hat, wird
   mit **`spawn_after_commit`** übergeben, nie mit `spawn`.
 - Eine dünne Domäne ist ein Modul; eine dicke ist ein Subpackage mit einer Fassade,

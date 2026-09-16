@@ -626,6 +626,21 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
+      # The raw per-test output beside the report: the screenshot at the moment
+      # of failure, the video, the trace `retain-on-failure` kept, and the
+      # `error-context.md` Playwright writes naming the page as it stood. The
+      # report embeds most of it, but only for the runs it managed to finish -
+      # a suite the runner killed leaves `test-results/` and no report at all,
+      # which is the case #162 was diagnosed without.
+      - name: Upload the raw Playwright output when a journey fails
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-results
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Show the backend log when a journey fails
         # Half of an E2E failure is on the other side of the proxy.
         if: failure()

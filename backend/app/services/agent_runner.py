@@ -95,6 +95,7 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import offloaded_history
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
     dump_plan,
@@ -106,7 +107,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, Workspac
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
-from app.agents.deps import AgentDeps
+from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
@@ -1651,6 +1652,7 @@ def _delegate_builder(
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
             run_id=delegation.run.id,
+            conversation_id=delegation.run.conversation_id,
             user_id=delegation.user_id,
             user_name=delegation.user_name,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
@@ -1895,6 +1897,7 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        on_compaction: CompactionSink | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -1924,6 +1927,12 @@ class AgentRunnerService:
                 The run row records the model that actually ran, so a cheaper or
                 stronger model chosen for one conversation stays attributable
                 and stays inside the same budget.
+            on_compaction: Where to tell a live surface that a summary is
+                running. A compaction takes tens of seconds and says nothing, so
+                a surface that streams and does not attach this simply stops for
+                the length of it - which is the failure `CompactionSink`'s own
+                docstring was written for, and which the widget's socket had
+                because only the dashboard's chat passed one (#936).
             environment_id: Run the version this environment pins instead of
                 the default. Falls back to the exposure's environment - a bot
                 bound to `dev` serves dev without every caller re-deriving it -
@@ -1944,7 +1953,7 @@ class AgentRunnerService:
         )
         spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
-        return await self._assemble(
+        prepared = await self._assemble(
             ctx,
             agent=agent,
             spec=spec,
@@ -1967,6 +1976,12 @@ class AgentRunnerService:
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
         )
+        if on_compaction is not None:
+            # Set on the built deps rather than passed into `_assemble`: it is a
+            # property of the *surface*, not of the run, and `_assemble` already
+            # takes fourteen arguments about the run.
+            prepared.built.deps.on_compaction = on_compaction
+        return prepared
 
     async def _allowed_approval_mode(
         self, ctx: AuthContext, requested: ApprovalMode, *, surface: RunSurface
@@ -2368,6 +2383,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
+            conversation_id=run.conversation_id,
             # The guard keeps a subject-less context stringifying to None, never "None".
             user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
@@ -3517,6 +3533,7 @@ class AgentRunnerService:
         outbound_refused: list[str] | None = None,
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
+        on_compaction: CompactionSink | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3561,6 +3578,7 @@ class AgentRunnerService:
             acts_for_sender=acts_for_sender,
             exposure=exposure,
             environment_id=environment_id,
+            on_compaction=on_compaction,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
@@ -4047,8 +4065,13 @@ class AgentRunnerService:
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
             if prepared.built.context.summarized:
-                summarized = ModelMessagesTypeAdapter.dump_python(
-                    result.all_messages(), mode="json"
+                # Offloaded before it is stored, if the agent asked for it. The
+                # chat runner does the same with the same helper: hooking one of
+                # the two gave the capability to the WebSocket chat and to
+                # nothing else (#55).
+                summarized = await offloaded_history(
+                    prepared.built.capabilities,
+                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
             new_messages = result.new_messages()
             called = tool_calls_in(new_messages)
