@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "0f9f49369789"
 ---
 
 # Governance { #governance }
@@ -1496,12 +1496,24 @@ neu geschmiedet hat, kein Beweis, dass die Zeilen unveränderlich sind.
 
 Zwei Löschungen kann die Kette von sich aus nicht erkennen, weil die verbleibenden
 Zeilen intern konsistent bleiben: das Abschneiden der neuesten Einträge einer Kette
-und das vollständige Löschen der Kette einer Organisation — Letzteres entfernt sie
-einfach aus der Menge, die `audit-verify` abläuft. Beides zu erkennen erfordert
-einen organisationsweiten Abschluss-Checkpoint, der dort aufbewahrt wird, wo der
-Datenbank-Operator nicht hinreicht; dieser Anker ist eine geplante Folgearbeit, und
-bis es ihn gibt, bescheinigt ein sauberer Lauf nicht, dass nichts abgeschnitten
-wurde.
+und das vollständige Löschen der Kette einer Organisation. Diese fängt stattdessen
+ein **Checkpoint** ab — eine organisationsweite Höchstmarke, die `record_audit` neben
+jedem Eintrag vorrückt, unter einem Datenbank-Trigger, der ihr Zurückgehen oder
+Löschen verweigert. `audit-verify` meldet eine Kette, deren Kopf hinter ihrem
+Checkpoint liegt, oder einen Checkpoint, dessen Kette weg ist.
+
+Was dieser Trigger abdeckt, gehört genau gesagt, weil man leicht mehr hineinliest. Er
+schließt den gewöhnlichen Schreibpfad — einen App-Administrator, der durch das
+Produkt handelt, und einen Fehler in diesem Code — also das Bedrohungsmodell, für das
+diese Spur geschrieben ist.
+
+Gegen jemanden mit den Zugangsdaten der Datenbank selbst ist er keine Kontrolle. Die
+Anwendung und ihre Migrationen verbinden sich mit derselben Rolle, und dieser Rolle
+gehört die Checkpoint-Tabelle: sie kann den Trigger entfernen, und ein `TRUNCATE`
+leert die Tabelle, ohne einen zeilenbezogenen Delete-Trigger überhaupt auszulösen.
+Ein Superuser kann beides. Das zu schließen erfordert die Höchstmarke dort, wo die
+Rollen dieser Datenbank nicht hinreichen — in einem Append-only- oder
+Object-Lock-Speicher außerhalb —, was eine geplante Folgearbeit bleibt.
 
 Zwei auditierte Schreibvorgänge für eine Organisation können die Kette nicht
 aufspalten: jeder hängt unter einer organisationsbezogenen Sperre an, sodass sie
@@ -1559,6 +1571,126 @@ als das eigene Konto des Administrators, über die Stunde hinaus, in der die
 Impersonierung endet. Eine Org-Verbindung zu erstellen hielt den Administrator
 dahinter bereits fest; eine zu aktualisieren hielt gar nichts fest, sodass ein auf
 eine bestehende Verbindung rotiertes Token jetzt dieselbe Spur hinterlässt (#1521).
+
+## Aufbewahrung { #retention }
+
+Bis #1420 wurde nichts nach Zeitplan gelöscht. Gespräche, ihre Dateien,
+Run-Zeilen und Manifeste, Workspaces, das Gedächtnis eines Agenten, hochgeladene
+Dokumente und Audit-Einträge lebten, bis jemand die Organisation löschte. Das ist
+in die eine Richtung ein Datenschutzproblem und — beim Audit — in die andere ein
+Compliance-Problem: HIPAA §164.316(b)(2) will einen Audit-Eintrag sechs Jahre
+aufbewahren, die DSGVO will alles andere minimieren. Die Frist gilt deshalb **pro
+Klasse**, und beide Pflichten bekommen eine Einstellung.
+
+Zu setzen unter **Organisationen → ein Workspace → Mitglieder → Aufbewahrung**,
+abgesichert über `org:settings`. Ein Sweep läuft einmal täglich und löscht
+**hart**: eine Richtlinie, die die Zeilen behielte, wäre keine.
+
+Die drei eigenen Zahlen des Deployments - `retention_defaults`,
+`retention_max_days` und `audit_retention_floor_days` - sind Felder der
+Deployment-Einstellungen, von einer App-Administratorin über
+`PATCH /admin/deployment-settings` geschrieben wie jede andere Einstellung dort.
+Ein Konsolenformular dafür gibt es noch nicht; die Seite der Organisation ist der
+Ort für die Fristen je Tenant.
+
+### Die Klassen { #the-classes }
+
+| Klasse | Was mitgeht | Gemessen ab |
+|---|---|---|
+| Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
+| Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
+| Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab | Der letzten Nutzung |
+| Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
+| Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
+| Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |
+
+**Ein Dokument, das noch eingelesen wird, ebenfalls nicht.** Ein Worker hält es,
+und ihm Zeile und hochgeladenes Original unter einer Ingestion wegzunehmen, die
+danach Vektoren schreibt, hinterlässt durchsuchbaren Inhalt, den kein späterer
+Sweep benennen kann. Ausgemustert werden nur fertige und fehlgeschlagene Zeilen.
+
+**Ein von einem Konnektor synchronisiertes Dokument wird nicht weggeräumt.**
+Seine Lebensdauer gehört der Quelle, die es dort abgelegt hat: es hier zu löschen
+entfernte eine Zeile, die der nächste `new_only`-Sync aus derselben unveränderten
+Datei wieder anlegt — Embedding-Kosten für nichts. Weggeräumt wird, was jemand
+hochgeladen hat und dessen Lebensdauer nichts anderes besitzt.
+
+### Welche Zahl gewinnt { #which-number-wins }
+
+Drei Schichten, aufgelöst in `app/core/retention.py` und sonst nirgends:
+
+1. **Die Vorgabe des Deployments**, für eine Organisation, die nichts gesagt hat.
+   Fehlt sie, heißt das für immer — eine Plattform, die beim Upgrade begänne, die
+   Historie einer bestehenden Installation zu löschen, wäre eine, der beim
+   nächsten Upgrade niemand mehr traute.
+2. **Die eigene Frist der Organisation**, kürzer oder länger.
+3. **Die Obergrenze des Deployments**: nichts dieser Klasse lebt hier länger als
+   N Tage, und eine Organisation kann sie nicht anheben.
+
+Beim Audit läuft es andersherum. Das Deployment setzt eine **Untergrenze** — wie
+kurz ein Eintrag höchstens leben darf, sechs Jahre, bis eine Betreiberin das
+ändert — und eine Organisation darf sie verlängern, nie verkürzen. **Audit wird
+noch nicht weggeräumt**: die Frist wird aufgelöst und gemeldet und eine
+Organisation an die Untergrenze gehalten, aber kein Eintrag gelöscht - die
+Hash-Kette und ihr Append-only-Checkpoint stehen darauf, dass Einträge nirgendwo
+hingehen, und ein bloßes Löschen lässt `audit-verify` die Ausmusterung als
+Manipulation melden. Eine Kette nachprüfbar auszumustern ist
+[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+Eine Obergrenze gilt für das Audit weiterhin, wo die beiden einander nicht
+widersprechen. Wo doch, gewinnt die Untergrenze, und der Widerspruch wird
+gemeldet. Eine Spur, die
+eine Administratorin kürzen kann, ist keine Spur, also wird eine Frist unterhalb
+der Untergrenze **abgelehnt** statt still auf sie angehoben: Einträge länger zu
+behalten als die Zahl auf dem Bildschirm sagt, ist ein Fehler eigener Art.
+
+Eine Untergrenze über einer Obergrenze ist ein Widerspruch, und er wird gemeldet
+statt aufgelöst. Die Einstellungsseite nennt die Klasse; eine Administratorin
+entscheidet, welche gilt. Eine der beiden zu wählen ließe ein Deployment
+zurück, das sich anders verhält als seine eigene Einstellungsseite.
+
+### Was eine Löschung überlebt { #what-survives-a-purge }
+
+**Die Rechnung.** Die Ausgaben eines Monats sind eine Summe über `agent_runs`;
+diese hart zu löschen würde den Monatswert einer Organisation mit dem
+vorbeiziehenden Fenster auf null fallen lassen, und eine auf dieser Zahl
+gemessene Obergrenze griffe für den Rest des Monats nicht mehr. Der Sweep liest,
+was die ablaufenden Runs gekostet haben, bevor er sie löscht, und hält eine Summe
+je Organisation und Monat in `purged_run_spend` — eine Zahl und einen Zähler,
+ohne Agent, ohne Modell, ohne jemandes Namen. `app/services/spend.py` addiert sie
+zur laufenden Summe, und das ist die einzige Stelle, an der beide sich treffen.
+
+**Die Spur des Sweeps selbst.** Ein Eintrag je Organisation und Sweep, der die
+Klasse und den Zähler nennt und sonst nichts: ein Audit-Eintrag, der zitierte, was
+er gelöscht hat, hielte den Inhalt über die Aufbewahrung hinaus, die ihn entfernt
+hat.
+
+### Wenn es fehlschlägt { #when-it-fails }
+
+Pro Klasse, nicht pro Sweep. Ein ausgefallener Vector Store darf nicht
+verhindern, dass Gespräche gelöscht werden; also wird jede Klasse versucht, ihr
+Fehler protokolliert und im Audit-Eintrag benannt, und der Sweep geht weiter. Der
+nächste Durchlauf versucht es erneut, denn eine Charge, die nichts entfernt hat,
+kommt einfach wieder vorbei.
+
+Gelöscht wird in Chargen von 500, bis zu vierzig Durchläufe je Klasse und Sweep.
+Eine Organisation, die nach zwei Jahren auf neunzig Tage stellt, arbeitet ihren
+Rückstand über mehrere Tage ab statt in einem Sweep, der eine Stunde lang eine
+Sperre hält, mit allen anderen periodischen Flows dahinter in der Schlange.
+
+### Was das nicht erreicht { #what-this-does-not-reach }
+
+- **Backups.** Eine Löschung entfernt Zeilen und Dateien aus dem laufenden
+  Deployment. Was Ihr Backup-Zeitplan hält, lassen Sie selbst ablaufen, und ein
+  Restore bringt zurück, was der Snapshot enthielt.
+- **Was Sie anderswohin geschickt haben.** Logs an einen externen Collector,
+  Traces in einem gehosteten Observability-Projekt und alles, was ein
+  Modellanbieter behält, richten sich nach den Einstellungen jener Dienste, nicht
+  nach dieser.
+- **Steuerung je Gedächtniseintrag**, das ist [#1594](https://github.com/vstorm-co/agenticos/issues/1594),
+  und das Löschen einer Person quer durch eine Organisation, das ist
+  [#1421](https://github.com/vstorm-co/agenticos/issues/1421). Diese Seite handelt
+  vom Alter; jene handeln von einer Person.
 
 ## Was all das nicht abdeckt { #what-none-of-this-covers }
 

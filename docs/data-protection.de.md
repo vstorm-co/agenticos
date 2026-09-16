@@ -1,5 +1,5 @@
 ---
-source_sha: "a20c296fac18"
+source_sha: "90b63b1d477c"
 ---
 
 # Datenschutz { #data-protection }
@@ -90,6 +90,7 @@ des Elternteils.
 | `app_admin_audit_logs` | Wer Zugriff geändert oder Geld ausgegeben hat — die Spur der Organisation und die des Deployment-Administrators teilen sich eine Tabelle | Akteur, Impersonator, IP-Adresse, die Aktion und eine `details`-Map. Die Map benennt meist Felder, aber manche Einträge halten Werte: die E-Mail des impersonierten Kontos, die E-Mail eines vom Administrator gelöschten Kontos, eine Veröffentlichungsnotiz | Rechenschaft. Siehe [Governance](governance.md#audit) |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Telegram oder Mattermost | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id | Den richtigen Thread fortsetzen |
 | `message_ratings` | Daumen und Kommentare zu Antworten | Der Bewertende und sein Kommentar | Qualitätsprüfung |
+| `ml_service_calls` | Jeder Aufruf der [ML-Dienste](ml-services.md) | Die Organisation, wer gefragt hat, welcher Dienst, Byte- und Einheitenzahlen, die Dauer und wie es endete - **nichts von dem, was eingereicht wurde, und nichts von dem, was zurückkam** | Nutzungsberichte und der Blick eines Betreibers auf eine Integration, die scheitert |
 | `agent_workspaces`, `sandbox_operations` | Dateien, an denen ein Agent gearbeitet hat, und das Log dessen, was er ausgeführt hat | Beim `state`-Backend die Dateien selbst, als JSON; bei einem Container die Session-Id und jedes Kommando, Ziel und Ergebnis-Resümee | Die Sandbox. Siehe [Die Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Zugangsdaten und wohin sie zeigen | Nur versiegelter Chiffretext, mit einem Hinweis; Provider, Model und `base_url` im Klartext | Provider erreichen. Siehe [Secrets](secrets.md) |
 
@@ -162,10 +163,10 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Rechenschaft | Audit-Einträge teilen die handelnde Transaktion und scheitern geschlossen; Impersonation nennt beide Personen; Massenexporte werden festgehalten | [Governance](governance.md#audit) |
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
 | Manipulationsnachweis der Spur | Noch keiner | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); `redacted` ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Aufbewahrung nach Zeitplan | Nur `sandbox_operations`-Zeilen werden weggeräumt, nach 30 Tagen. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); ein `redacted`-Dazwischen wurde verworfen, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Aufbewahrung nach Zeitplan | Je Organisation und je Klasse — Gespräche und ihre Dateien, Runs und Manifeste, Workspaces, das Gedächtnis von Agenten, hochgeladene Dokumente und Audit — innerhalb einer deploymentweiten Vorgabe, Obergrenze und Audit-Untergrenze. Ein täglicher Sweep löscht hart und hält Zähler fest, nie Inhalte. Backups und alles bereits an einen externen Collector Geschickte liegen außerhalb | [Aufbewahrung](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
-| Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
+| Zugang zu den eigenen Daten | Eine Person liest unter Einstellungen → Gedächtnis alles, was jeder Agent hier über sie aufgeschrieben hat, und kann eine Notiz stilllegen, wiederherstellen oder löschen. Den Speicher *einer anderen Person* zu lesen steht allein der Deployment-Administratorin zu - keiner Organisationsrolle - und wird mit Akteurin, Tenant, Person und Begründung auditiert, nie mit Inhalt. Externe Speicher (mem0) werden genannt statt gelistet | [Lesen und löschen](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Einen Export-Endpunkt gibt es noch nicht: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Unternehmensidentität | Google-Anmeldung und Passwörter; noch kein OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
 | Die Kontrollmatrix, die eine Sicherheitsprüfung liest | Diese Seite und [Einführen](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) ergänzt die Zuordnung zu HIPAA und SOC 2 |
 | Öffentliche Oberflächen | Der Besucherschlüssel einer gehosteten Seite ist zufällig, nie aus der Person abgeleitet; Einlass und Uploads sind je Adresse ratenbegrenzt, die Adresse liegt für die Dauer des Fensters in einem Redis-Schlüssel und sonst nirgends | [Kanäle](channels.md#a-hosted-page) |
@@ -180,8 +181,15 @@ irgendeinem Spec und ohne `logfire_token_secret_id` auf irgendeinem Environment
 wird nichts gesendet, und die Trace-Id wird trotzdem lokal festgehalten. Ein
 Deployment, das Traces ohne den Inhalt braucht, setzt `observability.content` des
 Agents auf `none`: aufgezeichnet werden Zeit, Tokens, Kosten und Tool-Namen, und
-kein Nachrichtentext verlässt die Maschine. Alles dazwischen — der Inhalt durch
-einen PII-Filter — ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
+kein Nachrichtentext verlässt die Maschine — und ein Spezialist dieses Agenten
+erbt den Modus, ob sein Autor ihn inline geschrieben oder das Model des Runs ihn
+erfunden hat.
+
+Einen dritten Modus dazwischen gibt es nicht. Ein durch einen PII-Filter
+bereinigter Export ist eine Zusicherung, die niemand prüfen kann — ein
+Identifikator, den der Filter übersieht, ist bereits draußen, und der Betreiber
+glaubt das Gegenteil —, die Wahl steht also bewusst zwischen dem ganzen Inhalt
+und keinem ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
 
 ### Was das Löschen erreicht { #what-deletion-reaches }
 
@@ -349,7 +357,6 @@ zutreffend für jedes Deployment, bis jede einzelne geschlossen ist.
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - Kein Manipulationsnachweis der Audit-Spur — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Dateien nur auf lokaler Platte, vom Volume verschlüsselt oder gar nicht — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- Keine Selbstbedienungssicht auf das eigene Memory — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Keine OIDC-Anmeldung — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 - Die Kontrollmatrix für HIPAA und SOC 2 — [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
 

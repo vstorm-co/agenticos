@@ -1101,3 +1101,51 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         "skipped": skipped,
         "failed": failed,
     }
+
+
+@flow(name="retention-sweep", log_prints=True)
+async def retention_sweep_flow() -> None:
+    """Apply every organization's retention policy once.
+
+    Here rather than beside the other sweeps in `trigger_tasks.py` because of the
+    one class that needs more than a `DELETE`: purging an uploaded document means
+    removing its vectors, and the store that holds them rides an engine built per
+    piece of work (`_ingestion_service`, and #948's `max_connections`
+    exhaustion). This module is where that engine is built correctly, so this is
+    where the flow lives.
+
+    Daily. Every period is measured in days, so the hour a row leaves is nobody's
+    business, and a sweep that ran hourly would ask every tenant the same
+    question twenty-four times for one answer.
+
+    `commit_each` because one transaction around the whole sweep holds every
+    deleted row - and every transaction-scoped audit lock - until the last tenant
+    is done, which blocks production writes for the length of it and rolls every
+    delete back if a late organization fails, after its files and vectors are
+    already gone.
+
+    The processor is the deployment's default configuration rather than a
+    collection's. What it is used for here is `remove_document`, which deletes by
+    id and parses nothing - a document's own ingestion settings decided how it
+    was read, and reading is over.
+    """
+    from app.services.retention import RetentionService
+
+    async with (
+        get_worker_db_context() as db,
+        _ingestion_service(
+            processor=DocumentProcessor(settings=settings.rag), organization_id=None
+        ) as ingestion,
+    ):
+        service = RetentionService(db, remove_vectors=ingestion.remove_document)
+        results = await service.sweep(commit_each=True)
+
+    for result in results:
+        logger.info(
+            "retention_swept",
+            extra={
+                "organization_id": str(result.organization_id),
+                "removed": result.removed,
+                "failed": result.failed,
+            },
+        )

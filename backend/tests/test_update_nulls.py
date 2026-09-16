@@ -49,6 +49,7 @@ from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.sandbox_connection import SandboxConnection
@@ -70,9 +71,11 @@ from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
+from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.resource_grant import VisibilityUpdate
+from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
@@ -102,10 +105,12 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     KnowledgeBaseUpdate: KnowledgeBase,
     LocalServiceUpdate: LocalService,
     McpConnectionUpdate: McpConnection,
+    MemoryNoteUpdate: AgentMemoryFile,
     NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
+    RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SecretUpdate: OrganizationSecret,
     SkillResourceUpdate: SkillResource,
