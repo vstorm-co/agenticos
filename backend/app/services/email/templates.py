@@ -6,7 +6,7 @@ question and is answered in the log; the refusal names the template, which is
 the only part of this a reader can act on (agenticos#342).
 """
 
-import html
+import html as html_lib
 import logging
 from pathlib import Path
 from typing import Any
@@ -64,21 +64,21 @@ def _load_raw(key: str, ext: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _render(template: str, context: dict[str, Any], *, escape: bool) -> str:
+def _render(template: str, context: dict[str, Any], *, escape: bool = False) -> str:
     """Replace [[variable]] placeholders with context values.
 
-    `escape=True` for the HTML body: every value substituted here is plain
-    text by contract (a name, a reason, a URL) and never markup this template
-    means to embed, so an unescaped `<`, `>` or `&` is somebody else's input
-    landing in the page unquoted rather than shown as the character it is -
-    an agent's own name is exactly such an input, chosen by whoever created
-    it. `escape=False` for the subject and the text body, where there is no
-    markup to break out of.
+    `escape=True` HTML-escapes each value before substitution - the html body
+    is markup a context value is spliced directly into, and a context value
+    is routinely builder-controlled text (an agent's name, a tool id) that
+    reaches it through `render_context` on a stored notification, not
+    something this module already trusts. Left off for the text body and the
+    subject, which are never interpreted as markup by anything that reads
+    them - escaping there would corrupt the plain text rather than protect it.
     """
     for k, v in context.items():
-        value = str(v) if v is not None else ""
+        value = "" if v is None else str(v)
         if escape:
-            value = html.escape(value)
+            value = html_lib.escape(value)
         template = template.replace(f"[[{k}]]", value)
     return template
 
@@ -98,7 +98,7 @@ def render_email(key: str, context: dict[str, Any]) -> tuple[str, str, str]:
     )
     text_body = "\n".join(lines[1:]).strip()
 
-    subject = _render(subject_raw, context, escape=False)
-    rendered_html = _render(html_raw, context, escape=True)
-    text = _render(text_body, context, escape=False)
-    return subject, rendered_html, text
+    subject = _render(subject_raw, context)
+    html = _render(html_raw, context, escape=True)
+    text = _render(text_body, context)
+    return subject, html, text

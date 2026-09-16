@@ -172,13 +172,29 @@ class TestPatchingYourOwnProfile:
 
 
 class TestAnAppAdminPatchingSomebodyElse:
-    async def test_even_an_app_admin_cannot_grant_the_flag_over_http(self) -> None:
+    async def test_even_an_app_admin_cannot_grant_the_flag_over_http(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """`PATCH /users/{id}` is app-admin gated and can edit any account, which is
         the surface where granting would be most tempting to wire up. The privilege
         is CLI-only on purpose: it is the one thing that reaches every tenant."""
         admin = _stored_user(is_app_admin=True)
         target = _stored_user(is_app_admin=False)
         service = _RecordingUserService(target)
+
+        # This route now delegates to `admin_users.update_user` (#1598), which
+        # also records an audit entry and sends a `security_event`
+        # notification - this test is about the escalation guard, not the
+        # audit trail, and `_client`'s own `db` mock has nothing to answer
+        # `record_audit`'s real queries with.
+        monkeypatch.setattr(
+            "app.api.routes.v1.admin_users.record_audit",
+            AsyncMock(return_value=MagicMock()),
+        )
+        monkeypatch.setattr(
+            "app.api.routes.v1.admin_users.NotificationService",
+            MagicMock(return_value=AsyncMock()),
+        )
 
         async with _client(caller=admin, service=service) as client:
             response = await client.patch(

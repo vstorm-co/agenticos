@@ -22,6 +22,7 @@ actually does with a resolved audience - dedup, preference, the savepoint - is
 `NotificationCenterService.write` is called with the right arguments.
 """
 
+import hashlib
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -80,14 +81,21 @@ def _spec(**alerts) -> AgentSpec:
 
 
 class _Written:
-    """Records what `NotificationCenterService.write` was asked to do."""
+    """Records what `NotificationCenterService.write` was asked to do.
+
+    Returns one placeholder row per recipient - every real caller only
+    reaches `write()` once it already has a non-empty recipient list, and a
+    caller like `usage_report` reads this return value to decide whether it
+    actually wrote anything (Decision 2), so an always-empty stub would make
+    every one of those callers look like a silently swallowed failure.
+    """
 
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
     async def __call__(self, **kwargs: Any) -> list[Any]:
         self.calls.append(kwargs)
-        return []
+        return [MagicMock() for _ in kwargs.get("recipients", [])]
 
 
 @pytest.fixture
@@ -521,7 +529,10 @@ class TestApprovalRequested:
                 run, agent=_agent(), spec=_spec(), approvals=approvals
             )
 
-        assert written.calls[0]["occurrence_id"] == str(approvals[0].id)
+        assert (
+            written.calls[0]["occurrence_id"]
+            == hashlib.sha256(str(approvals[0].id).encode()).hexdigest()
+        )
         assert written.calls[0]["occurrence_id"] != str(run.id)
 
     @pytest.mark.anyio
@@ -555,7 +566,28 @@ class TestApprovalRequested:
                 run, agent=_agent(), spec=_spec(), approvals=approvals
             )
 
-        assert written.calls[0]["occurrence_id"] == ":".join(sorted(str(a.id) for a in approvals))
+        assert (
+            written.calls[0]["occurrence_id"]
+            == hashlib.sha256(":".join(sorted(str(a.id) for a in approvals)).encode()).hexdigest()
+        )
+
+    @pytest.mark.anyio
+    async def test_many_approvals_parked_at_once_fit_the_occurrence_id_column(self, written):
+        """`notifications.occurrence_id` is `String(255)`; seven or more
+        colon-joined UUIDs (37 chars apiece) would overflow it - the digest
+        this event's occurrence key hashes to never does, regardless of how
+        many tool calls parked at once."""
+        run = _run(user_id=uuid.uuid4())
+        approvals = _approvals(*[f"tool_{i}" for i in range(12)])
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), approvals=approvals
+            )
+
+        assert len(written.calls[0]["occurrence_id"]) <= 255
 
     @pytest.mark.anyio
     async def test_the_write_carries_a_savepoint(self, written):
@@ -902,6 +934,7 @@ def _entry(
     org_id=_UNSET,
     actor=_UNSET,
     target_type="user",
+    impersonator=None,
 ):
     entry = MagicMock()
     entry.id = uuid.uuid4()
@@ -909,6 +942,12 @@ def _entry(
     entry.organization_id = uuid.uuid4() if org_id is _UNSET else org_id
     entry.actor_user_id = uuid.uuid4() if actor is _UNSET else actor
     entry.target_type = target_type
+    # `MagicMock()` is truthy by default, and `security_event` reads this
+    # with `entry.impersonator_user_id or entry.actor_user_id` - an
+    # unconfigured mock here would silently win that `or` on every test that
+    # never mentions impersonation, rather than falling through to the actor
+    # every one of them actually means to assert on.
+    entry.impersonator_user_id = impersonator
     return entry
 
 
@@ -940,6 +979,22 @@ class TestSecurityEventAndConfigurationChanged:
         assert call["actor_user_id"] == entry.actor_user_id
         assert call["use_savepoint"] is True
         assert "/vault" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_an_impersonated_write_rate_limits_the_impersonator_not_the_target(self, written):
+        """`record_audit` records an impersonated write's *actor* as the
+        impersonated account and the *impersonator* separately - keying the
+        rate limit on the actor alone gave every impersonated target its own
+        fresh budget and never bounded the administrator actually doing the
+        impersonating."""
+        admin = uuid.uuid4()
+        impersonator = uuid.uuid4()
+        entry = _entry(action="secret.created", target_type="secret", impersonator=impersonator)
+        with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)):
+            await NotificationService(MagicMock()).security_event(entry)
+
+        assert written.calls[0]["actor_user_id"] == impersonator
+        assert written.calls[0]["actor_user_id"] != entry.actor_user_id
 
     @pytest.mark.anyio
     async def test_an_org_scoped_entry_never_reaches_a_deployment_app_admin_alone(self, written):
@@ -1061,6 +1116,26 @@ class TestUsageReport:
 
         assert reported is False
         assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_a_swallowed_write_failure_reports_nothing_written(self, monkeypatch):
+        """`write()` can return `[]` for a reason other than "nothing to
+        report" - a rate limit, or a savepoint that swallowed a DB error
+        (Decision 2). `usage_report` must not claim a report went out when
+        the underlying write never actually landed."""
+        monkeypatch.setattr(NotificationCenterService, "write", AsyncMock(return_value=[]))
+        rows = [(uuid.uuid4(), "gpt-5", Decimal("2.00"), 3)]
+        with (
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+            patch(f"{MODULE}.organization_spend_since", new=_bill("2.00")),
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            reported = await NotificationService(MagicMock()).usage_report(
+                uuid.uuid4(), period="weekly", window_start=datetime.now(UTC)
+            )
+
+        assert reported is False
 
     @pytest.mark.anyio
     async def test_the_run_count_sums_every_row_and_the_agents_are_counted_once(self, written):
