@@ -121,6 +121,18 @@ def decode_cursor(raw: str) -> tuple[datetime, uuid.UUID]:
     return created_at, notification_id
 
 
+def _channel_allowed(
+    channels: set[NotificationChannel] | None, channel: NotificationChannel
+) -> bool:
+    """Whether `write()`'s caller-side restriction permits `channel` at all.
+
+    `None` is every caller but the announcement composer - no restriction
+    beyond each recipient's own preference, which `_channel_enabled`/
+    `email_channel_enabled` still apply either way.
+    """
+    return channels is None or channel in channels
+
+
 @dataclass(frozen=True)
 class _Gate:
     """One row's outcome under Decision 7's recheck.
@@ -159,6 +171,7 @@ class NotificationCenterService:
         organization_id: uuid.UUID | None = None,
         announcement_id: uuid.UUID | None = None,
         actor_user_id: uuid.UUID | None = None,
+        channels: set[NotificationChannel] | None = None,
         use_savepoint: bool = False,
     ) -> list[Notification]:
         """Resolve each recipient's channel preferences and write their rows.
@@ -170,6 +183,14 @@ class NotificationCenterService:
         caller's transaction proceeds and commits normally. Without it, a
         failure propagates to the caller, which is correct for a context built
         around this write succeeding.
+
+        `channels`, when given, narrows which channels this occurrence may
+        ever use - the announcement composer's own "pick channels" (Decision
+        5). It only ever narrows: a recipient who has turned a channel off
+        stays off regardless of what the sender picked, the same as every
+        other event type. `None` (every other caller) means no restriction
+        beyond each recipient's own preference, unchanged from before this
+        parameter existed.
         """
         mandatory = is_mandatory(event_type)
         if mandatory and actor_user_id is not None:
@@ -195,6 +216,7 @@ class NotificationCenterService:
             "organization_id": organization_id,
             "announcement_id": announcement_id,
             "mandatory": mandatory,
+            "channels": channels,
         }
         if not use_savepoint:
             return await self._write_rows(**kwargs)
@@ -228,11 +250,15 @@ class NotificationCenterService:
         organization_id: uuid.UUID | None,
         announcement_id: uuid.UUID | None,
         mandatory: bool,
+        channels: set[NotificationChannel] | None,
     ) -> list[Notification]:
         written: list[Notification] = []
         for recipient_id in recipients:
-            in_app_visible = mandatory or await self._channel_enabled(
-                recipient_id, event_type, NotificationChannel.IN_APP
+            in_app_visible = mandatory or (
+                _channel_allowed(channels, NotificationChannel.IN_APP)
+                and await self._channel_enabled(
+                    recipient_id, event_type, NotificationChannel.IN_APP
+                )
             )
             notification = Notification(
                 id=uuid.uuid4(),
@@ -251,7 +277,10 @@ class NotificationCenterService:
                 continue
             written.append(notification)
 
-            email_enabled = mandatory or await self.email_channel_enabled(recipient_id, event_type)
+            email_enabled = mandatory or (
+                _channel_allowed(channels, NotificationChannel.EMAIL)
+                and await self.email_channel_enabled(recipient_id, event_type)
+            )
             if email_enabled:
                 await notification_repo.insert_delivery(
                     self.db,

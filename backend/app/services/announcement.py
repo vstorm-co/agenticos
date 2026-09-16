@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.exceptions import BadRequestError
 from app.db.models.announcement import Announcement
-from app.db.models.notification import NotificationEventType
+from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.repositories import announcement as announcement_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -55,15 +55,32 @@ class AnnouncementService:
         body: str,
         organizations: Literal["all"] | list[UUID],
         role: str | None,
+        channels: list[NotificationChannel] | None = None,
     ) -> AnnouncementSendResult:
         """Resolve the audience, write the announcement, fan out, and audit it.
 
         Raises:
-            BadRequestError: The resolved audience is empty - an explicit
-                organization list naming no current member, or a role
-                narrowing nobody in the selected scope holds. A send that
-                reaches nobody is refused rather than recorded as sent.
+            BadRequestError: An explicit organization list names an id that
+                does not currently exist - a typo, or one deleted between
+                the sender picking it and this request landing - refused
+                rather than silently sending to the rest of the list and
+                reporting it as the whole audience. Also raised when the
+                resolved audience is empty - an explicit organization list
+                naming no current member, or a role narrowing nobody in the
+                selected scope holds. A send that reaches nobody is refused
+                rather than recorded as sent.
         """
+        if organizations != "all":
+            existing_ids = {
+                org.id for org in await organization_repo.list_by_ids(self.db, organizations)
+            }
+            missing = sorted(str(org_id) for org_id in organizations if org_id not in existing_ids)
+            if missing:
+                raise BadRequestError(
+                    message="One or more selected organizations no longer exist",
+                    details={"organization_ids": missing},
+                )
+
         recipients = await member_repo.list_member_ids_for_audience(
             self.db, organization_ids=organizations, role=role
         )
@@ -95,6 +112,7 @@ class AnnouncementService:
             organization_id=None,
             announcement_id=announcement.id,
             actor_user_id=actor_user_id,
+            channels=set(channels) if channels is not None else None,
         )
         await record_audit(
             self.db,

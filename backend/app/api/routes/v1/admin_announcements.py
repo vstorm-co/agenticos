@@ -25,5 +25,6 @@ async def send_announcement(
         body=data.body,
         organizations=data.organizations,
         role=data.role.value if data.role else None,
+        channels=data.channels,
     )
     return AnnouncementRead.from_row(result.announcement, recipient_count=result.recipient_count)

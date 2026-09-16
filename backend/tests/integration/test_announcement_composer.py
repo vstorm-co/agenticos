@@ -18,7 +18,8 @@ from sqlalchemy import select
 
 from app.core.exceptions import BadRequestError
 from app.db.models.audit_log import AppAdminAuditLog
-from app.db.models.notification import Notification, NotificationEventType
+from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
+from app.db.models.notification_delivery import NotificationDelivery
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.services.announcement import AnnouncementService
@@ -154,6 +155,121 @@ class TestExplicitOrganizations:
 
         announcements = (await db.execute(select(AppAdminAuditLog))).scalars().all()
         assert announcements == []
+
+    async def test_a_nonexistent_organization_id_is_refused_not_partially_sent(self, db):
+        sender = await _user(db, is_app_admin=True)
+        acme = await _org(db, name="Acme")
+        member = await _user(db)
+        await _member(db, acme, member)
+        missing_org_id = uuid.uuid4()
+
+        with pytest.raises(BadRequestError) as exc_info:
+            await AnnouncementService(db).send(
+                actor_user_id=sender.id,
+                body="Acme and a deleted org",
+                organizations=[acme.id, missing_org_id],
+                role=None,
+            )
+
+        assert exc_info.value.details == {"organization_ids": [str(missing_org_id)]}
+        # Refused before anything was written - not sent to Acme alone while
+        # silently dropping the missing selection.
+        assert (await db.execute(select(Notification))).first() is None
+        assert (await db.execute(select(AppAdminAuditLog))).first() is None
+
+
+class TestChannelSelection:
+    async def test_restricting_to_in_app_writes_no_email_delivery(self, db):
+        sender = await _user(db, is_app_admin=True)
+        acme = await _org(db, name="Acme")
+        member = await _user(db)
+        await _member(db, acme, member)
+
+        result = await AnnouncementService(db).send(
+            actor_user_id=sender.id,
+            body="In-app only",
+            organizations=[acme.id],
+            role=None,
+            channels=[NotificationChannel.IN_APP],
+        )
+
+        notification = await db.scalar(
+            select(Notification).where(Notification.announcement_id == result.announcement.id)
+        )
+        assert notification is not None
+        assert notification.in_app_visible is True
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert deliveries == []
+
+    async def test_restricting_to_email_still_writes_the_row_but_hides_it_from_the_inbox(self, db):
+        sender = await _user(db, is_app_admin=True)
+        acme = await _org(db, name="Acme")
+        member = await _user(db)
+        await _member(db, acme, member)
+
+        result = await AnnouncementService(db).send(
+            actor_user_id=sender.id,
+            body="Email only",
+            organizations=[acme.id],
+            role=None,
+            channels=[NotificationChannel.EMAIL],
+        )
+
+        notification = await db.scalar(
+            select(Notification).where(Notification.announcement_id == result.announcement.id)
+        )
+        assert notification is not None
+        assert notification.in_app_visible is False
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [d.channel for d in deliveries] == ["email"]
+
+    async def test_omitting_channels_behaves_exactly_as_both_selected(self, db):
+        sender = await _user(db, is_app_admin=True)
+        acme = await _org(db, name="Acme")
+        member = await _user(db)
+        await _member(db, acme, member)
+
+        result = await AnnouncementService(db).send(
+            actor_user_id=sender.id, body="Both", organizations=[acme.id], role=None
+        )
+
+        notification = await db.scalar(
+            select(Notification).where(Notification.announcement_id == result.announcement.id)
+        )
+        assert notification is not None
+        assert notification.in_app_visible is True
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [d.channel for d in deliveries] == ["email"]
 
 
 class TestWhatGetsWritten:
