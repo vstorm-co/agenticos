@@ -9,6 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -152,6 +153,7 @@ async def update_status(
     chunk_count: int | None = None,
     completed_at: Any = None,
     ingestion_attempt: int | None = None,
+    expected_attempt: int | None = None,
 ) -> RAGDocument | None:
     """Update the processing status of a RAG document.
 
@@ -160,7 +162,42 @@ async def update_status(
     `fail_ingestion` later compare their own passed `attempt` against, to
     reject a settlement that belongs to an attempt a newer retry has already
     superseded.
+
+    `expected_attempt`, given by those two callers, folds that comparison
+    into the same statement as the write instead of a separate read
+    beforehand: a read-then-write leaves a window for a concurrent retry's
+    bump to land in between them, where a stale settlement that read the old
+    attempt just before the bump would still win an unconditional write. A
+    conditional `UPDATE ... WHERE ingestion_attempt = ...` re-evaluates the
+    predicate against whatever is actually committed at write time instead -
+    the same "still holds the claim" guarantee `notification_repo
+    .settle_delivery` gives the delivery sweep. Returns `None`, the same as
+    a document that no longer exists, when the row has already moved past
+    `expected_attempt`.
     """
+    if expected_attempt is not None:
+        values: dict[str, Any] = {"status": status}
+        if error_message is not None:
+            values["error_message"] = error_message
+        if vector_document_id is not None:
+            values["vector_document_id"] = vector_document_id
+        if chunk_count is not None:
+            values["chunk_count"] = chunk_count
+        if completed_at is not None:
+            values["completed_at"] = completed_at
+        if ingestion_attempt is not None:
+            values["ingestion_attempt"] = ingestion_attempt
+        result = await db.execute(
+            sql_update(RAGDocument)
+            .where(RAGDocument.id == doc_id, RAGDocument.ingestion_attempt == expected_attempt)
+            .values(**values)
+            .execution_options(synchronize_session="fetch")
+        )
+        if not result.rowcount:  # ty: ignore[unresolved-attribute]
+            return None
+        await db.flush()
+        return await db.get(RAGDocument, doc_id)
+
     doc = await db.get(RAGDocument, doc_id)
     if not doc:
         return None
