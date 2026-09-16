@@ -268,9 +268,20 @@ def get_file_upload_service(db: DBSession) -> FileUploadService:
 FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
 from app.repositories import member_repo, organization_repo
 from app.services.organization import OrganizationService
+from app.services.retention import RetentionService
 from app.services.member import MemberService
 from app.services.invitation import InvitationService
 from app.services.invitation_staging import InvitationStagingService
+
+
+def get_retention_service(db: DBSession) -> RetentionService:
+    """Retention as a request sees it: read and change, never sweep.
+
+    The sweep is the flow's, and it is the flow that injects the vector remover
+    a document purge needs - so a request that somehow reached `sweep()` would
+    report the document class as failed rather than half-purge it.
+    """
+    return RetentionService(db)
 
 
 def get_organization_service(db: DBSession) -> OrganizationService:
@@ -294,6 +305,7 @@ def get_invitation_staging_service(redis: Redis) -> InvitationStagingService:
 
 
 OrganizationSvc = Annotated[OrganizationService, Depends(get_organization_service)]
+RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]

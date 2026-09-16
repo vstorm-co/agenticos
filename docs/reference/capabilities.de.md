@@ -1,5 +1,5 @@
 ---
-source_sha: "9871a922f9f3"
+source_sha: "3e72bc3937ad"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -206,16 +206,64 @@ Ein Index, der größer ist als etwa 6.000 Zeichen, wird weggelassen statt gekü
 Ein halber Index — mitten in einer Zeile, mitten in einem Dateinamen endend — ist
 schlimmer als gar keiner.
 
-### Löschen { #erasing-it }
+### Lesen und löschen { #reading-it-and-erasing-it }
 
-Niemand blättert in der Konsole durch die Notizen einer Person: Ein Betreiber, der
-liest, was ein Agent über einen Kollegen geschrieben hat, ist genau das Versagen,
-das dieses Design ablehnt, und es gibt keinen Bildschirm dafür. Was es gibt, ist
-das Löschen. Eine Person löscht alles, was ein Agent über sie erinnert, aus ihrem
-eigenen Profil, und ein Administrator mit `members:manage` kann es für jemand
-anderen tun; beides löscht die Zeilen hier **und** die zugehörigen Erinnerungen in
-mem0 für jeden Agent, der es bindet. Das Gedächtnis eines einzelnen Agents
-vollständig zu leeren, steht in dessen Toolbox, neben der Capability.
+Niemand blättert kraft einer Organisationsrolle durch die Notizen *eines
+anderen*. Das war die gesamte frühere Antwort - Löschen und überhaupt keine
+Liste - und sie war halb richtig: eine Liste ist beim Speicher einer Kollegin
+ein Überwachungsmittel und beim eigenen das Gegenteil davon. Die Antwort hat
+deshalb jetzt drei Teile (#1594).
+
+**Den eigenen, immer, unter Einstellungen → Gedächtnis.** Kein Recht sichert das
+ab, denn die Antwort ist für eine Viewerin dieselbe wie für eine Ownerin: was die
+Agenten hier über Sie aufgeschrieben haben, über alle Agenten hinweg, mit dem
+Agenten, der die jeweilige Notiz schrieb, und dem Zeitpunkt. Drei Dinge können
+Sie mit einer Notiz tun:
+
+| | |
+|---|---|
+| **Nicht mehr verwenden** | Die Notiz wird nicht mehr gelistet, gelesen oder von einem Tool bearbeitet, erreicht das Modell also nicht mehr - und existiert weiter, zum Nachlesen und Wiederherstellen. Die mittlere Antwort für eine Notiz, die falsch oder zu persönlich ist und bei der Sie noch nicht sicher sind, ob sie weg soll. |
+| **Wieder verwenden** | Stellt sie wieder her. |
+| **Löschen** | Weg. |
+
+Der *Name* einer stillgelegten Notiz bleibt vergeben, ein Agent, der ihn erneut
+schreibt, belebt die Zeile also mit neuem Inhalt. Das hebt die Stilllegung nicht
+auf: was Sie stillgelegt haben, wird überschrieben, und die Zeile hält etwas, das
+der Agent seither gelernt hat. Die Alternative - ein dauerhaft unbrauchbarer Name
+- wäre ein Speicher, der stumm den Dienst verweigert.
+
+**Der Index zieht mit.** `MEMORY.md` wird in die Instruktionen jeder Anfrage
+eingefügt; eine von Ihnen gestoppte Notiz, deren Indexzeile sie weiterhin
+beschreibt, erreicht das Modell also weiterhin. Eine Notiz stillzulegen oder zu
+löschen entfernt daher die Indexzeilen, die sie **benennen**. Eine Zeile, die die
+Notiz beschreibt, ohne sie zu benennen, bleibt - das Kürzen ist zeilenweise und
+am Namen orientiert, denn genau das ist der Index - und das Wiederherstellen
+setzt keine Zeile zurück: den Index schreibt der Agent, und dies ist nicht der
+Ort, in seiner Stimme zu formulieren.
+
+**Den einer anderen Person, nur eine Deployment-Administratorin.**
+`GET /memory/person/{id}` mit Nennung des Tenants, und für alle anderen
+abgelehnt: nicht für eine Ownerin, nicht für eine Admina, nicht für jemanden mit
+einem Edit-Grant auf dem Agenten, der die Notiz schrieb. Die Begründung ist die
+obige - eine Organisationsrolle ist nicht die Stelle, die ein Auskunftsersuchen
+erreicht, und die Administratorin des Deployments, die ohnehin Konten über
+Tenants hinweg verwaltet, ist es. Der Zugriff steht mit Akteurin, Tenant, Person
+und Begründung im Audit-Trail, und **ohne Inhalt**: ein Eintrag, der festhielte,
+worauf er gesehen hat, wäre eine zweite Kopie des Geschützten.
+
+**Löschen**, unverändert. Eine Person räumt aus ihrem eigenen Profil alles weg,
+woran ein Agent sich über sie erinnert, und eine Administratorin mit
+`members:manage` kann das für jemand anderen tun; beides löscht die Zeilen hier
+**und** die zugehörigen Erinnerungen in mem0 bei jedem Agenten, der es bindet.
+Das Gedächtnis eines Agenten vollständig zu leeren steht in seinem Werkzeugkasten,
+neben der Capability.
+
+**Was die Selbstauskunft nicht erreicht.** Ein an mem0 gebundener Agent hält seine
+Erinnerungen im Dienst eines Dritten, und diese Seite listet sie nicht - die API
+von mem0 beantwortet, was zu einer *Frage* passt, nicht was ein Speicher enthält.
+Solche Agenten werden auf der Seite **genannt** statt weggelassen, denn eine Liste
+nativer Notizen, als vollständiges Inventar präsentiert, wäre schlimmer als eine,
+die sagt, was ihr fehlt. Das Löschen erreicht mem0; das Lesen nicht.
 
 ## Gedächtnis (mem0) { #memory-mem0 }
 

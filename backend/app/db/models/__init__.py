@@ -40,6 +40,7 @@ from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
 from app.db.models.run_manifest import RunManifest
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
+from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
@@ -97,6 +98,7 @@ __all__ = [
     "IngestionSpend",
     "MLServiceCall",
     "MLCallStatus",
+    "PurgedRunSpend",
     "ToolApproval",
     "RunStatus",
     "RunSurface",

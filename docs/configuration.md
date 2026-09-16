@@ -154,6 +154,78 @@ token pair server to server at `POST /api/v1/oauth/exchange`, which redeems it
 exactly once.
 
 
+### Single sign-on (generic OIDC)
+
+Any identity provider that publishes a discovery document: Microsoft Entra ID,
+Okta, Keycloak, Auth0, Authentik, Google Workspace through its OIDC endpoint. A
+company self-hosting this runs one already, and will not create local passwords
+for its staff - without this, its MFA and its offboarding are solved twice.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (empty) | The issuer URL. Empty means no SSO, and the callback answers 404 |
+| `OIDC_CLIENT_ID` | (empty) | The client the provider issued for this deployment |
+| `OIDC_CLIENT_SECRET` | (empty) | Its secret |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | The callback, registered at the provider |
+| `OIDC_SCOPES` | `openid email profile` | Space-separated. Add the provider's own scope where it needs one for the claims |
+| `OIDC_VERIFIED_CLAIM` | (empty) | A third claim to accept as "this address is confirmed", for a provider that names it something of its own |
+
+The issuer is the only URL. Authorization, token, userinfo and JWKS come from
+`<issuer>/.well-known/openid-configuration`, which the provider keeps correct
+across a key rotation or an endpoint move - so there are no further endpoints to
+get subtly wrong. The flow is authorization-code with PKCE.
+
+The claims are read from the ID token, and from the **UserInfo endpoint** when
+the ID token does not carry them. A provider is entitled to keep `email` and its
+verification claim at UserInfo and put neither in the token, so reading only the
+token would refuse an entirely compliant provider one request short of a valid
+identity.
+
+Two buttons on the frontend, configured there:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only |
+| `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
+
+Where each issuer lives, and what to register:
+
+| Provider | Issuer | Register the redirect URI as |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions |
+| **Okta** | `https://<org>.okta.com` (or a custom authorization server's `/oauth2/<id>`) | A sign-in redirect URI on a **Web** application |
+| **Keycloak** | `https://<host>/realms/<realm>` | A valid redirect URI on a confidential client with standard flow enabled |
+
+Two things the platform requires of whatever provider it is pointed at:
+
+- **The address must be confirmed.** Two claims are accepted: the standard
+  `email_verified`, and Entra ID's `xms_edov`, which is what Entra sends instead
+  - it emits no `email_verified` at all, and it is an **optional claim** you
+  enable on the app registration, so an Entra tenant that has not enabled it
+  sends neither and every sign-in is refused. `OIDC_VERIFIED_CLAIM` names a third
+  for a provider that calls it something else. Absent counts as not verified: an
+  unconfirmed address means anybody at that provider can claim anybody's work
+  address, and the domain allow-list below is built on an address meaning
+  something.
+- **A stable `sub`.** The account is keyed on it, not on the address, so a
+  person who changes their name or whose domain is bought keeps their history -
+  and the next holder of a freed address does not inherit it. It is stored
+  **namespaced by the issuer**, because a `sub` is unique within its issuer and
+  nowhere else: pointing the deployment at a different tenant or realm cannot
+  then sign a new principal into an old one's account.
+
+The sign-up policy applies here exactly as it applies to the registration form:
+an `invite_only` deployment refuses an SSO sign-in from somebody nobody invited,
+and an allowed-domains list refuses an address outside it, with the same
+sentence on the sign-in page. See
+[Who may register](deployment.md#who-may-register). Mapping a provider's groups
+to roles inside an organization is not part of this; people sign in, and an
+administrator places them.
+
+SAML and SCIM are not implemented. Most identity providers a mid-size company
+runs speak OIDC, and these settings are the whole of what they need.
+
 ## Database (PostgreSQL)
 
 | Variable | Default | Description |

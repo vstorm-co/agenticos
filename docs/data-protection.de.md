@@ -1,5 +1,5 @@
 ---
-source_sha: "01d320bec51e"
+source_sha: "90b63b1d477c"
 ---
 
 # Datenschutz { #data-protection }
@@ -164,9 +164,9 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
 | Manipulationsnachweis der Spur | Noch keiner | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); ein `redacted`-Dazwischen wurde verworfen, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Aufbewahrung nach Zeitplan | Nur `sandbox_operations`-Zeilen werden weggeräumt, nach 30 Tagen. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Aufbewahrung nach Zeitplan | Je Organisation und je Klasse — Gespräche und ihre Dateien, Runs und Manifeste, Workspaces, das Gedächtnis von Agenten, hochgeladene Dokumente und Audit — innerhalb einer deploymentweiten Vorgabe, Obergrenze und Audit-Untergrenze. Ein täglicher Sweep löscht hart und hält Zähler fest, nie Inhalte. Backups und alles bereits an einen externen Collector Geschickte liegen außerhalb | [Aufbewahrung](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
-| Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
+| Zugang zu den eigenen Daten | Eine Person liest unter Einstellungen → Gedächtnis alles, was jeder Agent hier über sie aufgeschrieben hat, und kann eine Notiz stilllegen, wiederherstellen oder löschen. Den Speicher *einer anderen Person* zu lesen steht allein der Deployment-Administratorin zu - keiner Organisationsrolle - und wird mit Akteurin, Tenant, Person und Begründung auditiert, nie mit Inhalt. Externe Speicher (mem0) werden genannt statt gelistet | [Lesen und löschen](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Einen Export-Endpunkt gibt es noch nicht: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Unternehmensidentität | Google-Anmeldung und Passwörter; noch kein OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
 | Die Kontrollmatrix, die eine Sicherheitsprüfung liest | Diese Seite und [Einführen](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) ergänzt die Zuordnung zu HIPAA und SOC 2 |
 | Öffentliche Oberflächen | Der Besucherschlüssel einer gehosteten Seite ist zufällig, nie aus der Person abgeleitet; Einlass und Uploads sind je Adresse ratenbegrenzt, die Adresse liegt für die Dauer des Fensters in einem Redis-Schlüssel und sonst nirgends | [Kanäle](channels.md#a-hosted-page) |
@@ -357,7 +357,6 @@ zutreffend für jedes Deployment, bis jede einzelne geschlossen ist.
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - Kein Manipulationsnachweis der Audit-Spur — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Dateien nur auf lokaler Platte, vom Volume verschlüsselt oder gar nicht — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- Keine Selbstbedienungssicht auf das eigene Memory — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Keine OIDC-Anmeldung — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 - Die Kontrollmatrix für HIPAA und SOC 2 — [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
 

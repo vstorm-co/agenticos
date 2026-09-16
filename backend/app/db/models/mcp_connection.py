@@ -187,6 +187,16 @@ class McpConnection(Base, TimestampMixin):
     purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="mcp", index=True)
     # Which portal a `purpose = 'portal'` row holds the grant for. Null on an MCP row.
     portal_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The provider's own id for the account this grant is on, where the provider
+    # names one and a *delivery* has to be routed back to it. A GitHub App's
+    # installation id is the case that needs it: one App has one webhook URL, so
+    # the delivery cannot name a trigger and the installation in its payload is
+    # the only thing that says whose it is - which means the lookup has to be a
+    # query, not a field inside the encrypted grant (#1072). Indexed and
+    # deliberately not unique: two organizations could in principle install two
+    # different Apps that GitHub numbered the same, and the signature is what
+    # settles which grant the delivery belongs to.
+    portal_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     # Where a polled portal's reader has got to - Gmail's `historyId`, and whatever
     # the next polled portal needs. JSONB rather than a column per provider: the
     # shape is the adapter's business and nothing else reads inside it.

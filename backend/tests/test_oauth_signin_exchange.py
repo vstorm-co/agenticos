@@ -64,7 +64,11 @@ async def test_the_callback_redirect_carries_a_code_not_the_tokens(
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
-        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+        AsyncMock(
+            return_value={
+                "userinfo": {"sub": "s", "email": "u@e.com", "name": "U", "email_verified": True}
+            }
+        ),
     )
     monkeypatch.setattr(
         UserService,
@@ -115,7 +119,11 @@ async def test_the_oauth_login_binds_its_access_token_to_a_session(
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
-        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+        AsyncMock(
+            return_value={
+                "userinfo": {"sub": "s", "email": "u@e.com", "name": "U", "email_verified": True}
+            }
+        ),
     )
     monkeypatch.setattr(
         UserService,
@@ -146,7 +154,11 @@ async def test_a_failed_code_issue_leaves_no_session_row(
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
-        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+        AsyncMock(
+            return_value={
+                "userinfo": {"sub": "s", "email": "u@e.com", "name": "U", "email_verified": True}
+            }
+        ),
     )
     monkeypatch.setattr(
         UserService,
@@ -175,7 +187,11 @@ async def test_a_desktop_sign_in_returns_through_the_deep_link(
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
-        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+        AsyncMock(
+            return_value={
+                "userinfo": {"sub": "s", "email": "u@e.com", "name": "U", "email_verified": True}
+            }
+        ),
     )
     monkeypatch.setattr(
         UserService,
@@ -213,7 +229,11 @@ async def test_a_second_sign_in_does_not_steal_the_first_ones_destination(
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
-        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+        AsyncMock(
+            return_value={
+                "userinfo": {"sub": "s", "email": "u@e.com", "name": "U", "email_verified": True}
+            }
+        ),
     )
     monkeypatch.setattr(
         UserService,

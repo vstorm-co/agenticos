@@ -17,6 +17,188 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.454] - 2026-09-16
+
+### Added
+
+- **The public API accepts attachments and answers a parked run.** The surface
+  whose whole purpose is running an agent from your own backend was the one that
+  could not send it a document: `AgentRunRequest` now takes `file_ids`, resolved
+  against the caller's own files the way `/chat` and the widget resolve them. The
+  same route filled the `AgentRunResult.parked` field, which existed and was
+  always empty - a caller whose run stopped for an approval got a status and
+  nothing to act on, and now gets the call that is waiting and the approval to
+  post the decision to. (#936)
+- **A raw WebSocket is told when the agent is compacting its own history.** A
+  summary takes tens of seconds, and only `/chat` passed a compaction sink into
+  the runner - so every other streaming surface simply went quiet for the length
+  of it with nothing said. `AgentRunnerService.prepare` and `.execute` take
+  `on_compaction`, the embed session forwards the three frames, and they are sent
+  whatever the operator's trace switches say: that the agent is tidying its notes
+  is a fact about the product, not about its reasoning. (#936)
+- **`docs/channels.md` says what each surface offers and why each difference is a
+  difference.** A parity table across `/chat`, the socket and the API, with a
+  reason beside every "no" - either "this would be wrong here" or "this is not
+  built yet". `environment_id` on the socket, `ask_user` on the socket and
+  widening approvals past a member are each declined in writing, with what they
+  would need. `backend/tests/test_surface_parity.py` asserts the table against
+  the code rather than trusting it. (#936)
+
+## [0.0.453] - 2026-09-16
+
+### Added
+
+- **Single sign-on against the deployment's own identity provider.** A generic
+  OpenID Connect provider configured by discovery - Entra ID, Okta, Keycloak,
+  anything that publishes a document: `OIDC_ISSUER` plus a client pair, and the
+  authorization, token, userinfo and JWKS endpoints come from the provider
+  rather than from four more settings to get subtly wrong. Authorization code
+  with PKCE. A company self-hosting this runs an identity provider already and
+  will not mint local passwords for its staff, so without this its MFA and its
+  offboarding were solved twice. The sign-in page shows it under the name the
+  deployment gives it (`OIDC_DISPLAY_NAME`) with a mark of its choosing
+  (`OIDC_ICON`), in English and Polish. (#1419)
+
+### Changed
+
+- **A provider sign-in now requires `email_verified`, and absent counts as
+  false.** Both providers, not only the new one: an unverified address means
+  anybody at that provider can claim anybody else's work address, and the
+  sign-up policy's domain allow-list is built on an address meaning something.
+  The account is keyed on `sub` rather than on the address, as it already was.
+- **A sign-in the sign-up policy refuses now says why.** `invite_only` and the
+  domain allow-list already gated `get_or_create_oauth_user`, but the refusal
+  was caught by the callback's catch-all and shown as "Sign-in failed. Please
+  try again." beside every timeout. The policy's own sentence - the one the
+  registration form shows - is carried to the sign-in page instead. (#1419)
+
+## [0.0.452] - 2026-09-16
+
+### Added
+
+- **Per-organization data retention, on a schedule that actually deletes.**
+  Nothing was ever swept before this: conversations and their files, run rows
+  and manifests, workspaces, agent memory, uploaded documents and audit entries
+  lived until somebody deleted the organization - a data-protection problem in
+  one direction and, for audit, a compliance problem in the other. A period per
+  class now, set under the organization and gated on `org:settings`, resolved
+  against a deployment-wide default and ceiling; `audit` takes a **floor**
+  instead, six years by default, which an organization may lengthen and never
+  shorten. A daily Prefect flow hard-deletes in batches and records one audit
+  entry per organization per sweep, naming the class and the count and never the
+  content. A ceiling below the audit floor is reported to the operator rather
+  than resolved. Audit's own period resolves and is reported but nothing sweeps
+  it: the hash chain and its append-only checkpoint are built on entries staying,
+  so retiring one verifiably is #1622. (#1420)
+- **A purged run still counts toward the month's bill.** A month's spend is a sum
+  over `agent_runs`, so removing them would drop an organization's month-to-date
+  figure to zero as the window passed and a cap metered on that figure would stop
+  enforcing. The sweep keeps a total per organization per month on
+  `purged_run_spend` - a number and a count, no agent, no model, no name - and
+  `app/services/spend.py` adds it to the live sum. (#1420)
+
+## [0.0.451] - 2026-09-16
+
+### Added
+
+- **A person can read what agents here have written down about them.** Settings
+  → Memory, across every agent, with which one wrote each note and when. No
+  permission gates it: the answer is the same for a Viewer and an Owner, because
+  it is their own store. The product offered erasure and nothing else before
+  this, on the reasoning that a listing is a surveillance affordance - which is
+  true of somebody *else's* store and the opposite of one's own. (#1594)
+- **A note can be stopped without being destroyed.** A suppressed note is no
+  longer listed, read or editable by any tool, so it stops reaching the model
+  while staying there to be looked at and restored - the middle answer for a note
+  that is wrong or too personal and that somebody is not yet sure they want gone.
+  An agent writing the same name again revives the row with the new content,
+  which is documented rather than left to be discovered. The index the capability
+  splices into every request follows: suppressing or deleting a note drops the
+  `MEMORY.md` lines that name it, because a note somebody stopped whose index
+  line still describes it is a note still reaching the model. (#1594)
+- **A deployment administrator can read one named person's store in one named
+  tenant.** `GET /memory/person/{id}`, refused to everybody else - not an Owner,
+  not an Admin, not an edit grant on the agent that wrote the note - because an
+  organization role is not the party a subject-access request reaches. The read
+  is audited with the actor, the tenant, the subject and a reason, and never the
+  content. An agent bound to mem0 keeps its memories elsewhere, so those agents
+  are **named** on the page rather than listed: a page of native notes presented
+  as a complete inventory would be worse than one that says what it misses.
+  (#1594)
+
+## [0.0.450] - 2026-09-16
+
+### Added
+
+- **A HIPAA deployment profile, and a command that proves a deployment matches
+  it.** A security review does not ask whether software is compliant - HHS
+  certifies none and OCR recognises no private certification - it asks whether
+  this can run inside a compliant environment and whether that can be shown.
+  `agenticos cmd doctor --profile hipaa` prints one row per control, naming the
+  setting that satisfies it or the one that does not, and exits non-zero on any
+  unmet control so a client's own CI can gate on it. `deploy/profiles/hipaa/`
+  holds a compose overlay that refuses to start without the settings it cannot
+  default, plus an annotated env file.
+
+  Eleven controls: TLS to Postgres, to Redis and to the browser, a vault key of
+  real length, local inference, no hosted tracing anywhere (the deployment's
+  token, an agent's own, or an environment's), SSO, closed registration, a
+  six-year audit floor and the audit hash chain - with volume encryption
+  **named** rather than quietly passed,
+  because a sheet that skipped what it cannot see would read as complete and
+  would not be. It answers §164.312 and says so: the administrative (§164.308)
+  and physical (§164.310) safeguards are the operator's, and `docs/security.md`
+  states that in the same breath, along with who the business associate is and
+  why a hosted model's agreement is narrower than people expect. (#1448)
+
+## [0.0.449] - 2026-09-16
+
+### Changed
+
+- **Every dependency upgraded to its newest release, with one deliberate cap.**
+  The scheduled freshness job had been red; it is green now. Notable moves:
+  Pydantic AI 2.35 -> 2.40, Starlette 1.3 -> 1.6, OpenTelemetry 1.39 -> 1.44,
+  `wrapt` 1 -> 2, `pytest-randomly` 4 -> 5, Next 16.2 -> 16.3, React 19.2 ->
+  19.3. The suite, both coverage gates, the licence inventory and the advisory
+  audit are all clean on it. (#1485)
+- **The MCP SDK is held below 2.0, and the reason is in `pyproject.toml`.** 2.0
+  migrates the whole SDK to `httpx2`, so `create_oauth_metadata_request` returns
+  an `httpx2.Request` that `PinnedAsyncClient` - an `httpx` client - refuses to
+  send. That client is where this platform's SSRF pinning and its `Host`/SNI
+  substitution live, and carrying a second HTTP library through the one path
+  where a remote server chooses the next address is how a check ends up applied
+  by one library and the request made by the other. Migrating the pinned client
+  to `httpx2` is its own change with its own tests; until then the cap is what
+  keeps the scheduled upgrade green rather than perpetually red. (#1485)
+
+## [0.0.448] - 2026-09-16
+
+### Added
+
+- **GitHub triggers can run on a GitHub App instead of an OAuth App.** The OAuth
+  path stays as the fallback and the two coexist; what it costs is the reason for
+  the second. A `repo` plus `admin:repo_hook` token is read-write on every
+  repository the *person* can administer, never expires, needs a hook created and
+  deleted per repository, and shares that account's rate limit. An App is
+  installed on the repositories somebody chose, its token is minted from a
+  private key in the vault and lives an hour, and it is already delivering - so
+  creating a trigger registers nothing.
+
+  The trade is that the URL stops naming the trigger: one App has one webhook URL
+  and one signing secret per installation. `POST /webhooks/github-app` takes the
+  installation id out of the payload to select candidate grants, verifies the
+  signature against that organization's own App secret, and fires **every** active
+  trigger pointing at that repository - which a per-trigger URL cannot do, and
+  which two triggers on one repository is exactly what the presets invite. A
+  delivery matching nothing answers 202 like one that fired everything.
+
+  Stored as a new `github_app` vault kind (app id, private key, webhook secret),
+  and `docs/triggers.md` has the comparison table plus how to tell which of the
+  two a given trigger is on. Connecting is the portal's own action rather than an
+  OAuth start - an App has no consent flow - and it proves the App id, the key
+  and the installation id together before writing the grant, which is the only
+  moment any of the three can be checked. (#1072)
+
 ## [0.0.447] - 2026-09-16
 
 ### Changed

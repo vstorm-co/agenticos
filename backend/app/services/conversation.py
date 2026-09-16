@@ -982,4 +982,19 @@ class ConversationService:
         ids, malformed = _file_uuids(file_ids)
         if malformed:
             raise BadRequestError(message="Invalid file id", details={"file_ids": malformed})
-        return await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        # Every requested id has to resolve to a row of theirs that nothing has
+        # claimed yet. Returning only what matched ran the turn on silently
+        # partial input - billed, answered, and missing the document the caller
+        # believed it had sent - and an already-linked file was worse: the model
+        # received it while `_attach` updated no row, so the new turn could not
+        # show the file it had actually used (#936).
+        by_id = {row.id: row for row in rows}
+        unknown = [str(file_id) for file_id in ids if file_id not in by_id]
+        claimed = [str(row.id) for row in rows if row.message_id is not None]
+        if unknown or claimed:
+            raise BadRequestError(
+                message="Those files cannot be attached to this message",
+                details={"unknown": unknown, "already_attached": claimed},
+            )
+        return rows
