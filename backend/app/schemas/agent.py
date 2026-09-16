@@ -436,6 +436,16 @@ class AgentRunRequest(BaseSchema):
             "default - how a dev environment is exercised before promotion"
         ),
     )
+    file_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Files already uploaded through `POST /files/upload`, to attach to this "
+            "turn. Where each one goes is the agent's to decide - written into its "
+            "workspace when it has one, read into the prompt when it does not - which "
+            "is the same routing the chat and the widget get. They must be the "
+            "caller's own uploads"
+        ),
+    )
 
 
 class ParkedCall(BaseSchema):

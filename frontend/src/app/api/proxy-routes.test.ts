@@ -42,6 +42,7 @@ import * as orgInvitations from "./orgs/[id]/invitations/route";
 import * as orgInvitation from "./orgs/[id]/invitations/[invitationId]/route";
 import * as orgMembers from "./orgs/[id]/members/route";
 import * as orgMember from "./orgs/[id]/members/[userId]/route";
+import * as orgRetention from "./orgs/[id]/retention/route";
 import * as providers from "./providers/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
@@ -103,6 +104,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["orgs/[id]/invitations/[invitationId]", orgInvitation],
   ["orgs/[id]/members", orgMembers],
   ["orgs/[id]/members/[userId]", orgMember],
+  ["orgs/[id]/retention", orgRetention],
   ["providers", providers],
   ["rag", rag],
   ["ratings", ratings],

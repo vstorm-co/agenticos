@@ -171,13 +171,13 @@ class TestEveryToolSaysWhatItReturns:
         with pytest.raises(TypeError, match="read_tool_result"):
             wrapped.get_toolset()
 
-    async def test_the_skills_tools_carry_one(self) -> None:
+    async def test_the_skills_tool_carries_one(self) -> None:
         """A third party's library, this deployment's answer to "what do I get"."""
         from app.agents.capabilities.skills._capability import SKILL_TEXTS, Skills
-        from app.db.models.skill import Skill
+        from app.db.models.skill import Skill, SkillResource
 
         skill = Skill(name="probe", description="d", content="c")
-        skill.resources = []
+        skill.resources = [SkillResource(name="r.md", description="rd", content="rc")]
         toolset = Skills(skills=[skill]).get_toolset()
 
         assert toolset is not None
@@ -186,20 +186,40 @@ class TestEveryToolSaysWhatItReturns:
             tool.description == SKILL_TEXTS[name].render() for name, tool in toolset.tools.items()
         )
 
+    async def test_skills_that_ship_no_files_carry_no_tool_at_all(self) -> None:
+        """Nothing to read means nothing to describe, not a tool that reads nothing."""
+        from app.agents.capabilities.skills._capability import Skills
+        from app.db.models.skill import Skill
+
+        skill = Skill(name="probe", description="d", content="c")
+        skill.resources = []
+
+        assert Skills(skills=[skill]).get_toolset() is None
+
     async def test_a_skills_tool_we_have_no_text_for_keeps_the_librarys(self) -> None:
         """`run_skill_script` is excluded, not described - and may come back."""
         from pydantic_ai_skills import Skill as ToolkitSkill
-        from pydantic_ai_skills import SkillsToolset
+        from pydantic_ai_skills import SkillResource as ToolkitResource
+        from pydantic_ai_skills import SkillsCapability, SkillScript
 
         from app.agents.capabilities.skills._capability import SKILL_TEXTS, _describe
 
-        def _toolset() -> SkillsToolset:
-            return SkillsToolset(
-                skills=[ToolkitSkill(name="probe", description="d", content="c", resources=[])]
-            )
-
-        untouched = _toolset()
-        described = _describe(_toolset())
+        # Built straight from the library, with the script tool this deployment
+        # switches off - which is the only tool `_describe` is ever handed
+        # without an answer for it. Two toolsets, because `_describe` edits in
+        # place and the comparison needs one that it did not touch.
+        probe = ToolkitSkill(
+            name="probe",
+            description="d",
+            content="c",
+            resources=[ToolkitResource(name="r.md", description="rd", content="rc")],
+            scripts=[SkillScript(name="s.py", uri="file:///probe/s.py")],
+        )
+        untouched = SkillsCapability(skills=[probe]).get_toolset()
+        described = SkillsCapability(skills=[probe]).get_toolset()
+        assert untouched is not None
+        assert described is not None
+        _describe(described)
 
         extra = set(described.tools) - set(SKILL_TEXTS)
         assert extra

@@ -58,9 +58,9 @@ class AppAdminAuditLog(Base, TimestampMixin):
     # A detection control, not a prevention one - an operator with the database
     # can still rewrite a row, but not without the recomputed hash diverging.
     # The chain catches an edited, reordered, inserted or interior-deleted entry;
-    # it cannot by itself catch the newest entries being dropped or a whole
-    # organization's chain deleted, since the survivors stay internally consistent -
-    # that needs a checkpoint kept outside this table.
+    # the newest entries being dropped or a whole chain deleted leave the survivors
+    # internally consistent, so those are caught instead by comparing against
+    # `app_admin_audit_checkpoints`, the per-organization high-water mark (#1648).
     prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     entry_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 

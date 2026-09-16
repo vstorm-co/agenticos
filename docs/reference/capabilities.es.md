@@ -1,5 +1,5 @@
 ---
-source_sha: "9871a922f9f3"
+source_sha: "3a400557468e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -27,7 +27,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | id | Nombre | Categoría | Herramientas | Scope | Clave |
 |---|---|---|---|---|---|
 | `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Contexto | knowledge | `list_context`, `read_context` | — | — |
 | `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
@@ -47,16 +47,19 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | `clock` | Fecha y hora | utility | ninguna, a propósito | — | — |
 | `guardrails` | Guardrails | utility | ninguna, a propósito | — | — |
 | `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
+| `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
 | `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
 | `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Seis de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
+Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
 `tool_search` aporta su función de búsqueda solo cuando envuelve un toolset con
 herramientas diferidas — por sí sola no declara nada —, `guardrails` inspecciona y
 reescribe el texto que circula por un run, `compaction` reescribe el historial que
-lleva una petición, y `system_reminders` añade texto de guía al final de la
-petición. Ninguna de las seis deja nada que aprobar a una persona, así que ninguna
+lleva una petición, `media` reescribe cómo se *almacena* un historial compactado, y
+`system_reminders` añade texto de guía al final de la petición.
+
+Ninguna de las siete deja nada que aprobar a una persona, así que ninguna
 declara una herramienta. Una capability sin herramientas de verdad lo dice con
 `tools=()` en lugar de omitir el argumento; consulta
 [Añadir una capability](../howto/add-capability.md).
@@ -94,17 +97,30 @@ tener ninguna, porque el modelo sigue intentándolo y razona a partir del silenc
 
 ## Skills { #skills }
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Conocimiento escrito que el agent carga solo cuando decide que es relevante, un
 skill cada vez — la alternativa sería un campo de instrucciones que crece hasta que
 cada run paga por cada procedimiento. Consulta [Skills](../skills.md) para saber
 qué es un skill y cómo llega a una organización.
 
-Estas tres herramientas vienen de `pydantic-ai-skills`, así que sus nombres y su
-redacción los cambia otra persona. Un test de deriva compara lo que declara el
-registro con las herramientas que realmente se le ofrecen al modelo, y eso es lo
-que avisa el día que ocurra.
+**Cada skill vinculado es una capability propia.** Su nombre y su descripción están
+en el catálogo que el modelo lee en cada turno, y el modelo trae el cuerpo con
+`load_capability`, la herramienta del propio framework de agents: por eso no está
+en la lista de arriba y por eso un spec no puede concederla, ni controlarla, ni
+renombrarla. `read_skill_resource` es la única herramienta que aporta esta
+capability, y solo aparece cuando al menos un skill vinculado trae un archivo junto
+a sus instrucciones.
+
+La herramienta viene de `pydantic-ai-skills`, así que su nombre y su redacción los
+cambia otra persona. Un test de deriva compara lo que declara el registro con las
+herramientas que realmente se le ofrecen al modelo, y eso es lo que avisa el día
+que ocurra.
+
+`run_skill_script` está apagada en lugar de expuesta: los archivos de un skill
+llegan a un run bajo `/workspace/skills/`, donde los ejecuta el propio `execute`
+del [sandbox](../sandbox.md) bajo los topes del operador, y una segunda vía de
+ejecución sería un segundo juego de reglas que equivocar.
 
 ## Contexto { #context }
 
@@ -195,15 +211,61 @@ Un índice de más de unos 6.000 caracteres se deja fuera en vez de recortarse. 
 índice — que termina a mitad de línea, a mitad de nombre de archivo — es peor que
 ninguno.
 
-### Borrarla { #erasing-it }
+### Leerla, y borrarla { #reading-it-and-erasing-it }
 
-Nada permite hojear las notas de alguien en la consola: un operador leyendo lo que
-un agent escribió sobre un compañero es el fallo que este diseño rechaza, y no hay
-pantalla para ello. Lo que sí hay es el borrado. Una persona borra desde su propio
-perfil todo lo que un agent recuerda sobre ella, y un administrador que tenga
-`members:manage` puede hacerlo por otra persona; ambos eliminan las filas de aquí
-**y** las memorias correspondientes en mem0 de cada agent que la vincule. Borrar
-por completo la memoria de un agent está en su toolbox, junto a la capability.
+Nadie hojea las notas *de otra persona* por su rol en la organización. Esa era
+toda la respuesta anterior —borrado y ninguna lista— y estaba medio bien: una
+lista es un instrumento de vigilancia sobre el almacén de un colega, y lo
+contrario sobre el propio. Por eso la respuesta tiene ahora tres partes (#1594).
+
+**El tuyo, siempre, en Ajustes → Memoria.** Ningún permiso lo protege, porque la
+respuesta es la misma para un Viewer y para un Owner: lo que los agentes de aquí
+han escrito sobre ti, a través de todos ellos, con cuál escribió cada nota y
+cuándo. Tres cosas que puedes hacer con una nota:
+
+| | |
+|---|---|
+| **Dejar de usarla** | La nota deja de listarse, leerse y de ser editable por herramienta alguna, así que deja de llegar al modelo — y sigue existiendo, para que la mires y la restaures. La respuesta intermedia para una nota que está mal o es demasiado personal y de la que aún no estás seguro de querer deshacerte. |
+| **Volver a usarla** | La restaura. |
+| **Borrarla** | Desaparece. |
+
+El *nombre* de una nota suspendida sigue ocupado, así que un agente que lo
+escriba otra vez revive la fila con contenido nuevo. Eso no deshace la
+suspensión: lo que suspendiste queda sobrescrito, y la fila guarda algo que el
+agente ha aprendido desde entonces. La alternativa —un nombre permanentemente
+inservible— es un almacén que se niega a funcionar y nunca dice por qué.
+
+**El índice va detrás.** `MEMORY.md` se inserta en las instrucciones de cada
+petición, así que una nota que detuviste cuya línea del índice sigue
+describiéndola es una nota que sigue llegando al modelo. Suspender o borrar una
+nota elimina, por tanto, las líneas del índice que la **nombran**. Una línea que
+la describe sin nombrarla sobrevive —el recorte es por líneas y se apoya en el
+nombre, que es lo que el índice es— y restaurar una nota no vuelve a poner la
+línea: el índice lo escribe el agente, y este no es el sitio para redactar en su
+voz.
+
+**El de otra persona, solo una administradora del despliegue.**
+`GET /memory/person/{id}`, nombrando el tenant, y rechazado a todos los demás: ni
+a un Owner, ni a un Admin, ni a quien tenga un grant de edición sobre el agente
+que escribió la nota. El razonamiento es el de arriba: un rol de organización no
+es la parte a la que llega una solicitud de acceso del interesado, y la
+administradora del propio despliegue, que ya administra cuentas entre tenants,
+sí lo es. La lectura queda en el rastro de auditoría con el actor, el tenant, el
+sujeto y un motivo, y **sin contenido**: una entrada que guardara lo que miró
+sería una segunda copia de lo que se protege.
+
+**El borrado**, sin cambios. Una persona limpia desde su propio perfil todo lo
+que un agente recuerda sobre ella, y una administradora con `members:manage`
+puede hacerlo por otra; ambos borran las filas de aquí **y** los recuerdos
+correspondientes en mem0 de cada agente que lo vincule. Vaciar del todo la
+memoria de un agente está en su caja de herramientas, junto a la capability.
+
+**Adónde no llega la vista de autoservicio.** Un agente vinculado a mem0 guarda
+sus recuerdos en el servicio de otra empresa, y esta página no los lista: la API
+de mem0 responde a qué coincide con una *pregunta*, no a qué contiene un almacén.
+Esos agentes se **nombran** en la página en vez de omitirse, porque una lista de
+notas nativas presentada como un inventario completo sería peor que una que dice
+lo que le falta. El borrado sí llega a mem0; la lectura no.
 
 ## Memoria (mem0) { #memory-mem0 }
 
@@ -1283,6 +1345,51 @@ estaba la ventana lo informa cada agent, compacte o no; consulta
 El aviso importa sobre todo al agent que *no* va a compactar, que es el que llega al
 techo y recibe un rechazo.
 
+## Descarga de medios { #media-offload }
+
+Ninguna herramienta. Escribe las partes grandes de una conversación compactada en
+el almacenamiento y deja en el historial guardado una referencia
+`media+sha256://…`. Los almacenes direccionados por contenido y los recorridos
+vienen de
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Configuración | Por defecto | |
+|---|---|---|
+| `threshold_bytes` | 32768 | 1 KiB–10 MiB; las partes de ese tamaño o mayores se guardan fuera del historial |
+
+**Hay un sitio donde los medios se acumulan de verdad, y es este.** Un adjunto
+llega al modelo una vez, en el turno en que se adjuntó: el historial ordinario se
+reconstruye a partir del *texto* de la transcripción, así que una imagen no se
+reenvía. La excepción es una conversación [compactada](#context-management) —
+entonces el volcado que hace la propia biblioteca de los mensajes del run se
+guarda entero y se reproduce exactamente como el modelo lo vio por última vez,
+base64 incluido, hasta que el siguiente resumen lo sustituye. Ese blob son filas
+en Postgres y bytes en el cable, en cada turno intermedio.
+
+**Dónde van los bytes, y cuánto viven.** Al propio almacenamiento de ficheros del
+despliegue, en `media/<organización>/<conversación>/<digest>`. La organización es
+el aislamiento: una URI de medios es un hash de contenido, así que dos inquilinos
+con la misma imagen calculan la misma URI, y la organización viene del run y no de
+la URI. La conversación es el ciclo de vida — un hash de contenido no registra
+quién lo sigue referenciando, así que el prefijo del hilo se va con el hilo y el
+del inquilino con el inquilino. El almacén no emite ninguna URL pública; una URL
+que puede descargar un proveedor de modelos la puede descargar cualquiera.
+
+**Descargar es opcional; restaurar no.** Vincular la capability es la decisión de
+descargar. La reinserción ocurre para toda conversación, siga vinculada o no:
+una conversación cuyo agent se desvinculó después sigue teniendo marcadores en su
+historial, y un marcador que nadie reinserta es una imagen entregada al modelo en
+un idioma que no lee.
+
+**Ambas direcciones fallan con suavidad.** Perder un resumen por el que se pagó a
+un modelo, porque el almacén tuvo un tropiezo, es peor que un historial más grande
+de lo necesario. El fallo se registra y el historial se usa tal cual.
+
+No reduce lo que se le *envía* al modelo: las partes se reinsertan antes de que
+salga la petición, y eso es lo que mantiene correcto el run. Reescribirlas a una
+URL que el modelo descargue por su cuenta es otra función y necesitaría la URL
+pública que este almacén deliberadamente no emite.
+
 ## Límites de salida de herramientas { #tool-output-limits }
 
 Una herramienta, `read_tool_result`. Donde `compaction` recorta el historial *dentro*
@@ -1593,12 +1700,11 @@ comprueba que las herramientas de cada capability llevan una forma de retorno.
 
 Eso cubre también las herramientas que este despliegue no escribió: a `planning` y a
 la delegación se les entrega el texto de este repositorio, `web_fetch` y
-`search_tools` se vuelven a describir donde se construyen, y `read_tool_result` y las
-tres de `skills` se vuelven a describir en el sitio, sobre el toolset de la
-biblioteca. Dos merecieron la molestia más allá de la coherencia: la frase de la
+`search_tools` se vuelven a describir donde se construyen, y `read_tool_result` y
+`read_skill_resource` se vuelven a describir en el sitio, sobre el toolset de la
+biblioteca. Una mereció la molestia más allá de la coherencia: la frase de la
 biblioteca para `read_tool_result` no decía nada de con qué responde un handle, lo
-único que necesita un modelo que sostiene uno, y `list_skills` documentaba el retorno
-de Python (un diccionario) en lugar del texto que se entrega al modelo.
+único que necesita un modelo que sostiene uno.
 
 Una herramienta de una biblioteca para la que este repositorio no tiene texto conserva
 el de la biblioteca, que es el valor por defecto correcto: `run_skill_script` se
