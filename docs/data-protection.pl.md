@@ -1,5 +1,5 @@
 ---
-source_sha: "a20c296fac18"
+source_sha: "b86c4e36c99b"
 ---
 
 # Ochrona danych { #data-protection }
@@ -157,7 +157,7 @@ jest luką — i tak jest nazwany.
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
 | Dowód nienaruszalności śladu | Jeszcze nie ma | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); `redacted` to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retencja według harmonogramu | Zamiatane są tylko wiersze `sandbox_operations`, po 30 dniach. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retencja według harmonogramu | Wiersze `sandbox_operations`, po 30 dniach; wiersze `notifications` — *przeczytany* po 90 dniach, a każdy wiersz po roku bez względu na to. Same `announcements` są wyłączone, więc to, co zostało wysłane, pozostaje możliwe do sprawdzenia w śladzie audytu, nawet gdy jego dostawy się przedawnią. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [Nadzór](governance.md#alerts); reszta to [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
 | Dostęp do własnych danych | Brak endpointu eksportu; brak wglądu we własną pamięć | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Tożsamość korporacyjna | Logowanie Google i hasła; jeszcze bez OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
@@ -328,7 +328,7 @@ wdrożenia, dopóki każdy z nich się nie zamknie.
 **W kodzie, śledzone:**
 
 - Trace'y niosą pełną treść, chyba że agent ustawi `observability.content` na `none`; nie ma stanu pośredniego — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- Brak retencji według harmonogramu — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
+- Retencja według harmonogramu obejmuje `sandbox_operations` i `notifications`; każda inna tabela trzyma swoje wiersze aż do usunięcia konta — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Bajty załączników i pamięć osoby przeżywają usunięcie swojego właściciela; brak
   eksportu danych osobowych; inwentarz usunięcia —
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).

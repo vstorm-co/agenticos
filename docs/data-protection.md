@@ -153,7 +153,7 @@ one.
 | Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
 | Tamper evidence on the trail | None yet | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only | [Environments](environments.md) (#1413); `redacted` is [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retention on a schedule | Only `sandbox_operations` rows are swept, after 30 days. The stale-run sweep finalizes abandoned runs; it deletes nothing | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retention on a schedule | `sandbox_operations` rows, after 30 days; `notifications` rows, a *read* one after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out. The stale-run sweep finalizes abandoned runs; it deletes nothing | [Governance](governance.md#alerts); the rest is [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
 | Access to one's own data | No export endpoint; no view of one's own memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Enterprise identity | Google sign-in and passwords; no OIDC yet | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
@@ -319,7 +319,7 @@ deployment until each closes.
 **In the code, tracked:**
 
 - Traces carry full content unless an agent sets `observability.content` to `none`; no filtered middle ground - [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- No scheduled retention - [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
+- Scheduled retention covers `sandbox_operations` and `notifications`; every other table keeps its rows until account deletion reconciles them - [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Attachment bytes and a person's memory survive their owner's deletion; no
   personal data export; the erasure inventory -
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
