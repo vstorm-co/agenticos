@@ -36,6 +36,30 @@ async def get_by_refresh_token_hash(
     return result.scalar_one_or_none()
 
 
+async def get_by_previous_refresh_token_hash(
+    db: AsyncSession, token_hash: str, *, for_update: bool = False
+) -> Session | None:
+    """The live session whose *last rotation spent* this token, if any.
+
+    Read only when a refresh token matched no live session, which is the shape a
+    replay takes: rotation re-keys the row in place, so a token spent a moment
+    ago names no row by its current hash and looks exactly like a typo. Matching
+    the hash rotation replaced is what tells the two apart (#1519).
+
+    Restricted to an active row, because a chain already ended has nothing left
+    to revoke and re-reporting it on every retry would turn one breach signal
+    into a stream of them.
+    """
+    query = select(Session).where(
+        Session.previous_refresh_token_hash == token_hash,
+        Session.is_active.is_(True),
+    )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
 def _own(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
     """Narrow a user's sessions to the ones that are theirs.
 
@@ -181,7 +205,12 @@ async def rotate(
     refresh (#1501); the hash and the window move, `last_used_at` gets the same
     touch a plain use gives it, and the device and address move to where the
     refresh came from so the sessions list shows where the credential is used now.
+
+    The hash being replaced is kept in `previous_refresh_token_hash`, which is
+    what makes a later presentation of the spent token recognisable as a replay
+    rather than as any other invalid token (#1519).
     """
+    session.previous_refresh_token_hash = session.refresh_token_hash
     session.refresh_token_hash = refresh_token_hash
     session.expires_at = expires_at
     session.last_used_at = datetime.now(UTC)

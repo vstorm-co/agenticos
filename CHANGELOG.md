@@ -17,6 +17,43 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.460] - 2026-09-16
+
+### Added
+
+- A persisted `ask_user` question records which delegate asked it, and the
+  transcript says so — "Asked by researcher" rather than "Asked you" where a
+  specialist put the question. `ask_parent` hands the surface the question and
+  nothing else, so this needed `SubAgentState.name` upstream
+  (subagents-pydantic-ai 0.2.22, the new floor). A question the main agent asked
+  itself, and every question stored before this, names nobody. (#1042)
+
+## [0.0.459] - 2026-09-16
+
+### Fixed
+
+- The cost journey's last step waits for the API to report a priced run before
+  asking Activity to draw its row, so a failure says which of the five things it
+  crosses did not happen instead of `element(s) not found`. Every other wait in
+  that spec names what it was waiting for, `nowThere` moved out of
+  `seed.setup.ts` as `nowListed` / `nowMatching` so specs and fixtures share one
+  "the write has landed" step, and a failing `e2e` job now uploads
+  `test-results/` — the screenshot, the video, the trace and Playwright's
+  `error-context.md` — beside the HTML report. (#162)
+
+## [0.0.458] - 2026-09-16
+
+### Added
+
+- Refresh-token reuse detection. Rotation re-keys a session row in place, so a
+  stolen refresh token presented after the legitimate user has rotated failed
+  exactly like a typo — no signal, no audit entry, and the live session the thief
+  was racing went on running. The row now keeps the hash rotation replaced, a
+  refresh matching it is the reuse case in RFC 6819 §5.2.2.3, and the response is
+  to end that chain and record it. The caller still learns only "invalid or
+  expired". One hash, not a history: it catches the window the pattern is about
+  and says so. Migration `0085_refresh_reuse`. (#1519)
+
 ## [0.0.457] - 2026-09-16
 
 ### Added

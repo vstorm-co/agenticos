@@ -1,5 +1,5 @@
 ---
-source_sha: "64e1d5a17218"
+source_sha: "c263822f4476"
 ---
 
 # Arquitectura { #architecture }
@@ -239,6 +239,21 @@ y un run que falta en el historial es un run del que nadie responde.
 
 Los dos límites se demuestran contra una base de datos real en
 `tests/integration/test_run_commit_boundary.py`.
+
+### El único otro commit temprano { #the-one-other-early-commit }
+
+`SessionService.detect_refresh_reuse` es el segundo, y por la razón contraria: no
+porque la transacción se mantendría demasiado tiempo, sino porque está a punto de
+tirarse. Un refresh token que no coincidió con ninguna sesión viva puede ser la
+reproducción de uno que una sesión rotó — la respuesta es terminar esa cadena y
+registrarlo, y después rechazar a quien llama, lo que lanza
+`AuthenticationError` por la rama de *excepción* del contexto de sesión y revierte
+la petición.
+
+Sin commit, eso es un 401, una cadena comprometida todavía viva y ningún registro
+de que pasara nada. `test_the_response_survives_the_refusal_that_follows_it`
+revierte después de la llamada y comprueba qué queda
+([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
 
 La visibilidad corta por los dos lados. Todo lo que antes razonaba «la fila de un
 run en ejecución no se puede ver» razona ahora sobre una fila que *sí* se ve, y el
@@ -943,6 +958,11 @@ dice cómo encontrar los documentos, publicado al asistente como JSON Schema.
   antes de la llamada al modelo y otra vez en el `finally` terminal.
   `MLService._record_failure` es la otra, por la razón especular — un registro de uso
   sobre un *rechazo* tiene que sobrevivir al rollback que ese rechazo provoca.
+- Dos excepciones sancionadas. El camino del run de un agent hace commit antes de
+  la llamada al modelo y otra vez en el `finally` terminal;
+  `SessionService.detect_refresh_reuse` hace commit de la sesión que acaba de
+  revocar y de la entrada que dice por qué — porque quien lo llama lanza un 401
+  inmediatamente después, y la reversión desharía ambas.
 - El trabajo en segundo plano que lee una fila que esta petición escribió se
   entrega con **`spawn_after_commit`**, nunca con `spawn`.
 - Un dominio fino es un módulo; uno grueso es un subpaquete con una fachada, y nada
