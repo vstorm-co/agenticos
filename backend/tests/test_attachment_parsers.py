@@ -212,6 +212,51 @@ class TestOutlookMsg:
 
         assert fu._msg_text(ole) == "Hello bold"
 
+    def test_mapi_nul_terminators_are_stripped(self):
+        """`PtypString` streams are NUL-terminated and `str.strip()` leaves `\\x00`,
+        which PostgreSQL's `Text` column rejects — failing the upload after the bytes
+        were stored. Every string property drops it (#1591)."""
+        ole = _Ole(
+            {
+                "__substg1.0_0037001F": _u16("Subject\x00"),
+                "__substg1.0_1000001F": _u16("Body\x00text\x00"),
+                "__recip_version1.0_#00000000/__substg1.0_3001001F": _u16("Bob\x00"),
+                "__recip_version1.0_#00000000/__substg1.0_39FE001F": _u16("bob@x.com\x00"),
+                "__attach_version1.0_#00000000/__substg1.0_3707001F": _u16("a.pdf\x00"),
+            },
+            [
+                ["__substg1.0_0037001F"],
+                ["__recip_version1.0_#00000000", "__substg1.0_3001001F"],
+                ["__attach_version1.0_#00000000", "__substg1.0_3707001F"],
+            ],
+        )
+
+        text = fu._msg_text(ole)
+
+        assert text is not None
+        assert "\x00" not in text
+        assert "Subject: Subject" in text
+        assert "Bodytext" in text
+        assert "To: Bob <bob@x.com>" in text
+        assert "Attachments: a.pdf" in text
+
+    def test_the_html_body_nul_is_stripped(self):
+        ole = _Ole({"__substg1.0_10130102": b"<p>Hi\x00 there</p>"}, [])
+
+        result = fu._msg_text(ole)
+
+        assert result is not None
+        assert "\x00" not in result
+        assert result == "Hi there"
+
+    def test_an_ansi_property_is_read_and_stripped(self):
+        ole = _Ole(
+            {"__substg1.0_0037001E": "Legacy\x00".encode("cp1252")},
+            [["__substg1.0_0037001E"]],
+        )
+
+        assert fu._msg_text(ole) == "Subject: Legacy"
+
     def test_a_non_ole_file_is_none(self):
         assert FileUploadService._parse_msg_content(b"just some plain text") is None
 
@@ -437,3 +482,242 @@ class TestArchiveBombGuards:
 
         with pytest.raises(ValueError, match="archive too large"):
             fu.safe_unzip(self._zip({f"m{i}": b"\x00" * 1000 for i in range(5)}))
+
+
+class TestOdfSpaceBombIsBounded:
+    """odfpy's `extractText` expands `<text:s text:c=N>` to `" " * N` before any cap,
+    so a tiny ODF can allocate gigabytes of spaces. Each run is clamped first
+    (#1591, §7 finding 3, security follow-up)."""
+
+    def _odt_with_spaces(self, count: int, tail: str = "END") -> bytes:
+        from odf.opendocument import OpenDocumentText
+        from odf.text import P, S
+
+        document = OpenDocumentText()
+        p = P()
+        p.addElement(S(c=count))
+        p.addText(tail)
+        document.text.addElement(p)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def _odp_with_spaces(self, count: int) -> bytes:
+        from odf.draw import Frame, Page, TextBox
+        from odf.opendocument import OpenDocumentPresentation
+        from odf.style import MasterPage, PageLayout
+        from odf.text import P, S
+
+        document = OpenDocumentPresentation()
+        layout = PageLayout(name="pl1")
+        document.automaticstyles.addElement(layout)
+        document.masterstyles.addElement(MasterPage(name="m1", pagelayoutname="pl1"))
+        page = Page(masterpagename="m1")
+        frame = Frame()
+        box = TextBox()
+        p = P()
+        p.addElement(S(c=count))
+        p.addText("SLIDE")
+        box.addElement(p)
+        frame.addElement(box)
+        page.addElement(frame)
+        document.presentation.addElement(page)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def _ods_with_spaces(self, count: int) -> bytes:
+        from odf.opendocument import OpenDocumentSpreadsheet
+        from odf.table import Table, TableCell, TableRow
+        from odf.text import P, S
+
+        document = OpenDocumentSpreadsheet()
+        table = Table(name="S")
+        row = TableRow()
+        cell = TableCell()
+        p = P()
+        p.addElement(S(c=count))
+        p.addText("V")
+        cell.addElement(p)
+        row.addElement(cell)
+        table.addElement(row)
+        document.spreadsheet.addElement(table)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def test_an_odt_space_bomb_is_bounded(self):
+        text = FileUploadService._parse_odt_content(self._odt_with_spaces(10_000_000_000))
+
+        assert text is not None
+        assert "END" in text
+        assert len(text) <= fu.settings.CHAT_PARSED_TEXT_MAX_CHARS + 100
+
+    def test_an_odp_space_bomb_is_bounded(self):
+        text = FileUploadService._parse_odp_content(self._odp_with_spaces(10_000_000_000))
+
+        assert text is not None
+        assert "SLIDE" in text
+        assert len(text) <= fu.settings.CHAT_PARSED_TEXT_MAX_CHARS + 100
+
+    def test_an_ods_cell_space_bomb_is_bounded(self):
+        text = FileUploadService._parse_ods_content(self._ods_with_spaces(10_000_000_000))
+
+        assert text is not None
+        assert "V" in text
+        assert len(text) <= fu.settings.CHAT_PARSED_TEXT_MAX_CHARS + 100
+
+    def test_a_modest_space_run_is_preserved(self):
+        text = FileUploadService._parse_odt_content(self._odt_with_spaces(4))
+
+        assert text == "    END"
+
+    def test_a_space_element_without_a_count_is_one_space(self):
+        from odf.opendocument import OpenDocumentText
+        from odf.text import P, S
+
+        document = OpenDocumentText()
+        p = P()
+        p.addText("A")
+        p.addElement(S())  # a bare `<text:s/>`, no `text:c` — one space
+        p.addText("B")
+        document.text.addElement(p)
+        buffer = io.BytesIO()
+        document.save(buffer)
+
+        text = FileUploadService._parse_odt_content(buffer.getvalue())
+
+        assert text == "A B"
+
+    def test_a_zero_count_space_run_clamps_to_nothing(self):
+        text = FileUploadService._parse_odt_content(self._odt_with_spaces(0, tail="END"))
+
+        assert text == "END"
+
+
+class TestOdsRowRepetitionIsExpandedAndBounded:
+    """A nonempty row carrying `table:number-rows-repeated` is real data repeated, so
+    it must be emitted that many times — but the count is attacker-controlled, so the
+    expansion is charged to the same budgets the columns answer to (#1591)."""
+
+    def _ods_rows(self, repeat: int, *, value: str = "hi") -> bytes:
+        from odf.opendocument import OpenDocumentSpreadsheet
+        from odf.table import Table, TableCell, TableRow
+        from odf.text import P
+
+        document = OpenDocumentSpreadsheet()
+        table = Table(name="S")
+        row = TableRow(numberrowsrepeated=str(repeat))
+        cell = TableCell()
+        cell.addElement(P(text=value))
+        row.addElement(cell)
+        table.addElement(row)
+        document.spreadsheet.addElement(table)
+        buffer = io.BytesIO()
+        document.save(buffer)
+        return buffer.getvalue()
+
+    def test_a_repeated_nonempty_row_is_emitted_each_time(self):
+        text = FileUploadService._parse_ods_content(self._ods_rows(3))
+
+        assert text is not None
+        assert text.count("hi") == 3
+
+    def test_a_colossal_row_repeat_is_bounded(self, monkeypatch):
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "CHAT_PARSED_TEXT_MAX_CHARS", 10_000)
+
+        text = FileUploadService._parse_ods_content(self._ods_rows(1_000_000_000, value="row"))
+
+        assert text is not None
+        # Bounded near the char budget rather than a billion rows; the newline joins
+        # the budget does not count add a bounded per-row slack, so ~2x is the ceiling.
+        assert len(text) <= 10_000 * 2
+
+
+class TestLegacyXlsIsBounded:
+    """A sparse BIFF sheet can describe a 65_536x256 rectangle for one value; the sweep
+    is bounded by a cell budget so it cannot occupy the file pool (#1591)."""
+
+    class _Cell:
+        def __init__(self, value: str) -> None:
+            import xlrd
+
+            self.ctype = xlrd.XL_CELL_TEXT if value else xlrd.XL_CELL_EMPTY
+            self.value = value
+
+    class _WideSheet:
+        """A rectangle every cell of which is populated, to exercise the budget."""
+
+        def __init__(self, name: str, nrows: int, ncols: int) -> None:
+            self.name = name
+            self.nrows = nrows
+            self.ncols = ncols
+            self.reads = 0
+
+        def row_len(self, _r: int) -> int:
+            return self.ncols
+
+        def cell(self, _r: int, _c: int) -> TestLegacyXlsIsBounded._Cell:
+            self.reads += 1
+            return TestLegacyXlsIsBounded._Cell("x")
+
+    class _RowsSheet:
+        """A sheet defined by explicit rows, `""` standing for a blank cell."""
+
+        def __init__(self, name: str, rows: list[list[str]]) -> None:
+            self.name = name
+            self._rows = rows
+            self.nrows = len(rows)
+            self.ncols = max((len(r) for r in rows), default=0)
+
+        def row_len(self, r: int) -> int:
+            return len(self._rows[r])
+
+        def cell(self, r: int, c: int) -> TestLegacyXlsIsBounded._Cell:
+            return TestLegacyXlsIsBounded._Cell(self._rows[r][c])
+
+    class _Book:
+        def __init__(self, sheet: object) -> None:
+            self._sheet = sheet
+            self.datemode = 0
+
+        def sheets(self) -> list[object]:
+            return [self._sheet]
+
+    def test_a_sparse_rectangle_does_not_sweep_every_cell(self, monkeypatch):
+        import xlrd
+
+        sheet = self._WideSheet("Big", nrows=65_536, ncols=256)
+        monkeypatch.setattr(
+            xlrd, "open_workbook", lambda **_kwargs: TestLegacyXlsIsBounded._Book(sheet)
+        )
+
+        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything")
+
+        assert text is not None
+        # Bounded near the cell budget rather than the full 16.8M-cell rectangle.
+        assert sheet.reads <= fu._XLS_MAX_CELLS + 256
+
+    def test_trailing_blanks_are_trimmed_and_empty_rows_dropped(self, monkeypatch):
+        import xlrd
+
+        sheet = self._RowsSheet("Cover", [["a", "b", "", ""], ["", "", ""], ["c", ""]])
+        monkeypatch.setattr(
+            xlrd, "open_workbook", lambda **_kwargs: TestLegacyXlsIsBounded._Book(sheet)
+        )
+
+        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything")
+
+        assert text == "Sheet: Cover\na\tb\nc"
+
+    def test_a_wholly_blank_sheet_yields_no_text(self, monkeypatch):
+        import xlrd
+
+        sheet = self._RowsSheet("Empty", [["", ""], [""]])
+        monkeypatch.setattr(
+            xlrd, "open_workbook", lambda **_kwargs: TestLegacyXlsIsBounded._Book(sheet)
+        )
+
+        assert FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything") is None

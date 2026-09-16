@@ -55,7 +55,18 @@ unbounded list — a post-decompression bomb `safe_unzip` cannot see, because th
 expansion is semantic rather than ZIP inflation (#1591, §7 finding 3). Each repeat is
 clamped to what is left of this budget, and extraction stops once it is spent; the
 bound is far above any real sheet, so trailing empty runs (which are popped anyway)
-and genuine data are untouched.
+and genuine data are untouched. `table:number-rows-repeated` is the same trick one
+axis over, and is clamped against the same budget.
+"""
+
+_XLS_MAX_CELLS = 1_000_000
+"""The same rectangular bound as `_ODS_MAX_CELLS`, for the legacy `.xls` sweep.
+
+A sparse BIFF workbook can place one cell at the bottom-right legacy coordinate, so
+`sheet.nrows`x`sheet.ncols` describes a 65_536x256 rectangle for a single value.
+`ragged_rows=True` stops xlrd padding that rectangle in memory when the workbook is
+opened, and this budget bounds the read loop so a handful of such sheets cannot
+occupy the bounded file pool before the central text cap runs (#1591).
 """
 
 
@@ -146,6 +157,27 @@ def safe_unzip(data: bytes) -> io.BytesIO:
                     if total > settings.CHAT_ARCHIVE_TOTAL_MAX_BYTES:
                         raise ValueError("archive too large")
     return io.BytesIO(data)
+
+
+def _clamp_odf_space_runs(document: Any, budget: int) -> None:
+    """Clamp every `<text:s text:c=N>` repeat so a walk cannot allocate a bomb.
+
+    odfpy's own `extractText` expands `<text:s>` to `" " * int(text:c)` before any
+    character cap is applied, so a sub-kilobyte ODF declaring `text:c="10000000000"`
+    allocates gigabytes of spaces inside the extraction — a post-decompression bomb
+    `safe_unzip` cannot see, because the XML member itself is tiny (#1591, §7 finding
+    3). The count is attacker-controlled, so each run is clamped in place to what is
+    left of `budget` before extraction; the bound is the parsed-text cap, far above
+    any real run of spaces, and the cell/paragraph budgets narrow it further.
+    """
+    from odf.text import S
+
+    remaining = budget
+    for element in document.getElementsByType(S):
+        count = int(element.getAttribute("c") or 1)
+        clamped = max(0, min(count, remaining))
+        element.setAttribute("c", str(clamped))
+        remaining -= clamped
 
 
 @dataclass(frozen=True)
@@ -487,18 +519,30 @@ class FileUploadService:
         try:
             import xlrd
 
-            book: Any = xlrd.open_workbook(file_contents=data, formatting_info=False)
+            # `ragged_rows=True` so a sparse sheet whose used range is 65_536x256 for
+            # one value is not padded to that full rectangle in memory on open, and a
+            # cell budget so the read loop cannot sweep it either (#1591).
+            book: Any = xlrd.open_workbook(
+                file_contents=data, formatting_info=False, ragged_rows=True
+            )
             blocks: list[str] = []
+            budget = _XLS_MAX_CELLS
             for sheet in book.sheets():
                 rows: list[str] = []
                 for r in range(sheet.nrows):
-                    cells = [_xls_cell(book, sheet.cell(r, c)) for c in range(sheet.ncols)]
+                    width = sheet.row_len(r)
+                    cells = [_xls_cell(book, sheet.cell(r, c)) for c in range(width)]
+                    budget -= width
                     while cells and cells[-1] == "":
                         cells.pop()
                     if cells:
                         rows.append("\t".join(cells))
+                    if budget <= 0:
+                        break
                 if rows:
                     blocks.append(f"Sheet: {sheet.name}\n" + "\n".join(rows))
+                if budget <= 0:
+                    break
             return "\n\n".join(blocks) or None
         except Exception as e:
             logger.warning("XLS parsing failed: %s", e)
@@ -513,6 +557,9 @@ class FileUploadService:
             from odf.teletype import extractText
 
             document: Any = load(safe_unzip(data))
+            # `extractText` below expands `<text:s>` before any cap, so the space
+            # runs are clamped in the DOM first (#1591, §7 finding 3).
+            _clamp_odf_space_runs(document, settings.CHAT_PARSED_TEXT_MAX_CHARS)
             blocks: list[str] = []
             budget = _ODS_MAX_CELLS
             char_budget = settings.CHAT_PARSED_TEXT_MAX_CHARS
@@ -544,7 +591,22 @@ class FileUploadService:
                     while cells and cells[-1] == "":
                         cells.pop()
                     if cells:
-                        rows.append("\t".join(cells))
+                        line = "\t".join(cells)
+                        rows.append(line)
+                        # A nonempty row may repeat via `table:number-rows-repeated`;
+                        # emitting the DOM row once would silently drop the copies and
+                        # hand the model wrong counts. Each extra copy is charged to
+                        # both budgets so an attacker-chosen count cannot outrun the
+                        # bound the columns already answer to (#1591). Trailing empty
+                        # rows carry huge repeats too, but their cells pop to nothing
+                        # above, so only real data expands here.
+                        row_repeat = max(1, int(row.getAttribute("numberrowsrepeated") or 1))
+                        for _ in range(row_repeat - 1):
+                            if budget <= 0 or char_budget <= 0:
+                                break
+                            rows.append(line)
+                            budget -= len(cells)
+                            char_budget -= len(line)
                     if budget <= 0 or char_budget <= 0:
                         break
                 if rows:
@@ -565,6 +627,8 @@ class FileUploadService:
             from odf.text import P
 
             document: Any = load(safe_unzip(data))
+            # `extractText` expands `<text:s>` before any cap; clamp first (#1591).
+            _clamp_odf_space_runs(document, settings.CHAT_PARSED_TEXT_MAX_CHARS)
             lines = [extractText(p) for p in document.getElementsByType(P)]
             return "\n".join(line for line in lines if line.strip()) or None
         except Exception as e:
@@ -580,6 +644,8 @@ class FileUploadService:
             from odf.text import P
 
             document: Any = load(safe_unzip(data))
+            # `extractText` expands `<text:s>` before any cap; clamp first (#1591).
+            _clamp_odf_space_runs(document, settings.CHAT_PARSED_TEXT_MAX_CHARS)
             lines = [extractText(p) for p in document.getElementsByType(P)]
             return "\n".join(line for line in lines if line.strip()) or None
         except Exception as e:
@@ -761,12 +827,24 @@ def _xls_cell(book: Any, cell: Any) -> str:
     return str(cell.value)
 
 
+def _msg_decode(raw: bytes, encoding: str) -> str:
+    """Decode a MAPI string stream, dropping the NUL that PostgreSQL rejects.
+
+    `PtypString` streams are NUL-terminated, and `str.strip()` does not remove
+    `\\x00`, so a real subject, body, recipient or attachment name would carry the
+    terminator into the `Text` column — which PostgreSQL refuses, failing the upload
+    after its bytes were already stored. Stripped at every property read, the same
+    way `_sanitize_filename` drops it from a name (#1591).
+    """
+    return raw.decode(encoding, errors="replace").replace("\x00", "").strip()
+
+
 def _msg_stream(ole: Any, prop: str) -> str | None:
     """A MAPI string property, preferring the Unicode (`001F`) over the ANSI (`001E`)."""
     for suffix, encoding in (("001F", "utf-16-le"), ("001E", "cp1252")):
         name = f"__substg1.0_{prop}{suffix}"
         if ole.exists(name):
-            return ole.openstream(name).read().decode(encoding, errors="replace").strip()
+            return _msg_decode(ole.openstream(name).read(), encoding)
     return None
 
 
@@ -779,7 +857,9 @@ def _msg_html_body(ole: Any) -> str | None:
     if not ole.exists(name):
         return None
     raw = ole.openstream(name).read()
-    html = raw.decode("utf-8", errors="replace")
+    # A NUL survives `text.split()` (it is not whitespace) and would reach the `Text`
+    # column PostgreSQL refuses, so it is dropped before the tags are stripped (#1591).
+    html = raw.decode("utf-8", errors="replace").replace("\x00", " ")
     text = _TAG_RE.sub(" ", html)
     return " ".join(text.split()) or None
 
@@ -804,7 +884,7 @@ def _msg_sub(ole: Any, storage: str, prop: str) -> str | None:
     for suffix, encoding in (("001F", "utf-16-le"), ("001E", "cp1252")):
         name = f"{storage}/__substg1.0_{prop}{suffix}"
         if ole.exists(name):
-            return ole.openstream(name).read().decode(encoding, errors="replace").strip()
+            return _msg_decode(ole.openstream(name).read(), encoding)
     return None
 
 
