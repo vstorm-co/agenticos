@@ -14,6 +14,7 @@ from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_mcp_connections
 from app.api.routes.v1 import org_mcp_connections
 from app.api.routes.v1 import local_services
+from app.api.routes.v1 import ml as ml_services
 from app.api.routes.v1 import sandbox_connections
 from app.api.routes.v1 import agent
 from app.api.routes.v1 import rag
@@ -65,6 +66,7 @@ v1_router.include_router(audit.router, tags=["audit"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
 v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])
+v1_router.include_router(ml_services.router, prefix="/ml", tags=["ml-services"])
 v1_router.include_router(agent_registry.router, prefix="/agents", tags=["agents"])
 v1_router.include_router(agent_environments.router, prefix="/agents", tags=["agents:environments"])
 v1_router.include_router(agent_exposures.router, prefix="/agents", tags=["agents:exposures"])

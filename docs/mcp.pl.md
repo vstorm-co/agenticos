@@ -1,5 +1,5 @@
 ---
-source_sha: "dd0f6d8e10dd"
+source_sha: "87a5e8e9d4e1"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -239,7 +239,12 @@ Trzy tryby — i to jedyne, co naprawdę różni serwery między sobą.
 
     1. **Wykrycie** — odpytaj serwer, ustal jego authorization server, pobierz
        metadane RFC 8414.
-    2. **Rejestracja** — dynamiczna rejestracja klienta wg RFC 7591.
+    2. **Rejestracja** — dynamiczna rejestracja klienta wg RFC 7591. Serwer,
+       który nie publikuje endpointu rejestracji — tak jest u HubSpota — odmawia
+       w tym miejscu i jedyna droga dalej to klient zarejestrowany u providera
+       ręcznie: dialog podłączania przyjmuje jego client ID i secret w sekcji
+       *Własny klient* i pokazuje redirect URL, który provider musi mieć wpisany
+       dokładnie w tej postaci.
     3. **Zgoda** — URL autoryzacji z PKCE, ze `state` i wskaźnikiem zasobu wg
        RFC 8707; przeglądarka idzie pod ten adres.
     4. **Wymiana** — callback wymienia kod na tokeny, po czym przekierowuje
