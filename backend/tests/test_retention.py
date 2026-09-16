@@ -411,6 +411,16 @@ class TestTheSweep:
         kept = repo["record_purged_spend"].await_args.kwargs
         assert (kept["period_start"], kept["cost"], kept["runs"]) == (month, Decimal("4.25"), 2)
 
+    @staticmethod
+    def _storage(monkeypatch: pytest.MonkeyPatch, *, fails: bool = False) -> MagicMock:
+        """The file storage, with a `delete` that answers or refuses."""
+        storage = MagicMock()
+        storage.delete = AsyncMock(side_effect=OSError("disk gone") if fails else None)
+        monkeypatch.setattr(
+            "app.services.file_storage.get_file_storage", lambda: storage, raising=False
+        )
+        return storage
+
     async def test_a_conversations_files_are_unlinked_with_it(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -421,13 +431,32 @@ class TestTheSweep:
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch, conversations=1)
         repo["stored_paths_for_expiring_conversations"].return_value = ["chat/a.pdf"]
-        deleted = AsyncMock()
-        monkeypatch.setattr("app.services.file_storage.delete_files_best_effort", deleted)
+        storage = self._storage(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         await service.sweep(now=NOW)
 
-        deleted.assert_awaited_with(["chat/a.pdf"])
+        storage.delete.assert_awaited_with("chat/a.pdf")
+
+    async def test_a_file_that_could_not_be_unlinked_keeps_its_rows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`delete_files_best_effort` catches every storage failure and returns,
+        so deleting the rows after it leaves an upload past its retention with
+        nothing left to discover it by (#1420 review). The class fails instead,
+        and the next pass retries with the rows still there to retry from."""
+        service = _service()
+        self._one_organization(monkeypatch, {"conversations": 30})
+        monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
+        repo = self._repo(monkeypatch, conversations=1)
+        repo["stored_paths_for_expiring_conversations"].return_value = ["chat/a.pdf"]
+        self._storage(monkeypatch, fails=True)
+        monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
+
+        results = await service.sweep(now=NOW)
+
+        assert results[0].failed == ["conversations"]
+        repo["delete_conversations"].assert_not_awaited()
 
     async def test_one_class_failing_does_not_stop_the_others(
         self, monkeypatch: pytest.MonkeyPatch
@@ -561,14 +590,13 @@ class TestTheSweep:
             [],
         ]
         repo["delete_documents"].return_value = 1
-        deleted = AsyncMock()
-        monkeypatch.setattr("app.services.file_storage.delete_files_best_effort", deleted)
+        storage = self._storage(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
 
         remove_vectors.assert_awaited_once_with("kb_main", "vec-1")
-        deleted.assert_awaited_with(["uploads/a.pdf"])
+        storage.delete.assert_awaited_with("uploads/a.pdf")
         assert repo["delete_documents"].await_args.kwargs["document_ids"] == [document_id]
         assert results[0].removed["knowledge_documents"] == 1
 
@@ -584,14 +612,13 @@ class TestTheSweep:
         repo = self._repo(monkeypatch)
         repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb_main", None, None)]
         repo["delete_documents"].return_value = 1
-        deleted = AsyncMock()
-        monkeypatch.setattr("app.services.file_storage.delete_files_best_effort", deleted)
+        storage = self._storage(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
 
         remove_vectors.assert_not_awaited()
-        deleted.assert_not_awaited()
+        storage.delete.assert_not_awaited()
         assert results[0].removed["knowledge_documents"] == 1
 
     async def test_a_document_class_with_nothing_expired_removes_nothing(

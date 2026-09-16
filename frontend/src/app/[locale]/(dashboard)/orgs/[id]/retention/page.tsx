@@ -5,7 +5,7 @@ import { Archive } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { RetentionForm } from "@/components/orgs/retention-form";
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { usePermissions, useRetention } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -27,7 +27,7 @@ interface PageProps {
 export default function RetentionPage({ params }: PageProps) {
   const t = useTranslations("pages.retention");
   const { id: orgId } = use(params);
-  const { can } = usePermissions();
+  const { can, isLoaded, error: permissionsError } = usePermissions();
   const { policy, isLoading, isSaving, save } = useRetention(orgId);
   const [saved, setSaved] = useState(false);
 
@@ -52,6 +52,25 @@ export default function RetentionPage({ params }: PageProps) {
     />
   );
 
+  // `can()` answers false while the permission set is loading and after it
+  // fails, so deciding on it alone flashes "not an administrator" at every Owner
+  // on navigation and leaves a failed read saying it permanently (#1420 review).
+  if (permissionsError) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <ErrorState />
+      </div>
+    );
+  }
+  if (!isLoaded) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <LoadingState variant="skeleton-table" columns={3} rows={6} />
+      </div>
+    );
+  }
   if (!can(Perm.orgSettings)) {
     return (
       <div className="space-y-6">

@@ -32,7 +32,7 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 
 #: The statuses a retention sweep may retire.
 #:
@@ -269,6 +269,12 @@ async def expiring_documents(
     would delete a row the next `new_only` sync recreates from the same unchanged
     file, which is a sweep that burns embedding spend to no effect. What is swept
     is what somebody uploaded, whose lifetime nothing else owns.
+
+    **Terminal rows only.** A document still `processing` is one a worker is
+    holding: taking its row and its stored original out from under an ingestion
+    that then writes vectors leaves searchable content no later sweep can even
+    name. The minimum period is a day, which is long enough for a delayed
+    ingestion to still be running when the cutoff passes.
     """
     rows = await db.execute(
         select(
@@ -281,6 +287,7 @@ async def expiring_documents(
             RAGDocument.organization_id == organization_id,
             RAGDocument.created_at < cutoff,
             RAGDocument.source_path.is_(None),
+            RAGDocument.status.in_((DocumentStatus.DONE, DocumentStatus.ERROR)),
         )
         .order_by(RAGDocument.created_at)
         .limit(limit)

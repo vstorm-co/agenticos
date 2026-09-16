@@ -1,5 +1,5 @@
 ---
-source_sha: "9a704a95fbdc"
+source_sha: "0f9f49369789"
 ---
 
 # Governance { #governance }
@@ -1502,12 +1502,17 @@ gdzie ustawia się okresy per tenant.
 
 | Klasa | Co odchodzi razem z nią | Liczone od |
 |---|---|---|
-| Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty tak samo jak wiersze | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
+| Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
 | Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
 | Audyt | Wpisy na ścieżce audytowej tej organizacji | Momentu zapisania wpisu |
+
+**Dokument wciąż ingestowany też nie jest zamiatany.** Trzyma go worker, a
+zabranie jego wiersza i wgranego oryginału spod ingestii, która potem zapisze
+wektory, zostawia przeszukiwalną treść, której żaden późniejszy sweep nie nazwie.
+Wycofywane są tylko wiersze zakończone i błędne.
 
 **Dokument zsynchronizowany przez konektor nie jest zamiatany.** Jego czas życia
 należy do źródła, które go tam umieściło: usunięcie go tutaj skasowałoby wiersz,

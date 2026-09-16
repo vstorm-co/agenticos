@@ -1,5 +1,5 @@
 ---
-source_sha: "9a704a95fbdc"
+source_sha: "0f9f49369789"
 ---
 
 # Governance { #governance }
@@ -1466,12 +1466,17 @@ ellos; la página de la organización es donde se fijan los periodos por tenant.
 
 | Clase | Qué se va con ella | Medido desde |
 |---|---|---|
-| Conversaciones | Mensajes, llamadas a herramientas y los archivos de chat colgados de ellos — los bytes tanto como las filas | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
+| Conversaciones | Mensajes, llamadas a herramientas y los archivos de chat colgados de ellos — los bytes **antes** que las filas, de modo que un archivo que no se pudo desenlazar conserva su fila para la siguiente pasada en vez de sobrevivirla sin que nada pueda encontrarlo | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
 | Runs | La fila del run, su manifiesto y sus aprobaciones de herramientas | El inicio del run |
 | Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox | El último uso |
 | Memoria | Los archivos de memoria de un agente | La última escritura, porque una nota se escribe una vez y se lee durante meses |
 | Documentos subidos | La fila, sus vectores y el archivo subido | El momento de la subida |
 | Auditoría | Entradas en el rastro de esta organización | El momento de la entrada |
+
+**Un documento que todavía se está ingiriendo tampoco.** Lo tiene un worker, y
+quitarle la fila y el original subido por debajo de una ingestión que después
+escribe vectores deja contenido buscable que ningún barrido posterior puede
+nombrar. Solo se retiran las filas terminadas y las fallidas.
 
 **Un documento que sincronizó un conector no se barre.** Su vida pertenece a la
 fuente que lo puso ahí: borrarlo aquí eliminaría una fila que la siguiente

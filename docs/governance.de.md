@@ -1,5 +1,5 @@
 ---
-source_sha: "9a704a95fbdc"
+source_sha: "0f9f49369789"
 ---
 
 # Governance { #governance }
@@ -1597,12 +1597,17 @@ Ort für die Fristen je Tenant.
 
 | Klasse | Was mitgeht | Gemessen ab |
 |---|---|---|
-| Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes ebenso wie die Zeilen | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
+| Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
 | Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
 | Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab | Der letzten Nutzung |
 | Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
 | Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
 | Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |
+
+**Ein Dokument, das noch eingelesen wird, ebenfalls nicht.** Ein Worker hält es,
+und ihm Zeile und hochgeladenes Original unter einer Ingestion wegzunehmen, die
+danach Vektoren schreibt, hinterlässt durchsuchbaren Inhalt, den kein späterer
+Sweep benennen kann. Ausgemustert werden nur fertige und fehlgeschlagene Zeilen.
 
 **Ein von einem Konnektor synchronisiertes Dokument wird nicht weggeräumt.**
 Seine Lebensdauer gehört der Quelle, die es dort abgelegt hat: es hier zu löschen

@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import func, select
@@ -28,7 +28,7 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
 from app.schemas.retention import RetentionUpdate
@@ -306,6 +306,7 @@ class TestTheOtherClasses:
             collection_name="kb_main",
             filename="report.pdf",
             filetype="pdf",
+            status=DocumentStatus.DONE,
             vector_document_id="vec-1",
             storage_path="uploads/report.pdf",
         )
@@ -314,6 +315,7 @@ class TestTheOtherClasses:
             collection_name="kb_main",
             filename="synced.pdf",
             filetype="pdf",
+            status=DocumentStatus.DONE,
             source_path="/drive/synced.pdf",
         )
         db.add_all([uploaded, synced])
@@ -328,13 +330,52 @@ class TestTheOtherClasses:
             removed_vectors.append((collection, document_id))
             return True
 
-        with patch("app.services.file_storage.delete_files_best_effort", new=AsyncMock()) as files:
+        storage = MagicMock()
+        storage.delete = AsyncMock()
+        with patch("app.services.file_storage.get_file_storage", lambda: storage):
             await RetentionService(db, remove_vectors=remove).sweep(now=NOW)
 
         remaining = (await db.execute(select(RAGDocument.filename))).scalars().all()
         assert list(remaining) == ["synced.pdf"]
         assert removed_vectors == [("kb_main", "vec-1")]
-        files.assert_awaited_with(["uploads/report.pdf"])
+        storage.delete.assert_awaited_with("uploads/report.pdf")
+
+    @pytest.mark.security
+    async def test_a_document_still_being_ingested_is_left_alone(self, db: AsyncSession):
+        """A worker is holding it. Taking its row and its stored original out from
+        under an ingestion that then writes vectors leaves searchable content no
+        later sweep can even name - and the minimum period is a day, which a
+        delayed ingestion can outlast (#1420 review)."""
+        organization, _ = await _tenant(db)
+        for status in (DocumentStatus.PROCESSING, DocumentStatus.DONE):
+            db.add(
+                RAGDocument(
+                    organization_id=organization.id,
+                    collection_name="kb_main",
+                    filename=f"{status}.pdf",
+                    filetype="pdf",
+                    status=status,
+                )
+            )
+        await db.flush()
+        for row in (await db.execute(select(RAGDocument))).scalars().all():
+            row.created_at = NOW - timedelta(days=200)
+        organization.retention_days = {"knowledge_documents": 30}
+        await db.flush()
+
+        async def remove(collection: str, document_id: str) -> bool:
+            return True
+
+        storage = MagicMock()
+        storage.delete = AsyncMock()
+        with patch("app.services.file_storage.get_file_storage", lambda: storage):
+            await RetentionService(db, remove_vectors=remove).sweep(now=NOW)
+
+        remaining = (await db.execute(select(RAGDocument.filename))).scalars().all()
+        assert list(remaining) == [
+            "DocumentStatus.PROCESSING.pdf".replace("DocumentStatus.", "").replace(".pdf", "")
+            + ".pdf"
+        ] or list(remaining) == [f"{DocumentStatus.PROCESSING}.pdf"]
 
     async def test_an_audit_entry_is_left_alone_however_short_the_period(self, db: AsyncSession):
         """The period resolves and is reported; nothing deletes an audit entry.

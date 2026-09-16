@@ -244,12 +244,13 @@ class RetentionService:
         scope = {"organization_id": organization_id, "cutoff": cutoff, "limit": BATCH}
         if name == "conversations":
             paths = await retention_repo.stored_paths_for_expiring_conversations(self.db, **scope)
-            took = await retention_repo.delete_conversations(self.db, **scope)
-            if paths:
-                from app.services.file_storage import delete_files_best_effort
-
-                await delete_files_best_effort(paths)
-            return took
+            # The bytes before the rows, and the rows only if the bytes went. The
+            # other order leaves an upload on disk with no row left to find it
+            # by - which is a retention policy whose files outlive it and which no
+            # later sweep can even name. A crash between the two leaves a row
+            # pointing at a file that is gone, which the next pass simply removes.
+            await self._unlink(paths)
+            return await retention_repo.delete_conversations(self.db, **scope)
         if name == "runs":
             # The delete answers what it removed, in one statement: reading the
             # costs first lets two overlapping sweeps keep the same figure twice.
@@ -297,8 +298,6 @@ class RetentionService:
         if self.remove_vectors is None:
             raise RuntimeError("retention sweep has no vector remover; cannot purge documents")
 
-        from app.services.file_storage import delete_files_best_effort
-
         for _, collection, vector_document_id, _ in expiring:
             if not vector_document_id:
                 continue
@@ -308,12 +307,27 @@ class RetentionService:
             # with no row left for a later sweep to retry (#992's shape again).
             if not await self.remove_vectors(collection, vector_document_id):
                 raise RuntimeError("the vector store did not confirm the removal")
-        paths = [path for *_, path in expiring if path]
-        if paths:
-            await delete_files_best_effort(paths)
+        await self._unlink([path for *_, path in expiring if path])
         return await retention_repo.delete_documents(
             self.db, document_ids=[row[0] for row in expiring]
         )
+
+    async def _unlink(self, paths: list[str]) -> None:
+        """Remove stored bytes, and refuse to go on if any of them stayed.
+
+        Not `delete_files_best_effort`: it catches every storage failure and
+        returns normally, so a failed unlink followed by the row delete leaves the
+        upload past its retention with nothing left to discover it by. Raising
+        fails the class for this organization, which the sweep reports and the
+        next pass retries with the rows still there to retry from.
+        """
+        if not paths:
+            return
+        from app.services.file_storage import get_file_storage
+
+        storage = get_file_storage()
+        for path in paths:
+            await storage.delete(path)
 
     async def _record_sweep(self, result: SweepResult) -> None:
         """One entry per organization per sweep: classes and counts, no content."""
