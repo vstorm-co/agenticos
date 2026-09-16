@@ -185,30 +185,47 @@ def tiff_pages_to_png(
     omitted = False
     total: int | None = None
     try:
-        with Image.open(io.BytesIO(data)) as img:
-            seen = 0
-            for frame in ImageSequence.Iterator(img):
-                # Capped on frames *examined*, not on images produced: a frame
-                # rejected for its pixel count or output size does not grow
-                # `images`, so gating on that count alone let a long chain of
-                # oversized/malformed frames walk the whole attacker-controlled IFD
-                # chain despite the page cap (#1591, §7 finding 2).
-                if seen >= max_pages:
-                    omitted = True
-                    break
-                seen += 1
-                png = _frame_to_png(frame, max_bytes=max_bytes, max_pixels=max_pixels)
-                if png is None:
-                    omitted = True
-                    continue
-                images.append(png)
-            else:
+        img_ctx = Image.open(io.BytesIO(data))
+    except Exception as exc:  # Not a TIFF, or a header too broken to open at all.
+        logger.warning("TIFF conversion failed: %s", exc)
+        return TiffConversion(images=[], total=None, omitted=False)
+    with img_ctx as img:
+        frames = ImageSequence.Iterator(img)
+        seen = 0
+        while True:
+            # Capped on frames *examined*, not on images produced: a frame
+            # rejected for its pixel count or output size does not grow `images`,
+            # so gating on that count alone let a long chain of oversized/malformed
+            # frames walk the whole attacker-controlled IFD chain despite the page
+            # cap (#1591, §7 finding 2).
+            if seen >= max_pages:
+                omitted = True
+                break
+            try:
+                frame = next(frames)
+            except StopIteration:
                 # Exhausted without breaking, so every frame was counted and the
                 # total is safe to state — no extra IFD walk needed.
                 total = seen
-    except Exception as exc:  # Pillow raises a wide range on a malformed or bomb TIFF.
-        logger.warning("TIFF conversion failed: %s", exc)
-        return TiffConversion(images=[], total=None, omitted=False)
+                break
+            except Exception as exc:
+                # A broken IFD partway down the chain: keep the pages already
+                # converted rather than discarding a usable page one, and mark the
+                # rest omitted (#1591, third-pass finding 4).
+                logger.warning("TIFF frame walk stopped early: %s", exc)
+                omitted = True
+                break
+            seen += 1
+            try:
+                png = _frame_to_png(frame, max_bytes=max_bytes, max_pixels=max_pixels)
+            except Exception as exc:  # One unreadable frame does not sink the others.
+                logger.warning("TIFF frame decode failed: %s", exc)
+                omitted = True
+                continue
+            if png is None:
+                omitted = True
+                continue
+            images.append(png)
     return TiffConversion(images=images, total=total, omitted=omitted)
 
 

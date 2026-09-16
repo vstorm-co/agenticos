@@ -87,3 +87,55 @@ class TestConvertingPages:
         assert result.images == []
         assert result.total is None
         assert result.omitted is False
+
+    def test_a_broken_later_frame_keeps_the_pages_already_converted(self, monkeypatch):
+        """A decode failure partway down the chain must not discard the pages that
+        already converted: page one survives and the rest are marked omitted rather
+        than the whole TIFF reported unshowable (#1591, third-pass finding 4)."""
+        import app.services.file_upload as file_upload
+
+        real = file_upload._frame_to_png
+        calls = {"n": 0}
+
+        def flaky(frame, *, max_bytes, max_pixels):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return real(frame, max_bytes=max_bytes, max_pixels=max_pixels)
+            raise ValueError("unsupported compression")
+
+        monkeypatch.setattr(file_upload, "_frame_to_png", flaky)
+        result = tiff_pages_to_png(_tiff(3), max_pages=10, max_bytes=BIG, max_pixels=MANY_PIXELS)
+
+        assert len(result.images) == 1
+        assert result.images[0].startswith(b"\x89PNG\r\n\x1a\n")
+        assert result.omitted is True
+
+    def test_a_frame_walk_that_raises_mid_sequence_keeps_earlier_pages(self, monkeypatch):
+        """When advancing the IFD chain itself raises after a page converted, the
+        converted page is preserved and the rest marked omitted."""
+        from PIL import ImageSequence
+
+        real_iterator = ImageSequence.Iterator
+
+        class FlakyIterator:
+            def __init__(self, img):
+                self._inner = real_iterator(img)
+                self._n = 0
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                self._n += 1
+                if self._n == 2:
+                    raise OSError("broken strip offset")
+                return next(self._inner)
+
+        # The function does `from PIL import ImageSequence`, so patching the PIL
+        # module's attribute is what the local import binds at call time.
+        monkeypatch.setattr(ImageSequence, "Iterator", FlakyIterator)
+        result = tiff_pages_to_png(_tiff(3), max_pages=10, max_bytes=BIG, max_pixels=MANY_PIXELS)
+
+        assert len(result.images) == 1
+        assert result.total is None
+        assert result.omitted is True
