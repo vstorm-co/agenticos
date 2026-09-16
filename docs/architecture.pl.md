@@ -1,5 +1,5 @@
 ---
-source_sha: "739ccb9e6893"
+source_sha: "c263822f4476"
 ---
 
 # Architektura { #architecture }
@@ -948,6 +948,10 @@ opracowany przykład.
 - **Route'y → serwisy → repozytoria.** Route nigdy nie importuje repozytorium.
 - Repozytorium używa `db.flush()` i `db.refresh()`, **nigdy** `db.commit()`.
   Sesja żądania commituje raz, zanim odpowiedź zostanie zapisana.
+- Ścieżka runu agenta to główny usankcjonowany wyjątek: commituje przed
+  wywołaniem modelu i jeszcze raz w końcowym `finally`. `MLService._record_failure`
+  to ten drugi, z lustrzanego powodu — wiersz zużycia opisujący *odmowę* musi
+  przetrwać wycofanie, które ta odmowa powoduje.
 - Dwa usankcjonowane wyjątki. Ścieżka runu agenta commituje przed wywołaniem
   modelu i jeszcze raz w końcowym `finally`;
   `SessionService.detect_refresh_reuse` commituje sesję, którą właśnie unieważnił,

@@ -1,19 +1,22 @@
 """Skills as files in the workspace, and what the agent writes back.
 
-Until now a skill reached the model only through `load_skill`, as text in the
-conversation. That is enough to *read* a checklist and not enough to use one: a
-skill whose resource is `reconcile.py` was handing an agent a script it could
-quote and not run, while the same agent had a shell one tool call away.
+A skill reaches the model as instructions it pulls in with `load_capability`, and
+its files through `read_skill_resource`. That is enough to *read* a checklist and
+not enough to use one: a skill whose resource is `reconcile.py` was handing an
+agent a script it could quote and not run, while the same agent had a shell one
+tool call away.
 
 So when a run has both skills and a workspace, the skills are also files:
 
     /workspace/skills/<name>/SKILL.md      the body, with its name and description
     /workspace/skills/<name>/<resource>    each resource, beside it
 
-`SKILL.md` is the format `pydantic-ai-skills` already reads, and the frontmatter
-is parsed with that library's own parser rather than a second one of ours - two
-parsers for one format is how a skill starts meaning different things in two
-places.
+`SKILL.md` is the Agent Skills format, and the frontmatter is read back with
+`skill_library.split_frontmatter` - the same reader the bundled skill gallery and
+the agent templates go through. One parser for one format is what keeps a skill
+from meaning different things in two places; the shelf that reads `SKILL.md` off
+disk is where it lives, and `pydantic-ai-skills` stopped publishing one of its
+own at 2.0.
 
 **No second way to run things.** There is deliberately no `run_skill_script`
 here. The sandbox already has `execute`, with the workspace's permission rules
@@ -34,9 +37,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
-from pydantic_ai_skills import parse_skill_md
 
 from app.db.models.skill import Skill
+from app.services.skill_library import split_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +115,7 @@ def skill_dir(name: str) -> str:
 
 
 def render_body(skill: Skill) -> str:
-    """The skill as `SKILL.md`, in the format the library parses.
+    """The skill as `SKILL.md`, in the format `split_frontmatter` reads back.
 
     The name and description are in the frontmatter rather than implied by the
     directory, because they are what the agent edits when it improves a skill's
@@ -269,7 +272,7 @@ def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillC
         return None
 
     try:
-        frontmatter, instructions = parse_skill_md(body)
+        frontmatter, instructions = split_frontmatter(body)
     except ValueError:
         # Malformed frontmatter the model wrote. Refused rather than guessed at,
         # because the description is what every other agent reads first.
@@ -280,7 +283,7 @@ def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillC
         name=name,
         skill_id=skill_id,
         description=str(frontmatter.get("description") or ""),
-        content=instructions,
+        content=instructions.strip(),
         resources={
             path.rsplit("/", 1)[1]: content for path, content in files.items() if path != body_path
         },

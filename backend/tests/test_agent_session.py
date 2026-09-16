@@ -1830,8 +1830,10 @@ class TestForwardingToolEvents:
 
         await _frames(session, tool_calls=collected).tools(_events())
 
+        # JSON, not `str(list)`: a structured answer has to be readable on the
+        # other side, which a Python repr is not.
         assert collected == [
-            {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": "['/a.txt']"}
+            {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": '["/a.txt"]'}
         ]
 
     async def test_a_retry_is_reported_rather_than_swallowed(self, caplog):

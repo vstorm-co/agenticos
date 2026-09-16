@@ -97,10 +97,10 @@ describe("the line for one tool call", () => {
 
   it("says what happened rather than naming the tool, where the two differ", () => {
     // Which skill it was is the whole content of the step.
-    expect(toolStep("load_skill", { skill_name: "refund_policy" }, true, t).label).toBe(
+    expect(toolStep("load_capability", { id: "refund_policy" }, true, t).label).toBe(
       "Refund Policy",
     );
-    expect(toolStep("load_skill", {}, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", {}, true, t).label).toBe("Load Skill");
   });
 
   it("carries the query or the URL as the detail beside a finished call", () => {
@@ -208,7 +208,7 @@ describe("reading a call's arguments", () => {
   });
 
   it("names a skill only when the call said which", () => {
-    expect(toolStep("load_skill", { skill_name: "  " }, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", { id: "  " }, true, t).label).toBe("Load Skill");
   });
 
   it("reads a path under any name a tool gives it, and a query when there is none", () => {
@@ -217,7 +217,9 @@ describe("reading a call's arguments", () => {
     expect(toolStep("post_invoice", { url: "https://a.example/" }, true, t).detail).toBe(
       "https://a.example/",
     );
-    expect(toolStep("load_skill", { skill_name: "refunds" }, false, t).detail).toBe("refunds");
+    expect(toolStep("read_skill_resource", { skill_name: "refunds" }, false, t).detail).toBe(
+      "refunds",
+    );
   });
 
   it("finds a write's body under any of the names a tool uses", () => {

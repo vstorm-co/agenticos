@@ -1,5 +1,5 @@
 ---
-source_sha: "739ccb9e6893"
+source_sha: "c263822f4476"
 ---
 
 # Architektur { #architecture }
@@ -971,6 +971,10 @@ durchgearbeitetes Beispiel.
 - **Routes → Services → Repositories.** Eine Route importiert nie ein Repository.
 - Ein Repository nutzt `db.flush()` und `db.refresh()`, **nie** `db.commit()`. Die
   Session der Anfrage committet einmal, bevor die Antwort geschrieben wird.
+- Der Pfad eines Agent-Runs ist die wichtigste erlaubte Ausnahme: Er committet vor
+  dem Modellaufruf und erneut im abschließenden `finally`. `MLService._record_failure`
+  ist die andere, aus dem spiegelbildlichen Grund — ein Nutzungsdatensatz über eine
+  *Ablehnung* muss das Rollback überleben, das diese Ablehnung auslöst.
 - Zwei erlaubte Ausnahmen. Der Pfad eines Agent-Runs committet vor dem
   Modellaufruf und erneut im abschließenden `finally`;
   `SessionService.detect_refresh_reuse` committet die soeben widerrufene Session

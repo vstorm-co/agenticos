@@ -903,6 +903,10 @@ add one, and `docs/howto/add-sync-connector.md` for a worked example.
 - **Routes → services → repositories.** A route never imports a repository.
 - A repository uses `db.flush()` and `db.refresh()`, **never** `db.commit()`. The
   request's session commits once, before the response is written.
+- The agent run path is the main sanctioned exception: it commits before the model
+  call and again in the terminal `finally`. `MLService._record_failure` is the other,
+  and for the mirror-image reason - a usage record of a *refusal* has to survive the
+  rollback that refusal causes.
 - Two sanctioned exceptions. The agent run path commits before the model call and
   again in the terminal `finally`; `SessionService.detect_refresh_reuse` commits
   the session it just revoked and the entry recording why, because its caller

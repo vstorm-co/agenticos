@@ -155,9 +155,8 @@ describe("a tool call in the transcript", () => {
       ],
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
-      [{ name: "list_skills", result: "[]" }, "Available Skills"],
-      [{ name: "load_skill", args: { skill_name: "refund_policy" } }, "Refund Policy"],
-      [{ name: "load_skill", args: {} }, "Load Skill"],
+      [{ name: "load_capability", args: { id: "refund_policy" } }, "Refund Policy"],
+      [{ name: "load_capability", args: {} }, "Load Skill"],
       [{ name: "ls", args: { path: "/workspace" } }, "Listed /workspace"],
       [
         { name: "grep", args: { pattern: "TODO", path: "/workspace/app.py" } },
@@ -246,16 +245,19 @@ describe("a tool call in the transcript", () => {
     expect(row()).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("opens the skills the agent found, which is what somebody asks that step", async () => {
-    // It used to open nothing, on the grounds that the result is a prompt fragment.
-    // The question the step answers - "does it actually have my skill" - is answered
-    // by the list and by nothing else.
-    card({ name: "list_skills", result: JSON.stringify({ refunds: "How refunds work." }) });
+  it("opens the skill the agent loaded, which is what somebody asks that step", async () => {
+    // `load_capability` is the framework's own tool and has no row in the registry,
+    // so without `FRAMEWORK_TOOLS` this step would read "Load Capability" over the
+    // JSON the framework answered with.
+    card({
+      name: "load_capability",
+      args: { id: "refunds" },
+      result: JSON.stringify({ instructions: "# Skill: refunds\n\nCheck the order date." }),
+    });
 
-    expect(screen.getByText("Available Skills")).toBeInTheDocument();
+    expect(screen.getByText("Refunds")).toBeInTheDocument();
     await open();
-    expect(screen.getByText("refunds")).toBeInTheDocument();
-    expect(screen.getByText("How refunds work.")).toBeInTheDocument();
+    expect(screen.getByText("Check the order date.")).toBeInTheDocument();
   });
 
   it("opens the context files the agent may read", async () => {
@@ -504,7 +506,11 @@ describe("a tool call in the transcript", () => {
         "Hit",
       ],
       [
-        { name: "load_skill", result: "<description>How refunds work.</description>" },
+        {
+          name: "load_capability",
+          args: { id: "refunds" },
+          result: JSON.stringify({ instructions: "How refunds work." }),
+        },
         "How refunds work.",
       ],
       [{ name: "post_invoice", result: "Posted." }, "Posted."],
