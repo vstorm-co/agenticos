@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.445] - 2026-09-16
+
 ### Added
 
 - **A repeatable load and resilience suite, and two measured runs (NFA-004).**
