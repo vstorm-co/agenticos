@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.460] - 2026-09-16
+
 ### Added
 
 - A persisted `ask_user` question records which delegate asked it, and the
