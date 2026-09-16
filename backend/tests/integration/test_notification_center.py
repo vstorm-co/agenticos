@@ -244,6 +244,80 @@ class TestPreferenceResolution:
         assert deliveries == []
 
 
+class TestChannelRestriction:
+    """`write(channels=...)` - the announcement composer's own "pick
+    channels" (Decision 5). It only narrows: a channel outside the
+    restriction never fires, and a channel inside it still answers to the
+    recipient's own preference."""
+
+    async def test_a_restriction_narrows_a_channel_the_recipient_never_disabled(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-6",
+            summary="Run completed",
+            organization_id=org.id,
+            channels={NotificationChannel.EMAIL},
+        )
+
+        assert notification.in_app_visible is False
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [d.channel for d in deliveries] == ["email"]
+
+    async def test_a_restriction_does_not_override_the_recipients_own_opt_out(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=recipient.id,
+                event_type=NotificationEventType.RUN_COMPLETED.value,
+                channel="email",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-7",
+            summary="Run completed",
+            organization_id=org.id,
+            channels={NotificationChannel.IN_APP, NotificationChannel.EMAIL},
+        )
+
+        deliveries = (
+            (
+                await db.execute(
+                    select(NotificationDelivery).where(
+                        NotificationDelivery.notification_id == notification.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert deliveries == []
+
+
 class TestMandatoryEvents:
     async def test_a_mandatory_event_ignores_preferences_on_both_channels(self, db):
         owner = await _user(db)
