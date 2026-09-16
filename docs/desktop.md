@@ -171,14 +171,44 @@ went nowhere is dropped. Windows and Linux have no capture wired yet.
   webview for its cookie to land. While the window shows any other site, its title
   names that host - the one piece of chrome a page cannot draw, since there is no
   address bar - and `⌘,` or "Shell → Change server…" is the way back if a page has
-  no link home. Moving those flows to the system browser is
-  [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
-- **Sign-in stays in the window, and the window says it is Safari.** WebKit's
-  bare user agent is what Google refuses as an embedded browser
-  (`disallowed_useragent`); the console window carries Safari's version tokens on
-  the same engine, so Google sign-in works. The handoff Google prefers - the
-  system browser and a deep link back - needs a one-time exchange the backend does
-  not have yet, and is [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
+  no link home. Sign-in is the one flow that does leave for the system browser -
+  see below; connecting an MCP server still happens in the window.
+- **Sign-in leaves the window, deliberately.** WebKit's bare user agent is what
+  Google refuses as an embedded browser (`disallowed_useragent`), and the answer
+  its policy asks for is the system browser rather than a user agent that claims
+  to be one. See below.
+
+## Signing in
+
+The one navigation the console window refuses. Everything else loads in the
+window; a click on **Continue with Google** opens in your own browser instead,
+and the result comes back to the app (#1532).
+
+What happens, in order:
+
+1. The window sees a navigation to `/api/oauth/<provider>/login`, hands it to the
+   system browser with `client=desktop` appended, and does not follow it. Nothing
+   in the console knows it is running in a shell, and nothing has to.
+2. You sign in there, in a real browser with your own passwords, your own
+   extensions and whatever second factor you use.
+3. The deployment's callback sees `client=desktop` - recorded in the session at
+   the *start*, never read off the return - and redirects to
+   `agenticos://auth/callback?code=…` with a single-use code that expires in a
+   minute.
+4. The operating system hands that link to the app. The shell sends the console
+   window to `<your server>/auth/callback?code=…`, the page that already exists:
+   it swaps the code for the token pair server-to-server and the window's own
+   cookies are set. The browser's cookie jar is left out of it, which is the
+   point.
+
+**A deep link is something any process on your machine can fire**, so what one is
+allowed to do here is narrow: send the console to one path, on the server *you*
+configured, carrying a code that redeems exactly once. It cannot name an address,
+and a second use of a code answers 401.
+
+The deployment has to agree about the scheme - `DESKTOP_DEEP_LINK_SCHEME`,
+`agenticos` unless somebody changed it - and about its own public address, since
+that is what the browser is sent to and back from.
 
 ## Where it sits in the tree
 

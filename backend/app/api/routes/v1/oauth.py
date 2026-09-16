@@ -20,6 +20,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+#: Which client started this sign-in, while the caller is away at the provider.
+#:
+#: The same session cookie as the invitation below, and for the same reason: the
+#: callback has to know where to send the result, and a query parameter on the
+#: *return* would let anybody who can reach the callback choose the redirect.
+#: Absent means the console in a browser, which is every flow but the desktop's.
+_CLIENT_KEY = "oauth_client"
+_DESKTOP = "desktop"
+
+
+# routes-helper: one line of URL assembly over this module's own session keys,
+# which are private to these two handlers. A service would have to be handed the
+# request to read them, which is the coupling the rule exists to prevent.
+def _return_url(request: Request, code: str) -> str:
+    """Where the browser goes with the single-use code.
+
+    The console for an ordinary sign-in, and the desktop shell's deep link for
+    one the shell started - which is what makes the system-browser handoff work
+    at all: the browser that completed the flow is not the one the app is in, so
+    the result has to cross back to it by a route the operating system routes
+    (#1532). The scheme is the deployment's setting, never the caller's.
+    """
+    params = urlencode({"code": code})
+    if request.session.pop(_CLIENT_KEY, None) == _DESKTOP:
+        return f"{settings.DESKTOP_DEEP_LINK_SCHEME}://auth/callback?{params}"
+    return f"{settings.FRONTEND_URL.rstrip('/')}/auth/callback?{params}"
+
+
 #: Where an invitation token waits while the caller is away at the provider.
 #:
 #: The session cookie authlib already uses for its own CSRF `state`, because the
@@ -35,8 +63,14 @@ async def google_login(
     request: Request,
     staging: InvitationStagingSvc,
     invitation_handle: str | None = None,
+    client: str | None = None,
 ):
     """Redirect to Google OAuth2 login page.
+
+    `client=desktop` says the desktop shell started this, so the callback returns
+    through the shell's deep link rather than the console's URL. Recorded in the
+    session here rather than read off the return, because the callback builds a
+    redirect out of it (#1532).
 
     `invitation_handle` names the invitation a signed-out invitee staged before the
     sign-in detour (#1414). It is peeked - not consumed - into the token the callback
@@ -52,6 +86,13 @@ async def google_login(
         request.session[_INVITATION_KEY] = token
     else:
         request.session.pop(_INVITATION_KEY, None)
+    # `?client=desktop` is recorded here and read at the callback, never taken
+    # from the return: the callback builds a redirect out of it, and a value a
+    # caller could hand it on the way back is an open redirect.
+    if client == _DESKTOP:
+        request.session[_CLIENT_KEY] = _DESKTOP
+    else:
+        request.session.pop(_CLIENT_KEY, None)
     return await oauth.google.authorize_redirect(request, settings.GOOGLE_REDIRECT_URI)
 
 
@@ -104,8 +145,7 @@ async def google_callback(
             user_agent=request.headers.get("User-Agent"),
             session_id=session_id,
         )
-        params = urlencode({"code": code})
-        return RedirectResponse(url=f"{frontend}/auth/callback?{params}")
+        return RedirectResponse(url=_return_url(request, code))
 
     except Exception:
         logger.exception("google_oauth_callback_failed")

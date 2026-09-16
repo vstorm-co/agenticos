@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "a531ba33cd0c"
 ---
 
 # Konfiguration { #configuration }
@@ -128,6 +128,7 @@ Standardwert sein.
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google-OAuth2-Client-Secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | Callback-URL für OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend-URL für die OAuth2-Weiterleitungen |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | Das Schema, das die Desktop-Hülle für eine an den Systembrowser übergebene Anmeldung registriert ([Desktop](desktop.md#signing-in)). Der Callback baut daraus eine Weiterleitung, also eine Einstellung und nichts, was ein Aufrufer wählen kann |
 
 So kommen Sie an das Paar: [Google Cloud console](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.

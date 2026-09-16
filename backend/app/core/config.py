@@ -193,6 +193,15 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
+    # The scheme the desktop shell registers for the sign-in return (#1532).
+    #
+    # Google's authorization endpoint refuses an embedded user-agent, and the
+    # handoff it asks for is the system browser with the result deep-linked back
+    # to the app. A setting rather than a query parameter, because the callback
+    # builds a redirect out of it: a scheme a caller could choose would be an open
+    # redirect into whatever URL handler that machine has registered.
+    DESKTOP_DEEP_LINK_SCHEME: str = "agenticos"
+
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"

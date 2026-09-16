@@ -1,5 +1,5 @@
 ---
-source_sha: "2a08473da582"
+source_sha: "d5916ee653ba"
 ---
 
 # La aplicación de escritorio { #the-desktop-app }
@@ -189,14 +189,42 @@ ninguna parte se descarta. En Windows y Linux todavía no hay captura cableada.
   direcciones — y `⌘,` o "Shell → Change server…" es el camino de vuelta si una
   página no tiene enlace a casa. Llevar esos flujos al navegador del sistema es
   [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
-- **El inicio de sesión se queda en la ventana, y la ventana dice que es Safari.**
-  El user agent desnudo de WebKit es lo que Google rechaza como navegador
-  incrustado (`disallowed_useragent`); la ventana de la consola lleva los tokens
-  de versión de Safari sobre el mismo motor, así que el inicio de sesión con
-  Google funciona. El traspaso que Google prefiere — el navegador del sistema y un
-  deep link de vuelta — necesita un intercambio de un solo uso que el backend
-  todavía no tiene, y es
-  [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
+- **El inicio de sesión sale de la ventana, a propósito.** El user agent desnudo
+  de WebKit es lo que Google rechaza como navegador incrustado
+  (`disallowed_useragent`), y la respuesta que pide su política es el navegador
+  del sistema, no un user agent que dice serlo. Véase abajo.
+
+## Iniciar sesión { #signing-in }
+
+La única navegación que la ventana de la consola rechaza. Todo lo demás carga en
+la ventana; un clic en **Continue with Google** abre tu propio navegador, y el
+resultado vuelve a la aplicación (#1532).
+
+Qué ocurre, en orden:
+
+1. La ventana ve una navegación a `/api/oauth/<proveedor>/login`, se la pasa al
+   navegador del sistema con `client=desktop` añadido y no la sigue. Nada en la
+   consola sabe que corre dentro de una carcasa, y no hace falta.
+2. Inicias sesión allí, en un navegador de verdad, con tus contraseñas, tus
+   extensiones y el segundo factor que uses.
+3. El callback del despliegue ve `client=desktop` —anotado en la sesión al
+   *empezar*, nunca leído de la vuelta— y redirige a
+   `agenticos://auth/callback?code=…` con un código de un solo uso que caduca en
+   un minuto.
+4. El sistema operativo entrega ese enlace a la aplicación. La carcasa manda la
+   ventana de la consola a `<tu servidor>/auth/callback?code=…`, la página que ya
+   existe: canjea el código por el par de tokens servidor a servidor y se
+   establecen las cookies propias de la ventana. El almacén de cookies del
+   navegador queda fuera, que es de lo que se trata.
+
+**Un deep link puede dispararlo cualquier proceso de tu máquina**, así que lo que
+se le permite aquí es estrecho: mandar la consola a *una* ruta, en el servidor que
+*tú* configuraste, con un código que se canjea exactamente una vez. No puede
+nombrar una dirección, y un segundo uso responde 401.
+
+El despliegue tiene que coincidir en el esquema —`DESKTOP_DEEP_LINK_SCHEME`,
+`agenticos` si nadie lo cambió— y en su propia dirección pública, porque es adonde
+se manda al navegador y de donde vuelve.
 
 ## Dónde queda en el árbol { #where-it-sits-in-the-tree }
 

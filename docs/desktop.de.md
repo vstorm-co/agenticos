@@ -1,5 +1,5 @@
 ---
-source_sha: "2a08473da582"
+source_sha: "d5916ee653ba"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -199,13 +199,43 @@ keine Aufnahme verdrahtet.
   "Shell → Change server…" ist der Weg zurück, wenn eine Seite keinen Link nach
   Hause hat. Diese Abläufe in den Systembrowser zu verlegen ist
   [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
-- **Die Anmeldung bleibt im Fenster, und das Fenster sagt, es sei Safari.**
-  WebKits nackter User Agent ist das, was Google als eingebetteten Browser
-  ablehnt (`disallowed_useragent`); das Konsolenfenster trägt Safaris
-  Versions-Token auf derselben Engine, sodass die Google-Anmeldung funktioniert.
-  Die Übergabe, die Google bevorzugt - der Systembrowser und ein Deep Link
-  zurück - braucht einen einmaligen Austausch, den das Backend noch nicht hat,
-  und ist [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
+- **Die Anmeldung verlässt das Fenster, absichtlich.** WebKits nackter User Agent
+  ist das, was Google als eingebetteten Browser ablehnt (`disallowed_useragent`),
+  und die Antwort, die seine Richtlinie verlangt, ist der Systembrowser statt
+  eines User Agents, der behauptet, einer zu sein. Siehe unten.
+
+## Anmelden { #signing-in }
+
+Die eine Navigation, die das Konsolenfenster verweigert. Alles andere lädt im
+Fenster; ein Klick auf **Continue with Google** öffnet stattdessen Ihren eigenen
+Browser, und das Ergebnis kommt zur App zurück (#1532).
+
+Was der Reihe nach passiert:
+
+1. Das Fenster sieht eine Navigation zu `/api/oauth/<Anbieter>/login`, übergibt
+   sie mit angehängtem `client=desktop` an den Systembrowser und folgt ihr nicht.
+   Nichts in der Konsole weiß, dass sie in einer Hülle läuft, und muss es nicht.
+2. Sie melden sich dort an, in einem echten Browser, mit Ihren Passwörtern, Ihren
+   Erweiterungen und welchem zweiten Faktor auch immer.
+3. Der Callback des Deployments sieht `client=desktop` - beim *Start* in der
+   Sitzung vermerkt, nie vom Rückweg gelesen - und leitet auf
+   `agenticos://auth/callback?code=…` um, mit einem Einmalcode, der nach einer
+   Minute abläuft.
+4. Das Betriebssystem reicht diesen Link an die App. Die Hülle schickt das
+   Konsolenfenster auf `<Ihr Server>/auth/callback?code=…`, die Seite, die es
+   ohnehin gibt: sie tauscht den Code Server-zu-Server gegen das Tokenpaar, und
+   die eigenen Cookies des Fensters werden gesetzt. Der Cookie-Speicher des
+   Browsers bleibt außen vor, worum es geht.
+
+**Einen Deep Link kann jeder Prozess auf Ihrem Rechner auslösen**, deshalb ist
+eng gefasst, was einer hier darf: die Konsole auf *einen* Pfad schicken, auf dem
+Server, den *Sie* konfiguriert haben, mit einem Code, der genau einmal eingelöst
+wird. Er kann keine Adresse benennen, und eine zweite Verwendung antwortet mit
+401.
+
+Das Deployment muss beim Schema mitspielen - `DESKTOP_DEEP_LINK_SCHEME`,
+`agenticos`, sofern es niemand geändert hat - und bei seiner eigenen öffentlichen
+Adresse, denn dorthin wird der Browser geschickt und von dort kommt er zurück.
 
 ## Wo sie im Baum liegt { #where-it-sits-in-the-tree }
 

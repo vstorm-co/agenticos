@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **The desktop shell hands sign-in to the system browser.** Google's
+  authorization endpoint refuses an embedded user-agent
+  (`disallowed_useragent`), and the shell answered that by telling the console
+  window it was Safari - a workaround that worked and that Google's own policy
+  says not to rely on. It is gone. The window now refuses exactly one navigation:
+  a start at `/api/oauth/<provider>/login`, which it opens in your own browser
+  with `client=desktop` appended. Nothing in the console knows it is running in a
+  shell, and nothing has to.
+
+  The callback reads that marker off the session it was recorded in at the
+  *start*, never off the return, and redirects to `agenticos://auth/callback`
+  with the single-use code the browser flow already mints. The shell sends the
+  console window to the page it already had, which swaps the code
+  server-to-server and sets the window's own cookies - so the browser's cookie
+  jar is left out of it, which is the point. A deep link can be fired by any
+  process on the machine, so what one may do is send the console to one path on
+  the server the user configured, with a code that redeems once. (#1532)
+
 ## [0.0.444] - 2026-09-16
 
 ### Added

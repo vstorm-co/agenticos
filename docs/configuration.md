@@ -120,6 +120,7 @@ Production validation: `API_KEY` cannot use the default value in
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google OAuth2 client secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | OAuth2 callback URL |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for OAuth2 redirects |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | The scheme the desktop shell registers for a sign-in handed to the system browser ([Desktop](desktop.md#signing-in)). The callback builds a redirect out of it, so it is a setting rather than anything a caller can choose |
 
 Getting the pair: [Google Cloud console](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.

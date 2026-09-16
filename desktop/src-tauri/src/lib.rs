@@ -25,7 +25,9 @@ use tauri::menu::{CheckMenuItem, ContextMenu, IsMenuItem, Menu, MenuItem, Predef
 use tauri::tray::TrayIconBuilder;
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_opener::OpenerExt;
 
 const WINDOW: &str = "main";
 const PET: &str = "pet";
@@ -357,21 +359,84 @@ fn is_loopback(host: &str) -> bool {
         || bare.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
 }
 
-/// What the console window says it is.
+/// The scheme the shell registers for a sign-in coming back from the browser.
 ///
-/// WKWebView on macOS and WebKitGTK on Linux announce themselves as bare
-/// AppleWebKit, which Google's authorization endpoint refuses as an embedded
-/// user-agent (`disallowed_useragent`), so a deployment with Google sign-in could
-/// not sign in from the shell at all. The engine is Safari's; the string names
-/// the version tokens Safari adds. The handoff Google prefers - the system browser
-/// and a deep link back - needs a one-time exchange the backend does not have yet
-/// (#1532). WebView2 already carries a browser's user agent.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-const CONSOLE_USER_AGENT: Option<&str> = Some(
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
-);
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-const CONSOLE_USER_AGENT: Option<&str> = None;
+/// Must match `DESKTOP_DEEP_LINK_SCHEME` on the deployment, which is what builds
+/// the redirect - and `tauri.conf.json`, which is what registers it with the
+/// operating system.
+const DEEP_LINK_SCHEME: &str = "agenticos";
+
+/// Whether this navigation is the console starting an OAuth sign-in.
+///
+/// Google's authorization endpoint refuses an embedded user-agent
+/// (`disallowed_useragent`), and the handoff it asks for is the system browser
+/// with the result deep-linked back. So the shell watches for the *start* of the
+/// flow - the console's own `/api/oauth/<provider>/login` - rather than asking
+/// the console to behave differently in a window: nothing in the frontend knows
+/// it is running here, and nothing has to (#1532).
+fn is_oauth_start(url: &Url) -> bool {
+    let path = url.path();
+    path.starts_with("/api/oauth/") && path.ends_with("/login")
+}
+
+/// The same sign-in, marked as the shell's so the callback returns by deep link.
+///
+/// `client=desktop` is recorded in the session at the *start* and read at the
+/// callback; the backend never takes it off the return, because it builds a
+/// redirect out of it.
+fn external_sign_in_url(url: &Url) -> Url {
+    let mut opened = url.clone();
+    let kept: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(name, _)| name != "client")
+        .map(|(name, value)| (name.into_owned(), value.into_owned()))
+        .collect();
+    {
+        let mut query = opened.query_pairs_mut();
+        query.clear();
+        for (name, value) in &kept {
+            query.append_pair(name, value);
+        }
+        query.append_pair("client", "desktop");
+    }
+    opened
+}
+
+/// Where the console window goes when the browser hands a sign-in back.
+///
+/// `agenticos://auth/callback?code=…` becomes `<server>/auth/callback?code=…`,
+/// the page the console already has: it POSTs the single-use code to the BFF,
+/// which swaps it for the token pair and sets the httpOnly cookies. The window's
+/// cookie jar is the one that ends up signed in, which is the whole point of the
+/// handoff - the browser that completed the flow has its own.
+///
+/// `None` for a link that is not a sign-in return, or one carrying no code, or
+/// when no server has been chosen yet. A deep link is something any process on
+/// the machine can fire, so what it is allowed to do is navigate to one path on
+/// the server the *user* already configured - never to an address it names.
+fn deep_link_return(server: Option<&Url>, link: &str) -> Option<Url> {
+    let parsed = Url::parse(link).ok()?;
+    if parsed.scheme() != DEEP_LINK_SCHEME {
+        return None;
+    }
+    // `agenticos://auth/callback` parses `auth` as the host and `/callback` as
+    // the path, which is why both are checked rather than the path alone.
+    if parsed.host_str() != Some("auth") || parsed.path() != "/callback" {
+        return None;
+    }
+    let code = parsed
+        .query_pairs()
+        .find(|(name, _)| name == "code")
+        .map(|(_, value)| value.into_owned())?;
+    if code.is_empty() {
+        return None;
+    }
+    let mut destination = server?.clone();
+    destination.set_path("/auth/callback");
+    destination.set_query(None);
+    destination.query_pairs_mut().append_pair("code", &code);
+    Some(destination)
+}
 
 /// `--server <address>` on the command line: the address to use and remember.
 ///
@@ -855,13 +920,23 @@ fn window_title(loaded: &Url, server: Option<&Url>) -> String {
 }
 
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
-    let mut builder = WebviewWindowBuilder::new(app, WINDOW, url)
+    let handle = app.clone();
+    let builder = WebviewWindowBuilder::new(app, WINDOW, url)
         .title("AgenticOS")
         .inner_size(1280.0, 800.0)
-        .min_inner_size(900.0, 600.0);
-    if let Some(user_agent) = CONSOLE_USER_AGENT {
-        builder = builder.user_agent(user_agent);
-    }
+        .min_inner_size(900.0, 600.0)
+        // The one navigation this window refuses. Everything else - including
+        // the provider's *return* to the console - loads here as it always did.
+        .on_navigation(move |url| {
+            if !is_oauth_start(url) {
+                return true;
+            }
+            let opened = external_sign_in_url(url);
+            if let Err(e) = handle.opener().open_url(opened.as_str(), None::<&str>) {
+                eprintln!("Could not open the sign-in in your browser: {e}");
+            }
+            false
+        });
     builder
         .on_page_load(|window, payload| {
             let server = settings(window.app_handle()).server_url;
@@ -1005,6 +1080,8 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             server_url,
@@ -1048,6 +1125,25 @@ pub fn run() {
             if settings.pet.enabled {
                 open_pet(handle, &settings.pet)?;
             }
+            // The return leg. A deep link is something any process on this
+            // machine can fire, so all it is allowed to do is send the console
+            // to one path on the server the user already chose.
+            let deep_link_handle = handle.clone();
+            app.deep_link().on_open_url(move |event| {
+                let chosen = load_settings(&deep_link_handle).ok().and_then(|s| s.server_url);
+                for link in event.urls() {
+                    if let Some(destination) = deep_link_return(chosen.as_ref(), link.as_str()) {
+                        if let Some(console) = deep_link_handle.get_webview_window(WINDOW) {
+                            if let Err(e) = console.navigate(destination) {
+                                eprintln!("Could not finish signing in: {e}");
+                            } else {
+                                let _ = console.set_focus();
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -1061,9 +1157,86 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        attach_script, parse_server_url, reachable, Kind, PetSettings, Settings, Shortcuts, Url,
-        DEFAULT_SCREENSHOT_SHORTCUT,
+        attach_script, deep_link_return, external_sign_in_url, is_oauth_start, parse_server_url, reachable, Kind,
+        PetSettings, Settings, Shortcuts, Url, DEFAULT_SCREENSHOT_SHORTCUT,
     };
+
+    fn url(spelled: &str) -> Url {
+        Url::parse(spelled).expect("a test URL")
+    }
+
+    #[test]
+    fn a_sign_in_start_is_the_one_navigation_the_window_refuses() {
+        assert!(is_oauth_start(&url("https://acme.example/api/oauth/google/login")));
+        assert!(is_oauth_start(&url(
+            "https://acme.example/api/oauth/oidc/login?flow=abc"
+        )));
+    }
+
+    #[test]
+    fn the_providers_return_is_not_a_start_and_loads_in_the_window() {
+        assert!(!is_oauth_start(&url("https://acme.example/auth/callback?code=x")));
+        assert!(!is_oauth_start(&url("https://acme.example/api/oauth/exchange")));
+        assert!(!is_oauth_start(&url("https://acme.example/login")));
+    }
+
+    #[test]
+    fn the_browser_is_told_the_shell_started_it() {
+        let opened = external_sign_in_url(&url("https://acme.example/api/oauth/google/login"));
+
+        assert_eq!(
+            opened.as_str(),
+            "https://acme.example/api/oauth/google/login?client=desktop"
+        );
+    }
+
+    #[test]
+    fn a_staged_invitation_survives_the_handoff() {
+        let opened = external_sign_in_url(&url("https://acme.example/api/oauth/google/login?flow=abc123"));
+
+        assert_eq!(
+            opened.as_str(),
+            "https://acme.example/api/oauth/google/login?flow=abc123&client=desktop"
+        );
+    }
+
+    #[test]
+    fn a_client_the_page_already_carried_is_not_doubled() {
+        let opened = external_sign_in_url(&url("https://acme.example/api/oauth/google/login?client=desktop"));
+
+        assert_eq!(
+            opened.as_str(),
+            "https://acme.example/api/oauth/google/login?client=desktop"
+        );
+    }
+
+    #[test]
+    fn a_returned_code_goes_to_the_console_the_user_chose() {
+        let server = url("https://acme.example/");
+
+        let destination = deep_link_return(Some(&server), "agenticos://auth/callback?code=abc123").expect("a URL");
+
+        assert_eq!(destination.as_str(), "https://acme.example/auth/callback?code=abc123");
+    }
+
+    #[test]
+    fn a_deep_link_cannot_name_its_own_destination() {
+        // Any process on the machine can fire one, so all it may do is send the
+        // console to one path on the server already configured.
+        let server = url("https://acme.example/");
+
+        assert!(deep_link_return(Some(&server), "agenticos://auth/callback").is_none());
+        assert!(deep_link_return(Some(&server), "agenticos://evil/callback?code=x").is_none());
+        assert!(deep_link_return(Some(&server), "agenticos://auth/other?code=x").is_none());
+        assert!(deep_link_return(Some(&server), "https://evil.example/?code=x").is_none());
+        assert!(deep_link_return(Some(&server), "not a url").is_none());
+        assert!(deep_link_return(Some(&server), "agenticos://auth/callback?code=").is_none());
+    }
+
+    #[test]
+    fn a_return_before_a_server_was_chosen_goes_nowhere() {
+        assert!(deep_link_return(None, "agenticos://auth/callback?code=abc").is_none());
+    }
 
     #[test]
     fn a_bare_host_is_opened_over_https() {
