@@ -103,6 +103,17 @@ async def refresh_token(
 
     session = await session_service.validate_refresh_token(body.refresh_token)
     if not session:
+        # Before the refusal, and only on the path where one is already certain:
+        # a token that validated no live session may be a typo, an expired one, a
+        # revoked one - or one this account rotated away a moment ago, now being
+        # presented by somebody else. Rotation re-keys the row in place, so all
+        # of those failed identically and the replay was the one nothing saw
+        # (#1519). The answer to the caller does not change; what changes is that
+        # the chain ends and the trail records it.
+        await session_service.detect_refresh_reuse(
+            body.refresh_token,
+            ip_address=request.client.host if request.client else None,
+        )
         raise AuthenticationError(message="Invalid or expired refresh token")
 
     user = await user_service.get_by_id(session.user_id)

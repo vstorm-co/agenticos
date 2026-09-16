@@ -1,6 +1,5 @@
 ---
-source_sha: "fc8c04bccc9c"
-source_sha: "fc8c04bccc9c"
+source_sha: "d6759c2a4490"
 ---
 
 # Seguridad { #security }
@@ -186,6 +185,8 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Inicio de sesión único contra el propio proveedor de identidad del despliegue | OIDC genérico por discovery — authorization code con PKCE, `email_verified` obligatorio, la cuenta indexada por `sub` (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; se configura en [Inicio de sesión único](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
 | La política de registro controla el SSO igual que el formulario | `check_may_register` dentro de `get_or_create_oauth_user` — `invite_only` y la lista de dominios permitidos también rechazan un acceso por proveedor (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
 | Mapeo de grupos a roles, SAML, SCIM | **Todavía no** — la gente entra por el proveedor y una administradora la coloca | — |
+| Límite de peticiones en el login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Un refresh token reproducido termina su cadena y queda registrado | La rotación conserva el hash que sustituyó; un refresh que coincida con él es el caso de reutilización de la RFC 6819 §5.2.2.3 y cierra esa sesión con una entrada de auditoría (`SessionService.detect_refresh_reuse`) | `test_session_revocation.py::TestReusingASpentRefreshToken` |
 
 ### Controles de auditoría · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 
