@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd2c8097097"
+source_sha: "bee20df52ff2"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -80,6 +80,21 @@ Die Route trägt eine **Rate-Limitierung und kein Berechtigungs-Tor**. Über die
 Berechtigung entscheidet der Service, anhand der Grants genau dieses Agents — ein
 Rollen-Tor auf einer Route für eine einzelne Ressource
 [kann sie nicht sehen](permissions.md).
+
+## Die ML-Dienste { #the-ml-services }
+
+Vier Dienste der Plattform antworten für sich allein, ohne Unterhaltung und ohne
+Agent dahinter: Dokumentanalyse, OCR, Spracherkennung und Erkennung
+personenbezogener Daten. Sie hängen an `ml:invoke` statt an `agents:run`, und
+[Die ML-Dienste](ml-services.md) ist ihre Referenz.
+
+```bash
+curl -X POST "$BASE/api/v1/ml/privacy/pii" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "write to ada@example.com"}'
+```
 
 ## Streaming { #streaming }
 

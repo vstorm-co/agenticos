@@ -274,20 +274,53 @@ function SchemaField({
 
       {kind === "string" && textarea && (
         /* A connector's plain-text config box (`textarea`) - not the
-           MarkdownEditor above, which is for prose, and not masked: a secret is
-           single-line and never a config field, so nothing emits a masked
-           textarea and the reveal machinery below never reaches here. */
-        <Textarea
-          id={id}
-          rows={6}
-          placeholder={placeholder}
-          value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
-          disabled={disabled}
-          spellCheck={false}
-          className="font-mono text-xs"
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
-          {...invalid}
-        />
+           MarkdownEditor above, which is for prose.
+
+           Masked when the schema says so, which used to be impossible: every
+           secret was single-line, so this branch assumed one and the masked
+           control below was an `<input type="password">`. A GitHub App's private
+           key is a PEM - a header, a base64 body over many lines, a footer - and
+           a browser strips line breaks out of an input value, so pasting one
+           into that control silently produced an unusable key and the failure
+           surfaced later as a JWT that would not sign (#1072). A masked textarea
+           is shown as its own line count so nothing is inferred from the dots. */
+        <div className="relative">
+          <Textarea
+            id={id}
+            rows={masked ? 4 : 6}
+            placeholder={placeholder}
+            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+            disabled={disabled}
+            spellCheck={false}
+            className={cn(
+              "font-mono text-xs",
+              masked && "pr-10",
+              // No `type="password"` on a textarea, so the masking is the font.
+              // It hides the value from a shoulder and from a screenshot, which
+              // is what this masking is for, and the reveal beside it is how the
+              // paste gets checked.
+              masked && !revealed && "[-webkit-text-security:disc] [text-security:disc]",
+            )}
+            onChange={(event) =>
+              onChange(event.target.value === "" ? undefined : event.target.value)
+            }
+            {...invalid}
+          />
+          {masked && (
+            <button
+              type="button"
+              onClick={() => setRevealed((shown) => !shown)}
+              disabled={disabled}
+              aria-label={
+                revealed ? t("hideNamed", { name: label }) : t("showNamed", { name: label })
+              }
+              aria-pressed={revealed}
+              className="text-muted-foreground hover:text-foreground absolute top-1 right-1 rounded-md p-2 disabled:pointer-events-none disabled:opacity-50"
+            >
+              {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
       )}
 
       {kind === "string" && !multiline && !textarea && (

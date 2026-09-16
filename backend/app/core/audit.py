@@ -9,10 +9,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject
+from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.audit_log import AppAdminAuditLog
 
 logger = logging.getLogger(__name__)
@@ -188,3 +190,28 @@ async def record_audit(
     )
     db.add(entry)
     await db.flush()
+
+    # Advance this organization's checkpoint - the high-water mark `audit-verify`
+    # compares against to catch a chain truncated from the end or deleted whole
+    # (#1648). Under the same lock the append took, so it cannot race the head;
+    # after the flush, because `seq` is the database's to assign. A trigger keeps
+    # the row from moving backwards or being deleted, so it is a mark the
+    # application's own database access cannot rewind.
+    await db.execute(
+        pg_insert(AppAdminAuditCheckpoint)
+        .values(
+            organization_id=organization_id,
+            max_seq=entry.seq,
+            entry_count=1,
+            head_entry_hash=entry.entry_hash,
+        )
+        .on_conflict_do_update(
+            constraint="app_admin_audit_checkpoints_organization_id_key",
+            set_={
+                "max_seq": entry.seq,
+                "entry_count": AppAdminAuditCheckpoint.entry_count + 1,
+                "head_entry_hash": entry.entry_hash,
+                "updated_at": func.now(),
+            },
+        )
+    )

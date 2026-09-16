@@ -15,6 +15,7 @@ carried. Both went with the store that made them necessary (#1470).
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
@@ -172,11 +173,19 @@ class TestReads:
 
     async def test_the_listing_is_newest_first(self, db) -> None:
         """A long-lived store hands the model what it learned last rather than
-        whatever sorts first alphabetically."""
+        whatever sorts first alphabetically.
+
+        "Last" is the agent's own write - `written_at`, which an edit moves and a
+        person suppressing the note does not (#1594).
+        """
         agent = await _fresh_agent(db)
         first = await _create(db, agent=agent, owner_key=ANNA, name="aaa")
         await _create(db, agent=agent, owner_key=ANNA, name="zzz")
-        await memory_repo.update(db, file=first, update_data={"content": "edited"})
+        await memory_repo.update(
+            db,
+            file=first,
+            update_data={"content": "edited", "written_at": datetime.now(UTC)},
+        )
 
         rows = await memory_repo.list_for_owner(
             db, organization_id=agent.organization_id, agent_id=agent.id, owner_key=ANNA

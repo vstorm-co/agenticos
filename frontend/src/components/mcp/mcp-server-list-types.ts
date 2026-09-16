@@ -60,6 +60,13 @@ export interface ConnectionFormValues {
   auth: DraftAuth;
   clearToken: boolean;
   scope: Scope;
+  /**
+   * A client registered at the provider by hand, read only when `auth` is
+   * `"oauth"`. Empty is the common case: the server registers this app itself.
+   * A provider that will not (HubSpot) hands out these two in its own portal.
+   */
+  clientId: string;
+  clientSecret: string;
 }
 
 /** A probed connection and which of its tools are currently checked. */
