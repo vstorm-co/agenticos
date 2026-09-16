@@ -1,5 +1,5 @@
 ---
-source_sha: "9871a922f9f3"
+source_sha: "089d90f20bd4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -28,7 +28,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | id | Name | Kategorie | Tools | Scope | Schlüssel |
 |---|---|---|---|---|---|
 | `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontext | knowledge | `list_context`, `read_context` | — | — |
 | `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
@@ -97,7 +97,7 @@ Schweigen.
 
 ## Skills { #skills }
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Aufgeschriebenes Know-how, das der Agent nur lädt, wenn er es für relevant hält,
 und zwar einen Skill nach dem anderen — die Alternative wäre ein Instruktionsfeld,
@@ -105,10 +105,23 @@ das so lange wächst, bis jeder Run für jede Prozedur bezahlt. Siehe
 [Skills](../skills.md) dafür, was ein Skill ist und wie einer in eine Organisation
 gelangt.
 
-Diese drei Tools stammen aus `pydantic-ai-skills`, ihre Namen und Formulierungen
-liegen also in fremder Hand. Ein Drift-Test vergleicht, was die Registry
-deklariert, mit den Tools, die dem Modell tatsächlich angeboten werden — das ist
-es, was den Tag meldet, an dem das passiert.
+**Jeder gebundene Skill ist eine eigene Capability.** Sein Name und seine
+Beschreibung stehen im Katalog, den das Modell in jeder Runde liest, und den
+Textkörper holt sich das Modell mit `load_capability` — dem Tool des
+Agent-Frameworks selbst, weshalb es nicht in der Liste oben steht und weshalb ein
+Spec es weder gewähren noch absichern noch umbenennen kann. `read_skill_resource`
+ist das einzige Tool, das diese Capability beisteuert, und es erscheint nur, wenn
+mindestens ein gebundener Skill eine Datei neben seinen Instruktionen mitbringt.
+
+Das Tool stammt aus `pydantic-ai-skills`, sein Name und seine Formulierungen liegen
+also in fremder Hand. Ein Drift-Test vergleicht, was die Registry deklariert, mit
+den Tools, die dem Modell tatsächlich angeboten werden — das ist es, was den Tag
+meldet, an dem das passiert.
+
+`run_skill_script` ist abgeschaltet statt freigegeben: Die Dateien eines Skills
+erreichen einen Run unter `/workspace/skills/`, wo das eigene `execute` der
+[Sandbox](../sandbox.md) sie unter den Grenzen des Betreibers ausführt, und ein
+zweiter Ausführungsweg wäre ein zweiter Satz Regeln, den man falsch machen kann.
 
 ## Kontext { #context }
 
@@ -206,16 +219,64 @@ Ein Index, der größer ist als etwa 6.000 Zeichen, wird weggelassen statt gekü
 Ein halber Index — mitten in einer Zeile, mitten in einem Dateinamen endend — ist
 schlimmer als gar keiner.
 
-### Löschen { #erasing-it }
+### Lesen und löschen { #reading-it-and-erasing-it }
 
-Niemand blättert in der Konsole durch die Notizen einer Person: Ein Betreiber, der
-liest, was ein Agent über einen Kollegen geschrieben hat, ist genau das Versagen,
-das dieses Design ablehnt, und es gibt keinen Bildschirm dafür. Was es gibt, ist
-das Löschen. Eine Person löscht alles, was ein Agent über sie erinnert, aus ihrem
-eigenen Profil, und ein Administrator mit `members:manage` kann es für jemand
-anderen tun; beides löscht die Zeilen hier **und** die zugehörigen Erinnerungen in
-mem0 für jeden Agent, der es bindet. Das Gedächtnis eines einzelnen Agents
-vollständig zu leeren, steht in dessen Toolbox, neben der Capability.
+Niemand blättert kraft einer Organisationsrolle durch die Notizen *eines
+anderen*. Das war die gesamte frühere Antwort - Löschen und überhaupt keine
+Liste - und sie war halb richtig: eine Liste ist beim Speicher einer Kollegin
+ein Überwachungsmittel und beim eigenen das Gegenteil davon. Die Antwort hat
+deshalb jetzt drei Teile (#1594).
+
+**Den eigenen, immer, unter Einstellungen → Gedächtnis.** Kein Recht sichert das
+ab, denn die Antwort ist für eine Viewerin dieselbe wie für eine Ownerin: was die
+Agenten hier über Sie aufgeschrieben haben, über alle Agenten hinweg, mit dem
+Agenten, der die jeweilige Notiz schrieb, und dem Zeitpunkt. Drei Dinge können
+Sie mit einer Notiz tun:
+
+| | |
+|---|---|
+| **Nicht mehr verwenden** | Die Notiz wird nicht mehr gelistet, gelesen oder von einem Tool bearbeitet, erreicht das Modell also nicht mehr - und existiert weiter, zum Nachlesen und Wiederherstellen. Die mittlere Antwort für eine Notiz, die falsch oder zu persönlich ist und bei der Sie noch nicht sicher sind, ob sie weg soll. |
+| **Wieder verwenden** | Stellt sie wieder her. |
+| **Löschen** | Weg. |
+
+Der *Name* einer stillgelegten Notiz bleibt vergeben, ein Agent, der ihn erneut
+schreibt, belebt die Zeile also mit neuem Inhalt. Das hebt die Stilllegung nicht
+auf: was Sie stillgelegt haben, wird überschrieben, und die Zeile hält etwas, das
+der Agent seither gelernt hat. Die Alternative - ein dauerhaft unbrauchbarer Name
+- wäre ein Speicher, der stumm den Dienst verweigert.
+
+**Der Index zieht mit.** `MEMORY.md` wird in die Instruktionen jeder Anfrage
+eingefügt; eine von Ihnen gestoppte Notiz, deren Indexzeile sie weiterhin
+beschreibt, erreicht das Modell also weiterhin. Eine Notiz stillzulegen oder zu
+löschen entfernt daher die Indexzeilen, die sie **benennen**. Eine Zeile, die die
+Notiz beschreibt, ohne sie zu benennen, bleibt - das Kürzen ist zeilenweise und
+am Namen orientiert, denn genau das ist der Index - und das Wiederherstellen
+setzt keine Zeile zurück: den Index schreibt der Agent, und dies ist nicht der
+Ort, in seiner Stimme zu formulieren.
+
+**Den einer anderen Person, nur eine Deployment-Administratorin.**
+`GET /memory/person/{id}` mit Nennung des Tenants, und für alle anderen
+abgelehnt: nicht für eine Ownerin, nicht für eine Admina, nicht für jemanden mit
+einem Edit-Grant auf dem Agenten, der die Notiz schrieb. Die Begründung ist die
+obige - eine Organisationsrolle ist nicht die Stelle, die ein Auskunftsersuchen
+erreicht, und die Administratorin des Deployments, die ohnehin Konten über
+Tenants hinweg verwaltet, ist es. Der Zugriff steht mit Akteurin, Tenant, Person
+und Begründung im Audit-Trail, und **ohne Inhalt**: ein Eintrag, der festhielte,
+worauf er gesehen hat, wäre eine zweite Kopie des Geschützten.
+
+**Löschen**, unverändert. Eine Person räumt aus ihrem eigenen Profil alles weg,
+woran ein Agent sich über sie erinnert, und eine Administratorin mit
+`members:manage` kann das für jemand anderen tun; beides löscht die Zeilen hier
+**und** die zugehörigen Erinnerungen in mem0 bei jedem Agenten, der es bindet.
+Das Gedächtnis eines Agenten vollständig zu leeren steht in seinem Werkzeugkasten,
+neben der Capability.
+
+**Was die Selbstauskunft nicht erreicht.** Ein an mem0 gebundener Agent hält seine
+Erinnerungen im Dienst eines Dritten, und diese Seite listet sie nicht - die API
+von mem0 beantwortet, was zu einer *Frage* passt, nicht was ein Speicher enthält.
+Solche Agenten werden auf der Seite **genannt** statt weggelassen, denn eine Liste
+nativer Notizen, als vollständiges Inventar präsentiert, wäre schlimmer als eine,
+die sagt, was ihr fehlt. Das Löschen erreicht mem0; das Lesen nicht.
 
 ## Gedächtnis (mem0) { #memory-mem0 }
 
@@ -1686,12 +1747,11 @@ baut, und prüft, dass die Tools jeder Capability eine Rückgabeform mitführen.
 Das deckt auch die Tools ab, die dieses Deployment nicht geschrieben hat:
 `planning` und die Delegations-Tools bekommen den Text dieses Repositories,
 `web_fetch` und `search_tools` werden dort neu beschrieben, wo sie gebaut werden,
-und `read_tool_result` sowie die drei `skills`-Tools werden direkt auf dem Toolset
-der Bibliothek neu beschrieben. Zwei davon waren den Aufwand über die Konsistenz
+und `read_tool_result` sowie `read_skill_resource` werden direkt auf dem Toolset
+der Bibliothek neu beschrieben. Eines davon war den Aufwand über die Konsistenz
 hinaus wert — der Satz der Bibliothek für `read_tool_result` sagte nichts darüber,
 womit ein Handle antwortet, und das ist das Einzige, was ein Modell mit einem
-Handle braucht, und `list_skills` dokumentierte die Python-Rückgabe (ein
-Dictionary) statt des Textes, den das Modell bekommt.
+Handle braucht.
 
 Ein Tool aus einer Bibliothek, für das dieses Repository keinen Text hat, behält
 den der Bibliothek, und das ist der richtige Standard: `run_skill_script` wird

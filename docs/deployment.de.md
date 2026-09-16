@@ -1,5 +1,5 @@
 ---
-source_sha: "545cf7248027"
+source_sha: "31e3e2845403"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -80,6 +80,19 @@ ist der einzige Grund, weshalb ein Ersatz überhaupt jemals sichtbar wird. Eine
 URL wäre zudem eine, die jeder Client umschreiben müsste, denn in jedem echten
 Deployment liegt die API nicht auf derselben Origin wie die Seiten.
 
+## Ein Deployment in einer konformen Umgebung { #a-deployment-inside-a-compliant-environment }
+
+`deploy/profiles/hipaa/` ist eine meinungsstarke Konfiguration für den Betrieb
+dort, wo HIPAAs technische Sicherungen gelten - ein Compose-Overlay, das ohne die
+Einstellungen, die es nicht vorbelegen kann, nicht startet, und eine kommentierte
+Env-Datei - plus `agenticos cmd doctor --profile hipaa`, das ein laufendes
+Deployment dagegen prüft und bei jeder unerfüllten Kontrolle ungleich null endet.
+
+Es ist ein Beleg, keine Zertifizierung, und beantwortet allein §164.312: die
+administrativen und physischen Sicherungen gehören der Betreiberin. Siehe
+[Das HIPAA-Profil](security.md#the-hipaa-profile-and-what-it-does-not-claim) für
+das Blatt und für den Satz dazu, wer die Business Associate ist.
+
 ## Security-Header { #security-headers }
 
 Jede Seite der Konsole trägt eine Content-Security-Policy und die üblichen
@@ -125,7 +138,14 @@ auf dieser Origin erlaubt, für die Spracherkennung im Chat.
 ## Wer sich registrieren darf { #who-may-register }
 
 `signup_mode`, angewendet in `app/services/signup_policy.py` — der einen Stelle,
-und sie kontrolliert **beide** Pfade, die ein Konto prägen.
+und sie kontrolliert **jeden** Pfad, der ein Konto prägt: das
+Registrierungsformular und eine Anmeldung über einen Identitätsanbieter. Nichts
+an einem OAuth- oder OIDC-Callback sieht nach einer Registrierung aus, und ein
+Deployment mit Single Sign-on und geschlossenem Registrierungsformular wäre
+überhaupt nicht geschlossen, wenn dieser Zweig ungesichert wäre — deshalb fragt
+`get_or_create_oauth_user` dieselbe Richtlinie, bevor es das Konto anlegt. Eine
+abgewiesene SSO-Anmeldung landet wieder auf der Anmeldeseite und trägt den
+eigenen Satz der Richtlinie, denselben, den das Registrierungsformular zeigt.
 
 | Modus | Wirkung |
 |---|---|

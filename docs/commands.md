@@ -321,6 +321,14 @@ uv run agenticos cmd bootstrap --org "Acme"
 # holding the wrong token.
 uv run agenticos cmd doctor
 
+# The same, plus a second sheet: one row per control of a security profile,
+# naming the setting that satisfies it or the one that does not. `--` marks a
+# control that is genuinely the operator's - volume encryption - which is named
+# rather than quietly passed and does not fail the command. Exits non-zero on any
+# unmet control, so a client's own CI can gate on it. Evidence, not a
+# certification: the HIPAA profile answers §164.312 and nothing else.
+uv run agenticos cmd doctor --profile hipaa
+
 # Find published agents that lend a skill their publisher could not reach. The
 # publish-time check on skill_ids only guards new publishes; this is the offline
 # half, naming versions frozen before it that still hand a private skill to a run.

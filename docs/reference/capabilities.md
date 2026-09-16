@@ -23,7 +23,7 @@ tools listed.
 | id | Name | Category | Tools | Scope | Key |
 |---|---|---|---|---|---|
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
 | `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
@@ -88,17 +88,28 @@ tool, because the model keeps trying it and reasons from the silence.
 
 ## Skills
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Written know-how the agent loads only when it decides it is relevant, one skill at
 a time — the alternative being an instructions field that grows until every run
 pays for every procedure. See [Skills](../skills.md) for what a skill is and how
 one gets into an organization.
 
-These three tools come from `pydantic-ai-skills`, so their names and wording are
-somebody else's to change. A drift test compares what the registry declares
-against the tools the model is actually offered, which is what reports the day
-that happens.
+**Each bound skill is a capability of its own.** Its name and description sit in
+the catalog the model reads every turn, and the model pulls the body in with
+`load_capability` — the agent framework's own tool, which is why it is not in the
+list above and why a spec cannot grant, gate or rename it. `read_skill_resource`
+is the one tool this capability contributes, and it appears only when at least one
+bound skill ships a file beside its instructions.
+
+The tool comes from `pydantic-ai-skills`, so its name and wording are somebody
+else's to change. A drift test compares what the registry declares against the
+tools the model is actually offered, which is what reports the day that happens.
+
+`run_skill_script` is switched off rather than exposed: a skill's files reach a
+run under `/workspace/skills/`, where the [sandbox](../sandbox.md)'s own `execute`
+runs them under the operator's ceilings, and a second execution path would be a
+second set of rules to get wrong.
 
 ## Context
 
@@ -183,15 +194,59 @@ another colleague's instructions in the same channel.
 An index larger than about 6,000 characters is left out rather than cut. Half an
 index — ending mid-line, mid-filename — is worse than none.
 
-### Erasing it
+### Reading it, and erasing it
 
-Nothing browses somebody's notes in the console: an operator reading what an agent
-wrote about a colleague is the failure this design refuses, and there is no screen
-for it. What there is, is erasure. A person clears everything an agent remembers
-about them from their own profile, and an administrator holding `members:manage`
-can do it for somebody else; both delete the rows here **and** the matching
-memories in mem0 for every agent that binds it. Clearing one agent's memory
-entirely is in its toolbox, beside the capability.
+Nobody browses somebody *else's* notes by organization role. That was the whole
+of the earlier answer - erasure and no listing at all - and it was half right: a
+listing is a surveillance affordance of a colleague's store, and the opposite of
+one of your own. So the answer now has three parts (#1594).
+
+**Your own, always, at Settings → Memory.** No permission gates it, because the
+answer is the same for a Viewer and an Owner: what agents here have written down
+about you, across every agent, with which one wrote each note and when. Three
+things you can do to a note:
+
+| | |
+|---|---|
+| **Stop using it** | The note is no longer listed, read or editable by any tool, so it stops reaching the model - and it still exists, for you to look at and restore. The middle answer, for a note that is wrong or too personal and that you are not yet sure you want gone. |
+| **Use it again** | Restores it. |
+| **Delete it** | Gone. |
+
+A suppressed note's *name* is still taken, so an agent writing that name again
+revives the row with the new content. That is not the suppression being undone:
+what you suppressed is overwritten, and the row holds something the agent has
+learned since. The alternative - a name permanently unusable - is a store that
+silently refuses to work and never says why.
+
+**The index follows.** `MEMORY.md` is spliced into the instructions of every
+request, so a note you stopped whose index line still describes it is a note
+still reaching the model. Suppressing or deleting a note therefore drops the
+index lines that **name** it. A line that describes the note without naming it
+survives - the pruning is line-level and keyed on the name, because that is what
+the index is - and restoring a note does not put a line back: the agent writes
+the index, and this is not the place to author prose in its voice.
+
+**Somebody else's, only a deployment administrator.** `GET /memory/person/{id}`,
+naming the tenant, and refused to everybody else: not an Owner, not an Admin, not
+somebody holding an edit grant on the agent that wrote the note. The reasoning is
+the one above - an organization role is not the party a subject-access request
+reaches, and the deployment's own administrator, who already administers accounts
+across tenants, is. The read is recorded in the audit trail with the actor, the
+tenant, the subject and a reason, and **no content**: an entry holding what it
+looked at would be a second copy of the thing being protected.
+
+**Erasure**, unchanged. A person clears everything an agent remembers about them
+from their own profile, and an administrator holding `members:manage` can do it
+for somebody else; both delete the rows here **and** the matching memories in
+mem0 for every agent that binds it. Clearing one agent's memory entirely is in
+its toolbox, beside the capability.
+
+**What the self-service view does not reach.** An agent bound to mem0 keeps its
+memories in somebody else's service, and this page does not list them - mem0's
+API answers what a *question* matches, not what a store holds. Those agents are
+**named** on the page rather than left out, because a list of native notes
+presented as a complete inventory would be worse than one that says what it
+misses. Erasure does reach mem0; reading does not.
 
 ## Memory (mem0)
 
@@ -1490,11 +1545,10 @@ carry a return shape.
 That covers the tools this deployment did not write, either: `planning` and the
 delegation tools are handed this repository's text, `web_fetch` and
 `search_tools` are re-described where they are built, and `read_tool_result` and
-the three `skills` tools are re-described in place on the library's own toolset.
-Two of those were worth the trouble beyond consistency — the library's sentence
+`read_skill_resource` are re-described in place on the library's own toolset.
+One of those was worth the trouble beyond consistency — the library's sentence
 for `read_tool_result` said nothing about what a handle answers with, which is
-the one thing a model holding a handle needs, and `list_skills` documented the
-Python return (a dictionary) rather than the text the model is handed.
+the one thing a model holding a handle needs.
 
 A tool from a library that this repository has no text for keeps the library's,
 which is the right default: `run_skill_script` is excluded rather than described,

@@ -1,5 +1,5 @@
 ---
-source_sha: "9871a922f9f3"
+source_sha: "089d90f20bd4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -28,7 +28,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz |
 |---|---|---|---|---|---|
 | `knowledge` | Wyszukiwanie w bazie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
-| `skills` | Skille | wiedza | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — |
 | `memory_files` | Pliki pamięci | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
@@ -95,17 +95,29 @@ niż brak narzędzia, bo model próbuje go dalej i wyciąga wnioski z tej ciszy.
 
 ## Skille { #skills }
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Spisana wiedza praktyczna, którą agent ładuje dopiero wtedy, gdy uzna ją za
 istotną, po jednym skillu naraz — alternatywą jest pole instrukcji rosnące tak
 długo, aż każdy run płaci za każdą procedurę. Zobacz [Skille](../skills.md), czym
 jest skill i jak trafia do organizacji.
 
-Te trzy narzędzia pochodzą z `pydantic-ai-skills`, więc ich nazwy i sformułowania
-należą do kogoś innego. Test dryfu porównuje to, co deklaruje rejestr, z
-narzędziami, które model faktycznie dostaje — i to on zgłosi dzień, w którym to
-się stanie.
+**Każdy podpięty skill jest osobną capability.** Jego nazwa i opis siedzą w
+katalogu, który model czyta w każdej turze, a treść model wciąga narzędziem
+`load_capability` — należącym do samego frameworka agentowego, dlatego nie ma go na
+liście powyżej i dlatego spec nie może go przyznać, obramkować ani przemianować.
+`read_skill_resource` to jedyne narzędzie, które ta capability wnosi, i pojawia się
+tylko wtedy, gdy przynajmniej jeden podpięty skill wiezie plik obok swoich
+instrukcji.
+
+Narzędzie pochodzi z `pydantic-ai-skills`, więc jego nazwa i sformułowania należą do
+kogoś innego. Test dryfu porównuje to, co deklaruje rejestr, z narzędziami, które
+model faktycznie dostaje — i to on zgłosi dzień, w którym to się stanie.
+
+`run_skill_script` jest wyłączone, a nie wystawione: pliki skilla trafiają do runa
+pod `/workspace/skills/`, gdzie uruchamia je własne `execute`
+[sandboxa](../sandbox.md), pod limitami operatora — a druga ścieżka wykonania
+byłaby drugim zestawem reguł do pomylenia.
 
 ## Kontekst { #context }
 
@@ -196,16 +208,58 @@ Indeks większy niż mniej więcej 6000 znaków jest pomijany, a nie przycinany.
 Połowa indeksu — urwana w środku linii, w środku nazwy pliku — jest gorsza niż
 żadna.
 
-### Jak to wymazać { #erasing-it }
+### Jak to czytać i jak wymazać { #reading-it-and-erasing-it }
 
-Nic w konsoli nie pozwala przeglądać cudzych notatek: operator czytający, co
-agent napisał o koledze, jest tą porażką, której ten projekt odmawia, i nie ma na
-to ekranu. Jest za to wymazywanie. Człowiek czyści z poziomu własnego profilu
-wszystko, co agent o nim pamięta, a administrator z uprawnieniem `members:manage`
-może zrobić to za kogoś innego; oba działania usuwają wiersze tutaj **oraz**
-odpowiadające im wspomnienia w mem0 dla każdego agenta, który to wiąże.
-Wyczyszczenie całej pamięci jednego agenta jest w jego Toolboksie, obok
-capability.
+Nikt nie przegląda notatek *kogoś innego* z tytułu roli w organizacji. To była
+całość wcześniejszej odpowiedzi — wymazywanie i żadnej listy — i była w połowie
+trafna: lista to narzędzie inwigilacji cudzego magazynu i coś dokładnie
+odwrotnego dla własnego. Dlatego odpowiedź ma teraz trzy części (#1594).
+
+**Własną, zawsze, w Ustawienia → Pamięć.** Nie bramkuje tego żadne uprawnienie,
+bo odpowiedź jest ta sama dla Viewera i dla Ownera: co agenci tutaj zapisali o
+tobie, po wszystkich agentach, z informacją, który zapisał którą notatkę i kiedy.
+Trzy rzeczy, które możesz z notatką zrobić:
+
+| | |
+|---|---|
+| **Przestań używać** | Notatka nie jest już listowana, czytana ani edytowalna przez żadne narzędzie, więc przestaje docierać do modelu — i dalej istnieje, żebyś mógł ją obejrzeć i przywrócić. Odpowiedź pośrednia, dla notatki błędnej albo zbyt osobistej, co do której nie masz jeszcze pewności, że ma zniknąć. |
+| **Używaj znowu** | Przywraca ją. |
+| **Usuń** | Znika. |
+
+*Nazwa* wyłączonej notatki jest nadal zajęta, więc agent piszący tę nazwę
+ponownie ożywia wiersz z nową treścią. To nie jest cofnięcie wyłączenia: to, co
+wyłączyłeś, zostaje nadpisane, a wiersz trzyma coś, czego agent nauczył się od
+tamtej pory. Alternatywa — nazwa na zawsze nieużywalna — to magazyn, który po
+cichu odmawia działania i nigdy nie mówi dlaczego.
+
+**Indeks idzie za tym.** `MEMORY.md` jest wklejany w instrukcje każdego żądania,
+więc zatrzymana notatka, której linia w indeksie dalej ją opisuje, to notatka,
+która dalej dociera do modelu. Wyłączenie albo usunięcie notatki usuwa więc te
+linie indeksu, które ją **nazywają**. Linia opisująca notatkę bez nazwania jej
+zostaje — przycinanie jest liniowe i kluczowane po nazwie, bo tym właśnie jest
+indeks — a przywrócenie notatki nie wstawia linii z powrotem: indeks pisze agent,
+a to nie jest miejsce na pisanie prozy jego głosem.
+
+**Cudzą, tylko administrator wdrożenia.** `GET /memory/person/{id}`, z nazwaniem
+tenanta, i odmowa dla wszystkich innych: nie dla Ownera, nie dla Admina, nie dla
+kogoś z grantem edycji na agencie, który tę notatkę napisał. Uzasadnienie jest to
+samo co wyżej — rola w organizacji nie jest stroną, do której trafia żądanie
+dostępu podmiotu danych, a administrator samego wdrożenia, który już administruje
+kontami w poprzek tenantów, jest. Odczyt trafia do śladu audytowego z aktorem,
+tenantem, podmiotem i powodem, i **bez treści**: wpis trzymający to, na co
+patrzył, byłby drugą kopią tego, co jest chronione.
+
+**Wymazywanie**, bez zmian. Osoba czyści ze swojego profilu wszystko, co agent o
+niej pamięta, a administrator z `members:manage` może to zrobić za kogoś innego;
+oba usuwają wiersze tutaj **i** odpowiadające wspomnienia w mem0 dla każdego
+agenta, który je wiąże. Wyczyszczenie pamięci jednego agenta w całości jest w
+jego przyborniku, obok capability.
+
+**Czego samoobsługowy widok nie sięga.** Agent związany z mem0 trzyma wspomnienia
+w cudzej usłudze i ta strona ich nie listuje — API mem0 odpowiada, co pasuje do
+*pytania*, a nie co magazyn trzyma. Tacy agenci są na stronie **nazwani**, a nie
+pominięci, bo lista notatek natywnych podana jako pełny inwentarz byłaby gorsza
+niż taka, która mówi, czego jej brakuje. Wymazywanie sięga mem0; czytanie nie.
 
 ## Pamięć (mem0) { #memory-mem0 }
 
@@ -1568,11 +1622,10 @@ czy narzędzia każdej capability niosą kształt zwrotu.
 Obejmuje to również te narzędzia, których ten deployment nie napisał: `planning` i
 narzędzia delegowania dostają tekst z tego repozytorium, `web_fetch` i
 `search_tools` są opisywane na nowo tam, gdzie są budowane, a `read_tool_result` i
-trzy narzędzia `skills` są opisywane na nowo w miejscu, na własnym zestawie narzędzi
-biblioteki. Dwa z nich były warte zachodu poza samą spójnością — biblioteczne zdanie
-o `read_tool_result` nie mówiło nic o tym, czym odpowiada uchwyt, czyli o jedynej
-rzeczy, której potrzebuje model trzymający uchwyt, a `list_skills` dokumentowało
-zwrot pythonowy (słownik), a nie tekst, który dostaje model.
+`read_skill_resource` są opisywane na nowo w miejscu, na własnym zestawie narzędzi
+biblioteki. Jedno z nich było warte zachodu poza samą spójnością — biblioteczne
+zdanie o `read_tool_result` nie mówiło nic o tym, czym odpowiada uchwyt, czyli o
+jedynej rzeczy, której potrzebuje model trzymający uchwyt.
 
 Narzędzie z biblioteki, dla którego to repozytorium nie ma tekstu, zachowuje tekst
 biblioteczny, i jest to właściwa wartość domyślna: `run_skill_script` jest wykluczone,

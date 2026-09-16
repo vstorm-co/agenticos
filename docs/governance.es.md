@@ -1,5 +1,5 @@
 ---
-source_sha: "f4f13f232634"
+source_sha: "0f9f49369789"
 ---
 
 # Governance { #governance }
@@ -1440,6 +1440,121 @@ cuenta propia del administrador para cada agent que enlace la organización, pas
 hora en que la suplantación termina. Crear una conexión de organización ya registraba
 al administrador detrás; actualizar una no registraba nada, así que un token rotado
 sobre una conexión existente deja ahora el mismo rastro (#1521).
+
+## Retención { #retention }
+
+Hasta #1420 nada se borraba de forma programada. Las conversaciones, sus
+archivos, las filas de runs y sus manifiestos, los workspaces, la memoria de un
+agente, los documentos subidos y las entradas de auditoría vivían hasta que
+alguien borraba la organización. Eso es un problema de protección de datos en un
+sentido y —para la auditoría— de cumplimiento en el otro: HIPAA §164.316(b)(2)
+quiere conservar un registro de auditoría seis años, y el RGPD quiere minimizar
+todo lo demás. Por eso el periodo es **por clase**, y ambas obligaciones tienen
+su ajuste.
+
+Se configura en **Organizaciones → un workspace → Miembros → Retención**,
+protegido por `org:settings`. Un barrido corre una vez al día y **borra de
+verdad**: una política que conservara las filas no sería una política.
+
+Los tres números propios del despliegue —`retention_defaults`,
+`retention_max_days` y `audit_retention_floor_days`— son campos de los ajustes
+del despliegue, escritos por una app admin con `PATCH /admin/deployment-settings`
+como cualquier otro ajuste de ahí. Todavía no hay formulario en la consola para
+ellos; la página de la organización es donde se fijan los periodos por tenant.
+
+### Las clases { #the-classes }
+
+| Clase | Qué se va con ella | Medido desde |
+|---|---|---|
+| Conversaciones | Mensajes, llamadas a herramientas y los archivos de chat colgados de ellos — los bytes **antes** que las filas, de modo que un archivo que no se pudo desenlazar conserva su fila para la siguiente pasada en vez de sobrevivirla sin que nada pueda encontrarlo | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
+| Runs | La fila del run, su manifiesto y sus aprobaciones de herramientas | El inicio del run |
+| Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox | El último uso |
+| Memoria | Los archivos de memoria de un agente | La última escritura, porque una nota se escribe una vez y se lee durante meses |
+| Documentos subidos | La fila, sus vectores y el archivo subido | El momento de la subida |
+| Auditoría | Entradas en el rastro de esta organización | El momento de la entrada |
+
+**Un documento que todavía se está ingiriendo tampoco.** Lo tiene un worker, y
+quitarle la fila y el original subido por debajo de una ingestión que después
+escribe vectores deja contenido buscable que ningún barrido posterior puede
+nombrar. Solo se retiran las filas terminadas y las fallidas.
+
+**Un documento que sincronizó un conector no se barre.** Su vida pertenece a la
+fuente que lo puso ahí: borrarlo aquí eliminaría una fila que la siguiente
+sincronización `new_only` vuelve a crear desde el mismo archivo sin cambios,
+quemando gasto de embeddings para nada. Lo que se barre es lo que alguien subió,
+cuya vida no pertenece a nada más.
+
+### Qué número gana { #which-number-wins }
+
+Tres capas, resueltas en `app/core/retention.py` y en ningún otro sitio:
+
+1. **El valor por defecto del despliegue**, para una organización que no ha dicho
+   nada. Ausente significa para siempre: una plataforma que al actualizarse
+   empezara a borrar el historial de una instalación existente sería una en la que
+   nadie confiaría para la siguiente actualización.
+2. **El periodo propio de la organización**, más corto o más largo.
+3. **El techo del despliegue**: nada de esta clase vive aquí más de N días, y una
+   organización no puede levantarlo.
+
+La auditoría va al revés. El despliegue fija un **suelo** —lo mínimo que puede
+vivir una entrada, seis años mientras nadie lo cambie— y una organización puede
+alargarlo y nunca acortarlo. **La auditoría todavía no se barre**: el periodo se
+resuelve y se informa, y una organización queda sujeta al suelo, pero no se borra
+ninguna entrada, porque la cadena de hashes y su checkpoint append-only se apoyan
+en que las entradas no se van a ninguna parte, y un borrado a secas hace que
+`audit-verify` informe la retirada como manipulación. Retirar una cadena de forma
+verificable es [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+Un techo sigue aplicándose a la auditoría donde ambos no se contradicen. Donde sí,
+gana el suelo y la contradicción se informa. Un rastro que una administradora puede acortar no es
+un rastro, así que un periodo por debajo del suelo se **rechaza** en lugar de
+subirse en silencio: conservar entradas más tiempo del que dice el número en
+pantalla es un error de su propia clase.
+
+Un suelo por encima de un techo es una contradicción, y se informa en lugar de
+resolverse. La página de ajustes nombra la clase; una administradora decide cuál
+se aplica. Elegir una dejaría un despliegue comportándose de forma distinta a su
+propia página de ajustes.
+
+### Qué sobrevive a un borrado { #what-survives-a-purge }
+
+**La factura.** El gasto de un mes es una suma sobre `agent_runs`, así que
+borrarlos de verdad haría caer a cero el acumulado del mes de una organización
+según pasara la ventana, y un límite medido sobre esa cifra dejaría de aplicarse
+el resto del mes. El barrido lee lo que costaron los runs que expiran antes de
+borrarlos y guarda un total por organización y mes en `purged_run_spend` —un
+número y un recuento, sin agente, sin modelo, sin el nombre de nadie—.
+`app/services/spend.py` lo suma al total en vivo, y ese es el único sitio donde
+ambos se encuentran.
+
+**El rastro del propio barrido.** Una entrada por organización y barrido, que
+nombra la clase y el recuento y nada más: una entrada de auditoría que citara lo
+que borró conservaría el contenido más allá de la retención que lo quitó.
+
+### Cuando falla { #when-it-fails }
+
+Por clase, no por barrido. Un almacén de vectores caído no puede impedir que se
+borren conversaciones, así que se intenta cada clase, su fallo se registra y se
+nombra en la entrada de auditoría, y el barrido sigue. La siguiente pasada lo
+reintenta, porque un lote que no quitó nada simplemente vuelve.
+
+Los borrados van en lotes de 500, hasta cuarenta pasadas por clase y barrido. Una
+organización que llega a una política de noventa días tras dos años se quita el
+atraso a lo largo de varios días, en vez de en un barrido que retiene un bloqueo
+durante una hora con todos los demás flujos periódicos haciendo cola detrás.
+
+### Adónde no llega { #what-this-does-not-reach }
+
+- **A las copias de seguridad.** Un borrado quita filas y archivos del despliegue
+  en vivo. Lo que guarde tu calendario de copias es tuyo de caducar, y una
+  restauración devuelve lo que contuviera la instantánea.
+- **A lo que enviaste a otro sitio.** Los logs mandados a un colector externo, las
+  trazas en un proyecto de observabilidad alojado y cualquier cosa que retenga un
+  proveedor de modelos se rigen por los ajustes de esos servicios, no por este.
+- **Al control por entrada de memoria**, que es [#1594](https://github.com/vstorm-co/agenticos/issues/1594),
+  ni a borrar a una persona en toda una organización, que es
+  [#1421](https://github.com/vstorm-co/agenticos/issues/1421). Esta página trata
+  de la edad; aquellas tratan de un sujeto.
 
 ## Lo que nada de esto cubre { #what-none-of-this-covers }
 

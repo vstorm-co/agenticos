@@ -1,5 +1,5 @@
 ---
-source_sha: "827f1954f4ea"
+source_sha: "cb93ec8bdf86"
 ---
 
 # Polecenia { #commands }
@@ -332,6 +332,14 @@ uv run agenticos cmd bootstrap --org "Acme"
 # included, because `/healthz` is unauthenticated and answers for a service
 # holding the wrong token.
 uv run agenticos cmd doctor
+
+# To samo plus drugi arkusz: jeden wiersz na kontrolę profilu bezpieczeństwa,
+# nazywający ustawienie, które ją spełnia, albo to, które jej nie spełnia. `--`
+# oznacza kontrolę, która naprawdę należy do operatora — szyfrowanie wolumenu —
+# nazwaną, a nie po cichu zaliczoną, i niewywalającą komendy. Niezerowy exit przy
+# każdej niespełnionej kontroli, żeby CI klienta mogło na tym bramkować. Dowód, nie
+# certyfikacja: profil HIPAA odpowiada na §164.312 i na nic więcej.
+uv run agenticos cmd doctor --profile hipaa
 
 # Find published agents that lend a skill their publisher could not reach. The
 # publish-time check on skill_ids only guards new publishes; this is the offline

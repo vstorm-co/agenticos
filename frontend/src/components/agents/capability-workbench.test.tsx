@@ -103,15 +103,15 @@ const MEMORY_MEM0: CapabilityCatalogEntry = {
   tools: [{ id: "recall", name: "recall", description: "Recall facts by meaning." }],
 };
 
-const SKILLS: CapabilityCatalogEntry = {
+const CONTEXT: CapabilityCatalogEntry = {
   ...CHARTS,
-  id: "skills",
-  name: "Skills",
+  id: "context",
+  name: "Context",
   category: "knowledge",
-  description: "Reusable know-how this organization has written down.",
+  description: "Standing knowledge this organization has written down.",
   tools: [
-    { id: "list_skills", name: "list_skills", description: "Get an overview of all skills." },
-    { id: "load_skill", name: "load_skill", description: "Load one skill's instructions." },
+    { id: "list_context", name: "list_context", description: "Get an overview of all files." },
+    { id: "read_context", name: "read_context", description: "Read one context file." },
   ],
   contracts: [],
 };
@@ -162,7 +162,7 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
   return render(
     <CapabilityWorkbench
       agentId="agent-1"
-      catalog={[CHARTS, SKILLS]}
+      catalog={[CHARTS, CONTEXT]}
       selected={[]}
       onToggle={vi.fn()}
       onChange={vi.fn()}
@@ -235,11 +235,11 @@ describe("the capability workbench", () => {
     // Otherwise the only way to learn what granting it does is to grant it.
     renderWorkbench();
 
-    await userEvent.click(screen.getByRole("button", { name: /^Skills/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
     await openTools();
 
-    expect(screen.getByText("list_skills")).toBeInTheDocument();
-    expect(screen.getByText("load_skill")).toBeInTheDocument();
+    expect(screen.getByText("list_context")).toBeInTheDocument();
+    expect(screen.getByText("read_context")).toBeInTheDocument();
   });
 
   it("shows an ungranted capability at full detail, not an abridgement", async () => {
@@ -311,7 +311,7 @@ describe("the capability workbench", () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Skills/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
 
     expect(onToggle).not.toHaveBeenCalled();
   });
@@ -329,11 +329,11 @@ describe("the capability workbench", () => {
     // The pile of settings cards under the old grid is the thing being replaced:
     // five enabled capabilities produced five panels, none of them beside the
     // switch that created it.
-    renderWorkbench({ selected: [binding("charts"), binding("skills")] });
+    renderWorkbench({ selected: [binding("charts"), binding("context")] });
 
     const panel = screen.getByRole("group", { name: "Charts" });
     expect(within(panel).getByText("charts")).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Skills" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Context" })).not.toBeInTheDocument();
   });
 
   it("offers the whole description the model reads, not its first line", async () => {
@@ -402,7 +402,7 @@ describe("jsonSchemaType", () => {
     // Nobody knows which capability owns `create_chart`, and the search box only
     // appears once the list is long enough that scrolling it is worse.
     const filler = Array.from({ length: 8 }, (_, index) => ({
-      ...SKILLS,
+      ...CONTEXT,
       id: `filler-${index}`,
       name: `Filler ${index}`,
       category: "other",
@@ -418,7 +418,7 @@ describe("jsonSchemaType", () => {
 
   it("says nothing matched rather than showing an empty column", async () => {
     const filler = Array.from({ length: 8 }, (_, index) => ({
-      ...SKILLS,
+      ...CONTEXT,
       id: `filler-${index}`,
       name: `Filler ${index}`,
     }));

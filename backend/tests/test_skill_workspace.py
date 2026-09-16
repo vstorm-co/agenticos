@@ -213,6 +213,15 @@ class TestCollectingWhatTheAgentChanged:
 
         assert await collect_changes(backend, state) == []
 
+    async def test_frontmatter_that_is_not_a_mapping_is_refused_the_same_way(self):
+        """Valid YAML, wrong shape - a list or a sentence where keys were expected."""
+        backend = _backend()
+        state = await materialise(backend, [_Skill()])
+
+        backend.write(f"{SKILLS_ROOT}/refunds/SKILL.md", "---\n- refunds\n---\n\nbody")
+
+        assert await collect_changes(backend, state) == []
+
     async def test_a_body_with_no_frontmatter_proposes_an_empty_description(self):
         """Accepted rather than refused: the instructions are there and readable,
         and a reviewer can see the description is missing and fill it in."""
