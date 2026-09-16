@@ -134,17 +134,26 @@ class NotificationCenterService:
 
         `use_savepoint=True` is for a caller whose own transaction cannot
         afford to be poisoned by a failure here - `AgentRunnerService.finish`
-        is exactly such a context (Decision 2). A failure inside the savepoint
-        rolls back to it and is logged as `notification_write_failed`; the
-        caller's transaction proceeds and commits normally. Without it, a
-        failure propagates to the caller, which is correct for a context built
-        around this write succeeding.
+        is exactly such a context (Decision 2). Nested per recipient, not once
+        around the whole fan-out: a failure for one recipient (a deleted
+        account, an FK violation) rolls back to that recipient's own
+        savepoint and is logged as `notification_write_failed`, but does not
+        discard rows already written for the recipients before it - the
+        caller's transaction proceeds and commits normally either way.
+        Without it, a failure propagates to the caller, which is correct for
+        a context built around this write succeeding.
         """
         mandatory = is_mandatory(event_type)
-        if mandatory and actor_user_id is not None:
+        if mandatory:
+            # `actor_user_id` is usually who to key the budget on, but a
+            # system-triggered audit entry (no human actor) has none - and
+            # skipping the limiter for that case, rather than bounding it too,
+            # is exactly the unmetered-fan-out this guard exists to prevent.
+            # `"system"` is not a valid UUID, so it can never collide with a
+            # real actor's own bucket.
             decision = await rate_limit.consume(
                 surface="notification_mandatory_write",
-                caller=f"user:{actor_user_id}:{event_type.value}",
+                caller=f"user:{actor_user_id or 'system'}:{event_type.value}",
                 limit=_MANDATORY_WRITE_LIMIT,
             )
             if not decision.allowed:
@@ -164,26 +173,9 @@ class NotificationCenterService:
             "organization_id": organization_id,
             "announcement_id": announcement_id,
             "mandatory": mandatory,
+            "use_savepoint": use_savepoint,
         }
-        if not use_savepoint:
-            return await self._write_rows(**kwargs)
-        try:
-            async with self.db.begin_nested():
-                return await self._write_rows(**kwargs)
-        except Exception:  # pragma: no cover
-            # Directly verified (a forced FK violation logs exactly this and
-            # returns `[]`, checked with a spy on `logger.exception`) - not a
-            # gap in the test, a gap in the tool. `coverage.py`'s tracer loses
-            # this frame across the greenlet boundary SQLAlchemy's asyncpg
-            # bridge switches through to unwind an exception raised inside
-            # `begin_nested()`, the same class of trace loss `_write_rows`'s
-            # own successful path does not hit, since nothing there crosses a
-            # greenlet switch while unwinding.
-            logger.exception(
-                "notification_write_failed",
-                extra={"event_type": event_type.value, "occurrence_id": occurrence_id},
-            )
-            return []
+        return await self._write_rows(**kwargs)
 
     async def _write_rows(
         self,
@@ -197,37 +189,107 @@ class NotificationCenterService:
         organization_id: uuid.UUID | None,
         announcement_id: uuid.UUID | None,
         mandatory: bool,
+        use_savepoint: bool,
     ) -> list[Notification]:
         written: list[Notification] = []
         for recipient_id in recipients:
-            in_app_visible = mandatory or await self._channel_enabled(
-                recipient_id, event_type, NotificationChannel.IN_APP
-            )
-            notification = Notification(
-                id=uuid.uuid4(),
-                organization_id=organization_id,
-                recipient_user_id=recipient_id,
-                event_type=event_type.value,
-                occurrence_id=occurrence_id,
-                summary=summary,
-                context_url=context_url,
-                render_context=render_context,
-                in_app_visible=in_app_visible,
-                announcement_id=announcement_id,
-            )
-            inserted = await notification_repo.insert_notification_if_new(self.db, notification)
-            if not inserted:
-                continue
-            written.append(notification)
-
-            email_enabled = mandatory or await self.email_channel_enabled(recipient_id, event_type)
-            if email_enabled:
-                await notification_repo.insert_delivery(
-                    self.db,
-                    notification_id=notification.id,
-                    channel=NotificationChannel.EMAIL.value,
+            if not use_savepoint:
+                notification = await self._write_one(
+                    recipient_id=recipient_id,
+                    event_type=event_type,
+                    occurrence_id=occurrence_id,
+                    summary=summary,
+                    context_url=context_url,
+                    render_context=render_context,
+                    organization_id=organization_id,
+                    announcement_id=announcement_id,
+                    mandatory=mandatory,
                 )
+                if notification is not None:
+                    written.append(notification)
+                continue
+            # Nested per recipient, not once around the whole fan-out: one
+            # recipient a write here cannot reach (a deleted account, an FK
+            # violation) must not discard every row already written for the
+            # recipients before them in this same call (Decision 2's
+            # best-effort contract is "this write never breaks the caller",
+            # not "one bad recipient breaks everyone else's notification").
+            try:
+                async with self.db.begin_nested():
+                    notification = await self._write_one(
+                        recipient_id=recipient_id,
+                        event_type=event_type,
+                        occurrence_id=occurrence_id,
+                        summary=summary,
+                        context_url=context_url,
+                        render_context=render_context,
+                        organization_id=organization_id,
+                        announcement_id=announcement_id,
+                        mandatory=mandatory,
+                    )
+            except Exception:  # pragma: no cover
+                # Directly verified (a forced FK violation logs exactly this
+                # and continues to the next recipient, checked with a spy on
+                # `logger.exception`) - not a gap in the test, a gap in the
+                # tool. `coverage.py`'s tracer loses this frame across the
+                # greenlet boundary SQLAlchemy's asyncpg bridge switches
+                # through to unwind an exception raised inside
+                # `begin_nested()`, the same class of trace loss the
+                # successful path does not hit, since nothing there crosses a
+                # greenlet switch while unwinding.
+                logger.exception(
+                    "notification_write_failed",
+                    extra={
+                        "event_type": event_type.value,
+                        "occurrence_id": occurrence_id,
+                        "recipient_id": str(recipient_id),
+                    },
+                )
+                continue
+            if notification is not None:
+                written.append(notification)
         return written
+
+    async def _write_one(
+        self,
+        *,
+        recipient_id: uuid.UUID,
+        event_type: NotificationEventType,
+        occurrence_id: str,
+        summary: str,
+        context_url: str | None,
+        render_context: dict[str, Any] | None,
+        organization_id: uuid.UUID | None,
+        announcement_id: uuid.UUID | None,
+        mandatory: bool,
+    ) -> Notification | None:
+        in_app_visible = mandatory or await self._channel_enabled(
+            recipient_id, event_type, NotificationChannel.IN_APP
+        )
+        notification = Notification(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            recipient_user_id=recipient_id,
+            event_type=event_type.value,
+            occurrence_id=occurrence_id,
+            summary=summary,
+            context_url=context_url,
+            render_context=render_context,
+            in_app_visible=in_app_visible,
+            announcement_id=announcement_id,
+        )
+        inserted = await notification_repo.insert_notification_if_new(self.db, notification)
+        if not inserted:
+            return None
+
+        email_enabled = mandatory or await self.email_channel_enabled(recipient_id, event_type)
+        if email_enabled:
+            await notification_repo.insert_delivery(
+                self.db,
+                notification_id=notification.id,
+                channel=NotificationChannel.EMAIL.value,
+            )
+        return notification
 
     async def _channel_enabled(
         self, user_id: uuid.UUID, event_type: NotificationEventType, channel: NotificationChannel
@@ -261,9 +323,15 @@ class NotificationCenterService:
 
     async def list_inbox(
         self, ctx: AuthContext, *, after: tuple[datetime, uuid.UUID] | None, limit: int
-    ) -> tuple[list[Notification], dict[uuid.UUID, _Gate]]:
-        """A page of the inbox. Returns the visible rows together with each
-        one's `_Gate` - what to withhold or override when serializing it."""
+    ) -> tuple[list[Notification], dict[uuid.UUID, _Gate], tuple[datetime, uuid.UUID] | None]:
+        """A page of the inbox. Returns the visible rows, each one's `_Gate` -
+        what to withhold or override when serializing it - and a resume
+        cursor. The cursor is `None` only once the underlying scan is
+        genuinely exhausted (an empty or short batch), never merely because
+        `_MAX_INBOX_FETCH_ROUNDS` cut a gate-heavy scan short - a caller that
+        instead inferred "no more" from `len(rows) < limit` would drop every
+        row past the round cap rather than page to it.
+        """
         user_id = self._require_caller(ctx)
         visible: list[Notification] = []
         gates: dict[uuid.UUID, _Gate] = {}
@@ -277,18 +345,18 @@ class NotificationCenterService:
                 limit=limit,
             )
             if not batch:
-                break
+                return visible, gates, None
             for row in batch:
                 gate = await self.gate_for(ctx, row)
                 if gate.visible:
                     visible.append(row)
                     gates[row.id] = gate
                     if len(visible) == limit:
-                        return visible, gates
+                        return visible, gates, (row.created_at, row.id)
             cursor = (batch[-1].created_at, batch[-1].id)
             if len(batch) < limit:
-                break
-        return visible, gates
+                return visible, gates, None
+        return visible, gates, cursor
 
     async def unread_count(self, ctx: AuthContext) -> int:
         user_id = self._require_caller(ctx)
@@ -445,12 +513,28 @@ class NotificationCenterService:
             return False
         spec = announcement.audience_spec or {}
         role = spec.get("role")
+        # An "admin" audience means the same escalation roles `org_admins`
+        # already means for `security_event` (`_security_audience`, in
+        # `notifications.py`) - an owner outranks an admin, not a role an
+        # "admin"-only match would silently exclude from their own audience.
+        roles = (
+            list(_ESCALATION_ROLES) if role == OrgRoleName.ADMIN.value else [role] if role else None
+        )
         organizations = spec.get("organizations")
         if organizations == "all":
-            return await member_repo.has_any_membership(self.db, user_id=ctx.user_id, role=role)
-        org_ids = [uuid.UUID(str(value)) for value in (organizations or [])]
+            return await member_repo.has_any_membership(self.db, user_id=ctx.user_id, roles=roles)
+        org_ids = []
+        for value in organizations or []:
+            try:
+                org_ids.append(uuid.UUID(str(value)))
+            except ValueError:
+                # `audience_spec` is a JSONB blob with no schema enforcement -
+                # a malformed entry is treated the same as one naming no
+                # organization at all, rather than a 500 that takes the rest
+                # of the caller's inbox down with this one row.
+                continue
         if not org_ids:
             return False
         return await member_repo.has_membership_in_any(
-            self.db, user_id=ctx.user_id, organization_ids=org_ids, role=role
+            self.db, user_id=ctx.user_id, organization_ids=org_ids, roles=roles
         )

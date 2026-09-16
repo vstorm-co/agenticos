@@ -100,7 +100,7 @@ class NotificationDeliveryService:
     # -- the claim (transaction 1) ---------------------------------------
 
     async def claim_and_advance(
-        self, *, now: datetime, limit: int = 100
+        self, *, now: datetime, limit: int = 30
     ) -> list[NotificationDelivery]:
         """Claim due deliveries and stamp their lease, in one committed step.
 
@@ -249,7 +249,17 @@ class NotificationDeliveryService:
         member = await member_repo.get(
             self.db, organization_id=notification.organization_id, user_id=recipient.id
         )
-        return member is not None, (member.role if member is not None else None)
+        if member is not None:
+            return True, member.role
+        # An app admin holds no membership row anywhere, but `_gate`'s
+        # `ORG_ADMIN_OR_APP_ADMIN` branch already treats one as reachable for
+        # an org-scoped row regardless (`notification_center.py`) - an
+        # impersonation or user-management `security_event` scoped to another
+        # organization is exactly the row `_security_audience` (`notifications.py`)
+        # queues an app admin for. `role=None` here is correct either way:
+        # an app admin's standing is `is_app_admin` alone, never a role in an
+        # organization they do not belong to.
+        return recipient.is_app_admin, None
 
     def _render(
         self, notification: Notification, *, recipient: User, role: str | None
