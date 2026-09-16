@@ -362,6 +362,22 @@ class Settings(BaseSettings):
     # caller rather than on their address: the endpoint is authenticated, and an
     # office behind one NAT is not one caller.
     RATE_LIMIT_RUN_PER_MINUTE: int = 30
+    # How often one caller may ask for a personal-data export, per hour rather
+    # than per minute. It is the one route that assembles everything about a
+    # person into a single document, which is the shape of a data breach when
+    # the caller is not who they claim to be - and nobody legitimately needs it
+    # twice in a day. Low enough that a stolen session cannot quietly walk the
+    # deployment's people, high enough that a person retrying a failed download
+    # is not locked out (#1421).
+    RATE_LIMIT_EXPORT_PER_HOUR: int = 5
+    # How much conversation text one personal-data export may carry, in
+    # characters. The document is assembled and serialized whole, and a message
+    # has no length ceiling of its own, so without this the caller decides how
+    # much memory a worker spends and five concurrent exports of a thread
+    # somebody has been filling take the container with them. Roughly 16 MB of
+    # text, which is far more than any real transcript and far less than the
+    # 2560 MB the shipped container has (#1421).
+    PERSONAL_DATA_EXPORT_MAX_CHARS: int = 16_000_000
     # How often one address may ask to be admitted to a widget or a hosted page,
     # per minute. Admission only - what a visitor may say once admitted is the
     # embed's own `rate_limit_per_minute`, counted per visitor.

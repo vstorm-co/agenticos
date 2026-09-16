@@ -21,8 +21,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
+from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.memory_keys import PERSON_PREFIX, is_person_key
+from app.db.locks import LockScope, hold_subject
+from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import memory_repo
 
@@ -65,6 +70,29 @@ async def read_file(
         return None if row is None else row.content
 
 
+async def _person_still_exists(db: AsyncSession, owner_key: str) -> bool:
+    """Whether this note has somebody to be about, under the erasure's own lock.
+
+    Only asked of a `person:` key; a room outlives every member of it. The lock
+    is what makes the answer hold: `PersonalDataService.purge` takes the same one
+    before it reads the table, so this either runs before the deletion - and the
+    purge removes the note - or after it, and finds no row. Without it both
+    transactions read a live account and the note survives the person (#1421).
+
+    A key that is not a UUID is left alone rather than refused: the value space
+    is `app.core.memory_keys`, and inventing a refusal here for a shape that
+    module does not produce would be a second answer to the same question.
+    """
+    if not is_person_key(owner_key):
+        return True
+    try:
+        user_id = UUID(owner_key.removeprefix(PERSON_PREFIX))
+    except ValueError:
+        return True
+    await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, user_id)
+    return await db.scalar(select(exists().where(User.id == user_id))) or False
+
+
 async def write_file(
     *,
     organization_id: UUID,
@@ -82,6 +110,13 @@ async def write_file(
     reaching for the wrong verb.
     """
     async with get_db_context() as db:
+        if not await _person_still_exists(db, owner_key):
+            # Their account is being deleted, or is gone. `owner_key` has no
+            # foreign key, so nothing else would have stopped this note from
+            # being written about somebody who asked to be forgotten - and a
+            # note that lands after the purge has read the table is personal
+            # data the erasure reported as removed (#1421).
+            return False
         # The write path is the one that sees a suppressed note, because the name
         # is taken in the database either way and a create that could not see it
         # would fail on the constraint with nothing useful to say. A suppressed

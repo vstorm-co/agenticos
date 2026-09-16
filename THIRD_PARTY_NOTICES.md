@@ -219,7 +219,7 @@ names no author is in the evidence column below.
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.29 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.31.0 | MIT | https://github.com/pydantic/pydantic-ai-harness | License-Expression |
-| pydantic-ai-skills | 1.4.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
+| pydantic-ai-skills | 2.0.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.43.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |

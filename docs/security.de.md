@@ -1,5 +1,6 @@
 ---
-source_sha: "863643d3d515"
+source_sha: "fc8c04bccc9c"
+source_sha: "fc8c04bccc9c"
 ---
 
 # Sicherheit { #security }
@@ -91,6 +92,79 @@ Ein S3-kompatibles Datei-Backend mit serverseitiger Verschlüsselung ist die
 Antwort auf Anwendungsebene für Object Storage und wird in
 [#1423](https://github.com/vstorm-co/agenticos/issues/1423) verfolgt.
 
+## Was über eine Person gehalten wird, und was damit geschieht { #what-is-held-about-one-person-and-what-happens-to-it }
+
+DSGVO Art. 15 fragt, was Sie über jemanden halten, und Art. 17 verlangt, es zu
+entfernen. Beides beantwortet diese Tabelle, mit Absicht: ein Inventar, das eine
+Tabelle für den Export nennt und beim Löschen vergisst, ist schlechter als keines,
+weil es sich vollständig liest.
+
+Die Linie, die es zieht, ist **über** jemanden gegen **erstellt von** jemandem.
+Was über eine Person ist, geht mit ihr; was sie für die Organisation erstellt hat
+— ein Agent, auf dem das Team arbeitet, eine Wissensdatenbank, ein gespeichertes
+Credential — wird weitergereicht, denn das Konto einer Kollegin zu löschen darf
+nicht den Agenten löschen, von dem das Team abhängt.
+
+| Tabelle | Beim Löschen | Im Export | Warum |
+|---|---|---|---|
+| `users` | Gelöscht | Profil, ohne den Passwort-Hash | Das Konto selbst |
+| `conversations`, `messages`, `tool_calls` | Kaskade | Von ihnen begonnene Threads, mit jeder Runde darin | Ihre eigenen, und ein Transkript ohne jede zweite Runde beantwortet nichts |
+| `chat_files` | Kaskade; die Bytes werden nach dem Commit gelöst | Nicht aufgeführt | Die Zeile kaskadierte, die Datei nicht — also Daten, die nach einer Löschanfrage geblieben sind ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `message_ratings` | Kaskade | Ja | Eine geäußerte Meinung |
+| `sessions` | Kaskade | Gerät, Adresse und Zeiten — nie das Credential, das ein Hash ist | Wo sie sich angemeldet haben |
+| `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskade | Layouts und Kurzbefehle | Persönliche Einstellungen, für niemanden sonst bedeutsam |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Ausdrücklich bereinigt**, unter einer Sperre, die ein gleichzeitiger Schreibvorgang ebenfalls nimmt | Ja | Ein String-Schlüssel ohne Fremdschlüssel: nichts kaskadierte, jede Notiz überlebte das Konto — und ein Run, der währenddessen schreibt, hätte sie neu angelegt |
+| `agent_workspaces` (`scope = user`) | **Ausdrücklich bereinigt** | Nein | `owner_ref` ist aus demselben Grund ein String wie `owner_key`, also folgt ihm keine Kaskade, und ein zustandsgestützter Workspace hält die Dateien selbst |
+| `organization_members` | Kaskade | Welche Organisationen, als was, seit wann | Eine Zeile, die sie direkt benennt und die eine Administratorin ohnehin sieht |
+| `channel_identities` | **Ausdrücklich bereinigt** | Ja | `SET NULL` ließ die Zeile mit einer Slack-ID, einem Benutzernamen und einem Anzeigenamen einer Person zurück, die es nicht mehr gibt, verknüpft mit niemandem |
+| `agent_runs` | `SET NULL` — behalten | Runs, die sie gestartet haben, und was jeder kostete | Ausgaben sind die Aufzeichnung der Organisation; ein anonymer Run zählt weiter für den Monat |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — behalten | Nein | *Für die Organisation* erstellt. Sie zu entfernen nähme die Arbeit des Teams mit der Person mit |
+| `organization_secrets` | `SET NULL`, ein privates Secret steigt zur Organisation auf | Nein | Ein Credential, auf dem die Organisation läuft. Der Aufstieg ist, was ein herrenloses Secret daran hindert, die Löschung zu blockieren |
+| `organizations` | Persönliche Org gelöscht; eine geteilte, die sie erstellt haben, geht an einen anderen Owner | Nein | Niemand darf mit einer Organisation ohne Owner zurückbleiben |
+| `resource_grants` | Kaskade beim Empfänger; `SET NULL` beim Erteilenden | Nein | Eine Berechtigung *für* sie ist ihre; eine, die sie *erteilt* haben, ist die Aufzeichnung der Organisation darüber, wer was darf |
+| `app_admin_audit_logs` | **Behalten**, Akteurs-ID bleibt | **Nein** | Die Aufzeichnung der Organisation über das, was in ihr getan wurde. Ein Eintrag, der ein gelöschtes Konto nennt, ist ehrlich; einer mit entferntem Akteur ist schlimmer als nutzlos, und er gehört nicht der Person zum Mitnehmen |
+| `embed_visitors` | Unberührt | Nein | Ein Besucher ist ein Browser-Schlüssel, nie ein Konto — hier steht nichts über eine Person mit Login |
+
+!!! warning "Was die Löschung nicht erreicht — und die Doku sagt es, statt dass ein Deployment es herausfindet"
+
+    **Ein konfigurierter externer Gedächtnisspeicher.** `mem0` hält das, was ein
+    Agent sich gemerkt hat, im System eines Dritten, und dieses Deployment kann
+    nur um Vergessen bitten, solange es das Credential der Organisation hat.
+    `MemoryService.forget_person` tut das für eine Person, die noch Mitglied ist;
+    die Notizen eines gelöschten Kontos in einem externen Speicher gehören dem
+    Betreiber.
+
+    **Backups.** Eine Löschung entfernt Zeilen aus der laufenden Datenbank. Der
+    Backup-Zeitplan eines Deployments behält sie bis zu seiner Rotation, und
+    keine Löschung auf Anwendungsebene ändert daran etwas.
+
+    **Die eigene Aufbewahrung eines Modellanbieters.** Was gesendet wurde, um
+    eine Runde zu beantworten, unterliegt der Richtlinie des Anbieters, die
+    [Modelle](models.md) behandelt und dieses Deployment nicht kontrolliert.
+
+### Selbstbedienung, und was eine Administratorin hinzufügt { #self-service-and-what-an-administrator-adds }
+
+Für die gewöhnlichen Fälle braucht eine Person keine Administratorin.
+`GET /me/data/export` ist die ganze obige Tabelle in einem JSON-Dokument,
+stündlich limitiert und in der Audit-Spur festgehalten — auch wenn jemand sich
+selbst exportiert, denn ein Export hat die Form eines Lecks, wenn der Aufrufer
+nicht der ist, für den er sich ausgibt.
+
+Es wird als Ganzes aufgebaut und
+serialisiert und ist deshalb begrenzt: `PERSONAL_DATA_EXPORT_MAX_CHARS`
+(standardmäßig 16 Millionen Zeichen) ist, wie viel Gesprächstext ein Dokument
+tragen darf; ein Konto mit mehr wird mit beiden Zahlen abgewiesen statt mit einem
+stillschweigend unvollständigen Dokument beantwortet. Dieses zu erzeugen, ist
+Sache der Betreiberin, direkt aus der Datenbank. `DELETE /conversations/{id}` entfernt
+einen Thread, seine Runden und die Dateien, die mit ihnen kamen, geprüft gegen
+den eigenen Besitz des Aufrufers (FA-015).
+
+Eine Administratorin fügt zwei Dinge hinzu, beide protokolliert:
+`GET /admin/users/{id}/export`, das **eine Begründung verlangt** — die gesamte
+Gesprächshistorie einer Kollegin zu lesen ist etwa zweimal im Jahr legitim und
+jedes Mal ernst — und `DELETE /admin/users/{id}`, wo eine Begründung optional
+ist, weil ein Offboarding meist nichts zu erklären hat.
+
 ## Kontrollmatrix { #controls-matrix }
 
 Eine Zeile pro Kontrolle, der Mechanismus, der sie erfüllt, und der Test, der sie
@@ -126,6 +200,7 @@ SOC 2 CC6–CC8.
 | Die Spur ist für einen Auditor lesbar | `GET /audit`, gegated auf `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Export der Spur (CSV/JSONL) | `GET /audit/export` über ein Fenster, auf `audit:read` gegated, hält den eigenen Abruf in der Spur fest; die Run-, Freigabe- und Spend-Exporte tun dasselbe (#1422) | `test_exporting.py` (der Export und sein eigener Audit-Eintrag) |
 | Eine Audit-Frist, die eine Organisation verlängern und nie verkürzen kann | Eine deploymentweite Untergrenze (standardmäßig sechs Jahre, HIPAA §164.316(b)(2)); eine kürzere Frist wird abgelehnt statt angehoben. Der Sweep löscht **keine** Audit-Einträge - die Hash-Kette und ihr Checkpoint stehen darauf, dass Einträge bleiben, eine nachprüfbare Ausmusterung ist [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). Siehe [Aufbewahrung](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
+| Eine Person kann ihre eigenen Daten auslesen und entfernen | `GET /me/data/export` (stündlich limitiert, auch bei der eigenen Anfrage protokolliert) und `DELETE /conversations/{id}` im Rahmen des eigenen Besitzes; der Export einer Administratorin verlangt eine Begründung (`app/services/personal_data.py`) | `test_personal_data.py` |
 | Manipulationsnachweis (eine Hash-Kette) | **Noch nicht** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integrität · HIPAA §164.312(c) · SOC 2 CC8 (Change Management) { #integrity-hipaa-164312c-soc-2-cc8-change-management }

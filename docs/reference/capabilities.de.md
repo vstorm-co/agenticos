@@ -1,5 +1,5 @@
 ---
-source_sha: "3e72bc3937ad"
+source_sha: "089d90f20bd4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -28,7 +28,7 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 | id | Name | Kategorie | Tools | Scope | Schlüssel |
 |---|---|---|---|---|---|
 | `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontext | knowledge | `list_context`, `read_context` | — | — |
 | `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
@@ -97,7 +97,7 @@ Schweigen.
 
 ## Skills { #skills }
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Aufgeschriebenes Know-how, das der Agent nur lädt, wenn er es für relevant hält,
 und zwar einen Skill nach dem anderen — die Alternative wäre ein Instruktionsfeld,
@@ -105,10 +105,23 @@ das so lange wächst, bis jeder Run für jede Prozedur bezahlt. Siehe
 [Skills](../skills.md) dafür, was ein Skill ist und wie einer in eine Organisation
 gelangt.
 
-Diese drei Tools stammen aus `pydantic-ai-skills`, ihre Namen und Formulierungen
-liegen also in fremder Hand. Ein Drift-Test vergleicht, was die Registry
-deklariert, mit den Tools, die dem Modell tatsächlich angeboten werden — das ist
-es, was den Tag meldet, an dem das passiert.
+**Jeder gebundene Skill ist eine eigene Capability.** Sein Name und seine
+Beschreibung stehen im Katalog, den das Modell in jeder Runde liest, und den
+Textkörper holt sich das Modell mit `load_capability` — dem Tool des
+Agent-Frameworks selbst, weshalb es nicht in der Liste oben steht und weshalb ein
+Spec es weder gewähren noch absichern noch umbenennen kann. `read_skill_resource`
+ist das einzige Tool, das diese Capability beisteuert, und es erscheint nur, wenn
+mindestens ein gebundener Skill eine Datei neben seinen Instruktionen mitbringt.
+
+Das Tool stammt aus `pydantic-ai-skills`, sein Name und seine Formulierungen liegen
+also in fremder Hand. Ein Drift-Test vergleicht, was die Registry deklariert, mit
+den Tools, die dem Modell tatsächlich angeboten werden — das ist es, was den Tag
+meldet, an dem das passiert.
+
+`run_skill_script` ist abgeschaltet statt freigegeben: Die Dateien eines Skills
+erreichen einen Run unter `/workspace/skills/`, wo das eigene `execute` der
+[Sandbox](../sandbox.md) sie unter den Grenzen des Betreibers ausführt, und ein
+zweiter Ausführungsweg wäre ein zweiter Satz Regeln, den man falsch machen kann.
 
 ## Kontext { #context }
 
@@ -1734,12 +1747,11 @@ baut, und prüft, dass die Tools jeder Capability eine Rückgabeform mitführen.
 Das deckt auch die Tools ab, die dieses Deployment nicht geschrieben hat:
 `planning` und die Delegations-Tools bekommen den Text dieses Repositories,
 `web_fetch` und `search_tools` werden dort neu beschrieben, wo sie gebaut werden,
-und `read_tool_result` sowie die drei `skills`-Tools werden direkt auf dem Toolset
-der Bibliothek neu beschrieben. Zwei davon waren den Aufwand über die Konsistenz
+und `read_tool_result` sowie `read_skill_resource` werden direkt auf dem Toolset
+der Bibliothek neu beschrieben. Eines davon war den Aufwand über die Konsistenz
 hinaus wert — der Satz der Bibliothek für `read_tool_result` sagte nichts darüber,
 womit ein Handle antwortet, und das ist das Einzige, was ein Modell mit einem
-Handle braucht, und `list_skills` dokumentierte die Python-Rückgabe (ein
-Dictionary) statt des Textes, den das Modell bekommt.
+Handle braucht.
 
 Ein Tool aus einer Bibliothek, für das dieses Repository keinen Text hat, behält
 den der Bibliothek, und das ist der richtige Standard: `run_skill_script` wird

@@ -49,6 +49,7 @@ from app.api.routes.v1.invitations import (
 from app.api.routes.v1 import knowledge_bases
 from app.api.routes.v1 import me_slash_commands
 from app.api.routes.v1 import me_dashboard_layout
+from app.api.routes.v1 import me_personal_data
 from app.api.routes.v1 import admin_stats
 from app.api.routes.v1 import admin_deployment_settings
 from app.api.routes.v1 import branding
@@ -149,6 +150,7 @@ v1_router.include_router(knowledge_bases.router, prefix="/kb", tags=["knowledge-
 v1_router.include_router(
     me_slash_commands.router, prefix="/me/slash-commands", tags=["me:slash-commands"]
 )
+v1_router.include_router(me_personal_data.router, prefix="/me/data", tags=["me:data"])
 v1_router.include_router(
     me_dashboard_layout.router, prefix="/me/dashboard-layout", tags=["me:dashboard-layout"]
 )

@@ -77,6 +77,76 @@ An S3-compatible file backend with server-side encryption is the app-level answe
 for object storage and is tracked in
 [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 
+## What is held about one person, and what happens to it
+
+GDPR art. 15 asks what you hold about somebody and art. 17 asks you to remove it.
+Both are answered from this table, on purpose: an inventory that lists a table
+for the export and forgets it for the deletion is worse than none, because it
+reads as complete.
+
+The line it draws is **about** versus **created by**. What is about a person goes
+with them; what they created on the organization's behalf — an agent the team
+runs on, a knowledge base, a stored credential — is handed on, because deleting a
+colleague's account must not delete the agent the team depends on.
+
+| Table | On deletion | In the export | Why |
+|---|---|---|---|
+| `users` | Deleted | Profile, without the password hash | The account itself |
+| `conversations`, `messages`, `tool_calls` | Cascade | Threads they started, every turn in them | Theirs, and a transcript with every second turn removed answers nothing |
+| `chat_files` | Cascade; the bytes are unlinked after the commit | Not listed | The row cascaded and the file did not, which is data kept after a deletion request ([#1421](https://github.com/vstorm-co/agenticos/issues/1421)) |
+| `message_ratings` | Cascade | Yes | An opinion they expressed |
+| `sessions` | Cascade | Device, address and times — never the credential, which is a hash | Where they signed in |
+| `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Cascade | Layouts and shortcuts | Personal settings, meaningless to anybody else |
+| `agent_memory_files` (`owner_key = person:<id>`) | **Purged explicitly**, under a lock a concurrent write takes too | Yes | A string key with no foreign key: nothing cascaded, so every note survived the account — and a run writing one mid-deletion would have recreated it |
+| `agent_workspaces` (`scope = user`) | **Purged explicitly** | No | `owner_ref` is a string for the same reason `owner_key` is, so no cascade follows it, and a state-backed workspace holds the files themselves |
+| `organization_members` | Cascade | Which organizations, as what, since when | A row naming them directly, already visible to an administrator |
+| `channel_identities` | **Purged explicitly** | Yes | `SET NULL` left the row holding a Slack id, a username and a display name about somebody who is gone, linked to nobody |
+| `agent_runs` | `SET NULL` — retained | Runs they started, and what each cost | Spend is the organization's record; an anonymous run still counts against the month |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — retained | No | Created *for the organization*. Removing them would take the team's work with the person |
+| `organization_secrets` | `SET NULL`, with a private secret promoted to the organization | No | A credential the organization runs on. The promotion is what keeps an ownerless private secret from blocking the deletion |
+| `organizations` | Personal org deleted; a shared one they created is reassigned to another owner | No | Nobody may be left with an organization that has no owner |
+| `resource_grants` | Cascade on the grantee; `SET NULL` on the granter | No | A grant *to* them is theirs; a grant they *made* is the organization's record of who may do what |
+| `app_admin_audit_logs` | **Retained**, actor id kept | **No** | The organization's record of what was done in it. An entry naming a deleted account is honest; one with its actor removed is worse than useless, and it is not the person's to take away |
+| `embed_visitors` | Untouched | No | A visitor is a browser key, never an account — there is nothing here about a person with a login |
+
+!!! warning "What erasure does not reach, and the docs say so rather than the deployment finding out"
+
+    **A configured external memory store.** `mem0` holds what an agent remembered
+    in somebody else's system, and this deployment can only ask it to forget while
+    it still has the organization's credential.
+    `MemoryService.forget_person` does that for a person who is still a member;
+    a deleted account's notes in an external store are the operator's to clear.
+
+    **Backups.** A deletion removes rows from the live database. Whatever backup
+    schedule a deployment runs keeps them until it rolls over, and no
+    application-level erasure changes that.
+
+    **A model provider's own retention.** What was sent to answer a turn is
+    subject to the provider's policy, which [models](models.md) covers and this
+    deployment does not control.
+
+### Self-service, and what an administrator adds
+
+A person does not need an administrator for the ordinary cases.
+`GET /me/data/export` is the whole table above in one JSON document, rate-limited
+per hour and recorded in the audit trail — including when somebody exports
+themselves, because an export is the shape of a breach when the caller is not who
+they claim to be.
+
+The document is assembled and serialized whole, so it is bounded:
+`PERSONAL_DATA_EXPORT_MAX_CHARS` (16 million characters by default) is how much
+conversation text one document may carry, and an account holding more is refused
+with both numbers rather than answered with a silently partial document. Producing
+that one is the operator's job, from the database. `DELETE /conversations/{id}` removes one thread, its turns and
+the files that arrived with it, checked against the caller's own ownership
+(FA-015).
+
+An administrator adds two things and both are audited:
+`GET /admin/users/{id}/export`, which **requires a reason** — reading a
+colleague's entire conversation history is legitimate about twice a year and
+serious every time — and `DELETE /admin/users/{id}`, where a reason is optional
+because an offboarding usually has nothing to explain.
+
 ## Controls matrix
 
 One row per control, the mechanism that satisfies it, and the test that holds it
@@ -112,6 +182,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | The trail is readable by an auditor | `GET /audit`, gated on `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exporting the trail (CSV/JSONL) | `GET /audit/export` over a window, gated on `audit:read`, recording its own read in the trail; the run, approval and spend exports each do the same (#1422) | `test_exporting.py` (the export and its own audit entry) |
 | An audit period an organization can lengthen and never shorten | A deployment-wide floor (six years by default, HIPAA §164.316(b)(2)); a shorter period is refused rather than raised. The sweep does **not** delete audit entries - the hash chain and its checkpoint are built on entries staying, so retiring one verifiably is [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). See [Retention](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
+| A person may read out and remove their own data | `GET /me/data/export` (rate-limited per hour, bounded in size, audited even for one's own request) and `DELETE /conversations/{id}` scoped to the caller's own ownership; an administrator's export takes the same limit and requires a reason that says something (`app/services/personal_data.py`) | `test_personal_data.py`, `test_personal_data_export_routes.py` |
 | Tamper evidence (a hash chain) | **Not yet** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integrity · HIPAA §164.312(c) · SOC 2 CC8 (change management)

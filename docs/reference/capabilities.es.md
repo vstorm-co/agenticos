@@ -1,5 +1,5 @@
 ---
-source_sha: "3e72bc3937ad"
+source_sha: "089d90f20bd4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -27,7 +27,7 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 | id | Nombre | Categoría | Herramientas | Scope | Clave |
 |---|---|---|---|---|---|
 | `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Contexto | knowledge | `list_context`, `read_context` | — | — |
 | `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
@@ -94,17 +94,30 @@ tener ninguna, porque el modelo sigue intentándolo y razona a partir del silenc
 
 ## Skills { #skills }
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Conocimiento escrito que el agent carga solo cuando decide que es relevante, un
 skill cada vez — la alternativa sería un campo de instrucciones que crece hasta que
 cada run paga por cada procedimiento. Consulta [Skills](../skills.md) para saber
 qué es un skill y cómo llega a una organización.
 
-Estas tres herramientas vienen de `pydantic-ai-skills`, así que sus nombres y su
-redacción los cambia otra persona. Un test de deriva compara lo que declara el
-registro con las herramientas que realmente se le ofrecen al modelo, y eso es lo
-que avisa el día que ocurra.
+**Cada skill vinculado es una capability propia.** Su nombre y su descripción están
+en el catálogo que el modelo lee en cada turno, y el modelo trae el cuerpo con
+`load_capability`, la herramienta del propio framework de agents: por eso no está
+en la lista de arriba y por eso un spec no puede concederla, ni controlarla, ni
+renombrarla. `read_skill_resource` es la única herramienta que aporta esta
+capability, y solo aparece cuando al menos un skill vinculado trae un archivo junto
+a sus instrucciones.
+
+La herramienta viene de `pydantic-ai-skills`, así que su nombre y su redacción los
+cambia otra persona. Un test de deriva compara lo que declara el registro con las
+herramientas que realmente se le ofrecen al modelo, y eso es lo que avisa el día
+que ocurra.
+
+`run_skill_script` está apagada en lugar de expuesta: los archivos de un skill
+llegan a un run bajo `/workspace/skills/`, donde los ejecuta el propio `execute`
+del [sandbox](../sandbox.md) bajo los topes del operador, y una segunda vía de
+ejecución sería un segundo juego de reglas que equivocar.
 
 ## Contexto { #context }
 
@@ -1639,12 +1652,11 @@ comprueba que las herramientas de cada capability llevan una forma de retorno.
 
 Eso cubre también las herramientas que este despliegue no escribió: a `planning` y a
 la delegación se les entrega el texto de este repositorio, `web_fetch` y
-`search_tools` se vuelven a describir donde se construyen, y `read_tool_result` y las
-tres de `skills` se vuelven a describir en el sitio, sobre el toolset de la
-biblioteca. Dos merecieron la molestia más allá de la coherencia: la frase de la
+`search_tools` se vuelven a describir donde se construyen, y `read_tool_result` y
+`read_skill_resource` se vuelven a describir en el sitio, sobre el toolset de la
+biblioteca. Una mereció la molestia más allá de la coherencia: la frase de la
 biblioteca para `read_tool_result` no decía nada de con qué responde un handle, lo
-único que necesita un modelo que sostiene uno, y `list_skills` documentaba el retorno
-de Python (un diccionario) en lugar del texto que se entrega al modelo.
+único que necesita un modelo que sostiene uno.
 
 Una herramienta de una biblioteca para la que este repositorio no tiene texto conserva
 el de la biblioteca, que es el valor por defecto correcto: `run_skill_script` se

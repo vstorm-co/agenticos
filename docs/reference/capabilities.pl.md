@@ -1,5 +1,5 @@
 ---
-source_sha: "3e72bc3937ad"
+source_sha: "089d90f20bd4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -28,7 +28,7 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
 | id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz |
 |---|---|---|---|---|---|
 | `knowledge` | Wyszukiwanie w bazie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
-| `skills` | Skille | wiedza | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — |
 | `memory_files` | Pliki pamięci | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
@@ -95,17 +95,29 @@ niż brak narzędzia, bo model próbuje go dalej i wyciąga wnioski z tej ciszy.
 
 ## Skille { #skills }
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Spisana wiedza praktyczna, którą agent ładuje dopiero wtedy, gdy uzna ją za
 istotną, po jednym skillu naraz — alternatywą jest pole instrukcji rosnące tak
 długo, aż każdy run płaci za każdą procedurę. Zobacz [Skille](../skills.md), czym
 jest skill i jak trafia do organizacji.
 
-Te trzy narzędzia pochodzą z `pydantic-ai-skills`, więc ich nazwy i sformułowania
-należą do kogoś innego. Test dryfu porównuje to, co deklaruje rejestr, z
-narzędziami, które model faktycznie dostaje — i to on zgłosi dzień, w którym to
-się stanie.
+**Każdy podpięty skill jest osobną capability.** Jego nazwa i opis siedzą w
+katalogu, który model czyta w każdej turze, a treść model wciąga narzędziem
+`load_capability` — należącym do samego frameworka agentowego, dlatego nie ma go na
+liście powyżej i dlatego spec nie może go przyznać, obramkować ani przemianować.
+`read_skill_resource` to jedyne narzędzie, które ta capability wnosi, i pojawia się
+tylko wtedy, gdy przynajmniej jeden podpięty skill wiezie plik obok swoich
+instrukcji.
+
+Narzędzie pochodzi z `pydantic-ai-skills`, więc jego nazwa i sformułowania należą do
+kogoś innego. Test dryfu porównuje to, co deklaruje rejestr, z narzędziami, które
+model faktycznie dostaje — i to on zgłosi dzień, w którym to się stanie.
+
+`run_skill_script` jest wyłączone, a nie wystawione: pliki skilla trafiają do runa
+pod `/workspace/skills/`, gdzie uruchamia je własne `execute`
+[sandboxa](../sandbox.md), pod limitami operatora — a druga ścieżka wykonania
+byłaby drugim zestawem reguł do pomylenia.
 
 ## Kontekst { #context }
 
@@ -1610,11 +1622,10 @@ czy narzędzia każdej capability niosą kształt zwrotu.
 Obejmuje to również te narzędzia, których ten deployment nie napisał: `planning` i
 narzędzia delegowania dostają tekst z tego repozytorium, `web_fetch` i
 `search_tools` są opisywane na nowo tam, gdzie są budowane, a `read_tool_result` i
-trzy narzędzia `skills` są opisywane na nowo w miejscu, na własnym zestawie narzędzi
-biblioteki. Dwa z nich były warte zachodu poza samą spójnością — biblioteczne zdanie
-o `read_tool_result` nie mówiło nic o tym, czym odpowiada uchwyt, czyli o jedynej
-rzeczy, której potrzebuje model trzymający uchwyt, a `list_skills` dokumentowało
-zwrot pythonowy (słownik), a nie tekst, który dostaje model.
+`read_skill_resource` są opisywane na nowo w miejscu, na własnym zestawie narzędzi
+biblioteki. Jedno z nich było warte zachodu poza samą spójnością — biblioteczne
+zdanie o `read_tool_result` nie mówiło nic o tym, czym odpowiada uchwyt, czyli o
+jedynej rzeczy, której potrzebuje model trzymający uchwyt.
 
 Narzędzie z biblioteki, dla którego to repozytorium nie ma tekstu, zachowuje tekst
 biblioteczny, i jest to właściwa wartość domyślna: `run_skill_script` jest wykluczone,

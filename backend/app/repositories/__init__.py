@@ -39,6 +39,7 @@ from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
 from app.repositories import audit_log as audit_log_repo
+from app.repositories import personal_data as personal_data_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
 from app.repositories import retention as retention_repo
 from app.repositories import credential as credential_repo
@@ -91,6 +92,7 @@ __all__ = [
     "organization_secret_repo",
     "resource_grant_repo",
     "audit_log_repo",
+    "personal_data_repo",
     "credential_repo",
     "agent_repo",
     "agent_environment_repo",
