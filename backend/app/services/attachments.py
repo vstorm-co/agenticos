@@ -19,6 +19,7 @@ the bytes twice stops being worth it.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ from uuid import UUID
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
 
+from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
 from app.services.file_storage import get_file_storage
@@ -580,11 +582,19 @@ class AttachmentRouter:
         if data is None:
             data = await get_file_storage().load(chat_file.storage_path)
         if is_tiff:
-            conversion = tiff_pages_to_png(
-                data,
-                max_pages=settings.CHAT_TIFF_MAX_INLINE_PAGES,
-                max_bytes=settings.SANDBOX_INLINE_IMAGE_MAX_BYTES,
-                max_pixels=settings.CHAT_IMAGE_MAX_PIXELS,
+            # On the file pool, not the request loop: the conversion is Pillow
+            # decode / resize / PNG-encode over up to `CHAT_TIFF_MAX_INLINE_PAGES`
+            # pages - the same blocking CPU work `parse_content` already keeps off
+            # the loop (#1108), which a direct call here reintroduced, stalling
+            # every other request on the worker for its length.
+            conversion = await run_blocking(
+                functools.partial(
+                    tiff_pages_to_png,
+                    data,
+                    max_pages=settings.CHAT_TIFF_MAX_INLINE_PAGES,
+                    max_bytes=settings.SANDBOX_INLINE_IMAGE_MAX_BYTES,
+                    max_pixels=settings.CHAT_IMAGE_MAX_PIXELS,
+                )
             )
             images = [BinaryContent(data=png, media_type="image/png") for png in conversion.images]
             if not images:
