@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.exceptions import AppException
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
@@ -690,6 +691,30 @@ class TestOutcomesAndRetry:
         # never does.
         assert "smtp down" not in delivery.last_error
         assert "RuntimeError" in delivery.last_error
+
+    async def test_our_own_exception_keeps_its_message(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        now = datetime.now(UTC)
+        delivery = await _delivery(
+            db, recipient=recipient, organization_id=org.id, claimed_at=now, attempts=1
+        )
+        service = AsyncMock()
+        service.send = AsyncMock(
+            side_effect=AppException(message="the deployment has no email provider configured")
+        )
+        with patch(f"{MODULE}.get_email_service", return_value=service):
+            outcome = await NotificationDeliveryService(db).send_and_settle(
+                delivery.id, claimed_at=now
+            )
+
+        assert outcome == "failed"
+        await db.refresh(delivery)
+        assert delivery.status == DeliveryStatus.PENDING.value
+        # Written in this repository, so - unlike a foreign SDK's `__str__` -
+        # its own message is a controlled string and reaches the column whole.
+        assert delivery.last_error == "the deployment has no email provider configured"
 
     async def test_a_hung_send_is_cancelled_at_the_timeout(self, db):
         owner = await _user(db)
