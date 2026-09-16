@@ -8,6 +8,7 @@ A final, claim-free step reaps any row a dead worker left exhausted with no
 recorded outcome.
 """
 
+import asyncio
 import logging
 from collections import Counter
 from datetime import UTC, datetime, timedelta
@@ -19,18 +20,38 @@ from app.db.models.notification import (
     NOTIFICATION_OUTER_RETENTION_DAYS,
     NOTIFICATION_READ_RETENTION_DAYS,
 )
+from app.db.models.notification_delivery import NotificationDelivery
 from app.db.session import get_worker_db_context
 from app.repositories import notification_repo
 from app.services.notification_delivery import NotificationDeliveryService
 
 logger = logging.getLogger(__name__)
 
+# A claimed batch defaults to 100 rows against a two-minute lease
+# (`notification_delivery.py`'s `CLAIM_LEASE`); sent one at a time, a handful
+# of slow providers deliveries is enough for the tail of a full batch to
+# still be waiting once the lease has already expired - at which point a
+# later sweep reclaims and resends what this one has not finished with yet,
+# duplicating the email. Bounding concurrency instead of shrinking the batch
+# keeps the same throughput while keeping worst-case wall-clock time a small
+# multiple of one send, not of the whole batch.
+_CONCURRENT_SENDS = 10
 
-async def _send_and_settle_one(delivery_id: UUID, *, claimed_at: datetime) -> str:
+
+def _require_claimed_at(delivery: NotificationDelivery) -> datetime:
+    """`claimed_at` is nullable on the model in general (a never-claimed
+    row), but `claim_and_advance` just stamped it on every row it returned."""
+    assert delivery.claimed_at is not None
+    return delivery.claimed_at
+
+
+async def _send_and_settle_one(
+    delivery_id: UUID, *, claimed_at: datetime, semaphore: asyncio.Semaphore
+) -> str:
     """Its own session, its own transaction - the second half of the claimed
     row's two-transaction shape, opened fresh per row rather than reusing the
     claim's session."""
-    async with get_worker_db_context() as db:
+    async with semaphore, get_worker_db_context() as db:
         return await NotificationDeliveryService(db).send_and_settle(
             delivery_id, claimed_at=claimed_at
         )
@@ -45,14 +66,16 @@ async def notification_delivery_sweep_flow() -> dict[str, int]:
     async with get_worker_db_context() as db:
         claimed = await NotificationDeliveryService(db).claim_and_advance(now=now)
 
-    outcomes: Counter[str] = Counter()
-    for delivery in claimed:
-        # `claimed_at` is nullable on the model in general (a never-claimed
-        # row), but `claim_and_advance` just stamped it on every row it
-        # returned.
-        assert delivery.claimed_at is not None
-        outcome = await _send_and_settle_one(delivery.id, claimed_at=delivery.claimed_at)
-        outcomes[outcome] += 1
+    semaphore = asyncio.Semaphore(_CONCURRENT_SENDS)
+    results = await asyncio.gather(
+        *(
+            _send_and_settle_one(
+                delivery.id, claimed_at=_require_claimed_at(delivery), semaphore=semaphore
+            )
+            for delivery in claimed
+        )
+    )
+    outcomes: Counter[str] = Counter(results)
 
     async with get_worker_db_context() as db:
         reaped = await NotificationDeliveryService(db).reap_exhausted(now=now)
