@@ -219,11 +219,11 @@ async def chat_stream(traffic: Traffic, phase: str) -> Sample:
                     if kind == "complete":
                         break
     except TimeoutError:
-        return _failed(traffic, "chat_stream", phase, began, opened, "timed out")
+        return _failed("chat_stream", phase, began, opened, "timed out")
     except websockets.exceptions.WebSocketException as failure:
-        return _failed(traffic, "chat_stream", phase, began, opened, type(failure).__name__)
+        return _failed("chat_stream", phase, began, opened, type(failure).__name__)
     except OSError as failure:
-        return _failed(traffic, "chat_stream", phase, began, opened, type(failure).__name__)
+        return _failed("chat_stream", phase, began, opened, type(failure).__name__)
     return Sample(
         workload="chat_stream",
         phase=phase,
@@ -248,10 +248,12 @@ def _now(traffic: Traffic) -> float:
     return asyncio.get_running_loop().time() - traffic.started
 
 
-def _failed(
-    traffic: Traffic, workload: str, phase: str, began: float, opened: float, detail: str
-) -> Sample:
-    del traffic
+def _failed(workload: str, phase: str, began: float, opened: float, detail: str) -> Sample:
+    """One sample for a request that never produced a status.
+
+    Recorded rather than dropped: a request missing from both the numerator and
+    the denominator is how an error rate reaches zero by losing its errors.
+    """
     return Sample(
         workload=workload,
         phase=phase,
@@ -281,9 +283,9 @@ async def _timed(
     try:
         response = await call()
     except httpx.TimeoutException:
-        return _failed(traffic, workload, phase, began, opened, "timed out")
+        return _failed(workload, phase, began, opened, "timed out")
     except httpx.HTTPError as failure:
-        return _failed(traffic, workload, phase, began, opened, type(failure).__name__)
+        return _failed(workload, phase, began, opened, type(failure).__name__)
     return Sample(
         workload=workload,
         phase=phase,
