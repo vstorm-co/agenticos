@@ -117,6 +117,10 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "context",
         "conversation_search",
         "guardrails",
+        # The bytes leave the database for the deployment's own file storage,
+        # which is a store this report already lists rather than a destination
+        # of the capability's own.
+        "media",
         "memory_files",
         "planning",
         "skills",
