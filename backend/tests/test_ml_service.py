@@ -2,16 +2,15 @@
 
 The engines are covered by `test_ml_parsing.py` and `test_ml_pii.py`. What is
 left is everything this layer adds - that a successful call is recorded in the
-caller's own transaction and a refused one on a transaction of its own, that the
-record carries the organization the caller is acting in, and that the two rows
-the surface reaches by id (a registered OCR server, a call record) are scoped so
-that another tenant's is simply absent.
+caller's own transaction and a refused one committed before that transaction
+rolls back, that the record carries the organization the caller is acting in,
+and that the two rows the surface reaches by id (a registered OCR server, a call
+record) are scoped so that another tenant's is simply absent.
 """
 
 from __future__ import annotations
 
 import uuid
-from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -56,21 +55,20 @@ def recorded() -> Any:
         yield record
 
 
-@pytest.fixture
-def own_session() -> Any:
-    """Capture the second session a failure record opens."""
-    opened = MagicMock()
+def _db() -> MagicMock:
+    """A session double whose transaction verbs can be awaited.
 
-    @asynccontextmanager
-    async def context():
-        yield opened
-
-    with patch("app.services.ml.facade.get_db_context", context):
-        yield opened
+    `commit` is not decoration here: the failure path commits deliberately, and a
+    double that cannot be awaited would let a regression in that path pass.
+    """
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    return session
 
 
 async def test_a_parse_is_recorded_with_the_pages_it_produced(recorded: Any) -> None:
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with patch("app.services.ml.parsing.analyze", new=AsyncMock(return_value=_document())):
         await service.analyze_document(
             _ctx(),
@@ -91,7 +89,7 @@ async def test_a_parse_is_recorded_with_the_pages_it_produced(recorded: Any) -> 
 
 
 async def test_a_recognition_is_recorded_under_its_own_service_id(recorded: Any) -> None:
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with patch("app.services.ml.parsing.recognise", new=AsyncMock(return_value=_document(1))):
         await service.recognise_document(
             _ctx(), content=b"%PDF", filename="scan.pdf", language="eng", ocr_service_id=None
@@ -101,7 +99,7 @@ async def test_a_recognition_is_recorded_under_its_own_service_id(recorded: Any)
 
 
 async def test_a_scan_is_recorded_in_the_characters_it_read(recorded: Any) -> None:
-    service = MLService(MagicMock())
+    service = MLService(_db())
     await service.detect_personal_data(_ctx(), text="ada@example.com", categories=None)
 
     written = recorded.await_args.kwargs
@@ -109,26 +107,30 @@ async def test_a_scan_is_recorded_in_the_characters_it_read(recorded: Any) -> No
     assert (written["units"], written["unit"]) == (15, "characters")
 
 
-async def test_a_refusal_is_recorded_on_a_transaction_of_its_own(
-    recorded: Any, own_session: Any
+async def test_a_refusal_is_recorded_and_committed_before_it_unwinds(
+    recorded: Any,
 ) -> None:
-    """A row written into the caller's transaction would roll back with the refusal."""
-    service = MLService(MagicMock())
+    """A row merely added to the caller's transaction rolls back with the refusal.
+
+    And it is written on the request's own session: a second one would check out
+    a second connection while the first is still held, so a burst of refusals
+    would queue on a pool its own callers are holding.
+    """
+    session = _db()
+    service = MLService(session)
     with pytest.raises(BadRequestError):
         await service.detect_personal_data(_ctx(), text="x", categories=["shoe_size"])
 
-    assert recorded.await_args.args[0] is own_session
+    assert recorded.await_args.args[0] is session
+    session.commit.assert_awaited_once()
     written = recorded.await_args.kwargs
     assert written["status"] == "failed"
     assert written["service"] == "pii_detection"
     assert written["units"] == 0
 
 
-async def test_a_refusal_records_the_stage_the_refusing_error_named(
-    recorded: Any, own_session: Any
-) -> None:
-    del own_session
-    service = MLService(MagicMock())
+async def test_a_refusal_records_the_stage_the_refusing_error_named(recorded: Any) -> None:
+    service = MLService(_db())
     failure = ExternalServiceError(message="the engine gave way", details={"stage": "parse"})
     with (
         patch("app.services.ml.parsing.analyze", new=AsyncMock(side_effect=failure)),
@@ -148,11 +150,8 @@ async def test_a_refusal_records_the_stage_the_refusing_error_named(
     assert recorded.await_args.kwargs["failure_reason"] == "the engine gave way"
 
 
-async def test_a_refusal_with_no_stage_is_recorded_as_the_callers_input(
-    recorded: Any, own_session: Any
-) -> None:
-    del own_session
-    service = MLService(MagicMock())
+async def test_a_refusal_with_no_stage_is_recorded_as_the_callers_input(recorded: Any) -> None:
+    service = MLService(_db())
     with (
         patch(
             "app.services.ml.parsing.analyze",
@@ -175,7 +174,7 @@ async def test_a_refusal_with_no_stage_is_recorded_as_the_callers_input(
 
 async def test_a_failure_to_record_a_failure_does_not_replace_the_refusal() -> None:
     """The caller is owed the refusal that happened, not a 500 from the bookkeeping."""
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with (
         patch(f"{_REPO}.record", new=AsyncMock(side_effect=RuntimeError("no database"))),
         pytest.raises(BadRequestError),
@@ -183,11 +182,8 @@ async def test_a_failure_to_record_a_failure_does_not_replace_the_refusal() -> N
         await service.detect_personal_data(_ctx(), text="x", categories=["shoe_size"])
 
 
-async def test_a_submission_over_the_ceiling_is_refused_on_the_file(
-    recorded: Any, own_session: Any
-) -> None:
-    del own_session
-    service = MLService(MagicMock())
+async def test_a_submission_over_the_ceiling_is_refused_on_the_file(recorded: Any) -> None:
+    service = MLService(_db())
     with (
         patch("app.services.ml.facade.settings.ML_MAX_UPLOAD_SIZE_MB", 0),
         pytest.raises(BadRequestError) as caught,
@@ -207,10 +203,10 @@ async def test_a_submission_over_the_ceiling_is_refused_on_the_file(
 
 
 async def test_an_over_large_recording_is_refused_before_the_engine_is_called(
-    recorded: Any, own_session: Any
+    recorded: Any,
 ) -> None:
-    del own_session, recorded
-    service = MLService(MagicMock())
+    del recorded
+    service = MLService(_db())
     with (
         patch("app.services.ml.facade.settings.ML_MAX_UPLOAD_SIZE_MB", 0),
         pytest.raises(BadRequestError),
@@ -225,9 +221,9 @@ async def test_an_over_large_recording_is_refused_before_the_engine_is_called(
         )
 
 
-async def test_an_over_large_scan_is_refused_too(recorded: Any, own_session: Any) -> None:
-    del own_session, recorded
-    service = MLService(MagicMock())
+async def test_an_over_large_scan_is_refused_too(recorded: Any) -> None:
+    del recorded
+    service = MLService(_db())
     with (
         patch("app.services.ml.facade.settings.ML_MAX_UPLOAD_SIZE_MB", 0),
         pytest.raises(BadRequestError),
@@ -251,7 +247,7 @@ def _ocr_row(**overrides: object) -> SimpleNamespace:
 
 async def test_naming_an_ocr_server_sends_the_pages_to_its_address(recorded: Any) -> None:
     del recorded
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with (
         patch(
             "app.services.ml.facade.LocalServiceService.get_visible",
@@ -273,9 +269,8 @@ async def test_naming_an_ocr_server_sends_the_pages_to_its_address(recorded: Any
     assert recognise.await_args.kwargs["ocr_server_url"] == "http://ocr:8000"
 
 
-async def test_a_service_registered_for_something_else_is_refused(own_session: Any) -> None:
-    del own_session
-    service = MLService(MagicMock())
+async def test_a_service_registered_for_something_else_is_refused() -> None:
+    service = MLService(_db())
     with (
         patch(
             "app.services.ml.facade.LocalServiceService.get_visible",
@@ -295,9 +290,8 @@ async def test_a_service_registered_for_something_else_is_refused(own_session: A
     assert caught.value.details["fields"][0]["field"] == "ocr_service_id"
 
 
-async def test_an_ocr_server_that_is_turned_off_is_refused(own_session: Any) -> None:
-    del own_session
-    service = MLService(MagicMock())
+async def test_an_ocr_server_that_is_turned_off_is_refused() -> None:
+    service = MLService(_db())
     with (
         patch(
             "app.services.ml.facade.LocalServiceService.get_visible",
@@ -318,10 +312,9 @@ async def test_an_ocr_server_that_is_turned_off_is_refused(own_session: Any) -> 
 
 
 @pytest.mark.security
-async def test_another_tenants_ocr_server_is_not_found(own_session: Any) -> None:
+async def test_another_tenants_ocr_server_is_not_found() -> None:
     """The scoping is the local-service layer's, reached rather than re-implemented."""
-    del own_session
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with (
         patch(
             "app.services.ml.facade.LocalServiceService.get_visible",
@@ -343,7 +336,7 @@ async def test_another_tenants_ocr_server_is_not_found(own_session: Any) -> None
 
 
 async def test_a_recording_is_transcribed_and_recorded(recorded: Any) -> None:
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with (
         patch(
             "app.services.ml.facade.speech_to_text.default_choice",
@@ -375,8 +368,10 @@ async def test_a_pair_named_by_the_caller_is_checked_against_the_catalog(
 ) -> None:
     """A caller who names both is taken at their word once the catalog agrees."""
     del recorded
-    service = MLService(MagicMock())
+    service = MLService(_db())
+    offered = SimpleNamespace(models=(SimpleNamespace(id="whisper-large-v3"),))
     with (
+        patch("app.services.ml.facade.speech_to_text.by_provider", return_value=offered),
         patch("app.services.ml.facade.speech_to_text.is_offered", return_value=True),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
@@ -396,12 +391,102 @@ async def test_a_pair_named_by_the_caller_is_checked_against_the_catalog(
     assert (transcript.provider, transcript.model) == ("groq", "whisper-large-v3")
 
 
-async def test_a_provider_and_model_the_catalog_does_not_offer_is_refused(
-    own_session: Any,
-) -> None:
-    del own_session
-    service = MLService(MagicMock())
+async def test_naming_only_a_provider_uses_that_providers_first_model() -> None:
+    """Falling back to the deployment default would send the audio elsewhere.
+
+    A caller who named `groq` and left the model open chose the engine; the
+    default pair is a different engine, and on this surface that can mean a
+    vendor rather than the self-hosted server they configured.
+    """
+    offered = SimpleNamespace(models=(SimpleNamespace(id="whisper-large-v3"),))
+    service = MLService(_db())
     with (
+        patch("app.services.ml.facade.speech_to_text.by_provider", return_value=offered),
+        patch(
+            "app.services.ml.facade.speech_to_text.default_choice",
+            return_value=("openai", "whisper-1"),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value="hello"),
+        ),
+        patch(f"{_REPO}.record", new=AsyncMock()),
+    ):
+        transcript = await service.transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider="groq",
+            model=None,
+        )
+
+    assert (transcript.provider, transcript.model) == ("groq", "whisper-large-v3")
+
+
+async def test_naming_only_a_model_is_refused_because_two_providers_can_offer_it() -> None:
+    service = MLService(_db())
+    with (
+        patch(f"{_REPO}.record", new=AsyncMock()),
+        pytest.raises(BadRequestError) as caught,
+    ):
+        await service.transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider=None,
+            model="whisper-1",
+        )
+
+    assert caught.value.details["fields"][0]["field"] == "provider"
+
+
+async def test_a_provider_that_does_not_transcribe_here_is_refused() -> None:
+    service = MLService(_db())
+    with (
+        patch("app.services.ml.facade.speech_to_text.by_provider", return_value=None),
+        patch(f"{_REPO}.record", new=AsyncMock()),
+        pytest.raises(BadRequestError) as caught,
+    ):
+        await service.transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider="telepathy",
+            model=None,
+        )
+
+    assert caught.value.details["fields"][0]["field"] == "provider"
+
+
+async def test_a_recording_is_held_to_the_transcription_clients_own_ceiling() -> None:
+    """Raising the ML ceiling above 25 MB must not make the client answer 503 about a key."""
+    service = MLService(_db())
+    with (
+        patch("app.services.ml.facade.settings.ML_MAX_UPLOAD_SIZE_MB", 4096),
+        patch("app.services.ml.facade.transcription.MAX_BYTES", 8),
+        patch(f"{_REPO}.record", new=AsyncMock()),
+        pytest.raises(BadRequestError) as caught,
+    ):
+        await service.transcribe(
+            _ctx(),
+            content=b"x" * 9,
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider=None,
+            model=None,
+        )
+
+    assert caught.value.details["fields"][0]["field"] == "file"
+
+
+async def test_a_provider_and_model_the_catalog_does_not_offer_is_refused() -> None:
+    service = MLService(_db())
+    offered = SimpleNamespace(models=(SimpleNamespace(id="whisper-1"),))
+    with (
+        patch("app.services.ml.facade.speech_to_text.by_provider", return_value=offered),
         patch("app.services.ml.facade.speech_to_text.is_offered", return_value=False),
         patch(f"{_REPO}.record", new=AsyncMock()),
         pytest.raises(BadRequestError) as caught,
@@ -418,9 +503,8 @@ async def test_a_provider_and_model_the_catalog_does_not_offer_is_refused(
     assert caught.value.details["fields"][0]["field"] == "model"
 
 
-async def test_a_deployment_that_offers_no_transcription_says_so(own_session: Any) -> None:
-    del own_session
-    service = MLService(MagicMock())
+async def test_a_deployment_that_offers_no_transcription_says_so() -> None:
+    service = MLService(_db())
     with (
         patch("app.services.ml.facade.speech_to_text.default_choice", return_value=None),
         patch(f"{_REPO}.record", new=AsyncMock()),
@@ -438,12 +522,9 @@ async def test_a_deployment_that_offers_no_transcription_says_so(own_session: An
     assert caught.value.details["fields"][0]["field"] == "provider"
 
 
-async def test_an_engine_that_answers_with_nothing_is_a_503_naming_the_credential(
-    own_session: Any,
-) -> None:
+async def test_an_engine_that_answers_with_nothing_is_a_503_naming_the_credential() -> None:
     """The client's own words never reach the caller - a provider error carries a URL."""
-    del own_session
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with (
         patch(
             "app.services.ml.facade.speech_to_text.default_choice",
@@ -474,7 +555,7 @@ async def test_an_engine_that_answers_with_nothing_is_a_503_naming_the_credentia
 
 @pytest.mark.security
 async def test_a_call_record_from_another_tenant_reads_as_absent() -> None:
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with (
         patch(f"{_REPO}.get", new=AsyncMock(return_value=None)),
         pytest.raises(NotFoundError),
@@ -484,7 +565,7 @@ async def test_a_call_record_from_another_tenant_reads_as_absent() -> None:
 
 async def test_a_call_record_is_looked_up_inside_the_callers_organization() -> None:
     row = SimpleNamespace(id=uuid.uuid4())
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with patch(f"{_REPO}.get", new=AsyncMock(return_value=row)) as get:
         found = await service.call_record(_ctx(), row.id)
 
@@ -494,7 +575,7 @@ async def test_a_call_record_is_looked_up_inside_the_callers_organization() -> N
 
 async def test_the_listing_pages_and_counts_inside_the_organization() -> None:
     rows = [SimpleNamespace(id=uuid.uuid4())]
-    service = MLService(MagicMock())
+    service = MLService(_db())
     with (
         patch(f"{_REPO}.list_for", new=AsyncMock(return_value=rows)) as listed,
         patch(f"{_REPO}.count_for", new=AsyncMock(return_value=7)) as counted,
@@ -512,4 +593,4 @@ async def test_the_listing_pages_and_counts_inside_the_organization() -> None:
 
 
 def test_the_catalog_is_reachable_without_a_database() -> None:
-    assert MLService(MagicMock()).catalog()
+    assert MLService(_db()).catalog()

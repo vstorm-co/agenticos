@@ -9,13 +9,15 @@ bytes were written to is gone whichever way the call ended.
 
 from __future__ import annotations
 
+import contextlib
+import threading
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pymupdf
 import pytest
 
-from app.core.exceptions import BadRequestError, ExternalServiceError
+from app.core.exceptions import BadRequestError, ExternalServiceError, RateLimitError
 from app.services.ml import parsing
 from app.services.rag.models import Document, DocumentMetadata, DocumentPage, DocumentPageChunk
 
@@ -207,3 +209,109 @@ async def test_the_chunking_strategy_a_caller_names_is_the_one_used() -> None:
     assert built[0].chunk_size == 900
     assert built[0].chunk_overlap == 90
     assert built[0].chunking_strategy == "markdown"
+
+
+async def test_an_overlap_at_or_above_the_chunk_is_refused() -> None:
+    """The splitter accepts it and the document comes back multiplied.
+
+    An overlap equal to the chunk advances by about one separator per chunk while
+    keeping an almost complete copy of the last one, so a legal upload answers
+    with hundreds of megabytes. `IngestionConfig` refuses the same shape.
+    """
+    with pytest.raises(BadRequestError) as caught:
+        await parsing.analyze(
+            _pdf("x"), "notes.pdf", parser="pymupdf", chunk_size=512, chunk_overlap=512
+        )
+
+    assert caught.value.details["fields"][0]["field"] == "chunk_overlap"
+
+
+async def test_recognition_refuses_a_docx_rather_than_reading_its_paragraphs() -> None:
+    """The pipeline routes `.docx` natively, so OCR here would silently skip its scans."""
+    with pytest.raises(BadRequestError) as caught:
+        await parsing.recognise(b"PK", "scan.docx")
+
+    assert caught.value.details["fields"][0]["field"] == "file"
+
+
+def test_the_recognisable_formats_exclude_everything_routed_natively() -> None:
+    assert parsing.RECOGNISABLE_FORMATS.isdisjoint({".txt", ".md", ".docx"})
+    assert ".pdf" in parsing.RECOGNISABLE_FORMATS
+
+
+async def test_a_malformed_file_is_the_callers_problem_not_a_500() -> None:
+    """`python-docx` raises neither ValueError nor RuntimeError on a file that is not a zip."""
+
+    class NotAZip(Exception):
+        pass
+
+    with (
+        patch(_PROCESS, new=AsyncMock(side_effect=NotAZip("package not found"))),
+        pytest.raises(BadRequestError) as caught,
+    ):
+        await parsing.analyze(_pdf("x"), "notes.pdf", parser="pymupdf")
+
+    assert caught.value.details["stage"] == "parse"
+    assert "package not found" not in caught.value.message
+
+
+async def test_recognition_bounds_the_pages_and_the_deadline_it_will_spend() -> None:
+    """Ingestion's thousand pages and ten minutes are wrong for a synchronous call."""
+    built: list[object] = []
+
+    class _Recording:
+        def __init__(self, settings: object) -> None:
+            built.append(settings)
+
+        async def process_file(self, path: Path) -> Document:
+            del path
+            return _parsed()
+
+    with patch("app.services.ml.parsing.DocumentProcessor", _Recording):
+        await parsing.recognise(b"%PDF-1.4", "scan.pdf")
+
+    assert built[0].pdf_parser.liteparse_max_pages == parsing.MAX_OCR_PAGES
+    assert built[0].pdf_parser.liteparse_timeout_seconds == parsing.PARSE_TIMEOUT_SECONDS
+
+
+async def test_a_parse_is_refused_outright_when_every_slot_is_busy() -> None:
+    """Refused rather than queued: a caller parked behind four scans has timed out.
+
+    The rate limit counts starts and cannot see what is still running, so this is
+    the only thing bounding concurrent OCR.
+    """
+    with patch("app.services.ml.parsing.app_settings.ML_MAX_CONCURRENT_PARSES", 1):
+        async with parsing.admitted("held.pdf"):
+            with pytest.raises(RateLimitError) as caught:
+                async with parsing.admitted("refused.pdf"):
+                    pass
+
+    assert caught.value.details["retry_after_seconds"] > 0
+
+
+async def test_a_slot_is_given_back_when_a_parse_fails() -> None:
+    with patch("app.services.ml.parsing.app_settings.ML_MAX_CONCURRENT_PARSES", 1):
+        with contextlib.suppress(RuntimeError):
+            async with parsing.admitted("first.pdf"):
+                raise RuntimeError("boom")
+        async with parsing.admitted("second.pdf"):
+            pass
+
+
+async def test_the_parse_runs_off_the_request_loop() -> None:
+    """A synchronous parser awaited inline stops this worker answering anything."""
+    loops: list[int] = []
+
+    class _Recording:
+        def __init__(self, settings: object) -> None:
+            del settings
+
+        async def process_file(self, path: Path) -> Document:
+            del path
+            loops.append(threading.get_ident())
+            return _parsed()
+
+    with patch("app.services.ml.parsing.DocumentProcessor", _Recording):
+        await parsing.analyze(b"%PDF-1.4", "notes.pdf", parser="pymupdf")
+
+    assert loops and loops[0] != threading.get_ident()

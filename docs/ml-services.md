@@ -77,7 +77,13 @@ and hash:
 `parser` field chooses between `liteparse`, which preserves the layout and reads
 office formats where LibreOffice is installed, and `pymupdf`, which reads PDFs
 and is faster. `chunk_size`, `chunk_overlap` and `chunking_strategy` shape the
-prepared chunks; the strategies are `recursive`, `fixed` and `markdown`.
+prepared chunks; the strategies are `recursive`, `fixed` and `markdown`, and a
+fourth spelling is refused rather than quietly treated as `recursive`.
+
+`chunk_overlap` has to be **smaller** than `chunk_size`. Equal is refused, and
+not for tidiness: the splitter accepts it and then advances by about one
+separator per chunk while keeping an almost complete copy of the last one, so a
+legal upload answers with a document multiplied many times over.
 
 A document with nothing readable in it is refused rather than answered with an
 empty page list, and the refusal says to call OCR instead — which is what a scan
@@ -90,17 +96,39 @@ not the page carries a text layer. That is the difference from ingestion, which
 auto-detects and skips recognition where the text is already there: a caller who
 asked for OCR asked for the pages to be read as images.
 
-`language` is a Tesseract code, which is three letters — `deu`, not `de`.
+`language` is a Tesseract code, which is three letters — `pol`, not `pl`. The
+shipped image installs **`eng` and `pol`**, and those are the two the endpoint
+accepts: a code with no language pack behind it fails inside the parse, so it is
+refused at the boundary instead. A deployment that installs more packs widens the
+list in the same change.
+
 `ocr_service_id` names an OCR server registered under
 [local services](configuration.md), so a deployment running its own recognition
 sidecar sends the pages there; omit it and the engine bundled with the parser
 reads them. Either way the pages stay on the deployment's own network.
 
+**A `.docx` is refused here**, although the parser reads one. Ingestion routes
+office documents to the native reader before it consults the OCR parser, so
+accepting one would extract its existing paragraphs, skip its scanned pages and
+say nothing about the difference. Convert it to PDF.
+
+One call recognises at most **200 pages** and has **120 seconds**, both narrower
+than ingestion's, because a caller is waiting on this and nobody waits on an
+ingestion.
+
 ### Speech to text
 
 `POST /api/v1/ml/audio/transcriptions` transcribes a recording on the
-organization's own credential. `provider` and `model` name what to use, and
-omitting them takes the deployment's first offered pair.
+organization's own credential. `provider` and `model` name what to use; omitting
+**both** takes the deployment's first offered pair, and naming a provider without
+a model takes that provider's first model. What it never does is fall back to the
+default provider when a provider was named — that is how a recording meant for a
+self-hosted engine ends up at a vendor.
+
+A recording is also held to the transcription client's own 25 MB ceiling even
+where `ML_MAX_UPLOAD_SIZE_MB` is higher, so an over-large recording is refused as
+being over-large rather than reaching the engine and coming back as a 503 about a
+credential.
 
 The engine is whichever endpoint the organization's model profile for that
 provider names. That is the answer to a deployment that may send no audio to a
@@ -147,6 +175,11 @@ bytes went in, how much came out, how long it took and how it ended.
 `GET /api/v1/ml/calls` reads them back, newest first, and
 `GET /api/v1/ml/calls/{id}` reads one.
 
+A refused call is recorded too, and its record is committed before the refusal
+unwinds the request — a row merely added to that transaction would be rolled back
+by the very refusal it describes, and an operator asking why an integration is
+failing would be told the tenant made no calls at all.
+
 **No content is kept.** The result goes back in the response and is not stored,
 so a document parsed here does not become a document this deployment holds, and
 text sent to be scanned for personal data is not retained in a table nobody
@@ -162,9 +195,17 @@ can reconcile against an invoice is worse than an honest unit count.
 ## Limits
 
 A single call accepts up to `ML_MAX_UPLOAD_SIZE_MB` megabytes, 25 by default,
-and one scan reads at most 200000 characters. A caller may make
-`RATE_LIMIT_ML_PER_MINUTE` calls a minute, 30 by default, counted per caller
-rather than per address.
+and only that many bytes are read out of the body — an over-large submission is
+refused without having been copied into memory first. One scan reads at most
+200000 characters. A caller may make `RATE_LIMIT_ML_PER_MINUTE` calls a minute,
+30 by default, counted per caller rather than per address.
+
+A rate limit counts **starts** and cannot see what is still running, which is the
+wrong shape for work measured in minutes. So a worker also parses at most
+`ML_MAX_CONCURRENT_PARSES` documents at once, 4 by default, and a call arriving
+with every slot busy is refused with a `Retry-After` rather than queued: a caller
+told to come back in a moment can, and one parked behind four scans has already
+given up somewhere nobody here can see.
 
 Execution is synchronous: the answer is the result, and there is no queue to
 poll. That is honest about what is here rather than aspirational — a queued mode

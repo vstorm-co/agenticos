@@ -25,6 +25,24 @@ if TYPE_CHECKING:
 
 ParserLiteral = Literal["liteparse", "pymupdf"]
 
+ChunkingLiteral = Literal["recursive", "fixed", "markdown"]
+"""The three strategies the splitter implements.
+
+A closed set rather than a described string, because `_create_splitter` treats
+anything it does not recognise as `recursive` - so `markdownn` would answer 200
+with chunks split a different way and nothing would say so.
+"""
+
+OcrLanguageLiteral = Literal["eng", "pol"]
+"""The Tesseract language packs the shipped image installs.
+
+Not every code Tesseract knows: `backend/Dockerfile` installs `tesseract-ocr-eng`
+and `tesseract-ocr-pol`, so any other code reaches an engine with no data for it
+and fails inside the parse. A deployment that installs more packs widens this
+list in the same change - which is the point of it being a list rather than a
+free string that looked like it worked.
+"""
+
 
 class MLServiceEntryRead(BaseSchema):
     """One row of the coverage matrix."""

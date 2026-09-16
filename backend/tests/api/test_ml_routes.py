@@ -39,9 +39,21 @@ def caller() -> None:
         role=OrgRoleName.OWNER.value,
         is_app_admin=False,
     )
-    app.dependency_overrides[deps.get_ml_service] = lambda: MLService(MagicMock())
+    app.dependency_overrides[deps.get_ml_service] = lambda: MLService(_session())
     yield
     app.dependency_overrides.clear()
+
+
+def _session() -> MagicMock:
+    """A session double whose transaction verbs can be awaited.
+
+    The refusal path commits deliberately, so a plain `MagicMock` would fail on
+    the await rather than on the thing under test.
+    """
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    return session
 
 
 def _document() -> parsing.ParsedDocument:

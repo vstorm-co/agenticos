@@ -69,6 +69,13 @@ class Settings(BaseSettings):
     # at the transcription client's own 25 MB, which is the smallest engine
     # ceiling behind this surface and so the first one a larger file would meet.
     ML_MAX_UPLOAD_SIZE_MB: int = 25
+    # How many documents this worker parses at once for the ML services. The
+    # rate limit counts starts and cannot see what is still running, so without
+    # this a minute's allowance of OCR calls is that many recognitions in flight,
+    # each of them minutes of CPU. Over it, a caller is refused with a
+    # `Retry-After` rather than queued: a caller told to come back can, and one
+    # parked behind four minutes of other people's scans has already given up.
+    ML_MAX_CONCURRENT_PARSES: int = 4
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     # Size of the dedicated thread pool that runs blocking file work - parsing an

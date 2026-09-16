@@ -1,5 +1,5 @@
 ---
-source_sha: "b0683ad2a99c"
+source_sha: "b542fd3f7700"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -83,7 +83,13 @@ hash del archivo:
 `parser` elige entre `liteparse`, que conserva la maquetación y lee formatos de
 ofimática donde LibreOffice está instalado, y `pymupdf`, que lee PDF y es más
 rápido. `chunk_size`, `chunk_overlap` y `chunking_strategy` dan forma a los
-chunks preparados; las estrategias son `recursive`, `fixed` y `markdown`.
+chunks preparados; las estrategias son `recursive`, `fixed` y `markdown`, y una
+cuarta grafía se rechaza en vez de tratarse en silencio como `recursive`.
+
+`chunk_overlap` tiene que ser **menor** que `chunk_size`. Igual se rechaza, y no
+por prolijidad: el splitter lo acepta y entonces avanza más o menos un separador
+por chunk mientras conserva una copia casi completa del anterior, así que una
+subida legítima responde con un documento multiplicado muchas veces.
 
 Un documento del que no se puede leer nada se rechaza en lugar de responderse con
 una lista de páginas vacía, y el rechazo dice que se llame a OCR — que es lo que
@@ -96,18 +102,40 @@ página una capa de texto. Esa es la diferencia con la ingesta, que lo
 autodetecta y se salta el reconocimiento donde el texto ya está: quien pidió OCR
 pidió que las páginas se leyeran como imágenes.
 
-`language` es un código de Tesseract, es decir tres letras — `deu`, no `de`.
+`language` es un código de Tesseract, es decir tres letras — `pol`, no `pl`. La
+imagen que se distribuye instala **`eng` y `pol`**, y esos dos son los que el
+endpoint acepta: un código sin paquete de idioma detrás falla dentro del parseo,
+así que se rechaza en la frontera. Un despliegue que instale más paquetes amplía
+la lista en el mismo cambio.
+
 `ocr_service_id` nombra un servidor OCR registrado entre los
 [servicios locales](configuration.md), de modo que un despliegue con su propio
 sidecar de reconocimiento envía allí las páginas; omítelo y las lee el motor
 incluido con el parser. En cualquier caso las páginas se quedan en la red del
 propio despliegue.
 
+**Un `.docx` se rechaza aquí**, aunque el parser lea uno. La ingesta encamina los
+documentos de ofimática al lector nativo antes de consultar el parser de OCR, así
+que aceptar uno extraería sus párrafos existentes, se saltaría sus páginas
+escaneadas y no diría nada de la diferencia. Conviértelo a PDF.
+
+Una llamada reconoce como mucho **200 páginas** y tiene **120 segundos**, ambos
+más estrechos que los de la ingesta, porque aquí alguien espera y a una ingesta no
+la espera nadie.
+
 ### Transcripción de voz { #speech-to-text }
 
 `POST /api/v1/ml/audio/transcriptions` transcribe una grabación con las
-credenciales propias de la organización. `provider` y `model` nombran qué usar, y
-omitirlos toma el primer par ofrecido por el despliegue.
+credenciales propias de la organización. `provider` y `model` nombran qué usar;
+omitir **ambos** toma el primer par ofrecido por el despliegue, y nombrar un
+proveedor sin modelo toma el primer modelo de ese proveedor. Lo que nunca hace es
+recurrir al proveedor por defecto cuando se nombró un proveedor: así es como una
+grabación destinada a un motor autoalojado acaba en un proveedor externo.
+
+Una grabación se somete además al techo propio de 25 MB del cliente de
+transcripción aunque `ML_MAX_UPLOAD_SIZE_MB` sea mayor, de modo que una grabación
+demasiado grande se rechaza por ser demasiado grande y no llega al motor para
+volver como un 503 sobre credenciales.
 
 El motor es el endpoint que nombre el model profile de la organización para ese
 proveedor. Esa es la respuesta para un despliegue que no puede enviar audio a un
@@ -155,6 +183,11 @@ bytes entraron, cuánto salió, cuánto tardó y cómo terminó.
 `GET /api/v1/ml/calls` las lee de vuelta, las más recientes primero, y
 `GET /api/v1/ml/calls/{id}` lee una.
 
+Una llamada rechazada también queda registrada, y su fila se confirma antes de que
+el rechazo desenrolle la petición: una fila meramente añadida a esa transacción
+sería deshecha por el propio rechazo que describe, y a un operador que pregunta por
+qué falla una integración se le diría que el tenant no hizo ninguna llamada.
+
 **No se guarda ningún contenido.** El resultado vuelve en la respuesta y no se
 almacena, así que un documento parseado aquí no se convierte en un documento que
 este despliegue guarda, y el texto enviado para buscar datos personales no se
@@ -172,9 +205,18 @@ que un recuento honesto de unidades.
 ## Límites { #limits }
 
 Una sola llamada acepta hasta `ML_MAX_UPLOAD_SIZE_MB` megabytes, 25 por defecto,
-y un escaneo lee como mucho 200000 caracteres. Un llamante puede hacer
-`RATE_LIMIT_ML_PER_MINUTE` llamadas por minuto, 30 por defecto, contadas por
-llamante y no por dirección.
+y solo esa cantidad de bytes se lee del cuerpo: una entrega demasiado grande se
+rechaza sin haberse copiado antes a memoria. Un escaneo lee como mucho 200000
+caracteres. Un llamante puede hacer `RATE_LIMIT_ML_PER_MINUTE` llamadas por
+minuto, 30 por defecto, contadas por llamante y no por dirección.
+
+Un límite de tasa cuenta **arranques** y no ve lo que sigue en marcha, que es la
+forma equivocada para un trabajo medido en minutos. Por eso un worker parsea como
+mucho `ML_MAX_CONCURRENT_PARSES` documentos a la vez, 4 por defecto, y una llamada
+que llega con todas las plazas ocupadas se rechaza con un `Retry-After` en lugar
+de encolarse: a quien se le dice que vuelva en un momento puede volver, y quien
+queda aparcado detrás de cuatro escaneos ya se ha rendido en algún sitio que aquí
+nadie ve.
 
 La ejecución es síncrona: la respuesta es el resultado, y no hay cola que
 consultar. Eso es honesto sobre lo que hay aquí en lugar de aspiracional — un

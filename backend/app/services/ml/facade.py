@@ -36,9 +36,8 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.local_service import LocalServiceKind
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
-from app.db.session import get_db_context
 from app.repositories import ml_service_call_repo
-from app.services import speech_to_text
+from app.services import speech_to_text, transcription
 from app.services.local_service import LocalServiceService
 from app.services.ml import parsing, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
@@ -163,7 +162,7 @@ class MLService:
         """
         started = time.monotonic()
         try:
-            _refuse_oversized(content)
+            _refuse_oversized(content, ceiling=transcription.MAX_BYTES)
             chosen = self._transcription_choice(provider, model)
             text = await TranscriptionService(self.db).transcribe(
                 Recording(content=content, filename=filename, mime_type=mime_type),
@@ -262,8 +261,15 @@ class MLService:
 
     @staticmethod
     def _transcription_choice(provider: str | None, model: str | None) -> tuple[str, str]:
-        """The provider and model to transcribe with, refusing a pair nobody serves."""
-        if provider is None or model is None:
+        """The provider and model to transcribe with, refusing a pair nobody serves.
+
+        A caller who names a provider and no model gets *that provider's* first
+        model, never the deployment's default pair. Falling back to the default
+        when half the choice was made is how a recording meant for a self-hosted
+        engine is sent to a vendor instead - the caller said which engine, and
+        the only thing they left open was which of its models.
+        """
+        if provider is None and model is None:
             chosen = speech_to_text.default_choice()
             if chosen is None:
                 raise refused_field(
@@ -272,6 +278,17 @@ class MLService:
                     "model cannot be defaulted; there is nothing to name.",
                 )
             return chosen
+        if provider is None:
+            raise refused_field(
+                "provider",
+                "Naming a model needs the provider it belongs to; two providers can "
+                "offer the same model id.",
+            )
+        entry = speech_to_text.by_provider(provider)
+        if entry is None:
+            raise refused_field("provider", f"{provider} does not transcribe on this deployment.")
+        if model is None:
+            return provider, entry.models[0].id
         if not speech_to_text.is_offered(provider, model):
             raise refused_field(
                 "model", f"{provider} does not offer {model} for transcription here."
@@ -310,15 +327,26 @@ class MLService:
         input_bytes: int,
         started: float,
     ) -> None:
-        """Write a refusal's record on a transaction of its own.
+        """Write a refusal's record, and commit it before the refusal unwinds.
 
-        The request's transaction is about to roll back - that is what a refusal
-        does - so a row written into it would be undone by the very refusal it
-        describes, and the log would answer "this tenant made no calls" to an
-        operator asking why their integration is failing. The audit trail makes
-        the opposite trade deliberately: it is fail-closed and shares the
-        caller's transaction, because an action that was not recorded must not
-        have happened. This record is the other kind, and outlives its caller.
+        A refusal rolls the request's transaction back - that is what a refusal
+        does - so a row merely added to it would be undone by the very refusal it
+        describes, and an operator asking why their integration is failing would
+        be told the tenant made no calls at all.
+
+        So this commits deliberately, which is the bargain `AgentRunnerService._run`
+        and `SessionService.detect_refresh_reuse` already strike: a service that
+        needs a write to outlive its caller's transaction commits it, and says
+        why. It is safe here because nothing else is in that transaction - an ML
+        call writes its usage record and nothing more, and every one of these
+        paths fails before it has written even that.
+
+        **On this session, not a second one.** An earlier version opened
+        `get_db_context()`, which checks out a second connection from the pool
+        while the request still holds its first; a burst of refusals would then
+        have every caller waiting `DB_POOL_TIMEOUT` for a connection their
+        neighbours were holding, and the records dropped anyway. One session, one
+        connection, no second checkout.
 
         A failure to write it is logged and swallowed: the caller is owed the
         refusal that actually happened, not a 500 from the bookkeeping.
@@ -326,20 +354,20 @@ class MLService:
         reason = exc.message[:512]
         stage = str(exc.details.get("stage", "input")) if exc.details else "input"
         try:
-            async with get_db_context() as session:
-                await ml_service_call_repo.record(
-                    session,
-                    organization_id=ctx.organization_id,
-                    requested_by_user_id=ctx.subject_id,
-                    service=service,
-                    status=MLCallStatus.FAILED.value,
-                    input_bytes=input_bytes,
-                    units=0,
-                    unit="",
-                    duration_ms=_elapsed_ms(started),
-                    failure_stage=stage[:32],
-                    failure_reason=reason,
-                )
+            await ml_service_call_repo.record(
+                self.db,
+                organization_id=ctx.organization_id,
+                requested_by_user_id=ctx.subject_id,
+                service=service,
+                status=MLCallStatus.FAILED.value,
+                input_bytes=input_bytes,
+                units=0,
+                unit="",
+                duration_ms=_elapsed_ms(started),
+                failure_stage=stage[:32],
+                failure_reason=reason,
+            )
+            await self.db.commit()
         except Exception:
             logger.warning(
                 "Could not record the failure of an %s call for organization %s",
@@ -347,9 +375,10 @@ class MLService:
                 ctx.organization_id,
                 exc_info=True,
             )
+            await self.db.rollback()
 
 
-def _refuse_oversized(content: bytes) -> None:
+def _refuse_oversized(content: bytes, *, ceiling: int | None = None) -> None:
     """Refuse a submission over the ML surface's own ceiling.
 
     Measured here rather than in the route because it is the same ceiling for
@@ -357,14 +386,23 @@ def _refuse_oversized(content: bytes) -> None:
     a refusal the usage log records - a caller repeatedly sending files too
     large is exactly the pattern an operator reads that log to find.
 
-    The body-size middleware refuses the easy version earlier, on the declared
-    length; this is the check on bytes that actually arrived.
+    `ceiling` narrows it where the engine behind the service has one of its own.
+    Transcription does: its client refuses over 25 MB before the upload, and an
+    operator who raised `ML_MAX_UPLOAD_SIZE_MB` above that would otherwise have
+    recordings accepted here, refused there, and reported as a 503 about a
+    credential - a misleading answer to a question about size.
+
+    The routes read at most this many bytes plus one, so a body larger than the
+    ceiling is never fully copied into memory; this is what turns that truncated
+    read into the refusal that names the limit.
     """
     limit = settings.ML_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if ceiling is not None:
+        limit = min(limit, ceiling)
     if len(content) > limit:
         raise refused_field(
             "file",
-            f"One ML service call accepts at most {settings.ML_MAX_UPLOAD_SIZE_MB} MB; "
+            f"This service accepts at most {limit // (1024 * 1024)} MB; "
             "split the document or the recording.",
         )
 

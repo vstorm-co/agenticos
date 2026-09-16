@@ -1,5 +1,5 @@
 ---
-source_sha: "b0683ad2a99c"
+source_sha: "b542fd3f7700"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -84,7 +84,13 @@ Feld `parser` wählt zwischen `liteparse`, das das Layout erhält und
 Office-Formate liest, wo LibreOffice installiert ist, und `pymupdf`, das PDFs
 liest und schneller ist. `chunk_size`, `chunk_overlap` und `chunking_strategy`
 formen die vorbereiteten Chunks; die Strategien sind `recursive`, `fixed` und
-`markdown`.
+`markdown`, und eine vierte Schreibweise wird abgelehnt statt still als
+`recursive` behandelt.
+
+`chunk_overlap` muss **kleiner** als `chunk_size` sein. Gleich wird abgelehnt, und
+nicht der Ordnung halber: der Splitter nimmt es an und rückt dann um etwa einen
+Trenner je Chunk vor, während er eine fast vollständige Kopie des letzten behält -
+ein zulässiger Upload antwortet also mit einem vielfach vervielfältigten Dokument.
 
 Ein Dokument, in dem nichts lesbar ist, wird abgelehnt statt mit einer leeren
 Seitenliste beantwortet, und die Ablehnung sagt, stattdessen OCR aufzurufen — was
@@ -97,19 +103,40 @@ eine Textebene trägt oder nicht. Das ist der Unterschied zur Ingestion, die das
 automatisch erkennt und die Erkennung überspringt, wo der Text schon da ist: wer
 OCR verlangt hat, hat verlangt, dass die Seiten als Bilder gelesen werden.
 
-`language` ist ein Tesseract-Code, also drei Buchstaben — `deu`, nicht `de`.
+`language` ist ein Tesseract-Code, also drei Buchstaben — `deu`, nicht `de`. Das
+ausgelieferte Image installiert **`eng` und `pol`**, und genau diese zwei nimmt der
+Endpunkt an: ein Code ohne Sprachpaket dahinter scheitert mitten im Parse, also
+wird er schon an der Grenze abgelehnt. Ein Deployment, das weitere Pakete
+installiert, erweitert die Liste in derselben Änderung.
+
 `ocr_service_id` benennt einen OCR-Server, der unter den
 [lokalen Diensten](configuration.md) registriert ist, sodass ein Deployment mit
 eigenem Erkennungs-Sidecar die Seiten dorthin schickt; lässt man es weg, liest
 sie die im Parser mitgelieferte Engine. So oder so bleiben die Seiten im eigenen
 Netz des Deployments.
 
+**Ein `.docx` wird hier abgelehnt**, obwohl der Parser eines liest. Die Ingestion
+leitet Office-Dokumente an den nativen Leser, bevor sie den OCR-Parser befragt -
+eines anzunehmen würde also vorhandene Absätze herausziehen, gescannte Seiten
+überspringen und über den Unterschied schweigen. Konvertieren Sie es in PDF.
+
+Ein Aufruf erkennt höchstens **200 Seiten** und hat **120 Sekunden**, beides enger
+als bei der Ingestion, weil hier jemand wartet und auf eine Ingestion niemand.
+
 ### Spracherkennung { #speech-to-text }
 
 `POST /api/v1/ml/audio/transcriptions` transkribiert eine Aufnahme auf den
 eigenen Zugangsdaten der Organisation. `provider` und `model` benennen, was
-benutzt wird; lässt man sie weg, wird das erste angebotene Paar des Deployments
-genommen.
+benutzt wird; lässt man **beide** weg, wird das erste angebotene Paar des
+Deployments genommen, und nennt man einen Anbieter ohne Modell, dessen erstes
+Modell. Was nie passiert: auf den Standardanbieter zurückzufallen, obwohl ein
+Anbieter genannt wurde — so landet eine Aufnahme, die für eine selbst gehostete
+Engine gedacht war, bei einem Anbieter.
+
+Eine Aufnahme unterliegt außerdem der eigenen 25-MB-Grenze des
+Transkriptionsclients, auch wenn `ML_MAX_UPLOAD_SIZE_MB` höher steht - eine zu
+große Aufnahme wird also als zu groß abgelehnt, statt die Engine zu erreichen und
+als 503 über Zugangsdaten zurückzukommen.
 
 Die Engine ist jener Endpunkt, den das model profile der Organisation für diesen
 Anbieter benennt. Das ist die Antwort für ein Deployment, das kein Audio an einen
@@ -157,6 +184,12 @@ gefragt hat, wie viele Bytes hineingingen, wie viel herauskam, wie lange es
 dauerte und wie es endete. `GET /api/v1/ml/calls` liest sie zurück, neueste
 zuerst, und `GET /api/v1/ml/calls/{id}` liest eine.
 
+Ein abgelehnter Aufruf wird ebenfalls aufgezeichnet, und sein Datensatz wird
+festgeschrieben, bevor die Ablehnung die Anfrage abwickelt - eine Zeile, die der
+Transaktion nur hinzugefügt würde, nähme genau die Ablehnung zurück, die sie
+beschreibt, und einem Betreiber mit der Frage, warum eine Integration scheitert,
+würde gesagt, der Mandant habe gar keine Aufrufe gemacht.
+
 **Kein Inhalt wird aufbewahrt.** Das Ergebnis geht in der Antwort zurück und wird
 nicht gespeichert, sodass ein hier geparstes Dokument kein Dokument wird, das
 dieses Deployment hält, und Text, der zur Prüfung auf personenbezogene Daten
@@ -174,9 +207,18 @@ kann, ist schlimmer als eine ehrliche Einheitenzählung.
 ## Grenzen { #limits }
 
 Ein einzelner Aufruf nimmt bis zu `ML_MAX_UPLOAD_SIZE_MB` Megabyte an,
-standardmäßig 25, und ein Scan liest höchstens 200000 Zeichen. Ein Aufrufer darf
+standardmäßig 25, und nur so viele Bytes werden aus dem Body gelesen - eine zu
+große Einreichung wird abgelehnt, ohne vorher in den Speicher kopiert worden zu
+sein. Ein Scan liest höchstens 200000 Zeichen. Ein Aufrufer darf
 `RATE_LIMIT_ML_PER_MINUTE` Aufrufe pro Minute machen, standardmäßig 30, gezählt
 pro Aufrufer statt pro Adresse.
+
+Ein Ratenlimit zählt **Starts** und sieht nicht, was noch läuft, was für Arbeit im
+Minutenbereich die falsche Form ist. Ein Worker parst deshalb höchstens
+`ML_MAX_CONCURRENT_PARSES` Dokumente gleichzeitig, standardmäßig 4, und ein Aufruf,
+der jeden Platz belegt vorfindet, wird mit einem `Retry-After` abgelehnt statt
+eingereiht: wem gesagt wird, gleich wiederzukommen, der kann das, und wer hinter
+vier Scans geparkt ist, hat längst irgendwo aufgegeben, wo es hier niemand sieht.
 
 Die Ausführung ist synchron: die Antwort ist das Ergebnis, und es gibt keine
 Warteschlange zum Abfragen. Das ist ehrlich gegenüber dem, was hier ist, statt

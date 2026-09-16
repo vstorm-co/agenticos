@@ -35,7 +35,11 @@ Two things are versioned separately from this file and worth knowing about:
   unit counts, the duration, the outcome, and none of what was submitted or
   returned. `deploy/profiles/ml-services/` runs the API image a second time as a
   replica the ingress sends only these paths to, with its own workers, CPU and
-  memory. Schema: `ml_service_calls`. #1595
+  memory. Parsing runs on the file-io pool rather than the request's event loop,
+  a worker holds at most `ML_MAX_CONCURRENT_PARSES` parses at once and refuses
+  rather than queues beyond that, uploads are read only up to the ceiling, and a
+  refused call's record is committed before the refusal rolls its transaction
+  back. Schema: `ml_service_calls`. #1595
 
 ## [0.0.444] - 2026-09-16
 

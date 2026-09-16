@@ -1,5 +1,5 @@
 ---
-source_sha: "b0683ad2a99c"
+source_sha: "b542fd3f7700"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -81,7 +81,13 @@ pliku:
 `parser` wybiera między `liteparse`, który zachowuje układ i czyta formaty
 biurowe tam, gdzie zainstalowano LibreOffice, a `pymupdf`, który czyta PDF-y i
 jest szybszy. `chunk_size`, `chunk_overlap` i `chunking_strategy` kształtują
-przygotowane chunki; strategie to `recursive`, `fixed` i `markdown`.
+przygotowane chunki; strategie to `recursive`, `fixed` i `markdown`, a czwarta
+pisownia zostaje odrzucona, zamiast po cichu potraktowana jak `recursive`.
+
+`chunk_overlap` musi być **mniejszy** niż `chunk_size`. Równy jest odrzucany i nie
+chodzi o porządek: splitter to przyjmuje, a potem przesuwa się o mniej więcej
+jeden separator na chunk, zachowując prawie kompletną kopię poprzedniego - więc
+legalne wysłanie odpowiada dokumentem zwielokrotnionym wiele razy.
 
 Dokument, z którego nic nie da się odczytać, zostaje odrzucony, a nie zwrócony z
 pustą listą stron, a odmowa mówi, żeby wywołać OCR — czego skan parsowany dla
@@ -94,17 +100,37 @@ od tego, czy strona niesie warstwę tekstową. Tym różni się od ingestii, kt�
 wykrywa to automatycznie i pomija rozpoznawanie tam, gdzie tekst już jest: kto
 poprosił o OCR, poprosił o odczytanie stron jako obrazów.
 
-`language` to kod Tesseracta, czyli trzy litery — `deu`, nie `de`.
+`language` to kod Tesseracta, czyli trzy litery — `pol`, nie `pl`. Dostarczany
+obraz instaluje **`eng` i `pol`** i tylko te dwa endpoint przyjmuje: kod bez
+pakietu językowego za sobą wywraca się wewnątrz parsowania, więc odmowa przychodzi
+już na granicy. Wdrożenie, które doinstaluje więcej pakietów, poszerza tę listę w
+tej samej zmianie.
+
 `ocr_service_id` nazywa serwer OCR zarejestrowany wśród
 [usług lokalnych](configuration.md), więc wdrożenie z własnym sidecarem
 rozpoznawania wysyła strony tam; pomiń je, a odczyta je silnik wbudowany w
 parser. Tak czy inaczej strony zostają w sieci samego wdrożenia.
 
+**`.docx` jest tu odrzucany**, choć parser go czyta. Ingestia kieruje dokumenty
+biurowe do czytnika natywnego, zanim sięgnie po parser OCR, więc przyjęcie
+takiego pliku wyciągnęłoby istniejące akapity, pominęło zeskanowane strony i nic
+by o tej różnicy nie powiedziało. Przekonwertuj go na PDF.
+
+Jedno wywołanie rozpoznaje najwyżej **200 stron** i ma **120 sekund** — oba węższe
+niż w ingestii, bo tutaj ktoś czeka, a na ingestię nie czeka nikt.
+
 ### Zamiana mowy na tekst { #speech-to-text }
 
 `POST /api/v1/ml/audio/transcriptions` transkrybuje nagranie na własnych
-poświadczeniach organizacji. `provider` i `model` nazywają, czego użyć, a ich
-pominięcie bierze pierwszą oferowaną parę wdrożenia.
+poświadczeniach organizacji. `provider` i `model` nazywają, czego użyć; pominięcie **obu** bierze
+pierwszą oferowaną parę wdrożenia, a podanie dostawcy bez modelu bierze pierwszy
+model tego dostawcy. Czego nie robi nigdy, to nie wraca do domyślnego dostawcy,
+gdy dostawca został nazwany — tak właśnie nagranie przeznaczone dla własnego
+silnika trafia do vendora.
+
+Nagranie podlega też własnemu limitowi 25 MB klienta transkrypcji, nawet gdy
+`ML_MAX_UPLOAD_SIZE_MB` jest wyższy, więc za duże nagranie zostaje odrzucone jako
+za duże, a nie dociera do silnika i wraca jako 503 o poświadczeniach.
 
 Silnikiem jest ten endpoint, który nazywa model profile organizacji dla danego
 dostawcy. To jest odpowiedź dla wdrożenia, które nie może wysyłać dźwięku do
@@ -150,6 +176,11 @@ ile bajtów weszło, ile wyszło, jak długo trwało i jak się skończyło.
 `GET /api/v1/ml/calls` odczytuje je z powrotem, od najnowszych, a
 `GET /api/v1/ml/calls/{id}` odczytuje jedno.
 
+Odrzucone wywołanie też jest zapisywane, a jego wiersz jest commitowany, zanim
+odmowa rozwinie żądanie — wiersz tylko dodany do tej transakcji zostałby wycofany
+przez samą odmowę, którą opisuje, a operator pytający, czemu integracja się psuje,
+usłyszałby, że tenant nie wykonał żadnych wywołań.
+
 **Żadna treść nie jest przechowywana.** Wynik wraca w odpowiedzi i nie jest
 zapisywany, więc dokument tu sparsowany nie staje się dokumentem, który to
 wdrożenie trzyma, a tekst wysłany do sprawdzenia pod kątem danych osobowych nie
@@ -166,9 +197,17 @@ fakturą, jest gorsza niż uczciwe zliczenie jednostek.
 ## Limity { #limits }
 
 Pojedyncze wywołanie przyjmuje do `ML_MAX_UPLOAD_SIZE_MB` megabajtów, domyślnie
-25, a jedno skanowanie czyta najwyżej 200000 znaków. Wywołujący może wykonać
-`RATE_LIMIT_ML_PER_MINUTE` wywołań na minutę, domyślnie 30, liczonych na
-wywołującego, a nie na adres.
+25, i tylko tyle bajtów jest odczytywanych z ciała żądania — za duże wysłanie
+zostaje odrzucone, zanim w ogóle zostanie skopiowane do pamięci. Jedno skanowanie
+czyta najwyżej 200000 znaków. Wywołujący może wykonać `RATE_LIMIT_ML_PER_MINUTE`
+wywołań na minutę, domyślnie 30, liczonych na wywołującego, a nie na adres.
+
+Limit tempa liczy **starty** i nie widzi tego, co wciąż trwa, co jest złym
+kształtem dla pracy mierzonej w minutach. Dlatego worker parsuje naraz najwyżej
+`ML_MAX_CONCURRENT_PARSES` dokumentów, domyślnie 4, a wywołanie trafiające na
+zajęte wszystkie sloty dostaje odmowę z `Retry-After`, a nie miejsce w kolejce:
+kto usłyszy „wróć za chwilę", może wrócić, a kto stoi za czterema skanami, już się
+poddał gdzieś, gdzie nikt tutaj tego nie widzi.
 
 Wykonanie jest synchroniczne: odpowiedź jest wynikiem i nie ma kolejki do
 odpytywania. To jest uczciwe wobec tego, co tu jest, zamiast aspiracyjne — tryb

@@ -21,12 +21,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from app.api.deps import Auth, MLSvc, limit_ml_call, require
+from app.core.config import settings
 from app.core.permissions import Perm
 from app.schemas.ml import (
+    ChunkingLiteral,
     MLServiceCallList,
     MLServiceCallRead,
     MLServiceCatalogRead,
     MLServiceEntryRead,
+    OcrLanguageLiteral,
     ParsedDocumentRead,
     ParserLiteral,
     PiiScanRead,
@@ -35,6 +38,16 @@ from app.schemas.ml import (
 )
 
 router = APIRouter()
+
+_READ_CEILING = settings.ML_MAX_UPLOAD_SIZE_MB * 1024 * 1024 + 1
+"""How many bytes an upload route copies out of the spooled body.
+
+One byte past the ceiling, so an over-large submission is refused on a length the
+service can see without the whole thing having been read into memory first. A
+bare `read()` copies the entire spooled file however large it is - the
+body-size middleware only refuses a *declared* length, and a chunked request
+declares none - so the ceiling has to be applied at the read, not after it.
+"""
 
 
 @router.get(
@@ -82,8 +95,13 @@ async def analyze_document(
         ),
     ),
     chunk_size: int = Form(default=512, ge=64, le=8000),
-    chunk_overlap: int = Form(default=50, ge=0, le=2000),
-    chunking_strategy: str = Form(
+    chunk_overlap: int = Form(
+        default=50,
+        ge=0,
+        le=2000,
+        description="Must be smaller than `chunk_size`, which the service checks",
+    ),
+    chunking_strategy: ChunkingLiteral = Form(
         default="recursive",
         description="`recursive`, `fixed`, or `markdown` to split on headings",
     ),
@@ -91,7 +109,7 @@ async def analyze_document(
     """Read a document into pages and prepared chunks, without storing it."""
     document = await service.analyze_document(
         ctx,
-        content=await file.read(),
+        content=await file.read(_READ_CEILING),
         filename=file.filename or "document",
         parser=parser,
         chunk_size=chunk_size,
@@ -110,11 +128,13 @@ async def recognise_document(
     service: MLSvc,
     ctx: Auth,
     file: UploadFile = File(..., description="The scan, photograph or PDF to read"),
-    language: str = Form(
+    language: OcrLanguageLiteral = Form(
         default="eng",
-        min_length=3,
-        max_length=32,
-        description="A Tesseract language code, which is three letters: `deu`, not `de`",
+        description=(
+            "A Tesseract language code, which is three letters. The shipped image "
+            "installs `eng` and `pol`; a deployment that installs more packs widens "
+            "this list in the same change."
+        ),
     ),
     ocr_service_id: UUID | None = Form(
         default=None,
@@ -127,7 +147,7 @@ async def recognise_document(
     """Recognise the text on every page, whether or not it carries a text layer."""
     document = await service.recognise_document(
         ctx,
-        content=await file.read(),
+        content=await file.read(_READ_CEILING),
         filename=file.filename or "document",
         language=language,
         ocr_service_id=ocr_service_id,
@@ -158,7 +178,7 @@ async def transcribe_recording(
     """Turn a recording into text on the organization's own transcription engine."""
     transcript = await service.transcribe(
         ctx,
-        content=await file.read(),
+        content=await file.read(_READ_CEILING),
         filename=file.filename or "recording",
         mime_type=file.content_type or "application/octet-stream",
         provider=provider,
