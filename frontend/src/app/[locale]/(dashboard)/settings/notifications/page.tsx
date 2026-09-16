@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { Switch } from "@/components/ui";
+import { ErrorState } from "@/components/states";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth, useNotificationPreferences } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -141,7 +142,12 @@ export default function NotificationsSettingsPage() {
   const { user } = useAuth();
   const { setUser } = useAuthStore();
   const [saving, setSaving] = useState<PreferenceKey | null>(null);
-  const { isEnabled, setPreference, isLoading: preferencesLoading } = useNotificationPreferences();
+  const {
+    isEnabled,
+    setPreference,
+    isLoading: preferencesLoading,
+    error: preferencesError,
+  } = useNotificationPreferences();
   const [pending, setPending] = useState<Set<string>>(new Set());
 
   if (!user) {
@@ -217,44 +223,54 @@ export default function NotificationsSettingsPage() {
         title={t("notificationPreferences")}
         description={t("notificationPreferencesDescription")}
       >
-        <ul className="divide-border divide-y">
-          {PREFERENCE_EVENTS.map((event) => (
-            <li key={event.eventType} className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
-              <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                <event.icon className="h-4 w-4" />
-              </span>
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-foreground text-sm font-medium">{t(event.words)}</p>
-                <p className="text-muted-foreground text-xs leading-relaxed">
-                  {t(`${event.words}Trigger`)}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-4">
-                {event.channels.map((channel) => {
-                  const pendingKey = `${event.eventType}:${channel}`;
-                  const label = `${t(event.words)} - ${t(
-                    channel === "in_app" ? "inAppChannel" : "emailChannel",
-                  )}`;
-                  return (
-                    <div key={channel} className="flex flex-col items-center gap-1">
-                      <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
-                        {t(channel === "in_app" ? "inAppChannel" : "emailChannel")}
-                      </span>
-                      <Switch
-                        aria-label={label}
-                        checked={isEnabled(event.eventType, channel)}
-                        disabled={preferencesLoading || pending.has(pendingKey)}
-                        onCheckedChange={(enabled) =>
-                          handlePreferenceToggle(event.eventType, channel, enabled)
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </li>
-          ))}
-        </ul>
+        {preferencesError ? (
+          // A failed read has no stored values either, and showing every
+          // switch as on regardless of what is actually saved is a refusal
+          // dressed as a preference (#32's shape).
+          <ErrorState description={preferencesError} />
+        ) : (
+          <ul className="divide-border divide-y">
+            {PREFERENCE_EVENTS.map((event) => (
+              <li
+                key={event.eventType}
+                className="flex items-start gap-3 py-4 first:pt-0 last:pb-0"
+              >
+                <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                  <event.icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="text-foreground text-sm font-medium">{t(event.words)}</p>
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    {t(`${event.words}Trigger`)}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-4">
+                  {event.channels.map((channel) => {
+                    const pendingKey = `${event.eventType}:${channel}`;
+                    const label = `${t(event.words)} - ${t(
+                      channel === "in_app" ? "inAppChannel" : "emailChannel",
+                    )}`;
+                    return (
+                      <div key={channel} className="flex flex-col items-center gap-1">
+                        <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
+                          {t(channel === "in_app" ? "inAppChannel" : "emailChannel")}
+                        </span>
+                        <Switch
+                          aria-label={label}
+                          checked={isEnabled(event.eventType, channel)}
+                          disabled={preferencesLoading || pending.has(pendingKey)}
+                          onCheckedChange={(enabled) =>
+                            handlePreferenceToggle(event.eventType, channel, enabled)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </SectionCard>
 
       <SectionCard title={t("alwaysSent")} description={t("transactionalEmailsWhatTriggers")}>
