@@ -166,6 +166,29 @@ class TestRendering:
         assert html == "<a href=''>x</a>"
         assert text == ""
 
+    def test_a_value_with_html_metacharacters_is_escaped_in_the_html_part(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Every value substituted here is plain text by contract - an agent's
+        own name, chosen by whoever created it, being one - never markup this
+        template means to embed. Unescaped, a name like this one breaks out
+        of the paragraph it was meant to sit inside as text."""
+        _fake_template(
+            tmp_path,
+            monkeypatch,
+            key="greeting",
+            html="<p>[[name]]</p>",
+            text="Subject: hi\n[[name]]",
+        )
+
+        subject, html, text = render_email("greeting", {"name": "<img src=x onerror=alert(1)>&\"'"})
+
+        assert html == "<p>&lt;img src=x onerror=alert(1)&gt;&amp;&quot;&#x27;</p>"
+        # The subject and text parts carry no markup to break out of, so the
+        # value they ship is the one that was given - unescaped.
+        assert subject == "hi"
+        assert text == "<img src=x onerror=alert(1)>&\"'"
+
     def test_an_unsupplied_placeholder_is_left_alone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
