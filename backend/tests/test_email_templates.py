@@ -149,6 +149,31 @@ class TestRendering:
         assert html == "<p>hi</p>"
         assert text == ""
 
+    def test_a_context_value_cannot_inject_markup_into_the_html_body(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A context value is routinely builder-controlled text (an agent's
+        name, a tool id) reaching this from a stored notification's
+        `render_context`, not something this module already trusts - it must
+        not be spliced into the html body as markup. The text part, never
+        interpreted as markup by anything that reads it, keeps the raw value."""
+        _fake_template(
+            tmp_path,
+            monkeypatch,
+            key="greeting",
+            html="<p>[[agent_name]] says hi</p>",
+            text="Subject: [[agent_name]]\n\n[[agent_name]] says hi",
+        )
+
+        subject, html, text = render_email(
+            "greeting", {"agent_name": "<img src=x onerror=alert(1)>"}
+        )
+
+        assert "<img" not in html
+        assert html == "<p>&lt;img src=x onerror=alert(1)&gt; says hi</p>"
+        assert text == "<img src=x onerror=alert(1)> says hi"
+        assert subject == "<img src=x onerror=alert(1)>"
+
     def test_a_none_value_renders_as_nothing_rather_than_the_word_none(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

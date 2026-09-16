@@ -299,7 +299,7 @@ async def list_failed_deliveries(
         select(NotificationDelivery, Notification, func.count().over().label("total"))
         .join(Notification, Notification.id == NotificationDelivery.notification_id)
         .where(NotificationDelivery.status == DeliveryStatus.FAILED.value)
-        .order_by(NotificationDelivery.created_at.desc())
+        .order_by(NotificationDelivery.created_at.desc(), NotificationDelivery.id.desc())
         .offset(skip)
         .limit(limit)
     )

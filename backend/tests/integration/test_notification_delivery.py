@@ -467,6 +467,35 @@ class TestSendAndSettlePreference:
         assert delivery.last_error is not None
         assert "no email template" in delivery.last_error
 
+    async def test_an_app_admin_with_no_membership_is_still_reachable(self, db):
+        """An app admin holds no membership row anywhere, but `_gate`'s
+        `ORG_ADMIN_OR_APP_ADMIN` branch already treats one as reachable for an
+        org-scoped row regardless - `_current_role` must agree, or a
+        `security_event` queued for an app-admin-audience action (a user
+        deleted by an admin outside the org) is silently skipped instead of
+        sent. Distinguished from a genuine skip by the outcome: `failed` on
+        the missing template proves reachability passed and rendering was
+        attempted, where a real gap would read `skipped`."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        outside_admin = await _user(db, is_app_admin=True)
+        now = datetime.now(UTC)
+        delivery = await _delivery(
+            db,
+            recipient=outside_admin,
+            organization_id=org.id,
+            event_type=NotificationEventType.SECURITY_EVENT,
+            claimed_at=now,
+            attempts=1,
+        )
+
+        outcome = await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
+
+        assert outcome == "failed"
+        await db.refresh(delivery)
+        assert delivery.last_error is not None
+        assert "no email template" in delivery.last_error
+
 
 class TestRenderDispatch:
     async def test_an_event_type_with_no_template_fails_without_sending(self, db):
