@@ -126,6 +126,25 @@ class RetrievalFilters(BaseModel):
             )
         return value
 
+    @field_validator("source")
+    @classmethod
+    def _reject_unknown_source(cls, value: list[str] | None) -> list[str] | None:
+        # `source` is a build-time-closed vocabulary set in code at the ingest
+        # call site (an upload, the local sync, a registered connector), so the
+        # agent tool types it as `list[Source]`. The API boundary reaches this
+        # model with plain strings, so it is validated here too - an unknown value
+        # is a caller error refused up front rather than a filter that silently
+        # matches nothing, the same contract `document_type` holds.
+        if value is None:
+            return value
+        unknown = sorted(v for v in value if v not in SOURCE_VOCABULARY)
+        if unknown:
+            raise ValueError(
+                f"unknown source value(s): {', '.join(unknown)}; "
+                f"known sources: {', '.join(sorted(SOURCE_VOCABULARY))}"
+            )
+        return value
+
     @model_validator(mode="after")
     def _ordered_date_range(self) -> RetrievalFilters:
         if (

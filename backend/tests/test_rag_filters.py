@@ -67,6 +67,16 @@ class TestRetrievalFilters:
         with pytest.raises(ValidationError):
             RetrievalFilters(document_type=["pdf", "exe"])
 
+    def test_a_known_source_passes(self):
+        assert RetrievalFilters(source=["upload", "gdrive"]).source == ["upload", "gdrive"]
+
+    def test_an_unknown_source_is_rejected(self):
+        # `source` is a build-time-closed vocabulary, so a value outside it is a
+        # caller error at the API boundary (the agent tool types it as an enum),
+        # never a filter that silently matches nothing.
+        with pytest.raises(ValidationError):
+            RetrievalFilters(source=["upload", "ftp"])
+
     def test_a_smuggled_key_is_rejected_by_extra_forbid(self):
         with pytest.raises(ValidationError):
             RetrievalFilters(organization_id=str(uuid4()))
