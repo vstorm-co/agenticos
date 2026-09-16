@@ -23,6 +23,7 @@ interface NotificationBellProps {
 export function NotificationBell({ variant = "row" }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const t = useTranslations("nav");
+  const tNotifications = useTranslations("notifications");
   const unread = useUnreadNotificationCount();
 
   return (
@@ -42,7 +43,9 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
           <button
             type="button"
             data-tour="notification-bell"
-            aria-label={t("notifications")}
+            aria-label={
+              unread > 0 ? tNotifications("unreadCount", { count: unread }) : t("notifications")
+            }
             className="text-muted-foreground hover:bg-accent hover:text-foreground relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
           >
             <Bell className="h-5 w-5" aria-hidden />
@@ -58,9 +61,9 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
       <PopoverContent
         side={variant === "row" ? "right" : "bottom"}
         align="start"
-        className="w-96 p-0"
+        className="w-[min(24rem,calc(100vw-2rem))] p-0"
       >
-        <NotificationPanel open={open} />
+        <NotificationPanel open={open} unread={unread} />
       </PopoverContent>
     </Popover>
   );
@@ -80,7 +83,7 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-function NotificationPanel({ open }: { open: boolean }) {
+function NotificationPanel({ open, unread }: { open: boolean; unread: number }) {
   const tNav = useTranslations("nav");
   const t = useTranslations("notifications");
   const {
@@ -94,7 +97,11 @@ function NotificationPanel({ open }: { open: boolean }) {
     markAllRead,
   } = useNotificationInbox(open);
 
-  const hasUnread = notifications.some((item) => item.read_at === null);
+  // Not `notifications.some(...)`: the loaded page can be all-read while an
+  // unpaged older page still holds an unread row, and "mark all read" must
+  // stay offered until the same unread-count query the badge itself reads
+  // says there is nothing left.
+  const hasUnread = unread > 0;
 
   return (
     <div className="flex max-h-[28rem] flex-col">
@@ -167,6 +174,7 @@ function NotificationRow({
   onRead: (id: string) => Promise<void>;
 }) {
   const tTime = useTranslations("time");
+  const tNotifications = useTranslations("notifications");
   const locale = useLocale();
   const unread = item.read_at === null;
   const rowClassName =
@@ -191,6 +199,9 @@ function NotificationRow({
         )}
       />
       <span className="min-w-0 flex-1">
+        <span className="sr-only">
+          {unread ? tNotifications("rowUnread") : tNotifications("rowRead")}
+        </span>
         <span
           className={cn(
             "block text-sm",

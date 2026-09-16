@@ -1737,7 +1737,7 @@
       },
       "notification-bell": {
         "title": "Bądź na bieżąco",
-        "body": "Nieudany run, prośba o zatwierdzenie czekająca na Ciebie, budżet bliski wyczerpania, wiadomość od administratora aplikacji - wszystko trafia tutaj, z osobnym przełącznikiem w aplikacji i mailem dla każdego rodzaju w Ustawieniach."
+        "body": "Nieudany run, prośba o zatwierdzenie czekająca na Ciebie, budżet bliski wyczerpania, wiadomość od administratora aplikacji - wszystko trafia tutaj, z osobnym przełącznikiem w aplikacji i mailem dla rodzajów, które można wyłączyć w Ustawieniach."
       },
       "org-members": {
         "title": "Kto w niej jest",
