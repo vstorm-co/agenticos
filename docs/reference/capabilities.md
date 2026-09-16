@@ -23,7 +23,7 @@ tools listed.
 | id | Name | Category | Tools | Scope | Key |
 |---|---|---|---|---|---|
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
 | `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
@@ -91,17 +91,28 @@ tool, because the model keeps trying it and reasons from the silence.
 
 ## Skills
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Written know-how the agent loads only when it decides it is relevant, one skill at
 a time — the alternative being an instructions field that grows until every run
 pays for every procedure. See [Skills](../skills.md) for what a skill is and how
 one gets into an organization.
 
-These three tools come from `pydantic-ai-skills`, so their names and wording are
-somebody else's to change. A drift test compares what the registry declares
-against the tools the model is actually offered, which is what reports the day
-that happens.
+**Each bound skill is a capability of its own.** Its name and description sit in
+the catalog the model reads every turn, and the model pulls the body in with
+`load_capability` — the agent framework's own tool, which is why it is not in the
+list above and why a spec cannot grant, gate or rename it. `read_skill_resource`
+is the one tool this capability contributes, and it appears only when at least one
+bound skill ships a file beside its instructions.
+
+The tool comes from `pydantic-ai-skills`, so its name and wording are somebody
+else's to change. A drift test compares what the registry declares against the
+tools the model is actually offered, which is what reports the day that happens.
+
+`run_skill_script` is switched off rather than exposed: a skill's files reach a
+run under `/workspace/skills/`, where the [sandbox](../sandbox.md)'s own `execute`
+runs them under the operator's ceilings, and a second execution path would be a
+second set of rules to get wrong.
 
 ## Context
 
@@ -1580,11 +1591,10 @@ carry a return shape.
 That covers the tools this deployment did not write, either: `planning` and the
 delegation tools are handed this repository's text, `web_fetch` and
 `search_tools` are re-described where they are built, and `read_tool_result` and
-the three `skills` tools are re-described in place on the library's own toolset.
-Two of those were worth the trouble beyond consistency — the library's sentence
+`read_skill_resource` are re-described in place on the library's own toolset.
+One of those was worth the trouble beyond consistency — the library's sentence
 for `read_tool_result` said nothing about what a handle answers with, which is
-the one thing a model holding a handle needs, and `list_skills` documented the
-Python return (a dictionary) rather than the text the model is handed.
+the one thing a model holding a handle needs.
 
 A tool from a library that this repository has no text for keeps the library's,
 which is the right default: `run_skill_script` is excluded rather than described,

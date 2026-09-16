@@ -33,6 +33,58 @@ Two things are versioned separately from this file and worth knowing about:
 - `BaseFileStorage.save_at` and `.exists`, for the one caller whose key is the
   digest of its own bytes rather than a name this codebase mints. (#55)
 
+## [0.0.456] - 2026-09-16
+
+### Changed
+
+- **A skill is now a capability of its own, and the model opens it with
+  `load_capability`.** `pydantic-ai-skills` 2.0 makes each skill a deferred
+  capability: its name and one-line description sit in the catalog the model reads
+  every turn, and pydantic-ai's own `load_capability` pulls the body in. The two
+  tools this platform published to do that by hand — `list_skills` and `load_skill`
+  — are gone, and `read_skill_resource` is the one tool the capability still
+  contributes, offered only when at least one bound skill ships a file to read.
+  `run_skill_script` stays switched off: a skill's files reach a run under
+  `/workspace/skills/`, where the sandbox's own `execute` runs them. The console
+  renders a loaded skill under the `load_capability` step, with the skill's name as
+  the step label. (#1658)
+
+  **`SPEC_VERSION` moves to 12.** A stored binding that renamed `list_skills` or
+  `load_skill` loads with that entry dropped and a warning in the log: a rename of
+  a tool that is gone is not a decision worth carrying forward. An *approval* on
+  `load_skill` is, and moves to `load_capability` — the decision was "ask a person
+  before a skill is opened", and that is the call that opens one now; dropping it
+  would have ungated an agent whose publisher gated it deliberately, on every
+  surface including a public embed. Anything the binding said about
+  `read_skill_resource` is left exactly as written.
+
+  **A skill cannot be named after a capability.** Each is filed under its own name
+  in the same namespace as the platform's own, so a skill called `planning` on an
+  agent that also has the planning capability is a duplicate the framework refuses
+  before the first token. Creating one is refused, publishing an agent bound to one
+  is refused, and a binding that renames a tool onto `load_capability` is refused
+  for the same reason.
+
+### Fixed
+
+- A tool returning a mapping with a key JSON cannot write - a tuple, say - no
+  longer ends the stream. `default=` is consulted for a value and never for a key,
+  so the `TypeError` escaped a fallback that caught `ValueError` only, and took a
+  live turn down over a tool call that had succeeded. (#1658)
+- Reopening a conversation recorded before this change shows its `list_skills` and
+  `load_skill` steps the way it always showed them, rather than raw XML: a stored
+  turn holds the tool name it called, so the renderers are kept in a legacy table
+  the drift check does not read. A completed `load_capability` whose result is not
+  a loaded skill - the framework's retry notice for an unknown capability - now
+  shows that notice instead of rendering nothing under a step that looks like a
+  success. (#1658)
+
+- **A tool that answers with a structure is recorded as JSON, not as a Python
+  repr.** `str({'instructions': ...})` reaches the browser quoted `'like this'`,
+  which no renderer on the other side can parse — so the step showing what the
+  agent loaded had nothing to open. Applies to the stored transcript and to the
+  live `tool_result` frame alike. (#1658)
+
 ## [0.0.455] - 2026-09-16
 
 ### Added

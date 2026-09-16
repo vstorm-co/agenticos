@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenticos"
-version = "0.0.455"
+version = "0.0.456"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -119,7 +119,7 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
     { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.29" },
     { name = "pydantic-ai-harness", specifier = ">=0.30.0" },
-    { name = "pydantic-ai-skills", specifier = ">=1.4.0,<2" },
+    { name = "pydantic-ai-skills", specifier = ">=2.0.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.42.0" },
     { name = "pydantic-ai-slim", extras = ["openrouter", "anthropic", "google", "duckduckgo", "web-fetch", "groq", "mistral", "cohere", "huggingface", "xai"], specifier = ">=2.42.0" },
     { name = "pydantic-monty", specifier = ">=0.0.23" },
@@ -4039,18 +4039,24 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/1d/57f35d88568b9e463cf85cb04b56bbaa490072ac97090333dea314f12e91/pydantic_ai_harness-0.31.0-py3-none-any.whl", hash = "sha256:80ba336ad0c9fc2e38b90b1dbe729f7c51e4ffd7ee71ce6c1c470f25f03c3414", size = 823313, upload-time = "2026-09-12T01:07:04.722Z" },
 ]
 
+[package.optional-dependencies]
+skills = [
+    { name = "pyyaml" },
+]
+
 [[package]]
 name = "pydantic-ai-skills"
-version = "1.4.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
+    { name = "pydantic-ai-harness", extra = ["skills"] },
     { name = "pydantic-ai-slim" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/59/65d312c625c546b4754022d0e3e20921f9637f1e87225c0fbcbce09ddb82/pydantic_ai_skills-1.4.0.tar.gz", hash = "sha256:7303e0738a837218415f8b2e7bd5b5cbc0ceeb74850b1902c2d079550e0b9b83", size = 9095029, upload-time = "2026-08-16T13:01:26.999Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/d5/f3059f89077f257e43475ad81878d5ee7e03c501579bf9a7b05166a7e18a/pydantic_ai_skills-2.0.0.tar.gz", hash = "sha256:25fd5f14268f68d25d68e38bc94fb93323092d3b7d96db0b5e499c074e3d40c7", size = 9110556, upload-time = "2026-09-06T01:44:21.651Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/eb/a4bea0c2c97f2351938e0ae2200fb197e4953928337198a17d89f0d0bbbb/pydantic_ai_skills-1.4.0-py3-none-any.whl", hash = "sha256:bce8731a042f50c45965acc520dc883163e511c34b208f720eb62067ef5be686", size = 75744, upload-time = "2026-08-16T13:01:25.501Z" },
+    { url = "https://files.pythonhosted.org/packages/86/8a/b05c3540dfe4e1491aa3f3de06d320bb93b61dbe49b805e2d5c4465c47b5/pydantic_ai_skills-2.0.0-py3-none-any.whl", hash = "sha256:d3bed993fe65a7a4a1c6e37c71914e9594cec86114e446a332f203f2cdc755f2", size = 73558, upload-time = "2026-09-06T01:44:20.268Z" },
 ]
 
 [[package]]
