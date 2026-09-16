@@ -11,10 +11,11 @@ import type { DashboardWidgetProps } from "./types";
 const SHOWN = 5;
 
 /**
- * The most recent notifications, unread first - the bell's own list, reused
- * rather than a card-only endpoint (`useNotificationInbox` already fetches
- * one page of it). Always enabled: unlike the bell's popover, a dashboard
- * card is on screen the moment the page is.
+ * The most recent notifications, newest first, unread ones highlighted -
+ * the bell's own list, reused rather than a card-only endpoint
+ * (`useNotificationInbox` already fetches one page of it). Always enabled:
+ * unlike the bell's popover, a dashboard card is on screen the moment the
+ * page is.
  */
 export function NotificationsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.notifications");
@@ -62,20 +63,25 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
             );
             const rowClassName =
               "hover:bg-muted/60 flex items-start gap-2.5 rounded-md px-1 py-1.5 text-left text-sm";
+            // Fire-and-forget: nothing here needs the outcome, but an
+            // unhandled rejection (a row the read-time gate has since
+            // hidden, a dropped connection) must not reach the console as
+            // one.
+            const handleRead = () => {
+              if (unread) {
+                markRead(item.id).catch(() => {});
+              }
+            };
             return (
               <li key={item.id}>
                 {item.context_url ? (
-                  <a
-                    href={item.context_url}
-                    onClick={() => unread && markRead(item.id)}
-                    className={rowClassName}
-                  >
+                  <a href={item.context_url} onClick={handleRead} className={rowClassName}>
                     {content}
                   </a>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => unread && markRead(item.id)}
+                    onClick={handleRead}
                     disabled={!unread}
                     className={cn(rowClassName, "w-full", !unread && "cursor-default")}
                   >

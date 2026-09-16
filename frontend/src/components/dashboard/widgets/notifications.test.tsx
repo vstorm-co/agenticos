@@ -38,8 +38,8 @@ function renderWidget(overrides: Partial<ReturnType<typeof useNotificationInboxM
     isLoadingMore: false,
     loadMore: vi.fn(),
     refetch: vi.fn(),
-    markRead: vi.fn(),
-    markAllRead: vi.fn(),
+    markRead: vi.fn().mockResolvedValue(undefined),
+    markAllRead: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   });
   render(
@@ -73,26 +73,26 @@ describe("the notifications widget", () => {
   it("says nothing is waiting, rather than drawing an empty list", () => {
     renderWidget({ notifications: [] });
 
-    expect(screen.getByText("You're all caught up")).toBeVisible();
+    expect(screen.getByText("Nothing here yet")).toBeVisible();
   });
 
   it("draws a placeholder while the list is being read", () => {
     renderWidget({ isLoading: true });
 
-    expect(screen.queryByText("You're all caught up")).toBeNull();
+    expect(screen.queryByText("Nothing here yet")).toBeNull();
   });
 
   it("says the list could not be read, and retries through the same hook", async () => {
     const refetch = vi.fn();
     renderWidget({ error: "Not authenticated", refetch });
 
-    expect(screen.queryByText("You're all caught up")).toBeNull();
+    expect(screen.queryByText("Nothing here yet")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("marks an unread row read on click, through a link when it has a destination", async () => {
-    const markRead = vi.fn();
+    const markRead = vi.fn().mockResolvedValue(undefined);
     renderWidget({
       notifications: [notification({ context_url: "https://app.example.com/agents/a1" })],
       markRead,
@@ -104,7 +104,19 @@ describe("the notifications widget", () => {
   });
 
   it("marks an unread row read on click when it has no destination", async () => {
-    const markRead = vi.fn();
+    const markRead = vi.fn().mockResolvedValue(undefined);
+    renderWidget({ notifications: [notification({ context_url: null })], markRead });
+
+    await userEvent.click(screen.getByText("jarvis's run finished."));
+
+    expect(markRead).toHaveBeenCalledWith("n1");
+  });
+
+  it("does not raise an unhandled rejection when marking read fails", async () => {
+    // A row the read-time gate has since hidden, or a dropped connection -
+    // this is fire-and-forget from the row's own click, so a rejection
+    // must not escape as an unhandled one.
+    const markRead = vi.fn().mockRejectedValue(new Error("gone"));
     renderWidget({ notifications: [notification({ context_url: null })], markRead });
 
     await userEvent.click(screen.getByText("jarvis's run finished."));
@@ -113,7 +125,7 @@ describe("the notifications widget", () => {
   });
 
   it("does not re-mark an already-read row", async () => {
-    const markRead = vi.fn();
+    const markRead = vi.fn().mockResolvedValue(undefined);
     renderWidget({
       notifications: [notification({ read_at: "2026-09-01T00:00:00Z", context_url: null })],
       markRead,

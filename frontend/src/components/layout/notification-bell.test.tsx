@@ -39,8 +39,8 @@ function renderBell(
     isLoadingMore: false,
     loadMore: vi.fn(),
     refetch: vi.fn(),
-    markRead: vi.fn(),
-    markAllRead: vi.fn(),
+    markRead: vi.fn().mockResolvedValue(undefined),
+    markAllRead: vi.fn().mockResolvedValue(undefined),
     ...inbox,
   });
   render(
@@ -118,13 +118,26 @@ describe("NotificationBell", () => {
   });
 
   it("marks everything read on request", async () => {
-    const markAllRead = vi.fn();
+    const markAllRead = vi.fn().mockResolvedValue(undefined);
     renderBell("row", { notifications: [notification()], markAllRead });
 
     await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Mark all read" }));
 
     expect(markAllRead).toHaveBeenCalledOnce();
+  });
+
+  it("does not raise an unhandled rejection when marking read fails", async () => {
+    // A row the read-time gate has since hidden, or a dropped connection -
+    // this is fire-and-forget from the row's own click, so a rejection must
+    // not escape as an unhandled one.
+    const markRead = vi.fn().mockRejectedValue(new Error("gone"));
+    renderBell("row", { notifications: [notification()], markRead });
+
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+    await userEvent.click(await screen.findByText("jarvis's run finished."));
+
+    expect(markRead).toHaveBeenCalledWith("n1");
   });
 
   it("offers to load more once there is a next page", async () => {
