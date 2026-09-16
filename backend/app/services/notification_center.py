@@ -71,9 +71,19 @@ def encode_cursor(created_at: datetime, notification_id: uuid.UUID) -> str:
 def decode_cursor(raw: str) -> tuple[datetime, uuid.UUID]:
     try:
         created_at_raw, id_raw = raw.split("|", 1)
-        return datetime.fromisoformat(created_at_raw), uuid.UUID(id_raw)
+        created_at = datetime.fromisoformat(created_at_raw)
+        notification_id = uuid.UUID(id_raw)
     except ValueError as exc:
         raise BadRequestError(message="Invalid pagination cursor", details={"cursor": raw}) from exc
+    # `fromisoformat` accepts a timestamp with no offset and returns it naive
+    # - `encode_cursor` never produces one, since `created_at` comes off a
+    # `timestamptz` column, but a client is free to send one by hand.
+    # Comparing that against `Notification.created_at` is what asyncpg
+    # refuses, as a raw `DataError` rather than the 400 a malformed cursor
+    # should be.
+    if created_at.tzinfo is None:
+        raise BadRequestError(message="Invalid pagination cursor", details={"cursor": raw})
+    return created_at, notification_id
 
 
 @dataclass(frozen=True)
@@ -361,7 +371,16 @@ class NotificationCenterService:
         raw_collection_id = render_context.get("collection_id")
         if raw_collection_id is None:
             return False
-        kb = await knowledge_base_repo.get_by_id(self.db, uuid.UUID(str(raw_collection_id)))
+        try:
+            collection_id = uuid.UUID(str(raw_collection_id))
+        except ValueError:
+            # Nothing this service writes produces one, but `render_context`
+            # is a JSONB blob with no schema enforcement - a malformed value
+            # is treated the same as a collection that no longer exists,
+            # rather than a 500 that takes the rest of the caller's inbox
+            # down with this one row.
+            return False
+        kb = await knowledge_base_repo.get_by_id(self.db, collection_id)
         if kb is None:
             return False
         return await resolve_access(
