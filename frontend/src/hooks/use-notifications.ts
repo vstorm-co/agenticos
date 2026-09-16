@@ -114,6 +114,12 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
 
   const markRead = async (id: string) => {
     const updated = await markNotificationRead(id);
+    // The count polls every minute in the background; a poll already in
+    // flight when this write lands would otherwise resolve after it and
+    // replace the decremented count with the pre-write one it read - the
+    // same race `useNotificationPreferences.setPreference` cancels for.
+    await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
+    await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
     patchItems(updated.read_at ?? new Date().toISOString(), (item) => item.id === id);
     queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
       Math.max(0, (prev ?? 1) - 1),
@@ -122,6 +128,8 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
 
   const markAllRead = async () => {
     await markAllNotificationsRead();
+    await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
+    await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
     patchItems(new Date().toISOString(), (item) => item.read_at === null);
     queryClient.setQueryData<number>(qk.notifications.unreadCount(), 0);
   };

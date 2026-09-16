@@ -173,6 +173,32 @@ describe("useNotificationInbox", () => {
     await waitFor(() => expect(countHook.result.current).toBe(0));
   });
 
+  it("cancels the in-flight count and inbox reads before writing, so a stale poll cannot win", async () => {
+    // The count polls every minute in the background; a poll already
+    // running when a mark-read commits would otherwise resolve after it
+    // and replace the decremented count with the pre-write one it read -
+    // the same dedup race `use-notification-preferences.ts` cancels for.
+    vi.mocked(api.listNotifications).mockResolvedValue(page([notification({ id: "n1" })]));
+    vi.mocked(api.markNotificationRead).mockResolvedValue(
+      notification({ id: "n1", read_at: "2026-09-02T00:00:00Z" }),
+    );
+    vi.mocked(api.getUnreadNotificationCount).mockResolvedValue(1);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cancelSpy = vi.spyOn(client, "cancelQueries");
+    function TestWrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    renderHook(() => useUnreadNotificationCount(), { wrapper: TestWrapper });
+    const inboxHook = renderHook(() => useNotificationInbox(true), { wrapper: TestWrapper });
+    await waitFor(() => expect(inboxHook.result.current.isLoading).toBe(false));
+
+    await act(async () => inboxHook.result.current.markRead("n1"));
+
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: ["notifications", "inbox"] });
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: ["notifications", "unread-count"] });
+  });
+
   it("leaves the cache alone when marking read before any page has loaded", async () => {
     vi.mocked(api.markNotificationRead).mockResolvedValue(
       notification({ id: "n1", read_at: "2026-09-02T00:00:00Z" }),
