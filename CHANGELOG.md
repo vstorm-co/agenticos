@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.452] - 2026-09-16
+
 ### Added
 
 - **Per-organization data retention, on a schedule that actually deletes.**
