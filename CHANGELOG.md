@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.457] - 2026-09-16
+
 ### Added
 
 - A `media` capability that keeps a compacted conversation's pictures out of the
