@@ -74,6 +74,21 @@ class TestCanonicalMime:
     def test_an_unknown_text_extension_falls_back_to_plain(self):
         assert canonical_mime(OCTET, "mystery") == "text/plain"
 
+    def test_a_macro_enabled_workbook_keeps_its_own_mime(self):
+        """`.xlsm` shares the `xlsx` format token (one parser, one file type) but must
+        not be persisted - and so served on download - as a plain `.xlsx` (#1591)."""
+        macro = "application/vnd.ms-excel.sheet.macroEnabled.12"
+        assert canonical_mime(OCTET, "book.xlsm") == macro
+        assert canonical_mime(macro, "book.xlsm") == macro
+        # A plain .xlsx is unaffected.
+        assert (
+            canonical_mime(OCTET, "book.xlsx")
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    def test_a_macro_enabled_workbook_still_classifies_as_a_spreadsheet(self):
+        assert classify_file(OCTET, "book.xlsm") == "spreadsheet"
+
 
 class TestOctetStreamReachesTheRightParser:
     """The sharp edge of §7 finding 1: an octet-stream file still dispatches to the

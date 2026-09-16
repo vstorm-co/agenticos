@@ -207,6 +207,12 @@ ALLOWED_EXTENSIONS = (
 
 _GENERIC_MIME_TYPES = {"", "application/octet-stream"}
 
+# The accepted *specific* text MIME types: everything the allowlist accepts that is
+# not one of the recognised binary/image formats. A declaration from this set on a
+# binary extension (`text/plain` on `photo.png`) is a contradiction the byte phase
+# cannot catch - images and PDF are not sniffed - so it is a conflict here (#1591).
+_TEXT_MIME_TYPES = ALLOWED_MIME_TYPES - _MIME_TO_FORMAT.keys()
+
 
 def normalize_media_type(content_type: str | None) -> str:
     """A media type lowercased and stripped of parameters (`; charset=utf-8`)."""
@@ -247,6 +253,14 @@ def canonical_mime(mime_type: str | None, filename: str) -> str:
     fmt = resolve_format(mime_type, filename)
     known = _FORMAT_TO_MIME.get(fmt)
     if known is not None:
+        # `.xlsm` shares the `xlsx` format token (one parser, one coarse file type),
+        # but a macro-enabled workbook must not be persisted - and so served by the
+        # download route - as an ordinary `.xlsx`. Its own accepted MIME is kept when
+        # the extension or the declared type says macro-enabled (#1591).
+        if fmt == "xlsx" and (
+            normalize_media_type(mime_type) == _XLSM_MIME or file_extension(filename) == "xlsm"
+        ):
+            return _XLSM_MIME
         return known
     normalized = normalize_media_type(mime_type)
     if normalized in ALLOWED_MIME_TYPES:
@@ -291,16 +305,27 @@ def has_format_conflict(mime_type: str | None, filename: str) -> bool:
     """Whether a *specific* declared MIME names a different format than the extension.
 
     `application/msword` on `photo.tiff`, or `image/png` on `payload.doc`: both a
-    recognised, non-generic MIME and a recognised extension, disagreeing. A generic
-    MIME, an unrecognised one, or the text family (which the extension refines
-    rather than contradicts) is not a conflict.
+    recognised, non-generic MIME and a recognised extension, disagreeing. An accepted
+    *text* MIME on a binary extension (`text/plain` on `photo.png`) is a conflict too,
+    since the byte phase does not sniff images or PDF and would otherwise route the
+    bytes by extension. A generic MIME, an unrecognised one, or a text MIME on a text
+    extension (which it refines rather than contradicts) is not a conflict.
     """
     normalized = normalize_media_type(mime_type)
-    mime_fmt = _MIME_TO_FORMAT.get(normalized)
-    ext_fmt = _EXTENSION_TO_FORMAT.get(file_extension(filename))
-    if mime_fmt is None or ext_fmt is None or normalized in _GENERIC_MIME_TYPES:
+    if normalized in _GENERIC_MIME_TYPES:
         return False
-    return mime_fmt != ext_fmt
+    ext_fmt = _EXTENSION_TO_FORMAT.get(file_extension(filename))
+    if ext_fmt is None:
+        return False
+    mime_fmt = _MIME_TO_FORMAT.get(normalized)
+    if mime_fmt is not None:
+        return mime_fmt != ext_fmt
+    # A specific text MIME (`text/plain`, `application/xml`, …) declared on a binary
+    # extension (`photo.png`, `report.pdf`) is a contradiction that the byte phase
+    # cannot catch, since images and PDF carry no sniffed container: refuse it here
+    # rather than believe the extension and route arbitrary text bytes as an image
+    # (#1591).
+    return normalized in _TEXT_MIME_TYPES
 
 
 def expected_container(mime_type: str | None, filename: str) -> str | None:

@@ -61,6 +61,20 @@ class TestTheMetadataPhase:
         assert validate("application/msword", 1024, "photo.tiff")[0] is False
         assert validate("image/png", 1024, "payload.doc")[0] is False
 
+    def test_a_text_mime_on_a_binary_extension_is_refused(self):
+        """A specific text MIME on a binary extension is a contradiction the byte
+        phase cannot catch (images/PDF are not sniffed), so it is refused here rather
+        than routed as an image by extension (#1591)."""
+        valid, message = validate("text/plain", 1024, "photo.png")
+        assert valid is False
+        assert message is not None and "does not match" in message
+        assert validate("application/xml", 1024, "report.pdf")[0] is False
+
+    def test_a_text_mime_on_a_text_extension_is_accepted(self):
+        """A text MIME refines a text extension rather than contradicting it."""
+        assert validate("text/plain", 1024, "notes.csv")[0] is True
+        assert validate("application/xml", 1024, "data.xml")[0] is True
+
     def test_a_mime_with_a_charset_parameter_is_accepted(self):
         assert validate("application/xml; charset=utf-8", 1024, "data.xml")[0] is True
 
