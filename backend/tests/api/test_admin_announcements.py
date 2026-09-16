@@ -108,6 +108,31 @@ class TestSending:
 
         assert response.status_code == 422
 
+    async def test_channels_default_to_both_when_omitted(self):
+        service = MagicMock(send=AsyncMock(return_value=_result()))
+        async with _client(service=service) as client:
+            await client.post(ENDPOINT, json={"body": "Hello", "organizations": "all"})
+
+        assert {c.value for c in service.send.call_args.kwargs["channels"]} == {"in_app", "email"}
+
+    async def test_an_explicit_channel_selection_is_passed_through(self):
+        service = MagicMock(send=AsyncMock(return_value=_result()))
+        async with _client(service=service) as client:
+            await client.post(
+                ENDPOINT,
+                json={"body": "Hello", "organizations": "all", "channels": ["email"]},
+            )
+
+        assert {c.value for c in service.send.call_args.kwargs["channels"]} == {"email"}
+
+    async def test_an_empty_channel_list_is_rejected(self):
+        async with _client() as client:
+            response = await client.post(
+                ENDPOINT, json={"body": "Hello", "organizations": "all", "channels": []}
+            )
+
+        assert response.status_code == 422
+
     async def test_an_invalid_role_is_rejected(self):
         async with _client() as client:
             response = await client.post(
