@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useNotificationPreferences } from "./use-notification-preferences";
 import * as api from "@/lib/notification-preferences-api";
 import type { NotificationPreference } from "@/lib/notification-preferences-api";
+import { qk } from "@/lib/query-keys";
 
 vi.mock("@/lib/notification-preferences-api", () => ({
   listNotificationPreferences: vi.fn(),
@@ -108,5 +109,27 @@ describe("useNotificationPreferences", () => {
 
     await waitFor(() => expect(result.current.isEnabled("run_completed", "in_app")).toBe(true));
     expect(result.current.preferences).toHaveLength(1);
+  });
+
+  it("cancels the in-flight list read before writing, so a stale refetch cannot win (#1598)", async () => {
+    // A background refetch already running when this write starts would
+    // otherwise resolve after `setQueryData` and replace the just-written
+    // row with the pre-write value it read - the same dedup race
+    // `use-secrets.ts`'s `invalidate` and `use-sharing.ts` cancel for.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cancelSpy = vi.spyOn(client, "cancelQueries");
+    function ownWrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    }
+    vi.mocked(api.listNotificationPreferences).mockResolvedValue([]);
+    const { result } = renderHook(() => useNotificationPreferences(), { wrapper: ownWrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    vi.mocked(api.updateNotificationPreference).mockResolvedValue(preference({ enabled: true }));
+    await act(async () => {
+      await result.current.setPreference("run_completed", "in_app", true);
+    });
+
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: qk.notifications.preferences() });
   });
 });
