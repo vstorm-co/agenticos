@@ -25,6 +25,8 @@ services:
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required, e.g. https://dev.example.com}
       - CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
       - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
+      - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME:-}
+      - OIDC_ICON=${OIDC_ICON:-}
     ports:
       - "3000:3000"
     networks:

@@ -68,12 +68,21 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
             format="markdown",
         )
     ],
+    # With a resource, because `read_skill_resource` is offered only to an agent
+    # whose skills ship something to read - a skill with none contributes deferred
+    # capabilities and no tool at all, and the Builder would describe nothing.
     "skills": [
         SimpleNamespace(
             name="documentation_probe",
             description="Stands in for a skill so the skills toolset builds.",
             content="",
-            resources=[],
+            resources=[
+                SimpleNamespace(
+                    name="documentation_probe.md",
+                    description="Stands in for a skill's file.",
+                    content="",
+                )
+            ],
         )
     ],
     # A channel directory and a delegate, so the two capabilities that offer tools

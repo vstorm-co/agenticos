@@ -123,9 +123,20 @@ export async function testMcpConnection(id: string): Promise<McpConnectionTestRe
  * Begin the OAuth flow for a server. Returns the provider consent URL - the
  * caller redirects the browser there; the provider sends the user back to the
  * `/oauth/callback` route, which finishes the exchange.
+ *
+ * `client_id` and `client_secret` name a client the operator registered at the
+ * provider by hand. Absent, the backend registers this app dynamically; given,
+ * it uses them instead - which is the only way past a server that publishes no
+ * registration endpoint.
  */
 export async function startMcpOAuth(
-  input: { name: string; url: string; catalog_key?: string },
+  input: {
+    name: string;
+    url: string;
+    catalog_key?: string;
+    client_id?: string;
+    client_secret?: string;
+  },
   scope: "personal" | "organization" = "personal",
 ): Promise<{ authorization_url: string }> {
   // Two endpoints, one flow. Which one decides who *holds* the connection when
