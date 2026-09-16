@@ -1,5 +1,5 @@
 ---
-source_sha: "06500c4360ef"
+source_sha: "01d320bec51e"
 ---
 
 # Protección de datos { #data-protection }
@@ -88,6 +88,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `app_admin_audit_logs` | Quién cambió accesos o gastó dinero — el rastro de la organización y el del administrador del deployment comparten tabla | Actor, suplantador, dirección IP, la acción y un mapa `details`. El mapa nombra sobre todo campos, pero algunas entradas guardan valores: el correo de la cuenta suplantada, el correo de una cuenta que un administrador borró, una nota de publicación | Rendición de cuentas. Consulta [Gobernanza](governance.md#audit) |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
+| `ml_service_calls` | Cada llamada a los [servicios de ML](ml-services.md) | La organización, quién pidió, qué servicio, recuentos de bytes y unidades, la duración y cómo terminó - **nada de lo que se envió y nada de lo que volvió** | Informe de uso, y la vista de un operador sobre una integración que falla |
 | `agent_workspaces`, `sandbox_operations` | Archivos sobre los que trabajó un agent y el registro de lo que ejecutó | Para el backend `state`, los propios archivos, en JSON; para un contenedor, el id de sesión y cada comando, destino y resumen del resultado | La sandbox. Consulta [La sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credenciales y hacia dónde apuntan | Solo el cifrado sellado, con una pista; el provider, el modelo y la `base_url` en claro | Llegar a los providers. Consulta [Secretos](secrets.md) |
 
