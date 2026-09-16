@@ -46,7 +46,7 @@ describe("notifications API", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/notifications/unread-count");
   });
 
-  it("marks one notification read by id", async () => {
+  it("marks one notification read by id, kept alive past a navigating click", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue({
       ...NOTIFICATION,
       read_at: "2026-09-02T00:00:00Z",
@@ -54,7 +54,12 @@ describe("notifications API", () => {
 
     const updated = await notifications.markNotificationRead("n1");
 
-    expect(apiClient.patch).toHaveBeenCalledWith("/notifications/n1");
+    // `keepalive` because the usual caller is a click on a link with a real
+    // destination: the browser can start unloading the page before an
+    // ordinary fetch flushes.
+    expect(apiClient.patch).toHaveBeenCalledWith("/notifications/n1", undefined, {
+      keepalive: true,
+    });
     expect(updated.read_at).toBe("2026-09-02T00:00:00Z");
   });
 

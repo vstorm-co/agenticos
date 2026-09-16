@@ -37,7 +37,11 @@ export async function getUnreadNotificationCount(): Promise<number> {
 }
 
 export async function markNotificationRead(id: string): Promise<Notification> {
-  return apiClient.patch<Notification>(`${ROOT}/${id}`);
+  // `keepalive` because the caller is usually a click on a link with a real
+  // destination (`context_url`): the browser can start unloading this
+  // document before an ordinary fetch flushes, and a request tied to the
+  // page's lifetime does not survive that.
+  return apiClient.patch<Notification>(`${ROOT}/${id}`, undefined, { keepalive: true });
 }
 
 export async function markAllNotificationsRead(): Promise<number> {

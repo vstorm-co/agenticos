@@ -103,7 +103,7 @@ function NotificationPanel({ open }: { open: boolean }) {
         {hasUnread ? (
           <button
             type="button"
-            onClick={() => void markAllRead()}
+            onClick={() => void markAllRead().catch(() => {})}
             className="text-muted-foreground hover:text-foreground text-xs"
           >
             {t("markAllRead")}
@@ -159,12 +159,27 @@ function PanelSkeleton() {
   );
 }
 
-function NotificationRow({ item, onRead }: { item: Notification; onRead: (id: string) => void }) {
+function NotificationRow({
+  item,
+  onRead,
+}: {
+  item: Notification;
+  onRead: (id: string) => Promise<void>;
+}) {
   const tTime = useTranslations("time");
   const locale = useLocale();
   const unread = item.read_at === null;
   const rowClassName =
     "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-2 rounded-md px-2 py-2 text-left outline-none focus-visible:ring-2";
+
+  // A row's own click is fire-and-forget: nothing here needs to know its
+  // outcome, but an unhandled rejection (a row the read-time gate has since
+  // hidden, a dropped connection) must not reach the console as one.
+  const handleRead = () => {
+    if (unread) {
+      onRead(item.id).catch(() => {});
+    }
+  };
 
   const content = (
     <>
@@ -197,11 +212,7 @@ function NotificationRow({ item, onRead }: { item: Notification; onRead: (id: st
   if (item.context_url) {
     return (
       <li>
-        <a
-          href={item.context_url}
-          onClick={() => unread && onRead(item.id)}
-          className={rowClassName}
-        >
+        <a href={item.context_url} onClick={handleRead} className={rowClassName}>
           {content}
         </a>
       </li>
@@ -212,7 +223,7 @@ function NotificationRow({ item, onRead }: { item: Notification; onRead: (id: st
     <li>
       <button
         type="button"
-        onClick={() => unread && onRead(item.id)}
+        onClick={handleRead}
         disabled={!unread}
         className={cn(rowClassName, !unread && "cursor-default")}
       >
