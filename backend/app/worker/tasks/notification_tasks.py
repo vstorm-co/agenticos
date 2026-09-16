@@ -22,14 +22,15 @@ from app.services.notification_delivery import NotificationDeliveryService
 
 logger = logging.getLogger(__name__)
 
-# A claimed batch defaults to 100 rows against a two-minute lease
-# (`notification_delivery.py`'s `CLAIM_LEASE`); sent one at a time, a handful
-# of slow providers deliveries is enough for the tail of a full batch to
-# still be waiting once the lease has already expired - at which point a
-# later sweep reclaims and resends what this one has not finished with yet,
-# duplicating the email. Bounding concurrency instead of shrinking the batch
-# keeps the same throughput while keeping worst-case wall-clock time a small
-# multiple of one send, not of the whole batch.
+# A claimed batch defaults to 30 rows against a two-minute lease
+# (`notification_delivery.py`'s `CLAIM_LEASE`) and ten concurrent sends, each
+# bounded at `SEND_TIMEOUT_SECONDS` (30s): worst case is three waves of ten,
+# ~90s, comfortably inside the 120s lease with margin for the claim and settle
+# queries around it. The batch size and the concurrency bound are chosen
+# together for exactly this reason - either one raised alone without the
+# other reopens the gap: a full batch whose tail is still sending once the
+# lease has already expired lets a later sweep reclaim and resend what this
+# one has not finished with yet, duplicating the email.
 _CONCURRENT_SENDS = 10
 
 
