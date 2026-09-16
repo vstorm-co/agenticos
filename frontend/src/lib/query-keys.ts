@@ -345,7 +345,6 @@ export const qk = {
     list: () => ["slash-commands", "list"] as const,
   },
   notifications: {
-    all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
