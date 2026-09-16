@@ -1,5 +1,5 @@
 ---
-source_sha: "e9bf64793555"
+source_sha: "a1e918709b97"
 ---
 
 # Datenschutz { #data-protection }
@@ -90,6 +90,7 @@ des Elternteils.
 | `app_admin_audit_logs` | Wer Zugriff geändert oder Geld ausgegeben hat — die Spur der Organisation und die des Deployment-Administrators teilen sich eine Tabelle | Akteur, Impersonator, IP-Adresse, die Aktion und eine `details`-Map. Die Map benennt meist Felder, aber manche Einträge halten Werte: die E-Mail des impersonierten Kontos, die E-Mail eines vom Administrator gelöschten Kontos, eine Veröffentlichungsnotiz | Rechenschaft. Siehe [Governance](governance.md#audit) |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Telegram oder Mattermost | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id | Den richtigen Thread fortsetzen |
 | `message_ratings` | Daumen und Kommentare zu Antworten | Der Bewertende und sein Kommentar | Qualitätsprüfung |
+| `ml_service_calls` | Jeder Aufruf der [ML-Dienste](ml-services.md) | Die Organisation, wer gefragt hat, welcher Dienst, Byte- und Einheitenzahlen, die Dauer und wie es endete - **nichts von dem, was eingereicht wurde, und nichts von dem, was zurückkam** | Nutzungsberichte und der Blick eines Betreibers auf eine Integration, die scheitert |
 | `agent_workspaces`, `sandbox_operations` | Dateien, an denen ein Agent gearbeitet hat, und das Log dessen, was er ausgeführt hat | Beim `state`-Backend die Dateien selbst, als JSON; bei einem Container die Session-Id und jedes Kommando, Ziel und Ergebnis-Resümee | Die Sandbox. Siehe [Die Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Zugangsdaten und wohin sie zeigen | Nur versiegelter Chiffretext, mit einem Hinweis; Provider, Model und `base_url` im Klartext | Provider erreichen. Siehe [Secrets](secrets.md) |
 

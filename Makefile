@@ -566,6 +566,36 @@ test-e2e:
 	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
 	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
 
+# The load and resilience suite (NFA-004). Not part of `make check` and never in
+# CI: a load result is a measurement of one machine, and a number produced on a
+# shared runner under whatever else it was doing is worse than no number.
+# `docs/load-testing.md` has the prerequisites and how to read the report.
+LOAD_STUB_PORT ?= 4020
+LOAD_DOCUMENTS ?= 40
+# Where the stub listens, and the address the *API* reaches it on. They differ
+# whenever the API is not on this host: `make dev` runs it in a container, where
+# loopback is the container itself, so that topology needs
+# `LOAD_STUB_BIND=0.0.0.0 LOAD_STUB_URL=http://host.docker.internal:4020`.
+# docs/load-testing.md states both, because seeding the wrong one fails preflight
+# with a message about an empty collection rather than about an address.
+LOAD_STUB_BIND ?= 127.0.0.1
+LOAD_STUB_URL ?= http://127.0.0.1:$(LOAD_STUB_PORT)
+
+load-stub-model:
+	uv run --directory backend python ../loadtest/stub_model.py \
+		--host $(LOAD_STUB_BIND) --port $(LOAD_STUB_PORT)
+
+load-seed:
+	uv run --directory backend python ../loadtest/seed.py \
+		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
+
+# `API_PID` and `DATABASE_URL` are optional; without them the run measures
+# requests and says which probes it could not take.
+load-test:
+	uv run --directory backend python ../loadtest/run.py \
+		$(if $(API_PID),--api-pid $(API_PID),) \
+		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),)
+
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
 # a command advertised as CI that runs less than CI prints "All checks passed"
@@ -859,6 +889,11 @@ help:
 	@echo "  make lint-precommit yamlfmt, zizmor and the pre-commit basics, over every tracked file"
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
+	@echo ""
+	@echo "Load and resilience (NFA-004, never in CI - see docs/load-testing.md):"
+	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
+	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
+	@echo "  make load-test        Offer the workload and print the report"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"

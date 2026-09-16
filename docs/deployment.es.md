@@ -1,5 +1,5 @@
 ---
-source_sha: "545cf7248027"
+source_sha: "b9211ad97ed2"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -74,6 +74,20 @@ existe una imagen y cuándo cambió por última vez; el `?v=` construido a parti
 eso es la única razón por la que aparece un reemplazo. Una URL sería además algo
 que cada cliente tendría que reescribir, porque en cualquier despliegue real la
 API no está en el mismo origen que las páginas.
+
+## Un despliegue dentro de un entorno conforme { #a-deployment-inside-a-compliant-environment }
+
+`deploy/profiles/hipaa/` es una configuración con criterio para ejecutar esto
+donde rigen las salvaguardas técnicas de HIPAA —una superposición de compose que
+se niega a arrancar sin los ajustes que no puede poner por defecto, y un archivo
+env comentado— más `agenticos cmd doctor --profile hipaa`, que comprueba un
+despliegue en marcha contra ella y termina distinto de cero ante cualquier control
+no satisfecho.
+
+Es evidencia, no una certificación, y responde solo a §164.312: las salvaguardas
+administrativas y físicas son de la operadora. Véase
+[El perfil HIPAA](security.md#the-hipaa-profile-and-what-it-does-not-claim) para
+la hoja y para la frase sobre quién es la business associate.
 
 ## Cabeceras de seguridad { #security-headers }
 
