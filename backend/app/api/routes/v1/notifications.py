@@ -38,8 +38,15 @@ async def list_notifications(
 ) -> Any:
     """The caller's own inbox, newest first, gate-filtered (Decision 7)."""
     after = decode_cursor(cursor) if cursor else None
-    rows, strip = await service.list_inbox(ctx, after=after, limit=limit)
-    items = [NotificationRead.from_row(row, strip_context_url=strip[row.id]) for row in rows]
+    rows, gates = await service.list_inbox(ctx, after=after, limit=limit)
+    items = [
+        NotificationRead.from_row(
+            row,
+            strip_context_url=gates[row.id].strip_context_url,
+            summary_override=gates[row.id].summary_override,
+        )
+        for row in rows
+    ]
     next_cursor = encode_cursor(rows[-1].created_at, rows[-1].id) if len(rows) == limit else None
     return NotificationList(items=items, next_cursor=next_cursor)
 
@@ -55,8 +62,12 @@ async def mark_notification_read(
 ) -> Any:
     """Mark one of the caller's own rows read. 404s a row they may not (or may
     no longer) see - the same rule a cross-tenant resource already follows."""
-    notification, strip_context_url = await service.mark_one_read(ctx, notification_id)
-    return NotificationRead.from_row(notification, strip_context_url=strip_context_url)
+    notification, gate = await service.mark_one_read(ctx, notification_id)
+    return NotificationRead.from_row(
+        notification,
+        strip_context_url=gate.strip_context_url,
+        summary_override=gate.summary_override,
+    )
 
 
 @router.post("/notifications/mark-all-read", response_model=MarkAllReadResult)
