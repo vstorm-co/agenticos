@@ -20,20 +20,26 @@ survive a retry without colliding with the attempt before it - nothing in the
 ingestion pipeline persisted either before this (Decision 1).
 
 Revision ID: 0085_notification_center_schema
-Revises: 0084_retention_policies
+Revises: 0085_refresh_reuse
 Create Date: 2026-09-15
 
 Renumbered from 0080 - `main` gained its own, unrelated `0080`-`0084` range
 (#1420's own per-organization retention policies among them) while this stack
 sat stacked and unmerged, so the original number collided with a real file on
-`main` rather than only with an in-memory revision id.
+`main` rather than only with an in-memory revision id. `main` kept moving
+after that first reconciliation too - `0085_refresh_reuse` (#1719) landed
+chained onto the same `0084_retention_policies` this file was, so this is its
+second re-chaining, not its first, and is unlikely to be its last before this
+stack actually merges: whoever next resolves a "multiple heads" failure here
+should re-merge `main` and point `down_revision` at whatever `main`'s head
+is by then, not assume this file already names it.
 
-Chained onto `0084_retention_policies`, `main`'s own head, once `main` was
-actually merged into this stack - both migration chains and the *models*
-`main`'s own migrations pair with are now present together, so `alembic
-check` sees `main`'s tables and columns as declared rather than removed.
-Chaining onto a revision from a different history without its models was
-tried first and reverted for exactly that reason.
+Chained onto `main`'s current head with `main` actually merged into this
+stack - both migration chains and the *models* `main`'s own migrations pair
+with are present together, so `alembic check` sees `main`'s tables and
+columns as declared rather than removed. Chaining onto a revision from a
+different history without its models was tried first and reverted for
+exactly that reason.
 """
 
 from collections.abc import Sequence
@@ -44,7 +50,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0085_notification_center_schema"
-down_revision: str | None = "0084_retention_policies"
+down_revision: str | None = "0085_refresh_reuse"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
