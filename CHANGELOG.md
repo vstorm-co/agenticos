@@ -31,13 +31,35 @@ Two things are versioned separately from this file and worth knowing about:
   renders a loaded skill under the `load_capability` step, with the skill's name as
   the step label. (#1658)
 
-  **`SPEC_VERSION` moves to 12.** A stored binding that gated or renamed
-  `list_skills` or `load_skill` loads with that entry dropped and a warning in the
-  log — publish validation refuses a gate on a tool that does not exist, and a
-  rename of one is not a decision worth carrying forward. Anything the binding said
-  about `read_skill_resource` is left exactly as written.
+  **`SPEC_VERSION` moves to 12.** A stored binding that renamed `list_skills` or
+  `load_skill` loads with that entry dropped and a warning in the log: a rename of
+  a tool that is gone is not a decision worth carrying forward. An *approval* on
+  `load_skill` is, and moves to `load_capability` — the decision was "ask a person
+  before a skill is opened", and that is the call that opens one now; dropping it
+  would have ungated an agent whose publisher gated it deliberately, on every
+  surface including a public embed. Anything the binding said about
+  `read_skill_resource` is left exactly as written.
+
+  **A skill cannot be named after a capability.** Each is filed under its own name
+  in the same namespace as the platform's own, so a skill called `planning` on an
+  agent that also has the planning capability is a duplicate the framework refuses
+  before the first token. Creating one is refused, publishing an agent bound to one
+  is refused, and a binding that renames a tool onto `load_capability` is refused
+  for the same reason.
 
 ### Fixed
+
+- A tool returning a mapping with a key JSON cannot write - a tuple, say - no
+  longer ends the stream. `default=` is consulted for a value and never for a key,
+  so the `TypeError` escaped a fallback that caught `ValueError` only, and took a
+  live turn down over a tool call that had succeeded. (#1658)
+- Reopening a conversation recorded before this change shows its `list_skills` and
+  `load_skill` steps the way it always showed them, rather than raw XML: a stored
+  turn holds the tool name it called, so the renderers are kept in a legacy table
+  the drift check does not read. A completed `load_capability` whose result is not
+  a loaded skill - the framework's retry notice for an unknown capability - now
+  shows that notice instead of rendering nothing under a step that looks like a
+  success. (#1658)
 
 - **A tool that answers with a structure is recorded as JSON, not as a Python
   repr.** `str({'instructions': ...})` reaches the browser quoted `'like this'`,

@@ -63,6 +63,8 @@ export type ToolRenderer =
   | "rag"
   | "run-python"
   | "loaded-skill"
+  | "load-skill"
+  | "skill-list"
   | "context-list"
   | "plan"
   | "workspace"
@@ -425,9 +427,37 @@ export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
   },
 };
 
+/**
+ * Tools no agent emits any more, kept for the conversations that recorded them.
+ *
+ * A stored turn holds the tool name it actually called and the result it actually
+ * got, so removing an entry here does not remove the call - it removes the only
+ * thing that knew how to draw it, and an old thread reopens showing raw XML where
+ * it used to show a skill's description (#1704 review).
+ *
+ * Out of `TOOL_CATALOG` on purpose, like `FRAMEWORK_TOOLS`: the drift check
+ * against the backend registry is a statement about what this deployment offers
+ * *now*, and a legacy renderer must not make it pass by naming a tool nobody
+ * registers.
+ */
+export const LEGACY_TOOLS: Record<string, ToolEntry> = {
+  list_skills: {
+    kind: "skill",
+    render: "skill-list",
+    captionKey: "lookingThroughSkills",
+    displayNameKey: "availableSkills",
+  },
+  load_skill: {
+    kind: "skill",
+    render: "load-skill",
+    captionKey: "loadingSkill",
+    displayNameKey: "loadSkill",
+  },
+};
+
 /** What this side knows about `name`, or null for a tool it has never heard of. */
 export function toolEntry(name: string): ToolEntry | null {
-  return TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? null;
+  return TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null;
 }
 
 /**

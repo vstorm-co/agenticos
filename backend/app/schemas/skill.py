@@ -3,8 +3,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
+from app.agents.capabilities import all_capabilities
 from app.schemas.base import BaseSchema
 
 
@@ -114,6 +115,26 @@ class SkillCreate(BaseSchema):
         max_length=64,
         description="How the model refers to this skill; unique per organization",
     )
+
+    @field_validator("name")
+    @classmethod
+    def _not_a_capability_name(cls, name: str) -> str:
+        """Refuse a name the platform's own capabilities already answer to.
+
+        A skill is a deferred capability, filed under its name in the same
+        namespace as `knowledge`, `planning` and the rest - so a skill called
+        `planning` bound to an agent that also has the planning capability is a
+        duplicate id the library refuses before the first token. Caught here so
+        it cannot be created, and again at publish for the skills that predate
+        this (#1704 review).
+        """
+        if name in {definition.id for definition in all_capabilities()}:
+            raise ValueError(
+                f"'{name}' is the name of a capability this platform offers, and a skill "
+                "is a capability too - pick another name"
+            )
+        return name
+
     description: str = Field(
         min_length=1,
         max_length=500,

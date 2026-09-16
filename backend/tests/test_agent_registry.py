@@ -1552,6 +1552,28 @@ class TestSkillValidation:
         assert problems == [f"Skill not found: {skill_id}"]
 
     @pytest.mark.anyio
+    async def test_a_skill_named_after_a_capability_is_refused(self):
+        """Each skill is a deferred capability filed under its own name, in the
+        same namespace as the platform's own - so a skill called `planning` on an
+        agent that also has the planning capability is a duplicate id Pydantic AI
+        refuses before the first token. The agent would publish and never run
+        (#1704 review)."""
+        ctx = _ctx()
+        clashing = _skill(ctx)
+        clashing.name = "planning"
+
+        problems = await self._problems(
+            ctx,
+            _spec(skill_ids=[clashing.id], model_profile_id=uuid.uuid4()),
+            return_value={clashing.id: clashing},
+        )
+
+        assert problems == [
+            "Skill 'planning' has the name of a capability this platform offers, "
+            "and each skill is a capability now - rename the skill"
+        ]
+
+    @pytest.mark.anyio
     async def test_a_private_skill_the_publisher_cannot_reach_is_not_found(self):
         """The leak this check closes, reported as an absence.
 

@@ -122,7 +122,10 @@ def tool_result_text(content: Any) -> str:
         return content
     try:
         return json.dumps(content, ensure_ascii=False, default=str)
-    except ValueError:
+    except (TypeError, ValueError):
+        # `default=` is consulted for a *value* json cannot write and never for a
+        # key, so a mapping keyed by a tuple raises `TypeError` and escaped this
+        # fallback - taking the stream down on a tool call that had succeeded.
         return str(content)
 
 

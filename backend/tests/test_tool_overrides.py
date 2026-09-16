@@ -522,8 +522,11 @@ class TestSkillsAreDeferredCapabilities:
 class TestSpecVersion12WithdrewTwoSkillsTools:
     """`list_skills` and `load_skill` stopped being tools when skills became capabilities."""
 
-    def test_a_stored_gate_on_a_withdrawn_tool_is_dropped(self):
-        """Publish refuses a gate on a tool that does not exist; the spec still loads."""
+    def test_a_gate_on_loading_a_skill_moves_to_the_tool_that_loads_one(self):
+        """The decision was "ask a person before a skill is opened", and
+        `load_capability` opens one now. Dropping it ungated an agent whose
+        publisher had deliberately gated it - on a public embed, an anonymous
+        prompt could then have a private skill loaded on demand (#1704 review)."""
         spec = AgentSpec.model_validate(
             {
                 "spec_version": 11,
@@ -540,7 +543,10 @@ class TestSpecVersion12WithdrewTwoSkillsTools:
             }
         )
 
-        assert spec.capabilities[0].tool_approval == {"read_skill_resource": "never"}
+        assert spec.capabilities[0].tool_approval == {
+            "read_skill_resource": "never",
+            "load_capability": "required",
+        }
 
     def test_a_stored_rename_of_a_withdrawn_tool_is_dropped(self):
         spec = AgentSpec.model_validate(

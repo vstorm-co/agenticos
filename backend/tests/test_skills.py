@@ -507,6 +507,21 @@ class TestSkillManagement:
         assert list_visible.call_args.kwargs["categories"] == ["devops", "data"]
         assert list_visible.call_args.kwargs["sort"] == "updated"
 
+    def test_a_skill_cannot_take_the_name_of_a_capability(self):
+        """A skill is a deferred capability, filed under its name in the same
+        namespace as `planning` and the rest - so this name could be created and
+        then made any agent that also had that capability unrunnable, refused by
+        the library before the first token (#1704 review)."""
+        import pytest as _pytest
+        from pydantic import ValidationError
+
+        from app.schemas.skill import SkillCreate
+
+        with _pytest.raises(ValidationError):
+            SkillCreate(name="planning", description="d")
+
+        assert SkillCreate(name="refunds", description="d").name == "refunds"
+
     def test_every_suggested_category_is_storable(self):
         """The pickers offer these before an organization invents its own; a
         suggestion the create endpoint would then refuse is a trap, so each one

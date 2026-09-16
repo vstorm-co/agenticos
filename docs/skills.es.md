@@ -1,5 +1,5 @@
 ---
-source_sha: "28f925213bbe"
+source_sha: "56976ecc2c20"
 ---
 
 # Skills { #skills }
@@ -99,12 +99,22 @@ modelo con su nombre y su descripción y abierta cuando hace falta:
 | `read_skill_resource` | Un archivo al lado de un skill |
 
 `load_capability` es la herramienta del propio framework de agents, no una que
-publique esta plataforma, así que un spec no la concede, ni la controla, ni la
-renombra. Lo que la capability aporta como herramienta es `read_skill_resource`, y
-solo cuando al menos uno de los skills vinculados trae un archivo que leer.
+publique esta plataforma, así que un spec no la concede ni la renombra. Sí puede
+**controlarla**, porque es la llamada que abre un skill: `tool_approval` sobre ella
+es como un agent pregunta a una persona antes de que un skill llegue al modelo, y un
+spec que controlaba el antiguo `load_skill` se migra a ella en lugar de quedarse sin
+control. Lo que la capability aporta como herramienta propia es
+`read_skill_resource`, y solo cuando al menos uno de los skills vinculados trae un
+archivo que leer.
 
 Un spec vincula skills por id en `skill_ids`, así que un agent ve los que se le
 dieron y nada más.
+
+**Un skill no puede llamarse como una capability.** Cada uno se archiva bajo su
+propio nombre en el mismo espacio que `knowledge`, `planning` y los demás, así que
+un skill llamado `planning` en un agent que también tiene la capability de planning
+es un duplicado que el framework rechaza antes del primer token. Crearlo se rechaza,
+y publicar un agent vinculado a un skill con ese nombre, también.
 
 Habilitar la capability sin ningún skill vinculado no sirve de nada — dale skills
 al agent, o deja la capability apagada.

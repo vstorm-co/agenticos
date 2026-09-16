@@ -39,7 +39,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.agents.capabilities import CapabilityBinding, ToolOverride
+from app.agents.capabilities import LOAD_CAPABILITY, CapabilityBinding, ToolOverride
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,8 @@ _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
 _THINKING_CAPABILITY = "thinking"
 _SKILLS_CAPABILITY = "skills"
-_WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", "load_skill"})
+_LOAD_SKILL = "load_skill"
+_WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
 _THINKING_SETTING = "thinking"
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
@@ -229,15 +230,24 @@ class CapabilityBindingSpec(BaseModel):
             withdrawn = _WITHDRAWN_SKILL_TOOLS & stated.keys()
             if not withdrawn:
                 continue
+            kept = {tool_id: value for tool_id, value in stated.items() if tool_id not in withdrawn}
+            # `load_skill`'s *approval* is not a name for a withdrawn mechanism,
+            # it is a decision about whether a person sees a skill being opened
+            # before it is - and `load_capability` opens one now. Dropping it
+            # ungated an agent whose publisher had deliberately gated it, on
+            # every surface including a public embed (#1704 review). The
+            # override is a different matter: it renames a tool that is gone.
+            carried = stated.get(_LOAD_SKILL)
+            if key == "tool_approval" and carried is not None:
+                kept.setdefault(LOAD_CAPABILITY, carried)
             logger.warning(
-                "Dropping `%s` for skills tools this spec version no longer exposes: %s. "
-                "A skill is loaded with `load_capability` now, which needs no gate of its own.",
+                "Migrating `%s` for skills tools this spec version no longer exposes: %s. "
+                "A skill is opened with `load_capability` now, which is what its approval "
+                "moves to.",
                 key,
                 ", ".join(sorted(withdrawn)),
             )
-            migrated[key] = {
-                tool_id: value for tool_id, value in stated.items() if tool_id not in withdrawn
-            }
+            migrated[key] = kept
         return migrated
 
     def to_binding(self) -> CapabilityBinding:

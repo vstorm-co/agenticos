@@ -1,5 +1,5 @@
 ---
-source_sha: "28f925213bbe"
+source_sha: "56976ecc2c20"
 ---
 
 # Skills { #skills }
@@ -99,12 +99,23 @@ Beschreibung aufgelistet und bei Bedarf geöffnet:
 | `read_skill_resource` | Eine Datei neben einem Skill |
 
 `load_capability` ist das Tool des Agent-Frameworks selbst und keines, das diese
-Plattform veröffentlicht — ein Spec kann es also weder gewähren noch absichern noch
-umbenennen. Als Tool steuert die Capability `read_skill_resource` bei, und das auch
-nur, wenn mindestens einer der gebundenen Skills eine Datei zum Lesen mitbringt.
+Plattform veröffentlicht — ein Spec kann es also weder gewähren noch umbenennen.
+**Absichern** kann es das sehr wohl, denn dieser Aufruf öffnet einen Skill:
+`tool_approval` darauf ist, wie ein Agent einen Menschen fragt, bevor ein Skill das
+Modell erreicht, und ein Spec, der das frühere `load_skill` abgesichert hatte, wird
+darauf migriert statt ungesichert zu bleiben. Als eigenes Tool steuert die
+Capability `read_skill_resource` bei, und das auch nur, wenn mindestens einer der
+gebundenen Skills eine Datei zum Lesen mitbringt.
 
 Ein Spec bindet Skills über ihre Id in `skill_ids`, sodass ein Agent genau die
 sieht, die ihm gegeben wurden, und sonst nichts.
+
+**Ein Skill darf nicht heißen wie eine Capability.** Jeder liegt unter seinem
+eigenen Namen im selben Namensraum wie `knowledge`, `planning` und der Rest - ein
+Skill namens `planning` auf einem Agent, der auch die Planning-Capability hat, ist
+also ein Duplikat, das das Framework vor dem ersten Token ablehnt. Einen solchen
+anzulegen wird abgewiesen, und einen Agent zu veröffentlichen, der an einen so
+benannten Skill gebunden ist, ebenfalls.
 
 Die Capability ohne gebundene Skills zu aktivieren ist nutzlos — geben Sie dem
 Agent Skills, oder lassen Sie die Capability aus.

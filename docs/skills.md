@@ -91,12 +91,21 @@ name and description and opened on demand:
 | `read_skill_resource` | One file beside a skill |
 
 `load_capability` is the agent framework's own tool, not one this platform
-publishes, so it is not something a spec grants, gates or renames. What the
-capability contributes as a tool is `read_skill_resource`, and only when at least
+publishes, so it is not something a spec grants or renames — but it **can** be
+gated, because it is the call that opens a skill: `tool_approval` on it is how an
+agent asks a person before a skill reaches the model, and a spec that gated the
+old `load_skill` is migrated onto it rather than left ungated. What the capability
+contributes as a tool of its own is `read_skill_resource`, and only when at least
 one of the bound skills ships a file to read.
 
 A spec binds skills by id in `skill_ids`, so an agent sees the ones it was given
 and nothing else.
+
+**A skill cannot be named after a capability.** Each one is filed under its own
+name in the same namespace as `knowledge`, `planning` and the rest, so a skill
+called `planning` on an agent that also has the planning capability is a duplicate
+the framework refuses before the first token. Creating one is refused, and so is
+publishing an agent bound to a skill named that way.
 
 Enabling the capability with no skills bound is not useful — give the agent skills,
 or leave the capability off.

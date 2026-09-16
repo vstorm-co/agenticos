@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText } from "lucide-react";
+import { BookOpen, FileText } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 /**
@@ -13,7 +13,9 @@ import { useTranslations } from "next-intl";
  * is right there in the result.
  *
  * Skills had a list of their own until they became deferred capabilities: the model
- * reads them in its capability catalog now, and there is no call to render.
+ * reads them in its capability catalog now, so nothing emits `list_skills` - but a
+ * conversation recorded before the change still holds one, and its renderer is kept
+ * here for exactly that.
  */
 
 interface Entry {
@@ -32,21 +34,66 @@ export function parseContextList(result: string): Entry[] | null {
   return entries.length > 0 ? entries : null;
 }
 
+/**
+ * `list_skills` answered with a mapping of name to description.
+ *
+ * Nothing emits it any more - the model reads its capability catalog instead -
+ * but a conversation recorded before the change holds the call and its result,
+ * and rendering those through the generic view was a visible loss for threads
+ * nobody had touched (#1704 review).
+ */
+export function parseSkillList(result: unknown): Entry[] | null {
+  const value = typeof result === "string" ? tryParse(result) : result;
+  if (!isRecord(value)) return null;
+  const entries = Object.entries(value).map(([name, description]) => ({
+    name,
+    description: typeof description === "string" && description !== "" ? description : null,
+  }));
+  return entries.length > 0 ? entries : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function tryParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 /** The context files this agent can read on demand. */
 export function ContextListResult({ resultText }: { resultText: string }) {
   const t = useTranslations("chat.tools");
-  return <EntryList entries={parseContextList(resultText)} empty={t("noContext")} />;
+  return <EntryList entries={parseContextList(resultText)} kind="context" empty={t("noContext")} />;
 }
 
-function EntryList({ entries, empty }: { entries: Entry[] | null; empty: string }) {
+/** The skills a thread recorded before they became deferred capabilities. */
+export function SkillListResult({ result }: { result: unknown }) {
+  const t = useTranslations("chat.tools");
+  return <EntryList entries={parseSkillList(result)} kind="skill" empty={t("noSkills")} />;
+}
+
+function EntryList({
+  entries,
+  kind,
+  empty,
+}: {
+  entries: Entry[] | null;
+  kind: "context" | "skill";
+  empty: string;
+}) {
   if (entries === null) {
     return <p className="text-muted-foreground py-2 text-xs italic">{empty}</p>;
   }
+  const Icon = kind === "context" ? FileText : BookOpen;
   return (
     <ul className="max-h-72 scrollbar-thin space-y-1.5 overflow-y-auto py-1">
       {entries.map((entry) => (
         <li key={entry.name} className="flex items-start gap-2.5">
-          <FileText className="text-muted-foreground/70 mt-[3px] h-3.5 w-3.5 shrink-0" />
+          <Icon className="text-muted-foreground/70 mt-[3px] h-3.5 w-3.5 shrink-0" />
           <span className="min-w-0">
             <span className="text-foreground font-mono text-[12.5px]">{entry.name}</span>
             {entry.description !== null && (

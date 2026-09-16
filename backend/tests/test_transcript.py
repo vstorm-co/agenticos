@@ -179,6 +179,19 @@ class TestReadingToolCallsOffARun:
 
         assert calls[0].result is not None
 
+    def test_a_key_json_cannot_write_is_still_recorded(self):
+        """`default=` is consulted for a value and never for a key, so a mapping
+        keyed by a tuple raised `TypeError` past the fallback - and this helper
+        runs in live streaming too, so a tool call that had *succeeded* took the
+        stream down with it (#1704 review)."""
+        keyed_oddly = {("a", "b"): "value"}
+
+        calls = tool_calls_in(
+            [_called("odd", "c1"), _returned("odd", "c1", keyed_oddly)]  # type: ignore[arg-type]
+        )
+
+        assert calls[0].result == str(keyed_oddly)
+
     def test_a_call_that_never_came_back_has_no_result(self):
         """The run parked on it, was stopped, or broke. `None` is not the empty
         string: a client draws "waiting" for one and "returned nothing" for the

@@ -215,6 +215,11 @@ class TestToolDeclarations:
 
     DECLARED_AND_NOT_OFFERED: dict[str, frozenset[str]] = {
         "subagents": frozenset({"answer_subagent"}),
+        # Pydantic AI contributes `load_capability` to any run carrying a
+        # deferred capability, and every skill is one. `skills` declares it
+        # because it is the call that opens a skill and therefore the only place
+        # an approval on loading one can sit - nothing here builds it (#1704).
+        "skills": frozenset({"load_capability"}),
     }
     """Tools a capability declares and deliberately offers no model.
 
@@ -800,9 +805,16 @@ def _frontend_tool_ids() -> frozenset[str]:
     prettier keeps the object's own keys at two spaces of indentation.
     """
     source = CATALOG_PATH.read_text(encoding="utf-8")
-    start = source.index("export const TOOL_CATALOG")
-    body = source[source.index("{", start) : source.index("\n};", start)]
-    return frozenset(re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE))
+    ids: set[str] = set()
+    # `FRAMEWORK_TOOLS` is a table of its own because Pydantic AI, not a
+    # capability, contributes those tools - but `skills` declares
+    # `load_capability` so that an approval can sit on the call that opens a
+    # skill, so the two tables together are what the chat can draw.
+    for name in ("TOOL_CATALOG", "FRAMEWORK_TOOLS"):
+        start = source.index(f"export const {name}")
+        body = source[source.index("{", start) : source.index("\n};", start)]
+        ids |= set(re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE))
+    return frozenset(ids)
 
 
 class TestFrontendToolCatalog:

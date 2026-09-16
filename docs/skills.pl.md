@@ -1,5 +1,5 @@
 ---
-source_sha: "28f925213bbe"
+source_sha: "56976ecc2c20"
 ---
 
 # Skille { #skills }
@@ -97,12 +97,21 @@ a otwieraną na żądanie:
 | `read_skill_resource` | Jeden plik obok skilla |
 
 `load_capability` jest narzędziem samego frameworka agentowego, a nie czymś, co
-publikuje ta platforma — spec go więc nie przyznaje, nie bramkuje i nie zmienia mu
-nazwy. Jako narzędzie ta capability wnosi `read_skill_resource`, i tylko wtedy, gdy
+publikuje ta platforma — spec go więc nie przyznaje i nie zmienia mu nazwy. Może go
+natomiast **bramkować**, bo to wywołanie otwiera skilla: `tool_approval` na nim jest
+sposobem, w jaki agent pyta człowieka, zanim skill trafi do modelu, a spec, który
+bramkował dawne `load_skill`, jest na nie migrowany, zamiast zostać bez bramki. Jako
+własne narzędzie ta capability wnosi `read_skill_resource`, i tylko wtedy, gdy
 przynajmniej jeden z podpiętych skilli wiezie ze sobą plik do odczytania.
 
 Spec podpina skille po id w `skill_ids`, więc agent widzi te, które dostał, i nic
 poza tym.
+
+**Skill nie może nazywać się tak jak capability.** Każdy jest zapisany pod własną
+nazwą w tej samej przestrzeni co `knowledge`, `planning` i reszta, więc skill o
+nazwie `planning` na agencie, który ma też capability planning, to duplikat, który
+framework odrzuca przed pierwszym tokenem. Utworzenie takiego jest odrzucane, tak
+samo jak publikacja agenta podpiętego do skilla o takiej nazwie.
 
 Włączenie capability bez podpiętych skilli nie ma sensu — albo daj agentowi
 skille, albo zostaw capability wyłączoną.

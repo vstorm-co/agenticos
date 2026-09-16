@@ -4,11 +4,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import { GenericToolResult, RawToolView } from "./generic";
 import { RunPythonResult } from "./run-python";
-import { LoadedSkillResult, formatSkillName, parseLoadedSkill } from "./skills";
+import {
+  LoadSkillResult,
+  LoadedSkillResult,
+  formatSkillName,
+  parseLoadSkillResult,
+  parseLoadedSkill,
+} from "./skills";
 import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
-import { ContextListResult, parseContextList } from "./catalogs";
+import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
 import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
 
@@ -498,10 +504,18 @@ describe("loading a skill", () => {
     expect(parseLoadedSkill({ instructions: "# Skill: refunds\n" })).toBeNull();
   });
 
-  it("renders nothing when there is no body to show", () => {
-    const { container } = render(<LoadedSkillResult result={{}} status="completed" />);
+  it("shows a completed result it could not read rather than nothing", () => {
+    // The framework answers an unknown capability id with a retry notice, which
+    // the socket records as `completed` like any other result - so rendering
+    // nothing made a refusal look like a success (#1704 review).
+    render(
+      <LoadedSkillResult
+        result={"Unknown capability 'refnds'. Available: refunds"}
+        status="completed"
+      />,
+    );
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText(/Unknown capability/)).toBeInTheDocument();
   });
 
   it("says it is loading, and says when it failed", () => {
@@ -693,6 +707,76 @@ describe("the catalogs a step looked through", () => {
 
     expect(screen.getByText("glossary")).toBeInTheDocument();
     expect(screen.getByText("What the acronyms mean.")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The two renderers nothing emits any more.
+ *
+ * A stored conversation holds the tool name it called and the result it got, so
+ * these keep an old thread looking the way it looked the day it ran rather than
+ * degrading to raw XML the next time somebody opens it (#1704 review).
+ */
+describe("a thread recorded before skills were capabilities", () => {
+  it("shows the description and not the XML it arrived in", () => {
+    render(
+      <LoadSkillResult
+        resultText={
+          "<skill><name>refunds</name><description>How refunds work.</description></skill>"
+        }
+        status="completed"
+      />,
+    );
+
+    expect(screen.getByText("How refunds work.")).toBeInTheDocument();
+    expect(screen.queryByText(/<skill>/)).toBeNull();
+  });
+
+  it("finds nothing in a result with no description", () => {
+    expect(parseLoadSkillResult("<skill><name>refunds</name></skill>")).toBeNull();
+    expect(parseLoadSkillResult("<description></description>")).toBeNull();
+    expect(parseLoadSkillResult("<description>\n  Line one.\n  Line two.\n</description>")).toEqual(
+      {
+        description: "Line one.\n  Line two.",
+      },
+    );
+  });
+
+  it("renders nothing when there is no description to show", () => {
+    const { container } = render(<LoadSkillResult resultText="<skill/>" status="completed" />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("says it is loading, and says when it failed", () => {
+    const { rerender } = render(<LoadSkillResult resultText="" status="running" />);
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+
+    rerender(<LoadSkillResult resultText="" status="error" />);
+    expect(screen.getByText("Failed to load skill.")).toBeInTheDocument();
+  });
+
+  it("reads the skills mapping whether it arrived as an object or as its JSON", () => {
+    const expected = [{ name: "refunds", description: "How refunds work." }];
+
+    expect(parseSkillList({ refunds: "How refunds work." })).toEqual(expected);
+    expect(parseSkillList(JSON.stringify({ refunds: "How refunds work." }))).toEqual(expected);
+    expect(parseSkillList({ refunds: "" })).toEqual([{ name: "refunds", description: null }]);
+  });
+
+  it("treats anything that is not a mapping as no list", () => {
+    expect(parseSkillList("the tool failed")).toBeNull();
+    expect(parseSkillList({})).toBeNull();
+    expect(parseSkillList([{ name: "refunds" }])).toBeNull();
+  });
+
+  it("draws the skill list it was given, and says so when it was empty", () => {
+    const { rerender } = render(<SkillListResult result={{ refunds: "How refunds work." }} />);
+    expect(screen.getByText("refunds")).toBeInTheDocument();
+    expect(screen.getByText("How refunds work.")).toBeInTheDocument();
+
+    rerender(<SkillListResult result={{}} />);
+    expect(screen.getByText("No skills are attached to this agent.")).toBeInTheDocument();
   });
 });
 
