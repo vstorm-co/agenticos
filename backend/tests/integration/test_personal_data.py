@@ -416,7 +416,6 @@ class TestWhatDeletionRemoves:
         run recreating what the purge had just removed."""
         user = await _person(db, "purge-race@example.com")
         user_id = user.id
-        organization, agent = await _org_and_agent(db)
         await user_repo.delete(db, user_id)
         await db.flush()
 
