@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from starlette.responses import Response
 
 from app.api.deps import get_redis, get_session_service
 from app.core.config import settings
@@ -161,3 +162,145 @@ async def test_a_failed_code_issue_leaves_no_session_row(
     assert redirect.status_code == 307
     assert "error=" in redirect.headers["location"]
     session_service.create_session.assert_not_awaited()
+
+
+async def test_a_desktop_sign_in_returns_through_the_deep_link(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Google's authorization endpoint refuses an embedded user-agent, so the
+    shell hands the flow to the system browser - and the browser that finishes it
+    is not the one the app is in. The result crosses back by a scheme the
+    operating system routes (#1532)."""
+    app.dependency_overrides[get_redis] = _FakeRedis
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    started = AsyncMock(return_value=Response(status_code=302))
+    monkeypatch.setattr(oauth.google, "authorize_redirect", started)
+
+    # One client, so the session cookie the login sets is the one the callback reads.
+    await client.get(f"{settings.API_V1_STR}/oauth/google/login?client=desktop&desktop_nonce=n0nce")
+    # The marker is filed under the state this attempt was started with, so the
+    # callback has to carry it back - which is what the provider does.
+    state = started.await_args.kwargs["state"]
+    redirect = await client.get(f"{_CALLBACK}?state={state}")
+
+    assert redirect.status_code == 307
+    location = redirect.headers["location"]
+    assert location.startswith("agenticos://auth/callback?code=")
+    # And the shell's own nonce rides back, so it can refuse a deep link it did
+    # not ask for - any local process can invoke a custom scheme.
+    assert "desktop_nonce=n0nce" in location
+
+
+async def test_a_second_sign_in_does_not_steal_the_first_ones_destination(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One browser can hold two sign-ins at once, and they must not trade places.
+
+    A desktop start followed by an ordinary one used to erase the desktop marker,
+    or have the first callback consume it - so a result went to the wrong client
+    although both attempts held a valid, separate state (#1532).
+    """
+    app.dependency_overrides[get_redis] = _FakeRedis
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    started = AsyncMock(return_value=Response(status_code=302))
+    monkeypatch.setattr(oauth.google, "authorize_redirect", started)
+
+    await client.get(f"{settings.API_V1_STR}/oauth/google/login?client=desktop&desktop_nonce=n0nce")
+    desktop_state = started.await_args.kwargs["state"]
+    await client.get(f"{settings.API_V1_STR}/oauth/google/login")
+    browser_state = started.await_args.kwargs["state"]
+
+    # The browser's own callback goes to the console, and does not consume the
+    # desktop's marker on the way past.
+    browser = await client.get(f"{_CALLBACK}?state={browser_state}")
+    assert browser.headers["location"].startswith(settings.FRONTEND_URL.rstrip("/"))
+
+    desktop = await client.get(f"{_CALLBACK}?state={desktop_state}")
+    assert desktop.headers["location"].startswith("agenticos://auth/callback?code=")
+
+
+async def test_a_callback_with_no_state_goes_to_the_console(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The console is the safe default: a deep link is the narrower destination
+    and must be earned by an attempt that asked for one."""
+    app.dependency_overrides[get_redis] = _FakeRedis
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        oauth.google, "authorize_redirect", AsyncMock(return_value=Response(status_code=302))
+    )
+
+    await client.get(f"{settings.API_V1_STR}/oauth/google/login?client=desktop")
+    redirect = await client.get(_CALLBACK)
+
+    assert redirect.headers["location"].startswith(settings.FRONTEND_URL.rstrip("/"))
+
+
+async def test_an_ordinary_sign_in_still_returns_to_the_console(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app.dependency_overrides[get_redis] = _FakeRedis
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+
+    redirect = await client.get(_CALLBACK)
+
+    assert redirect.headers["location"].startswith(settings.FRONTEND_URL.rstrip("/"))
+
+
+async def test_the_return_scheme_is_the_deployments_not_the_callers(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The callback builds a redirect out of it, so a scheme a caller could hand
+    it on the way back would be an open redirect into whatever URL handler that
+    machine has registered."""
+    app.dependency_overrides[get_redis] = _FakeRedis
+    monkeypatch.setattr(
+        oauth.google,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": {"sub": "s", "email": "u@e.com", "name": "U"}}),
+    )
+    monkeypatch.setattr(
+        UserService,
+        "get_or_create_oauth_user",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+
+    redirect = await client.get(f"{_CALLBACK}?client=desktop&scheme=evil")
+
+    assert redirect.headers["location"].startswith(settings.FRONTEND_URL.rstrip("/"))

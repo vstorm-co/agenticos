@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2926284b34"
+source_sha: "64e1d5a17218"
 ---
 
 # Architektur { #architecture }
@@ -955,8 +955,10 @@ durchgearbeitetes Beispiel.
 - **Routes → Services → Repositories.** Eine Route importiert nie ein Repository.
 - Ein Repository nutzt `db.flush()` und `db.refresh()`, **nie** `db.commit()`. Die
   Session der Anfrage committet einmal, bevor die Antwort geschrieben wird.
-- Der Pfad eines Agent-Runs ist die eine erlaubte Ausnahme: Er committet vor dem
-  Modellaufruf und erneut im abschließenden `finally`.
+- Der Pfad eines Agent-Runs ist die wichtigste erlaubte Ausnahme: Er committet vor
+  dem Modellaufruf und erneut im abschließenden `finally`. `MLService._record_failure`
+  ist die andere, aus dem spiegelbildlichen Grund — ein Nutzungsdatensatz über eine
+  *Ablehnung* muss das Rollback überleben, das diese Ablehnung auslöst.
 - Hintergrundarbeit, die eine Zeile liest, die diese Anfrage geschrieben hat, wird
   mit **`spawn_after_commit`** übergeben, nie mit `spawn`.
 - Eine dünne Domäne ist ein Modul; eine dicke ist ein Subpackage mit einer Fassade,
