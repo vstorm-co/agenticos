@@ -781,23 +781,32 @@ async def _notify_sync_start_failure(
     will ever exist for this sync" reasoning the doc gives for hooking the
     first one. Both get the same treatment here.
 
-    Keyed on `(source_id, started_at)` rather than a sync log id, because the
-    scheduler's own dispatch reaches here with no `sync_log_id` at all -
-    Decision 1's "whichever the firing call site actually has".
+    Keyed on `(log.id, log.started_at)` when a log is available, the same
+    stable pair the budget-exceeded branch below keys on - `complete_sync`
+    fetches the row this call already has an id for, so there is no reason to
+    prefer the fresh `started_at` this call was handed instead. Falls back to
+    `(source_id, started_at)` only when there is no log to read one off: the
+    scheduler's own dispatch reaches here with no `sync_log_id` at all
+    (Decision 1's "whichever the firing call site actually has"), and that
+    fallback pair is what a manual-trigger retry with a lost log id would
+    otherwise fall back to as well.
     """
     from app.services.rag_sync import RAGSyncService
 
     initiator_user_id = None
+    occurrence_id = f"{source.id}:{started_at.isoformat()}"
     if sync_log_id:
         log = await RAGSyncService(db).complete_sync(
             sync_log_id, status="error", error_message=message
         )
-        initiator_user_id = log.triggered_by_user_id if log else None
+        if log is not None:
+            initiator_user_id = log.triggered_by_user_id
+            occurrence_id = f"{log.id}:{log.started_at.isoformat()}"
     kb = await _knowledge_base_for(db, source.collection_name, source.organization_id)
     await NotificationService(db).sync_failed(
         organization_id=source.organization_id,
         initiator_user_id=initiator_user_id,
-        occurrence_id=f"{source.id}:{started_at.isoformat()}",
+        occurrence_id=occurrence_id,
         collection_name=source.collection_name or source.name,
         collection_id=kb.id if kb else None,
         error=message,
@@ -940,6 +949,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 
             with tempfile.TemporaryDirectory() as tmp_dir:
                 for remote_file in files:
+                    row_id: str | None = None
                     try:
                         # `sync_mode` used to reach one argument here and nothing
                         # else, so a scheduled source re-embedded every file every
@@ -1025,6 +1035,18 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                     except Exception as e:
                         logger.warning("Failed to sync %s: %s", remote_file.name, e)
                         failed += 1
+                        if row_id is not None:
+                            # A row `_open_document_row` already opened, left
+                            # `PROCESSING` for ever with no per-file
+                            # `INGESTION_FAILED` if `ingest_file` (or anything
+                            # after the open) raised rather than returned a
+                            # failure `IngestionResult` - `_settle_document_row`
+                            # is what this same loop's success path already
+                            # calls for exactly that settlement.
+                            await _settle_document_row(
+                                row_id,
+                                IngestionResult(status=IngestionStatus.ERROR, error_message=str(e)),
+                            )
         except Exception as e:
             logger.error("Source sync failed for %s: %s", source_id, e)
             failed = max(failed, 1)
