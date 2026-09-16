@@ -131,11 +131,14 @@ class NotificationCenterService:
 
         `use_savepoint=True` is for a caller whose own transaction cannot
         afford to be poisoned by a failure here - `AgentRunnerService.finish`
-        is exactly such a context (Decision 2). A failure inside the savepoint
-        rolls back to it and is logged as `notification_write_failed`; the
-        caller's transaction proceeds and commits normally. Without it, a
-        failure propagates to the caller, which is correct for a context built
-        around this write succeeding.
+        is exactly such a context (Decision 2). Nested per recipient, not once
+        around the whole fan-out: a failure for one recipient (a deleted
+        account, an FK violation) rolls back to that recipient's own
+        savepoint and is logged as `notification_write_failed`, but does not
+        discard rows already written for the recipients before it - the
+        caller's transaction proceeds and commits normally either way.
+        Without it, a failure propagates to the caller, which is correct for
+        a context built around this write succeeding.
         """
         mandatory = is_mandatory(event_type)
         if mandatory:
@@ -167,26 +170,9 @@ class NotificationCenterService:
             "organization_id": organization_id,
             "announcement_id": announcement_id,
             "mandatory": mandatory,
+            "use_savepoint": use_savepoint,
         }
-        if not use_savepoint:
-            return await self._write_rows(**kwargs)
-        try:
-            async with self.db.begin_nested():
-                return await self._write_rows(**kwargs)
-        except Exception:  # pragma: no cover
-            # Directly verified (a forced FK violation logs exactly this and
-            # returns `[]`, checked with a spy on `logger.exception`) - not a
-            # gap in the test, a gap in the tool. `coverage.py`'s tracer loses
-            # this frame across the greenlet boundary SQLAlchemy's asyncpg
-            # bridge switches through to unwind an exception raised inside
-            # `begin_nested()`, the same class of trace loss `_write_rows`'s
-            # own successful path does not hit, since nothing there crosses a
-            # greenlet switch while unwinding.
-            logger.exception(
-                "notification_write_failed",
-                extra={"event_type": event_type.value, "occurrence_id": occurrence_id},
-            )
-            return []
+        return await self._write_rows(**kwargs)
 
     async def _write_rows(
         self,
@@ -200,37 +186,107 @@ class NotificationCenterService:
         organization_id: uuid.UUID | None,
         announcement_id: uuid.UUID | None,
         mandatory: bool,
+        use_savepoint: bool,
     ) -> list[Notification]:
         written: list[Notification] = []
         for recipient_id in recipients:
-            in_app_visible = mandatory or await self._channel_enabled(
-                recipient_id, event_type, NotificationChannel.IN_APP
-            )
-            notification = Notification(
-                id=uuid.uuid4(),
-                organization_id=organization_id,
-                recipient_user_id=recipient_id,
-                event_type=event_type.value,
-                occurrence_id=occurrence_id,
-                summary=summary,
-                context_url=context_url,
-                render_context=render_context,
-                in_app_visible=in_app_visible,
-                announcement_id=announcement_id,
-            )
-            inserted = await notification_repo.insert_notification_if_new(self.db, notification)
-            if not inserted:
-                continue
-            written.append(notification)
-
-            email_enabled = mandatory or await self._email_enabled(recipient_id, event_type)
-            if email_enabled:
-                await notification_repo.insert_delivery(
-                    self.db,
-                    notification_id=notification.id,
-                    channel=NotificationChannel.EMAIL.value,
+            if not use_savepoint:
+                notification = await self._write_one(
+                    recipient_id=recipient_id,
+                    event_type=event_type,
+                    occurrence_id=occurrence_id,
+                    summary=summary,
+                    context_url=context_url,
+                    render_context=render_context,
+                    organization_id=organization_id,
+                    announcement_id=announcement_id,
+                    mandatory=mandatory,
                 )
+                if notification is not None:
+                    written.append(notification)
+                continue
+            # Nested per recipient, not once around the whole fan-out: one
+            # recipient a write here cannot reach (a deleted account, an FK
+            # violation) must not discard every row already written for the
+            # recipients before them in this same call (Decision 2's
+            # best-effort contract is "this write never breaks the caller",
+            # not "one bad recipient breaks everyone else's notification").
+            try:
+                async with self.db.begin_nested():
+                    notification = await self._write_one(
+                        recipient_id=recipient_id,
+                        event_type=event_type,
+                        occurrence_id=occurrence_id,
+                        summary=summary,
+                        context_url=context_url,
+                        render_context=render_context,
+                        organization_id=organization_id,
+                        announcement_id=announcement_id,
+                        mandatory=mandatory,
+                    )
+            except Exception:  # pragma: no cover
+                # Directly verified (a forced FK violation logs exactly this
+                # and continues to the next recipient, checked with a spy on
+                # `logger.exception`) - not a gap in the test, a gap in the
+                # tool. `coverage.py`'s tracer loses this frame across the
+                # greenlet boundary SQLAlchemy's asyncpg bridge switches
+                # through to unwind an exception raised inside
+                # `begin_nested()`, the same class of trace loss the
+                # successful path does not hit, since nothing there crosses a
+                # greenlet switch while unwinding.
+                logger.exception(
+                    "notification_write_failed",
+                    extra={
+                        "event_type": event_type.value,
+                        "occurrence_id": occurrence_id,
+                        "recipient_id": str(recipient_id),
+                    },
+                )
+                continue
+            if notification is not None:
+                written.append(notification)
         return written
+
+    async def _write_one(
+        self,
+        *,
+        recipient_id: uuid.UUID,
+        event_type: NotificationEventType,
+        occurrence_id: str,
+        summary: str,
+        context_url: str | None,
+        render_context: dict[str, Any] | None,
+        organization_id: uuid.UUID | None,
+        announcement_id: uuid.UUID | None,
+        mandatory: bool,
+    ) -> Notification | None:
+        in_app_visible = mandatory or await self._channel_enabled(
+            recipient_id, event_type, NotificationChannel.IN_APP
+        )
+        notification = Notification(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            recipient_user_id=recipient_id,
+            event_type=event_type.value,
+            occurrence_id=occurrence_id,
+            summary=summary,
+            context_url=context_url,
+            render_context=render_context,
+            in_app_visible=in_app_visible,
+            announcement_id=announcement_id,
+        )
+        inserted = await notification_repo.insert_notification_if_new(self.db, notification)
+        if not inserted:
+            return None
+
+        email_enabled = mandatory or await self._email_enabled(recipient_id, event_type)
+        if email_enabled:
+            await notification_repo.insert_delivery(
+                self.db,
+                notification_id=notification.id,
+                channel=NotificationChannel.EMAIL.value,
+            )
+        return notification
 
     async def _channel_enabled(
         self, user_id: uuid.UUID, event_type: NotificationEventType, channel: NotificationChannel

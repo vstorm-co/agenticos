@@ -399,6 +399,30 @@ class TestSavepointSafety:
         db.add(await _user(db))
         await db.flush()
 
+    async def test_one_bad_recipient_does_not_discard_the_others(self, db):
+        """The savepoint is nested per recipient, not once around the whole
+        fan-out - a recipient a write cannot reach (deleted mid-flight, here
+        simulated with a bare random id) must not roll back rows already
+        written for the recipients ahead of it in the same call."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        good_recipient = await _member(db, org, role="member")
+        missing_recipient = uuid.uuid4()  # no such user - FK violation
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[good_recipient.id, missing_recipient],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-partial-fk",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        assert [n.recipient_user_id for n in written] == [good_recipient.id]
+        # The caller's own transaction is still usable after the failed one.
+        db.add(await _user(db))
+        await db.flush()
+
     async def test_a_failed_write_without_a_savepoint_propagates(self, db):
         service = NotificationCenterService(db)
         with pytest.raises(Exception):  # noqa: B017 - an IntegrityError from asyncpg, not ours to name
