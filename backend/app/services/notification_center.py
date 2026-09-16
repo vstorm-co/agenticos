@@ -93,12 +93,17 @@ class _Gate:
     `visible=False` is the exclude shape every gated event but one uses. The
     one exception, `approval_requested`, is always visible and instead reports
     whether its `context_url` (the decide link) should be withheld from a
-    reader who no longer holds `approvals:decide` - the row is never rewritten,
-    only what is served from it changes (Decision 7).
+    reader who no longer holds `approvals:decide`, and what to serve as its
+    `summary` instead of the stored one - the row is never rewritten, only
+    what is served from it changes (Decision 7). `summary_override` mirrors
+    what the email channel already renders for the same reader
+    (`notification_delivery.py`'s own `APPROVAL_PENDING` key): the fact that
+    a run is held, with no invitation to decide something this reader cannot.
     """
 
     visible: bool
     strip_context_url: bool = False
+    summary_override: str | None = None
 
 
 class NotificationCenterService:
@@ -244,13 +249,12 @@ class NotificationCenterService:
 
     async def list_inbox(
         self, ctx: AuthContext, *, after: tuple[datetime, uuid.UUID] | None, limit: int
-    ) -> tuple[list[Notification], dict[uuid.UUID, bool]]:
-        """A page of the inbox. Returns the visible rows together with which of
-        them should have their `context_url` withheld when serialized - see
-        `_Gate`."""
+    ) -> tuple[list[Notification], dict[uuid.UUID, _Gate]]:
+        """A page of the inbox. Returns the visible rows together with each
+        one's `_Gate` - what to withhold or override when serializing it."""
         user_id = self._require_caller(ctx)
         visible: list[Notification] = []
-        strip: dict[uuid.UUID, bool] = {}
+        gates: dict[uuid.UUID, _Gate] = {}
         cursor = after
         for _ in range(_MAX_INBOX_FETCH_ROUNDS):
             batch = await notification_repo.list_inbox_page(
@@ -266,13 +270,13 @@ class NotificationCenterService:
                 gate = await self._gate(ctx, row)
                 if gate.visible:
                     visible.append(row)
-                    strip[row.id] = gate.strip_context_url
+                    gates[row.id] = gate
                     if len(visible) == limit:
-                        return visible, strip
+                        return visible, gates
             cursor = (batch[-1].created_at, batch[-1].id)
             if len(batch) < limit:
                 break
-        return visible, strip
+        return visible, gates
 
     async def unread_count(self, ctx: AuthContext) -> int:
         user_id = self._require_caller(ctx)
@@ -291,9 +295,9 @@ class NotificationCenterService:
 
     async def mark_one_read(
         self, ctx: AuthContext, notification_id: uuid.UUID
-    ) -> tuple[Notification, bool]:
-        """Returns the row and whether its `context_url` should be withheld -
-        see `_Gate`, the same pair `list_inbox` returns per row."""
+    ) -> tuple[Notification, _Gate]:
+        """Returns the row and its `_Gate` - the same pair `list_inbox` returns
+        per row, for whichever reader marked it."""
         user_id = self._require_caller(ctx)
         notification = await notification_repo.get_own(
             self.db,
@@ -316,7 +320,7 @@ class NotificationCenterService:
             notification = await notification_repo.mark_read(
                 self.db, notification, read_at=datetime.now(UTC)
             )
-        return notification, gate.strip_context_url
+        return notification, gate
 
     async def mark_all_read(self, ctx: AuthContext) -> int:
         user_id = self._require_caller(ctx)
@@ -348,7 +352,15 @@ class NotificationCenterService:
         if gate is ContentGate.NONE:
             return _Gate(visible=True)
         if gate is ContentGate.DEGRADE:
-            return _Gate(visible=True, strip_context_url=not ctx.has(Perm.APPROVALS_DECIDE))
+            if ctx.has(Perm.APPROVALS_DECIDE):
+                return _Gate(visible=True)
+            render_context = notification.render_context or {}
+            agent_name = render_context.get("agent_name", "An agent")
+            return _Gate(
+                visible=True,
+                strip_context_url=True,
+                summary_override=f"{agent_name}'s run is held, waiting on an approval",
+            )
         if gate is ContentGate.ORG_ADMIN_OR_APP_ADMIN:
             if notification.organization_id is None:
                 return _Gate(visible=ctx.is_app_admin)
