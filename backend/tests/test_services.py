@@ -527,6 +527,32 @@ class TestUserServicePostgresql:
             assert result == mock_user
 
     @pytest.mark.anyio
+    async def test_deleting_an_account_unlinks_the_files_it_uploaded(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """`chat_files` cascades from `users`, so the rows naming each upload go
+        and the bytes stay. The unlink is handed to the after-commit hook, not
+        run inside the transaction a rollback could undo (#1421)."""
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
+            patch("app.services.user.personal_data_repo") as mock_personal,
+            patch("app.services.user.PersonalDataService") as mock_purge,
+            patch("app.services.user.spawn_after_commit") as spawned,
+            patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
+        ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
+            mock_repo.delete = AsyncMock(return_value=mock_user)
+            mock_personal.attachment_paths_of = AsyncMock(return_value=["chat/a/receipt.pdf"])
+            mock_purge.return_value.purge = AsyncMock()
+
+            await user_service.delete(mock_user.id)
+
+        assert spawned.call_count == 1
+        assert spawned.call_args.kwargs["name"] == "delete-account-attachments"
+
+    @pytest.mark.anyio
     async def test_delete_not_found(self, user_service: UserService):
         """A missing user is refused up front, before any teardown is attempted."""
         with (

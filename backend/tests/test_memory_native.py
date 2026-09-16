@@ -103,6 +103,31 @@ class TestReadFile:
 
 
 class TestWriteFile:
+    async def test_it_refuses_to_write_about_an_account_that_is_gone(self, monkeypatch):
+        """The purge and this write take the same lock, so one of them runs
+        second - and if that is the write, there is nobody to write about."""
+
+        @asynccontextmanager
+        async def _deleted_person():
+            session = MagicMock()
+            session.rollback = AsyncMock()
+            session.execute = AsyncMock()
+            session.scalar = AsyncMock(return_value=False)
+            yield session
+
+        monkeypatch.setattr(f"{NATIVE}.get_db_context", _deleted_person)
+        with patch(f"{REPO}.create", new=AsyncMock()) as create:
+            assert await self._write() is False
+
+        create.assert_not_awaited()
+
+    async def test_a_room_is_not_a_person_and_needs_no_such_check(self):
+        """A room outlives every member of it, so the question does not apply -
+        and a key of a shape `memory_keys` does not produce is left alone rather
+        than refused by a second answer invented here."""
+        assert await _native._person_still_exists(MagicMock(), "room:slack:C1") is True
+        assert await _native._person_still_exists(MagicMock(), "person:not-a-uuid") is True
+
     async def _write(self, **overrides):
         return await _native.write_file(
             **{
