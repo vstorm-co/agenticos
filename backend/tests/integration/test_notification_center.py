@@ -588,6 +588,25 @@ class TestReadGateCollectionsView:
         rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
+    async def test_a_sync_that_never_reached_a_collection_stays_visible(self, db):
+        # `NotificationService.sync_failed` writes `collection_id: ""` for a
+        # source with no collection assigned - unlike the row above, this is
+        # a deliberate write, not an absent context, and has nothing to
+        # recheck access against.
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="source-1:1",
+            summary="Sync failed: source has no assigned collection",
+            render_context={"collection_id": ""},
+            organization_id=org.id,
+        )
+        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert len(rows) == 1
+
     async def test_a_row_naming_a_deleted_collection_is_excluded(self, db):
         owner = await _user(db)
         org = await _org(db, owner)

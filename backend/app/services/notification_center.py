@@ -498,6 +498,13 @@ class NotificationCenterService:
         raw_collection_id = render_context.get("collection_id")
         if raw_collection_id is None:
             return False
+        if raw_collection_id == "":
+            # `NotificationService.sync_failed` writes this literal empty
+            # string for a sync that never reached a collection - an unknown
+            # connector, a source with no collection assigned - so there is
+            # nothing to recheck access against. The audience was already
+            # narrowed to the initiator or an org admin when this was written.
+            return True
         try:
             collection_id = uuid.UUID(str(raw_collection_id))
         except ValueError:

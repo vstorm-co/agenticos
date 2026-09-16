@@ -1861,6 +1861,35 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].indexed == 1
         assert counts[collection.collection_name].chunks == 4
 
+    async def test_a_settlement_for_an_attempt_a_retry_already_superseded_is_ignored(
+        self, db
+    ) -> None:
+        """`complete_ingestion`'s attempt guard is a conditional `UPDATE`, not
+        a read-then-write (#1598): this proves the `WHERE` clause itself
+        rejects a stale settlement, the same way `send_and_settle`'s
+        `claimed_at` mismatch does for the delivery sweep."""
+        tenant = await _tenant(db, name="Superseded")
+        collection = await _collection_with(db, tenant, name="superseded", config=IngestionConfig())
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        doc.ingestion_attempt = 2
+        await db.flush()
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+            attempt=1,
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        assert refreshed.status == DocumentStatus.PROCESSING
+        assert refreshed.chunk_count != 4
+
     async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
         """The vector store keeps one document; `rag_documents` gained a second row.
 
