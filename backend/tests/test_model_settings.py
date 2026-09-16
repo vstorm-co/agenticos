@@ -211,8 +211,9 @@ class TestSpecsPublishedBeforeThisExisted:
         8 added `observability.organization` and `observability.project` (#206);
         9 added `context_ids` (#48); 10 turned `mcp_server_ids` into
         `mcp_servers` (#1341); 11 made whose account a binding speaks through
-        its kind, `account`, rather than a flag on it."""
-        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 11
+        its kind, `account`, rather than a flag on it; 12 withdrew the `skills`
+        capability's `list_skills` and `load_skill` (#1658)."""
+        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 12
 
     def test_a_version_9_spec_loads_its_mcp_ids_as_bindings(self):
         """`extra="forbid"` would otherwise refuse every stored spec that names

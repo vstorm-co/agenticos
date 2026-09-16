@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd2c8097097"
+source_sha: "bee20df52ff2"
 ---
 
 # La API HTTP { #the-http-api }
@@ -76,6 +76,21 @@ campos opcionales del cuerpo: `conversation_id` continúa un hilo existente, y
 La ruta lleva un **límite de frecuencia en lugar de una puerta de permisos**. El
 permiso se decide dentro del servicio, contra los grants de ese agent concreto —
 una puerta de rol en una ruta por recurso [no puede verlos](permissions.md).
+
+## Los servicios de ML { #the-ml-services }
+
+Cuatro servicios de la plataforma responden por su cuenta, sin conversación y sin
+un agent detrás: análisis de documentos, OCR, transcripción de voz y detección de
+datos personales. Los controla `ml:invoke`, no `agents:run`, y
+[Los servicios de ML](ml-services.md) es su referencia.
+
+```bash
+curl -X POST "$BASE/api/v1/ml/privacy/pii" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "write to ada@example.com"}'
+```
 
 ## Streaming { #streaming }
 

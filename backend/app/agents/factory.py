@@ -48,6 +48,12 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.media import (
+    CONVERSATION_RESOURCE as MEDIA_CONVERSATION_RESOURCE,
+)
+from app.agents.capabilities.media import (
+    ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
+)
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
 from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
@@ -139,6 +145,7 @@ def build_agent(
     organization_id: UUID,
     agent_id: UUID | None = None,
     run_id: UUID | None = None,
+    conversation_id: UUID | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
     audience: RunAudience | None = None,
@@ -166,6 +173,10 @@ def build_agent(
             ones the spec gated - `ApprovalMode.ASK_ALL` on a chat session
             (#925). It only ever tightens, so nothing checks a permission for
             it; the spec's own gates stay where they are underneath.
+        conversation_id: The thread this run belongs to, where it belongs to
+            one. Read by the `media` capability, whose offloaded bytes live under
+            the thread's own prefix so that deleting the thread deletes them -
+            a content hash records nothing about who still references it (#55).
         resources: Values resolved from the database for this run - collection
             names, skills - which capabilities need but must never fetch
             themselves.
@@ -240,6 +251,13 @@ def build_agent(
             MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
             CONTEXT_GAUGE_RESOURCE: gauge,
             REMINDER_STATE_RESOURCE: reminder_state,
+            # Whose media store this run offloads to, and under which thread's
+            # prefix. Here rather than in the capability's configuration, because
+            # a builder that could choose the organization could point one
+            # tenant's media at another's - and because what will eventually
+            # delete the bytes is the conversation, not a setting.
+            MEDIA_ORGANIZATION_RESOURCE: organization_id,
+            MEDIA_CONVERSATION_RESOURCE: conversation_id,
         },
         secrets=secrets,
     )

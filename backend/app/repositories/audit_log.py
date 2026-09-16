@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.audit_log import AppAdminAuditLog
 
 
@@ -92,4 +93,26 @@ async def chain_for_org(
     result = await db.execute(
         select(AppAdminAuditLog).where(condition).order_by(AppAdminAuditLog.seq.asc())
     )
+    return list(result.scalars().all())
+
+
+async def checkpoint_for_org(
+    db: AsyncSession, *, organization_id: UUID | None
+) -> AppAdminAuditCheckpoint | None:
+    """This chain's high-water mark, or None if it has never been checkpointed.
+    `None` reads the deployment-wide chain's checkpoint."""
+    condition = (
+        AppAdminAuditCheckpoint.organization_id.is_(None)
+        if organization_id is None
+        else AppAdminAuditCheckpoint.organization_id == organization_id
+    )
+    result = await db.execute(select(AppAdminAuditCheckpoint).where(condition))
+    return result.scalar_one_or_none()
+
+
+async def distinct_checkpoint_organization_ids(db: AsyncSession) -> list[UUID | None]:
+    """Every organization that has a checkpoint - the set `audit-verify` adds so a
+    chain deleted whole (no entries left, but a checkpoint remaining) is still
+    walked."""
+    result = await db.execute(select(AppAdminAuditCheckpoint.organization_id).distinct())
     return list(result.scalars().all())

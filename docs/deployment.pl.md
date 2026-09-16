@@ -1,5 +1,5 @@
 ---
-source_sha: "545cf7248027"
+source_sha: "31e3e2845403"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -75,6 +75,19 @@ którego podmiana w ogóle się pojawia. URL byłby dodatkowo czymś, co każdy 
 musiałby przepisywać, bo w każdym prawdziwym wdrożeniu API nie stoi na tym samym
 origin co strony.
 
+## Wdrożenie wewnątrz zgodnego środowiska { #a-deployment-inside-a-compliant-environment }
+
+`deploy/profiles/hipaa/` to opiniotwórcza konfiguracja do uruchamiania tego tam,
+gdzie obowiązują techniczne zabezpieczenia HIPAA — overlay compose odmawiający
+startu bez ustawień, których nie może domyślnie przyjąć, i opisany plik env —
+plus `agenticos cmd doctor --profile hipaa`, który sprawdza działające wdrożenie
+względem niej i kończy się niezerowo przy każdej niespełnionej kontroli.
+
+To dowód, a nie certyfikacja, i odpowiada wyłącznie na §164.312: zabezpieczenia
+administracyjne i fizyczne należą do operatora. Zobacz
+[Profil HIPAA](security.md#the-hipaa-profile-and-what-it-does-not-claim), gdzie
+jest arkusz i zdanie o tym, kto jest business associate.
+
 ## Nagłówki bezpieczeństwa { #security-headers }
 
 Każda strona konsoli niesie Content-Security-Policy oraz zwyczajowe nagłówki
@@ -117,7 +130,13 @@ origin, na potrzeby zamiany mowy na tekst w czacie.
 ## Kto może się zarejestrować { #who-may-register }
 
 `signup_mode`, stosowany w `app/services/signup_policy.py` — w jednym miejscu,
-i bramkuje **obie** ścieżki, które tworzą konto.
+i bramkuje **każdą** ścieżkę tworzącą konto: formularz rejestracji i logowanie
+przez dostawcę tożsamości. Nic w callbacku OAuth ani OIDC nie wygląda jak
+rejestracja, a wdrożenie z logowaniem jednokrotnym i zamkniętym formularzem
+rejestracji wcale nie byłoby zamknięte, gdyby ta gałąź nie była bramkowana —
+więc `get_or_create_oauth_user` pyta tę samą politykę, zanim utworzy konto.
+Odrzucone logowanie SSO ląduje z powrotem na stronie logowania z własnym zdaniem
+polityki, tym samym, które pokazuje formularz rejestracji.
 
 | Tryb | Skutek |
 |---|---|
