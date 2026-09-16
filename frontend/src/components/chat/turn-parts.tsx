@@ -86,6 +86,7 @@ export function TurnParts({
             key={run.part.id}
             question={run.part.question ?? ""}
             answer={run.part.answer ?? ""}
+            askedBy={run.part.askedBy}
           />
         ) : (
           <TextBubble
@@ -145,13 +146,26 @@ export function ThinkingBlock({
  * neither the question nor the answer the rest of the turn depended on (#502). An
  * aside rather than a bubble, so it reads as a step in the turn, not a message.
  */
-export function AskUserBlock({ question, answer }: { question: string; answer: string }) {
+export function AskUserBlock({
+  question,
+  answer,
+  askedBy,
+}: {
+  question: string;
+  answer: string;
+  askedBy?: string;
+}) {
   const t = useTranslations("chat");
   return (
     <div className="border-foreground/10 text-muted-foreground space-y-1.5 border-l pl-3.5 text-[13px]">
       <div className="flex items-center gap-2">
         <MessageCircleQuestion className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        <span className="font-medium">{t("askUserAsked")}</span>
+        {/* Who asked, where a delegate did. The main agent asking is the ordinary
+            case and says nothing extra; a specialist asking is the thing a reader
+            cannot reconstruct from the transcript otherwise (#1042). */}
+        <span className="font-medium">
+          {askedBy ? t("askUserAskedBy", { name: askedBy }) : t("askUserAsked")}
+        </span>
       </div>
       <p className="text-foreground/80 break-words whitespace-pre-wrap">{question}</p>
       <div className="font-medium">{t("askUserAnswered")}</div>

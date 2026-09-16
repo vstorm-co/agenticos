@@ -1,5 +1,5 @@
 ---
-source_sha: "64e1d5a17218"
+source_sha: "c263822f4476"
 ---
 
 # Architektura { #architecture }
@@ -234,6 +234,20 @@ odpowiada.
 
 Obie granice są dowodzone na prawdziwej bazie danych w
 `tests/integration/test_run_commit_boundary.py`.
+
+### Jedyny inny wczesny commit { #the-one-other-early-commit }
+
+`SessionService.detect_refresh_reuse` jest drugim, i to z odwrotnego powodu: nie
+dlatego, że transakcja byłaby trzymana zbyt długo, ale dlatego, że zaraz zostanie
+wyrzucona. Refresh token, który nie pasował do żadnej żywej sesji, może być
+odtworzeniem tego, który sesja właśnie zrotowała — odpowiedzią jest zakończenie
+tego łańcucha i zapisanie tego, a potem odmowa wywołującemu, która podnosi
+`AuthenticationError` przez gałąź *wyjątku* kontekstu sesji i wycofuje żądanie.
+
+Bez commitu jest to 401, wciąż żywy skompromitowany łańcuch i żaden ślad, że
+cokolwiek się wydarzyło. `test_the_response_survives_the_refusal_that_follows_it`
+wycofuje transakcję po wywołaniu i sprawdza, co zostało
+([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
 
 Widoczność tnie w obie strony. Cokolwiek rozumowało wcześniej „wiersza
 wykonującego się runa nie da się zobaczyć”, rozumuje teraz o wierszu, który
@@ -938,6 +952,11 @@ opracowany przykład.
   wywołaniem modelu i jeszcze raz w końcowym `finally`. `MLService._record_failure`
   to ten drugi, z lustrzanego powodu — wiersz zużycia opisujący *odmowę* musi
   przetrwać wycofanie, które ta odmowa powoduje.
+- Dwa usankcjonowane wyjątki. Ścieżka runu agenta commituje przed wywołaniem
+  modelu i jeszcze raz w końcowym `finally`;
+  `SessionService.detect_refresh_reuse` commituje sesję, którą właśnie unieważnił,
+  i wpis mówiący dlaczego — bo jego wywołujący natychmiast podnosi 401, a wycofanie
+  cofnęłoby oba.
 - Praca w tle, która czyta wiersz zapisany przez to żądanie, jest przekazywana
   przez **`spawn_after_commit`**, nigdy przez `spawn`.
 - Cienka domena to moduł; gruba to podpakiet z fasadą, a nic spoza niego nie

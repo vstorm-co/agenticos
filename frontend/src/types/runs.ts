@@ -131,6 +131,7 @@ export interface RunTranscriptMessage {
         tool_call_id?: string | null;
         question?: string | null;
         answer?: string | null;
+        asked_by?: string | null;
       }[]
     | null;
   tool_calls?:
