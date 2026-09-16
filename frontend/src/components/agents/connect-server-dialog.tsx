@@ -12,7 +12,7 @@ import type {
 } from "@/components/mcp/mcp-server-list-types";
 import { getErrorMessage } from "@/lib/api-error";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
-import { rememberMcpOAuthReturn } from "@/lib/mcp-oauth";
+import { mcpOAuthClient, rememberMcpOAuthReturn, secretWithoutClientId } from "@/lib/mcp-oauth";
 import { rowForEntry } from "@/lib/mcp-servers";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
@@ -141,6 +141,10 @@ function ConnectForm({
     }
 
     if (values.auth === "oauth") {
+      if (secretWithoutClientId(values.clientId, values.clientSecret)) {
+        toast.error(t("clientSecretNeedsId"));
+        return;
+      }
       // With somewhere to return to, the consent runs in this tab and the
       // callback brings the browser back. Otherwise a new tab, opened without
       // `noopener` and then severed by hand: a browser that implements the
@@ -153,7 +157,12 @@ function ConnectForm({
       setSubmitting(true);
       try {
         const { authorization_url } = await startMcpOAuth(
-          { name, url, catalog_key: entry.key },
+          {
+            name,
+            url,
+            catalog_key: entry.key,
+            ...mcpOAuthClient(values.clientId, values.clientSecret),
+          },
           scope,
         );
         if (returnTo !== undefined) rememberMcpOAuthReturn(returnTo);

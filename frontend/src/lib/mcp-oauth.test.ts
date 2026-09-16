@@ -5,6 +5,7 @@ import messages from "../../messages/en.json";
 import type { Translate } from "./agent-step-captions";
 import {
   hereForMcpOAuthReturn,
+  mcpOAuthClient,
   mcpOAuthConnected,
   mcpOAuthMessage,
   mcpOAuthRefused,
@@ -12,6 +13,7 @@ import {
   readMcpOAuthOutcome,
   rememberMcpOAuthReturn,
   safeMcpOAuthReturn,
+  secretWithoutClientId,
 } from "./mcp-oauth";
 
 /**
@@ -141,5 +143,33 @@ describe("hereForMcpOAuthReturn", () => {
     window.history.replaceState({}, "", "/chat?id=abc");
 
     expect(hereForMcpOAuthReturn()).toBe("/chat?id=abc");
+  });
+});
+
+describe("a client registered by hand", () => {
+  /**
+   * The two dialog fields, as the start request carries them. Empty is the
+   * common case and has to stay *absent* rather than empty strings: the backend
+   * registers dynamically only when `client_id` is missing, and an empty string
+   * fails its `min_length` instead.
+   */
+  it("is nothing when nothing was typed", () => {
+    expect(mcpOAuthClient("", "")).toBeUndefined();
+    expect(mcpOAuthClient("  ", " ")).toBeUndefined();
+  });
+
+  it("is a public client from an id alone, with no secret key at all", () => {
+    expect(mcpOAuthClient(" app-1 ", "")).toEqual({ client_id: "app-1" });
+  });
+
+  it("is a confidential client from an id and its secret, both trimmed", () => {
+    expect(mcpOAuthClient("app-1", " shh ")).toEqual({ client_id: "app-1", client_secret: "shh" });
+  });
+
+  it("names a secret typed for a client nobody named, which the backend would refuse", () => {
+    expect(secretWithoutClientId("", "shh")).toBe(true);
+    expect(secretWithoutClientId(" ", " shh ")).toBe(true);
+    expect(secretWithoutClientId("app-1", "shh")).toBe(false);
+    expect(secretWithoutClientId("", "")).toBe(false);
   });
 });
