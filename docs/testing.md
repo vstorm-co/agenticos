@@ -441,6 +441,38 @@ eight). So:
 - **A product spec that is about the rendering says so**, and reloads first if it
   needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls
   marked `#230`; when that issue closes, they come out.
+- **A product spec that made the write waits the same way the fixtures do.**
+  `nowListed` and `nowMatching` in `e2e/helpers.ts` are `nowThere` moved out of
+  `seed.setup.ts`, so there is one primitive rather than two
+  ([#162](https://github.com/vstorm-co/agenticos/issues/162)). It splits one
+  failure into two: a failure in the poll is a write that never landed, a failure
+  in the assertion after it is a page that did not draw a row the API was
+  serving. `journey.spec.ts` ends by proving a run was *priced* — five things had
+  to happen, and a bare `toBeVisible()` on the row said only that one of them had
+  not.
+
+### Every wait says what it was waiting for
+
+`expect(locator).toBeVisible()` fails with `element(s) not found`, which names
+the one thing that cannot be the cause. Playwright takes a message as the second
+argument, and the suite's long journeys use it:
+
+```ts
+await expect(
+  row,
+  `run ${id} is priced at ${cost}, but Activity draws no row for ${modelLabel}`,
+).toBeVisible();
+```
+
+Four specs have flaked with the anonymous form, and each cost a diagnosis that
+started from nothing ([#130](https://github.com/vstorm-co/agenticos/issues/130),
+[#132](https://github.com/vstorm-co/agenticos/issues/132),
+[#154](https://github.com/vstorm-co/agenticos/issues/154),
+[#162](https://github.com/vstorm-co/agenticos/issues/162)). The message costs a
+line and is the whole of the difference between "it flaked again" and a
+diagnosis. When one fails in CI anyway, `playwright-results` beside
+`playwright-report` is the screenshot, the video, the trace and Playwright's own
+`error-context.md`.
 
 ## Test database
 
