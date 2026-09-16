@@ -146,3 +146,30 @@ export function hereForMcpOAuthReturn(): string | undefined {
   if (typeof window === "undefined") return undefined;
   return `${window.location.pathname}${window.location.search}`;
 }
+
+/** A client registered at the provider by hand, as the start request carries it. */
+export interface McpOAuthClient {
+  client_id: string;
+  client_secret?: string;
+}
+
+/**
+ * What the start request says about the client, from the dialog's two fields.
+ *
+ * Undefined is the common case - nothing typed, and the server registers this
+ * app itself. An id alone is a public client, an id with a secret a
+ * confidential one. A secret with no id is not a client at all: the backend
+ * refuses it rather than silently dropping it, and `secretWithoutClientId` lets
+ * the dialog say so before the round trip.
+ */
+export function mcpOAuthClient(clientId: string, clientSecret: string): McpOAuthClient | undefined {
+  const id = clientId.trim();
+  if (!id) return undefined;
+  const secret = clientSecret.trim();
+  return secret ? { client_id: id, client_secret: secret } : { client_id: id };
+}
+
+/** True when a secret was typed for a client nobody named. */
+export function secretWithoutClientId(clientId: string, clientSecret: string): boolean {
+  return clientId.trim() === "" && clientSecret.trim() !== "";
+}
