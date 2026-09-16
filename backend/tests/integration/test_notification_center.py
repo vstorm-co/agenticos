@@ -455,6 +455,34 @@ class TestSavepointSafety:
         )
         assert len(written) == 1
 
+    async def test_a_duplicate_under_a_savepoint_writes_nothing_without_raising(self, db):
+        """`_write_one` returning `None` (an occurrence already recorded) is
+        not an exception - the savepoint commits normally and the recipient
+        is simply not in `written`, distinct from the FK-failure case above
+        where the savepoint rolls back."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        service = NotificationCenterService(db)
+        first = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-savepoint-dup",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        second = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-savepoint-dup",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        assert len(first) == 1
+        assert second == []
+
     async def test_a_failed_write_under_a_savepoint_does_not_poison_the_session(self, db):
         owner = await _user(db)
         org = await _org(db, owner)
