@@ -28,8 +28,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0081_refresh_reuse"
-down_revision: str | Sequence[str] | None = "0080_audit_checkpoints"
+revision: str = "0085_refresh_reuse"
+down_revision: str | Sequence[str] | None = "0084_retention_policies"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

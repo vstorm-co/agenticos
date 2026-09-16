@@ -26,7 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
   refresh matching it is the reuse case in RFC 6819 §5.2.2.3, and the response is
   to end that chain and record it. The caller still learns only "invalid or
   expired". One hash, not a history: it catches the window the pattern is about
-  and says so. Migration `0081_refresh_reuse`. (#1519)
+  and says so. Migration `0085_refresh_reuse`. (#1519)
 
 ## [0.0.457] - 2026-09-16
 
