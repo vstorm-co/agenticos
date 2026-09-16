@@ -288,7 +288,9 @@ function TimelineTurn({
                 key={part.id}
                 className="border-foreground/10 text-muted-foreground space-y-1 border-l pl-3 text-sm"
               >
-                <div className="font-medium">{t("askedUser")}</div>
+                <div className="font-medium">
+                  {part.askedBy ? t("askedUserBy", { name: part.askedBy }) : t("askedUser")}
+                </div>
                 <div className="text-foreground/80 whitespace-pre-wrap">{part.question}</div>
                 <div className="font-medium">{t("answered")}</div>
                 <div className="text-foreground/80 whitespace-pre-wrap">{part.answer}</div>

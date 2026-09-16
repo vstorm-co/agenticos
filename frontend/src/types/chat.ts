@@ -119,6 +119,11 @@ export interface MessagePart {
   question?: string;
   /** What the person answered, for an "ask_user" part. */
   answer?: string;
+  /**
+   * Which delegate asked, for an "ask_user" part. Absent where the main agent
+   * asked it itself, and on every question stored before the field existed.
+   */
+  askedBy?: string;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";

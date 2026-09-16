@@ -1,6 +1,13 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, SEEDED_AGENT_HANDLE, agentCard, pageHeading } from "./helpers";
+import {
+  AUTH_STATE,
+  SEEDED_AGENT_HANDLE,
+  agentCard,
+  nowListed,
+  nowMatching,
+  pageHeading,
+} from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -62,13 +69,16 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // 1. a key
   await page.goto("/vault");
-  await expect(pageHeading(page, "Vault")).toBeVisible();
+  await expect(pageHeading(page, "Vault"), "the vault page never drew its heading").toBeVisible();
 
   // Waited for before it is counted. `count()` does not retry, and the vault
   // draws a skeleton until the key list answers - so a page that had simply not
   // loaded yet read as a user who is not allowed to store keys, and this whole
   // journey skipped itself with the wrong reason.
-  await expect(page.getByText(/\d+ keys? stored|1 key stored/)).toBeVisible();
+  await expect(
+    page.getByText(/\d+ keys? stored|1 key stored/),
+    "the vault never said how many keys are stored, so it had not loaded",
+  ).toBeVisible();
   const addKey = page.getByRole("button", { name: "Add key" }).first();
   if (!(await addKey.isVisible())) {
     test.skip(true, "this user cannot store a key, so the journey cannot start");
@@ -92,15 +102,22 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // Asserted in the list rather than in the toast: a toast says the request was
   // accepted, the list says the key is actually there. Everything below depends
   // on the second.
-  await expect(page.getByRole("main").getByText(keyLabel)).toBeVisible();
+  await nowListed(page.request, "/api/secrets", "name", keyLabel);
+  await expect(
+    page.getByRole("main").getByText(keyLabel),
+    `the API lists the key ${keyLabel}, but the vault page does not show it`,
+  ).toBeVisible();
 
   // 2. an agent
   await page.goto("/agents");
-  await expect(pageHeading(page, "Agents")).toBeVisible();
+  await expect(pageHeading(page, "Agents"), "the agents page never drew its heading").toBeVisible();
 
   // Waited for, then counted - as at the vault above, and for the same reason:
   // an agent list that has not arrived yet is not a user who may not create one.
-  await expect(agentCard(page, SEEDED_AGENT_HANDLE)).toBeVisible();
+  await expect(
+    agentCard(page, SEEDED_AGENT_HANDLE),
+    `the seeded agent ${SEEDED_AGENT_HANDLE} is not on the page, so the list had not arrived`,
+  ).toBeVisible();
   const newAgent = page.getByRole("button", { name: "New agent" }).first();
   if (!(await newAgent.isVisible())) {
     test.skip(true, "this user cannot create agents");
@@ -113,7 +130,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // Creating navigates straight into the Builder for the new draft.
   await expect(page).toHaveURL(/\/agents\/[^/]+$/);
-  await expect(pageHeading(page, new RegExp(agentName))).toBeVisible();
+  await expect(
+    pageHeading(page, new RegExp(agentName)),
+    `creating ${agentName} navigated, but the Builder never drew its name`,
+  ).toBeVisible();
   const agentId = new URL(page.url()).pathname.split("/").pop() ?? "";
 
   // 3. instructions and a model
@@ -158,6 +178,8 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // on.
   await expect(
     page.getByRole("group", { name: "Current model" }).getByText(modelLabel),
+    `the model ${modelLabel} was added, but the Current model summary does not name it - ` +
+      "which means the id it was created with resolved to no profile of this organization",
   ).toBeVisible();
 
   // 4. a capability
@@ -258,7 +280,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // asserts nothing about the click having landed, and the submit below would
   // then find the picker's Public API card - whose name ends "Nothing to publish
   // here", which a substring match on `Publish` counts (#634).
-  await expect(availability.getByLabel("Name")).toBeVisible();
+  await expect(
+    availability.getByLabel("Name"),
+    "the hosted-page form never opened, so the Publish below would find the picker's card",
+  ).toBeVisible();
 
   // No allowed site, and that is the assertion rather than an omission: an
   // allow-list is a rule about other people's sites, and this page is ours. The
@@ -331,15 +356,44 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // 8. the run in Activity
   await page.goto("/runs");
-  await expect(pageHeading(page, "Activity")).toBeVisible();
+  await expect(
+    pageHeading(page, "Activity"),
+    "the Activity page never drew its heading",
+  ).toBeVisible();
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
 
   // A run records the named model it billed against, which is how the row is
   // found — and a cost, which is the proof that usage was metered rather than
   // merely executed.
+  //
+  // **The API says the run is priced before the page is asked to draw it, and
+  // #162 is why.** This step asserted straight on the row, and failed on `main`
+  // with `element(s) not found` — on a commit whose own pull request had passed
+  // and whose re-run passed again. It is the last step of the longest journey
+  // here and it crosses the most: the model provider answered, the run row was
+  // written, the usage was metered into a spend record, and the list refetched.
+  // A bare `toBeVisible()` on that says "one of those five did not happen" and
+  // nothing else. Polling the collection first splits it in two: a failure here
+  // is a run that was never priced, a failure below is a page that did not draw
+  // a row the API was serving.
+  const priced = await nowMatching(
+    page.request,
+    // Scoped to this journey's own agent rather than read off the first page of
+    // everything: CI's organization is shared with every other spec, and a run
+    // pushed past `limit` by a busy list would read as a run that never happened.
+    `/api/runs?agent_id=${agentId}`,
+    (run) => run["model_label"] === modelLabel && Number(run["cost_usd"] ?? 0) > 0,
+    `a run billed against ${modelLabel} carrying a cost`,
+  );
+
   const row = page.getByRole("row").filter({ hasText: modelLabel }).first();
-  await expect(row).toBeVisible();
-  await expect(row).toContainText(/\$\d+\.\d{4}/);
+  await expect(
+    row,
+    `run ${String(priced["id"])} is priced at ${String(priced["cost_usd"])}, but Activity draws no row for ${modelLabel}`,
+  ).toBeVisible();
+  await expect(row, "the run row is on screen without the cost the API reports").toContainText(
+    /\$\d+\.\d{4}/,
+  );
 
   // 8. cleaning up
   // This is the one spec that creates a whole agent, and it runs on every push -
