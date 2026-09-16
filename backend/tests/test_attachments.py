@@ -62,6 +62,21 @@ class TestWithoutAWorkspace:
         assert "month,total" in prompt
         assert "```" in prompt
 
+    async def test_a_large_paste_is_capped_per_file(self, storage, monkeypatch):
+        # The no-workspace paste path is the only one that inlines a file's whole
+        # parse, so it honours the documented per-file prompt cap rather than
+        # putting an unbounded parse in front of the model (#1591, §7 finding 9).
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "CHAT_PROMPT_TEXT_MAX_CHARS", 100)
+        prompt = await AttachmentRouter().build_prompt(
+            "summarise", [_file(parsed_content="a" * 5000)]
+        )
+
+        assert isinstance(prompt, str)
+        assert "truncated 100 of 5000 chars" in prompt
+        assert "a" * 5000 not in prompt
+
     async def test_an_image_is_sent_for_the_model_to_look_at(self, storage):
         prompt = await AttachmentRouter().build_prompt(
             "what is this?", [_file(file_type="image", mime_type="image/png")]

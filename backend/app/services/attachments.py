@@ -32,7 +32,7 @@ from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_a
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
 from app.services.file_storage import get_file_storage
-from app.services.file_upload import TiffConversion, tiff_pages_to_png
+from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
 
 logger = logging.getLogger(__name__)
 
@@ -177,8 +177,17 @@ def _size(chat_file: ChatFile) -> str:
 
 
 def _pasted(chat_file: ChatFile) -> str:
-    """The whole file, inline. What every attachment used to get."""
-    return f"\n---\nAttached file: {chat_file.filename}\n```\n{chat_file.parsed_content}\n```"
+    """The whole file, inline. What every attachment used to get.
+
+    Capped per file at `CHAT_PROMPT_TEXT_MAX_CHARS`: this no-workspace path is the
+    only one that pastes a file's full parse into the prompt, so without a per-file
+    bound a single large attachment defeats the layered budget the setting documents
+    (the stored parse is capped at `CHAT_PARSED_TEXT_MAX_CHARS`, the turn aggregate at
+    `CHAT_TURN_TEXT_MAX_CHARS`). The marker `cap_text` leaves tells the model the rest
+    exists in the file (#1591, §7 finding 9).
+    """
+    body = cap_text(chat_file.parsed_content, settings.CHAT_PROMPT_TEXT_MAX_CHARS)
+    return f"\n---\nAttached file: {chat_file.filename}\n```\n{body}\n```"
 
 
 def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
