@@ -20,6 +20,7 @@ export interface RawMessagePart {
   tool_call_id?: string | null;
   question?: string | null;
   answer?: string | null;
+  asked_by?: string | null;
 }
 
 export interface RawMessage {
@@ -86,6 +87,7 @@ export function replayStoredParts(
         type: "ask_user" as const,
         question: entry.question ?? "",
         answer: entry.answer ?? "",
+        ...(entry.asked_by ? { askedBy: entry.asked_by } : {}),
       });
       return;
     }

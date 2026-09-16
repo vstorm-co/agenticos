@@ -36,6 +36,14 @@ class Session(Base):
             "impersonator_user_id",
             postgresql_where=sa_text("impersonator_user_id IS NOT NULL"),
         ),
+        # Partial for the same reason: null on every session that has never
+        # rotated and on every impersonation row, and only ever read when a
+        # refresh token matched no live session.
+        Index(
+            "sessions_previous_refresh_token_hash_idx",
+            "previous_refresh_token_hash",
+            postgresql_where=sa_text("previous_refresh_token_hash IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -64,6 +72,22 @@ class Session(Base):
     token - its window is the access token's own lifetime - it is the access
     token's, so the auth dependency can bind the token it was handed to the row
     the `sid` claim names rather than trusting the claim alone.
+    """
+    previous_refresh_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    """SHA-256 of the refresh token this row's last rotation spent.
+
+    Rotation re-keys the row in place, so the spent token stops validating - its
+    hash names no row. That is correct and it is silent: a stolen refresh token
+    presented after the legitimate user has rotated fails exactly like a typo
+    (#1519). Keeping the hash it replaced makes the difference readable, which is
+    the reuse detection in RFC 6819 section 5.2.2.3: a refresh matching no live
+    row but matching this one is a replay, and the chain ends.
+
+    **One hash, not a history.** It catches the window the pattern is about - a
+    thief racing the legitimate user right after a rotation. A token spent two
+    rotations ago is not recognised; a full history would need a table of its own.
+
+    Null on a session that has never rotated, and on every impersonation row.
     """
     device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)

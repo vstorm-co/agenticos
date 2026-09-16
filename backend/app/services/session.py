@@ -1,18 +1,22 @@
 """Session service (PostgreSQL async)."""
 
 import hashlib
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, NotFoundError
 from app.core.security import read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import session_repo
 from app.schemas.session import SessionListResponse, SessionRead
+
+logger = logging.getLogger(__name__)
 
 
 def hash_token(token: str) -> str:
@@ -192,6 +196,83 @@ class SessionService:
             return session
 
         return None
+
+    async def detect_refresh_reuse(
+        self, refresh_token: str, *, ip_address: str | None = None
+    ) -> Session | None:
+        """End the chain a spent refresh token was replayed on, and say so.
+
+        Called only where `validate_refresh_token` has already declined, which is
+        the whole set of invalid tokens: a typo, an expired one, a revoked one -
+        and the one that matters, a token the legitimate user rotated away a
+        moment ago, presented by somebody else. Rotation re-keys the row in place
+        so all of those fail identically, which is why this had no signal behind
+        it before (#1519).
+
+        A match is the reuse case from RFC 6819 section 5.2.2.3. The response is
+        to end **that chain**: the session row whose rotation spent the token,
+        which is the grant the replayed credential belonged to. Not every session
+        the person has - a replay proves the one chain leaked, and logging
+        somebody out of the laptop in front of them because a phone's token was
+        replayed is a heavier default than the evidence supports. An operator who
+        wants the wider response has `DELETE /sessions` and the audit entry that
+        tells them to.
+
+        Idempotent by construction: the lookup is restricted to an *active* row,
+        so a retry of the same replay finds nothing and records nothing, and one
+        breach stays one signal rather than a stream.
+
+        Returns:
+            The session that was ended, or `None` when the token was invalid for
+            any of the ordinary reasons.
+        """
+        session = await session_repo.get_by_previous_refresh_token_hash(
+            self.db, hash_token(refresh_token), for_update=True
+        )
+        if session is None:
+            return None
+
+        await session_repo.deactivate(self.db, session.id)
+        await record_audit(
+            self.db,
+            # **Nobody.** A request that reaches this method has authenticated
+            # no one: holding a spent token establishes possession, not identity,
+            # and the likeliest holder is not the person whose session it was.
+            # Naming them as the actor would put the victim in the trail as the
+            # party who did this, which is the wrong first fact for whoever reads
+            # it during an incident. `actor_user_id` is null for exactly this -
+            # "no session behind it" - and `action` says what happened.
+            actor_user_id=None,
+            action="session.refresh_token_reused",
+            target_type="session",
+            target_id=str(session.id),
+            # No token, no hash: the entry says a spent credential was presented
+            # and whose session it belonged to, which is what a reader acts on.
+            # The credential itself has no business in a table people can export.
+            details={
+                "session_user_id": str(session.user_id),
+                "device_name": session.device_name,
+                "reason": "a refresh token this session had already rotated away was presented",
+            },
+            ip_address=ip_address,
+        )
+        logger.warning(
+            "refresh_token_reuse_detected",
+            extra={"session_id": str(session.id), "user_id": str(session.user_id)},
+        )
+        # **Committed here, because the caller's next act is to raise.** The
+        # refusal goes out as an `AuthenticationError`, and the request session's
+        # exception branch rolls back everything the request wrote - which would
+        # be this deactivation and this audit entry, leaving a 401, a compromised
+        # chain still live, and no record that anything happened. The two
+        # sanctioned commits in the agent run paths exist for the same reason:
+        # work that must survive the failure that follows it.
+        #
+        # Safe to end the transaction here: nothing else has written on this
+        # path. `validate_refresh_token` has already declined, so it touched no
+        # row, and the route does nothing but refuse afterwards.
+        await self.db.commit()
+        return session
 
     async def open_impersonation(
         self,
