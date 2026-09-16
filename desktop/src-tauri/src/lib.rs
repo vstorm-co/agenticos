@@ -1333,37 +1333,49 @@ mod tests {
 
     #[test]
     fn the_browser_is_told_the_shell_started_it_and_which_attempt_this_is() {
-        let opened = external_sign_in_url(&url("https://acme.example/api/v1/oauth/google/login"), "n0nce");
+        // Minted rather than written out, here and below. A literal in this
+        // position is a hard-coded nonce to anything reading the tree, and it is
+        // also the weaker test: a real one proves the value is carried through
+        // rather than that one particular string is.
+        let nonce = mint_nonce();
+        let opened = external_sign_in_url(&url("https://acme.example/api/v1/oauth/google/login"), &nonce);
 
         assert_eq!(
             opened.as_str(),
-            "https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce=n0nce"
+            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={nonce}")
         );
     }
 
     #[test]
     fn a_staged_invitation_survives_the_handoff() {
+        let nonce = mint_nonce();
         let opened = external_sign_in_url(
             &url("https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123"),
-            "n0nce",
+            &nonce,
         );
 
         assert_eq!(
             opened.as_str(),
-            "https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123&client=desktop&desktop_nonce=n0nce"
+            format!(
+                "https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123&client=desktop&desktop_nonce={nonce}"
+            )
         );
     }
 
     #[test]
     fn markers_the_page_already_carried_are_replaced_rather_than_doubled() {
+        let stale = mint_nonce();
+        let fresh = mint_nonce();
         let opened = external_sign_in_url(
-            &url("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce=stale"),
-            "fresh",
+            &url(&format!(
+                "https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={stale}"
+            )),
+            &fresh,
         );
 
         assert_eq!(
             opened.as_str(),
-            "https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce=fresh"
+            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={fresh}")
         );
     }
 
@@ -1447,10 +1459,11 @@ mod tests {
 
     #[test]
     fn nonces_of_different_lengths_are_not_equal() {
-        assert!(constant_time_eq("abc", "abc"));
-        assert!(!constant_time_eq("abc", "abz"));
-        assert!(!constant_time_eq("abc", "abcd"));
-        assert!(!constant_time_eq("", "a"));
+        let one = mint_nonce();
+        assert!(constant_time_eq(&one, &one.clone()));
+        assert!(!constant_time_eq(&one, &mint_nonce()));
+        assert!(!constant_time_eq(&one, &format!("{one}x")));
+        assert!(!constant_time_eq("", "x"));
     }
 
     #[test]
