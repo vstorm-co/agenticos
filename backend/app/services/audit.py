@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.core.permissions import AuthContext
+    from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
     from app.db.models.audit_log import AppAdminAuditLog
 
 # What the export ships, matching the fields the read model exposes on the tab -
@@ -89,14 +90,18 @@ class ChainBreak:
     """Where a chain stopped verifying, and why.
 
     Attributes:
-        seq: The `seq` of the entry the walk broke on - what an operator greps for.
-        entry_id: That entry's id, so the row itself can be found.
-        reason: Whether the entry's own hash failed to match its contents, or its
-            link to the entry before it did.
+        seq: The `seq` the break is about - the entry the walk broke on, or, for a
+            truncation, the head `seq` the checkpoint recorded and the chain no
+            longer reaches.
+        entry_id: That entry's id, so the row itself can be found - None for a
+            truncation or whole-chain deletion, where the entry the break names is
+            gone.
+        reason: What did not hold - a rewritten entry, a broken link, or a chain
+            that no longer reaches the checkpoint's high-water mark.
     """
 
     seq: int
-    entry_id: UUID
+    entry_id: UUID | None
     reason: str
 
 
@@ -233,15 +238,28 @@ class AuditService:
         `entry_hash`, and a deleted or reordered one diverges the next entry's
         `prev_hash`.
 
+        The two deletions a bare walk cannot see - the tail truncated, or the whole
+        chain gone - are caught by comparing the surviving chain against the
+        organization's checkpoint (`AppAdminAuditCheckpoint`, #1648): a head behind
+        the checkpoint's `max_seq`, or fewer entries than its `entry_count`, is a
+        truncation, and a checkpoint with no chain at all is a deleted chain.
+
         Detection, not prevention: an operator with the database can rewrite a row
-        and every hash after it, so a chain that verifies is evidence of no
-        tampering by anyone who did not also recompute the chain, not proof of
-        none. It is also blind to a chain being truncated from the end - dropping
-        the newest entries leaves the surviving prefix internally consistent - and
-        to a whole organization's chain being deleted, which simply removes it from
-        the set walked here; catching either needs a checkpoint kept outside the
-        table. `docs/governance.md` states the boundary (#1622).
+        and every hash after it, and a Postgres superuser can drop the checkpoint's
+        guard trigger and delete both the entries and the checkpoint - so a chain
+        that verifies is evidence of no tampering by anyone who did not also defeat
+        those, not proof of none. `docs/governance.md` states the boundary (#1648).
         """
+        # The checkpoint is read *before* the entries, and the comparison below only
+        # flags a chain that is behind it. Both reads run under READ COMMITTED, so an
+        # audited write committing between them is visible to one and not the other -
+        # and in this order that write lands in `entries`, leaving the chain ahead of
+        # a checkpoint that has not caught up, which is not a truncation. Reading the
+        # checkpoint second inverts it: the chain looks short against a checkpoint
+        # that already moved, and `audit-verify` reports an intact trail as tampered.
+        checkpoint = await audit_log_repo.checkpoint_for_org(
+            self.db, organization_id=organization_id
+        )
         entries = await audit_log_repo.chain_for_org(self.db, organization_id=organization_id)
         prev_hash: str | None = None
         for index, entry in enumerate(entries):
@@ -278,18 +296,58 @@ class AuditService:
                     ),
                 )
             prev_hash = entry.entry_hash
+
+        truncation = self._truncation_break(organization_id, entries, checkpoint)
         return ChainVerification(
             organization_id=organization_id,
             entries_checked=len(entries),
-            first_break=None,
+            first_break=truncation,
         )
+
+    def _truncation_break(
+        self,
+        organization_id: UUID | None,
+        entries: list[AppAdminAuditLog],
+        checkpoint: AppAdminAuditCheckpoint | None,
+    ) -> ChainBreak | None:
+        """The break a checkpoint reveals that the hash walk cannot: a chain whose
+        head is behind the recorded high-water mark, or gone entirely.
+
+        Takes the checkpoint its caller already read rather than reading its own, so
+        the two halves of the comparison come from one point in the walk - see
+        `verify_chain` for why the order of those reads is what makes a concurrent
+        audited write harmless."""
+        if checkpoint is None:
+            return None
+        if not entries:
+            return ChainBreak(
+                seq=checkpoint.max_seq,
+                entry_id=None,
+                reason="the entire chain is missing, but a checkpoint records it reached "
+                f"seq {checkpoint.max_seq}",
+            )
+        if entries[-1].seq < checkpoint.max_seq or len(entries) < checkpoint.entry_count:
+            return ChainBreak(
+                seq=checkpoint.max_seq,
+                entry_id=None,
+                reason=f"the chain was truncated: its head is seq {entries[-1].seq} with "
+                f"{len(entries)} entries, behind the checkpoint's seq {checkpoint.max_seq} "
+                f"and {checkpoint.entry_count} entries",
+            )
+        return None
 
     async def verify_all_chains(self) -> list[ChainVerification]:
         """Verify every chain the log holds, in a deterministic report order.
 
-        The deployment-wide chain (no organization) sorts first; the rest follow
-        by their id, so two runs over the same data report in the same order.
+        The set is the union of organizations with entries and organizations with a
+        checkpoint - the second is what surfaces a chain deleted whole, which has no
+        entries left to enumerate. The deployment-wide chain (no organization) sorts
+        first; the rest follow by their id, so two runs report in the same order.
         """
-        org_ids = await audit_log_repo.distinct_organization_ids(self.db)
-        ordered = sorted(org_ids, key=lambda oid: (oid is not None, str(oid)))
+        with_entries = await audit_log_repo.distinct_organization_ids(self.db)
+        with_checkpoint = await audit_log_repo.distinct_checkpoint_organization_ids(self.db)
+        ordered = sorted(
+            set(with_entries) | set(with_checkpoint),
+            key=lambda oid: (oid is not None, str(oid)),
+        )
         return [await self.verify_chain(oid) for oid in ordered]

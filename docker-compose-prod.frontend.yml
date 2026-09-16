@@ -36,6 +36,8 @@ services:
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required, e.g. https://app.example.com}
       - CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
       - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
+      - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME:-}
+      - OIDC_ICON=${OIDC_ICON:-}
       # `instrumentation.ts` registers an OpenTelemetry SDK on every boot, and
       # `@vercel/otel` off Vercel takes its exporter from these two - so without
       # them the frontend's server-side spans are built and dropped in-process.

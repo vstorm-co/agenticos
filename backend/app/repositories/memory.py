@@ -12,29 +12,55 @@ owner-kind filter for an operator listing - went with it (#1470).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.memory_keys import PERSON_PREFIX
 from app.db.models.memory import AgentMemoryFile
 
 
+def _last_written() -> Any:
+    """When the agent last wrote this note, for ordering and for provenance.
+
+    `written_at`, falling back to `created_at`, which is never null. Never
+    `updated_at`: that advances on any write to the row, so a person suppressing
+    a note would move it to the top of their own listing and make the page say
+    the agent had written it at that moment (#1594 review).
+    """
+    return func.coalesce(AgentMemoryFile.written_at, AgentMemoryFile.created_at)
+
+
 async def get_by_name(
-    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, owner_key: str, name: str
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    owner_key: str,
+    name: str,
+    include_deactivated: bool = False,
 ) -> AgentMemoryFile | None:
-    """One note by name in one owner's store - every runtime lookup."""
-    result = await db.execute(
-        select(AgentMemoryFile).where(
-            AgentMemoryFile.organization_id == organization_id,
-            AgentMemoryFile.agent_id == agent_id,
-            AgentMemoryFile.owner_key == owner_key,
-            AgentMemoryFile.name == name,
-        )
+    """One note by name in one owner's store - every runtime lookup.
+
+    `include_deactivated` is for the *write* path alone. A note the person
+    suppressed is invisible to reading, editing and deleting, but the name is
+    still taken in the database, so a create that could not see it would fail on
+    the unique constraint with nothing useful to say (#1594).
+    """
+    query = select(AgentMemoryFile).where(
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.agent_id == agent_id,
+        AgentMemoryFile.owner_key == owner_key,
+        AgentMemoryFile.name == name,
     )
+    if not include_deactivated:
+        query = query.where(AgentMemoryFile.deactivated_at.is_(None))
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -49,9 +75,10 @@ async def list_for_owner(
     """One store's notes, newest first - the listing behind `list_memory`.
 
     Capped at `limit` and ordered newest-first so a long-lived store hands the
-    model what it learned last rather than the alphabetically-first rows;
-    `updated_at` is null until a row is edited, so it falls back to `created_at`,
-    which never is.
+    model what it learned last rather than the alphabetically-first rows.
+    `written_at` is the agent's own write and falls back to `created_at`, which is
+    never null - deliberately not `updated_at`, which a person suppressing a note
+    would move.
     """
     result = await db.execute(
         select(AgentMemoryFile)
@@ -59,9 +86,12 @@ async def list_for_owner(
             AgentMemoryFile.organization_id == organization_id,
             AgentMemoryFile.agent_id == agent_id,
             AgentMemoryFile.owner_key == owner_key,
+            # A suppressed note is not supplied to the model at all - which is
+            # what "deactivated" has to mean to be worth offering (#1594).
+            AgentMemoryFile.deactivated_at.is_(None),
         )
         .order_by(
-            func.coalesce(AgentMemoryFile.updated_at, AgentMemoryFile.created_at).desc(),
+            _last_written().desc(),
             AgentMemoryFile.name.asc(),
             # A stable final key, so a tie at the cap boundary is not resolved arbitrarily.
             AgentMemoryFile.id.asc(),
@@ -92,6 +122,8 @@ async def create(
         content=content,
         format=content_format,
         kind=kind,
+        # The agent's own write, which is what provenance and ordering read.
+        written_at=datetime.now(UTC),
     )
     db.add(file)
     await db.flush()
@@ -155,3 +187,84 @@ async def delete_for_person(db: AsyncSession, *, organization_id: UUID, owner_ke
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def list_for_person(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    owner_key: str,
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[AgentMemoryFile], int]:
+    """One person's notes across every agent in the organization, and the total.
+
+    Across agents, because the question somebody asks of their own memory is
+    "what is written down about me here", and answering it agent by agent makes
+    them hunt. Suppressed notes are included: they are the person's own, and a
+    view that hid what they had suppressed would be a view they could not undo
+    anything from (#1594).
+
+    Newest first, on the same `written_at` the model's own listing uses, so the two
+    agree about what "recent" means - and neither is moved by somebody suppressing
+    a note, which `updated_at` would have been.
+    """
+    where = (
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.owner_key == owner_key,
+    )
+    total = await db.scalar(select(func.count()).select_from(AgentMemoryFile).where(*where))
+    result = await db.execute(
+        select(AgentMemoryFile)
+        .where(*where)
+        .order_by(_last_written().desc(), AgentMemoryFile.id.asc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all()), total or 0
+
+
+async def get_owned(
+    db: AsyncSession, *, organization_id: UUID, owner_key: str, file_id: UUID
+) -> AgentMemoryFile | None:
+    """One note by id, only if it belongs to this store.
+
+    The owner is part of the lookup rather than checked afterwards: this is what
+    somebody's own delete and deactivate resolve through, and a lookup by id alone
+    with a check bolted on is the shape that eventually loses the check.
+    """
+    result = await db.execute(
+        select(AgentMemoryFile).where(
+            AgentMemoryFile.id == file_id,
+            AgentMemoryFile.organization_id == organization_id,
+            AgentMemoryFile.owner_key == owner_key,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def revive_if_suppressed(
+    db: AsyncSession, *, file_id: UUID, content: str, description: str | None, kind: str
+) -> bool:
+    """Take a suppressed note over with new content, if nobody else has.
+
+    One conditional statement, because two concurrent `write_memory` calls can
+    both read the row as suppressed and both proceed: Postgres serializes the
+    updates, both report success, and the later silently overwrites a note the
+    earlier had just written. `deactivated_at IS NOT NULL` in the `WHERE` is what
+    makes exactly one of them win; the loser is told the name is taken, which is
+    the collision answer `write_file` already has for a live note.
+    """
+    result = await db.execute(
+        sa_update(AgentMemoryFile)
+        .where(AgentMemoryFile.id == file_id, AgentMemoryFile.deactivated_at.is_not(None))
+        .values(
+            content=content,
+            description=description,
+            kind=kind,
+            deactivated_at=None,
+            written_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+    return bool(result.rowcount)  # ty: ignore[unresolved-attribute]

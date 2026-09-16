@@ -1,5 +1,5 @@
 ---
-source_sha: "395f13f5fc74"
+source_sha: "3c3d227eb5e7"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -208,6 +208,87 @@ Connect, który mógłby tylko zawieść. W odróżnieniu od GitHuba klient nale
 *deploymentu*, a nie do każdej organizacji: ekran zgody Google dla zakresu
 skrzynki pocztowej wymaga zweryfikowanego projektu, który operator rejestruje raz
 i którego żaden z jego tenantów nie może zarejestrować w ogóle.
+
+## Dwa sposoby podłączenia GitHuba i jak poznać, który masz { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
+
+Są dwa i wdrożenie może oferować jeden albo oba. Wybór pokazuje **GitHub** i
+**GitHub (App)** jako osobne źródła, a to, którego trigger używa, rozstrzyga się
+przy jego tworzeniu (#1072).
+
+| | GitHub (OAuth App) | GitHub (App) |
+|---|---|---|
+| Co trzyma | Token dostępu **osoby**, która wyraziła zgodę | Id instalacji plus prywatny klucz Appa w vaulcie |
+| Co może sięgnąć | Każde repozytorium, którym to konto może administrować — `repo` plus `admin:repo_hook`, odczyt i zapis | Repozytoria, na których zainstalowano Appa, z uprawnieniami, które App deklaruje |
+| Jak długo żyje | Na zawsze. Klasyczny token OAuth App nie ma refresh ani wygaśnięcia, więc wyciekły jest ważny, dopóki ktoś ręcznie go nie odwoła | Godzinę. Wybijany na żądanie z klucza, który nie opuszcza vaulta |
+| Hooki | Jeden na repozytorium, tworzony razem z triggerem i usuwany razem z nim | Żadnych. App już dostarcza |
+| Rate limit | 5000/godz. tej osoby, dzielone ze wszystkim, co to konto autoryzowało | Własny Appa |
+| Gdzie dostarcza | `/api/v1/webhooks/triggers/github/<id triggera>` — URL na trigger | `/api/v1/webhooks/github-app` — jeden URL dla wszystkich instalacji |
+
+**Jak poznać, na którym jest trigger:** po jego źródle. Trigger utworzony pod
+**GitHub (App)** nie ma webhooka do znalezienia w ustawieniach repozytorium, bo go
+nie ma; trigger pod **GitHub** ma dokładnie jeden, dodany przez platformę przy
+tworzeniu.
+
+### Konfiguracja Appa (raz na organizację) { #setting-up-the-app-once-per-organization }
+
+1. **Zarejestruj Appa** na [github.com/settings/apps](https://github.com/settings/apps)
+   (albo w odpowiedniku twojej organizacji).
+   - **Webhook URL**: `https://<twoje wdrożenie>/api/v1/webhooks/github-app`. Jeden
+     URL dla wszystkich instalacji — i dlatego publiczny adres wdrożenia jest tu
+     wymaganiem konfiguracji, a nie wartością czytaną w locie.
+   - **Webhook secret**: wygeneruj. Podpisuje każdą dostawę z każdej instalacji
+     tego Appa.
+   - **Uprawnienia**: `Issues: Read-only` i `Metadata: Read-only`. Nic innego nie
+     jest czytane, a cokolwiek więcej to dostęp, którego nikt nie potrzebuje.
+   - **Subskrybuj eventy**: `Issues`.
+2. **Wygeneruj klucz prywatny** na tej samej stronie i pobierz PEM.
+3. **Zapisz całą trójkę w vaulcie** jako sekret **GitHub App** — App ID, klucz
+   prywatny i webhook secret. Jeden na organizację, widoczny dla organizacji:
+   ścieżka dostawy czyta go po organizacji i odmawia zgadywania między dwoma.
+4. **Zainstaluj Appa** na repozytoriach, które chcesz, z zakładki *Install App*.
+   To — i tylko to — jest tym, do czego wdrożenie może sięgnąć.
+5. **Połącz go** — przyciskiem *Connect* na portalu, który pyta o **id
+   instalacji**. GitHub umieszcza je na końcu adresu strony ustawień samej
+   instalacji (`…/settings/installations/<id instalacji>`). To nie jest sekret:
+   jedzie w każdej dostawie i to ono mówi platformie, do którego grantu dostawa
+   należy.
+
+Krok 5 nie ma odpowiednika na ścieżce OAuth, bo App nie ma flow zgody do
+uruchomienia. Połączenie od razu mintuje jeden token instalacji — nie po to, żeby
+go trzymać, ale żeby udowodnić, że App ID, klucz prywatny i id instalacji zgadzają
+się ze sobą. Literówka w id albo PEM, który po drodze do formularza stracił
+podziały wierszy, zostaje odrzucony tam, a nie odkryty później jako dostawy, które
+po cichu do niczego nie pasują. To jest też jedyny moment, w którym klucz w ogóle
+da się sprawdzić: vault nigdy więcej nie pokazuje zapisanego sekretu.
+
+Tworzenie triggera wybiera wtedy repozytorium z instalacji i nie rejestruje nic.
+
+!!! tip "Wyłączanie"
+
+    Wyłączenie połączenia sprawia, że dostawy przestają być w ogóle dopasowywane —
+    wyłączone granty nie są kandydatami. To jest wyłącznik dla całej instalacji,
+    bez dotykania GitHuba.
+
+### Kiedy przychodzi dostawa { #when-a-delivery-arrives }
+
+Jeden URL, więc ścieżka niczego nie nazywa. Id instalacji z payloadu wybiera
+granty, do których dostawa mogłaby należeć, webhook secret Appa dla tej
+organizacji weryfikuje podpis, a repozytorium i event wybierają triggery —
+**wszystkie**, nie jeden. Dwa triggery na tym samym repozytorium odpalają oba, co
+jest tym, do czego zachęcają presety, i czego URL per trigger nie potrafi.
+
+Dostawa, która nie pasuje do niczego, odpowiada `202` dokładnie jak ta, która
+odpaliła wszystko. Podpis, który nie zweryfikował się przy żadnym kandydacie, to
+`403`, więc **Recent Deliveries** GitHuba pokazuje temu, kto źle skonfigurował
+Appa, co jest nie tak.
+
+### Który wybrać { #which-to-choose }
+
+Appa, chyba że nie możesz go zarejestrować. Ścieżka OAuth App to fallback dla
+wdrożenia, którego organizacja na GitHubie nie pozwala nikomu utworzyć Appa, i
+nigdzie się nie wybiera — ale token, który może pushować do każdego repozytorium
+dostępnego administratorowi i nigdy nie wygasa, to duże poświadczenie do trzymania
+po to, żeby czytać issues.
 
 ## Przepis na GitHuba (~5 minut) { #a-github-recipe-5-minutes }
 
