@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.457"
+version = "0.0.460"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -133,8 +133,11 @@ dependencies = [
     # `check_task` and `wait_tasks` themselves, so a status answer names the
     # exception's class rather than embedding the provider's message - the one
     # surface `tool_retry_notice` cannot reach, because a `ToolReturnPart` is
-    # stored whole (#819). The floor is 0.2.20.
-    "subagents-pydantic-ai>=0.2.21",
+    # stored whole (#819). 0.2.22 puts the subagent's name on the delegation's
+    # bound state, which is the only way a persisted `ask_user` part can say
+    # which delegate asked - `ask_parent` hands the surface the question and
+    # nothing else (#1042). The floor is 0.2.22.
+    "subagents-pydantic-ai>=0.2.22",
     "cryptography>=50.0.1",
     "aiogram>=3.31.0,<4.0",
     "slack-sdk>=3.44.1",

@@ -1,5 +1,5 @@
 ---
-source_sha: "dba14340bbd8"
+source_sha: "b76da60d30ae"
 ---
 
 # Tests { #testing }
@@ -484,6 +484,39 @@ acht Läufen). Also:
   neu, wenn sie eine Liste braucht, der sie trauen kann. `vault.spec.ts` hat drei
   `page.reload()`-Aufrufe, mit `#230` markiert; wenn dieses Issue schließt,
   kommen sie heraus.
+- **Ein Produkt-Spec, der den Schreibvorgang selbst gemacht hat, wartet wie die
+  Fixtures.** `nowListed` und `nowMatching` in `e2e/helpers.ts` sind `nowThere`
+  aus `seed.setup.ts` herausgezogen, damit es ein Primitiv gibt und nicht zwei
+  ([#162](https://github.com/vstorm-co/agenticos/issues/162)). Das teilt einen
+  Fehlschlag in zwei: ein Fehlschlag im Polling ist ein Schreibvorgang, der nie
+  angekommen ist, ein Fehlschlag in der Assertion danach eine Seite, die eine
+  Zeile nicht gezeichnet hat, die die API auslieferte. `journey.spec.ts` endet
+  mit dem Nachweis, dass ein Run **bepreist** wurde — fünf Dinge mussten
+  passieren, und ein nacktes `toBeVisible()` auf der Zeile sagte nur, dass eines
+  davon nicht passiert ist.
+
+### Jedes Warten sagt, worauf es gewartet hat { #every-wait-says-what-it-was-waiting-for }
+
+`expect(locator).toBeVisible()` scheitert mit `element(s) not found` und benennt
+damit das Einzige, das nicht die Ursache sein kann. Playwright nimmt eine
+Meldung als zweites Argument, und die langen Reisen dieser Suite nutzen das:
+
+```ts
+await expect(
+  row,
+  `run ${id} is priced at ${cost}, but Activity draws no row for ${modelLabel}`,
+).toBeVisible();
+```
+
+Vier Specs sind in der anonymen Form geflakt, und jeder kostete eine Diagnose,
+die bei null begann ([#130](https://github.com/vstorm-co/agenticos/issues/130),
+[#132](https://github.com/vstorm-co/agenticos/issues/132),
+[#154](https://github.com/vstorm-co/agenticos/issues/154),
+[#162](https://github.com/vstorm-co/agenticos/issues/162)). Die Meldung kostet
+eine Zeile und ist der ganze Unterschied zwischen „es hat wieder geflakt" und
+einer Diagnose. Scheitert trotzdem einer in CI, trägt `playwright-results` neben
+`playwright-report` den Screenshot, das Video, den Trace und Playwrights eigene
+`error-context.md`.
 
 ## Die Testdatenbank { #test-database }
 
