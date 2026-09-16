@@ -71,6 +71,21 @@ The route carries a **rate limit rather than a permission gate**. Permission is
 decided inside the service, against that specific agent's grants — a role gate
 on a per-resource route [cannot see them](permissions.md).
 
+## The ML services
+
+Four of the platform's services answer on their own, with no conversation and no
+agent behind them: document analysis, OCR, speech to text and personal data
+detection. They are gated on `ml:invoke` rather than `agents:run`, and
+[The ML services](ml-services.md) is their reference.
+
+```bash
+curl -X POST "$BASE/api/v1/ml/privacy/pii" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "write to ada@example.com"}'
+```
+
 ## Streaming
 
 Two WebSocket endpoints, for two audiences.

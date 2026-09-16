@@ -135,6 +135,33 @@ class DeploymentSettings(Base, TimestampMixin):
     the impersonation either way.
     """
 
+    retention_defaults: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
+    """Days per class, for an organization that has set nothing itself (#1420).
+
+    Null, and a class absent from it, both mean "for ever". Deliberately: a
+    platform that started deleting an existing installation's history on upgrade
+    because a default said ninety days would be a platform nobody could trust
+    with the next upgrade either. An operator choosing a period is the event.
+    """
+
+    retention_max_days: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
+    """The ceiling: nothing of this class lives longer than this here.
+
+    An organization can ask for longer and will not get it. A class absent has no
+    ceiling. `audit` is the one class where the deployment's number is a floor
+    instead, and it lives below rather than here - a ceiling and a floor in one
+    mapping is how the two get read as each other.
+    """
+
+    audit_retention_floor_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The shortest an audit entry may live, in days. Null takes the built-in six years.
+
+    A floor rather than a period, because a trail an administrator can shorten is
+    not a trail: an organization may keep its entries longer, never less. A
+    deployment under a longer obligation raises this; one under none may lower
+    it, which is then a deliberate act with a number attached.
+    """
+
     def __repr__(self) -> str:
         return (
             f"<DeploymentSettings(app_name={self.app_name!r}, "

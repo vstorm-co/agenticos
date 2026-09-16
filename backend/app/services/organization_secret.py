@@ -26,6 +26,7 @@ from app.core.secret_kinds import (
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
     SecretKind,
+    SecretValue,
     StorableSecret,
     describe_kind,
     seal_secret,
@@ -432,6 +433,48 @@ class OrganizationSecretService:
         # for, so this is the concrete type - the cast narrows it without a branch
         # that could never run.
         return cast(OAuthAppSecret, value)
+
+    async def app_secret(self, organization_id: UUID, *, kind: SecretKind) -> SecretValue:
+        """The organization's single org-visible secret of one kind, by id alone.
+
+        The same read as :meth:`oauth_app` with no caller, for the one path that
+        has none: a GitHub App delivery arrives at a shared URL with no session,
+        and the organization is already established - it is the one holding the
+        grant the installation id selected (#1072). Taking an `AuthContext` here
+        would mean fabricating one for a request nobody made, which is worse than
+        naming the organization.
+
+        Raises:
+            NotFoundError: No org-visible secret of this kind. On the delivery
+                path the caller turns that into "nothing to fire", because a
+                deployment that has not stored an App is not one this delivery
+                belongs to.
+            BadRequestError: More than one, with the names that collide.
+        """
+        rows = await organization_secret_repo.list_org_visible_by_kind(
+            self.db, organization_id=organization_id, kind=kind.value
+        )
+        label = describe_kind(kind)
+        if not rows:
+            raise NotFoundError(
+                message=f"No org-visible {label} secret is stored.",
+                details={"kind": kind.value},
+            )
+        if len(rows) > 1:
+            raise BadRequestError(
+                message=(
+                    f"More than one org-visible {label} secret is stored; keep "
+                    "exactly one so it is unambiguous which one is in use."
+                ),
+                details={"kind": kind.value, "names": [row.name for row in rows]},
+            )
+        row = rows[0]
+        return unseal_secret(
+            row.sealed_secret,
+            kind=kind,
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
 
     async def _get(
         self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW

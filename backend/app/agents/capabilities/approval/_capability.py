@@ -39,6 +39,7 @@ from app.agents.approval import (
     ApprovalRequest,
     refusal,
 )
+from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES
 from app.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
@@ -83,8 +84,15 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
+        # A capability id is what tells this deployment's tool from an MCP
+        # server's, whose approval is a different question - except for the
+        # framework's own, which carries no capability id and is still ours to
+        # gate: `load_capability` is how a skill is opened, so a spec that asked
+        # for approval before a skill is loaded has nowhere else to put it
+        # (#1704 review).
         gated = self.gate_every_tool or (
-            capability_id is not None and tool_def.name in self.required_tool_names
+            tool_def.name in self.required_tool_names
+            and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
         )
         if not gated:
             return await handler(args)

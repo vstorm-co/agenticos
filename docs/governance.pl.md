@@ -1,5 +1,5 @@
 ---
-source_sha: "9985ef28fbd1"
+source_sha: "0f9f49369789"
 ---
 
 # Governance { #governance }
@@ -1410,11 +1410,22 @@ wiersze są niezmienne.
 
 Dwóch usunięć łańcuch nie wychwyci sam z siebie, bo pozostałe wiersze zostają
 wewnętrznie spójne: odcięcia najnowszych wpisów z łańcucha oraz usunięcia całego
-łańcucha organizacji — to drugie po prostu usuwa go ze zbioru, który `audit-verify`
-przechodzi. Wychwycenie któregokolwiek wymaga końcowego punktu kontrolnego per
-organizacja, trzymanego tam, gdzie operator bazy nie sięga; ta kotwica to
-planowane działanie następcze, a dopóki nie powstanie, czysty przebieg nie
-poświadcza, że nic nie zostało obcięte.
+łańcucha organizacji. Te wychwytuje **checkpoint** — wskaźnik najwyższego stanu per
+organizacja, który `record_audit` posuwa naprzód przy każdym wpisie, pod triggerem
+bazy odmawiającym cofnięcia go lub usunięcia. `audit-verify` flaguje łańcuch,
+którego głowa jest poniżej checkpointu, albo checkpoint, którego łańcuch zniknął.
+
+Warto precyzyjnie powiedzieć, co ten trigger obejmuje, bo łatwo przeczytać w nim
+więcej. Zamyka zwykłą ścieżkę zapisu — administratora aplikacji działającego przez
+produkt oraz błąd w tym kodzie — czyli model zagrożeń, pod który ten ślad jest
+pisany.
+
+Nie jest kontrolą przeciwko komuś, kto ma poświadczenia samej bazy. Aplikacja i jej
+migracje łączą się tą samą rolą, a ta rola jest właścicielem tabeli checkpointów:
+może zdjąć trigger, a `TRUNCATE` opróżnia tabelę, w ogóle nie odpalając triggera
+wierszowego. Superużytkownik może jedno i drugie. Domknięcie tego wymaga wskaźnika
+trzymanego tam, gdzie role tej bazy nie sięgają — w magazynie tylko-do-dopisywania
+albo z blokadą obiektów poza nią — co pozostaje planowanym działaniem następczym.
 
 Dwa audytowane zapisy dla jednej organizacji nie mogą rozwidlić łańcucha: każdy
 dopisuje pod blokadą per organizacja, więc szeregują się w jedną linię, zamiast
@@ -1467,6 +1478,117 @@ administratora dla każdego agenta, którego organizacja powiąże, poza godzin�
 której impersonacja się kończy. Utworzenie połączenia organizacji już wcześniej
 zapisywało administratora za nim; aktualizacja nie zapisywała niczego, więc token
 rotowany na istniejące połączenie zostawia teraz ten sam ślad (#1521).
+
+## Retencja { #retention }
+
+Do #1420 nic nie było usuwane według harmonogramu. Rozmowy, ich pliki, wiersze
+runów i manifesty, workspace'y, pamięć agentów, wgrane dokumenty i wpisy
+audytowe żyły, dopóki ktoś nie usunął organizacji. To problem ochrony danych w
+jedną stronę i — dla audytu — problem zgodności w drugą: HIPAA §164.316(b)(2)
+chce trzymać zapis audytowy sześć lat, a RODO chce minimalizować całą resztę.
+Dlatego okres jest **na klasę** i oba obowiązki dostają swoje ustawienie.
+
+Ustawisz to w **Organizacje → workspace → Członkowie → Retencja**, za bramką
+`org:settings`. Sweep chodzi raz dziennie i **usuwa twardo**: polityka, która
+zostawiałaby wiersze, nie byłaby polityką.
+
+Trzy własne liczby wdrożenia — `retention_defaults`, `retention_max_days` i
+`audit_retention_floor_days` — to pola ustawień wdrożenia, zapisywane przez app
+admina przez `PATCH /admin/deployment-settings` jak każde inne ustawienie tam.
+Formularza w konsoli dla nich jeszcze nie ma; strona organizacji jest miejscem,
+gdzie ustawia się okresy per tenant.
+
+### Klasy { #the-classes }
+
+| Klasa | Co odchodzi razem z nią | Liczone od |
+|---|---|---|
+| Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
+| Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
+| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
+| Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
+| Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
+| Audyt | Wpisy na ścieżce audytowej tej organizacji | Momentu zapisania wpisu |
+
+**Dokument wciąż ingestowany też nie jest zamiatany.** Trzyma go worker, a
+zabranie jego wiersza i wgranego oryginału spod ingestii, która potem zapisze
+wektory, zostawia przeszukiwalną treść, której żaden późniejszy sweep nie nazwie.
+Wycofywane są tylko wiersze zakończone i błędne.
+
+**Dokument zsynchronizowany przez konektor nie jest zamiatany.** Jego czas życia
+należy do źródła, które go tam umieściło: usunięcie go tutaj skasowałoby wiersz,
+który kolejny sync `new_only` odtworzy z tego samego niezmienionego pliku,
+paląc spend na embeddingi na nic. Zamiatane jest to, co ktoś wgrał, a czego
+czasu życia nic innego nie posiada.
+
+### Który numer wygrywa { #which-number-wins }
+
+Trzy warstwy, rozstrzygane w `app/core/retention.py` i nigdzie indziej:
+
+1. **Domyślna wartość wdrożenia**, dla organizacji, która nic nie powiedziała.
+   Brak znaczy na zawsze — platforma, która po aktualizacji zaczęłaby usuwać
+   historię istniejącej instalacji, byłaby platformą, której nikt nie zaufałby
+   przy kolejnej aktualizacji.
+2. **Własny okres organizacji**, krótszy albo dłuższy.
+3. **Sufit wdrożenia**: nic z tej klasy nie żyje tu dłużej niż N dni, i
+   organizacja nie może go podnieść.
+
+Audyt działa odwrotnie. Wdrożenie ustawia **podłogę** — najkrócej, jak wpis może
+żyć, sześć lat, dopóki operator tego nie zmieni — a organizacja może ją wydłużyć
+i nigdy skrócić. **Audytu nic jeszcze nie zamiata**: okres się rozstrzyga i jest
+raportowany, a organizacja jest trzymana przy podłodze, ale żaden wpis nie jest
+usuwany, bo łańcuch haszy i jego append-only checkpoint stoją na tym, że wpisy
+nigdzie nie idą, a gołe usunięcie sprawia, że `audit-verify` raportuje wycofanie
+jako manipulację. Weryfikowalne wycofywanie łańcucha to
+[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+Sufit dalej obowiązuje audyt tam, gdzie oba nie są sprzeczne. Tam, gdzie są,
+wygrywa podłoga, a sprzeczność jest raportowana. Ścieżka, którą administrator może skrócić, nie jest ścieżką,
+więc okres poniżej podłogi jest **odrzucany**, a nie po cichu do niej podnoszony:
+trzymanie wpisów dłużej, niż mówi liczba na ekranie, to własny rodzaj błędu.
+
+Podłoga powyżej sufitu to sprzeczność i jest raportowana, a nie rozstrzygana.
+Strona ustawień nazywa klasę; administrator decyduje, która obowiązuje. Wybranie
+jednej zostawiłoby wdrożenie zachowujące się inaczej niż jego własna strona
+ustawień.
+
+### Co przeżywa czystkę { #what-survives-a-purge }
+
+**Rachunek.** Spend miesiąca to suma po `agent_runs`, więc twarde usunięcie ich
+zrzuciłoby miesięczny wynik organizacji do zera wraz z mijającym oknem, a limit
+mierzony na tej liczbie przestałby obowiązywać do końca miesiąca. Sweep czyta,
+ile kosztowały wygasające runy, zanim je usunie, i trzyma sumę na organizację na
+miesiąc w `purged_run_spend` — liczbę i licznik, bez agenta, bez modelu, bez
+czyjegokolwiek nazwiska. `app/services/spend.py` dodaje to do sumy na żywo i to
+jedyne miejsce, w którym te dwie rzeczy się spotykają.
+
+**Ślad samego sweepa.** Jeden wpis na organizację na sweep, nazywający klasę i
+licznik, i nic więcej: wpis audytowy cytujący to, co usunął, trzymałby treść
+dłużej niż retencja, która ją usunęła.
+
+### Kiedy się nie uda { #when-it-fails }
+
+Per klasa, nie per sweep. Niedostępny vector store nie może zatrzymać usuwania
+rozmów, więc każda klasa jest próbowana, jej błąd logowany i nazwany we wpisie
+audytowym, a sweep idzie dalej. Kolejny przebieg ponawia, bo partia, która nic
+nie usunęła, po prostu wraca.
+
+Usuwanie idzie partiami po 500, do czterdziestu przebiegów na klasę na sweep.
+Organizacja, która po dwóch latach ustawia dziewięćdziesiąt dni, odrabia zaległość
+przez kilka dni, a nie w jednym sweepie trzymającym locka przez godzinę z całą
+resztą cyklicznych flowów w kolejce za nim.
+
+### Czego to nie sięga { #what-this-does-not-reach }
+
+- **Backupów.** Czystka usuwa wiersze i pliki z żywego wdrożenia. To, co trzyma
+  twój harmonogram backupów, wygaszasz sam, a restore przywróci to, co było w
+  snapshotcie.
+- **Tego, co wysłałeś gdzie indziej.** Logi wysłane do zewnętrznego kolektora,
+  trace'y w hostowanym projekcie observability i cokolwiek trzyma dostawca
+  modelu rządzą się własnymi ustawieniami tych usług, nie tym.
+- **Kontroli per wpis pamięci**, czyli [#1594](https://github.com/vstorm-co/agenticos/issues/1594),
+  ani usunięcia jednej osoby w całej organizacji, czyli
+  [#1421](https://github.com/vstorm-co/agenticos/issues/1421). Ta strona jest o
+  wieku; tamte są o podmiocie.
 
 ## Czego nic z tego nie obejmuje { #what-none-of-this-covers }
 
