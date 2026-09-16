@@ -1,5 +1,5 @@
 ---
-source_sha: "544d485d3728"
+source_sha: "84a82677fcab"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -200,16 +200,58 @@ Indeks większy niż mniej więcej 6000 znaków jest pomijany, a nie przycinany.
 Połowa indeksu — urwana w środku linii, w środku nazwy pliku — jest gorsza niż
 żadna.
 
-### Jak to wymazać { #erasing-it }
+### Jak to czytać i jak wymazać { #reading-it-and-erasing-it }
 
-Nic w konsoli nie pozwala przeglądać cudzych notatek: operator czytający, co
-agent napisał o koledze, jest tą porażką, której ten projekt odmawia, i nie ma na
-to ekranu. Jest za to wymazywanie. Człowiek czyści z poziomu własnego profilu
-wszystko, co agent o nim pamięta, a administrator z uprawnieniem `members:manage`
-może zrobić to za kogoś innego; oba działania usuwają wiersze tutaj **oraz**
-odpowiadające im wspomnienia w mem0 dla każdego agenta, który to wiąże.
-Wyczyszczenie całej pamięci jednego agenta jest w jego Toolboksie, obok
-capability.
+Nikt nie przegląda notatek *kogoś innego* z tytułu roli w organizacji. To była
+całość wcześniejszej odpowiedzi — wymazywanie i żadnej listy — i była w połowie
+trafna: lista to narzędzie inwigilacji cudzego magazynu i coś dokładnie
+odwrotnego dla własnego. Dlatego odpowiedź ma teraz trzy części (#1594).
+
+**Własną, zawsze, w Ustawienia → Pamięć.** Nie bramkuje tego żadne uprawnienie,
+bo odpowiedź jest ta sama dla Viewera i dla Ownera: co agenci tutaj zapisali o
+tobie, po wszystkich agentach, z informacją, który zapisał którą notatkę i kiedy.
+Trzy rzeczy, które możesz z notatką zrobić:
+
+| | |
+|---|---|
+| **Przestań używać** | Notatka nie jest już listowana, czytana ani edytowalna przez żadne narzędzie, więc przestaje docierać do modelu — i dalej istnieje, żebyś mógł ją obejrzeć i przywrócić. Odpowiedź pośrednia, dla notatki błędnej albo zbyt osobistej, co do której nie masz jeszcze pewności, że ma zniknąć. |
+| **Używaj znowu** | Przywraca ją. |
+| **Usuń** | Znika. |
+
+*Nazwa* wyłączonej notatki jest nadal zajęta, więc agent piszący tę nazwę
+ponownie ożywia wiersz z nową treścią. To nie jest cofnięcie wyłączenia: to, co
+wyłączyłeś, zostaje nadpisane, a wiersz trzyma coś, czego agent nauczył się od
+tamtej pory. Alternatywa — nazwa na zawsze nieużywalna — to magazyn, który po
+cichu odmawia działania i nigdy nie mówi dlaczego.
+
+**Indeks idzie za tym.** `MEMORY.md` jest wklejany w instrukcje każdego żądania,
+więc zatrzymana notatka, której linia w indeksie dalej ją opisuje, to notatka,
+która dalej dociera do modelu. Wyłączenie albo usunięcie notatki usuwa więc te
+linie indeksu, które ją **nazywają**. Linia opisująca notatkę bez nazwania jej
+zostaje — przycinanie jest liniowe i kluczowane po nazwie, bo tym właśnie jest
+indeks — a przywrócenie notatki nie wstawia linii z powrotem: indeks pisze agent,
+a to nie jest miejsce na pisanie prozy jego głosem.
+
+**Cudzą, tylko administrator wdrożenia.** `GET /memory/person/{id}`, z nazwaniem
+tenanta, i odmowa dla wszystkich innych: nie dla Ownera, nie dla Admina, nie dla
+kogoś z grantem edycji na agencie, który tę notatkę napisał. Uzasadnienie jest to
+samo co wyżej — rola w organizacji nie jest stroną, do której trafia żądanie
+dostępu podmiotu danych, a administrator samego wdrożenia, który już administruje
+kontami w poprzek tenantów, jest. Odczyt trafia do śladu audytowego z aktorem,
+tenantem, podmiotem i powodem, i **bez treści**: wpis trzymający to, na co
+patrzył, byłby drugą kopią tego, co jest chronione.
+
+**Wymazywanie**, bez zmian. Osoba czyści ze swojego profilu wszystko, co agent o
+niej pamięta, a administrator z `members:manage` może to zrobić za kogoś innego;
+oba usuwają wiersze tutaj **i** odpowiadające wspomnienia w mem0 dla każdego
+agenta, który je wiąże. Wyczyszczenie pamięci jednego agenta w całości jest w
+jego przyborniku, obok capability.
+
+**Czego samoobsługowy widok nie sięga.** Agent związany z mem0 trzyma wspomnienia
+w cudzej usłudze i ta strona ich nie listuje — API mem0 odpowiada, co pasuje do
+*pytania*, a nie co magazyn trzyma. Tacy agenci są na stronie **nazwani**, a nie
+pominięci, bo lista notatek natywnych podana jako pełny inwentarz byłaby gorsza
+niż taka, która mówi, czego jej brakuje. Wymazywanie sięga mem0; czytanie nie.
 
 ## Pamięć (mem0) { #memory-mem0 }
 

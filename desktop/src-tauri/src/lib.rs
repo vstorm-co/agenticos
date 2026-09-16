@@ -25,7 +25,9 @@ use tauri::menu::{CheckMenuItem, ContextMenu, IsMenuItem, Menu, MenuItem, Predef
 use tauri::tray::TrayIconBuilder;
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_opener::OpenerExt;
 
 const WINDOW: &str = "main";
 const PET: &str = "pet";
@@ -357,21 +359,155 @@ fn is_loopback(host: &str) -> bool {
         || bare.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
 }
 
-/// What the console window says it is.
+/// The scheme the shell registers for a sign-in coming back from the browser.
 ///
-/// WKWebView on macOS and WebKitGTK on Linux announce themselves as bare
-/// AppleWebKit, which Google's authorization endpoint refuses as an embedded
-/// user-agent (`disallowed_useragent`), so a deployment with Google sign-in could
-/// not sign in from the shell at all. The engine is Safari's; the string names
-/// the version tokens Safari adds. The handoff Google prefers - the system browser
-/// and a deep link back - needs a one-time exchange the backend does not have yet
-/// (#1532). WebView2 already carries a browser's user agent.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-const CONSOLE_USER_AGENT: Option<&str> = Some(
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
-);
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-const CONSOLE_USER_AGENT: Option<&str> = None;
+/// Must match `DESKTOP_DEEP_LINK_SCHEME` on the deployment, which is what builds
+/// the redirect - and `tauri.conf.json`, which is what registers it with the
+/// operating system.
+const DEEP_LINK_SCHEME: &str = "agenticos";
+
+/// Whether this navigation is the *backend* starting an OAuth sign-in.
+///
+/// Google's authorization endpoint refuses an embedded user-agent
+/// (`disallowed_useragent`), and the handoff it asks for is the system browser
+/// with the result deep-linked back. So the shell watches for the start of the
+/// flow rather than asking the console to behave differently in a window:
+/// nothing in the frontend knows it is running here, and nothing has to (#1532).
+///
+/// Two things this checks that an earlier version did not, and each is a defect
+/// it fixes:
+///
+/// **The origin, not only the path.** This webview deliberately permits
+/// navigation to external sites during MCP consent, so a path-only predicate let
+/// any page loaded in the window navigate to `https://its-host/api/oauth/x/login`
+/// over and over - each cancelled navigation launching a browser window through
+/// the privileged opener.
+///
+/// **The backend's URL, not the console's same-origin hop.** The console's
+/// `/api/oauth/<provider>/login` is a proxy that attaches a staged invitation
+/// read from an httpOnly cookie the system browser does not have (#1414).
+/// Intercepting it sent the browser off without the invitation, so an invitee on
+/// an `invite_only` deployment was refused. Letting the webview follow that hop
+/// *itself* - where the cookie exists - and intercepting the redirect it produces
+/// hands the browser a URL that already carries the handle.
+fn is_oauth_start(server: Option<&Url>, url: &Url) -> bool {
+    let Some(server) = server else {
+        return false;
+    };
+    if url.origin() != server.origin() {
+        return false;
+    }
+    let path = url.path();
+    path.starts_with("/api/v1/oauth/") && path.ends_with("/login")
+}
+
+/// The same sign-in, marked as this shell's so the callback returns by deep link.
+///
+/// `client=desktop` is recorded in the session at the *start* and read at the
+/// callback; the backend never takes it off the return, because it builds a
+/// redirect out of it.
+///
+/// `desktop_nonce` is minted per attempt and is what makes the deep link
+/// answerable only by the window that asked. Without it any local process holding
+/// a code from this deployment could invoke `agenticos://auth/callback?code=…`
+/// and replace the webview's cookies with its own session - moving the person
+/// into an account somebody else controls.
+fn external_sign_in_url(url: &Url, nonce: &str) -> Url {
+    let mut opened = url.clone();
+    let kept: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(name, _)| name != "client" && name != "desktop_nonce")
+        .map(|(name, value)| (name.into_owned(), value.into_owned()))
+        .collect();
+    {
+        let mut query = opened.query_pairs_mut();
+        query.clear();
+        for (name, value) in &kept {
+            query.append_pair(name, value);
+        }
+        query.append_pair("client", "desktop");
+        query.append_pair("desktop_nonce", nonce);
+    }
+    opened
+}
+
+/// The nonce of the sign-in this shell started, if one is still waiting.
+///
+/// One at a time, and replaced rather than queued: starting a second sign-in
+/// abandons the first, which is what a person clicking the button again means.
+#[derive(Default)]
+pub struct PendingSignIn(Mutex<Option<String>>);
+
+/// Compare two nonces without leaking which byte differed.
+///
+/// A nonce is not a password and nothing here is timing-attackable in practice -
+/// an attacker who can invoke the scheme can invoke it as often as they like.
+/// It is still the comparison this repository uses for every value that decides
+/// an authentication, and writing the other one invites the next reader to copy
+/// it somewhere it does matter.
+fn constant_time_eq(left: &str, right: &str) -> bool {
+    let (left, right) = (left.as_bytes(), right.as_bytes());
+    if left.len() != right.len() {
+        return false;
+    }
+    left.iter().zip(right).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
+}
+
+/// A fresh, unguessable nonce for one sign-in attempt.
+fn mint_nonce() -> String {
+    // 128 bits from the OS, hex-encoded. `getrandom` is already in the tree
+    // through `uuid`'s `v4` feature, which is how every other id here is made.
+    uuid::Uuid::new_v4().simple().to_string()
+}
+
+/// Where the console window goes when the browser hands a sign-in back.
+///
+/// `agenticos://auth/callback?code=…` becomes `<server>/auth/callback?code=…`,
+/// the page the console already has: it POSTs the single-use code to the BFF,
+/// which swaps it for the token pair and sets the httpOnly cookies. The window's
+/// cookie jar is the one that ends up signed in, which is the whole point of the
+/// handoff - the browser that completed the flow has its own.
+///
+/// `None` for a link that is not a sign-in return, or one carrying no code, or
+/// when no server has been chosen yet. A deep link is something any process on
+/// the machine can fire, so what it is allowed to do is navigate to one path on
+/// the server the *user* already configured - never to an address it names.
+fn deep_link_return(server: Option<&Url>, expected: Option<&str>, link: &str) -> Option<Url> {
+    let parsed = Url::parse(link).ok()?;
+    if parsed.scheme() != DEEP_LINK_SCHEME {
+        return None;
+    }
+    // `agenticos://auth/callback` parses `auth` as the host and `/callback` as
+    // the path, which is why both are checked rather than the path alone.
+    if parsed.host_str() != Some("auth") || parsed.path() != "/callback" {
+        return None;
+    }
+    // The nonce this shell minted when it started the flow, echoed back through
+    // the backend. Anyone on this machine can invoke a custom scheme, so without
+    // it a local process holding a code from this deployment could hand the
+    // window somebody else's session - and the window would accept it, because a
+    // code is all the callback page needs.
+    let returned = parsed
+        .query_pairs()
+        .find(|(name, _)| name == "desktop_nonce")
+        .map(|(_, value)| value.into_owned());
+    match (expected, returned.as_deref()) {
+        (Some(mine), Some(theirs)) if constant_time_eq(mine, theirs) => {}
+        _ => return None,
+    }
+    let code = parsed
+        .query_pairs()
+        .find(|(name, _)| name == "code")
+        .map(|(_, value)| value.into_owned())?;
+    if code.is_empty() {
+        return None;
+    }
+    let mut destination = server?.clone();
+    destination.set_path("/auth/callback");
+    destination.set_query(None);
+    destination.query_pairs_mut().append_pair("code", &code);
+    Some(destination)
+}
 
 /// `--server <address>` on the command line: the address to use and remember.
 ///
@@ -855,13 +991,28 @@ fn window_title(loaded: &Url, server: Option<&Url>) -> String {
 }
 
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
-    let mut builder = WebviewWindowBuilder::new(app, WINDOW, url)
+    let handle = app.clone();
+    let builder = WebviewWindowBuilder::new(app, WINDOW, url)
         .title("AgenticOS")
         .inner_size(1280.0, 800.0)
-        .min_inner_size(900.0, 600.0);
-    if let Some(user_agent) = CONSOLE_USER_AGENT {
-        builder = builder.user_agent(user_agent);
-    }
+        .min_inner_size(900.0, 600.0)
+        // The one navigation this window refuses. Everything else - including
+        // the provider's *return* to the console - loads here as it always did.
+        .on_navigation(move |url| {
+            let server = settings(&handle).server_url;
+            if !is_oauth_start(server.as_ref(), url) {
+                return true;
+            }
+            let nonce = mint_nonce();
+            if let Ok(mut pending) = handle.state::<PendingSignIn>().0.lock() {
+                *pending = Some(nonce.clone());
+            }
+            let opened = external_sign_in_url(url, &nonce);
+            if let Err(e) = handle.opener().open_url(opened.as_str(), None::<&str>) {
+                eprintln!("Could not open the sign-in in your browser: {e}");
+            }
+            false
+        });
     builder
         .on_page_load(|window, payload| {
             let server = settings(window.app_handle()).server_url;
@@ -1005,6 +1156,21 @@ fn install_menu(app: &AppHandle, pet: &PetSettings) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // First, and it has to be: on Windows and Linux opening a registered
+        // scheme *starts the executable again*, and a desktop sign-in always
+        // begins with an instance already running. Without this the callback
+        // would build a second console, tray icon and pet, consume the code
+        // there, and leave the original window signed out - with two processes
+        // competing for one global shortcut. The second instance hands its
+        // argv over and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if let Some(console) = app.get_webview_window(WINDOW) {
+                let _ = console.set_focus();
+            }
+            let _ = app.emit("single-instance", argv);
+        }))
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             server_url,
@@ -1020,6 +1186,7 @@ pub fn run() {
             set_screenshot_shortcut,
             back_to_console
         ])
+        .manage(PendingSignIn::default())
         .setup(|app| {
             let handle = app.handle();
             let (mut settings, unreadable) = load_or_quarantine(handle);
@@ -1048,6 +1215,35 @@ pub fn run() {
             if settings.pet.enabled {
                 open_pet(handle, &settings.pet)?;
             }
+            // The return leg. A deep link is something any process on this
+            // machine can fire, so all it is allowed to do is send the console
+            // to one path on the server the user already chose.
+            let deep_link_handle = handle.clone();
+            app.deep_link().on_open_url(move |event| {
+                let chosen = load_settings(&deep_link_handle).ok().and_then(|s| s.server_url);
+                // The nonce this shell minted when it opened the browser. Taken
+                // out of the slot whether the link matches or not: a sign-in is
+                // answered once, so a second link carrying the same nonce is a
+                // replay and finds nothing.
+                let expected = deep_link_handle
+                    .state::<PendingSignIn>()
+                    .0
+                    .lock()
+                    .ok()
+                    .and_then(|mut slot| slot.take());
+                for link in event.urls() {
+                    if let Some(destination) = deep_link_return(chosen.as_ref(), expected.as_deref(), link.as_str()) {
+                        if let Some(console) = deep_link_handle.get_webview_window(WINDOW) {
+                            if let Err(e) = console.navigate(destination) {
+                                eprintln!("Could not finish signing in: {e}");
+                            } else {
+                                let _ = console.set_focus();
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -1061,9 +1257,214 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        attach_script, parse_server_url, reachable, Kind, PetSettings, Settings, Shortcuts, Url,
-        DEFAULT_SCREENSHOT_SHORTCUT,
+        attach_script, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
+        parse_server_url, reachable, Kind, PetSettings, Settings, Shortcuts, Url, DEFAULT_SCREENSHOT_SHORTCUT,
     };
+
+    fn url(spelled: &str) -> Url {
+        Url::parse(spelled).expect("a test URL")
+    }
+
+    #[test]
+    fn a_sign_in_start_is_the_one_navigation_the_window_refuses() {
+        let server = url("https://acme.example/");
+
+        assert!(is_oauth_start(
+            Some(&server),
+            &url("https://acme.example/api/v1/oauth/google/login")
+        ));
+        assert!(is_oauth_start(
+            Some(&server),
+            &url("https://acme.example/api/v1/oauth/oidc/login?invitation_handle=abc")
+        ));
+    }
+
+    #[test]
+    fn the_providers_return_is_not_a_start_and_loads_in_the_window() {
+        let server = url("https://acme.example/");
+
+        assert!(!is_oauth_start(
+            Some(&server),
+            &url("https://acme.example/auth/callback?code=x")
+        ));
+        assert!(!is_oauth_start(
+            Some(&server),
+            &url("https://acme.example/api/v1/oauth/exchange")
+        ));
+        assert!(!is_oauth_start(Some(&server), &url("https://acme.example/login")));
+    }
+
+    #[test]
+    fn the_consoles_own_hop_is_followed_so_it_can_attach_the_invitation() {
+        // `/api/oauth/...` is the frontend proxy, which reads a staged
+        // invitation out of an httpOnly cookie the system browser does not
+        // have (#1414). Intercepting it sent the browser off without the
+        // invitation, and an invitee on an `invite_only` deployment was
+        // refused; letting the webview follow it and catching the redirect it
+        // produces hands the browser a URL that already carries the handle.
+        let server = url("https://acme.example/");
+
+        assert!(!is_oauth_start(
+            Some(&server),
+            &url("https://acme.example/api/oauth/google/login?flow=abc")
+        ));
+    }
+
+    #[test]
+    fn another_sites_sign_in_path_is_not_this_deployments() {
+        // The window permits navigation to external sites during MCP consent,
+        // so a path-only check let any loaded page launch browser windows
+        // through the privileged opener, as often as it liked.
+        let server = url("https://acme.example/");
+
+        assert!(!is_oauth_start(
+            Some(&server),
+            &url("https://evil.example/api/v1/oauth/google/login")
+        ));
+        assert!(!is_oauth_start(
+            Some(&server),
+            &url("http://acme.example/api/v1/oauth/google/login")
+        ));
+        assert!(!is_oauth_start(
+            None,
+            &url("https://acme.example/api/v1/oauth/google/login")
+        ));
+    }
+
+    #[test]
+    fn the_browser_is_told_the_shell_started_it_and_which_attempt_this_is() {
+        // Minted rather than written out, here and below. A literal in this
+        // position is a hard-coded nonce to anything reading the tree, and it is
+        // also the weaker test: a real one proves the value is carried through
+        // rather than that one particular string is.
+        let nonce = mint_nonce();
+        let opened = external_sign_in_url(&url("https://acme.example/api/v1/oauth/google/login"), &nonce);
+
+        assert_eq!(
+            opened.as_str(),
+            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={nonce}")
+        );
+    }
+
+    #[test]
+    fn a_staged_invitation_survives_the_handoff() {
+        let nonce = mint_nonce();
+        let opened = external_sign_in_url(
+            &url("https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123"),
+            &nonce,
+        );
+
+        assert_eq!(
+            opened.as_str(),
+            format!(
+                "https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123&client=desktop&desktop_nonce={nonce}"
+            )
+        );
+    }
+
+    #[test]
+    fn markers_the_page_already_carried_are_replaced_rather_than_doubled() {
+        let stale = mint_nonce();
+        let fresh = mint_nonce();
+        let opened = external_sign_in_url(
+            &url(&format!(
+                "https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={stale}"
+            )),
+            &fresh,
+        );
+
+        assert_eq!(
+            opened.as_str(),
+            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={fresh}")
+        );
+    }
+
+    #[test]
+    fn every_attempt_gets_a_nonce_of_its_own() {
+        assert_ne!(mint_nonce(), mint_nonce());
+        assert!(mint_nonce().len() >= 32);
+    }
+
+    #[test]
+    fn a_returned_code_goes_to_the_console_the_user_chose() {
+        let server = url("https://acme.example/");
+
+        let destination = deep_link_return(
+            Some(&server),
+            Some("n0nce"),
+            "agenticos://auth/callback?code=abc123&desktop_nonce=n0nce",
+        )
+        .expect("a URL");
+
+        assert_eq!(destination.as_str(), "https://acme.example/auth/callback?code=abc123");
+    }
+
+    #[test]
+    fn a_code_this_shell_did_not_ask_for_is_refused() {
+        // Any local process can invoke the scheme. Without the nonce, one
+        // holding a code from this deployment could replace the window's
+        // cookies with its own session and move the person into an account
+        // somebody else controls.
+        let server = url("https://acme.example/");
+
+        assert!(deep_link_return(
+            Some(&server),
+            Some("mine"),
+            "agenticos://auth/callback?code=abc&desktop_nonce=theirs"
+        )
+        .is_none());
+        assert!(deep_link_return(Some(&server), Some("mine"), "agenticos://auth/callback?code=abc").is_none());
+        assert!(deep_link_return(
+            Some(&server),
+            None,
+            "agenticos://auth/callback?code=abc&desktop_nonce=anything"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn a_deep_link_cannot_name_its_own_destination() {
+        // Any process on the machine can fire one, so all it may do is send the
+        // console to one path on the server already configured.
+        let server = url("https://acme.example/");
+        let mine = Some("n0nce");
+
+        assert!(deep_link_return(Some(&server), mine, "agenticos://auth/callback").is_none());
+        assert!(deep_link_return(
+            Some(&server),
+            mine,
+            "agenticos://evil/callback?code=x&desktop_nonce=n0nce"
+        )
+        .is_none());
+        assert!(deep_link_return(Some(&server), mine, "agenticos://auth/other?code=x&desktop_nonce=n0nce").is_none());
+        assert!(deep_link_return(Some(&server), mine, "https://evil.example/?code=x").is_none());
+        assert!(deep_link_return(Some(&server), mine, "not a url").is_none());
+        assert!(deep_link_return(
+            Some(&server),
+            mine,
+            "agenticos://auth/callback?code=&desktop_nonce=n0nce"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn a_return_before_a_server_was_chosen_goes_nowhere() {
+        assert!(deep_link_return(
+            None,
+            Some("n0nce"),
+            "agenticos://auth/callback?code=abc&desktop_nonce=n0nce"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn nonces_of_different_lengths_are_not_equal() {
+        let one = mint_nonce();
+        assert!(constant_time_eq(&one, &one.clone()));
+        assert!(!constant_time_eq(&one, &mint_nonce()));
+        assert!(!constant_time_eq(&one, &format!("{one}x")));
+        assert!(!constant_time_eq("", "x"));
+    }
 
     #[test]
     fn a_bare_host_is_opened_over_https() {

@@ -1,5 +1,5 @@
 ---
-source_sha: "06500c4360ef"
+source_sha: "90b63b1d477c"
 ---
 
 # Protección de datos { #data-protection }
@@ -88,6 +88,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `app_admin_audit_logs` | Quién cambió accesos o gastó dinero — el rastro de la organización y el del administrador del deployment comparten tabla | Actor, suplantador, dirección IP, la acción y un mapa `details`. El mapa nombra sobre todo campos, pero algunas entradas guardan valores: el correo de la cuenta suplantada, el correo de una cuenta que un administrador borró, una nota de publicación | Rendición de cuentas. Consulta [Gobernanza](governance.md#audit) |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
+| `ml_service_calls` | Cada llamada a los [servicios de ML](ml-services.md) | La organización, quién pidió, qué servicio, recuentos de bytes y unidades, la duración y cómo terminó - **nada de lo que se envió y nada de lo que volvió** | Informe de uso, y la vista de un operador sobre una integración que falla |
 | `agent_workspaces`, `sandbox_operations` | Archivos sobre los que trabajó un agent y el registro de lo que ejecutó | Para el backend `state`, los propios archivos, en JSON; para un contenedor, el id de sesión y cada comando, destino y resumen del resultado | La sandbox. Consulta [La sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credenciales y hacia dónde apuntan | Solo el cifrado sellado, con una pista; el provider, el modelo y la `base_url` en claro | Llegar a los providers. Consulta [Secretos](secrets.md) |
 
@@ -160,9 +161,9 @@ una laguna, y así queda dicho.
 | Exportación de auditoría | `GET /audit/export`, CSV o JSONL sobre una ventana, con puerta en `audit:read` y registrada en el propio rastro | [Governance](governance.md#audit) (#1422) |
 | Prueba de no manipulación del rastro | Todavía ninguna | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta | [Entornos](environments.md) (#1413); un término medio `redacted` se descartó, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retención programada | Solo se barren las filas de `sandbox_operations`, a los 30 días. El barrido de runs abandonados los finaliza; no borra nada | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retención programada | Por organización y por clase —conversaciones y sus archivos, runs y manifiestos, workspaces, memoria de agentes, documentos subidos y auditoría— dentro de un valor por defecto, un techo y un suelo de auditoría de todo el despliegue. Un barrido diario borra de verdad y registra recuentos, nunca contenido. Las copias de seguridad y todo lo ya enviado a un colector externo quedan fuera | [Retención](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
-| Acceso a los propios datos | No hay endpoint de exportación; no hay vista de la propia memoria | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
+| Acceso a los propios datos | Una persona lee en Ajustes → Memoria todo lo que cada agente de aquí ha escrito sobre ella, y puede suspender una nota, restaurarla o borrarla. Leer el almacén *de otra persona* es solo de la administradora del despliegue —no de un rol de organización— y queda auditado con el actor, el tenant, el sujeto y un motivo, nunca el contenido. Los almacenes externos (mem0) se nombran en vez de listarse | [Leerla, y borrarla](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Aún no hay endpoint de exportación: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Identidad corporativa | Inicio de sesión con Google y contraseñas; todavía sin OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
 | La matriz de controles que lee una revisión de seguridad | Esta página y [Ponerlo en marcha](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) añade el mapeo a HIPAA y SOC 2 |
 | Superficies públicas | La clave de visitante de una página alojada es aleatoria, nunca derivada de la persona; la admisión y las subidas se limitan por dirección, y la dirección vive en una clave de Redis durante la ventana y en ningún otro sitio | [Canales](channels.md#a-hosted-page) |
