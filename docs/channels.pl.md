@@ -1,5 +1,5 @@
 ---
-source_sha: "701b924290b6"
+source_sha: "4771f415a4dc"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -279,7 +279,7 @@ Każda ramka niesie `{ "type": …, "data": { … } }`.
 | `type` | `data` | Znaczenie |
 |---|---|---|
 | `ready` | `visitor` | Połączono. `visitor: true`, gdy token zidentyfikował osobę. |
-| `history` | `messages` | Co zostało powiedziane w wątku, który ten odwiedzający wznawia — **każdy socket, którego odwiedzający niesie klucz ciągłości**, nie tylko hostowana strona. Każdy wpis to `role`, `text` i `at`, więc odtworzona tura zachowuje pod sobą swój czas. |
+| `history` | `messages` | Co zostało powiedziane w wątku, który ten odwiedzający wznawia — **hostowana strona z anonimowym odwiedzającym**, bo tylko takie połączenie niesie klucz ciągłości: rozmowa widżetu trwa tyle, co jego socket, a odwiedzającego `jwt` nazywa już jego token. Każdy wpis to `role`, `text` i `at`, więc odtworzona tura zachowuje pod sobą swój czas. |
 | `model_request_start` | — | Agent poszedł do modelu. Pokaż wskaźnik. |
 | `part_start` | `index`, `part_type` | Zaczyna się blok odpowiedzi. Wysyłane tylko dla bloku, który ta powierzchnia faktycznie poniesie — strona niepokazująca rozumowania nie zapowiada `ThinkingPart`, bo sama zapowiedź mówi, że agent rozumował. |
 | `text_delta` | `index`, `content` | Słowa odpowiedzi. Doklejaj je. |
@@ -370,10 +370,10 @@ albo „to jeszcze nie jest zbudowane” — nigdy milczenie.
 | | `/chat` (dashboard) | Surowy WebSocket | Publiczne API |
 |---|---|---|---|
 | Streaming | tak | tak, filtrowany tym, co pokazuje operator | **nie** — POST jest ścieżką bez streamingu; wariant SSE to osobne pytanie |
-| Załączniki | tak | tak (`file_ids`) | tak (`file_ids`), i trafiają tam, gdzie wszędzie indziej |
-| Ciągłość rozmowy | tak | tak (`continuity_key`) | tak (`conversation_id`) |
+| Załączniki | tak | tak (`file_ids`) **na hostowanej stronie** — endpoint wgrywania rozwiązuje klucz przez `find_page`, więc widżet ani surowy socket nie mają ścieżki, która wytworzyłaby id | tak (`file_ids`), i trafiają tam, gdzie wszędzie indziej |
+| Ciągłość rozmowy | tak | tak (`continuity_key`), na hostowanej stronie z anonimowym odwiedzającym | tak (`conversation_id`) |
 | `environment_id` | tak | **nie, celowo** — patrz niżej | tak |
-| Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: API uruchamia opublikowaną wersję, co jest sensem publikowania |
+| Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: żądanie nie niesie `model_profile_id`. Która wersja się uruchomi, wciąż zależy od wywołującego przez `environment_id`, a środowisko może przypiąć wersję, która nigdy nie była domyślna |
 | `ask_user` | tak | **nie, jeszcze nie** — patrz niżej | **nie, słusznie**: nikt nie czeka na odpowiedź, trzymając otwarty request HTTP |
 | Powiadomienie o kompakcji | tak | tak | nie dotyczy — nic nie streamuje, żeby powiedzieć |
 | Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy |

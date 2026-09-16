@@ -270,7 +270,7 @@ Every frame carries `{ "type": …, "data": { … } }`.
 | `type` | `data` | Meaning |
 |---|---|---|
 | `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
-| `history` | `messages` | What was said in the thread this visitor is resuming — **any socket whose visitor carries a continuity key**, not a hosted page only. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
+| `history` | `messages` | What was said in the thread this visitor is resuming — **a hosted page whose visitor is anonymous**, which is the only connection that carries a continuity key: a widget's conversation lasts as long as its socket, and a `jwt` visitor is named by their token. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
 | `model_request_start` | — | The agent has gone to the model. Show an indicator. |
 | `part_start` | `index`, `part_type` | A block of the answer is starting. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
 | `text_delta` | `index`, `content` | Words of the answer. Append them. |
@@ -358,10 +358,10 @@ be wrong here" or "this is not built yet" — never silence.
 | | `/chat` (dashboard) | Raw WebSocket | The public API |
 |---|---|---|---|
 | Streaming | yes | yes, filtered by what the operator shows | **no** — the POST is the non-streaming path; an SSE variant is a separate question |
-| Attachments | yes | yes (`file_ids`) | yes (`file_ids`), and they route the way they do everywhere else |
-| Conversation continuity | yes | yes (`continuity_key`) | yes (`conversation_id`) |
+| Attachments | yes | yes (`file_ids`) **on a hosted page** — the upload endpoint resolves the key through `find_page`, so a widget or a raw socket has no route that would produce an id | yes (`file_ids`), and they route the way they do everywhere else |
+| Conversation continuity | yes | yes (`continuity_key`), on a hosted page with an anonymous visitor | yes (`conversation_id`) |
 | `environment_id` | yes | **no, deliberately** — see below | yes |
-| Model override | yes | **no, deliberately**: a public surface must not let its visitor choose what they are spending | **no**: the API runs the published version, which is the point of publishing one |
+| Model override | yes | **no, deliberately**: a public surface must not let its visitor choose what they are spending | **no**: the request carries no `model_profile_id`. Which version runs is still the caller's through `environment_id`, and an environment can pin one that was never the default |
 | `ask_user` | yes | **no, not yet** — see below | **no, correctly**: nobody is waiting on an HTTP request to answer a question |
 | Compaction notice | yes | yes | n/a — nothing is streaming to tell |
 | Delegation frames | yes | **no, deliberately**: attaching a sink makes the library open a *streamed* request per child, so a delegate whose provider cannot stream breaks the moment somebody watches it |

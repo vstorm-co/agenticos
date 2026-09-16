@@ -1,5 +1,5 @@
 ---
-source_sha: "701b924290b6"
+source_sha: "4771f415a4dc"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -295,7 +295,7 @@ Jeder Frame trägt `{ "type": …, "data": { … } }`.
 | `type` | `data` | Bedeutung |
 |---|---|---|
 | `ready` | `visitor` | Verbunden. `visitor: true`, wenn ein Token die Person identifiziert hat. |
-| `history` | `messages` | Was in dem Thread gesagt wurde, den dieser Besucher wieder aufnimmt — **jedes Socket, dessen Besucher einen Kontinuitätsschlüssel trägt**, nicht nur eine gehostete Seite. Jeder Eintrag ist `role`, `text` und `at`, sodass eine wiedergegebene Runde die Zeit darunter behält. |
+| `history` | `messages` | Was in dem Thread gesagt wurde, den dieser Besucher wieder aufnimmt — **eine gehostete Seite mit anonymem Besucher**, die einzige Verbindung, die einen Kontinuitätsschlüssel trägt: das Gespräch eines Widgets lebt so lange wie sein Socket, und ein `jwt`-Besucher wird bereits von seinem Token benannt. Jeder Eintrag ist `role`, `text` und `at`, sodass eine wiedergegebene Runde die Zeit darunter behält. |
 | `model_request_start` | — | Der Agent ist zum Modell gegangen. Zeigen Sie einen Indikator. |
 | `part_start` | `index`, `part_type` | Ein Block der Antwort beginnt. Wird nur für einen Block gesendet, den diese Oberfläche auch wirklich trägt — eine Seite, die kein Reasoning zeigt, kündigt keinen `ThinkingPart` an, denn schon die Ankündigung sagt, dass der Agent nachgedacht hat. |
 | `text_delta` | `index`, `content` | Wörter der Antwort. Hängen Sie sie an. |
@@ -390,10 +390,10 @@ wäre hier falsch“ oder „das ist noch nicht gebaut“ — niemals Schweigen.
 | | `/chat` (Dashboard) | Rohes WebSocket | Die öffentliche API |
 |---|---|---|---|
 | Streaming | ja | ja, gefiltert nach dem, was der Betreiber zeigt | **nein** — der POST ist der nicht streamende Weg; eine SSE-Variante ist eine eigene Frage |
-| Anhänge | ja | ja (`file_ids`) | ja (`file_ids`), und sie laufen denselben Weg wie überall sonst |
-| Gesprächskontinuität | ja | ja (`continuity_key`) | ja (`conversation_id`) |
+| Anhänge | ja | ja (`file_ids`) **auf einer gehosteten Seite** — der Upload-Endpunkt löst den Schlüssel über `find_page` auf, ein Widget oder ein rohes Socket hat also keinen Weg, der eine id erzeugen würde | ja (`file_ids`), und sie laufen denselben Weg wie überall sonst |
+| Gesprächskontinuität | ja | ja (`continuity_key`), auf einer gehosteten Seite mit anonymem Besucher | ja (`conversation_id`) |
 | `environment_id` | ja | **nein, bewusst** — siehe unten | ja |
-| Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die API führt die veröffentlichte Version aus, was der Sinn des Veröffentlichens ist |
+| Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die Anfrage trägt keine `model_profile_id`. Welche Version läuft, bleibt über `environment_id` die Entscheidung des Aufrufers, und eine Umgebung kann eine anheften, die nie die Standardversion war |
 | `ask_user` | ja | **nein, noch nicht** — siehe unten | **nein, zu Recht**: niemand wartet an einem HTTP-Request, um eine Frage zu beantworten |
 | Verdichtungshinweis | ja | ja | entfällt — es streamt nichts, dem man es sagen könnte |
 | Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht |

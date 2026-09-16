@@ -1,5 +1,5 @@
 ---
-source_sha: "701b924290b6"
+source_sha: "4771f415a4dc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -278,7 +278,7 @@ Cada frame lleva `{ "type": …, "data": { … } }`.
 | `type` | `data` | Significado |
 |---|---|---|
 | `ready` | `visitor` | Conectado. `visitor: true` cuando un token identificó a la persona. |
-| `history` | `messages` | Lo que se dijo en el hilo que este visitante retoma — **cualquier socket cuyo visitante lleve una clave de continuidad**, no solo una página alojada. Cada entrada es `role`, `text` y `at`, así que un turno reproducido conserva la hora debajo. |
+| `history` | `messages` | Lo que se dijo en el hilo que este visitante retoma — **una página alojada con visitante anónimo**, la única conexión que lleva una clave de continuidad: la conversación de un widget dura lo que su socket, y a un visitante `jwt` ya lo nombra su token. Cada entrada es `role`, `text` y `at`, así que un turno reproducido conserva la hora debajo. |
 | `model_request_start` | — | El agent ha ido al modelo. Muestra un indicador. |
 | `part_start` | `index`, `part_type` | Empieza un bloque de la respuesta. Se envía solo para un bloque que esta superficie vaya a llevar de verdad — una página que no muestra razonamiento no anuncia un `ThinkingPart`, porque el anuncio por sí solo ya dice que el agent razonó. |
 | `text_delta` | `index`, `content` | Palabras de la respuesta. Añádelas. |
@@ -369,10 +369,10 @@ estaría mal» o bien «esto todavía no está construido» — nunca silencio.
 | | `/chat` (panel) | WebSocket en crudo | La API pública |
 |---|---|---|---|
 | Streaming | sí | sí, filtrado por lo que el operador muestra | **no** — el POST es la vía sin streaming; una variante SSE es otra cuestión |
-| Adjuntos | sí | sí (`file_ids`) | sí (`file_ids`), y siguen el mismo camino que en todas partes |
-| Continuidad de la conversación | sí | sí (`continuity_key`) | sí (`conversation_id`) |
+| Adjuntos | sí | sí (`file_ids`) **en una página alojada** — el endpoint de subida resuelve la clave a través de `find_page`, así que un widget o un socket en crudo no tienen ruta que produzca un id | sí (`file_ids`), y siguen el mismo camino que en todas partes |
+| Continuidad de la conversación | sí | sí (`continuity_key`), en una página alojada con visitante anónimo | sí (`conversation_id`) |
 | `environment_id` | sí | **no, deliberadamente** — véase abajo | sí |
-| Anulación del modelo | sí | **no, deliberadamente**: una superficie pública no puede dejar que su visitante elija lo que gasta | **no**: la API ejecuta la versión publicada, que es el sentido de publicar una |
+| Anulación del modelo | sí | **no, deliberadamente**: una superficie pública no puede dejar que su visitante elija lo que gasta | **no**: la petición no lleva `model_profile_id`. Qué versión se ejecuta sigue siendo del que llama, por `environment_id`, y un entorno puede fijar una que nunca fue la predeterminada |
 | `ask_user` | sí | **no, todavía no** — véase abajo | **no, con razón**: nadie espera colgado de una petición HTTP para responder una pregunta |
 | Aviso de compactación | sí | sí | n/a — no hay nada en streaming a quien decírselo |
 | Frames de delegación | sí | **no, deliberadamente**: enganchar un sink hace que la biblioteca abra una petición *en streaming* por cada hijo, así que un delegado cuyo proveedor no sabe hacer streaming se rompe en cuanto alguien mira |
