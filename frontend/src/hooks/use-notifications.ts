@@ -74,6 +74,11 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     queryKey: qk.notifications.inbox(),
     queryFn: ({ pageParam }: { pageParam: string | undefined }) => listNotifications(pageParam),
     enabled,
+    // Toggling `enabled` back to true on reopen does not itself refetch under
+    // the app's default staleTime (five minutes) - the docstring above's "only
+    // has to be current once it is open" needs every open to actually ask,
+    // not serve whatever page was cached the last time it was.
+    staleTime: 0,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });
@@ -120,18 +125,38 @@ export function useNotificationInbox(enabled: boolean): UseNotificationInboxResu
     // same race `useNotificationPreferences.setPreference` cancels for.
     await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
     await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
-    patchItems(updated.read_at ?? new Date().toISOString(), (item) => item.id === id);
-    queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
-      Math.max(0, (prev ?? 1) - 1),
+    // A rapid double-click can call this twice for the same row before the
+    // first call's patch below lands - `NotificationRow`'s own `unread` gate
+    // reads this same cache, which has not moved yet. Read the cache fresh
+    // from the client rather than the `data` this closure captured at its
+    // own render: two concurrent calls share that render, so a snapshot
+    // taken once would have both see the same pre-patch value regardless of
+    // which one's write actually lands first. Only the transition from
+    // unread to read should ever decrement the badge.
+    const cached = queryClient.getQueryData<InboxCache>(qk.notifications.inbox());
+    const wasUnread = cached?.pages.some((page) =>
+      page.items.some((item) => item.id === id && item.read_at === null),
     );
+    patchItems(updated.read_at ?? new Date().toISOString(), (item) => item.id === id);
+    if (wasUnread) {
+      queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
+        Math.max(0, (prev ?? 1) - 1),
+      );
+    }
   };
 
   const markAllRead = async () => {
-    await markAllNotificationsRead();
+    const marked = await markAllNotificationsRead();
     await queryClient.cancelQueries({ queryKey: qk.notifications.inbox() });
     await queryClient.cancelQueries({ queryKey: qk.notifications.unreadCount() });
     patchItems(new Date().toISOString(), (item) => item.read_at === null);
-    queryClient.setQueryData<number>(qk.notifications.unreadCount(), 0);
+    // Not a bare `0`: the write path caps how many rows one call marks
+    // (`_UNREAD_CANDIDATE_CAP`), so a backlog past that cap leaves some rows
+    // genuinely still unread - `marked` is what the server actually did,
+    // where `0` would claim it cleared a badge it only partly worked through.
+    queryClient.setQueryData<number>(qk.notifications.unreadCount(), (prev) =>
+      Math.max(0, (prev ?? marked) - marked),
+    );
   };
 
   return {

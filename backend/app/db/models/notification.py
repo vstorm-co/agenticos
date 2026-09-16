@@ -165,6 +165,13 @@ class Notification(Base, TimestampMixin):
             "recipient_user_id",
             postgresql_where=sa_text("in_app_visible AND read_at IS NULL"),
         ),
+        # The retention sweep's own predicate (Decision 8, `notification_repo
+        # .delete_expired`): `(read_at IS NOT NULL AND created_at < :read_cutoff)
+        # OR created_at < :outer_cutoff`. Deliberately unscoped by recipient or
+        # organization - the sweep is deployment-wide - so nothing above leads
+        # with `created_at` the way this needs; without it, a daily sweep is a
+        # full scan of the table it is trimming.
+        Index("notifications_created_at_idx", "created_at"),
     )
 
     def __repr__(self) -> str:

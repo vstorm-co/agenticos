@@ -109,6 +109,7 @@ describe("NotificationBell", () => {
   });
 
   it("offers mark-all-read only while something is unread", async () => {
+    useUnreadNotificationCountMock.mockReturnValue(0);
     renderBell("row", { notifications: [notification({ read_at: "2026-09-01T00:00:00Z" })] });
 
     await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
@@ -117,7 +118,21 @@ describe("NotificationBell", () => {
     expect(screen.queryByRole("button", { name: "Mark all read" })).toBeNull();
   });
 
+  it("still offers mark-all-read when the loaded page is read but the badge is not", async () => {
+    // The loaded page can be all-read while an unpaged older page still holds
+    // an unread row - the offer has to track the same unread-count query the
+    // badge reads, not what happens to be on screen.
+    useUnreadNotificationCountMock.mockReturnValue(1);
+    renderBell("row", { notifications: [notification({ read_at: "2026-09-01T00:00:00Z" })] });
+
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+
+    expect(await screen.findByText("jarvis's run finished.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Mark all read" })).toBeVisible();
+  });
+
   it("marks everything read on request", async () => {
+    useUnreadNotificationCountMock.mockReturnValue(1);
     const markAllRead = vi.fn().mockResolvedValue(undefined);
     renderBell("row", { notifications: [notification()], markAllRead });
 
