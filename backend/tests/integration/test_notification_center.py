@@ -658,7 +658,7 @@ class TestReadGateCollectionsView:
             render_context={"collection_id": ""},
             organization_id=org.id,
         )
-        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert len(rows) == 1
 
     async def test_a_row_naming_a_deleted_collection_is_excluded(self, db):
