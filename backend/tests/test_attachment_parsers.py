@@ -286,6 +286,15 @@ class TestXmlDecoding:
 
         assert text is not None and "é" in text
 
+    def test_a_declaration_with_spaces_around_the_equals_is_honoured(self):
+        # The XML `Eq` production allows whitespace: `encoding = "..."` is legal and
+        # must not drop the parse to `None` (#1591 second-pass).
+        data = "<?xml version='1.0' encoding = \"windows-1250\"?><r>ł</r>".encode("cp1250")
+
+        text = FileUploadService._parse_text_content(data)
+
+        assert text is not None and "ł" in text
+
     def test_undecodable_bytes_are_none(self):
         assert FileUploadService._parse_text_content(b"\xff\xfe\xff\xfe\x00") is None
 

@@ -108,7 +108,10 @@ def _decode_declared(data: bytes) -> str | None:
                 return data.decode(encoding)
             except UnicodeDecodeError:
                 return None
-    match = re.search(rb"encoding=[\"']([A-Za-z0-9_.\-]+)[\"']", data[:200])
+    # `\s*` around the `=`: the XML declaration's `Eq` production allows whitespace
+    # (`encoding = "windows-1250"`), so a strict `encoding=` missed a legal header and
+    # dropped the whole parse to `None`.
+    match = re.search(rb"encoding\s*=\s*[\"']([A-Za-z0-9_.\-]+)[\"']", data[:200])
     if match:
         try:
             return data.decode(match.group(1).decode("ascii"))
