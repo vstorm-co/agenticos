@@ -28,10 +28,11 @@ The **tenant ownership backfill** (positive-join resolution, quarantine and the
 degraded-state columns) is a distinct, larger workstream (design P3) and is NOT
 part of this migration; this ships only the schema/index prerequisites.
 
-Cross-branch numbering note: this is authored against the real head at
-implementation time (`0080_audit_checkpoints`). The `0081` number may collide
-with another parallel branch's `0081_*` on merge (a two-heads situation to
-reconcile then); `down_revision` is pinned to the real head regardless.
+Cross-branch numbering note: originally authored as `0081` off
+`0080_audit_checkpoints`; rebased to `0083` off `0082_portal_account_id` as
+parallel branches (`0081_ml_service_calls`, `0082_portal_account_id`) reached main
+first. `down_revision` is pinned to the current head; this rebases again if another
+migration lands ahead of the merge.
 
 The index names and the function body are written out here rather than imported
 from `app.db.vector_tables`: a migration is a snapshot of what existed when it
@@ -45,8 +46,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0081_rag_metadata_prereqs"
-down_revision: str | Sequence[str] | None = "0080_audit_checkpoints"
+revision: str = "0083_rag_metadata_prereqs"
+down_revision: str | Sequence[str] | None = "0082_portal_account_id"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -170,7 +170,7 @@ def database_url() -> Iterator[str]:
 
 # The FA-039 global helper the runtime vector store's date index and predicate
 # depend on. A real deployment gets it from the prerequisite migration
-# (0081_rag_metadata_prereqs); these tests build the schema from models rather
+# (0083_rag_metadata_prereqs); these tests build the schema from models rather
 # than migrations, so `_ensure_collection`'s partial date index would reference a
 # missing function without this. Kept in step with the migration's own copy.
 _RAG_SAFE_TO_DATE_DDL = r"""
