@@ -350,7 +350,7 @@ class TestOdsRepetitionIsBounded:
     """A tiny ODS can declare a colossal `number-columns-repeated`; the parser must
     not allocate `[text] * repeat` unbounded (#1591, §7 finding 3)."""
 
-    def _ods_repeated(self, repeat: int) -> bytes:
+    def _ods_repeated(self, repeat: int, *, value: str = "x") -> bytes:
         from odf.opendocument import OpenDocumentSpreadsheet
         from odf.table import Table, TableCell, TableRow
         from odf.text import P
@@ -359,7 +359,7 @@ class TestOdsRepetitionIsBounded:
         table = Table(name="S")
         row = TableRow()
         cell = TableCell(numbercolumnsrepeated=str(repeat))
-        cell.addElement(P(text="x"))
+        cell.addElement(P(text=value))
         row.addElement(cell)
         table.addElement(row)
         document.spreadsheet.addElement(table)
@@ -376,6 +376,25 @@ class TestOdsRepetitionIsBounded:
         # ~1M cells of "x" joined by tabs, not a billion: bounded by the cell budget
         # (the "Sheet: S" header and the absent trailing tab account for the slack).
         assert len(text) <= fu._ODS_MAX_CELLS * 2 + 100
+
+    def test_a_large_cell_value_repeated_is_bounded_by_output_size_not_cell_count(
+        self, monkeypatch
+    ):
+        """The cell budget bounds the *list* of references, but `"\\t".join(cells)`
+        materialises the value once per reference: a large value with a huge repeat is
+        a multi-gigabyte string the cell budget alone does not stop. The character
+        budget bounds the join (#1591, §7 finding 3)."""
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "CHAT_PARSED_TEXT_MAX_CHARS", 100_000)
+        # A 10 KB value with a million repeats would be ~10 GB under the cell budget
+        # alone; the character budget caps the built string near the parsed-text cap.
+        text = FileUploadService._parse_ods_content(
+            self._ods_repeated(1_000_000, value="v" * 10_000)
+        )
+
+        assert text is not None
+        assert len(text) <= 100_000 + 10_000 + 100
 
 
 class TestArchiveBombGuards:

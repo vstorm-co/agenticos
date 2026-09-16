@@ -193,14 +193,6 @@ def tiff_pages_to_png(
         frames = ImageSequence.Iterator(img)
         seen = 0
         while True:
-            # Capped on frames *examined*, not on images produced: a frame
-            # rejected for its pixel count or output size does not grow `images`,
-            # so gating on that count alone let a long chain of oversized/malformed
-            # frames walk the whole attacker-controlled IFD chain despite the page
-            # cap (#1591, §7 finding 2).
-            if seen >= max_pages:
-                omitted = True
-                break
             try:
                 frame = next(frames)
             except StopIteration:
@@ -213,6 +205,17 @@ def tiff_pages_to_png(
                 # converted rather than discarding a usable page one, and mark the
                 # rest omitted (#1591, third-pass finding 4).
                 logger.warning("TIFF frame walk stopped early: %s", exc)
+                omitted = True
+                break
+            # Capped on frames *examined*, not on images produced: a frame
+            # rejected for its pixel count or output size does not grow `images`,
+            # so gating on that count alone let a long chain of oversized/malformed
+            # frames walk the whole attacker-controlled IFD chain despite the page
+            # cap (#1591, §7 finding 2). The cap is checked *after* the pull so
+            # this one frame past `max_pages` proves more pages exist, rather than
+            # claiming omission at the exact limit — a one-page TIFF with a cap of
+            # one is exhausted here, not truncated (#1591, §7 finding 5).
+            if seen >= max_pages:
                 omitted = True
                 break
             seen += 1
@@ -512,31 +515,41 @@ class FileUploadService:
             document: Any = load(safe_unzip(data))
             blocks: list[str] = []
             budget = _ODS_MAX_CELLS
+            char_budget = settings.CHAT_PARSED_TEXT_MAX_CHARS
             for table in document.getElementsByType(Table):
                 name = table.getAttribute("name") or "Sheet"
                 rows: list[str] = []
                 for row in table.getElementsByType(TableRow):
                     cells: list[str] = []
                     for cell in row.getElementsByType(TableCell):
-                        # Clamped to the remaining budget: the repeat count is
+                        text = extractText(cell)
+                        # Clamped to *both* budgets: the repeat count is
                         # attacker-controlled, so an unclamped `[text] * repeat`
-                        # allocates an unbounded list (#1591, §7 finding 3).
+                        # allocates an unbounded list (the cell budget), and the later
+                        # `"\t".join(cells)` then materialises the value once per
+                        # reference - a single 10 KB cell repeated a million times is a
+                        # ~10 GB string built before `cap_text` is reached, which the
+                        # cell budget alone does not stop (the character budget)
+                        # (#1591, §7 finding 3).
                         repeat = max(
                             1, min(int(cell.getAttribute("numbercolumnsrepeated") or 1), budget)
                         )
-                        cells.extend([extractText(cell)] * repeat)
+                        if text:
+                            repeat = min(repeat, max(1, char_budget // len(text)))
+                        cells.extend([text] * repeat)
                         budget -= repeat
-                        if budget <= 0:
+                        char_budget -= repeat * len(text)
+                        if budget <= 0 or char_budget <= 0:
                             break
                     while cells and cells[-1] == "":
                         cells.pop()
                     if cells:
                         rows.append("\t".join(cells))
-                    if budget <= 0:
+                    if budget <= 0 or char_budget <= 0:
                         break
                 if rows:
                     blocks.append(f"Sheet: {name}\n" + "\n".join(rows))
-                if budget <= 0:
+                if budget <= 0 or char_budget <= 0:
                     break
             return "\n\n".join(blocks) or None
         except Exception as e:

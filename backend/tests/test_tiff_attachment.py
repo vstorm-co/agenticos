@@ -13,6 +13,7 @@ import io
 import pytest
 from PIL import Image
 
+from app.services import file_upload
 from app.services.file_upload import tiff_pages_to_png
 
 pytestmark = pytest.mark.anyio
@@ -53,6 +54,24 @@ class TestConvertingPages:
         assert result.total is None
         assert result.omitted is True
 
+    def test_a_tiff_at_exactly_the_cap_is_not_reported_as_omitted(self):
+        """A TIFF with exactly `max_pages` frames is exhausted, not truncated: the
+        cap is checked one frame *past* the last, so the loop does not claim pages
+        were omitted without a frame beyond the cap to prove it - which, at
+        `CHAT_TIFF_MAX_INLINE_PAGES=1`, was every ordinary one-page TIFF (#1591)."""
+        result = tiff_pages_to_png(_tiff(2), max_pages=2, max_bytes=BIG, max_pixels=MANY_PIXELS)
+
+        assert len(result.images) == 2
+        assert result.total == 2
+        assert result.omitted is False
+
+    def test_a_single_page_at_a_cap_of_one_is_not_omitted(self):
+        result = tiff_pages_to_png(_tiff(1), max_pages=1, max_bytes=BIG, max_pixels=MANY_PIXELS)
+
+        assert len(result.images) == 1
+        assert result.total == 1
+        assert result.omitted is False
+
     def test_a_page_over_the_pixel_bound_is_skipped_not_decoded(self):
         """The bomb guard: the declared size is checked before the pixels are
         decoded, so a huge page is skipped rather than allocated."""
@@ -92,8 +111,6 @@ class TestConvertingPages:
         """A decode failure partway down the chain must not discard the pages that
         already converted: page one survives and the rest are marked omitted rather
         than the whole TIFF reported unshowable (#1591, third-pass finding 4)."""
-        import app.services.file_upload as file_upload
-
         real = file_upload._frame_to_png
         calls = {"n": 0}
 
