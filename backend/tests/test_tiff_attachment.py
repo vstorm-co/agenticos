@@ -67,6 +67,18 @@ class TestConvertingPages:
         assert result.images == []
         assert result.omitted is True
 
+    def test_a_long_chain_of_rejected_frames_stops_at_the_page_cap(self):
+        """The traversal is bounded by frames *examined*, not images produced: a
+        run of oversized frames must not walk the whole IFD chain. `total is None`
+        proves the loop broke at the cap rather than exhausting the sequence (which
+        would set the total) — the old code counted only successful PNGs and walked
+        every frame (#1591, §7 finding 2)."""
+        result = tiff_pages_to_png(_tiff(20), max_pages=3, max_bytes=BIG, max_pixels=4)
+
+        assert result.images == []
+        assert result.omitted is True
+        assert result.total is None
+
     def test_malformed_bytes_convert_to_nothing_without_raising(self):
         result = tiff_pages_to_png(
             b"not a tiff", max_pages=10, max_bytes=BIG, max_pixels=MANY_PIXELS

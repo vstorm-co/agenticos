@@ -173,7 +173,12 @@ def tiff_pages_to_png(
         with Image.open(io.BytesIO(data)) as img:
             seen = 0
             for frame in ImageSequence.Iterator(img):
-                if len(images) >= max_pages:
+                # Capped on frames *examined*, not on images produced: a frame
+                # rejected for its pixel count or output size does not grow
+                # `images`, so gating on that count alone let a long chain of
+                # oversized/malformed frames walk the whole attacker-controlled IFD
+                # chain despite the page cap (#1591, §7 finding 2).
+                if seen >= max_pages:
                     omitted = True
                     break
                 seen += 1
