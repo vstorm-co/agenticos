@@ -30,8 +30,8 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from alembic import op
 
-revision: str = "0082_retention_policies"
-down_revision: str | Sequence[str] | None = "0080_audit_checkpoints"
+revision: str = "0084_retention_policies"
+down_revision: str | Sequence[str] | None = "0083_memory_deactivation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
