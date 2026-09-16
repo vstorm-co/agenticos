@@ -24,6 +24,7 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import deployment_settings_repo
 from app.services.email.providers.base import SendResult
 from app.services.email.service import EmailKey
 from app.services.notification_delivery import NotificationDeliveryService
@@ -523,10 +524,44 @@ class TestRenderDispatch:
         assert outcome == "sent"
         assert service.send.call_args.kwargs["key"] is EmailKey.BUDGET_EXCEEDED
         assert service.send.call_args.kwargs["to"] == recipient.email
-        assert service.send.call_args.kwargs["context"] == {
-            "agent_name": "Support",
-            "reason": "cap",
-        }
+        context = service.send.call_args.kwargs["context"]
+        assert context["agent_name"] == "Support"
+        assert context["reason"] == "cap"
+        # Resolved at send time regardless of what render_context carried -
+        # a queued send must reflect the deployment's current name, not a
+        # snapshot from whenever the alert was written.
+        assert context["app_name"] == "agenticos"
+
+    async def test_a_renamed_deployment_overrides_the_frozen_app_name(self, db):
+        """A send queued before an admin renamed the deployment must not
+        still greet the recipient with the old name by the time it goes
+        out - `EmailService`'s own contract is the *current* name, resolved
+        through `DeploymentSettingsService.effective_app_name`."""
+        await deployment_settings_repo.upsert(db, update_data={"app_name": "Acme AI"})
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        now = datetime.now(UTC)
+        delivery = await _delivery(
+            db,
+            recipient=recipient,
+            organization_id=org.id,
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            # A stale name, as if written before the rename above.
+            render_context={"agent_name": "Support", "reason": "cap", "app_name": "Old Name"},
+            claimed_at=now,
+            attempts=1,
+        )
+
+        service = AsyncMock()
+        service.send = AsyncMock(return_value=SendResult(provider_message_id="x", accepted=True))
+        with patch(f"{MODULE}.get_email_service", return_value=service):
+            outcome = await NotificationDeliveryService(db).send_and_settle(
+                delivery.id, claimed_at=now
+            )
+
+        assert outcome == "sent"
+        assert service.send.call_args.kwargs["context"]["app_name"] == "Acme AI"
 
     async def test_a_usage_report_and_an_agent_usage_report_share_one_key(self, db):
         owner = await _user(db)
