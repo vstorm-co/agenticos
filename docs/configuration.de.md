@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "7f462475932a"
 ---
 
 # Konfiguration { #configuration }
@@ -55,6 +55,8 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `MAX_UPLOAD_SIZE_MB` | `50` | Obergrenze für Dokumente der Knowledge Base und die Zahl, aus der sich die Obergrenze für die gesamte Anfrage weiter unten ableitet. Ein Dokument dieser Größe wird in Chunks zerlegt und embedded, nicht am Stück gehalten |
 | `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | Was im Chat angehängt werden darf. Eine eigene Einstellung statt der obigen, weil ein Anhang an einen Agent ohne Workspace vollständig in den Prompt eingesetzt wird — die beiden Oberflächen scheitern bei derselben Größe also unterschiedlich. War fest verdrahtete 10 MiB, die kein Betreiber anheben konnte ([#498](https://github.com/vstorm-co/agenticos/issues/498)); der Frontend-Container liest dasselbe `CHAT_MAX_UPLOAD_SIZE_MB` zur Laufzeit, geben Sie also beiden Containern einen Wert, sonst lehnt der Composer eine Datei ab, die der Server annehmen würde |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Was eine **fremde Person** auf eine Hosted Page hochladen darf. Eine Obergrenze über `CHAT_MAX_UPLOAD_SIZE_MB`, nie ein Weg daran vorbei |
+| `ML_MAX_UPLOAD_SIZE_MB` | `25` | Was ein Aufruf der [ML-Dienste](ml-services.md) einreichen darf — ein Dokument zum Parsen, einen Scan zum Erkennen, eine Aufnahme zum Transkribieren. Eine eigene Einstellung, weil die Bytes innerhalb einer Anfrage geparst oder an eine Engine geschickt statt abgelegt werden, die Grenze also davon handelt, was ein einzelner synchroner Aufruf belegen darf. Sie liegt bei den 25 MB des Transkriptionsclients, der kleinsten Engine-Grenze hinter dieser Oberfläche |
+| `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Die monatliche Ausgabenobergrenze, mit der eine **neue** Organisation startet, in USD, damit sie nicht einen entlaufenen Agent von einer überraschenden Rechnung entfernt ist. Gilt nur bei der Erstellung; bestehende Organisationen bleiben unberührt, und jede Organisation lässt sich danach wieder auf kein Cap zurücksetzen. Muss positiv sein; lassen Sie den Wert **leer**, damit Organisationen ohne Cap starten (die ältere Opt-in-Haltung) |
@@ -128,6 +130,7 @@ Standardwert sein.
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google-OAuth2-Client-Secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | Callback-URL für OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend-URL für die OAuth2-Weiterleitungen |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | Das Schema, das die Desktop-Hülle für eine an den Systembrowser übergebene Anmeldung registriert ([Desktop](desktop.md#signing-in)). Der Callback baut daraus eine Weiterleitung, also eine Einstellung und nichts, was ein Aufrufer wählen kann |
 
 So kommen Sie an das Paar: [Google Cloud console](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.
@@ -147,6 +150,82 @@ eine Woche. Das Frontend tauscht den Code Server zu Server unter
 `POST /api/v1/oauth/exchange` gegen das Token-Paar, und diese Route löst ihn
 genau einmal ein.
 
+
+### Single Sign-on (generisches OIDC) { #single-sign-on-generic-oidc }
+
+Jeder Identitätsanbieter, der ein Discovery-Dokument veröffentlicht: Microsoft
+Entra ID, Okta, Keycloak, Auth0, Authentik, Google Workspace über seinen
+OIDC-Endpunkt. Ein Unternehmen, das dies selbst hostet, betreibt bereits einen
+und wird für seine Belegschaft keine lokalen Passwörter anlegen — ohne dies
+werden seine MFA und sein Offboarding zweimal gelöst.
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (leer) | Die Issuer-URL. Leer heißt kein SSO, und der Callback antwortet mit 404 |
+| `OIDC_CLIENT_ID` | (leer) | Der Client, den der Anbieter für dieses Deployment ausgegeben hat |
+| `OIDC_CLIENT_SECRET` | (leer) | Dessen Secret |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Der beim Anbieter registrierte Callback |
+| `OIDC_SCOPES` | `openid email profile` | Durch Leerzeichen getrennt. Den eigenen Scope des Anbieters ergänzen, wo er einen für die Claims braucht |
+| `OIDC_VERIFIED_CLAIM` | (leer) | Ein dritter Claim, der als „diese Adresse ist bestätigt“ gilt, für einen Anbieter mit eigenem Namen dafür |
+
+Der Issuer ist die einzige URL. Authorization, Token, Userinfo und JWKS kommen
+aus `<issuer>/.well-known/openid-configuration`, das der Anbieter über eine
+Schlüsselrotation oder einen Endpunktwechsel hinweg korrekt hält — es gibt also
+keine weiteren Adressen, die man subtil falsch eintragen kann. Der Ablauf ist
+Authorization Code mit PKCE.
+
+Die Claims werden aus dem ID-Token gelesen und aus dem **UserInfo-Endpunkt**,
+wenn das ID-Token sie nicht trägt. Ein Anbieter darf `email` und seinen
+Verifizierungs-Claim bei UserInfo halten und keinen davon ins Token legen; nur
+das Token zu lesen würde einen völlig konformen Anbieter eine Anfrage vor einer
+gültigen Identität abweisen.
+
+Zwei Knöpfe im Frontend, dort konfiguriert:
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | `oidc` ergänzen, um den SSO-Knopf zu zeigen; allein `oidc` heißt nur SSO |
+| `OIDC_DISPLAY_NAME` | `SSO` | Wie der Knopf den Anbieter nennt: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (leer) | `google`, `github` oder `microsoft` — die Marken, die die Anmeldeseite ohnehin mitbringt. Alles andere zeichnet einen schlichten Schlüssel |
+
+Wo welcher Issuer liegt, und was zu registrieren ist:
+
+| Anbieter | Issuer | Redirect-URI registrieren als |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect-URI der Plattform **Web** in der App-Registrierung. `openid`, `email`, `profile` unter API-Berechtigungen erteilen |
+| **Okta** | `https://<org>.okta.com` (oder `/oauth2/<id>` eines eigenen Authorization Servers) | Sign-in-Redirect-URI einer **Web**-Anwendung |
+| **Keycloak** | `https://<host>/realms/<realm>` | Valid Redirect URI eines vertraulichen Clients mit aktiviertem Standard Flow |
+
+Zwei Dinge verlangt die Plattform von jedem Anbieter, auf den sie gerichtet wird:
+
+- **Die Adresse muss bestätigt sein.** Zwei Claims werden akzeptiert: das
+  standardisierte `email_verified` und `xms_edov` von Entra ID, das Entra
+  stattdessen sendet — `email_verified` gibt es dort gar nicht, und `xms_edov` ist
+  ein **optionaler** Claim, den man an der App-Registrierung aktiviert; ein
+  Entra-Tenant, der das nicht getan hat, sendet keinen von beiden, und jede
+  Anmeldung wird abgewiesen. `OIDC_VERIFIED_CLAIM` benennt einen dritten für einen
+  Anbieter, der ihn anders nennt. Fehlt er, gilt das als nicht bestätigt: eine
+  unbestätigte Adresse heißt, dass bei diesem Anbieter jeder die Arbeitsadresse
+  eines anderen beanspruchen kann — und die Domain-Erlaubnisliste unten steht
+  darauf, dass eine Adresse etwas bedeutet.
+- **Ein stabiles `sub`.** Das Konto hängt daran und nicht an der Adresse, sodass
+  jemand, der heiratet oder dessen Domain gekauft wird, die eigene Historie
+  behält — und der nächste Inhaber einer frei gewordenen Adresse sie nicht erbt.
+  Gespeichert wird es **mit dem Issuer als Namensraum**, denn ein `sub` ist nur
+  innerhalb seines Issuers eindeutig: das Deployment auf einen anderen Tenant oder
+  Realm zu richten kann dann kein neues Subjekt in das Konto eines alten anmelden.
+
+Die Registrierungsrichtlinie gilt hier genau wie für das Registrierungsformular:
+ein `invite_only`-Deployment weist eine SSO-Anmeldung von jemandem ab, den
+niemand eingeladen hat, und eine Domain-Erlaubnisliste weist eine Adresse
+außerhalb davon ab — mit demselben Satz auf der Anmeldeseite. Siehe
+[Wer sich registrieren darf](deployment.md#who-may-register). Die Zuordnung der
+Gruppen eines Anbieters zu Rollen innerhalb einer Organisation gehört nicht dazu;
+Menschen melden sich an, und eine Administratorin ordnet sie ein.
+
+SAML und SCIM sind nicht implementiert. Die meisten Identitätsanbieter, die ein
+mittelständisches Unternehmen betreibt, sprechen OIDC, und diese Einstellungen
+sind alles, was sie brauchen.
 
 ## Datenbank (PostgreSQL) { #database-postgresql }
 
@@ -500,6 +579,41 @@ Drive-Ordner mit der E-Mail-Adresse des Service-Accounts selbst** — er ist ein
 Principal wie jeder andere, und ein Ordner, den niemand mit ihm geteilt hat,
 listet sich als leer statt als abgelehnt.
 
+## Hochgeladene Dateien im Ruhezustand { #uploaded-files-at-rest }
+
+Wo Chat-Anhänge, Avatare, Branding-Bilder und die Originale von
+Wissensdatenbank-Dokumenten liegen. Ein Backend pro Deployment, nie pro
+Organisation, und ein Wechsel verschiebt nicht, was das andere bereits hält.
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` schreibt unter `MEDIA_DIR`; `s3` schreibt in einen S3-kompatiblen Bucket |
+| `FILE_STORAGE_S3_BUCKET` | (leer) | Der Bucket. Beim Backend `s3` erforderlich; ohne ihn verweigert die API jeden Upload |
+| `FILE_STORAGE_S3_ENDPOINT` | (keiner) | Leer für AWS. Die Adresse des Dienstes für MinIO oder einen anderen kompatiblen Speicher |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | AWS-Region |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (leer) | Auf AWS **leer lassen**: dann antwortet boto3s eigene Credential-Chain, also ein Instanzprofil oder eine IRSA-Rolle statt eines langlebigen Schlüssels in einer Umgebungsdatei |
+| `FILE_STORAGE_S3_SECRET_KEY` | (leer) | Die andere Hälfte, ebenso |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` für MinIO und die meisten kompatiblen Speicher, die einen Bucket über den Pfad adressieren. Eine Virtual-Host-Anfrage scheitert dort an DNS statt an S3 |
+| `FILE_STORAGE_S3_PREFIX` | (leer) | Jeder Key, den dieses Deployment schreibt, liegt darunter, so dass ein Bucket mehr als ein Deployment aufnehmen kann, ohne dass sich ihre Keys treffen |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | Worum der Speicher bei jedem Schreibvorgang gebeten wird: `sse-s3` (der eigene Schlüssel des Buckets), `sse-kms` (der Schlüssel unten) oder `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (keiner) | Die KMS-Schlüssel-ID oder -ARN. **Erforderlich** im Modus `sse-kms`: S3 liest ein unbenanntes `aws:kms` als seinen eigenen AWS-verwalteten Schlüssel `aws/s3` und nicht als den Standardschlüssel des Buckets, leer hieße also Verschlüsselung unter einem Schlüssel, den niemand gewählt hat |
+
+!!! warning "`none` ist für einen Speicher ohne KMS und ist keine Verschlüsselung"
+
+    MinIO verweigert SSE-S3, solange kein KES-Server konfiguriert ist, also
+    braucht ein kompatibler Speicher ohne KMS `none`, um überhaupt zu
+    funktionieren — und ein so betriebenes Deployment hat die Verschlüsselung,
+    die seine Volumes ihm geben, und nicht mehr. `agenticos cmd doctor` meldet
+    diese Konfiguration als unkonfiguriert statt als gesund, und die Zeile zum
+    Ruhezustand in [Sicherheit](security.md#what-is-encrypted-where) sagt
+    dasselbe.
+
+Ein Bucket, in den das Deployment schreibt, braucht `s3:PutObject`,
+`s3:GetObject`, `s3:DeleteObject` und `s3:ListBucket`, im Modus `sse-kms`
+zusätzlich `kms:Encrypt`, `kms:Decrypt` und `kms:GenerateDataKey` auf dem
+Schlüssel. Ein lokales MinIO startet `make docker-minio` auf `:9000` mit
+`minioadmin` / `minioadmin`.
+
 ### S3/MinIO-Sync { #s3minio-sync }
 
 | Variable | Standard | Beschreibung |
@@ -509,6 +623,11 @@ listet sich als leer statt als abgelehnt.
 | `S3_RAG_SECRET_KEY` | (empty) | Secret Key, ebenso |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Name des Buckets |
 | `S3_RAG_REGION` | `us-east-1` | AWS-Region. Die eigene Region einer Zugangsinformation gewinnt, wo sie eine hat |
+
+Dies ist der *Sync-Connector*, der einen Bucket liest, der einem Mandanten
+gehört — nicht der eigene Dateispeicher des Deployments oben. Beide werden
+getrennt konfiguriert, und zwar mit Absicht: das eine ist Infrastruktur, das
+andere sind die Daten eines Mandanten.
 
 **Das Schlüsselpaar hier gehört dem CLI, nicht einer Sync-Quelle.** Eine
 `s3`-Sync-Quelle nennt ein `aws_credentials`-Secret im Vault ihrer Organisation,
@@ -949,6 +1068,7 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
+| `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag

@@ -29,7 +29,12 @@ from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
+from app.agents.capabilities import (
+    FRAMEWORK_TOOL_NAMES,
+    TOOL_NAME_PATTERN,
+    CapabilityDef,
+    all_capabilities,
+)
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
@@ -284,6 +289,22 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
     if clashing:
         problems.append(
             f"Capability '{binding.id}' would offer two tools called {', '.join(clashing)}"
+        )
+
+    # The count above only sees this capability's own tools, and the framework
+    # adds its own beside them: a run with any deferred capability carries
+    # `load_capability`, so a *rename* onto that name is a duplicate Pydantic AI
+    # refuses mid-turn rather than a collision this loop can see. Renames only -
+    # `skills` declares `load_capability` itself, because that call is where an
+    # approval on opening a skill has to sit.
+    taken = sorted(
+        {override.name for override in binding.tool_overrides.values() if override.name is not None}
+        & FRAMEWORK_TOOL_NAMES
+    )
+    if taken:
+        problems.append(
+            f"Capability '{binding.id}' renames a tool to {', '.join(taken)}, which the "
+            "framework provides itself - two tools of that name abort the turn"
         )
 
     return problems
@@ -1307,6 +1328,7 @@ class AgentRegistryService:
             self.db, list(skill_ids), organization_id=ctx.organization_id
         )
         problems: list[str] = []
+        registered = {definition.id for definition in all_capabilities()}
         for skill_id in skill_ids:
             skill = found.get(skill_id)
             reachable = skill is not None and await resolve_access(
@@ -1314,6 +1336,17 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
+                continue
+            # Each skill is a deferred capability now, filed under its own name,
+            # and the platform's capabilities are filed under theirs - in one
+            # namespace. A skill called `planning` on an agent that also has the
+            # `planning` capability is a duplicate id Pydantic AI refuses before
+            # the first token, so the agent would publish and never run.
+            if skill is not None and skill.name in registered:
+                problems.append(
+                    f"Skill '{skill.name}' has the name of a capability this platform "
+                    "offers, and each skill is a capability now - rename the skill"
+                )
         return problems
 
     async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
@@ -2012,7 +2045,11 @@ class AgentRegistryService:
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_color": color})
 
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
-        """Where the agent's picture is on disk, for the route that streams it.
+        """The storage path of the agent's picture, for the route that streams it.
+
+        The path the storage backend wrote, not a path on this host: an object
+        store has no second kind, and the route hands this to the one place that
+        knows how to turn either into a response (#1423).
 
         Reading the picture goes through the same access check as reading the
         agent: an avatar is not public just because it is an image, and an
@@ -2023,12 +2060,11 @@ class AgentRegistryService:
                 gone - indistinguishable to a caller, and deliberately so.
         """
         agent = await self.get(ctx, agent_id)
-        path = get_file_storage().get_full_path(agent.avatar_url) if agent.avatar_url else None
-        if path is None or not path.exists():
+        if not agent.avatar_url or not await get_file_storage().exists(agent.avatar_url):
             raise NotFoundError(
                 message="This agent has no avatar", details={"agent_id": str(agent_id)}
             )
-        return str(path)
+        return agent.avatar_url
 
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Permanently remove an agent, its versions and its shares."""

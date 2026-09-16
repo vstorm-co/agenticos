@@ -1,4 +1,4 @@
-.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit audit-frontend sbom licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
+.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -611,6 +611,36 @@ test-e2e:
 	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
 	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
 
+# The load and resilience suite (NFA-004). Not part of `make check` and never in
+# CI: a load result is a measurement of one machine, and a number produced on a
+# shared runner under whatever else it was doing is worse than no number.
+# `docs/load-testing.md` has the prerequisites and how to read the report.
+LOAD_STUB_PORT ?= 4020
+LOAD_DOCUMENTS ?= 40
+# Where the stub listens, and the address the *API* reaches it on. They differ
+# whenever the API is not on this host: `make dev` runs it in a container, where
+# loopback is the container itself, so that topology needs
+# `LOAD_STUB_BIND=0.0.0.0 LOAD_STUB_URL=http://host.docker.internal:4020`.
+# docs/load-testing.md states both, because seeding the wrong one fails preflight
+# with a message about an empty collection rather than about an address.
+LOAD_STUB_BIND ?= 127.0.0.1
+LOAD_STUB_URL ?= http://127.0.0.1:$(LOAD_STUB_PORT)
+
+load-stub-model:
+	uv run --directory backend python ../loadtest/stub_model.py \
+		--host $(LOAD_STUB_BIND) --port $(LOAD_STUB_PORT)
+
+load-seed:
+	uv run --directory backend python ../loadtest/seed.py \
+		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
+
+# `API_PID` and `DATABASE_URL` are optional; without them the run measures
+# requests and says which probes it could not take.
+load-test:
+	uv run --directory backend python ../loadtest/run.py \
+		$(if $(API_PID),--api-pid $(API_PID),) \
+		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),)
+
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
 # a command advertised as CI that runs less than CI prints "All checks passed"
@@ -836,6 +866,12 @@ docker-db:
 docker-db-stop:
 	docker compose stop db
 
+docker-minio:
+	docker compose --profile objectstore up -d minio
+	@echo ""
+	@echo "✅ MinIO started on port 9000 (console :9001, minioadmin / minioadmin)"
+	@echo "   FILE_STORAGE_BACKEND=s3 needs a bucket; the integration suite makes its own."
+
 docker-redis:
 	docker compose up -d redis
 	@echo ""
@@ -904,6 +940,11 @@ help:
 	@echo "  make lint-precommit yamlfmt, zizmor and the pre-commit basics, over every tracked file"
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
+	@echo ""
+	@echo "Load and resilience (NFA-004, never in CI - see docs/load-testing.md):"
+	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
+	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
+	@echo "  make load-test        Offer the workload and print the report"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"

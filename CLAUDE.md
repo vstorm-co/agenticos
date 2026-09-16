@@ -47,8 +47,9 @@ template-inherited subsystems have different coverage gates, described below.
   `DBSession`: its `scope="function"` commits after the route returns and before
   the response is written. A bare `Depends(get_db_session)` has different timing.
   The agent run paths in `AgentRunnerService._run` and `ChatAgentRunner.run`
-  explicitly commit before the model call and in terminal cleanup. See
-  `docs/architecture.md#the-requests-transaction`.
+  explicitly commit before the model call and in terminal cleanup, and
+  `SessionService.detect_refresh_reuse` commits the security response its caller
+  is about to raise past. See `docs/architecture.md#the-requests-transaction`.
 - Dispatch background work needing rows written by the request with
   `spawn_after_commit`, so its own session can see those rows. See
   `docs/architecture.md#dispatching-background-work-from-a-request`.
@@ -222,8 +223,10 @@ retranslated is how a stale translation stops being visible.
 | Routes → services → repositories | `docs/architecture.md` |
 | The Next.js console, for a contributor | `docs/frontend.md` |
 | Authenticating and calling the HTTP API | `docs/api.md` |
+| The ML services called without an agent, and what each one is | `docs/ml-services.md` |
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
+| The load suite: the workload, the thresholds, the measured runs | `docs/load-testing.md` |
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |

@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.messages import ModelMessage
 
-from app.agents.ask_user import QuestionItem, render_answer
+from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
@@ -121,6 +121,11 @@ class AgentSession:
         # answered pair the moment it arrives - before a `stop` frame behind it
         # can cancel the turn and lose it (#502). One at a time, under `_ask_lock`.
         self._pending_question: str | None = None
+        # Which delegate that question came from, read where the question is put
+        # rather than where its answer lands: the delegation's state is bound for
+        # the duration of the delegation, so it is bound inside `_ask_one` and
+        # gone by the time the answer arrives on the receive loop (#1042).
+        self._pending_asked_by: str | None = None
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -172,7 +177,9 @@ class AgentSession:
             # (#502).
             if self._pending_question is not None and self._current_timeline is not None:
                 self._current_timeline.add_ask_user(
-                    self._pending_question, render_answer(answers[0] if answers else None)
+                    self._pending_question,
+                    render_answer(answers[0] if answers else None),
+                    asked_by=self._pending_asked_by,
                 )
             return
 
@@ -550,17 +557,31 @@ class AgentSession:
         calls. It adapts the one-question protocol to this surface's batch channel -
         a list of one - so the WebSocket keeps a single wire format for one question
         and several, and the delegate reads back the rendered answer.
+
+        **Which delegate asked is read here and nowhere else.** `ask_parent` hands
+        over the question and nothing else, but the delegation's state is bound for
+        the duration of the delegation - so it is bound in this call, made from
+        inside it, and unbound again by the time the answer comes back on the
+        receive loop. `None` is the main agent asking the question itself (#1042).
         """
         item = QuestionItem(question=question, options=options)
-        # The frame handler records the answered pair onto the turn's timeline the
-        # moment the answer arrives (#502), so this only marks which question is
-        # open and clears it however the wait ends - answered, unanswered, or the
-        # turn cancelled out from under it.
-        self._pending_question = question
-        try:
-            answers = await self._ask_user([item.model_dump()])
-        finally:
-            self._pending_question = None
+        asked_by = asking_delegate()
+        # **Under the lock, with the round it belongs to.** The frame handler
+        # records the answered pair onto the turn's timeline the moment the
+        # answer arrives (#502), reading whichever question is marked open - so
+        # marking one outside the lock let a second delegate reaching here while
+        # the first was still waiting overwrite both fields, and the first
+        # delegate's answer was then persisted as the second's question, asked by
+        # the second's name. The lock already held the wire round; it holds what
+        # names it now too.
+        async with self._ask_lock:
+            self._pending_question = question
+            self._pending_asked_by = asked_by
+            try:
+                answers = await self._send_and_wait([item.model_dump()])
+            finally:
+                self._pending_question = None
+                self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -574,14 +595,23 @@ class AgentSession:
         waits for this one's answer rather than overwriting its future.
         """
         async with self._ask_lock:
-            loop = asyncio.get_running_loop()
-            fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
-            self._ask_user_future = fut
-            try:
-                await send_event(self.websocket, "ask_user", {"questions": questions})
-                return await fut
-            finally:
-                self._ask_user_future = None
+            return await self._send_and_wait(questions)
+
+    async def _send_and_wait(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """One round on the wire, with `_ask_lock` already held by the caller.
+
+        Split from `_ask_user` so `_ask_one` can take the lock itself and mark
+        which question is open *inside* it - the attribution has to be
+        serialized with the round it names, and a nested acquire would deadlock.
+        """
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
+        self._ask_user_future = fut
+        try:
+            await send_event(self.websocket, "ask_user", {"questions": questions})
+            return await fut
+        finally:
+            self._ask_user_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.

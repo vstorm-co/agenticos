@@ -152,6 +152,46 @@ class TestReadingToolCallsOffARun:
 
         assert calls[0].result == "3 hits, best: https://example.com/refunds"
 
+    def test_a_structured_return_is_stored_as_json_not_as_a_python_repr(self):
+        """`load_capability` answers with a mapping, and the console has to read it.
+
+        `str(dict)` reaches the browser quoted `'like this'`, which is not JSON and
+        which no renderer on the other side can parse - so the step that says which
+        skill the agent opened would have nothing to open.
+        """
+        calls = tool_calls_in(
+            [
+                _called("load_capability", "c1", id="refunds"),
+                _returned("load_capability", "c1", {"instructions": "# Skill: refunds"}),
+            ]
+        )
+
+        assert calls[0].result == '{"instructions": "# Skill: refunds"}'
+
+    def test_a_return_json_cannot_take_is_still_recorded(self):
+        """A run must not die over what a person reads about it afterwards."""
+        circular: dict[str, object] = {}
+        circular["self"] = circular
+
+        calls = tool_calls_in(
+            [_called("odd", "c1"), _returned("odd", "c1", circular)]  # type: ignore[arg-type]
+        )
+
+        assert calls[0].result is not None
+
+    def test_a_key_json_cannot_write_is_still_recorded(self):
+        """`default=` is consulted for a value and never for a key, so a mapping
+        keyed by a tuple raised `TypeError` past the fallback - and this helper
+        runs in live streaming too, so a tool call that had *succeeded* took the
+        stream down with it (#1704 review)."""
+        keyed_oddly = {("a", "b"): "value"}
+
+        calls = tool_calls_in(
+            [_called("odd", "c1"), _returned("odd", "c1", keyed_oddly)]  # type: ignore[arg-type]
+        )
+
+        assert calls[0].result == str(keyed_oddly)
+
     def test_a_call_that_never_came_back_has_no_result(self):
         """The run parked on it, was stopped, or broke. `None` is not the empty
         string: a client draws "waiting" for one and "returned nothing" for the

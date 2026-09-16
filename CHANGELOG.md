@@ -44,6 +44,446 @@ Two things are versioned separately from this file and worth knowing about:
   advisories, and `nanoid` and `js-yaml` pinned forward through `overrides`
   because their parents have not moved. (#1415)
 
+## [0.0.461] - 2026-09-16
+
+### Added
+
+- An S3-compatible file-storage backend beside the local disk, selected by
+  `FILE_STORAGE_BACKEND=s3`. Every write asks the store for server-side
+  encryption — SSE-S3 by default, SSE-KMS under a key the deployment names — and
+  a `FILE_STORAGE_S3_PREFIX` keeps two deployments in one bucket apart. An
+  upload is cancellation-safe the way the local one is, and a download is
+  streamed in bounded chunks rather than held whole. Local stays the default and
+  nothing migrates between them; it is a deployment-time choice. `agenticos cmd doctor` prints which backend is running and whether
+  encryption is on, and `make docker-minio` starts a MinIO to develop against.
+  (#1423)
+
+### Changed
+
+- The seven routes that serve a stored file — both avatars, an agent's, a hosted
+  page's logo, the deployment's mark, a chat attachment and a knowledge-base
+  download — resolve it through the storage backend rather than through a path on
+  this host, so they answer on either backend. A local backend still streams from
+  disk. (#1423)
+- The deployment's logo and favicon are typed from the file's own bytes rather
+  than from the suffix its uploader chose, which is what the avatar routes
+  already did. The set of types served is unchanged. (#1423)
+
+## [0.0.460] - 2026-09-16
+
+### Added
+
+- A persisted `ask_user` question records which delegate asked it, and the
+  transcript says so — "Asked by researcher" rather than "Asked you" where a
+  specialist put the question. `ask_parent` hands the surface the question and
+  nothing else, so this needed `SubAgentState.name` upstream
+  (subagents-pydantic-ai 0.2.22, the new floor). A question the main agent asked
+  itself, and every question stored before this, names nobody. (#1042)
+
+## [0.0.459] - 2026-09-16
+
+### Fixed
+
+- The cost journey's last step waits for the API to report a priced run before
+  asking Activity to draw its row, so a failure says which of the five things it
+  crosses did not happen instead of `element(s) not found`. Every other wait in
+  that spec names what it was waiting for, `nowThere` moved out of
+  `seed.setup.ts` as `nowListed` / `nowMatching` so specs and fixtures share one
+  "the write has landed" step, and a failing `e2e` job now uploads
+  `test-results/` — the screenshot, the video, the trace and Playwright's
+  `error-context.md` — beside the HTML report. (#162)
+
+## [0.0.458] - 2026-09-16
+
+### Added
+
+- Refresh-token reuse detection. Rotation re-keys a session row in place, so a
+  stolen refresh token presented after the legitimate user has rotated failed
+  exactly like a typo — no signal, no audit entry, and the live session the thief
+  was racing went on running. The row now keeps the hash rotation replaced, a
+  refresh matching it is the reuse case in RFC 6819 §5.2.2.3, and the response is
+  to end that chain and record it. The caller still learns only "invalid or
+  expired". One hash, not a history: it catches the window the pattern is about
+  and says so. Migration `0085_refresh_reuse`. (#1519)
+
+## [0.0.457] - 2026-09-16
+
+### Added
+
+- A `media` capability that keeps a compacted conversation's pictures out of the
+  database. An attachment reaches the model once and the ordinary history is
+  rebuilt from text, so nothing piles up there — but a compacted conversation
+  stores the library's own dump of the run's messages and replays it base64 and
+  all until the next summary. Bound, the parts over a threshold are written to
+  the organization's own media store and replaced with a `media+sha256://…`
+  reference; re-inlining happens for every conversation whether or not it is
+  still bound. The objects live under the thread's own prefix, which is what
+  gives them a lifetime — deleting the thread or the organization removes them —
+  and a run with no thread offloads nothing. Built on `pydantic-ai-harness`'s
+  content-addressed stores and walkers. (#55)
+- `BaseFileStorage.save_at` and `.exists`, for the one caller whose key is the
+  digest of its own bytes rather than a name this codebase mints. (#55)
+
+## [0.0.456] - 2026-09-16
+
+### Changed
+
+- **A skill is now a capability of its own, and the model opens it with
+  `load_capability`.** `pydantic-ai-skills` 2.0 makes each skill a deferred
+  capability: its name and one-line description sit in the catalog the model reads
+  every turn, and pydantic-ai's own `load_capability` pulls the body in. The two
+  tools this platform published to do that by hand — `list_skills` and `load_skill`
+  — are gone, and `read_skill_resource` is the one tool the capability still
+  contributes, offered only when at least one bound skill ships a file to read.
+  `run_skill_script` stays switched off: a skill's files reach a run under
+  `/workspace/skills/`, where the sandbox's own `execute` runs them. The console
+  renders a loaded skill under the `load_capability` step, with the skill's name as
+  the step label. (#1658)
+
+  **`SPEC_VERSION` moves to 12.** A stored binding that renamed `list_skills` or
+  `load_skill` loads with that entry dropped and a warning in the log: a rename of
+  a tool that is gone is not a decision worth carrying forward. An *approval* on
+  `load_skill` is, and moves to `load_capability` — the decision was "ask a person
+  before a skill is opened", and that is the call that opens one now; dropping it
+  would have ungated an agent whose publisher gated it deliberately, on every
+  surface including a public embed. Anything the binding said about
+  `read_skill_resource` is left exactly as written.
+
+  **A skill cannot be named after a capability.** Each is filed under its own name
+  in the same namespace as the platform's own, so a skill called `planning` on an
+  agent that also has the planning capability is a duplicate the framework refuses
+  before the first token. Creating one is refused, publishing an agent bound to one
+  is refused, and a binding that renames a tool onto `load_capability` is refused
+  for the same reason.
+
+### Fixed
+
+- A tool returning a mapping with a key JSON cannot write - a tuple, say - no
+  longer ends the stream. `default=` is consulted for a value and never for a key,
+  so the `TypeError` escaped a fallback that caught `ValueError` only, and took a
+  live turn down over a tool call that had succeeded. (#1658)
+- Reopening a conversation recorded before this change shows its `list_skills` and
+  `load_skill` steps the way it always showed them, rather than raw XML: a stored
+  turn holds the tool name it called, so the renderers are kept in a legacy table
+  the drift check does not read. A completed `load_capability` whose result is not
+  a loaded skill - the framework's retry notice for an unknown capability - now
+  shows that notice instead of rendering nothing under a step that looks like a
+  success. (#1658)
+
+- **A tool that answers with a structure is recorded as JSON, not as a Python
+  repr.** `str({'instructions': ...})` reaches the browser quoted `'like this'`,
+  which no renderer on the other side can parse — so the step showing what the
+  agent loaded had nothing to open. Applies to the stored transcript and to the
+  live `tool_result` frame alike. (#1658)
+
+## [0.0.455] - 2026-09-16
+
+### Added
+
+- `GET /me/data/export` — everything this deployment holds about you as one JSON
+  document: your threads with every turn in them and what the agents did to
+  answer them, what you rated, where you signed in, which organizations you
+  belong to, what agents wrote down about you, the platform accounts you linked,
+  the runs you started and what they cost. Rate-limited per hour, bounded in size
+  (`PERSONAL_DATA_EXPORT_MAX_CHARS`, refused rather than silently partial) and
+  audited, including when you export yourself. `GET /admin/users/{id}/export` is
+  the administrator's half: the same limit, and a **reason that has to say
+  something** — three spaces used to satisfy it. (#1421)
+- `docs/security.md` gains the inventory both GDPR art. 15 and art. 17 are
+  answered from: every table holding something about a person, whether it
+  cascades, is purged explicitly or is retained, and why — with what erasure does
+  not reach (an external memory store, backups, a provider's own retention)
+  named rather than left to be discovered. (#1421)
+
+### Fixed
+
+- Deleting an account now removes what no cascade reached: the notes every agent
+  wrote about that person, in every organization (`agent_memory_files` is keyed
+  by a string with no foreign key, so every note survived the account), their
+  platform identities, which `SET NULL` left holding a Slack id and a display
+  name linked to nobody, their user-scoped agent workspaces, whose `owner_ref` is
+  a string no cascade follows, and the bytes of every file they attached to a
+  thread, which `chat_files` cascaded the rows away from and left on disk. A run
+  writing a note while the account is being deleted no longer recreates one: the
+  write and the purge take the same lock, and the write that loses finds no
+  account to write about. (#1421)
+- Deleting a conversation unlinks the bytes of the files attached to it. The rows
+  cascaded away with the thread and the files stayed on disk — data kept after
+  somebody asked for it to be deleted, and reachable by nothing. (#1421, FA-015)
+
+## [0.0.454] - 2026-09-16
+
+### Added
+
+- **The public API accepts attachments and answers a parked run.** The surface
+  whose whole purpose is running an agent from your own backend was the one that
+  could not send it a document: `AgentRunRequest` now takes `file_ids`, resolved
+  against the caller's own files the way `/chat` and the widget resolve them. The
+  same route filled the `AgentRunResult.parked` field, which existed and was
+  always empty - a caller whose run stopped for an approval got a status and
+  nothing to act on, and now gets the call that is waiting and the approval to
+  post the decision to. (#936)
+- **A raw WebSocket is told when the agent is compacting its own history.** A
+  summary takes tens of seconds, and only `/chat` passed a compaction sink into
+  the runner - so every other streaming surface simply went quiet for the length
+  of it with nothing said. `AgentRunnerService.prepare` and `.execute` take
+  `on_compaction`, the embed session forwards the three frames, and they are sent
+  whatever the operator's trace switches say: that the agent is tidying its notes
+  is a fact about the product, not about its reasoning. (#936)
+- **`docs/channels.md` says what each surface offers and why each difference is a
+  difference.** A parity table across `/chat`, the socket and the API, with a
+  reason beside every "no" - either "this would be wrong here" or "this is not
+  built yet". `environment_id` on the socket, `ask_user` on the socket and
+  widening approvals past a member are each declined in writing, with what they
+  would need. `backend/tests/test_surface_parity.py` asserts the table against
+  the code rather than trusting it. (#936)
+
+## [0.0.453] - 2026-09-16
+
+### Added
+
+- **Single sign-on against the deployment's own identity provider.** A generic
+  OpenID Connect provider configured by discovery - Entra ID, Okta, Keycloak,
+  anything that publishes a document: `OIDC_ISSUER` plus a client pair, and the
+  authorization, token, userinfo and JWKS endpoints come from the provider
+  rather than from four more settings to get subtly wrong. Authorization code
+  with PKCE. A company self-hosting this runs an identity provider already and
+  will not mint local passwords for its staff, so without this its MFA and its
+  offboarding were solved twice. The sign-in page shows it under the name the
+  deployment gives it (`OIDC_DISPLAY_NAME`) with a mark of its choosing
+  (`OIDC_ICON`), in English and Polish. (#1419)
+
+### Changed
+
+- **A provider sign-in now requires `email_verified`, and absent counts as
+  false.** Both providers, not only the new one: an unverified address means
+  anybody at that provider can claim anybody else's work address, and the
+  sign-up policy's domain allow-list is built on an address meaning something.
+  The account is keyed on `sub` rather than on the address, as it already was.
+- **A sign-in the sign-up policy refuses now says why.** `invite_only` and the
+  domain allow-list already gated `get_or_create_oauth_user`, but the refusal
+  was caught by the callback's catch-all and shown as "Sign-in failed. Please
+  try again." beside every timeout. The policy's own sentence - the one the
+  registration form shows - is carried to the sign-in page instead. (#1419)
+
+## [0.0.452] - 2026-09-16
+
+### Added
+
+- **Per-organization data retention, on a schedule that actually deletes.**
+  Nothing was ever swept before this: conversations and their files, run rows
+  and manifests, workspaces, agent memory, uploaded documents and audit entries
+  lived until somebody deleted the organization - a data-protection problem in
+  one direction and, for audit, a compliance problem in the other. A period per
+  class now, set under the organization and gated on `org:settings`, resolved
+  against a deployment-wide default and ceiling; `audit` takes a **floor**
+  instead, six years by default, which an organization may lengthen and never
+  shorten. A daily Prefect flow hard-deletes in batches and records one audit
+  entry per organization per sweep, naming the class and the count and never the
+  content. A ceiling below the audit floor is reported to the operator rather
+  than resolved. Audit's own period resolves and is reported but nothing sweeps
+  it: the hash chain and its append-only checkpoint are built on entries staying,
+  so retiring one verifiably is #1622. (#1420)
+- **A purged run still counts toward the month's bill.** A month's spend is a sum
+  over `agent_runs`, so removing them would drop an organization's month-to-date
+  figure to zero as the window passed and a cap metered on that figure would stop
+  enforcing. The sweep keeps a total per organization per month on
+  `purged_run_spend` - a number and a count, no agent, no model, no name - and
+  `app/services/spend.py` adds it to the live sum. (#1420)
+
+## [0.0.451] - 2026-09-16
+
+### Added
+
+- **A person can read what agents here have written down about them.** Settings
+  → Memory, across every agent, with which one wrote each note and when. No
+  permission gates it: the answer is the same for a Viewer and an Owner, because
+  it is their own store. The product offered erasure and nothing else before
+  this, on the reasoning that a listing is a surveillance affordance - which is
+  true of somebody *else's* store and the opposite of one's own. (#1594)
+- **A note can be stopped without being destroyed.** A suppressed note is no
+  longer listed, read or editable by any tool, so it stops reaching the model
+  while staying there to be looked at and restored - the middle answer for a note
+  that is wrong or too personal and that somebody is not yet sure they want gone.
+  An agent writing the same name again revives the row with the new content,
+  which is documented rather than left to be discovered. The index the capability
+  splices into every request follows: suppressing or deleting a note drops the
+  `MEMORY.md` lines that name it, because a note somebody stopped whose index
+  line still describes it is a note still reaching the model. (#1594)
+- **A deployment administrator can read one named person's store in one named
+  tenant.** `GET /memory/person/{id}`, refused to everybody else - not an Owner,
+  not an Admin, not an edit grant on the agent that wrote the note - because an
+  organization role is not the party a subject-access request reaches. The read
+  is audited with the actor, the tenant, the subject and a reason, and never the
+  content. An agent bound to mem0 keeps its memories elsewhere, so those agents
+  are **named** on the page rather than listed: a page of native notes presented
+  as a complete inventory would be worse than one that says what it misses.
+  (#1594)
+
+## [0.0.450] - 2026-09-16
+
+### Added
+
+- **A HIPAA deployment profile, and a command that proves a deployment matches
+  it.** A security review does not ask whether software is compliant - HHS
+  certifies none and OCR recognises no private certification - it asks whether
+  this can run inside a compliant environment and whether that can be shown.
+  `agenticos cmd doctor --profile hipaa` prints one row per control, naming the
+  setting that satisfies it or the one that does not, and exits non-zero on any
+  unmet control so a client's own CI can gate on it. `deploy/profiles/hipaa/`
+  holds a compose overlay that refuses to start without the settings it cannot
+  default, plus an annotated env file.
+
+  Eleven controls: TLS to Postgres, to Redis and to the browser, a vault key of
+  real length, local inference, no hosted tracing anywhere (the deployment's
+  token, an agent's own, or an environment's), SSO, closed registration, a
+  six-year audit floor and the audit hash chain - with volume encryption
+  **named** rather than quietly passed,
+  because a sheet that skipped what it cannot see would read as complete and
+  would not be. It answers §164.312 and says so: the administrative (§164.308)
+  and physical (§164.310) safeguards are the operator's, and `docs/security.md`
+  states that in the same breath, along with who the business associate is and
+  why a hosted model's agreement is narrower than people expect. (#1448)
+
+## [0.0.449] - 2026-09-16
+
+### Changed
+
+- **Every dependency upgraded to its newest release, with one deliberate cap.**
+  The scheduled freshness job had been red; it is green now. Notable moves:
+  Pydantic AI 2.35 -> 2.40, Starlette 1.3 -> 1.6, OpenTelemetry 1.39 -> 1.44,
+  `wrapt` 1 -> 2, `pytest-randomly` 4 -> 5, Next 16.2 -> 16.3, React 19.2 ->
+  19.3. The suite, both coverage gates, the licence inventory and the advisory
+  audit are all clean on it. (#1485)
+- **The MCP SDK is held below 2.0, and the reason is in `pyproject.toml`.** 2.0
+  migrates the whole SDK to `httpx2`, so `create_oauth_metadata_request` returns
+  an `httpx2.Request` that `PinnedAsyncClient` - an `httpx` client - refuses to
+  send. That client is where this platform's SSRF pinning and its `Host`/SNI
+  substitution live, and carrying a second HTTP library through the one path
+  where a remote server chooses the next address is how a check ends up applied
+  by one library and the request made by the other. Migrating the pinned client
+  to `httpx2` is its own change with its own tests; until then the cap is what
+  keeps the scheduled upgrade green rather than perpetually red. (#1485)
+
+## [0.0.448] - 2026-09-16
+
+### Added
+
+- **GitHub triggers can run on a GitHub App instead of an OAuth App.** The OAuth
+  path stays as the fallback and the two coexist; what it costs is the reason for
+  the second. A `repo` plus `admin:repo_hook` token is read-write on every
+  repository the *person* can administer, never expires, needs a hook created and
+  deleted per repository, and shares that account's rate limit. An App is
+  installed on the repositories somebody chose, its token is minted from a
+  private key in the vault and lives an hour, and it is already delivering - so
+  creating a trigger registers nothing.
+
+  The trade is that the URL stops naming the trigger: one App has one webhook URL
+  and one signing secret per installation. `POST /webhooks/github-app` takes the
+  installation id out of the payload to select candidate grants, verifies the
+  signature against that organization's own App secret, and fires **every** active
+  trigger pointing at that repository - which a per-trigger URL cannot do, and
+  which two triggers on one repository is exactly what the presets invite. A
+  delivery matching nothing answers 202 like one that fired everything.
+
+  Stored as a new `github_app` vault kind (app id, private key, webhook secret),
+  and `docs/triggers.md` has the comparison table plus how to tell which of the
+  two a given trigger is on. Connecting is the portal's own action rather than an
+  OAuth start - an App has no consent flow - and it proves the App id, the key
+  and the installation id together before writing the grant, which is the only
+  moment any of the three can be checked. (#1072)
+
+## [0.0.447] - 2026-09-16
+
+### Changed
+
+- **The desktop shell hands sign-in to the system browser.** Google's
+  authorization endpoint refuses an embedded user-agent
+  (`disallowed_useragent`), and the shell answered that by telling the console
+  window it was Safari - a workaround that worked and that Google's own policy
+  says not to rely on. It is gone. The window now refuses exactly one navigation:
+  a start at the deployment's own `/api/v1/oauth/<provider>/login`, which it opens
+  in your own browser with `client=desktop` and a per-attempt nonce appended.
+  Nothing in the console knows it is running in a shell, and nothing has to - and
+  because the console's same-origin hop is *followed* rather than intercepted, an
+  invitee signing in from the app still carries their staged invitation.
+
+  The callback reads that marker off the session it was recorded in at the
+  *start*, never off the return, and redirects to `agenticos://auth/callback`
+  with the single-use code the browser flow already mints. The shell sends the
+  console window to the page it already had, which swaps the code
+  server-to-server and sets the window's own cookies - so the browser's cookie
+  jar is left out of it, which is the point. A deep link can be fired by any
+  process on the machine, so what one may do is send the console to one path on
+  the server the user configured, with a code that redeems once - and only if it
+  carries the nonce this shell minted, so a local process holding a code cannot
+  move the window into somebody else's account. The marker is filed under each
+  attempt's own OAuth `state`, so two sign-ins in one browser cannot trade
+  destinations, and a single-instance lock stops a callback building a second
+  console beside the one waiting for it on Windows and Linux. (#1532)
+
+## [0.0.446] - 2026-09-16
+
+### Added
+
+- **The ML services answer on their own, without a conversation or an agent.**
+  Four of them: document analysis, OCR, speech to text and personal data
+  detection, under `/api/v1/ml/`. They are the implementations the agents
+  already use - the ingestion parsers, the guardrails' detectors, the
+  transcription client - reached directly, so another component with a key gets
+  the same answers an agent would rather than a second opinion. `GET
+  /ml/services` publishes the coverage matrix as data, including the two rows
+  that say no: personal names, postal addresses and telephone numbers need a
+  named-entity model this deployment does not ship, and image analysis is future
+  scope in the requirements themselves. One permission gates all four -
+  `ml:invoke`, deliberately not `agents:run`, so an integration that parses
+  documents cannot also spend the organization's model budget. Every call writes
+  a row to the new `ml_service_calls` table - the service, the tenant, byte and
+  unit counts, the duration, the outcome, and none of what was submitted or
+  returned. `deploy/profiles/ml-services/` runs the API image a second time as a
+  replica the ingress sends only these paths to, with its own workers, CPU and
+  memory. Parsing runs on the file-io pool rather than the request's event loop,
+  a worker holds at most `ML_MAX_CONCURRENT_PARSES` parses at once and refuses
+  rather than queues beyond that, uploads are read only up to the ceiling, and a
+  refused call's record is committed before the refusal rolls its transaction
+  back. Schema: `ml_service_calls`. #1595
+
+## [0.0.445] - 2026-09-16
+
+### Added
+
+- **A repeatable load and resilience suite, and two measured runs (NFA-004).**
+  `loadtest/` offers a stated workload mix at a stated arrival rate - reads,
+  streamed chat turns with a fifth of them cancelled, non-streaming runs,
+  retrieval, uploads and signed webhook deliveries - through ramp, sustain,
+  burst and recover phases, and prints a report naming what it measured, what it
+  could not, and each proposed threshold's verdict with the sample count beside
+  it. The model is a stub that is slow on purpose and can be told to fail, and it
+  serves the embeddings too, so a default run touches no paid provider and a
+  deployment with no provider key at all can still be measured. Arrival-rate
+  rather than worker-pool driving, because a closed loop slows its own offered
+  rate exactly when the server does. `make load-stub-model`, `make load-seed`,
+  `make load-test`; the workload, the thresholds and what the suite does not
+  claim are in `docs/load-testing.md`. Every offered request leaves a sample,
+  including one abandoned at the end of a run, so an overloaded run cannot
+  improve its own error rate by losing requests; the report shows the recovery
+  phase on its own, since that is what tells a deployment that absorbed a spike
+  from one that stayed on the floor. #1597
+
+## [0.0.444] - 2026-09-16
+
+### Added
+
+- **The connect dialog takes a client registered by hand, so HubSpot can be
+  connected from the UI.** #1620 taught the OAuth start to accept `client_id` and
+  `client_secret`, and left them reachable only through the API - so "Connect &
+  check" on HubSpot still ended at "This server rejected the client registration
+  request" with nowhere to type the credentials its MCP auth app hands out.
+  Choosing OAuth now shows *Your own client*: the two fields, and the redirect
+  URL the provider has to hold exactly. Left empty, nothing changes - the server
+  registers this app itself. A secret typed with no client ID is refused before
+  the request, which is what the backend would do one round trip later.
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

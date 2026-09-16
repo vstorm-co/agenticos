@@ -71,6 +71,12 @@ registration (RFC 7591) → consent URL (PKCE + state + RFC 8707 resource indica
 exchange → refresh. Split across two HTTP requests because this is a web app, not a
 CLI.
 
+**A server with no registration endpoint (HubSpot) refuses at step two**, and the
+only way past is a client the operator registered at the provider by hand.
+`McpOAuthStart` takes `client_id` / `client_secret` for that (#1620); the connect
+dialog collects them in `McpOAuthClientFields`, with the redirect URL the provider
+has to hold - `{FRONTEND_URL}/api/me/mcp-connections/oauth/callback`, exactly.
+
 **Every URL in that flow is SSRF-checked and pinned**, not just the one somebody
 typed — discovery means the remote server picks most of the addresses we call. The
 flow's only client is `mcp_oauth._client()`, a `PinnedAsyncClient`
