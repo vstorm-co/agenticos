@@ -76,6 +76,15 @@
     "icon": "github"
   },
   {
+    "id": "github_app",
+    "label": "GitHub App",
+    "category": "other",
+    "kind": "github_app",
+    "help_url": "https://github.com/settings/apps",
+    "description": "A GitHub App's id, private key and webhook secret. Installed on chosen repositories with scoped permissions, and delivering without a per-repository hook.",
+    "icon": "github"
+  },
+  {
     "id": "google_oauth_app",
     "label": "Google OAuth client",
     "category": "other",

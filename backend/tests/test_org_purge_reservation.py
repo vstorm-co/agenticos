@@ -69,6 +69,19 @@ def _patched(mocks: dict):
         yield mocks
 
 
+def _collection_cleanups(spawned) -> list:
+    """The dispatches this file is about, which is not every dispatch.
+
+    An organization purge also removes the tenant's offloaded media prefix, and
+    that is unconditional - a directory removal for a tenant that may have
+    offloaded nothing (#55). Asserting "nothing was spawned" would fail on that
+    without saying anything about the collection teardown these tests exist for.
+    """
+    return [
+        call for call in spawned.call_args_list if call.kwargs.get("name") == "org_purge_cleanup"
+    ]
+
+
 async def _run(org, db, mocks) -> dict:
     with _patched(mocks):
         await OrganizationService(db, vector_store=MagicMock()).purge(org)
@@ -130,7 +143,7 @@ class TestACollectionAnotherOrganizationStillReferences:
         await _run(org, db, mocks)
 
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
-        mocks["spawned"].assert_not_called()
+        assert not _collection_cleanups(mocks["spawned"])
 
 
 class TestWithNoVectorStoreWired:

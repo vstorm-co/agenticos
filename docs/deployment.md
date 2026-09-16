@@ -68,6 +68,19 @@ last changed; the `?v=` built from that is the only reason a replacement ever
 appears. A URL would also be one every client had to rewrite, since in any real
 deployment the API is not on the same origin as the pages.
 
+## A deployment inside a compliant environment
+
+`deploy/profiles/hipaa/` is an opinionated configuration for running this where
+HIPAA's technical safeguards apply - a compose overlay that refuses to start
+without the settings it cannot default, and an annotated env file - plus
+`agenticos cmd doctor --profile hipaa`, which checks a running deployment against
+it and exits non-zero on any unmet control.
+
+It is evidence, not a certification, and it answers §164.312 only: the
+administrative and physical safeguards are the operator's. See
+[The HIPAA profile](security.md#the-hipaa-profile-and-what-it-does-not-claim)
+for the sheet and for the line about who the business associate is.
+
 ## Security headers
 
 Every console page carries a Content-Security-Policy and the usual hardening
@@ -109,7 +122,13 @@ origin, for the chat's speech-to-text.
 ## Who may register
 
 `signup_mode`, applied in `app/services/signup_policy.py` — the one place, and it
-gates **both** paths that mint an account.
+gates **every** path that mints an account: the registration form, and a sign-in
+through an identity provider. Nothing about an OAuth or OIDC callback looks like
+a registration, and a deployment with single sign-on and a closed sign-up form
+would not be closed at all if that branch were ungated, so
+`get_or_create_oauth_user` asks the same policy before it creates the account.
+A refused SSO sign-in lands back on the sign-in page carrying the policy's own
+sentence, which is the same one the registration form shows.
 
 | Mode | Effect |
 |---|---|
