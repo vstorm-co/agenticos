@@ -57,6 +57,11 @@ const BY_SUFFIX: Record<string, FileKind> = {
   bmp: "image",
   ico: "image",
   avif: "image",
+  // A TIFF's bytes are an image and its icon should say so, even where the server
+  // sent no MIME (a workspace or legacy file). `isRenderSafeImage` is the separate
+  // gate that keeps it off the screen as an inline thumbnail (#1591).
+  tiff: "image",
+  tif: "image",
   pdf: "pdf",
   mp4: "video",
   webm: "video",

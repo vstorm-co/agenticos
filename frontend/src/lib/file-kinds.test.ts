@@ -173,6 +173,10 @@ describe("deciding which images render inline", () => {
     // The kind drives the icon (its bytes are an image); the render gate above is
     // what keeps it off the screen as an inline thumbnail.
     expect(resolveFileKind("scan.tiff", "image/tiff")).toBe("image");
+    // On the suffix alone, too: a workspace or legacy TIFF reaches this with no MIME
+    // and must not fall through to `unknown` (#1591).
+    expect(resolveFileKind("scan.tiff")).toBe("image");
+    expect(resolveFileKind("scan.tif")).toBe("image");
     expect(resolveFileKind("deck.odp")).toBe("document");
   });
 });
