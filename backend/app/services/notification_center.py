@@ -310,7 +310,7 @@ class NotificationCenterService:
             if not batch:
                 break
             for row in batch:
-                gate = await self._gate(ctx, row)
+                gate = await self.gate_for(ctx, row)
                 if gate.visible:
                     visible.append(row)
                     gates[row.id] = gate
@@ -331,7 +331,7 @@ class NotificationCenterService:
         )
         count = 0
         for row in candidates:
-            gate = await self._gate(ctx, row)
+            gate = await self.gate_for(ctx, row)
             if gate.visible:
                 count += 1
         return count
@@ -352,7 +352,7 @@ class NotificationCenterService:
             raise NotFoundError(
                 message="Notification not found", details={"notification_id": str(notification_id)}
             )
-        gate = await self._gate(ctx, notification)
+        gate = await self.gate_for(ctx, notification)
         if not gate.visible:
             # The same rule a cross-tenant row already follows: a row the
             # reader may no longer see reads as absent, not as a 403.
@@ -375,7 +375,7 @@ class NotificationCenterService:
         )
         visible_ids = []
         for row in candidates:
-            gate = await self._gate(ctx, row)
+            gate = await self.gate_for(ctx, row)
             if gate.visible:
                 visible_ids.append(row.id)
         return await notification_repo.mark_ids_read(
@@ -451,7 +451,18 @@ class NotificationCenterService:
 
     # -- the gate-aware predicate itself ---------------------------------
 
-    async def _gate(self, ctx: AuthContext, notification: Notification) -> _Gate:
+    async def gate_for(self, ctx: AuthContext, notification: Notification) -> _Gate:
+        """Decision 7's recheck for one row, against `ctx`'s *current* standing.
+
+        Public rather than the four read paths' private helper: the email
+        channel re-derives its own template at send time
+        (`notification_delivery.py`'s `_render`, for `approval_requested`
+        alone) but was applying no recheck at all for every other gated
+        event type - a `usage_report` queued while its recipient still held
+        `runs:view` would otherwise still be mailed after they no longer
+        did. One gate, read by both channels, is what keeps that from being
+        two answers to the same question that can disagree.
+        """
         gate = content_gate_for(NotificationEventType(notification.event_type))
         if gate is ContentGate.NONE:
             return _Gate(visible=True)
@@ -505,7 +516,7 @@ class NotificationCenterService:
 
     async def _announcement_visible(self, ctx: AuthContext, notification: Notification) -> bool:
         # `ctx.user_id` is already guaranteed non-null here - every caller of
-        # `_gate` goes through `_require_caller` first. `announcement_id` is
+        # `gate_for` goes through `_require_caller` first. `announcement_id` is
         # not: nothing ties it to `event_type` at the schema level, so a
         # malformed row is possible even though nothing this service writes
         # produces one.

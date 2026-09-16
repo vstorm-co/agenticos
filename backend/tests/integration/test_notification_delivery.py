@@ -365,6 +365,56 @@ class TestSendAndSettleReachability:
 
         assert outcome == "sent"
 
+    async def test_a_demoted_recipient_is_skipped_not_mailed_the_frozen_report(self, db):
+        """`usage_report` carries `runs:view` as its content gate. `reachable`
+        alone only proves the recipient is still a member - a demotion from
+        `operator` to `member` between the write and the sweep leaves them
+        reachable but no longer entitled to the frozen spend figures this
+        event's `render_context` was written with."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        now = datetime.now(UTC)
+        delivery = await _delivery(
+            db,
+            recipient=recipient,
+            organization_id=org.id,
+            event_type=NotificationEventType.USAGE_REPORT,
+            render_context={"org_name": "Acme", "period": "weekly"},
+            claimed_at=now,
+            attempts=1,
+        )
+
+        with patch(f"{MODULE}.get_email_service", new=_sent()) as sent:
+            outcome = await NotificationDeliveryService(db).send_and_settle(
+                delivery.id, claimed_at=now
+            )
+
+        assert outcome == "skipped"
+        sent.return_value.send.assert_not_called()
+
+    async def test_an_operator_still_holding_runs_view_is_mailed_the_report(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="operator")  # runs:view: ALL
+        now = datetime.now(UTC)
+        delivery = await _delivery(
+            db,
+            recipient=recipient,
+            organization_id=org.id,
+            event_type=NotificationEventType.USAGE_REPORT,
+            render_context={"org_name": "Acme", "period": "weekly"},
+            claimed_at=now,
+            attempts=1,
+        )
+
+        with patch(f"{MODULE}.get_email_service", new=_sent()):
+            outcome = await NotificationDeliveryService(db).send_and_settle(
+                delivery.id, claimed_at=now
+            )
+
+        assert outcome == "sent"
+
 
 class TestSendAndSettlePreference:
     async def test_an_ordinary_event_is_skipped_when_email_is_off(self, db):
@@ -601,7 +651,10 @@ class TestOutcomesAndRetry:
         assert outcome == "failed"
         await db.refresh(delivery)
         assert delivery.status == DeliveryStatus.PENDING.value
-        assert delivery.last_error == "bounced"
+        # The provider's own text never reaches the column an app admin
+        # reads - it routinely carries a host, a bucket or a key - only the
+        # worker log gets it (`app/services/rag/failures.py`'s own rule).
+        assert delivery.last_error == "the email provider rejected the message"
 
     async def test_a_provider_rejection_with_no_attempts_left_is_exhausted(self, db):
         owner = await _user(db)
@@ -639,7 +692,11 @@ class TestOutcomesAndRetry:
         assert outcome == "failed"
         await db.refresh(delivery)
         assert delivery.status == DeliveryStatus.PENDING.value
-        assert "smtp down" in delivery.last_error
+        # Only the exception's type survives into the stored column - its
+        # own text, which could be anything a foreign `__str__` puts there,
+        # never does.
+        assert "smtp down" not in delivery.last_error
+        assert "RuntimeError" in delivery.last_error
 
     async def test_a_hung_send_is_cancelled_at_the_timeout(self, db):
         owner = await _user(db)
@@ -720,3 +777,21 @@ class TestListFailed:
         assert total == 3
         assert len(first_page) == 2
         assert len(second_page) == 1
+
+    async def test_the_total_survives_an_offset_past_the_last_row(self, db):
+        """The window function's `total` rides the rows it ran on - so an
+        `OFFSET` that discards every one of them (a stale page link, or a
+        row failed off the end since the reader's last page load) must not
+        make the answer read as zero failures instead of "none on this page"."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        for _ in range(3):
+            await _delivery(
+                db, recipient=recipient, organization_id=org.id, status=DeliveryStatus.FAILED.value
+            )
+
+        rows, total = await NotificationDeliveryService(db).list_failed(skip=50, limit=2)
+
+        assert rows == []
+        assert total == 3
