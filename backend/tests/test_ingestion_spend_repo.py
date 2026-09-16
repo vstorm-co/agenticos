@@ -99,6 +99,23 @@ class TestSumming:
         params = session.statements[-1].compile(dialect=postgresql.dialect()).params
         assert set(params.values()) >= {organization_id, since}
 
+    async def test_an_explicit_until_bounds_the_window_too(self):
+        # A late-firing usage report passes `until=window_start` so its total
+        # matches the window its own dedup key names, rather than drifting
+        # into whatever has landed by the time it actually runs.
+        organization_id = uuid.uuid4()
+        since = datetime(2026, 7, 1, tzinfo=UTC)
+        until = datetime(2026, 8, 1, tzinfo=UTC)
+        session = _RecordingSession(scalar_result=Decimal("0.30"))
+
+        total = await ingestion_spend_repo.sum_cost_since(
+            session, organization_id=organization_id, since=since, until=until
+        )
+
+        assert total == Decimal("0.30")
+        params = session.statements[-1].compile(dialect=postgresql.dialect()).params
+        assert set(params.values()) >= {organization_id, since, until}
+
     async def test_a_month_with_no_ingestion_sums_to_zero_not_none(self):
         session = _RecordingSession(scalar_result=None)
 
