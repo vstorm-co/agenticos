@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.448] - 2026-09-16
+
 ### Added
 
 - **GitHub triggers can run on a GitHub App instead of an OAuth App.** The OAuth
