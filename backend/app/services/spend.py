@@ -49,6 +49,7 @@ async def organization_spend_since(
     organization_id: UUID,
     since: datetime,
     *,
+    until: datetime | None = None,
     exclude_run_id: UUID | None = None,
 ) -> Decimal:
     """Runs plus ingestion in a window - the organization's bill for it.
@@ -59,16 +60,26 @@ async def organization_spend_since(
     a per-agent breakdown instead is how that email came to overstate the bill -
     it counted every delegated run a second time and left ingestion out.
 
+    `until` is left open by default (a budget's own question is always "up to
+    now"); a scheduled report passes its own window's end explicitly, so a run
+    is retried after a partial failure computes the same figure its dedup key
+    was already keyed on rather than a wider one the next cron tick's own
+    report would overlap.
+
     `exclude_run_id` is the budget guard's, and only its: a baseline is what other
     runs have spent, and the asking run's own spend is in its ledger. See
     :func:`app.repositories.agent_run.sum_cost_since` for what counting it twice
     did to a resumed run (#15).
     """
     run_spend = await agent_run_repo.sum_cost_since(
-        db, organization_id=organization_id, since=since, exclude_run_id=exclude_run_id
+        db,
+        organization_id=organization_id,
+        since=since,
+        until=until,
+        exclude_run_id=exclude_run_id,
     )
     ingestion_spend = await ingestion_spend_repo.sum_cost_since(
-        db, organization_id=organization_id, since=since
+        db, organization_id=organization_id, since=since, until=until
     )
     # And what runs a retention sweep already removed spent. Without this term an
     # organization on a thirty-day run retention watches its month-to-date fall

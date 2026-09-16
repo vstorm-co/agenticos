@@ -36,14 +36,17 @@ async def record(
     return spend
 
 
-async def sum_cost_since(db: AsyncSession, *, organization_id: UUID, since: datetime) -> Decimal:
+async def sum_cost_since(
+    db: AsyncSession, *, organization_id: UUID, since: datetime, until: datetime | None = None
+) -> Decimal:
     """Total ingestion spend in a window - the half of a monthly budget runs cannot see."""
-    result = await db.scalar(
-        select(func.coalesce(func.sum(IngestionSpend.cost_usd), 0)).where(
-            IngestionSpend.organization_id == organization_id,
-            IngestionSpend.created_at >= since,
-        )
+    query = select(func.coalesce(func.sum(IngestionSpend.cost_usd), 0)).where(
+        IngestionSpend.organization_id == organization_id,
+        IngestionSpend.created_at >= since,
     )
+    if until is not None:
+        query = query.where(IngestionSpend.created_at < until)
+    result = await db.scalar(query)
     return Decimal(result or 0)
 
 

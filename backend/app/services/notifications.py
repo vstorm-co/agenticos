@@ -44,6 +44,7 @@ no spec can redirect it.
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -235,9 +236,14 @@ class NotificationService:
             # constraint would otherwise discard the second request as a
             # repeat of the first, leaving the new approval to age towards
             # `expire_stale` with nobody told it exists. Every `ToolApproval`
-            # is a fresh row with its own id, so the sorted, joined set is
-            # unique to this exact pause even when the run id repeats.
-            occurrence_id=":".join(sorted(str(approval.id) for approval in approvals)),
+            # is a fresh row with its own id, so a digest of the sorted set
+            # is unique to this exact pause even when the run id repeats -
+            # a digest rather than the joined ids themselves, since
+            # `occurrence_id` is `String(255)` and seven or more approvals
+            # parking at once already overflows a plain colon-joined list.
+            occurrence_id=hashlib.sha256(
+                ":".join(sorted(str(approval.id) for approval in approvals)).encode()
+            ).hexdigest(),
             summary=f"{agent.name} is waiting on your approval",
             context_url=approvals_url,
             render_context=render_context,
@@ -574,7 +580,7 @@ class NotificationService:
         """
         since = window_start - timedelta(days=_PERIOD_DAYS[period])
         rows = await agent_run_repo.cost_breakdown(
-            self.db, organization_id=organization_id, since=since
+            self.db, organization_id=organization_id, since=since, until=window_start
         )
         if not rows:
             return False
@@ -585,8 +591,11 @@ class NotificationService:
 
         # After the audience, not before: an organization whose last admin left
         # still has runs, and pricing a report nobody will read is two queries
-        # spent on a write that does not happen.
-        total = await organization_spend_since(self.db, organization_id, since)
+        # spent on a write that does not happen. `until=window_start`, not
+        # left open to "now": the dedup key below is keyed on `window_start`
+        # alone, and a report that ran late would otherwise total a window
+        # wider than the one its own occurrence id names.
+        total = await organization_spend_since(self.db, organization_id, since, until=window_start)
         organization = await organization_repo.get_by_id(self.db, organization_id)
         organization_name = organization.name if organization else "your organization"
         dashboard_url = self._link("/agents", organization_id)
@@ -599,7 +608,7 @@ class NotificationService:
             "dashboard_url": dashboard_url,
             "app_name": settings.PROJECT_NAME,
         }
-        await self._center.write(
+        written = await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.USAGE_REPORT,
             occurrence_id=f"{organization_id}:{period}:{window_start.isoformat()}",
@@ -612,7 +621,7 @@ class NotificationService:
             # must not poison the loop's remaining iterations.
             use_savepoint=True,
         )
-        return True
+        return bool(written)
 
     async def agent_usage_report(
         self,
@@ -650,6 +659,7 @@ class NotificationService:
             self.db,
             organization_id=agent.organization_id,
             since=since,
+            until=window_start,
             include_delegations=True,
         )
         mine = [row for row in rows if row[0] == agent.id]
@@ -679,7 +689,7 @@ class NotificationService:
             "dashboard_url": dashboard_url,
             "app_name": settings.PROJECT_NAME,
         }
-        await self._center.write(
+        written = await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.AGENT_USAGE_REPORT,
             occurrence_id=f"{agent.id}:{period}:{window_start.isoformat()}",
@@ -689,7 +699,7 @@ class NotificationService:
             organization_id=agent.organization_id,
             use_savepoint=True,
         )
-        return True
+        return bool(written)
 
     @property
     def _frontend(self) -> str:

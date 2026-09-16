@@ -459,6 +459,30 @@ class TestWhatASyncedDocumentLeavesBehind:
         assert "page 4" in documents.fail_ingestion.await_args.args[1]
         documents.complete_ingestion.assert_not_awaited()
 
+    async def test_an_exception_after_opening_the_row_still_fails_it(self):
+        """`ingest_file` returning a failure and `ingest_file` *raising* are
+        different code paths, and only the first used to settle the row - an
+        exception (a connector timeout, an out-of-memory parse) left it
+        `PROCESSING` for ever, with no per-file `INGESTION_FAILED` and no
+        `fail_ingestion` call for the retry endpoint's own status check to
+        find."""
+        connector = _connector()
+        async with _syncing(mode="new_only", listing=[], connector=connector) as (
+            ingest,
+            documents,
+        ):
+            ingest.side_effect = RuntimeError("the connector timed out mid-transfer")
+            answer = await rag_tasks._run_source_sync(
+                str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
+            )
+
+        assert answer["failed"] == 1 and answer["ingested"] == 0
+        documents.create_document.assert_awaited_once()
+        documents.fail_ingestion.assert_awaited_once_with(
+            str(ROW_ID), "the connector timed out mid-transfer", attempt=1
+        )
+        documents.complete_ingestion.assert_not_awaited()
+
 
 class TestAStoredDocumentWithNoHash:
     async def test_it_is_re_ingested_rather_than_assumed_current(self):

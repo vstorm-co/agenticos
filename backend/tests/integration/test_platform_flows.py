@@ -1890,6 +1890,45 @@ class TestWhatACollectionReportsItHolds:
         assert refreshed.status == DocumentStatus.PROCESSING
         assert refreshed.chunk_count != 4
 
+    async def test_a_notification_failure_does_not_undo_a_completed_ingestion(
+        self, db, monkeypatch
+    ) -> None:
+        """The recipient-resolution half of `ingestion_completed` runs
+        *before* `_center.write`'s own best-effort savepoint - a failure
+        there must not propagate out of a settlement that already recorded a
+        successfully vectorized document, or `_run_ingestion`'s own
+        `except Exception` marks it `ERROR` for a notification that has
+        nothing to do with whether ingestion succeeded."""
+        from app.services import notifications as notifications_module
+
+        tenant = await _tenant(db, name="NotifyFails")
+        collection = await _collection_with(
+            db, tenant, name="notify_fails", config=IngestionConfig()
+        )
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        async def _boom(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("audience resolution blew up")
+
+        monkeypatch.setattr(notifications_module.NotificationService, "ingestion_completed", _boom)
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+            attempt=1,
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        assert refreshed.status == DocumentStatus.DONE
+        assert refreshed.chunk_count == 4
+
     async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
         """The vector store keeps one document; `rag_documents` gained a second row.
 
