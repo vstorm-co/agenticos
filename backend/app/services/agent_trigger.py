@@ -51,15 +51,17 @@ from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
+    AppException,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
     ValidationError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
+from app.db.models.agent_trigger import AgentTrigger, EventSource, ScheduleKind, TriggerType
 from app.db.models.mcp_connection import McpConnection
 from app.db.session import get_db_context
 from app.db.updates import writable
@@ -85,6 +87,7 @@ from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.mcp_connection import McpConnectionService
 from app.services.portal_catalog import DeliveryMode
+from app.services.portals.github_app import GitHubAppPortalAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -1200,6 +1203,144 @@ class AgentTriggerService:
             return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(trigger_id=trigger.id, event_context=context)
+
+    async def prepare_app_fires(
+        self, *, body: bytes, headers: Mapping[str, str]
+    ) -> list[EventFireDecision]:
+        """Route one GitHub App delivery to every trigger it matches (#1072).
+
+        **The URL names nothing here**, which is the whole difference from
+        :meth:`prepare_event_fire`. An App has one webhook URL and one signing
+        secret per installation, so a delivery carries an `installation.id` and a
+        `repository.full_name` and the routing is a lookup rather than a path
+        parameter.
+
+        Three steps, in this order and for this reason:
+
+        1. **Read the installation id out of the unverified body.** It selects
+           candidate grants and authorises nothing; the signature is still what
+           proves the delivery. Selecting the key to check with is the one thing
+           that has to happen before the check.
+        2. **Verify against that organization's own webhook secret.** A delivery
+           whose signature matches no candidate is refused, exactly as a
+           per-trigger one is, because a misconfigured secret is the integrator's
+           to fix and GitHub surfaces a 403.
+        3. **Match every active trigger** on that organization pointing at that
+           repository. One event firing several triggers is the polled shape, not
+           the per-URL one - and it is correct here: two triggers on the same
+           repository is what the presets invite.
+
+        Returns:
+            One decision per trigger to fire, possibly none. A delivery for an
+            installation nobody holds, a repository nothing points at or an event
+            no filter matches all answer the same empty list, so the response
+            tells a caller nothing about what exists.
+
+        Raises:
+            AuthorizationError: The signature verified against no candidate grant.
+            BadRequestError: The body is not a JSON object.
+        """
+        payload = _parse_json(body)
+        installation = payload.get("installation")
+        installation_id = str(installation.get("id")) if isinstance(installation, dict) else None
+        if not installation_id:
+            return []
+
+        grants = await mcp_connection_repo.portal_grants_for_account(
+            self.db,
+            portal_key=GitHubAppPortalAdapter.portal_key,
+            portal_account_id=installation_id,
+        )
+        organization_id = await self._organization_for_app_delivery(
+            grants, body=body, headers=headers
+        )
+        if organization_id is None:
+            raise AuthorizationError(
+                message="Webhook signature did not verify",
+                details={"installation_id": installation_id},
+            )
+
+        repository = payload.get("repository")
+        full_name = repository.get("full_name") if isinstance(repository, dict) else None
+        if not full_name:
+            return []
+
+        triggers = await agent_trigger_repo.list_active_for_event_source(
+            self.db, organization_id=organization_id, event_source=EventSource.GITHUB.value
+        )
+        decisions: list[EventFireDecision] = []
+        for trigger in triggers:
+            if trigger.portal_key != GitHubAppPortalAdapter.portal_key:
+                continue
+            if trigger.provider_target != full_name:
+                continue
+            if not trigger_events.event_matches(
+                EventSource.GITHUB.value,
+                headers=headers,
+                payload=payload,
+                config=trigger.event_config,
+            ):
+                continue
+            delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers)
+            if delivery is not None and not await trigger_dedupe.claim_event_delivery(
+                trigger_id=trigger.id, delivery_id=delivery
+            ):
+                continue
+            decisions.append(
+                EventFireDecision(
+                    trigger_id=trigger.id,
+                    event_context=trigger_events.render_context(
+                        EventSource.GITHUB.value, payload=payload
+                    ),
+                )
+            )
+        return decisions
+
+    async def _organization_for_app_delivery(
+        self,
+        grants: Sequence[McpConnection],
+        *,
+        body: bytes,
+        headers: Mapping[str, str],
+    ) -> UUID | None:
+        """Whose delivery this is: the grant whose App secret signed it.
+
+        Every candidate is tried rather than the first, because two organizations
+        could in principle hold grants GitHub numbered the same and answering the
+        first would hand one of them the other's deliveries. An organization that
+        has stored no App secret is skipped rather than raised on: its grant
+        cannot have signed this, and a delivery is not the place to tell somebody
+        their vault is incomplete.
+        """
+        from app.services.organization_secret import OrganizationSecretService
+
+        secrets_service = OrganizationSecretService(self.db)
+        for grant in grants:
+            # Both casts annotate what the caller already guaranteed, the idiom
+            # `_unseal_event_secret` uses: the query filtered on `purpose='portal'`
+            # and a portal grant always has an organization, and `app_secret`
+            # refuses anything whose sealed kind is not the one asked for. Guards
+            # here would be branches no test could reach under the 100% gate.
+            organization_id = cast(UUID, grant.organization_id)
+            try:
+                secret = cast(
+                    GithubAppSecret,
+                    await secrets_service.app_secret(organization_id, kind=SecretKind.GITHUB_APP),
+                )
+            except AppException:
+                logger.warning(
+                    "github_app_secret_unavailable",
+                    extra={"organization_id": str(organization_id)},
+                )
+                continue
+            if trigger_events.verify_signature(
+                EventSource.GITHUB.value,
+                secret=secret.webhook_secret.get_secret_value(),
+                body=body,
+                headers=headers,
+            ):
+                return organization_id
+        return None
 
     async def prepare_polled_fires(
         self,

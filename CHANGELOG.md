@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub triggers can run on a GitHub App instead of an OAuth App.** The OAuth
+  path stays as the fallback and the two coexist; what it costs is the reason for
+  the second. A `repo` plus `admin:repo_hook` token is read-write on every
+  repository the *person* can administer, never expires, needs a hook created and
+  deleted per repository, and shares that account's rate limit. An App is
+  installed on the repositories somebody chose, its token is minted from a
+  private key in the vault and lives an hour, and it is already delivering - so
+  creating a trigger registers nothing.
+
+  The trade is that the URL stops naming the trigger: one App has one webhook URL
+  and one signing secret per installation. `POST /webhooks/github-app` takes the
+  installation id out of the payload to select candidate grants, verifies the
+  signature against that organization's own App secret, and fires **every** active
+  trigger pointing at that repository - which a per-trigger URL cannot do, and
+  which two triggers on one repository is exactly what the presets invite. A
+  delivery matching nothing answers 202 like one that fired everything.
+
+  Stored as a new `github_app` vault kind (app id, private key, webhook secret),
+  and `docs/triggers.md` has the comparison table plus how to tell which of the
+  two a given trigger is on. (#1072)
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed

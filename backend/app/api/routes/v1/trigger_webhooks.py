@@ -21,6 +21,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.post("/github-app", status_code=status.HTTP_202_ACCEPTED, response_model=None)
+async def ingest_github_app_event(request: Request, service: AgentTriggerSvc) -> Any:
+    """The one URL a GitHub App delivers to, for every installation (#1072).
+
+    An App has one webhook URL and one signing secret per installation, so unlike
+    `/triggers/{source}/{trigger_id}` this path names nothing: the installation
+    id in the payload selects the grant, that organization's own App secret
+    verifies the signature, and the repository and event choose the triggers.
+
+    **One delivery can fire several triggers**, which the per-trigger URL cannot
+    by construction - two triggers on the same repository is exactly what the
+    presets invite. Each is submitted as its own capped flow, so a delivery
+    matching four triggers starts four worker runs rather than four agent runs on
+    the API's event loop.
+
+    A delivery matching nothing answers 202, the same as one that fired
+    everything: among verified deliveries the response gives nothing away.
+    """
+    headers = dict(request.headers)
+    body = await request.body()
+    decisions = await service.prepare_app_fires(body=body, headers=headers)
+
+    from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
+
+    for decision in decisions:
+        await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+
+
 @router.post(
     "/triggers/{source}/{trigger_id}",
     status_code=status.HTTP_202_ACCEPTED,

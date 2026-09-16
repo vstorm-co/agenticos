@@ -192,10 +192,77 @@ organization's: Google's consent screen for a mailbox scope needs a verified
 project, which an operator registers once and no tenant of theirs can register at
 all.
 
+## Two ways to connect GitHub, and how to tell which you are running
+
+There are two, and a deployment can offer either or both. The picker shows
+**GitHub** and **GitHub (App)** as separate sources, and which one a trigger uses
+is decided when it is created (#1072).
+
+| | GitHub (OAuth App) | GitHub (App) |
+|---|---|---|
+| What it holds | An access token for the **person** who consented | An installation id, plus the App's private key in the vault |
+| What it can reach | Every repository that account can administer - `repo` plus `admin:repo_hook`, read and write | The repositories the App was installed on, with the permissions the App declares |
+| How long it lasts | For ever. A classic OAuth App token has no refresh and no expiry, so a leaked one is valid until somebody revokes it by hand | An hour. Minted on demand from the key, which never leaves the vault |
+| Hooks | One per repository, created when the trigger is and deleted when it goes | None. The App is already delivering |
+| Rate limit | The person's 5000/hour, shared with everything else that account authorised | The App's own |
+| Where it delivers | `/api/v1/webhooks/triggers/github/<trigger id>` - a URL per trigger | `/api/v1/webhooks/github-app` - one URL for every installation |
+
+**How to tell which a trigger is on:** its source. A trigger created under
+**GitHub (App)** has no webhook to find in the repository's settings, because
+there is not one; a trigger under **GitHub** has exactly one, added by the
+platform when the trigger was created.
+
+### Setting up the App (once per organization)
+
+1. **Register the App** at [github.com/settings/apps](https://github.com/settings/apps)
+   (or your organization's equivalent).
+   - **Webhook URL**: `https://<your deployment>/api/v1/webhooks/github-app`. One
+     URL for every installation, which is why the deployment's public address is
+     a setup prerequisite here rather than something read at runtime.
+   - **Webhook secret**: generate one. It signs every delivery from every
+     installation of this App.
+   - **Permissions**: `Issues: Read-only` and `Metadata: Read-only`. Nothing else
+     is read, and anything more is access nobody needs.
+   - **Subscribe to events**: `Issues`.
+2. **Generate a private key** on the same page and download the PEM.
+3. **Store all three in the vault** as a **GitHub App** secret - the App ID, the
+   private key and the webhook secret. One per organization, org-visible: the
+   delivery path reads it by organization and refuses to guess between two.
+4. **Install the App** on the repositories you want, from the App's *Install App*
+   tab. That, and only that, is what the deployment can reach.
+
+Creating a trigger then picks a repository from the installation and registers
+nothing.
+
+### When a delivery arrives
+
+One URL, so the path names nothing. The installation id in the payload selects
+the grants it could belong to, the App's webhook secret for that organization
+verifies the signature, and the repository and event choose the triggers - **all
+of them**, not one. Two triggers on the same repository both fire, which is what
+the presets invite and what a per-trigger URL cannot do.
+
+A delivery that matches nothing answers `202` exactly as one that fired
+everything. A signature that verifies against no candidate is a `403`, so
+GitHub's **Recent Deliveries** shows whoever misconfigured the App what is wrong.
+
+### Which to choose
+
+The App, unless you cannot register one. The OAuth App path is the fallback for a
+deployment whose GitHub organization will not let somebody create an App, and it
+is not going anywhere - but a token that can push to every repository an
+administrator can reach, and never expires, is a large credential to hold for the
+sake of reading issues.
+
 ## A GitHub recipe (~5 minutes)
 
-GitHub signs its own deliveries, so this is the quickest source to wire up. Create the
-trigger with source **GitHub** first, copy its webhook URL and signing secret, then:
+The **GitHub (OAuth App)** path, where the platform adds a hook per repository.
+On the App path there is nothing to wire: skip to
+[Setting up the App](#setting-up-the-app-once-per-organization).
+
+GitHub signs its own deliveries, so this is the quickest source to wire up by
+hand. Create the trigger with source **GitHub** first, copy its webhook URL and
+signing secret, then:
 
 1. In the repository you want to watch, go to **Settings → Webhooks → Add webhook**.
 2. **Payload URL** - paste the webhook URL from the trigger dialog.

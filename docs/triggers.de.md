@@ -1,5 +1,5 @@
 ---
-source_sha: "395f13f5fc74"
+source_sha: "ae23827b7dce"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -221,6 +221,70 @@ gehört der Client dem *Deployment* und nicht jeder Organisation: Googles
 Zustimmungsbildschirm für einen Postfach-Scope braucht ein verifiziertes Projekt,
 das ein Betreiber einmal registriert und das kein Tenant von ihm überhaupt
 registrieren kann.
+
+## Zwei Wege, GitHub anzubinden, und woran Sie erkennen, welcher läuft { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
+
+Es gibt zwei, und ein Deployment kann einen oder beide anbieten. Die Auswahl
+zeigt **GitHub** und **GitHub (App)** als eigene Quellen, und welchen ein Trigger
+nutzt, entscheidet sich beim Anlegen (#1072).
+
+| | GitHub (OAuth App) | GitHub (App) |
+|---|---|---|
+| Was es hält | Ein Zugriffstoken der **Person**, die zugestimmt hat | Eine Installations-ID plus den privaten Schlüssel der App im Vault |
+| Worauf es reicht | Jedes Repository, das dieses Konto verwalten kann - `repo` plus `admin:repo_hook`, lesend und schreibend | Die Repositories, auf denen die App installiert wurde, mit den Rechten, die die App deklariert |
+| Wie lange es gilt | Für immer. Ein klassisches OAuth-App-Token hat weder Refresh noch Ablauf, ein geleaktes gilt also, bis es jemand von Hand widerruft | Eine Stunde. Auf Anforderung aus dem Schlüssel erzeugt, der den Vault nie verlässt |
+| Hooks | Einer je Repository, angelegt mit dem Trigger und mit ihm entfernt | Keine. Die App liefert bereits |
+| Rate Limit | Die 5000/Stunde der Person, geteilt mit allem anderen, was dieses Konto autorisiert hat | Das eigene der App |
+| Wohin geliefert wird | `/api/v1/webhooks/triggers/github/<Trigger-ID>` - eine URL je Trigger | `/api/v1/webhooks/github-app` - eine URL für alle Installationen |
+
+**Woran Sie erkennen, worauf ein Trigger läuft:** an seiner Quelle. Ein unter
+**GitHub (App)** angelegter Trigger hat in den Repository-Einstellungen keinen
+Webhook zu finden, weil es keinen gibt; einer unter **GitHub** hat genau einen,
+von der Plattform beim Anlegen hinzugefügt.
+
+### Die App einrichten (einmal je Organisation) { #setting-up-the-app-once-per-organization }
+
+1. **App registrieren** unter [github.com/settings/apps](https://github.com/settings/apps)
+   (oder dem Pendant Ihrer Organisation).
+   - **Webhook-URL**: `https://<Ihr Deployment>/api/v1/webhooks/github-app`. Eine
+     URL für alle Installationen - weshalb die öffentliche Adresse des Deployments
+     hier eine Voraussetzung der Einrichtung ist und kein Laufzeitwert.
+   - **Webhook-Secret**: erzeugen. Es signiert jede Lieferung jeder Installation
+     dieser App.
+   - **Berechtigungen**: `Issues: Read-only` und `Metadata: Read-only`. Mehr wird
+     nicht gelesen, und alles darüber wäre Zugriff, den niemand braucht.
+   - **Events abonnieren**: `Issues`.
+2. **Privaten Schlüssel erzeugen** auf derselben Seite und das PEM herunterladen.
+3. **Alle drei im Vault ablegen** als **GitHub App**-Secret - App-ID, privater
+   Schlüssel und Webhook-Secret. Eines je Organisation, organisationsweit
+   sichtbar: der Lieferpfad liest es je Organisation und weigert sich, zwischen
+   zweien zu raten.
+4. **App installieren** auf den gewünschten Repositories, über den Reiter
+   *Install App*. Das, und nur das, ist was das Deployment erreichen kann.
+
+Einen Trigger anzulegen wählt dann ein Repository aus der Installation und
+registriert nichts.
+
+### Wenn eine Lieferung eintrifft { #when-a-delivery-arrives }
+
+Eine URL, der Pfad benennt also nichts. Die Installations-ID im Payload wählt die
+Grants aus, zu denen sie gehören könnte, das Webhook-Secret der App für diese
+Organisation prüft die Signatur, und Repository und Event wählen die Trigger -
+**alle**, nicht einen. Zwei Trigger auf demselben Repository feuern beide, was die
+Presets nahelegen und was eine URL je Trigger bauartbedingt nicht kann.
+
+Eine Lieferung, die auf nichts passt, antwortet mit `202`, genau wie eine, die
+alles gefeuert hat. Eine Signatur, die zu keinem Kandidaten passt, ist ein `403`,
+sodass GitHubs **Recent Deliveries** demjenigen, der die App falsch konfiguriert
+hat, zeigt, was nicht stimmt.
+
+### Welchen wählen { #which-to-choose }
+
+Die App, sofern Sie eine registrieren können. Der OAuth-App-Weg ist der Rückfall
+für ein Deployment, dessen GitHub-Organisation niemandem erlaubt, eine App
+anzulegen, und er bleibt - aber ein Token, das in jedes Repository schreiben kann,
+das eine Administratorin erreicht, und nie abläuft, ist ein großes Credential
+dafür, Issues zu lesen.
 
 ## Ein GitHub-Rezept (~5 Minuten) { #a-github-recipe-5-minutes }
 
