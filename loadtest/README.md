@@ -19,6 +19,9 @@ directory.
 | `run.py` | The wiring, and the preflight that refuses a useless run |
 | `results/` | Measured runs, committed |
 
+The fixture file holds no credential: the run signs in for itself, so no bearer
+token is written to disk.
+
 Nothing here is imported by the application, and nothing in `app/` may import
 it. It runs on the backend's interpreter because that already has `httpx`,
 `websockets`, `uvicorn` and `asyncpg` - the suite adds no dependency.

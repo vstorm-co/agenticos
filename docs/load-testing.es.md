@@ -1,5 +1,5 @@
 ---
-source_sha: "5dc36b81ed62"
+source_sha: "759aacac1abe"
 ---
 
 # Pruebas de carga y resiliencia { #load-and-resilience-testing }
@@ -126,6 +126,12 @@ make load-test API_PID=$(pgrep -f uvicorn | head -1) \
 `API_PID` y `DATABASE_URL` son opcionales. Sin ellos la ejecución mide peticiones y
 **nombra en el informe las sondas que no pudo tomar**, en lugar de imprimir ceros
 para ellas.
+
+El archivo de fixture no guarda **ninguna credencial**. La ejecución se autentica
+por su cuenta con `--email` y `--password` (los valores sembrados), así que ningún
+token llega al disco y una fixture sembrada ayer sigue funcionando hoy — un token
+que caduca dentro de un archivo era a la vez un secreto en reposo y una ejecución
+que se negaba sin motivo.
 
 Vale la pena subir dos ajustes para una ejecución de capacidad, y la línea de
 topología del informe debería decir cuándo se hizo:

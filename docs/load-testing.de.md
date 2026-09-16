@@ -1,5 +1,5 @@
 ---
-source_sha: "5dc36b81ed62"
+source_sha: "759aacac1abe"
 ---
 
 # Last- und Belastbarkeitstests { #load-and-resilience-testing }
@@ -129,6 +129,12 @@ make load-test API_PID=$(pgrep -f uvicorn | head -1) \
 `API_PID` und `DATABASE_URL` sind optional. Ohne sie misst der Lauf Anfragen und
 **benennt im Bericht die Sonden, die er nicht nehmen konnte**, statt Nullen für sie
 zu drucken.
+
+Die Fixture-Datei enthält **keine Zugangsdaten**. Der Lauf meldet sich selbst mit
+`--email` und `--password` an (den Seed-Vorgaben), sodass kein Bearer-Token auf der
+Platte landet und eine gestern erzeugte Fixture heute noch läuft — ein ablaufendes
+Token in einer Datei war beides: ein Geheimnis im Ruhezustand und ein Lauf, der
+ohne guten Grund verweigerte.
 
 Zwei Einstellungen lohnt es sich für einen Kapazitätslauf anzuheben, und die
 Topologiezeile des Berichts sollte sagen, wann das geschah:

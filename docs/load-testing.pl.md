@@ -1,5 +1,5 @@
 ---
-source_sha: "5dc36b81ed62"
+source_sha: "759aacac1abe"
 ---
 
 # Testy obciążeniowe i odpornościowe { #load-and-resilience-testing }
@@ -125,6 +125,11 @@ make load-test API_PID=$(pgrep -f uvicorn | head -1) \
 `API_PID` i `DATABASE_URL` są opcjonalne. Bez nich przebieg mierzy żądania i
 **nazywa sondy, których nie mógł wykonać** w raporcie, zamiast drukować dla nich
 zera.
+
+Plik fikstury nie trzyma **żadnych poświadczeń**. Przebieg sam się loguje przez
+`--email` i `--password` (domyślne z seedu), więc żaden token nie ląduje na dysku,
+a fikstura zasiana wczoraj nadal działa dziś — wygasający token w pliku był i
+sekretem w spoczynku, i przebiegiem odmawiającym bez powodu.
 
 Dwa ustawienia warto podnieść na przebieg pojemnościowy, a linia topologii w
 raporcie powinna powiedzieć, kiedy to zrobiono:

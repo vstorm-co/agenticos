@@ -122,6 +122,11 @@ make load-test API_PID=$(pgrep -f uvicorn | head -1) \
 and **names the probes it could not take** in the report, rather than printing
 zeros for them.
 
+The fixture file holds **no credential**. The run signs in for itself with
+`--email` and `--password` (the seeded defaults), so no bearer token is written
+to disk and a fixture seeded yesterday still runs today — an expiring token in a
+file was both a secret at rest and a run that refused for no good reason.
+
 Two settings are worth raising for a capacity run, and the report's topology line
 should say when they were:
 

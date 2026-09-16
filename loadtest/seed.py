@@ -52,30 +52,33 @@ DOCUMENT_WORDS = 220
 
 @dataclass(frozen=True)
 class Fixture:
-    """What a run needs in hand before it starts offering requests."""
+    """What a run needs in hand before it starts offering requests.
+
+    **No credential is in here.** An earlier version wrote the seeding session's
+    access token into the file, which put a live bearer token in clear text on
+    disk for anyone who could read the directory - and made the fixture expire,
+    so a run started an hour later refused with a message about re-seeding. The
+    run signs in for itself instead, with a password it is given on the command
+    line, and the webhook's signing secret is a constant in this module that the
+    driver imports rather than a value carried through a file.
+    """
 
     base_url: str
     organization_id: str
-    access_token: str
     agent_id: str
     collection: str
     trigger_id: str | None
     trigger_source: str | None
-    trigger_secret: str
-    """The webhook's signing secret. Not a credential of anyone's: it is minted
-    for this fixture and the deliveries it signs are the driver's own."""
 
     def to_json(self) -> str:
         return json.dumps(
             {
                 "base_url": self.base_url,
                 "organization_id": self.organization_id,
-                "access_token": self.access_token,
                 "agent_id": self.agent_id,
                 "collection": self.collection,
                 "trigger_id": self.trigger_id,
                 "trigger_source": self.trigger_source,
-                "trigger_secret": self.trigger_secret,
             },
             indent=2,
         )
@@ -356,12 +359,10 @@ def build(*, base_url: str, stub_url: str, email: str, password: str, documents:
     return Fixture(
         base_url=base_url,
         organization_id=organization_id,
-        access_token=str(client.headers["Authorization"]).removeprefix("Bearer "),
         agent_id=agent_id,
         collection=name,
         trigger_id=trigger_id,
         trigger_source=trigger_source,
-        trigger_secret=WEBHOOK_SECRET,
     )
 
 

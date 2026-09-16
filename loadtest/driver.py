@@ -30,7 +30,7 @@ import httpx
 import websockets
 from metrics import Recorder, Sample
 from scenario import CANCELLED_STREAM_SHARE, MIX, PHASES, Phase, WorkloadShare, normalized, pick
-from seed import Fixture, document
+from seed import WEBHOOK_SECRET, Fixture, document
 
 REQUEST_TIMEOUT = 60.0
 """How long one request may take before the driver gives up on it.
@@ -54,13 +54,17 @@ class Traffic:
     recorder: Recorder
     started: float
     random: random.Random
+    access_token: str
+    """Held for the run rather than stored with the fixture: a bearer token
+    written to disk is a bearer token in clear text, and an expiring one makes a
+    fixture that was fine an hour ago refuse to start."""
 
 
-def headers(fixture: Fixture) -> dict[str, str]:
+def headers(traffic: Traffic) -> dict[str, str]:
     """The two headers every authenticated call on this API carries."""
     return {
-        "Authorization": f"Bearer {fixture.access_token}",
-        "X-Organization-Id": fixture.organization_id,
+        "Authorization": f"Bearer {traffic.access_token}",
+        "X-Organization-Id": traffic.fixture.organization_id,
     }
 
 
@@ -71,7 +75,7 @@ async def api_read(traffic: Traffic, phase: str) -> Sample:
         traffic,
         "api_read",
         phase,
-        lambda: traffic.client.get(path, params={"limit": 20}, headers=headers(traffic.fixture)),
+        lambda: traffic.client.get(path, params={"limit": 20}, headers=headers(traffic)),
     )
 
 
@@ -84,7 +88,7 @@ async def agent_run(traffic: Traffic, phase: str) -> Sample:
         lambda: traffic.client.post(
             f"/agents/{traffic.fixture.agent_id}/run",
             json={"prompt": "Say something short."},
-            headers=headers(traffic.fixture),
+            headers=headers(traffic),
             timeout=STREAM_TIMEOUT,
         ),
     )
@@ -104,7 +108,7 @@ async def rag_query(traffic: Traffic, phase: str) -> Sample:
                 "query": f"procedure {index} of the municipal service catalogue",
                 "limit": 4,
             },
-            headers=headers(traffic.fixture),
+            headers=headers(traffic),
         ),
     )
 
@@ -125,7 +129,7 @@ async def ingest(traffic: Traffic, phase: str) -> Sample:
         lambda: traffic.client.post(
             f"/rag/collections/{traffic.fixture.collection}/ingest",
             files={"file": (f"load-{index:06d}.txt", document(index), "text/plain")},
-            headers=headers(traffic.fixture),
+            headers=headers(traffic),
         ),
     )
 
@@ -143,7 +147,7 @@ async def trigger_fire(traffic: Traffic, phase: str) -> Sample:
             detail="no trigger was seeded",
         )
     body = json.dumps({"event": "load-test", "at": _now(traffic)}).encode()
-    signature = hmac.new(fixture.trigger_secret.encode(), body, hashlib.sha256).hexdigest()
+    signature = hmac.new(WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
     return await _timed(
         traffic,
         "trigger_fire",
@@ -185,7 +189,7 @@ async def chat_stream(traffic: Traffic, phase: str) -> Sample:
         async with asyncio.timeout(STREAM_TIMEOUT):
             async with websockets.connect(
                 url,
-                subprotocols=[f"access_token.{fixture.access_token}", "chat"],  # type: ignore[list-item]
+                subprotocols=[f"access_token.{traffic.access_token}", "chat"],  # type: ignore[list-item]
             ) as socket:
                 await socket.send(
                     json.dumps(

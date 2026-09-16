@@ -25,20 +25,22 @@ from metrics import Recorder
 from probes import Probes, sample_forever
 from report import render
 from scenario import MIX, PHASES, Phase
-from seed import Fixture
+from seed import Fixture, sign_in
 
 HERE = Path(__file__).resolve().parent
 SAMPLE_EVERY_SECONDS = 2.0
 
 
-async def preflight(fixture: Fixture, client: httpx.AsyncClient) -> None:
+async def preflight(traffic: Traffic) -> None:
     """Refuse to start against a deployment that cannot serve the fixture.
 
-    Four questions, and each of them has been the reason a run was worthless:
-    the API is not there; the token has expired; the agent was never published,
-    so every run workload would refuse; the collection is empty, so every
-    retrieval would answer in three milliseconds with nothing and look fast.
+    Three questions, and each has been the reason a run was worthless: the API is
+    not there; the agent was never published, so every run workload would refuse;
+    the collection is empty, so every retrieval would answer in three
+    milliseconds with nothing and look fast.
     """
+    fixture = traffic.fixture
+    client = traffic.client
     try:
         health = await client.get("/health", timeout=10.0)
     except httpx.HTTPError as failure:
@@ -46,9 +48,7 @@ async def preflight(fixture: Fixture, client: httpx.AsyncClient) -> None:
     if health.status_code != 200:
         raise SystemExit(f"The API at {fixture.base_url} answered {health.status_code}")
 
-    agents = await client.get("/agents", params={"limit": 100}, headers=headers(fixture))
-    if agents.status_code == 401:
-        raise SystemExit("The fixture's token has expired. Re-run seed.py.")
+    agents = await client.get("/agents", params={"limit": 100}, headers=headers(traffic))
     if agents.status_code != 200:
         raise SystemExit(f"GET /agents answered {agents.status_code}: {agents.text[:200]}")
     published = {
@@ -63,7 +63,7 @@ async def preflight(fixture: Fixture, client: httpx.AsyncClient) -> None:
     search = await client.post(
         "/rag/search",
         json={"collection_name": fixture.collection, "query": "procedure", "limit": 1},
-        headers=headers(fixture),
+        headers=headers(traffic),
     )
     if search.status_code != 200 or not search.json().get("results"):
         raise SystemExit(
@@ -76,12 +76,16 @@ async def measure(arguments: argparse.Namespace) -> str:
     """Drive the scenario and render what came back."""
     fixture = Fixture.from_json(Path(arguments.fixture).read_text(encoding="utf-8"))
     phases = _phases(arguments)
+    # Signed in here rather than read from the fixture, so no bearer token is
+    # ever written to disk and a fixture seeded yesterday still runs today.
+    session, _ = sign_in(fixture.base_url, arguments.email, arguments.password)
+    access_token = str(session.headers["Authorization"]).removeprefix("Bearer ")
+    session.close()
     async with httpx.AsyncClient(
         base_url=f"{fixture.base_url}/api/v1",
         timeout=REQUEST_TIMEOUT,
         limits=httpx.Limits(max_connections=arguments.connections),
     ) as client:
-        await preflight(fixture, client)
         loop = asyncio.get_running_loop()
         recorder = Recorder()
         probes = Probes()
@@ -92,7 +96,9 @@ async def measure(arguments: argparse.Namespace) -> str:
             recorder=recorder,
             started=started,
             random=random.Random(20260916),  # noqa: S311 - a reproducible run, not a secret
+            access_token=access_token,
         )
+        await preflight(traffic)
         stop = asyncio.Event()
         sampler = asyncio.create_task(
             sample_forever(
@@ -181,6 +187,12 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
         default=1.0,
         help="Multiply every phase's duration. 0.1 is a smoke run at the same rates.",
     )
+    parser.add_argument(
+        "--email",
+        default="admin@example.com",
+        help="Who the run signs in as. The fixture holds no credential.",
+    )
+    parser.add_argument("--password", default="admin123")
     parser.add_argument("--title", default="AgenticOS load and resilience run")
     parser.add_argument(
         "--topology",
