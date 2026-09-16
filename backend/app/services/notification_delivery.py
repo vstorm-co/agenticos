@@ -33,6 +33,7 @@ from app.db.models.user import User
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
 from app.repositories import user as user_repo
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
 from app.services.notification_center import NotificationCenterService
@@ -94,6 +95,7 @@ class NotificationDeliveryService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._center = NotificationCenterService(db)
+        self._deployment_settings = DeploymentSettingsService(db)
 
     # -- the claim (transaction 1) ---------------------------------------
 
@@ -185,6 +187,13 @@ class NotificationDeliveryService:
             return "skipped"
 
         email_key, context = self._render(notification, recipient=recipient, role=role)
+        # Resolved now, not frozen at write time with the rest of
+        # `render_context`: `EmailService`'s own contract is that a caller
+        # resolves the deployment's *current* name through
+        # `DeploymentSettingsService.effective_app_name`, and a send queued
+        # before an admin renamed the deployment must not still greet the
+        # recipient with the old one by the time it actually goes out.
+        context["app_name"] = await self._deployment_settings.effective_app_name()
 
         try:
             result = await asyncio.wait_for(
