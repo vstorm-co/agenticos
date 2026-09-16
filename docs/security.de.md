@@ -1,6 +1,5 @@
 ---
-source_sha: "fc8c04bccc9c"
-source_sha: "fc8c04bccc9c"
+source_sha: "d6759c2a4490"
 ---
 
 # Sicherheit { #security }
@@ -191,6 +190,8 @@ SOC 2 CC6–CC8.
 | Single Sign-on gegen den eigenen Identitätsanbieter des Deployments | Generisches OIDC per Discovery — Authorization Code mit PKCE, `email_verified` erforderlich, das Konto an `sub` gebunden (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; konfiguriert unter [Single Sign-on](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
 | Die Registrierungsrichtlinie sichert SSO wie das Formular | `check_may_register` innerhalb von `get_or_create_oauth_user` — `invite_only` und die Domain-Erlaubnisliste weisen auch eine Anbieter-Anmeldung ab (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
 | Gruppen-zu-Rollen-Zuordnung, SAML, SCIM | **Noch nicht** — Menschen melden sich über den Anbieter an, eine Administratorin ordnet sie ein | — |
+| Rate-Limiting beim Login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Ein wiedergespielter Refresh-Token beendet seine Kette und wird protokolliert | Die Rotation behält den ersetzten Hash; ein Refresh, der dazu passt, ist der Reuse-Fall aus RFC 6819 §5.2.2.3 und schließt diese Session mit einem Audit-Eintrag (`SessionService.detect_refresh_reuse`) | `test_session_revocation.py::TestReusingASpentRefreshToken` |
 
 ### Audit-Kontrollen · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 
