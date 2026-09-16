@@ -157,6 +157,7 @@
     "backSign2": "Wróć do logowania",
     "checkYourInbox": "Sprawdź skrzynkę",
     "continueWithGithub": "Kontynuuj z GitHub",
+    "continueWithProvider": "Kontynuuj z {provider}",
     "continueWithMicrosoft": "Kontynuuj z Microsoft",
     "createHeading": "Utwórz swój <em>workspace.</em>",
     "dropYourEmailBelow": "Podaj swój email — wyślemy jednorazowy link do ustawienia nowego hasła.",
@@ -181,6 +182,7 @@
     "signInFailedRedirecting": "Logowanie nie powiodło się. Przekierowuję…",
     "signInHeading": "Zaloguj się do <em>swojego workspace.</em>",
     "signUpWithGithub": "Załóż konto przez GitHub",
+    "signUpWithProvider": "Załóż konto przez {provider}",
     "signUpWithMicrosoft": "Załóż konto przez Microsoft",
     "somethingWentWrongPlease": "Coś poszło nie tak. Spróbuj ponownie.",
     "workspace": "workspace.",
@@ -418,6 +420,36 @@
     }
   },
   "pages": {
+    "retention": {
+      "title": "Retencja danych",
+      "description": "Jak długo ta organizacja trzyma każdą klasę danych i na co pozwala wdrożenie.",
+      "organizations": "Organizacje",
+      "members": "Członkowie",
+      "notYours": "Retencja to ustawienie administratora",
+      "askAnAdmin": "Jak długo ta organizacja trzyma swoje dane, ustawia Owner albo Admin. Poproś jedno z nich, jeśli trzeba to zmienić.",
+      "howLongEachClassLives": "Jak długo żyje każda klasa",
+      "dataClass": "Dane",
+      "keepForDays": "Trzymaj przez (dni)",
+      "whatSweeps": "Co się faktycznie dzieje",
+      "forEver": "na zawsze",
+      "keptForEver": "Trzymane, dopóki ktoś nie usunie",
+      "afterDays": "Usuwane po {days} dniach",
+      "atLeastDays": "Trzymane co najmniej {days} dni",
+      "cappedByDeployment": "Usuwane po {days} dniach — limit wdrożenia",
+      "conflictingBounds": "Własne granice tego wdrożenia są sprzeczne dla: {classes}. Administrator musi rozstrzygnąć, która obowiązuje, zanim te okresy cokolwiek znaczą.",
+      "hardDeleteNotice": "Sweep chodzi raz dziennie i usuwa na stałe. To, co wydał usunięty run, dalej liczy się do rachunku miesiąca.",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "saved": "Zapisano",
+      "classes": {
+        "conversations": "Rozmowy, ich wiadomości i pliki",
+        "runs": "Runy i ich manifesty",
+        "workspaces": "Workspace'y agentów",
+        "memory": "Pamięć agentów",
+        "knowledge_documents": "Wgrane dokumenty",
+        "audit": "Ślad audytowy"
+      }
+    },
     "memory": {
       "showing": "Pokazane {from}–{to} z {total}",
       "newer": "Nowsze",
@@ -1702,6 +1734,10 @@
       "org-profile": {
         "title": "Nazwa i twarz",
         "body": "Nazwa i awatar organizacji, pokazywane wszędzie, gdzie się pojawia. Właściciele i administratorzy mogą je tu zmienić."
+      },
+      "org-retention": {
+        "title": "Jak długo żyją tu dane",
+        "body": "Okres na klasę - rozmowy, runy, workspace'y, pamięć, wgrane pliki i ślad audytowy. Sweep chodzi codziennie i usuwa na stałe, w granicach ustawionych przez wdrożenie; ślad audytowy ma podłogę, którą można wydłużyć i nigdy skrócić."
       },
       "org-roles": {
         "title": "Co może każda rola",

@@ -29,6 +29,7 @@ export { useOrgMcpConnections } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
+export { useRetention } from "./use-retention";
 export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {

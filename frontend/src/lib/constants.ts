@@ -31,6 +31,7 @@ export const ROUTES = {
   ORGS_CREATE: "/orgs?create=1",
   ORG_MEMBERS: (id: string) => `/orgs/${id}/members`,
   ORG_ROLES: (id: string) => `/orgs/${id}/roles`,
+  ORG_RETENTION: (id: string) => `/orgs/${id}/retention`,
   AGENTS: "/agents",
   AGENT_DETAIL: (id: string) => `/agents/${id}`,
   RUNS: "/runs",

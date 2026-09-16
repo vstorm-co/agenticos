@@ -221,6 +221,27 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"
 
+    # A generic OpenID Connect provider - Entra ID, Okta, Keycloak, anything that
+    # publishes a discovery document. A company deploying this on its own
+    # infrastructure runs an identity provider and will not mint local passwords
+    # for its staff; without this, its MFA and its offboarding are solved twice
+    # (#1419). Configured by discovery alone: the issuer is the only URL, and the
+    # authorization, token and JWKS endpoints come from
+    # `<issuer>/.well-known/openid-configuration` rather than from three more
+    # settings a deployment can get subtly wrong.
+    OIDC_ISSUER: str = ""
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/oidc/callback"
+    # Beyond `openid email profile` a deployment may need its provider's own
+    # scope to get the claims back - Entra ID's `User.Read`, a Keycloak client
+    # scope. Space-separated, as the OAuth parameter itself is.
+    OIDC_SCOPES: str = "openid email profile"
+    # A provider's own name for "this address is confirmed", beyond the two
+    # recognised already (`email_verified`, and Entra ID's `xms_edov`). Empty
+    # unless a deployment's provider names it something else again.
+    OIDC_VERIFIED_CLAIM: str = ""
+
     VAULT_MASTER_KEY: str = ""
     # Every master key the vault may unwrap with, by version - the staged form
     # for rotation: `{"1": "<old>", "2": "<new>"}` makes 2 the current version

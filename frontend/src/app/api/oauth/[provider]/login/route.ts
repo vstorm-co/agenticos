@@ -18,7 +18,7 @@ import { readPublicConfig } from "@/lib/public-config";
  * with the handle already attached. It appends its own `client=desktop` there,
  * which is why nothing about the shell is known to this route (#1532).
  */
-const PROVIDERS = new Set(["google", "github", "microsoft"]);
+const PROVIDERS = new Set(["google", "github", "microsoft", "oidc"]);
 
 interface RouteParams {
   params: Promise<{ provider: string }>;

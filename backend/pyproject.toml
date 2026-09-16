@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.451"
+version = "0.0.454"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -741,6 +741,15 @@ include = [
     # front of an auditor, so every branch of every control is held to the gate
     # (#1448).
     "app/services/deployment_profile.py",
+    # How long each class of data lives here, who may say so, and the sweep that
+    # applies it. A number that resolves wrongly either deletes what a deployment
+    # is obliged to keep or keeps what it is obliged to delete, and the sweep is
+    # the one code path in the platform whose whole purpose is a hard delete - so
+    # every branch of the precedence, every class, and every refusal is held to
+    # the gate (#1420).
+    "app/core/retention.py",
+    "app/repositories/retention.py",
+    "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
@@ -1069,6 +1078,15 @@ include = [
     # front of an auditor, so every branch of every control is held to the gate
     # (#1448).
     "app/services/deployment_profile.py",
+    # How long each class of data lives here, who may say so, and the sweep that
+    # applies it. A number that resolves wrongly either deletes what a deployment
+    # is obliged to keep or keeps what it is obliged to delete, and the sweep is
+    # the one code path in the platform whose whole purpose is a hard delete - so
+    # every branch of the precedence, every class, and every refusal is held to
+    # the gate (#1420).
+    "app/core/retention.py",
+    "app/repositories/retention.py",
+    "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",

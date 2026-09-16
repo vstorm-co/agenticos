@@ -170,6 +170,9 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | API keys compared in constant time | `secrets.compare_digest` (`app/api/deps.py`) | `test_auth.py`, webhook HMAC checks in the channel adapters |
 | DB-backed sessions with revocation | `sessions` table + `SessionService`; token bound to a `sid` claim (`app/services/session.py`, `app/api/routes/v1/sessions.py`) | `test_session_verify.py`, `test_session_revocation.py` |
 | Login rate limiting | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Single sign-on against the deployment's own identity provider | Generic OIDC by discovery — authorization code with PKCE, `email_verified` required, the account keyed on `sub` (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; configured in [Single sign-on](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
+| The sign-up policy gates SSO as it gates the form | `check_may_register` inside `get_or_create_oauth_user` — `invite_only` and the domain allow-list refuse a provider sign-in too (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
+| Group-to-role mapping, SAML, SCIM | **Not yet** — people sign in through the provider; an administrator places them | — |
 
 ### Audit controls · HIPAA §164.312(b) · SOC 2 CC7
 
@@ -178,6 +181,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Governance-relevant mutations recorded, in the request's transaction | `record_audit` (`app/core/audit.py`) at the mutating service — secret rotation, skill / sync / MCP binding, membership, sharing, approvals, exports and more; written to `app_admin_audit_logs`. It is not blanket coverage of every write (knowledge-base CRUD, for one, is not audited) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | The trail is readable by an auditor | `GET /audit`, gated on `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exporting the trail (CSV/JSONL) | `GET /audit/export` over a window, gated on `audit:read`, recording its own read in the trail; the run, approval and spend exports each do the same (#1422) | `test_exporting.py` (the export and its own audit entry) |
+| An audit period an organization can lengthen and never shorten | A deployment-wide floor (six years by default, HIPAA §164.316(b)(2)); a shorter period is refused rather than raised. The sweep does **not** delete audit entries - the hash chain and its checkpoint are built on entries staying, so retiring one verifiably is [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). See [Retention](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
 | A person may read out and remove their own data | `GET /me/data/export` (rate-limited per hour, bounded in size, audited even for one's own request) and `DELETE /conversations/{id}` scoped to the caller's own ownership; an administrator's export takes the same limit and requires a reason that says something (`app/services/personal_data.py`) | `test_personal_data.py`, `test_personal_data_export_routes.py` |
 | Tamper evidence (a hash chain) | **Not yet** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
@@ -188,6 +192,8 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | A spec is refused at publish, never at run time | `validate_spec` (`app/services/agent_registry.py`) — unknown capability, ungranted scope, wrong-kind or cross-org `secret_id`, a personal MCP connection | `test_agent_registry.py`, `test_capability_secrets.py::TestPublishValidation` |
 | A budget is checked before the model request, and cost recorded even on failure | `BudgetGuard.wrap_model_request` gates before the call (`app/agents/capabilities/budget/`); the run's cost is written in a terminal `finally` (`app/services/agent_runner.py`) | `test_spend.py::TestBudgetGuard`, `test_agent_runner.py::…::test_a_failed_run_still_records_its_cost` |
 | An approval is decided exactly once | `ApprovalService.decide` refuses a non-pending row read `for_update` (`app/services/approvals.py`) | `test_approvals_queue.py::TestDecidingTwiceIsRefused` |
+| Data is deleted on a schedule, per class and per organization | A daily sweep hard-deletes conversations, runs, workspaces, memory and uploaded documents past their period, recording counts and never content (`app/services/retention.py`, `app/worker/tasks/rag_tasks.py`). See [Retention](governance.md#retention) | `test_retention.py`, `tests/integration/test_retention_sweep.py` |
+| A purged run still counts toward the month's bill | The sweep keeps a per-month total on `purged_run_spend` before the rows go, summed by `app/services/spend.py` — otherwise a cap metered on the figure stops enforcing mid-month | `tests/integration/test_retention_sweep.py::TestWhatSurvives` |
 
 ### Confidentiality of credentials · HIPAA §164.312(a)(2)(iv)
 

@@ -50,6 +50,86 @@ Two things are versioned separately from this file and worth knowing about:
   cascaded away with the thread and the files stayed on disk — data kept after
   somebody asked for it to be deleted, and reachable by nothing. (#1421, FA-015)
 
+## [0.0.454] - 2026-09-16
+
+### Added
+
+- **The public API accepts attachments and answers a parked run.** The surface
+  whose whole purpose is running an agent from your own backend was the one that
+  could not send it a document: `AgentRunRequest` now takes `file_ids`, resolved
+  against the caller's own files the way `/chat` and the widget resolve them. The
+  same route filled the `AgentRunResult.parked` field, which existed and was
+  always empty - a caller whose run stopped for an approval got a status and
+  nothing to act on, and now gets the call that is waiting and the approval to
+  post the decision to. (#936)
+- **A raw WebSocket is told when the agent is compacting its own history.** A
+  summary takes tens of seconds, and only `/chat` passed a compaction sink into
+  the runner - so every other streaming surface simply went quiet for the length
+  of it with nothing said. `AgentRunnerService.prepare` and `.execute` take
+  `on_compaction`, the embed session forwards the three frames, and they are sent
+  whatever the operator's trace switches say: that the agent is tidying its notes
+  is a fact about the product, not about its reasoning. (#936)
+- **`docs/channels.md` says what each surface offers and why each difference is a
+  difference.** A parity table across `/chat`, the socket and the API, with a
+  reason beside every "no" - either "this would be wrong here" or "this is not
+  built yet". `environment_id` on the socket, `ask_user` on the socket and
+  widening approvals past a member are each declined in writing, with what they
+  would need. `backend/tests/test_surface_parity.py` asserts the table against
+  the code rather than trusting it. (#936)
+
+## [0.0.453] - 2026-09-16
+
+### Added
+
+- **Single sign-on against the deployment's own identity provider.** A generic
+  OpenID Connect provider configured by discovery - Entra ID, Okta, Keycloak,
+  anything that publishes a document: `OIDC_ISSUER` plus a client pair, and the
+  authorization, token, userinfo and JWKS endpoints come from the provider
+  rather than from four more settings to get subtly wrong. Authorization code
+  with PKCE. A company self-hosting this runs an identity provider already and
+  will not mint local passwords for its staff, so without this its MFA and its
+  offboarding were solved twice. The sign-in page shows it under the name the
+  deployment gives it (`OIDC_DISPLAY_NAME`) with a mark of its choosing
+  (`OIDC_ICON`), in English and Polish. (#1419)
+
+### Changed
+
+- **A provider sign-in now requires `email_verified`, and absent counts as
+  false.** Both providers, not only the new one: an unverified address means
+  anybody at that provider can claim anybody else's work address, and the
+  sign-up policy's domain allow-list is built on an address meaning something.
+  The account is keyed on `sub` rather than on the address, as it already was.
+- **A sign-in the sign-up policy refuses now says why.** `invite_only` and the
+  domain allow-list already gated `get_or_create_oauth_user`, but the refusal
+  was caught by the callback's catch-all and shown as "Sign-in failed. Please
+  try again." beside every timeout. The policy's own sentence - the one the
+  registration form shows - is carried to the sign-in page instead. (#1419)
+
+## [0.0.452] - 2026-09-16
+
+### Added
+
+- **Per-organization data retention, on a schedule that actually deletes.**
+  Nothing was ever swept before this: conversations and their files, run rows
+  and manifests, workspaces, agent memory, uploaded documents and audit entries
+  lived until somebody deleted the organization - a data-protection problem in
+  one direction and, for audit, a compliance problem in the other. A period per
+  class now, set under the organization and gated on `org:settings`, resolved
+  against a deployment-wide default and ceiling; `audit` takes a **floor**
+  instead, six years by default, which an organization may lengthen and never
+  shorten. A daily Prefect flow hard-deletes in batches and records one audit
+  entry per organization per sweep, naming the class and the count and never the
+  content. A ceiling below the audit floor is reported to the operator rather
+  than resolved. Audit's own period resolves and is reported but nothing sweeps
+  it: the hash chain and its append-only checkpoint are built on entries staying,
+  so retiring one verifiably is #1622. (#1420)
+- **A purged run still counts toward the month's bill.** A month's spend is a sum
+  over `agent_runs`, so removing them would drop an organization's month-to-date
+  figure to zero as the window passed and a cap metered on that figure would stop
+  enforcing. The sweep keeps a total per organization per month on
+  `purged_run_spend` - a number and a count, no agent, no model, no name - and
+  `app/services/spend.py` adds it to the live sum. (#1420)
+
 ## [0.0.451] - 2026-09-16
 
 ### Added

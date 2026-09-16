@@ -122,7 +122,13 @@ origin, for the chat's speech-to-text.
 ## Who may register
 
 `signup_mode`, applied in `app/services/signup_policy.py` — the one place, and it
-gates **both** paths that mint an account.
+gates **every** path that mints an account: the registration form, and a sign-in
+through an identity provider. Nothing about an OAuth or OIDC callback looks like
+a registration, and a deployment with single sign-on and a closed sign-up form
+would not be closed at all if that branch were ungated, so
+`get_or_create_oauth_user` asks the same policy before it creates the account.
+A refused SSO sign-in lands back on the sign-in page carrying the policy's own
+sentence, which is the same one the registration form shows.
 
 | Mode | Effect |
 |---|---|

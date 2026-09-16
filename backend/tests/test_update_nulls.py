@@ -74,6 +74,7 @@ from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpda
 from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.resource_grant import VisibilityUpdate
+from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
@@ -101,6 +102,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     LocalServiceUpdate: LocalService,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,
+    RetentionUpdate: Organization,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,

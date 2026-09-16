@@ -65,6 +65,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
 )
 from app.services import mcp_catalog, mcp_listing
+from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 from app.services.file_storage import sniff_image_media_type
 
@@ -512,6 +513,7 @@ async def run_agent(
     agent_id: UUID,
     data: AgentRunRequest,
     service: AgentRunnerSvc,
+    db: DBSession,
     ctx: Auth,
 ) -> Any:
     """Run a published agent and return its answer.
@@ -520,7 +522,23 @@ async def run_agent(
     surface, so the run is recorded, the budget applies, and the cost lands in
     the same dashboard - an API caller cannot route around governance by not
     using the UI.
+
+    **It can attach a file and it can say what it parked on** (#936). Both were
+    accidents rather than decisions: `execute` has taken attachments since the
+    widget grew them, and `parked_calls` has computed the parked list since the
+    resume needed it - this surface simply never passed the one or read the
+    other. The surface whose whole purpose is "run it from your own backend" was
+    the one that could not send a document, and a caller whose run stopped for an
+    approval got an empty string and a status.
     """
+    attachments = await load_attached_files(
+        db,
+        [str(file_id) for file_id in data.file_ids],
+        # Their own uploads and nobody else's. `POST /files/upload` attributes an
+        # upload to whoever made it, and this is the same scope the chat reads
+        # under - so a caller cannot attach a file by guessing its id.
+        user_id=ctx.subject_id,
+    )
     output, run = await service.execute(
         ctx,
         agent_id,
@@ -528,6 +546,7 @@ async def run_agent(
         surface=RunSurface.API,
         conversation_id=data.conversation_id,
         environment_id=data.environment_id,
+        attachments=attachments,
     )
     return AgentRunResult(
         run_id=run.id,
@@ -537,4 +556,5 @@ async def run_agent(
         cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        parked=await service.parked_calls(ctx, run),
     )

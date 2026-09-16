@@ -1,5 +1,5 @@
 ---
-source_sha: "11b4afede893"
+source_sha: "e1fd7c9ab8a0"
 ---
 
 # Konfiguracja { #configuration }
@@ -144,6 +144,79 @@ dostępu serwera frontendu i do `Referer` następnego żądania same-origin, a r
 token jest ważny przez tydzień. Frontend wymienia kod na parę tokenów
 serwer–serwer pod `POST /api/v1/oauth/exchange`, które realizuje go dokładnie raz.
 
+
+### Logowanie jednokrotne (generyczne OIDC) { #single-sign-on-generic-oidc }
+
+Dowolny dostawca tożsamości publikujący dokument discovery: Microsoft Entra ID,
+Okta, Keycloak, Auth0, Authentik, Google Workspace przez swój endpoint OIDC.
+Firma hostująca to u siebie już jakiegoś używa i nie będzie zakładać lokalnych
+haseł swoim pracownikom — bez tego jej MFA i jej offboarding są rozwiązywane
+dwa razy.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (puste) | URL issuera. Puste znaczy brak SSO, a callback odpowiada 404 |
+| `OIDC_CLIENT_ID` | (puste) | Klient, którego dostawca wydał dla tego wdrożenia |
+| `OIDC_CLIENT_SECRET` | (puste) | Jego sekret |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Callback, zarejestrowany u dostawcy |
+| `OIDC_SCOPES` | `openid email profile` | Rozdzielone spacją. Dodaj własny scope dostawcy, jeśli potrzebuje go dla claimów |
+| `OIDC_VERIFIED_CLAIM` | (puste) | Trzeci claim akceptowany jako „ten adres jest potwierdzony”, dla dostawcy, który nazywa go po swojemu |
+
+Issuer to jedyny URL. Authorization, token, userinfo i JWKS biorą się z
+`<issuer>/.well-known/openid-configuration`, który dostawca utrzymuje aktualny
+przez rotację kluczy czy przeniesienie endpointu — więc nie ma kolejnych adresów,
+które da się subtelnie pomylić. Flow to authorization code z PKCE.
+
+Claimy czytane są z ID tokena, a z endpointu **UserInfo** wtedy, gdy ID token ich
+nie niesie. Dostawca ma prawo trzymać `email` i swój claim weryfikacji w UserInfo
+i nie umieszczać żadnego w tokenie, więc czytanie samego tokena odrzucałoby w
+pełni zgodnego dostawcę o jedno żądanie od poprawnej tożsamości.
+
+Dwa przyciski po stronie frontendu, konfigurowane tam:
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO |
+| `OIDC_DISPLAY_NAME` | `SSO` | Jak przycisk nazywa dostawcę: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (puste) | `google`, `github` albo `microsoft` — znaki, które strona logowania już wozi. Cokolwiek innego rysuje zwykły klucz |
+
+Gdzie mieszka który issuer i co zarejestrować:
+
+| Dostawca | Issuer | Redirect URI rejestruj jako |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions |
+| **Okta** | `https://<org>.okta.com` (albo `/oauth2/<id>` własnego serwera autoryzacji) | Sign-in redirect URI w aplikacji typu **Web** |
+| **Keycloak** | `https://<host>/realms/<realm>` | Valid redirect URI w kliencie confidential z włączonym standard flow |
+
+Dwie rzeczy, których platforma wymaga od dowolnego dostawcy, na którego ją skierujesz:
+
+- **Adres musi być potwierdzony.** Akceptowane są dwa claimy: standardowy
+  `email_verified` i `xms_edov` Entra ID, które Entra wysyła zamiast niego —
+  `email_verified` nie emituje w ogóle, a `xms_edov` jest claimem **opcjonalnym**,
+  włączanym na rejestracji aplikacji, więc tenant Entra, który go nie włączył, nie
+  wysyła żadnego i każde logowanie jest odrzucane. `OIDC_VERIFIED_CLAIM` nazywa
+  trzeci dla dostawcy, który mówi na to inaczej. Brak liczy się jako brak
+  potwierdzenia: niepotwierdzony adres oznacza, że ktokolwiek u tego dostawcy może
+  zgłosić czyjś służbowy adres, a lista dozwolonych domen niżej stoi na tym, że
+  adres coś znaczy.
+- **Stabilny `sub`.** Konto jest kluczowane po nim, nie po adresie, więc osoba,
+  która zmieni nazwisko albo której domenę ktoś wykupi, zachowuje swoją historię
+  — a kolejny właściciel zwolnionego adresu jej nie dziedziczy. Zapisywany jest
+  **z przestrzenią nazw issuera**, bo `sub` jest unikalny w obrębie swojego
+  issuera i nigdzie indziej: przestawienie wdrożenia na inny tenant albo realm nie
+  może wtedy zalogować nowego podmiotu na konto starego.
+
+Polityka rejestracji działa tu dokładnie tak, jak działa dla formularza
+rejestracji: wdrożenie `invite_only` odmawia logowania SSO komuś, kogo nikt nie
+zaprosił, a lista dozwolonych domen odmawia adresowi spoza niej — tym samym
+zdaniem na stronie logowania. Zobacz
+[Kto może się zarejestrować](deployment.md#who-may-register). Mapowanie grup
+dostawcy na role w organizacji nie jest tego częścią; ludzie się logują, a
+administrator ich umieszcza.
+
+SAML i SCIM nie są zaimplementowane. Większość dostawców tożsamości, których
+używa średniej wielkości firma, mówi po OIDC, a te ustawienia to całość tego,
+czego potrzebują.
 
 ## Baza danych (PostgreSQL) { #database-postgresql }
 

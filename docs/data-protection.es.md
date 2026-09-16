@@ -1,5 +1,5 @@
 ---
-source_sha: "a1e918709b97"
+source_sha: "90b63b1d477c"
 ---
 
 # Protección de datos { #data-protection }
@@ -161,7 +161,7 @@ una laguna, y así queda dicho.
 | Exportación de auditoría | `GET /audit/export`, CSV o JSONL sobre una ventana, con puerta en `audit:read` y registrada en el propio rastro | [Governance](governance.md#audit) (#1422) |
 | Prueba de no manipulación del rastro | Todavía ninguna | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta | [Entornos](environments.md) (#1413); un término medio `redacted` se descartó, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retención programada | Solo se barren las filas de `sandbox_operations`, a los 30 días. El barrido de runs abandonados los finaliza; no borra nada | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retención programada | Por organización y por clase —conversaciones y sus archivos, runs y manifiestos, workspaces, memoria de agentes, documentos subidos y auditoría— dentro de un valor por defecto, un techo y un suelo de auditoría de todo el despliegue. Un barrido diario borra de verdad y registra recuentos, nunca contenido. Las copias de seguridad y todo lo ya enviado a un colector externo quedan fuera | [Retención](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
 | Acceso a los propios datos | Una persona lee en Ajustes → Memoria todo lo que cada agente de aquí ha escrito sobre ella, y puede suspender una nota, restaurarla o borrarla. Leer el almacén *de otra persona* es solo de la administradora del despliegue —no de un rol de organización— y queda auditado con el actor, el tenant, el sujeto y un motivo, nunca el contenido. Los almacenes externos (mem0) se nombran en vez de listarse | [Leerla, y borrarla](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Aún no hay endpoint de exportación: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Identidad corporativa | Inicio de sesión con Google y contraseñas; todavía sin OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |

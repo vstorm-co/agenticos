@@ -1,5 +1,6 @@
 ---
-source_sha: "f0e22f2ebfda"
+source_sha: "fc8c04bccc9c"
+source_sha: "fc8c04bccc9c"
 ---
 
 # Sicherheit { #security }
@@ -187,7 +188,9 @@ SOC 2 CC6–CC8.
 | JWT (HS256), bcrypt-Passwörter | `app/core/security.py` — `verify_token`, `get_password_hash` | `test_security.py`, `test_auth.py` |
 | API-Keys in konstanter Zeit verglichen | `secrets.compare_digest` (`app/api/deps.py`) | `test_auth.py`, HMAC-Prüfungen der Webhooks in den Kanal-Adaptern |
 | DB-gestützte Sessions mit Widerruf | Tabelle `sessions` + `SessionService`; Token an einen `sid`-Claim gebunden (`app/services/session.py`, `app/api/routes/v1/sessions.py`) | `test_session_verify.py`, `test_session_revocation.py` |
-| Rate-Limiting beim Login | `enforce_auth_limit` (`app/api/deps.py`) | `test_auth_rate_limit.py` |
+| Single Sign-on gegen den eigenen Identitätsanbieter des Deployments | Generisches OIDC per Discovery — Authorization Code mit PKCE, `email_verified` erforderlich, das Konto an `sub` gebunden (`app/core/oauth.py`, `app/api/routes/v1/oauth.py`). Entra ID, Okta, Keycloak; konfiguriert unter [Single Sign-on](configuration.md#single-sign-on-generic-oidc) | `test_oidc_sign_in.py` |
+| Die Registrierungsrichtlinie sichert SSO wie das Formular | `check_may_register` innerhalb von `get_or_create_oauth_user` — `invite_only` und die Domain-Erlaubnisliste weisen auch eine Anbieter-Anmeldung ab (`app/services/user.py`) | `test_oidc_sign_in.py::TestTheRoundTrip`, `test_signup_policy.py` |
+| Gruppen-zu-Rollen-Zuordnung, SAML, SCIM | **Noch nicht** — Menschen melden sich über den Anbieter an, eine Administratorin ordnet sie ein | — |
 
 ### Audit-Kontrollen · HIPAA §164.312(b) · SOC 2 CC7 { #audit-controls-hipaa-164312b-soc-2-cc7 }
 
@@ -196,6 +199,7 @@ SOC 2 CC6–CC8.
 | Governance-relevante Mutationen werden in der Transaktion der Anfrage festgehalten | `record_audit` (`app/core/audit.py`) im mutierenden Service — Secret-Rotation, Skill-/Sync-/MCP-Bindung, Mitgliedschaft, Freigabe, Freigaben, Exporte und mehr; geschrieben nach `app_admin_audit_logs`. Es ist keine flächendeckende Abdeckung jedes Schreibvorgangs (das CRUD der Wissensbasis etwa wird nicht auditiert) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | Die Spur ist für einen Auditor lesbar | `GET /audit`, gegated auf `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Export der Spur (CSV/JSONL) | `GET /audit/export` über ein Fenster, auf `audit:read` gegated, hält den eigenen Abruf in der Spur fest; die Run-, Freigabe- und Spend-Exporte tun dasselbe (#1422) | `test_exporting.py` (der Export und sein eigener Audit-Eintrag) |
+| Eine Audit-Frist, die eine Organisation verlängern und nie verkürzen kann | Eine deploymentweite Untergrenze (standardmäßig sechs Jahre, HIPAA §164.316(b)(2)); eine kürzere Frist wird abgelehnt statt angehoben. Der Sweep löscht **keine** Audit-Einträge - die Hash-Kette und ihr Checkpoint stehen darauf, dass Einträge bleiben, eine nachprüfbare Ausmusterung ist [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). Siehe [Aufbewahrung](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
 | Eine Person kann ihre eigenen Daten auslesen und entfernen | `GET /me/data/export` (stündlich limitiert, auch bei der eigenen Anfrage protokolliert) und `DELETE /conversations/{id}` im Rahmen des eigenen Besitzes; der Export einer Administratorin verlangt eine Begründung (`app/services/personal_data.py`) | `test_personal_data.py` |
 | Manipulationsnachweis (eine Hash-Kette) | **Noch nicht** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 

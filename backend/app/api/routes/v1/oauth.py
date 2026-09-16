@@ -1,4 +1,10 @@
-"""OAuth2 authentication routes."""
+"""Signing somebody in through an identity provider.
+
+One pair of routes for every provider, because the flow is one flow: OpenID
+Connect's authorization-code exchange, ending in a single-use code the frontend
+swaps for the token pair. `google` and a deployment's own `oidc` differ in their
+discovery document and in nothing this module does (#1419).
+"""
 
 import logging
 import secrets
@@ -10,9 +16,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from app.api.deps import InvitationStagingSvc, OAuthExchangeSvc, SessionSvc, UserSvc
+from app.api.routes.v1._oauth_claims import claims_for
 from app.core.config import settings
-from app.core.exceptions import AuthenticationError
-from app.core.oauth import oauth
+from app.core.exceptions import AppException, AuthenticationError
+from app.core.oauth import identity_key, redirect_uri_for, sign_in_client, verified_identity
 from app.core.security import create_access_token, create_refresh_token
 from app.schemas.token import OAuthExchangeRequest, Token
 
@@ -106,15 +113,16 @@ def _return_url(request: Request, code: str) -> str:
 _INVITATION_KEY = "oauth_invitation_token"
 
 
-@router.get("/google/login", response_model=None)
-async def google_login(
+@router.get("/{provider}/login", response_model=None)
+async def provider_login(
+    provider: str,
     request: Request,
     staging: InvitationStagingSvc,
     invitation_handle: str | None = None,
     client: str | None = None,
     desktop_nonce: str | None = None,
 ):
-    """Redirect to Google OAuth2 login page.
+    """Send the browser to `provider` to sign in.
 
     `client=desktop` says the desktop shell started this, so the callback returns
     through the shell's deep link rather than the console's URL. Recorded in the
@@ -125,11 +133,14 @@ async def google_login(
     sign-in detour (#1414). It is peeked - not consumed - into the token the callback
     needs for admission, so the raw token never rides this query and the same handle
     still closes the acceptance afterwards. Without it an `invite_only` deployment
-    refused the Google button for exactly the invitations that need it: a link
+    refused the provider button for exactly the invitations that need it: a link
     constraining neither an address nor a domain is invisible to the address-based
     fallback, so the same person could register with a password and not with the
     provider offered beside it.
     """
+    # Named for the provider, because `client` is the query parameter saying
+    # which of *our* clients started this - the console or the desktop shell.
+    provider_client = sign_in_client(provider)
     token = await staging.peek(invitation_handle) if invitation_handle else None
     if token:
         request.session[_INVITATION_KEY] = token
@@ -144,34 +155,48 @@ async def google_login(
     # sign-ins in one browser would hand to each other.
     state = secrets.token_urlsafe(32)
     _remember_client(request, state, client=client, nonce=desktop_nonce)
-    return await oauth.google.authorize_redirect(request, settings.GOOGLE_REDIRECT_URI, state=state)
+    return await provider_client.authorize_redirect(
+        request, redirect_uri_for(provider), state=state
+    )
 
 
-@router.get("/google/callback", response_model=None)
-async def google_callback(
+@router.get("/{provider}/callback", response_model=None)
+async def provider_callback(
+    provider: str,
     request: Request,
     user_service: UserSvc,
     exchange_service: OAuthExchangeSvc,
     session_service: SessionSvc,
 ):
-    """Handle Google OAuth2 callback."""
+    """Finish the round trip and hand the frontend a code for its tokens."""
+    client = sign_in_client(provider)
     frontend = settings.FRONTEND_URL.rstrip("/")
     try:
-        token = await oauth.google.authorize_access_token(request)
-        user_info = token.get("userinfo")
+        token = await client.authorize_access_token(request)
+        identity = verified_identity(await claims_for(client, token))
 
-        if not user_info:
-            params = urlencode({"error": "Failed to get user info from Google"})
+        if identity is None:
+            # One sentence for three refusals - no subject, no address, an
+            # address the provider has not verified. Which one it was goes to
+            # the log: a redirect a stranger can read is not the place to say
+            # that an address exists at this provider but is unconfirmed.
+            logger.warning("oauth_callback_claims_rejected", extra={"provider": provider})
+            params = urlencode({"error": "That account cannot be used to sign in here."})
             return RedirectResponse(url=f"{frontend}/login?{params}")
+
+        subject, email, full_name = identity
 
         # Taken off the session rather than read: an invitation is consumed by the
         # attempt it was started for, so a token left behind cannot admit a second,
         # unrelated sign-in from the same browser.
         user = await user_service.get_or_create_oauth_user(
-            provider="google",
-            provider_id=user_info.get("sub"),
-            email=user_info.get("email"),
-            full_name=user_info.get("name"),
+            provider=provider,
+            # Namespaced by issuer for the generic provider: an OIDC `sub` is
+            # unique within its issuer and nowhere else, and this match happens
+            # before the address is ever compared.
+            provider_id=identity_key(provider, subject),
+            email=email,
+            full_name=full_name,
             invitation_token=request.session.pop(_INVITATION_KEY, None),
         )
 
@@ -198,8 +223,18 @@ async def google_callback(
         )
         return RedirectResponse(url=_return_url(request, code))
 
+    except AppException as exc:
+        # A refusal this repository wrote, and the sign-up policy is the one that
+        # matters: an `invite_only` or domain-limited deployment must turn an OIDC
+        # sign-in away exactly as it turns the registration form away, or closing
+        # sign-up closes nothing. Its sentence was written for the person reading
+        # it, so it is carried to the login page rather than flattened into
+        # "Sign-in failed" beside every timeout and misconfiguration.
+        logger.warning("oauth_callback_refused", extra={"provider": provider})
+        params = urlencode({"error": exc.message})
+        return RedirectResponse(url=f"{frontend}/login?{params}")
     except Exception:
-        logger.exception("google_oauth_callback_failed")
+        logger.exception("oauth_callback_failed", extra={"provider": provider})
         params = urlencode({"error": "Sign-in failed. Please try again."})
         return RedirectResponse(url=f"{frontend}/login?{params}")
 

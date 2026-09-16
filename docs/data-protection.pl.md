@@ -1,5 +1,5 @@
 ---
-source_sha: "a1e918709b97"
+source_sha: "90b63b1d477c"
 ---
 
 # Ochrona danych { #data-protection }
@@ -158,7 +158,7 @@ jest luką — i tak jest nazwany.
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
 | Dowód nienaruszalności śladu | Jeszcze nie ma | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retencja według harmonogramu | Zamiatane są tylko wiersze `sandbox_operations`, po 30 dniach. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retencja według harmonogramu | Na organizację i na klasę — rozmowy i ich pliki, runy i manifesty, workspace'y, pamięć agentów, wgrane dokumenty i audyt — w ramach domyślnej wartości, sufitu i podłogi audytu na poziomie wdrożenia. Codzienny sweep usuwa twardo i zapisuje liczniki, nigdy treść. Backupy i cokolwiek już wysłane do zewnętrznego kolektora są poza tym | [Retencja](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
 | Dostęp do własnych danych | Osoba czyta w Ustawienia → Pamięć wszystko, co każdy agent tutaj o niej zapisał, i może notatkę wyłączyć, przywrócić albo usunąć. Czytanie *cudzego* magazynu należy wyłącznie do administratora wdrożenia — nie do roli w organizacji — i jest audytowane z aktorem, tenantem, podmiotem i powodem, nigdy z treścią. Magazyny zewnętrzne (mem0) są nazwane, a nie listowane | [Jak to czytać i jak wymazać](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Endpointu eksportu jeszcze nie ma: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Tożsamość korporacyjna | Logowanie Google i hasła; jeszcze bez OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
