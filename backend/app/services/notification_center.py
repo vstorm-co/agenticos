@@ -25,7 +25,7 @@ from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
 from app.services import rate_limit
-from app.services.access import COLLECTION, resolve_access
+from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 
 logger = logging.getLogger(__name__)
@@ -493,9 +493,14 @@ class NotificationCenterService:
         kb = await knowledge_base_repo.get_by_id(self.db, collection_id)
         if kb is None:
             return False
-        return await resolve_access(
-            self.db, ctx, kb, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
-        )
+        # `readable_kb`, not the raw `resolve_access` call it wraps: a
+        # personal knowledge base is owner-only by construction
+        # (`collection_access.py`), and `resolve_access` alone has no notion
+        # of that - an org admin whose `collections:view` scope is `ALL`
+        # would pass the generic grant check for a colleague's personal
+        # collection, leaking that its ingestion notifications (filenames,
+        # outcomes) exist at all.
+        return await readable_kb(self.db, ctx, kb)
 
     async def _announcement_visible(self, ctx: AuthContext, notification: Notification) -> bool:
         # `ctx.user_id` is already guaranteed non-null here - every caller of

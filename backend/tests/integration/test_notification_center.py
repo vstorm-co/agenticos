@@ -628,6 +628,47 @@ class TestReadGateCollectionsView:
         )
         assert member_rows == []
 
+    async def test_an_org_admin_cannot_see_a_colleagues_personal_collection_notice(self, db):
+        """A personal knowledge base is owner-only by construction
+        (`collection_access.readable_kb`) - the generic `collections:view`
+        grant an org admin's role carries must not widen that, or an
+        ingestion notification (a filename, an outcome) leaks that the
+        collection exists at all to somebody who is not its owner."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        kb_owner = await _member(db, org, role="member")
+        admin = await _member(db, org, role="admin")
+        kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="My notes",
+            collection_name=f"kb-{uuid.uuid4().hex[:8]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            scope="personal",
+            visibility="private",
+            owner_user_id=kb_owner.id,
+            organization_id=org.id,
+        )
+        db.add(kb)
+        await db.flush()
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[kb_owner.id, admin.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-personal-1:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": str(kb.id)},
+            organization_id=org.id,
+        )
+        owner_rows, _, _ = await service.list_inbox(
+            _ctx(kb_owner, org, role="member"), after=None, limit=10
+        )
+        assert len(owner_rows) == 1
+        admin_rows, _, _ = await service.list_inbox(
+            _ctx(admin, org, role="admin"), after=None, limit=10
+        )
+        assert admin_rows == []
+
     async def test_a_row_with_no_collection_id_is_excluded(self, db):
         owner = await _user(db)
         org = await _org(db, owner)
