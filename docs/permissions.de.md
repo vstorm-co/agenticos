@@ -1,5 +1,5 @@
 ---
-source_sha: "8262d81f5c89"
+source_sha: "254fb6f7ee48"
 ---
 
 # Berechtigungen { #permissions }
@@ -59,8 +59,9 @@ Ein Boolean am Nutzer, gänzlich außerhalb von Organisationen. Zwei Wirkungen:
 
 1. **Ein Tor vor den Deployment-Routen.** `CurrentAppAdmin` sichert
    `/admin/users`, `/admin/stats`, `/admin/conversations` (eine Auflistung, nie
-   ein Transkript), `/admin/ratings`, `/admin/announcements` und die
-   Massen-Endpunkte unter `/rag`. Announcements sitzen hier statt hinter einer
+   ein Transkript), `/admin/ratings`, `/admin/announcements`,
+   `/admin/notifications/deliveries` und die Massen-Endpunkte unter `/rag`.
+   Announcements sitzen hier statt hinter einer
    `Perm`, weil jeder Eintrag im Berechtigungskatalog sich gegen eine
    Organisation auflöst und keiner von ihnen "jede Organisation" ausdrücken
    kann ([Governance](governance.md#alerts)).

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d1d8b96f1d7"
+source_sha: "efd020466ea9"
 ---
 
 # Governance { #governance }
@@ -1241,8 +1241,9 @@ Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
 błąd runa, zakończenie albo błąd ingestii dokumentu oraz własne ogłoszenie
-administratora aplikacji (**Console** → **Announcements**), adresowane do
-organizacji i, opcjonalnie, do roli.
+administratora aplikacji - `POST /admin/announcements`, jeszcze bez strony w
+konsoli - adresowane do organizacji i, opcjonalnie, do roli, oraz ograniczone
+do jednego albo obu kanałów.
 
 W przeciwieństwie do wszystkiego powyżej, zdarzenia bezpieczeństwa i zmiany
 konfiguracji nie da się wyłączyć na żadnym z kanałów. Trafiają do właścicieli i
@@ -1254,10 +1255,12 @@ dokumentuje ta strona: to ta sama skrzynka, do której trafiają alerty
 konfigurowane na agencie powyżej, a reguła rezygnacji poniżej wciąż dotyczy
 wszystkiego, co można wyłączyć.
 
-Wiersz znika ze skrzynki, gdy przeleżał w niej dziewięćdziesiąt dni jako
-*przeczytany*, albo rok niezależnie od tego, czy w ogóle został otwarty — to
-zamiatanie w tle, a nie coś, co uruchamia człowiek. Tym, co przetrwa dłużej,
-jest sam ślad audytowy ([Audyt](#audit)), którego skrzynka jest tylko
+Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
+jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został
+otwarty — licząc zawsze od zapisania, nigdy od przeczytania, więc wiersz
+otwarty dzień przed swoją górną granicą znika razem z każdym innym w tym
+wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek. Tym, co przetrwa
+dłużej, jest sam ślad audytowy ([Audyt](#audit)), którego skrzynka jest tylko
 powiadomieniem, nigdy zapisem.
 
 ### Konfigurowane na agencie { #configured-on-the-agent }

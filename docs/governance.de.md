@@ -1,5 +1,5 @@
 ---
-source_sha: "4d1d8b96f1d7"
+source_sha: "efd020466ea9"
 ---
 
 # Governance { #governance }
@@ -1324,9 +1324,10 @@ Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
 unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments,
-die abschließt oder scheitert, und die eigene Ankündigung eines App-Admins
-(**Console** → **Announcements**), adressiert nach Organisation und,
-optional, nach Rolle.
+die abschließt oder scheitert, und die eigene Ankündigung eines App-Admins -
+`POST /admin/announcements`, noch keine Console-Seite - adressiert nach
+Organisation und, optional, nach Rolle, und beschränkt auf einen oder beide
+Kanäle.
 
 Anders als alles oben lässt sich ein Sicherheitsereignis oder eine
 Konfigurationsänderung auf keinem der beiden Kanäle abschalten. Es erreicht
@@ -1338,11 +1339,13 @@ diese Seite dokumentiert: Es ist dasselbe Postfach, in dem die oben auf dem
 Agent konfigurierten Alerts landen, und die Opt-out-Regel unten gilt
 weiterhin für alles, was sich abschalten lässt.
 
-Eine Zeile fällt aus dem Postfach, sobald sie dort neunzig Tage *gelesen*
-gestanden hat, oder ein Jahr, unabhängig davon, ob sie je geöffnet wurde -
-ein Sweep im Hintergrund, den niemand auslöst. Was das übersteht, ist der
-Audit-Trail selbst ([Audit](#audit)), von dem das Postfach eine
-Benachrichtigung ist, nie der Datensatz.
+Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
+*gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
+wurde - beides gezählt ab dem Schreiben, nie ab dem Lesen, sodass eine am Tag
+vor ihrer oberen Grenze geöffnete Zeile mit jeder anderen so alten
+zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst. Was das
+übersteht, ist der Audit-Trail selbst ([Audit](#audit)), von dem das
+Postfach eine Benachrichtigung ist, nie der Datensatz.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 

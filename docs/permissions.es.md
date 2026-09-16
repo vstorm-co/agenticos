@@ -1,5 +1,5 @@
 ---
-source_sha: "8262d81f5c89"
+source_sha: "254fb6f7ee48"
 ---
 
 # Permisos { #permissions }
@@ -58,8 +58,9 @@ efectos:
 
 1. **Una puerta en las rutas del despliegue.** `CurrentAppAdmin` protege
    `/admin/users`, `/admin/stats`, `/admin/conversations` (un listado, nunca una
-   transcripción), `/admin/ratings`, `/admin/announcements` y los endpoints
-   masivos de `/rag`. Los anuncios están aquí y no detrás de un `Perm` porque
+   transcripción), `/admin/ratings`, `/admin/announcements`,
+   `/admin/notifications/deliveries` y los endpoints masivos de `/rag`. Los
+   anuncios están aquí y no detrás de un `Perm` porque
    cada entrada del catálogo de permisos se resuelve contra una sola
    organización, y ninguna puede expresar "cada organización"
    ([Governance](governance.md#alerts)).

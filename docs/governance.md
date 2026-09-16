@@ -1152,8 +1152,9 @@ Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round. The same page also carries every other event
 the inbox delivers: a run finishing or failing unattended, a document's ingestion
-completing or failing, and an app admin's own broadcast (**Console** →
-**Announcements**), addressed by organization and, optionally, role.
+completing or failing, and an app admin's own broadcast - `POST
+/admin/announcements`, not yet a console page - addressed by organization and,
+optionally, role, and restricted to one or both channels.
 
 Unlike everything above, a security event or a configuration change cannot be
 turned off on either channel. It reaches that organization's own owners and
@@ -1163,10 +1164,13 @@ case every app admin gets it instead. None of this widens what this page
 documents: it is the same inbox the agent-configured alerts above land in, and
 the opt-out rule below still applies to everything that can be turned off.
 
-A row is dropped from the inbox once it has sat there ninety days *read*, or a
-year regardless of whether it was ever opened - a background sweep, not
-something a person triggers. What survives past that is the audit trail itself
-([Audit](#audit)), which the inbox is a notice of, never the record of.
+A row is dropped from the inbox ninety days after it was written if it was
+*read*, and a year after regardless of whether it ever was - both counted from
+when the row was written, never from when it was read, so a row opened the day
+before its outer bound ages out with every other row that old. A background
+sweep, not something a person triggers. What survives past that is the audit
+trail itself ([Audit](#audit)), which the inbox is a notice of, never the
+record of.
 
 ### Configured on the agent
 

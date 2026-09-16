@@ -1,5 +1,5 @@
 ---
-source_sha: "4d1d8b96f1d7"
+source_sha: "efd020466ea9"
 ---
 
 # Governance { #governance }
@@ -1213,8 +1213,9 @@ Notifications** — una persona puede conservar la fila en la aplicación para
 las aprobaciones y apagar su correo, o al revés. La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
 desatendido, la ingesta de un documento que se completa o falla, y el propio
-anuncio de un app admin (**Console** → **Announcements**), dirigido por
-organización y, opcionalmente, por rol.
+anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
+la consola - dirigido por organización y, opcionalmente, por rol, y
+restringido a uno o ambos canales.
 
 A diferencia de todo lo de arriba, un evento de seguridad o un cambio de
 configuración no se puede apagar en ninguno de los dos canales. Llega a los
@@ -1227,10 +1228,13 @@ Nada de esto ensancha lo que documenta esta página: es el mismo buzón donde
 aterrizan las alertas configuradas en el agent de arriba, y la regla de
 exclusión de abajo se sigue aplicando a todo lo que se puede apagar.
 
-Una fila se retira del buzón en cuanto lleva noventa días *leída*, o un año
-sin importar si llegó a abrirse — un barrido en segundo plano, no algo que
-dispare una persona. Lo que sobrevive a eso es el propio rastro de auditoría
-([Auditoría](#audit)), del que el buzón es un aviso, nunca el registro.
+Una fila se retira del buzón noventa días después de escribirse si está
+*leída*, y un año después sin importar si llegó a abrirse — contando siempre
+desde que se escribió, nunca desde que se leyó, así que una fila abierta el
+día antes de su límite superior desaparece junto con cualquier otra de esa
+edad. Un barrido en segundo plano, no algo que dispare una persona. Lo que
+sobrevive a eso es el propio rastro de auditoría ([Auditoría](#audit)), del
+que el buzón es un aviso, nunca el registro.
 
 ### Configurado en el agent { #configured-on-the-agent }
 
