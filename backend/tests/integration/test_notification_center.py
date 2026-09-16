@@ -595,6 +595,25 @@ class TestReadGateCollectionsView:
         rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
+    async def test_a_row_carrying_a_malformed_collection_id_is_excluded_not_500(self, db):
+        # Nothing this service writes produces one - `render_context` is a
+        # JSONB blob with no schema enforcement, so this stands in for a
+        # producer bug rather than anything reachable through the write path
+        # this test file otherwise exercises.
+        owner = await _user(db)
+        org = await _org(db, owner)
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.INGESTION_FAILED,
+            occurrence_id="doc-4:1",
+            summary="A document failed to ingest",
+            render_context={"collection_id": "not-a-uuid"},
+            organization_id=org.id,
+        )
+        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert rows == []
+
 
 class TestReadGateAnnouncementAudience:
     async def _announcement(self, db, *, actor: User, audience_spec: dict) -> Announcement:
@@ -908,6 +927,16 @@ class TestCursorHelpers:
 
         with pytest.raises(BadRequestError):
             notification_center.decode_cursor("not-a-cursor")
+
+    def test_a_cursor_with_a_naive_timestamp_is_refused(self):
+        # `encode_cursor` never produces one - `created_at` comes off a
+        # `timestamptz` column - but nothing stops a client sending one by
+        # hand, and asyncpg refuses to compare it against the aware column
+        # with a raw `DataError` rather than the 400 this should be.
+        from app.core.exceptions import BadRequestError
+
+        with pytest.raises(BadRequestError):
+            notification_center.decode_cursor(f"2026-01-01T00:00:00|{uuid.uuid4()}")
 
 
 class TestListInboxNoRows:
