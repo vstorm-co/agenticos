@@ -30,7 +30,10 @@ import {
   SEEDED_SKILL_DESCRIPTION,
   SEEDED_SKILL_NAME,
   chooseEmbeddingKey,
+  json,
+  nowListed,
   pageHeading,
+  rowsAt,
   submitDialog,
 } from "./helpers";
 
@@ -368,8 +371,7 @@ async function valuesAt(
   path: string,
   field: string,
 ): Promise<unknown[]> {
-  const list = await json<{ items: Record<string, unknown>[] }>(request, path);
-  return list.items.map((item) => item[field]);
+  return (await rowsAt(request, path)).map((item) => item[field]);
 }
 
 /**
@@ -420,18 +422,7 @@ async function alreadyThere(
  * a race and a write that never happened.
  */
 async function nowThere(page: Page, path: string, field: string, value: string): Promise<void> {
-  await expect
-    .poll(() => valuesAt(page.request, path, field), {
-      message: `the write was accepted, but ${path} never listed a row whose ${field} is ${value}`,
-    })
-    .toContain(value);
-}
-
-/** A JSON GET that fails loudly, so a broken fixture reads as a broken fixture. */
-async function json<T>(request: APIRequestContext, path: string): Promise<T> {
-  const response = await request.get(path);
-  expect(response.ok(), `${path} answered ${response.status()}`).toBe(true);
-  return (await response.json()) as T;
+  await nowListed(page.request, path, field, value);
 }
 
 /** The organization the seeded owner works in — bootstrap reuses their personal one. */
