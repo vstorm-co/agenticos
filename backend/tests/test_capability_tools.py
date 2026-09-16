@@ -146,6 +146,20 @@ class TestKnowledgeTool:
         assert filters.document_type == ["pdf"]
         assert filters.organizational_unit == ["legal"]
 
+    def test_document_type_is_published_as_a_closed_schema(self):
+        """The model reads the legal document types out of the tool schema.
+
+        A build-time-closed dimension ships as an enum in the schema (like
+        `source`), so the model cannot emit "PDF" or "application/pdf" and only
+        learn the closed set through a post-call retry (FA-039 §2.1, PR #1656).
+        """
+        from app.services.rag.filters import DOCUMENT_TYPE_VOCABULARY
+
+        toolset = build_knowledge_toolset(default_top_k=5)
+        schema = toolset.tools["search_documents"].tool_def.parameters_json_schema
+        enum = schema["$defs"]["DocumentType"]["enum"]
+        assert set(enum) == set(DOCUMENT_TYPE_VOCABULARY)
+
     @pytest.mark.anyio
     async def test_an_empty_list_is_normalized_to_no_filter(self):
         """A model's `[]` means 'not filtering this', not an empty allow-list."""

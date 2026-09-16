@@ -12,7 +12,7 @@ from pydantic_ai.toolsets import FunctionToolset
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.deps import AgentDeps
-from app.services.rag.filters import RetrievalFilters, Source
+from app.services.rag.filters import DocumentType, RetrievalFilters, Source
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
         query: str,
         top_k: int | None = None,
         source: list[Source] | None = None,
-        document_type: list[str] | None = None,
+        document_type: list[DocumentType] | None = None,
         organizational_unit: list[str] | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
@@ -61,7 +61,7 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
             top_k: How many passages to return. Omit to use the agent's default.
             source: Restrict to these ingestion origins (upload, local, gdrive, s3).
             document_type: Restrict to these document types (file extensions, e.g.
-                "pdf", "docx"). Unknown types are reported so you can correct them.
+                "pdf", "docx"). Choose from the closed set the schema lists.
             organizational_unit: Restrict to these organizational-unit tags.
             date_from: Only documents dated on or after this date (YYYY-MM-DD).
             date_to: Only documents dated on or before this date (YYYY-MM-DD).
@@ -74,7 +74,9 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 # A model's `[]` means "not filtering this"; normalize it away
                 # before validation so it is not read as an empty allow-list.
                 source=_normalize([str(s) for s in source] if source else None),
-                document_type=_normalize(document_type),
+                document_type=_normalize(
+                    [str(d) for d in document_type] if document_type else None
+                ),
                 organizational_unit=_normalize(organizational_unit),
                 date_from=date_from,
                 date_to=date_to,

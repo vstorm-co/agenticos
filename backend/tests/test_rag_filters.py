@@ -16,6 +16,7 @@ from app.core.exceptions import BadRequestError
 from app.services.rag.filters import (
     DOCUMENT_TYPE_VOCABULARY,
     SOURCE_VOCABULARY,
+    DocumentType,
     RetrievalFilters,
     RetrievalQuery,
     Source,
@@ -37,6 +38,12 @@ class TestVocabularies:
         assert "pdf" in DOCUMENT_TYPE_VOCABULARY
         assert "docx" in DOCUMENT_TYPE_VOCABULARY
         assert not any(v.startswith(".") for v in DOCUMENT_TYPE_VOCABULARY)
+
+    def test_document_type_enum_mirrors_the_vocabulary(self):
+        # The enum the agent tool publishes as a closed schema must carry exactly
+        # the values the API validator enforces, so the two cannot drift.
+        assert {str(member) for member in DocumentType} == set(DOCUMENT_TYPE_VOCABULARY)
+        assert DocumentType("pdf") == "pdf"
 
 
 class TestRetrievalFilters:

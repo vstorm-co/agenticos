@@ -47,6 +47,16 @@ DOCUMENT_TYPE_VOCABULARY: frozenset[str] = frozenset(
 )
 
 
+# The same closed vocabulary as an enum so the agent tool can publish it as a
+# closed tool schema (FA-039 §2.1, PR #1656): the model reads the legal document
+# types straight out of the function schema, exactly as it does for `source`,
+# instead of guessing a value like "PDF" or "application/pdf" that only trips a
+# post-call `ModelRetry`. Derived from the one set the API validator enforces, so
+# the schema and the validation cannot drift. Every current value is a valid
+# identifier, so the member name is the extension itself.
+DocumentType = StrEnum("DocumentType", {value: value for value in sorted(DOCUMENT_TYPE_VOCABULARY)})
+
+
 class Source(StrEnum):
     """The canonical ingestion-origin values, set in code at the call site.
 
@@ -303,6 +313,7 @@ def resolve_legacy_filter(
 __all__ = [
     "DOCUMENT_TYPE_VOCABULARY",
     "SOURCE_VOCABULARY",
+    "DocumentType",
     "RetrievalFilters",
     "RetrievalQuery",
     "RetrievalScope",
