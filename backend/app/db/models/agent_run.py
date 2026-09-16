@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -26,6 +27,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -179,6 +181,16 @@ class AgentRun(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    # Whether `user_id` above is a real initiator or the publisher standing in
+    # for one (`AuthContext.subject_is_publisher_fallback`, #788) - a widget,
+    # a hosted page or an unlinked channel message runs as whoever published
+    # the surface, not as the anonymous visitor in front of it. A consumer
+    # reading `user_id` back without this flag cannot tell the two apart,
+    # which is how #1598's run-finished notifications ended up emailing a
+    # public embed's publisher after every anonymous visitor's run.
+    initiated_by_publisher_fallback: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
     )
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

@@ -39,12 +39,13 @@ from app.services.notifications import NotificationService
 MODULE = "app.services.notifications"
 
 
-def _run(*, org_id=None, user_id=None, cost="1.50"):
+def _run(*, org_id=None, user_id=None, cost="1.50", initiated_by_publisher_fallback=False):
     run = MagicMock()
     run.id = uuid.uuid4()
     run.organization_id = org_id or uuid.uuid4()
     run.user_id = user_id
     run.cost_usd = Decimal(cost)
+    run.initiated_by_publisher_fallback = initiated_by_publisher_fallback
     return run
 
 
@@ -603,6 +604,19 @@ class TestRunCompletedAndFailed:
         assert written.calls == []
 
     @pytest.mark.anyio
+    async def test_a_publisher_fallback_run_notifies_nobody(self, written):
+        """A public embed, a hosted page or an unlinked channel message runs
+        as the surface's publisher - `user_id` is set, but that person did
+        not start this run, and a busy public surface would otherwise mail
+        its publisher after every anonymous visitor's turn."""
+        publisher = uuid.uuid4()
+        run = _run(user_id=publisher, initiated_by_publisher_fallback=True)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)):
+            await NotificationService(MagicMock()).run_completed(run, agent=_agent())
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
     async def test_the_initiator_is_told_a_run_failed_with_its_reason(self, written):
         initiator = uuid.uuid4()
         run = _run(user_id=initiator)
@@ -640,6 +654,15 @@ class TestRunCompletedAndFailed:
             await NotificationService(MagicMock()).run_failed(
                 _run(user_id=uuid.uuid4()), agent=_agent(), error="x"
             )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_a_failed_publisher_fallback_run_notifies_nobody(self, written):
+        publisher = uuid.uuid4()
+        run = _run(user_id=publisher, initiated_by_publisher_fallback=True)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)):
+            await NotificationService(MagicMock()).run_failed(run, agent=_agent(), error="x")
 
         assert written.calls == []
 

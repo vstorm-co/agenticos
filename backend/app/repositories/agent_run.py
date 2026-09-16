@@ -46,12 +46,14 @@ async def create_run(
     parent_run_id: UUID | None = None,
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
+    initiated_by_publisher_fallback: bool = False,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         user_id=user_id,
+        initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
         channel_identity_id=channel_identity_id,
         exposure_id=exposure_id,

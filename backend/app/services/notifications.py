@@ -220,8 +220,16 @@ class NotificationService:
         attached (should one ever reach here) tells nobody rather than
         resolving to the whole administration for a fact nobody asked to
         follow.
+
+        A run whose `user_id` is only the publisher standing in for an
+        anonymous visitor - a public embed, a hosted page, an unlinked
+        channel message - is excluded the same way: that person did not
+        start this run, and a busy public surface would otherwise mail its
+        publisher after every stranger's turn (`initiated_by_publisher_fallback`,
+        the same distinction `sender_present` already draws at assembly time
+        for exactly this reason, #1469).
         """
-        if run.user_id is None:
+        if run.user_id is None or run.initiated_by_publisher_fallback:
             return
         recipients = await member_repo.list_member_ids_for(
             self.db, organization_id=run.organization_id, user_ids=[run.user_id]
@@ -246,8 +254,9 @@ class NotificationService:
 
     async def run_failed(self, run: AgentRun, *, agent: Agent, error: str | None) -> None:
         """The mirror of `run_completed`, for the run that did not finish
-        cleanly - same audience, same surface exclusion, a different fact."""
-        if run.user_id is None:
+        cleanly - same audience, same surface exclusion, same publisher-
+        fallback exclusion, a different fact."""
+        if run.user_id is None or run.initiated_by_publisher_fallback:
             return
         recipients = await member_repo.list_member_ids_for(
             self.db, organization_id=run.organization_id, user_ids=[run.user_id]
