@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.461] - 2026-09-16
+
 ### Added
 
 - An S3-compatible file-storage backend beside the local disk, selected by
