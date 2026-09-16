@@ -137,10 +137,16 @@ class NotificationCenterService:
         around this write succeeding.
         """
         mandatory = is_mandatory(event_type)
-        if mandatory and actor_user_id is not None:
+        if mandatory:
+            # `actor_user_id` is usually who to key the budget on, but a
+            # system-triggered audit entry (no human actor) has none - and
+            # skipping the limiter for that case, rather than bounding it too,
+            # is exactly the unmetered-fan-out this guard exists to prevent.
+            # `"system"` is not a valid UUID, so it can never collide with a
+            # real actor's own bucket.
             decision = await rate_limit.consume(
                 surface="notification_mandatory_write",
-                caller=f"user:{actor_user_id}:{event_type.value}",
+                caller=f"user:{actor_user_id or 'system'}:{event_type.value}",
                 limit=_MANDATORY_WRITE_LIMIT,
             )
             if not decision.allowed:
@@ -249,9 +255,15 @@ class NotificationCenterService:
 
     async def list_inbox(
         self, ctx: AuthContext, *, after: tuple[datetime, uuid.UUID] | None, limit: int
-    ) -> tuple[list[Notification], dict[uuid.UUID, _Gate]]:
-        """A page of the inbox. Returns the visible rows together with each
-        one's `_Gate` - what to withhold or override when serializing it."""
+    ) -> tuple[list[Notification], dict[uuid.UUID, _Gate], tuple[datetime, uuid.UUID] | None]:
+        """A page of the inbox. Returns the visible rows, each one's `_Gate` -
+        what to withhold or override when serializing it - and a resume
+        cursor. The cursor is `None` only once the underlying scan is
+        genuinely exhausted (an empty or short batch), never merely because
+        `_MAX_INBOX_FETCH_ROUNDS` cut a gate-heavy scan short - a caller that
+        instead inferred "no more" from `len(rows) < limit` would drop every
+        row past the round cap rather than page to it.
+        """
         user_id = self._require_caller(ctx)
         visible: list[Notification] = []
         gates: dict[uuid.UUID, _Gate] = {}
@@ -265,18 +277,18 @@ class NotificationCenterService:
                 limit=limit,
             )
             if not batch:
-                break
+                return visible, gates, None
             for row in batch:
                 gate = await self._gate(ctx, row)
                 if gate.visible:
                     visible.append(row)
                     gates[row.id] = gate
                     if len(visible) == limit:
-                        return visible, gates
+                        return visible, gates, (row.created_at, row.id)
             cursor = (batch[-1].created_at, batch[-1].id)
             if len(batch) < limit:
-                break
-        return visible, gates
+                return visible, gates, None
+        return visible, gates, cursor
 
     async def unread_count(self, ctx: AuthContext) -> int:
         user_id = self._require_caller(ctx)
@@ -415,12 +427,28 @@ class NotificationCenterService:
             return False
         spec = announcement.audience_spec or {}
         role = spec.get("role")
+        # An "admin" audience means the same escalation roles `org_admins`
+        # already means for `security_event` (`_security_audience`, in
+        # `notifications.py`) - an owner outranks an admin, not a role an
+        # "admin"-only match would silently exclude from their own audience.
+        roles = (
+            list(_ESCALATION_ROLES) if role == OrgRoleName.ADMIN.value else [role] if role else None
+        )
         organizations = spec.get("organizations")
         if organizations == "all":
-            return await member_repo.has_any_membership(self.db, user_id=ctx.user_id, role=role)
-        org_ids = [uuid.UUID(str(value)) for value in (organizations or [])]
+            return await member_repo.has_any_membership(self.db, user_id=ctx.user_id, roles=roles)
+        org_ids = []
+        for value in organizations or []:
+            try:
+                org_ids.append(uuid.UUID(str(value)))
+            except ValueError:
+                # `audience_spec` is a JSONB blob with no schema enforcement -
+                # a malformed entry is treated the same as one naming no
+                # organization at all, rather than a 500 that takes the rest
+                # of the caller's inbox down with this one row.
+                continue
         if not org_ids:
             return False
         return await member_repo.has_membership_in_any(
-            self.db, user_id=ctx.user_id, organization_ids=org_ids, role=role
+            self.db, user_id=ctx.user_id, organization_ids=org_ids, roles=roles
         )

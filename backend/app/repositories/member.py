@@ -297,20 +297,21 @@ async def has_membership_in_any(
     *,
     user_id: UUID,
     organization_ids: list[UUID],
-    role: str | None = None,
+    roles: list[str] | None = None,
 ) -> bool:
     """Whether `user_id` currently belongs to any of `organization_ids`.
 
-    `role`, when given, narrows to that role - an announcement's audience can
-    be narrowed to owners and admins (Decision 5), and a member demoted out of
-    that role no longer qualifies even though their plain membership survives.
+    `roles`, when given, narrows to holding one of them - an announcement's
+    audience can be narrowed to owners and admins (Decision 5), and a member
+    demoted out of every named role no longer qualifies even though their
+    plain membership survives.
     """
     conditions = [
         OrganizationMember.user_id == user_id,
         OrganizationMember.organization_id.in_(organization_ids),
     ]
-    if role is not None:
-        conditions.append(OrganizationMember.role == role)
+    if roles is not None:
+        conditions.append(OrganizationMember.role.in_(roles))
     return (await db.scalar(select(OrganizationMember.id).where(*conditions).limit(1))) is not None
 
 
@@ -318,7 +319,7 @@ async def has_any_membership(
     db: AsyncSession,
     *,
     user_id: UUID,
-    role: str | None = None,
+    roles: list[str] | None = None,
 ) -> bool:
     """Whether `user_id` currently belongs to any organization at all.
 
@@ -327,8 +328,8 @@ async def has_any_membership(
     not a hardcoded list of organizations that existed when it was sent.
     """
     conditions = [OrganizationMember.user_id == user_id]
-    if role is not None:
-        conditions.append(OrganizationMember.role == role)
+    if roles is not None:
+        conditions.append(OrganizationMember.role.in_(roles))
     return (await db.scalar(select(OrganizationMember.id).where(*conditions).limit(1))) is not None
 
 

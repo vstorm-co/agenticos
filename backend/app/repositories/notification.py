@@ -157,6 +157,7 @@ async def get_own(
         select(Notification).where(
             Notification.id == notification_id,
             Notification.recipient_user_id == recipient_id,
+            Notification.in_app_visible.is_(True),
             or_(
                 Notification.organization_id == organization_id,
                 Notification.organization_id.is_(None),
