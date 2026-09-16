@@ -92,6 +92,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_mcp_connections.py::TestGithubPortalOAuth::test_a_start_without_a_stored_secret_is_a_clean_4xx_not_a_500": "a missing secret yields a clean 4xx and no row, error robustness, no security boundary",
     "tests/test_model_profiles.py::TestAnEndpointOfItsOwn::test_a_keyless_profile_resolves_with_no_secret_at_all": "a keyless model profile resolves with no secret, feature, no refusal",
     "tests/test_notifications.py::TestApprovalRequested::test_an_agent_can_send_approvals_only_to_whoever_asked": "the approval alert routes to the initiator only, audience routing, no refusal",
+    "tests/test_notifications.py::TestApprovalRequested::test_the_occurrence_id_is_the_approval_not_the_run": "the notification dedup key is keyed on the approval id, occurrence-id correctness, no refusal",
     "tests/test_notifications.py::TestBudgetExceeded::test_an_agent_can_silence_its_own_budget_alert": "a disabled budget alert sends nothing, alert config, no refusal",
     "tests/test_notifications.py::TestEveryLinkNamesItsOrganization::test_the_approval_alert_names_the_runs_organization": "the approval alert link names the run's org, deep-link feature, no refusal",
     "tests/test_notifications.py::TestEveryLinkNamesItsOrganization::test_the_budget_alert_names_the_runs_organization": "the budget alert link names the org, deep-link feature, no refusal",
