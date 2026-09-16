@@ -68,6 +68,8 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("backend/app/services/agent_exposure.py", "docs/channels.md"),
     ("backend/app/services/agent_embed.py", "docs/channels.md"),
     ("backend/app/services/rag/", "docs/file-processing.md"),
+    ("backend/app/services/ml/", "docs/ml-services.md"),
+    ("backend/app/api/routes/v1/ml.py", "docs/ml-services.md"),
     ("backend/app/services/file_upload.py", "docs/file-processing.md"),
     ("backend/app/services/ingestion_config.py", "docs/file-processing.md"),
     ("backend/app/services/local_service.py", "docs/file-processing.md"),

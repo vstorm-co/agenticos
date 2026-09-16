@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **The ML services answer on their own, without a conversation or an agent.**
+  Four of them: document analysis, OCR, speech to text and personal data
+  detection, under `/api/v1/ml/`. They are the implementations the agents
+  already use - the ingestion parsers, the guardrails' detectors, the
+  transcription client - reached directly, so another component with a key gets
+  the same answers an agent would rather than a second opinion. `GET
+  /ml/services` publishes the coverage matrix as data, including the two rows
+  that say no: personal names, postal addresses and telephone numbers need a
+  named-entity model this deployment does not ship, and image analysis is future
+  scope in the requirements themselves. One permission gates all four -
+  `ml:invoke`, deliberately not `agents:run`, so an integration that parses
+  documents cannot also spend the organization's model budget. Every call writes
+  a row to the new `ml_service_calls` table - the service, the tenant, byte and
+  unit counts, the duration, the outcome, and none of what was submitted or
+  returned. `deploy/profiles/ml-services/` runs the API image a second time as a
+  replica the ingress sends only these paths to, with its own workers, CPU and
+  memory. Schema: `ml_service_calls`. #1595
+
 ## [0.0.444] - 2026-09-16
 
 ### Added

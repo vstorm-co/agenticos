@@ -142,6 +142,7 @@ _SERVICE_DEPS = (
     deps.get_sync_source_service,
     deps.get_rag_document_service,
     deps.get_stats_service,
+    deps.get_ml_service,
 )
 
 Provider = Callable[[], object]
@@ -198,8 +199,29 @@ class Call:
     """Appended verbatim, so it carries its own `?` - there is no route here that
     needs one twice and no reason for this to guess."""
 
+    upload: bool = False
+    """A multipart route, which is sent a token file rather than a JSON body.
+
+    Without it the sweep posts JSON to a route declaring `UploadFile` and the
+    request is refused as malformed. That is not a passing gate test: the
+    admitted-caller assertion excludes 422 on purpose, so the route would fail
+    for a reason that has nothing to do with the permission it demands.
+    """
+
     def __str__(self) -> str:
         return f"{self.method} {self.path}"
+
+
+async def _send(client: AsyncClient, call: Call) -> Any:
+    """Make one call's request, as JSON or as a multipart upload."""
+    if call.upload:
+        return await client.request(
+            call.method,
+            _url(call.path, call.query),
+            files={"file": ("probe.pdf", b"%PDF-1.4", "application/pdf")},
+            data=call.body or {},
+        )
+    return await client.request(call.method, _url(call.path, call.query), json=call.body)
 
 
 _SPEC: dict[str, Any] = {"name": "Support"}
@@ -442,6 +464,16 @@ CALLS: tuple[Call, ...] = (
         },
     ),
     Call("PATCH", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    # The standalone ML services, all on one permission. `ml:invoke` is separate
+    # from `agents:run` so that an integration which parses documents cannot also
+    # spend the organization's model budget.
+    Call("GET", "/ml/services", Perm.ML_INVOKE),
+    Call("POST", "/ml/documents/analyze", Perm.ML_INVOKE, upload=True),
+    Call("POST", "/ml/documents/ocr", Perm.ML_INVOKE, upload=True),
+    Call("POST", "/ml/audio/transcriptions", Perm.ML_INVOKE, upload=True),
+    Call("POST", "/ml/privacy/pii", Perm.ML_INVOKE, body={"text": "hello"}),
+    Call("GET", "/ml/calls", Perm.ML_INVOKE),
+    Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
     Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
     Call(
@@ -514,9 +546,7 @@ class TestEachRouteDemandsItsOwnPermission:
         self, call: Call, as_role: ClientFactory
     ) -> None:
         async with as_role(all_but(call.permission)) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code == 403, (
             f"{call} admitted a caller holding every permission except {call.permission.value}"
@@ -534,9 +564,7 @@ class TestEachRouteDemandsItsOwnPermission:
         reached the gate, and would make this test pass for the wrong reason.
         """
         async with as_role(only(call.permission)) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code not in (403, 422), (
             f"{call} refused a caller holding {call.permission.value}"
@@ -553,9 +581,7 @@ class TestViewersCannotWrite:
         platform must be closed to it.
         """
         async with as_role(OrgRoleName.VIEWER) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code == 403
 
@@ -611,9 +637,7 @@ class TestOperatorCanWatchSandboxesButNotManageThem:
     async def test_an_operator_reaches_the_read(self, call: Call, as_role: ClientFactory) -> None:
         """Past the gate the service is stubbed, so anything but 403/422 is a pass."""
         async with as_role(OrgRoleName.OPERATOR) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code not in (403, 422), (
             f"{call} refused an operator holding connections:view"
@@ -624,9 +648,7 @@ class TestOperatorCanWatchSandboxesButNotManageThem:
         self, call: Call, as_role: ClientFactory
     ) -> None:
         async with as_role(OrgRoleName.OPERATOR) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code == 403, (
             f"{call} admitted an operator holding only connections:view"
@@ -644,9 +666,7 @@ class TestBuilderStillReachesEverySandboxRoute:
     @pytest.mark.parametrize("call", _OPERATOR_MAY_READ + _OPERATOR_MAY_NOT_WRITE, ids=str)
     async def test_a_builder_reaches_it(self, call: Call, as_role: ClientFactory) -> None:
         async with as_role(OrgRoleName.BUILDER) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code not in (403, 422), (
             f"{call} refused a builder after the connections split"
@@ -741,6 +761,10 @@ _PLATFORM_PREFIXES = (
     # Where an organization's embedding and OCR servers are, on the deployment's
     # own network - the rows a collection names instead of a vault key.
     "/local-services",
+    # The standalone ML services. Reached by another component holding a key
+    # rather than by a person in a browser, which is precisely why the sweep has
+    # to see them: nobody would notice an ungated one from the console.
+    "/ml",
 )
 
 

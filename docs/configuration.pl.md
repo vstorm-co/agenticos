@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "f505faa9136a"
 ---
 
 # Konfiguracja { #configuration }
@@ -54,6 +54,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `MAX_UPLOAD_SIZE_MB` | `50` | Limit dokumentu w knowledge base i liczba, z której wyprowadzany jest opisany niżej sufit całego żądania. Dokument tej wielkości jest dzielony na chunki i embedowany, a nie trzymany w jednym kawałku |
 | `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | Co można załączyć w czacie. Ma własne ustawienie zamiast tego powyżej, bo załącznik do agenta bez workspace'u jest wklejany w całości do promptu — więc obie powierzchnie zawodzą inaczej przy tym samym rozmiarze. Kiedyś było to zahardkodowane 10 MiB, którego żaden operator nie mógł podnieść ([#498](https://github.com/vstorm-co/agenticos/issues/498)); kontener frontendu czyta ten sam `CHAT_MAX_UPLOAD_SIZE_MB` w czasie działania, więc daj obu kontenerom jedną wartość albo composer odrzuci plik, który serwer by przyjął |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Co **obcy** może przesłać na hostowaną stronę. Sufit nałożony na `CHAT_MAX_UPLOAD_SIZE_MB`, nigdy sposób na jego obejście |
+| `ML_MAX_UPLOAD_SIZE_MB` | `25` | Ile może wysłać jedno wywołanie [usług ML](ml-services.md) — dokument do sparsowania, skan do rozpoznania, nagranie do transkrypcji. Własne ustawienie, bo bajty są parsowane albo wysyłane do silnika w obrębie jednego żądania, a nie zapisywane, więc limit dotyczy tego, ile może zająć pojedyncze synchroniczne wywołanie. Stoi na 25 MB klienta transkrypcji, najniższym limicie silnika za tą powierzchnią |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na które może wskazywać self-hostowana usługa pamięci mem0. `base_url` pochodzi ze speca agenta, więc bez allowlisty Builder, który może podpiąć (ale nie odczytać) współdzielony klucz mem0, mógłby wycelować go we własny serwer i przechwycić klucz z nagłówka żądania. Pusta wartość odrzuca self-hostowane mem0 i dopuszcza wyłącznie zarządzaną chmurę; dodaj zaufaną nazwę hosta, aby włączyć wdrożenie self-hosted. Zobacz [sekrety](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Rozmiar dedykowanej puli wątków, która wykonuje blokującą pracę na plikach — parsowanie uploadu oraz odczyt i zapis jego bajtów. Trzymana poza domyślnym współdzielonym executorem `asyncio`, który obsługuje też `bcrypt` i DNS przypiętych hostów, żeby fala uploadów nie zostawiła logowania i wychodzących żądań w kolejce za nimi ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Podnieś ją na hoście, który parsuje wiele uploadów naraz. Musi być dodatnią liczbą całkowitą — `0` lub wartość ujemna zostaje odrzucona przy starcie |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Miesięczny sufit wydatków, z którym startuje **nowa** organizacja, w USD, żeby nie była o jednego rozbieganego agenta od zaskakującego rachunku. Obowiązuje tylko przy tworzeniu; istniejące organizacje pozostają nietknięte i każdej organizacji można później wyczyścić limit. Musi być dodatni; zostaw **pusty**, aby organizacje startowały bez limitu (starsza postawa opt-in) |
@@ -885,6 +886,7 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
+| `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

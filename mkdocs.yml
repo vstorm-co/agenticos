@@ -286,6 +286,7 @@ nav:
           - howto/use-ratings.md
   - Reference:
       - api.md
+      - ml-services.md
       - configuration.md
       - commands.md
       - reference/spec.md

@@ -88,6 +88,7 @@ from app.services.ws_auth import authenticate_socket_token
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.local_service import LocalServiceService
+from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
@@ -146,6 +147,13 @@ def get_local_service_service(db: DBSession) -> LocalServiceService:
 
 
 LocalServiceSvc = Annotated[LocalServiceService, Depends(get_local_service_service)]
+
+
+def get_ml_service(db: DBSession) -> MLService:
+    return MLService(db)
+
+
+MLSvc = Annotated[MLService, Depends(get_ml_service)]
 
 
 def get_conversation_share_service(db: DBSession) -> ConversationShareService:
@@ -658,6 +666,27 @@ async def limit_agent_run(ctx: Auth) -> None:
         limit=rate_limit.run_limit(),
     )
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
+
+
+async def limit_ml_call(ctx: Auth) -> None:
+    """Refuse a caller asking the ML services for more than their share.
+
+    Keyed on the caller for the reason the run limit is: this surface is
+    authenticated, so there is a subject to count, and an integration behind one
+    address is not a crowd. What it bounds is different, though - the ML
+    endpoints do their work synchronously, so an unbounded caller occupies the
+    parsing pool and the worker rather than spending a budget.
+
+    Usage::
+
+        @router.post("/documents/ocr", dependencies=[Depends(limit_ml_call)])
+    """
+    decision = await rate_limit.consume(
+        surface="ml_call",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.ml_limit(),
+    )
+    _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
 
 
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
