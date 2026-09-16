@@ -43,6 +43,12 @@ class TestMonthlySpend:
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("2.5")),
             ) as ingestion,
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
         ):
             total = await organization_monthly_spend(MagicMock(), organization_id)
 
@@ -68,13 +74,19 @@ class TestTheRefusal:
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal(0)),
             ),
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
         )
 
     async def test_a_spent_cap_refuses_with_both_numbers(self):
         """The refusal names the ceiling and what was spent against it, exactly
         as a stopped run would - one message wherever a budget binds."""
-        org, runs, ingestion = self._repos(_org(Decimal("40")), Decimal("40"))
-        with org, runs, ingestion, pytest.raises(BudgetExceeded) as exc:
+        org, runs, ingestion, purged = self._repos(_org(Decimal("40")), Decimal("40"))
+        with org, runs, ingestion, purged, pytest.raises(BudgetExceeded) as exc:
             await assert_organization_within_budget(MagicMock(), uuid.uuid4())
 
         assert exc.value.scope is BudgetScope.ORGANIZATION
@@ -83,15 +95,15 @@ class TestTheRefusal:
     async def test_the_default_cap_a_new_org_starts_with_is_enforced(self):
         """A fresh org's $100 default is a real ceiling, not a displayed
         suggestion: the same guard refuses it once the month reaches it (#785)."""
-        org, runs, ingestion = self._repos(_org(Decimal("100")), Decimal("100"))
-        with org, runs, ingestion, pytest.raises(BudgetExceeded) as exc:
+        org, runs, ingestion, purged = self._repos(_org(Decimal("100")), Decimal("100"))
+        with org, runs, ingestion, purged, pytest.raises(BudgetExceeded) as exc:
             await assert_organization_within_budget(MagicMock(), uuid.uuid4())
 
         assert exc.value.limit_usd == Decimal("100")
 
     async def test_an_organization_under_its_cap_passes(self):
-        org, runs, ingestion = self._repos(_org(Decimal("40")), Decimal("39.99"))
-        with org, runs, ingestion:
+        org, runs, ingestion, purged = self._repos(_org(Decimal("40")), Decimal("39.99"))
+        with org, runs, ingestion, purged:
             await assert_organization_within_budget(MagicMock(), uuid.uuid4())
 
     async def test_no_cap_means_no_check_and_no_spend_query(self):

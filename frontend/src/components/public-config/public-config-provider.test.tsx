@@ -25,6 +25,8 @@ describe("usePublicConfig", () => {
       siteUrl: "https://console.acme.example",
       chatMaxUploadSizeMb: 25,
       oauthProviders: ["github", "microsoft"],
+      oidcDisplayName: "SSO",
+      oidcIcon: null,
     };
 
     render(
