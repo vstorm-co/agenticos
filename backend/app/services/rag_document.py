@@ -378,22 +378,22 @@ class RAGDocumentService:
         holds the claim" rule one layer up (Decision 3).
         """
         doc = await self.get_document(doc_id)
-        if attempt != doc.ingestion_attempt:
-            logger.info(
-                "Ignoring a stale ingestion settlement for %s: attempt %d, current %d",
-                doc_id,
-                attempt,
-                doc.ingestion_attempt,
-            )
-            return
-        await rag_document_repo.update_status(
+        updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
             status=DocumentStatus.DONE,
             vector_document_id=vector_document_id,
             chunk_count=chunk_count,
             completed_at=datetime.now(UTC),
+            expected_attempt=attempt,
         )
+        if updated is None:
+            logger.info(
+                "Ignoring a stale ingestion settlement for %s: attempt %d no longer current",
+                doc_id,
+                attempt,
+            )
+            return
         if replaced_document_id:
             await self._retire_superseded(
                 collection_name=doc.collection_name,
@@ -452,21 +452,21 @@ class RAGDocumentService:
         ignored rather than overwriting a newer attempt's own outcome.
         """
         doc = await self.get_document(doc_id)
-        if attempt != doc.ingestion_attempt:
-            logger.info(
-                "Ignoring a stale ingestion settlement for %s: attempt %d, current %d",
-                doc_id,
-                attempt,
-                doc.ingestion_attempt,
-            )
-            return
-        await rag_document_repo.update_status(
+        updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
             status=DocumentStatus.ERROR,
             error_message=error_message,
             completed_at=datetime.now(UTC),
+            expected_attempt=attempt,
         )
+        if updated is None:
+            logger.info(
+                "Ignoring a stale ingestion settlement for %s: attempt %d no longer current",
+                doc_id,
+                attempt,
+            )
+            return
         await NotificationService(self.db).ingestion_failed(
             doc, attempt=attempt, error_message=error_message
         )
