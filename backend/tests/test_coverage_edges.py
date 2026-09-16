@@ -239,9 +239,8 @@ class TestRunNotifications:
 
         # Only what is still waiting: naming a decided call would send somebody
         # to a queue with nothing in it.
-        assert notifications.return_value.approval_requested.call_args.kwargs["tools"] == [
-            "send_email"
-        ]
+        passed = notifications.return_value.approval_requested.call_args.kwargs["approvals"]
+        assert [approval.tool_id for approval in passed] == ["send_email"]
 
     @pytest.mark.anyio
     async def test_a_web_run_notifies_nobody_even_when_it_completes_or_fails(self):
