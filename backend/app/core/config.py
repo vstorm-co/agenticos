@@ -61,6 +61,21 @@ class Settings(BaseSettings):
     # from an address nobody knows. It is a ceiling on top of the allowlist and
     # the chat path's own ceiling, never a way past either.
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
+    # What one call to the standalone ML services may submit - a document to
+    # parse, a scan to recognise, a recording to transcribe. Its own number
+    # because the work is different in kind from storing a file: the bytes are
+    # parsed or sent to an engine inside one request rather than written down,
+    # so the ceiling is about what a single synchronous call may occupy. It sits
+    # at the transcription client's own 25 MB, which is the smallest engine
+    # ceiling behind this surface and so the first one a larger file would meet.
+    ML_MAX_UPLOAD_SIZE_MB: int = 25
+    # How many documents this worker parses at once for the ML services. The
+    # rate limit counts starts and cannot see what is still running, so without
+    # this a minute's allowance of OCR calls is that many recognitions in flight,
+    # each of them minutes of CPU. Over it, a caller is refused with a
+    # `Retry-After` rather than queued: a caller told to come back can, and one
+    # parked behind four minutes of other people's scans has already given up.
+    ML_MAX_CONCURRENT_PARSES: int = 4
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     # Size of the dedicated thread pool that runs blocking file work - parsing an
@@ -310,6 +325,12 @@ class Settings(BaseSettings):
     # address bounds a brute force against one account. Low, because a person
     # signing in does it a handful of times and a script does it thousands.
     RATE_LIMIT_AUTH_PER_MINUTE: int = 10
+    # How many ML service calls one caller gets per minute. These are the
+    # heaviest synchronous endpoints on the API - an OCR pass is CPU-bound
+    # seconds on a thread, a transcription is a call to somebody else's engine -
+    # so the ceiling is about what one integration can do to a worker, not about
+    # what a stranger can reach: this surface is authenticated.
+    RATE_LIMIT_ML_PER_MINUTE: int = 30
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
