@@ -3,10 +3,12 @@
 One module owns the question "what has this organization spent", over the calendar
 month a cap is metered on or the window a report covers - because two answers is
 how the number a budget enforces drifts from the number a dashboard shows, or the
-one an email bills. The total is runs plus ingestion: an agent's model requests
-and knowledge-search embeddings land on `agent_runs.cost_usd`, and what a
+one an email bills. The total is runs plus ingestion plus what a purged run spent: an agent's model
+requests and knowledge-search embeddings land on `agent_runs.cost_usd`, what a
 worker spends embedding and describing documents lands on `ingestion_spend` -
-the half of the bill no run carries.
+the half of the bill no run carries - and a run a retention sweep hard-deleted
+leaves its month's figure on `purged_run_spend`, because a bill that fell as
+history was retired would be a cap that stopped enforcing (#1420).
 
 `assert_organization_within_budget` is the same decision
 :class:`~app.agents.capabilities.budget.BudgetGuard` makes before a model
@@ -23,7 +25,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.repositories import agent_run_repo, ingestion_spend_repo, organization_repo
+from app.repositories import (
+    agent_run_repo,
+    ingestion_spend_repo,
+    organization_repo,
+    retention_repo,
+)
 
 
 def month_start(now: datetime | None = None) -> datetime:
@@ -63,7 +70,14 @@ async def organization_spend_since(
     ingestion_spend = await ingestion_spend_repo.sum_cost_since(
         db, organization_id=organization_id, since=since
     )
-    return run_spend + ingestion_spend
+    # And what runs a retention sweep already removed spent. Without this term an
+    # organization on a thirty-day run retention watches its month-to-date fall
+    # to zero on the thirty-first, and a cap metered on the figure stops
+    # enforcing for the rest of the month (#1420).
+    purged_spend = await retention_repo.sum_purged_cost_since(
+        db, organization_id=organization_id, since=since
+    )
+    return run_spend + ingestion_spend + purged_spend
 
 
 async def organization_monthly_spend(

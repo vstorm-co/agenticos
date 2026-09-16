@@ -79,4 +79,25 @@ describe("readPublicConfig", () => {
   it("offers Google when no provider list is set at all", () => {
     expect(readPublicConfig({}).oauthProviders).toEqual(["google"]);
   });
+
+  it("accepts the generic OIDC provider, which has no mark of its own (#1419)", () => {
+    expect(readPublicConfig({ OAUTH_PROVIDERS: "oidc,google" }).oauthProviders).toEqual([
+      "oidc",
+      "google",
+    ]);
+  });
+
+  it("calls the generic provider SSO until the deployment names it", () => {
+    expect(readPublicConfig({}).oidcDisplayName).toBe("SSO");
+    expect(readPublicConfig({ OIDC_DISPLAY_NAME: "  " }).oidcDisplayName).toBe("SSO");
+    expect(readPublicConfig({ OIDC_DISPLAY_NAME: " Acme SSO " }).oidcDisplayName).toBe("Acme SSO");
+  });
+
+  it("takes the generic provider's mark from the auth glyph table, or none", () => {
+    // A mark is decoration, and a sign-in page that will not render because a
+    // deployment typed a logo name wrong is worse than a page drawing a key.
+    expect(readPublicConfig({ OIDC_ICON: "Microsoft" }).oidcIcon).toBe("microsoft");
+    expect(readPublicConfig({ OIDC_ICON: "keycloak" }).oidcIcon).toBeNull();
+    expect(readPublicConfig({}).oidcIcon).toBeNull();
+  });
 });

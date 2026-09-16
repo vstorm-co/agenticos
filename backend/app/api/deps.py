@@ -88,6 +88,7 @@ from app.services.ws_auth import authenticate_socket_token
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.local_service import LocalServiceService
+from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
@@ -146,6 +147,13 @@ def get_local_service_service(db: DBSession) -> LocalServiceService:
 
 
 LocalServiceSvc = Annotated[LocalServiceService, Depends(get_local_service_service)]
+
+
+def get_ml_service(db: DBSession) -> MLService:
+    return MLService(db)
+
+
+MLSvc = Annotated[MLService, Depends(get_ml_service)]
 
 
 def get_conversation_share_service(db: DBSession) -> ConversationShareService:
@@ -260,9 +268,20 @@ def get_file_upload_service(db: DBSession) -> FileUploadService:
 FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
 from app.repositories import member_repo, organization_repo
 from app.services.organization import OrganizationService
+from app.services.retention import RetentionService
 from app.services.member import MemberService
 from app.services.invitation import InvitationService
 from app.services.invitation_staging import InvitationStagingService
+
+
+def get_retention_service(db: DBSession) -> RetentionService:
+    """Retention as a request sees it: read and change, never sweep.
+
+    The sweep is the flow's, and it is the flow that injects the vector remover
+    a document purge needs - so a request that somehow reached `sweep()` would
+    report the document class as failed rather than half-purge it.
+    """
+    return RetentionService(db)
 
 
 def get_organization_service(db: DBSession) -> OrganizationService:
@@ -286,6 +305,7 @@ def get_invitation_staging_service(redis: Redis) -> InvitationStagingService:
 
 
 OrganizationSvc = Annotated[OrganizationService, Depends(get_organization_service)]
+RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
@@ -658,6 +678,27 @@ async def limit_agent_run(ctx: Auth) -> None:
         limit=rate_limit.run_limit(),
     )
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
+
+
+async def limit_ml_call(ctx: Auth) -> None:
+    """Refuse a caller asking the ML services for more than their share.
+
+    Keyed on the caller for the reason the run limit is: this surface is
+    authenticated, so there is a subject to count, and an integration behind one
+    address is not a crowd. What it bounds is different, though - the ML
+    endpoints do their work synchronously, so an unbounded caller occupies the
+    parsing pool and the worker rather than spending a budget.
+
+    Usage::
+
+        @router.post("/documents/ocr", dependencies=[Depends(limit_ml_call)])
+    """
+    decision = await rate_limit.consume(
+        surface="ml_call",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.ml_limit(),
+    )
+    _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
 
 
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:

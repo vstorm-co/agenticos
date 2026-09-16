@@ -617,6 +617,12 @@ class TestPrepare:
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("0")),
             ),
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
         ):
             spent = await built["org_period_spend"]()
 
@@ -678,6 +684,12 @@ class TestPrepare:
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("0")),
             ),
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
         ):
             await built["agent_period_spend"]()
             agent_scoped = total.call_args.kwargs
@@ -723,6 +735,12 @@ class TestSpendReporting:
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("2.5")),
             ) as ingested,
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
         ):
             spent = await AgentRunnerService(_db()).monthly_spend(ctx)
 
