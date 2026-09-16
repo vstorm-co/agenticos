@@ -11,6 +11,12 @@ import { readPublicConfig } from "@/lib/public-config";
  * never the token - as a query the backend peeks for admission on an `invite_only`
  * deployment. A sign-in with no staged invitation carries none, and the handle is
  * peeked, so it still closes the acceptance after the round trip.
+ *
+ * The desktop shell relies on this hop happening *in its webview*, where the
+ * cookie exists, and intercepts the redirect this produces rather than the
+ * request to here - so an invitee signing in from the app arrives at the browser
+ * with the handle already attached. It appends its own `client=desktop` there,
+ * which is why nothing about the shell is known to this route (#1532).
  */
 const PROVIDERS = new Set(["google", "github", "microsoft", "oidc"]);
 

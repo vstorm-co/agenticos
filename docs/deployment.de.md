@@ -1,5 +1,5 @@
 ---
-source_sha: "120ab0941f7c"
+source_sha: "31e3e2845403"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -79,6 +79,19 @@ Bild existiert und wann es sich zuletzt geändert hat. Das daraus gebaute `?v=`
 ist der einzige Grund, weshalb ein Ersatz überhaupt jemals sichtbar wird. Eine
 URL wäre zudem eine, die jeder Client umschreiben müsste, denn in jedem echten
 Deployment liegt die API nicht auf derselben Origin wie die Seiten.
+
+## Ein Deployment in einer konformen Umgebung { #a-deployment-inside-a-compliant-environment }
+
+`deploy/profiles/hipaa/` ist eine meinungsstarke Konfiguration für den Betrieb
+dort, wo HIPAAs technische Sicherungen gelten - ein Compose-Overlay, das ohne die
+Einstellungen, die es nicht vorbelegen kann, nicht startet, und eine kommentierte
+Env-Datei - plus `agenticos cmd doctor --profile hipaa`, das ein laufendes
+Deployment dagegen prüft und bei jeder unerfüllten Kontrolle ungleich null endet.
+
+Es ist ein Beleg, keine Zertifizierung, und beantwortet allein §164.312: die
+administrativen und physischen Sicherungen gehören der Betreiberin. Siehe
+[Das HIPAA-Profil](security.md#the-hipaa-profile-and-what-it-does-not-claim) für
+das Blatt und für den Satz dazu, wer die Business Associate ist.
 
 ## Security-Header { #security-headers }
 

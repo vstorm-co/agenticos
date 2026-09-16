@@ -1,5 +1,5 @@
 ---
-source_sha: "120ab0941f7c"
+source_sha: "31e3e2845403"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -74,6 +74,19 @@ i kiedy ostatnio się zmienił; zbudowane z tego `?v=` jest jedynym powodem, dla
 którego podmiana w ogóle się pojawia. URL byłby dodatkowo czymś, co każdy klient
 musiałby przepisywać, bo w każdym prawdziwym wdrożeniu API nie stoi na tym samym
 origin co strony.
+
+## Wdrożenie wewnątrz zgodnego środowiska { #a-deployment-inside-a-compliant-environment }
+
+`deploy/profiles/hipaa/` to opiniotwórcza konfiguracja do uruchamiania tego tam,
+gdzie obowiązują techniczne zabezpieczenia HIPAA — overlay compose odmawiający
+startu bez ustawień, których nie może domyślnie przyjąć, i opisany plik env —
+plus `agenticos cmd doctor --profile hipaa`, który sprawdza działające wdrożenie
+względem niej i kończy się niezerowo przy każdej niespełnionej kontroli.
+
+To dowód, a nie certyfikacja, i odpowiada wyłącznie na §164.312: zabezpieczenia
+administracyjne i fizyczne należą do operatora. Zobacz
+[Profil HIPAA](security.md#the-hipaa-profile-and-what-it-does-not-claim), gdzie
+jest arkusz i zdanie o tym, kto jest business associate.
 
 ## Nagłówki bezpieczeństwa { #security-headers }
 

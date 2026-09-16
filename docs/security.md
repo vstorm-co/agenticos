@@ -111,6 +111,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Governance-relevant mutations recorded, in the request's transaction | `record_audit` (`app/core/audit.py`) at the mutating service — secret rotation, skill / sync / MCP binding, membership, sharing, approvals, exports and more; written to `app_admin_audit_logs`. It is not blanket coverage of every write (knowledge-base CRUD, for one, is not audited) | `test_skill_binding_audit.py`, `test_sync_source_audit.py` |
 | The trail is readable by an auditor | `GET /audit`, gated on `audit:read` (`app/services/audit.py`) | `test_audit_service.py` |
 | Exporting the trail (CSV/JSONL) | `GET /audit/export` over a window, gated on `audit:read`, recording its own read in the trail; the run, approval and spend exports each do the same (#1422) | `test_exporting.py` (the export and its own audit entry) |
+| An audit period an organization can lengthen and never shorten | A deployment-wide floor (six years by default, HIPAA §164.316(b)(2)); a shorter period is refused rather than raised. The sweep does **not** delete audit entries - the hash chain and its checkpoint are built on entries staying, so retiring one verifiably is [#1622](https://github.com/vstorm-co/agenticos/issues/1622) (`app/core/retention.py`). See [Retention](governance.md#retention) | `test_retention.py::TestWhichNumberWins`, `::test_audit_resolves_to_a_period_and_is_still_not_swept` |
 | Tamper evidence (a hash chain) | **Not yet** — [#1622](https://github.com/vstorm-co/agenticos/issues/1622) | — |
 
 ### Integrity · HIPAA §164.312(c) · SOC 2 CC8 (change management)
@@ -120,6 +121,8 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | A spec is refused at publish, never at run time | `validate_spec` (`app/services/agent_registry.py`) — unknown capability, ungranted scope, wrong-kind or cross-org `secret_id`, a personal MCP connection | `test_agent_registry.py`, `test_capability_secrets.py::TestPublishValidation` |
 | A budget is checked before the model request, and cost recorded even on failure | `BudgetGuard.wrap_model_request` gates before the call (`app/agents/capabilities/budget/`); the run's cost is written in a terminal `finally` (`app/services/agent_runner.py`) | `test_spend.py::TestBudgetGuard`, `test_agent_runner.py::…::test_a_failed_run_still_records_its_cost` |
 | An approval is decided exactly once | `ApprovalService.decide` refuses a non-pending row read `for_update` (`app/services/approvals.py`) | `test_approvals_queue.py::TestDecidingTwiceIsRefused` |
+| Data is deleted on a schedule, per class and per organization | A daily sweep hard-deletes conversations, runs, workspaces, memory and uploaded documents past their period, recording counts and never content (`app/services/retention.py`, `app/worker/tasks/rag_tasks.py`). See [Retention](governance.md#retention) | `test_retention.py`, `tests/integration/test_retention_sweep.py` |
+| A purged run still counts toward the month's bill | The sweep keeps a per-month total on `purged_run_spend` before the rows go, summed by `app/services/spend.py` — otherwise a cap metered on the figure stops enforcing mid-month | `tests/integration/test_retention_sweep.py::TestWhatSurvives` |
 
 ### Confidentiality of credentials · HIPAA §164.312(a)(2)(iv)
 
@@ -146,6 +149,71 @@ artifact on each backend run (#1417) — so the refusals can be counted and read
 not taken on trust. A test whose name or module mentions a tenant, a permission,
 a budget, an approval, a secret or plaintext but lacks the marker fails
 `tests/test_security_marker.py`, which keeps the list complete as the suite grows.
+
+## The HIPAA profile, and what it does not claim
+
+A security review does not ask "is this software compliant". HHS certifies no
+software and OCR recognises no private certification. It asks **can we run this
+inside our compliant environment, and can you prove it** - and the answer is a
+configuration shipped with the product plus a command that checks a running
+deployment against it (#1448).
+
+```bash
+uv run agenticos cmd doctor --profile hipaa
+```
+
+One row per control, each naming the setting that satisfies it or the one that
+does not, and a non-zero exit on any failure so it can run in a client's own CI.
+The configuration is `deploy/profiles/hipaa/`: a compose overlay that refuses to
+start without the settings it cannot default, and an annotated env file.
+
+**Read this line in the same breath as the profile.** It answers the
+**technical** safeguards, §164.312, and only those. Administrative safeguards
+(§164.308 - risk analysis, workforce training, a sanction policy, a contingency
+plan, business associate agreements) and physical safeguards (§164.310) belong
+to the operator and always will. A profile implying otherwise would be a claim
+nobody can support.
+
+### The sheet
+
+| Control | Safeguard | Satisfied by |
+|---|---|---|
+| `postgres-tls` | §164.312(e)(1) | `POSTGRES_SSLMODE=verify-full`. `require` encrypts and verifies no certificate, so the profile does not accept it |
+| `redis-tls` | §164.312(e)(1) | `REDIS_SSL=true`. Both stores must be your own: the repository's bundled `db` and `redis` have no TLS listener, so the overlay refuses to start without `POSTGRES_HOST` and `REDIS_HOST` |
+| `browser-tls` | §164.312(e)(1) | `FRONTEND_URL` and `PUBLIC_BASE_URL` on https, with your reverse proxy terminating it. Attested, and an http address here is **refused**: every other control can pass while a sign-in crosses the client boundary in plaintext |
+| `vault-key` | §164.312(a)(2)(iv) | A vault master key of at least 64 characters. HKDF derives a correctly sized wrapping key from anything and cannot add entropy to a guessable secret |
+| `content-at-rest` | §164.312(a)(2)(iv) | **The operator's.** Postgres data, the media volume and the sandbox workspace root are encrypted by a volume or a disk, not by this application |
+| `local-model` | §164.312(e)(1) | Every model profile served from your own network. The **hostname** is parsed - a private address, `localhost`, a bare `ollama`/`litellm`/`vllm`, or a `.internal`/`.local`/`.svc` name - so `https://ollama.vendor.example` is not local, and one with no `base_url` is the vendor's public API by definition |
+| `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset, **and** no published agent or named environment carrying a tracing token of its own - each attaches an exporter, and `observability.content` defaults to `full` |
+| `sso` | §164.312(d) | `OIDC_ISSUER`. **Not available yet** - generic OIDC sign-in is [#1419](https://github.com/vstorm-co/agenticos/issues/1419), so this control is unmet on any deployment today, which is the truth about one where people sign in with passwords. Multi-factor authentication is the identity provider's, and the sheet says so rather than claiming it |
+| `signup` | §164.312(a)(1) | `invite_only` or `closed` |
+| `audit-retention` | §164.312(b) | An audit floor of at least 2190 days - §164.316(b)(2)'s six years |
+| `audit-chain` | §164.312(c)(1) | The hash chain and its checkpoint. Detection, not prevention - see [Audit controls](#audit-controls-hipaa-164312b-soc-2-cc7) |
+
+Three outcomes, and the middle one carries weight. `ok` and `!!` are this code's
+answers. `--` is a control that is genuinely the operator's, **named** rather
+than quietly passed - a sheet that skipped what it cannot see would read as
+complete and would not be - and it does not fail the command, because a control
+nobody can evidence from here is one nobody could ever pass.
+
+### Who is the business associate
+
+A client running this on their own infrastructure gets software. Nobody here
+touches their PHI, and no agreement is needed. A deployment somebody else
+operates for them makes that operator a business associate, which is a contract
+and not a configuration flag.
+
+### Why the profile defaults to a local model
+
+A hosted model takes the content of every run with it, so using one means an
+agreement with that vendor - and those agreements are narrower than people
+expect. A HIPAA-enabled organization at a major vendor typically excludes code
+execution and web fetch, which is the exact shape of the `sandbox`,
+`code_execution` and `web_fetch` capabilities here. A client who signs one and
+then builds an agent on those capabilities finds out during an incident.
+
+Local inference removes the question, which is why it is the profile's default
+rather than a suggestion.
 
 ## Recap
 

@@ -28,12 +28,26 @@ from __future__ import annotations
 from uuid import UUID
 
 __all__ = [
+    "INDEX_NAME",
     "PERSON_PREFIX",
     "ROOM_PREFIX",
     "is_person_key",
     "person_owner_key",
     "room_owner_key",
 ]
+
+INDEX_NAME = "MEMORY.md"
+"""The note an agent keeps its index in, and the one spliced into every request.
+
+Here for the same reason the prefixes are: the toolset that reads it, the
+capability that splices it and the service that prunes a suppressed note's line
+out of it all need the name, and every other home for it is an import cycle -
+`app.services.memory` imports the capability package, which imports the toolset,
+which imports `app.services.memory` (#1594 review).
+
+It is otherwise an ordinary note: created, read, edited and deleted with the same
+tools as any other.
+"""
 
 PERSON_PREFIX = "person:"
 ROOM_PREFIX = "room:"

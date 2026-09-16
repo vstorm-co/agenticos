@@ -77,6 +77,7 @@ class SecretKind(StrEnum):
     AWS_CREDENTIALS = "aws_credentials"
     GCP_SERVICE_ACCOUNT = "gcp_service_account"
     GITHUB_OAUTH_APP = "github_oauth_app"
+    GITHUB_APP = "github_app"
     GOOGLE_OAUTH_APP = "google_oauth_app"
 
 
@@ -278,6 +279,51 @@ class GithubOAuthAppSecret(_SecretBase):
         return self.client_id[-4:]
 
 
+class GithubAppSecret(_SecretBase):
+    """A GitHub App's identity: its id, its private key and its webhook secret.
+
+    A different kind from `github_oauth_app` and not a variant of it, because the
+    two authorise differently rather than differently-shaped. An OAuth App holds
+    a token scoped to the *person* who consented - `repo` and `admin:repo_hook`,
+    read-write on every repository that account can administer, and no expiry at
+    all. An App is *installed* on chosen repositories with chosen permissions,
+    and its access is a token minted from this private key that lives an hour
+    (#1072).
+
+    All three fields are credentials. The app id is public in the sense that it
+    appears in the App's settings page, but it is useless without the key and
+    there is nothing gained by treating it as a hint - so the hint is the last
+    four of the app id, which is what names the App on that page.
+    """
+
+    kind: Literal[SecretKind.GITHUB_APP] = SecretKind.GITHUB_APP
+    app_id: str = Field(
+        min_length=1,
+        max_length=32,
+        title="App ID",
+        description="The numeric App ID from the App's settings page",
+    )
+    private_key: CredentialStr = Field(
+        title="Private key",
+        description="The PEM the App's settings page generated. Signs the JWT that mints installation tokens",
+        # The one multi-line secret in this file, and it has to say so. The vault
+        # form is generated from this schema, and a `CredentialStr` alone renders
+        # as `<input type="password">` - where a browser strips the line breaks
+        # out of the value, collapsing the PEM's header, body and footer into a
+        # key `jwt.encode` cannot use. The failure then surfaces an hour later as
+        # an installation token that will not mint (#1072).
+        json_schema_extra={"x-textarea": True},
+    )
+    webhook_secret: CredentialStr = Field(
+        title="Webhook secret",
+        description="The secret configured on the App. One App, one webhook URL, one secret for every installation",
+    )
+
+    @property
+    def hint(self) -> str:
+        return self.app_id[-4:]
+
+
 class GoogleOAuthAppSecret(_SecretBase):
     """A Google OAuth client's credentials: a public client id and a secret.
 
@@ -315,6 +361,7 @@ StorableSecret = Annotated[
     | AwsCredentialsSecret
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
+    | GithubAppSecret
     | GoogleOAuthAppSecret,
     Field(discriminator="kind"),
 ]
@@ -327,6 +374,7 @@ SecretValue = Annotated[
     | AwsCredentialsSecret
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
+    | GithubAppSecret
     | GoogleOAuthAppSecret,
     Field(discriminator="kind"),
 ]
@@ -406,6 +454,7 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.AWS_CREDENTIALS: AwsCredentialsSecret,
     SecretKind.GCP_SERVICE_ACCOUNT: GcpServiceAccountSecret,
     SecretKind.GITHUB_OAUTH_APP: GithubOAuthAppSecret,
+    SecretKind.GITHUB_APP: GithubAppSecret,
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
 }
 
@@ -427,6 +476,12 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
         "GitHub OAuth App",
         "A GitHub OAuth App's client id and secret, used to connect a GitHub "
         "account for repository webhooks.",
+    ),
+    SecretKind.GITHUB_APP: (
+        "GitHub App",
+        "A GitHub App's id, private key and webhook secret. Installed on chosen "
+        "repositories with scoped permissions, and delivering without a "
+        "per-repository hook.",
     ),
     SecretKind.GOOGLE_OAUTH_APP: (
         "Google OAuth client",

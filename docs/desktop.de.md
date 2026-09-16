@@ -1,5 +1,5 @@
 ---
-source_sha: "2a08473da582"
+source_sha: "04d344a0f5a0"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -199,13 +199,67 @@ keine Aufnahme verdrahtet.
   "Shell → Change server…" ist der Weg zurück, wenn eine Seite keinen Link nach
   Hause hat. Diese Abläufe in den Systembrowser zu verlegen ist
   [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
-- **Die Anmeldung bleibt im Fenster, und das Fenster sagt, es sei Safari.**
-  WebKits nackter User Agent ist das, was Google als eingebetteten Browser
-  ablehnt (`disallowed_useragent`); das Konsolenfenster trägt Safaris
-  Versions-Token auf derselben Engine, sodass die Google-Anmeldung funktioniert.
-  Die Übergabe, die Google bevorzugt - der Systembrowser und ein Deep Link
-  zurück - braucht einen einmaligen Austausch, den das Backend noch nicht hat,
-  und ist [#1532](https://github.com/vstorm-co/agenticos/issues/1532).
+- **Die Anmeldung verlässt das Fenster, absichtlich.** WebKits nackter User Agent
+  ist das, was Google als eingebetteten Browser ablehnt (`disallowed_useragent`),
+  und die Antwort, die seine Richtlinie verlangt, ist der Systembrowser statt
+  eines User Agents, der behauptet, einer zu sein. Siehe unten.
+
+## Anmelden { #signing-in }
+
+Die eine Navigation, die das Konsolenfenster verweigert. Alles andere lädt im
+Fenster; ein Klick auf **Continue with Google** öffnet stattdessen Ihren eigenen
+Browser, und das Ergebnis kommt zur App zurück (#1532).
+
+Was der Reihe nach passiert:
+
+1. Das eigene `/api/oauth/<Anbieter>/login` der Konsole läuft **im Fenster**, wo
+   sich das httpOnly-Cookie mit einer hinterlegten Einladung lesen und anhängen
+   lässt. Die Hülle fängt diesen Sprung genau deshalb nicht ab, damit ein
+   Eingeladener, der sich aus der App anmeldet, von einem `invite_only`-Deployment
+   nicht abgewiesen wird.
+2. Das Fenster sieht dann eine Navigation zum `/api/v1/oauth/<Anbieter>/login` des
+   *Deployments*, übergibt sie mit angehängtem `client=desktop` und einer frisch
+   geprägten `desktop_nonce` an den Systembrowser und folgt ihr nicht. Nichts in
+   der Konsole weiß, dass sie in einer Hülle läuft, und muss es nicht.
+3. Sie melden sich dort an, in einem echten Browser, mit Ihren Passwörtern, Ihren
+   Erweiterungen und welchem zweiten Faktor auch immer.
+4. Der Callback des Deployments sieht, dass dieser Versuch ein Desktop-Versuch war
+   - beim *Start* in der Sitzung vermerkt, unter dem `state` genau dieses
+   Versuchs, nie vom Rückweg gelesen - und leitet auf
+   `agenticos://auth/callback?code=…` um, mit einem Einmalcode, der nach einer
+   Minute abläuft, samt der übergebenen Nonce.
+5. Das Betriebssystem reicht diesen Link an die App. Die Hülle schickt das
+   Konsolenfenster auf `<Ihr Server>/auth/callback?code=…`, die Seite, die es
+   ohnehin gibt: sie tauscht den Code Server-zu-Server gegen das Tokenpaar, und
+   die eigenen Cookies des Fensters werden gesetzt. Der Cookie-Speicher des
+   Browsers bleibt außen vor, worum es geht.
+
+**Einen Deep Link kann jeder Prozess auf Ihrem Rechner auslösen**, deshalb ist
+eng gefasst, was einer hier darf: die Konsole auf *einen* Pfad schicken, auf dem
+Server, den *Sie* konfiguriert haben, mit einem Code, der genau einmal eingelöst
+wird. Er kann keine Adresse benennen, und eine zweite Verwendung antwortet mit
+401.
+
+Es muss außerdem die Anmeldung **dieser** App sein. Die Hülle prägt eine Nonce,
+wenn sie den Browser öffnet, das Deployment gibt sie mit dem Code zurück, und ein
+Link mit irgendeiner anderen wird ignoriert — ein lokaler Prozess mit einem Code
+aus Ihrem Deployment kann Ihr Fenster also nicht in fremde Hände geben. Die Nonce
+wird beim Eintreffen eines Links aus dem Fach genommen, ein Replay desselben Links
+findet demnach nichts mehr.
+
+Zwei Versuche in einem Browser bleiben ebenfalls getrennt: der Vermerk liegt unter
+dem eigenen `state` jedes Versuchs statt einmal pro Sitzung, sodass eine gewöhnliche
+Anmeldung, während eine Desktop-Anmeldung wartet, kein Ergebnis mehr an die falsche
+Stelle schickt.
+
+Unter Windows und Linux startet das Öffnen eines registrierten Schemas die
+ausführbare Datei erneut — während einer Anmeldung also eine zweite Konsole neben
+der wartenden. Die Hülle hält eine Single-Instance-Sperre, und der zweite Prozess
+übergibt seine Argumente an den ersten und beendet sich.
+
+Das Deployment muss beim Schema mitspielen - `DESKTOP_DEEP_LINK_SCHEME`,
+`agenticos`, sofern es niemand geändert hat - und bei seiner eigenen öffentlichen
+Adresse, denn dorthin wird der Browser geschickt und von dort kommt er zurück.
 
 ## Wo sie im Baum liegt { #where-it-sits-in-the-tree }
 
