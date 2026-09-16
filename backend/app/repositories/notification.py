@@ -332,7 +332,11 @@ async def list_failed_deliveries(
     shows - a `NotificationDelivery` row carries neither on its own. The total
     is `count(*) OVER()` on the same statement as the rows, not a second query
     - a window function is evaluated before `LIMIT`/`OFFSET`, so the total is
-    the whole match from the same snapshot the page came from.
+    the whole match from the same snapshot the page came from - *when* a row
+    survives to carry it. `OFFSET` past the last match (`skip` beyond the
+    total) discards every row the window function ran on along with it, so an
+    empty page falls back to a plain `COUNT`: the one shape that still
+    answers "how many" when the page itself has nothing to answer with.
     """
     result = await db.execute(
         select(NotificationDelivery, Notification, func.count().over().label("total"))
@@ -343,5 +347,11 @@ async def list_failed_deliveries(
         .limit(limit)
     )
     rows = result.all()
-    total = rows[0].total if rows else 0
-    return [(row[0], row[1]) for row in rows], total
+    if rows:
+        return [(row[0], row[1]) for row in rows], rows[0].total
+    total = await db.scalar(
+        select(func.count())
+        .select_from(NotificationDelivery)
+        .where(NotificationDelivery.status == DeliveryStatus.FAILED.value)
+    )
+    return [], total or 0

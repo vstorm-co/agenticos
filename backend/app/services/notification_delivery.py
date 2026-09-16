@@ -25,7 +25,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.permissions import ROLE_PERMS, Perm
+from app.core.exceptions import AppException
+from app.core.permissions import ROLE_PERMS, AuthContext, Perm
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.user import User
@@ -73,6 +74,20 @@ _FIXED_EMAIL_KEY: dict[NotificationEventType, EmailKey] = {
     NotificationEventType.USAGE_REPORT: EmailKey.USAGE_REPORT,
     NotificationEventType.AGENT_USAGE_REPORT: EmailKey.USAGE_REPORT,
 }
+
+
+def _safe_send_failure(exc: BaseException) -> str:
+    """The sentence a failed send may store, for an exception it may not -
+    the same rule `app/services/rag/failures.py` applies to a failed ingest.
+    An `AppException` is written in this repository, so its message is a
+    controlled string; anything else is a foreign `__str__`, and a provider
+    SDK's own text routinely carries a host, a bucket or a key in its
+    message. `last_error` is read by an app admin reviewing failed
+    deliveries (`GET /admin/notifications/deliveries`), not only by whoever
+    is already watching the worker log the raw text goes to instead."""
+    if isinstance(exc, AppException):
+        return str(exc)
+    return f"the email provider failed ({type(exc).__name__}). The worker log has the full error."
 
 
 class NotificationDeliveryService:
@@ -149,6 +164,26 @@ class NotificationDeliveryService:
             await self._skip(delivery, claimed_at)
             return "skipped"
 
+        # The same recheck the inbox already applies (Decision 7) - a
+        # `usage_report` queued while its recipient held `runs:view`, or an
+        # ingestion alert queued while they could still see the collection,
+        # must not still be mailed once that permission is gone. `reachable`
+        # above only proves membership survived, not that the specific
+        # content-gate this event type carries still holds. `organization_id`
+        # is a placeholder when the notification itself is deployment-wide
+        # (`gate_for` never reads it for the branches reachable with a null
+        # notification org - `is_app_admin`/`role` alone decide those).
+        ctx = AuthContext(
+            user_id=recipient.id,
+            organization_id=notification.organization_id or uuid.UUID(int=0),
+            role=role or "",
+            is_app_admin=recipient.is_app_admin,
+        )
+        gate = await self._center.gate_for(ctx, notification)
+        if not gate.visible:
+            await self._skip(delivery, claimed_at)
+            return "skipped"
+
         email_key, context = self._render(notification, recipient=recipient, role=role)
 
         try:
@@ -168,11 +203,19 @@ class NotificationDeliveryService:
             await self._fail(delivery, claimed_at, "send timed out")
             return "failed"
         except Exception as exc:
-            await self._fail(delivery, claimed_at, str(exc)[:500])
+            logger.warning(
+                "notification_send_failed",
+                extra={"delivery_id": str(delivery.id), "error": str(exc)},
+            )
+            await self._fail(delivery, claimed_at, _safe_send_failure(exc))
             return "failed"
 
         if not result.accepted:
-            await self._fail(delivery, claimed_at, result.error or "provider rejected the message")
+            logger.warning(
+                "notification_send_rejected",
+                extra={"delivery_id": str(delivery.id), "error": result.error},
+            )
+            await self._fail(delivery, claimed_at, "the email provider rejected the message")
             return "failed"
 
         await notification_repo.settle_delivery(
