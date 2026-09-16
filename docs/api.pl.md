@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd2c8097097"
+source_sha: "bee20df52ff2"
 ---
 
 # API HTTP { #the-http-api }
@@ -76,6 +76,21 @@ wybiera, [które środowisko](environments.md) odpowiada.
 Ta trasa niesie **limit tempa, a nie bramkę uprawnień**. Uprawnienie jest
 rozstrzygane wewnątrz serwisu, wobec grantów tego konkretnego agenta — bramka
 rolowa na trasie per zasób [nie widzi ich](permissions.md).
+
+## Usługi ML { #the-ml-services }
+
+Cztery usługi platformy odpowiadają samodzielnie, bez rozmowy i bez agenta za
+nimi: analiza dokumentu, OCR, zamiana mowy na tekst i wykrywanie danych
+osobowych. Bramkuje je `ml:invoke`, a nie `agents:run`; ich dokumentacją są
+[Usługi ML](ml-services.md).
+
+```bash
+curl -X POST "$BASE/api/v1/ml/privacy/pii" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "write to ada@example.com"}'
+```
 
 ## Streaming { #streaming }
 

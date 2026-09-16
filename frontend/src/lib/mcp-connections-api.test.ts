@@ -76,6 +76,25 @@ describe("starting an OAuth flow", () => {
     });
   });
 
+  it("carries a client registered by hand, for a server that registers none itself", async () => {
+    // HubSpot publishes no registration endpoint, so the only way past it is a
+    // client the operator created in the provider's portal - and those two
+    // values have to reach the backend under the names its schema reads.
+    await personal.startMcpOAuth({
+      name: "hubspot",
+      url: "https://mcp.hubspot.com",
+      client_id: "app-1",
+      client_secret: "shh",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections/oauth/start", {
+      name: "hubspot",
+      url: "https://mcp.hubspot.com",
+      client_id: "app-1",
+      client_secret: "shh",
+    });
+  });
+
   it("starts GitHub through its own org endpoint, keyed by the portal", async () => {
     // GitHub cannot be MCP-discovered, so it has a dedicated endpoint that reads
     // the organization's OAuth App secret rather than a name and URL.

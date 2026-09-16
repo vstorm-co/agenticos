@@ -270,7 +270,7 @@ Every frame carries `{ "type": …, "data": { … } }`.
 | `type` | `data` | Meaning |
 |---|---|---|
 | `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
-| `history` | `messages` | On a hosted page only: what was said in the thread this visitor is resuming. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
+| `history` | `messages` | What was said in the thread this visitor is resuming — **a hosted page whose visitor is anonymous**, which is the only connection that carries a continuity key: a widget's conversation lasts as long as its socket, and a `jwt` visitor is named by their token. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
 | `model_request_start` | — | The agent has gone to the model. Show an indicator. |
 | `part_start` | `index`, `part_type` | A block of the answer is starting. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
 | `text_delta` | `index`, `content` | Words of the answer. Append them. |
@@ -283,6 +283,7 @@ Every frame carries `{ "type": …, "data": { … } }`.
 | `final_result` | `output` | What the run ended with. Empty on a turn that parked. |
 | `complete` | — | The turn is over. It carries **no usage**: what a run cost is the operator's business, not the visitor's. |
 | `error` | `message` | Something the visitor should see: rate limit, budget reached, a refusal, a turn that produced nothing. |
+| `compaction_started`, `compaction_finished`, `compaction_impossible` | per frame | The agent is tidying its own notes because the thread outgrew the model's window. Always sent, whatever the operator's switches: a summary takes tens of seconds, and a surface that streams and says nothing simply stops for the length of it ([#936](https://github.com/vstorm-co/agenticos/issues/936)). |
 
 Some dashboard frames never reach a public socket, and they are refusals rather
 than settings. **`user_prompt_processed`** carries the prompt *as assembled* —
@@ -343,6 +344,67 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 and a provider that streamed no deltas leaves it as the only copy of the answer.
 
 ---
+
+## What each surface offers, and why the differences are differences
+
+Three surfaces run the same agent through the same runner: the dashboard's chat,
+this socket, and the public API. They do **not** offer the same run, and until
+[#936](https://github.com/vstorm-co/agenticos/issues/936) nothing said which of
+the differences were decisions.
+
+They are now. Every "no" below has a reason, and a reason is either "this would
+be wrong here" or "this is not built yet" — never silence.
+
+| | `/chat` (dashboard) | Raw WebSocket | The public API |
+|---|---|---|---|
+| Streaming | yes | yes, filtered by what the operator shows | **no** — the POST is the non-streaming path; an SSE variant is a separate question |
+| Attachments | yes | yes (`file_ids`) **on a hosted page** — the upload endpoint resolves the key through `find_page`, so a widget or a raw socket has no route that would produce an id | yes (`file_ids`), and they route the way they do everywhere else |
+| Conversation continuity | yes | yes (`continuity_key`), on a hosted page with an anonymous visitor | yes (`conversation_id`) |
+| `environment_id` | yes | **no, deliberately** — see below | yes |
+| Model override | yes | **no, deliberately**: a public surface must not let its visitor choose what they are spending | **no**: the request carries no `model_profile_id`. Which version runs is still the caller's through `environment_id`, and an environment can pin one that was never the default |
+| `ask_user` | yes | **no, not yet** — see below | **no, correctly**: nobody is waiting on an HTTP request to answer a question |
+| Compaction notice | yes | yes | n/a — nothing is streaming to tell |
+| Delegation frames | yes | **no, deliberately**: attaching a sink makes the library open a *streamed* request per child, so a delegate whose provider cannot stream breaks the moment somebody watches it |
+| Approvals: parks the run | yes | yes | yes |
+| Approvals: a path to the decision | yes (`/runs`) | one sentence, deliberately: a stranger holding a link is not shown a URL into somebody's console | yes — the result carries `parked`, naming what is waiting and the approval to post to |
+
+### `environment_id` on the socket, and why it is the publisher's
+
+The API has it because the caller is the organization: exercising a dev
+environment before promoting it is their own work on their own agent. A socket's
+caller is whoever holds the embed key, and on a widget that is a stranger's
+browser. A frame that chose the environment would let the visitor pick which
+*version* of the agent answers them — including one the organization has not
+promoted, which is the opposite of what publishing a version means.
+
+So it is declined in that shape. If a first-party integration needs to run a
+named environment, the place for it is the embed's own configuration, where the
+publisher chooses once and every visitor gets the same answer.
+
+### `ask_user` on the socket, and what it would need
+
+`ask_user`'s module docstring says the pause and resume live "in the WebSocket
+session", and it means the *chat's* session. This socket is equally live, with a
+person equally sitting there — so a delegate that would ask is told nobody could
+be reached, which is the right answer for a scheduled run and the wrong one here.
+
+It is not closed here because the missing half is not the server's. The frame
+vocabulary has no `ask_user` and no `ask_user_response`, and the widget has no
+form to render one — so attaching the callback would park runs on a question
+nothing can answer, which is worse than declining. What it needs: the two frames,
+the widget's form, and a decision about a *hosted page*, where the person being
+asked is a stranger and the question may carry anything the agent chose to say.
+
+### Approvals on the socket: decided, and deliberately not widened
+
+A parked run answers a visitor with "That needs somebody to approve it before it
+can run", and that stays. The raw socket is sold as an interface you build
+yourself — a mobile app, a kiosk — and a first-party client with a signed-in user
+could in principle be handed the parked call and a way to decide it. It is not,
+because the embed key does not identify a *member*: it identifies a deployment's
+published surface, and the person on the other end may be anybody the integration
+let in. Deciding an approval is a member's act, gated on `approvals:decide`, and
+it belongs on a surface that knows who is asking.
 
 ## A hosted page
 

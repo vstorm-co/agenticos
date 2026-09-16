@@ -11,6 +11,7 @@ argument to get wrong (#1470).
 """
 
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -31,6 +32,11 @@ OWNER = f"person:{uuid4()}"
 async def _fake_session():
     session = MagicMock()
     session.rollback = AsyncMock()
+    # `execute` is the advisory lock a write takes before it asks whether the
+    # person still exists; `scalar` is that question, answered yes by default so
+    # a test about writing is not also a test about erasure (#1421).
+    session.execute = AsyncMock()
+    session.scalar = AsyncMock(return_value=True)
     yield session
 
 
@@ -40,13 +46,14 @@ def _own_session(monkeypatch):
     monkeypatch.setattr(f"{NATIVE}.get_db_context", _fake_session)
 
 
-def _row(*, content="body", name="prefs"):
+def _row(*, content="body", name="prefs", deactivated_at=None):
     row = MagicMock()
     row.content = content
     row.name = name
     row.description = "d"
     row.kind = "note"
     row.owner_key = OWNER
+    row.deactivated_at = deactivated_at
     return row
 
 
@@ -96,6 +103,31 @@ class TestReadFile:
 
 
 class TestWriteFile:
+    async def test_it_refuses_to_write_about_an_account_that_is_gone(self, monkeypatch):
+        """The purge and this write take the same lock, so one of them runs
+        second - and if that is the write, there is nobody to write about."""
+
+        @asynccontextmanager
+        async def _deleted_person():
+            session = MagicMock()
+            session.rollback = AsyncMock()
+            session.execute = AsyncMock()
+            session.scalar = AsyncMock(return_value=False)
+            yield session
+
+        monkeypatch.setattr(f"{NATIVE}.get_db_context", _deleted_person)
+        with patch(f"{REPO}.create", new=AsyncMock()) as create:
+            assert await self._write() is False
+
+        create.assert_not_awaited()
+
+    async def test_a_room_is_not_a_person_and_needs_no_such_check(self):
+        """A room outlives every member of it, so the question does not apply -
+        and a key of a shape `memory_keys` does not produce is left alone rather
+        than refused by a second answer invented here."""
+        assert await _native._person_still_exists(MagicMock(), "room:slack:C1") is True
+        assert await _native._person_still_exists(MagicMock(), "person:not-a-uuid") is True
+
     async def _write(self, **overrides):
         return await _native.write_file(
             **{
@@ -131,6 +163,34 @@ class TestWriteFile:
 
         assert not create.await_count
 
+    async def test_a_suppressed_name_is_revived_with_the_new_content(self):
+        """The person suppressed what *was* there. Writing the name again is the
+        agent having learned something since, and the alternative - a name
+        permanently unusable - is a store that refuses to work and never says why
+        (#1594)."""
+        suppressed = _row(deactivated_at=datetime(2026, 9, 1, tzinfo=UTC))
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=suppressed)),
+            patch(f"{REPO}.revive_if_suppressed", new=AsyncMock(return_value=True)) as revive,
+            patch(f"{REPO}.create", new=AsyncMock()) as create,
+        ):
+            assert await self._write() is True
+
+        assert not create.await_count
+        assert revive.await_args.kwargs["file_id"] == suppressed.id
+
+    async def test_two_writers_racing_a_suppressed_name_do_not_both_win(self):
+        """Both can read the row as suppressed; Postgres serializes the updates
+        and would tell both they had won, losing the note the first wrote. The
+        loser is told the name is taken, which is this function's answer for a
+        live one."""
+        suppressed = _row(deactivated_at=datetime(2026, 9, 1, tzinfo=UTC))
+        with (
+            patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=suppressed)),
+            patch(f"{REPO}.revive_if_suppressed", new=AsyncMock(return_value=False)),
+        ):
+            assert await self._write() is False
+
     async def test_a_name_taken_between_the_check_and_the_insert_is_the_same_answer(self):
         """The unique index is the real guard, and a concurrent write is not a
         different outcome to the caller - two turns of one run racing is exactly
@@ -163,7 +223,11 @@ class TestEditFile:
                 is True
             )
 
-        assert update.await_args.kwargs == {"file": row, "update_data": {"content": "new"}}
+        # And the agent's own write is stamped, which is what provenance and
+        # ordering read - `updated_at` moves for a suppression too.
+        assert update.await_args.kwargs["file"] is row
+        assert update.await_args.kwargs["update_data"]["content"] == "new"
+        assert update.await_args.kwargs["update_data"]["written_at"] is not None
 
     async def test_nothing_of_that_name_edits_nothing(self):
         with (

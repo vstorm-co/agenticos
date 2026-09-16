@@ -271,11 +271,24 @@ def _linked_chain(organization_id: uuid.UUID | None, count: int) -> list[MagicMo
     return entries
 
 
+def _checkpoint(*, max_seq: int, entry_count: int) -> MagicMock:
+    checkpoint = MagicMock()
+    checkpoint.max_seq = max_seq
+    checkpoint.entry_count = entry_count
+    return checkpoint
+
+
 async def test_an_intact_chain_verifies_with_no_break() -> None:
     org = uuid.uuid4()
-    with patch(
-        "app.services.audit.audit_log_repo.chain_for_org",
-        new=AsyncMock(return_value=_linked_chain(org, 4)),
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org",
+            new=AsyncMock(return_value=_linked_chain(org, 4)),
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=_checkpoint(max_seq=4, entry_count=4)),
+        ),
     ):
         result = await AuditService(MagicMock()).verify_chain(org)
 
@@ -284,11 +297,57 @@ async def test_an_intact_chain_verifies_with_no_break() -> None:
     assert result.organization_id == org
 
 
-async def test_an_empty_chain_verifies() -> None:
-    with patch("app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=[])):
+async def test_an_empty_chain_with_no_checkpoint_verifies() -> None:
+    with (
+        patch("app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=[])),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
         result = await AuditService(MagicMock()).verify_chain(uuid.uuid4())
 
     assert result.first_break is None
+    assert result.entries_checked == 0
+
+
+async def test_a_truncated_chain_is_caught_by_the_checkpoint() -> None:
+    """The surviving prefix hashes cleanly, so only the checkpoint - recording a
+    head the chain no longer reaches - reveals the tail was dropped."""
+    org = uuid.uuid4()
+    entries = _linked_chain(org, 3)  # entries[-1].seq == 3
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=_checkpoint(max_seq=5, entry_count=5)),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.entry_id is None
+    assert result.first_break.seq == 5
+    assert "truncated" in result.first_break.reason.lower()
+    assert result.entries_checked == 3
+
+
+async def test_a_whole_chain_deletion_is_caught_by_its_checkpoint() -> None:
+    org = uuid.uuid4()
+    with (
+        patch("app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=[])),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=_checkpoint(max_seq=7, entry_count=7)),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.entry_id is None
+    assert "missing" in result.first_break.reason.lower()
     assert result.entries_checked == 0
 
 
@@ -299,8 +358,14 @@ async def test_a_rewritten_entry_is_caught_by_its_own_hash() -> None:
     entries = _linked_chain(org, 4)
     entries[2].action = "action.tampered"
 
-    with patch(
-        "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         result = await AuditService(MagicMock()).verify_chain(org)
 
@@ -318,8 +383,14 @@ async def test_a_broken_link_is_caught_by_prev_hash() -> None:
     entries = _linked_chain(org, 4)
     entries[2].prev_hash = "0" * 64
 
-    with patch(
-        "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         result = await AuditService(MagicMock()).verify_chain(org)
 
@@ -331,26 +402,39 @@ async def test_a_broken_link_is_caught_by_prev_hash() -> None:
 
 async def test_verify_all_walks_every_chain_with_the_deployment_chain_first() -> None:
     org_a, org_b = uuid.uuid4(), uuid.uuid4()
-    chains = {
-        None: _linked_chain(None, 1),
-        org_a: _linked_chain(org_a, 2),
-        org_b: _linked_chain(org_b, 3),
+    # org_b has a checkpoint but no entries left: a chain deleted whole, surfaced
+    # only because the checkpoint set is unioned in.
+    chains = {None: _linked_chain(None, 1), org_a: _linked_chain(org_a, 2), org_b: []}
+    checkpoints = {
+        None: _checkpoint(max_seq=1, entry_count=1),
+        org_a: _checkpoint(max_seq=2, entry_count=2),
+        org_b: _checkpoint(max_seq=3, entry_count=3),
     }
 
     async def _chain_for_org(_db: object, *, organization_id: uuid.UUID | None) -> list[MagicMock]:
         return chains[organization_id]
 
+    async def _checkpoint_for_org(_db: object, *, organization_id: uuid.UUID | None) -> MagicMock:
+        return checkpoints[organization_id]
+
     with (
         patch(
             "app.services.audit.audit_log_repo.distinct_organization_ids",
+            new=AsyncMock(return_value=[org_a, None]),
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.distinct_checkpoint_organization_ids",
             new=AsyncMock(return_value=[org_a, None, org_b]),
         ),
         patch("app.services.audit.audit_log_repo.chain_for_org", new=_chain_for_org),
+        patch("app.services.audit.audit_log_repo.checkpoint_for_org", new=_checkpoint_for_org),
     ):
         results = await AuditService(MagicMock()).verify_all_chains()
 
-    assert [result.organization_id for result in results] == [
-        None,
-        *sorted([org_a, org_b], key=str),
-    ]
-    assert all(result.first_break is None for result in results)
+    by_org = {r.organization_id: r for r in results}
+    assert [r.organization_id for r in results] == [None, *sorted([org_a, org_b], key=str)]
+    assert by_org[None].first_break is None
+    assert by_org[org_a].first_break is None
+    # The deleted chain is surfaced from its checkpoint and flagged.
+    assert by_org[org_b].first_break is not None
+    assert "missing" in by_org[org_b].first_break.reason.lower()

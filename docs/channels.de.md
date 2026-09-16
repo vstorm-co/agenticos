@@ -1,5 +1,5 @@
 ---
-source_sha: "f819ae10b8cc"
+source_sha: "4771f415a4dc"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -295,7 +295,7 @@ Jeder Frame trägt `{ "type": …, "data": { … } }`.
 | `type` | `data` | Bedeutung |
 |---|---|---|
 | `ready` | `visitor` | Verbunden. `visitor: true`, wenn ein Token die Person identifiziert hat. |
-| `history` | `messages` | Nur auf einer gehosteten Seite: was in dem Thread gesagt wurde, den dieser Besucher wieder aufnimmt. Jeder Eintrag ist `role`, `text` und `at`, sodass eine wiedergegebene Runde die Zeit darunter behält. |
+| `history` | `messages` | Was in dem Thread gesagt wurde, den dieser Besucher wieder aufnimmt — **eine gehostete Seite mit anonymem Besucher**, die einzige Verbindung, die einen Kontinuitätsschlüssel trägt: das Gespräch eines Widgets lebt so lange wie sein Socket, und ein `jwt`-Besucher wird bereits von seinem Token benannt. Jeder Eintrag ist `role`, `text` und `at`, sodass eine wiedergegebene Runde die Zeit darunter behält. |
 | `model_request_start` | — | Der Agent ist zum Modell gegangen. Zeigen Sie einen Indikator. |
 | `part_start` | `index`, `part_type` | Ein Block der Antwort beginnt. Wird nur für einen Block gesendet, den diese Oberfläche auch wirklich trägt — eine Seite, die kein Reasoning zeigt, kündigt keinen `ThinkingPart` an, denn schon die Ankündigung sagt, dass der Agent nachgedacht hat. |
 | `text_delta` | `index`, `content` | Wörter der Antwort. Hängen Sie sie an. |
@@ -308,6 +308,7 @@ Jeder Frame trägt `{ "type": …, "data": { … } }`.
 | `final_result` | `output` | Womit der Run geendet hat. Leer bei einer Runde, die geparkt hat. |
 | `complete` | — | Die Runde ist vorbei. Sie trägt **keine Nutzungsdaten**: was ein Run gekostet hat, ist Sache des Betreibers, nicht des Besuchers. |
 | `error` | `message` | Etwas, das der Besucher sehen sollte: Rate Limit, Budget erreicht, eine Ablehnung, eine Runde, die nichts erzeugt hat. |
+| `compaction_started`, `compaction_finished`, `compaction_impossible` | je Frame | Der Agent ordnet seine eigenen Notizen, weil der Thread das Fenster des Modells gesprengt hat. Wird immer gesendet, unabhängig von den Schaltern des Betreibers: eine Zusammenfassung dauert Dutzende Sekunden, und eine Oberfläche, die streamt und nichts sagt, steht diese Zeit einfach still ([#936](https://github.com/vstorm-co/agenticos/issues/936)). |
 
 Manche Dashboard-Frames erreichen ein öffentliches Socket nie, und sie sind
 Ablehnungen und keine Einstellungen. **`user_prompt_processed`** trägt den Prompt
@@ -375,6 +376,71 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 die einzige Kopie der Antwort.
 
 ---
+
+## Was jede Oberfläche bietet, und warum die Unterschiede Unterschiede sind { #what-each-surface-offers-and-why-the-differences-are-differences }
+
+Drei Oberflächen führen denselben Agenten über denselben Runner aus: der Chat des
+Dashboards, dieses Socket und die öffentliche API. Sie bieten **nicht** denselben
+Lauf, und bis [#936](https://github.com/vstorm-co/agenticos/issues/936) sagte
+nichts, welche der Unterschiede Entscheidungen waren.
+
+Jetzt schon. Jedes „nein“ unten hat einen Grund, und ein Grund ist entweder „das
+wäre hier falsch“ oder „das ist noch nicht gebaut“ — niemals Schweigen.
+
+| | `/chat` (Dashboard) | Rohes WebSocket | Die öffentliche API |
+|---|---|---|---|
+| Streaming | ja | ja, gefiltert nach dem, was der Betreiber zeigt | **nein** — der POST ist der nicht streamende Weg; eine SSE-Variante ist eine eigene Frage |
+| Anhänge | ja | ja (`file_ids`) **auf einer gehosteten Seite** — der Upload-Endpunkt löst den Schlüssel über `find_page` auf, ein Widget oder ein rohes Socket hat also keinen Weg, der eine id erzeugen würde | ja (`file_ids`), und sie laufen denselben Weg wie überall sonst |
+| Gesprächskontinuität | ja | ja (`continuity_key`), auf einer gehosteten Seite mit anonymem Besucher | ja (`conversation_id`) |
+| `environment_id` | ja | **nein, bewusst** — siehe unten | ja |
+| Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die Anfrage trägt keine `model_profile_id`. Welche Version läuft, bleibt über `environment_id` die Entscheidung des Aufrufers, und eine Umgebung kann eine anheften, die nie die Standardversion war |
+| `ask_user` | ja | **nein, noch nicht** — siehe unten | **nein, zu Recht**: niemand wartet an einem HTTP-Request, um eine Frage zu beantworten |
+| Verdichtungshinweis | ja | ja | entfällt — es streamt nichts, dem man es sagen könnte |
+| Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht |
+| Freigaben: parken den Lauf | ja | ja | ja |
+| Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist |
+
+### `environment_id` am Socket, und warum es dem Veröffentlichenden gehört { #environment_id-on-the-socket-and-why-it-is-the-publishers }
+
+Die API hat es, weil der Aufrufer die Organisation ist: eine Dev-Umgebung vor der
+Beförderung durchzuspielen ist ihre eigene Arbeit an ihrem eigenen Agenten. Der
+Aufrufer eines Sockets ist, wer den Embed-Schlüssel hält, und bei einem Widget ist
+das der Browser eines Fremden. Ein Frame, das die Umgebung wählt, ließe den Besucher
+entscheiden, welche *Version* des Agenten ihm antwortet — auch eine, die die
+Organisation nicht befördert hat, was das Gegenteil dessen ist, was das
+Veröffentlichen einer Version bedeutet.
+
+In dieser Form wird es also abgelehnt. Braucht eine First-Party-Integration eine
+benannte Umgebung, gehört sie in die Konfiguration des Embeds selbst, wo der
+Veröffentlichende einmal wählt und jeder Besucher dieselbe Antwort bekommt.
+
+### `ask_user` am Socket, und was es bräuchte { #ask_user-on-the-socket-and-what-it-would-need }
+
+Der Modul-Docstring von `ask_user` sagt, Pause und Fortsetzung lebten „in der
+WebSocket-Sitzung“, und meint die Sitzung des *Chats*. Dieses Socket ist genauso
+lebendig, mit einem Menschen, der genauso davor sitzt — also bekommt ein
+Delegierter, der fragen würde, gesagt, es sei niemand erreichbar, was für einen
+geplanten Lauf die richtige und hier die falsche Antwort ist.
+
+Geschlossen wird es hier nicht, weil die fehlende Hälfte nicht die des Servers ist.
+Das Frame-Vokabular kennt weder `ask_user` noch `ask_user_response`, und das Widget
+hat kein Formular, um eines darzustellen — den Callback anzuhängen würde Läufe an
+einer Frage parken, die nichts beantworten kann, und das ist schlimmer als eine
+Ablehnung. Was es braucht: die zwei Frames, das Formular im Widget und eine
+Entscheidung über eine *gehostete Seite*, wo die gefragte Person eine Fremde ist und
+die Frage alles tragen kann, was der Agent zu sagen beschlossen hat.
+
+### Freigaben am Socket: entschieden und bewusst nicht ausgeweitet { #approvals-on-the-socket-decided-and-deliberately-not-widened }
+
+Ein geparkter Lauf antwortet einem Besucher mit „Das muss jemand freigeben, bevor es
+laufen kann“, und das bleibt so. Das rohe Socket wird als Schnittstelle verkauft,
+die man selbst baut — eine mobile App, ein Kiosk — und einem First-Party-Client mit
+angemeldetem Nutzer könnte man den geparkten Aufruf und einen Weg zur Entscheidung
+im Prinzip geben. Er bekommt ihn nicht, weil der Embed-Schlüssel kein *Mitglied*
+ausweist: er weist die veröffentlichte Oberfläche eines Deployments aus, und am
+anderen Ende kann jeder sitzen, den die Integration hereingelassen hat. Eine Freigabe
+zu entscheiden ist die Handlung eines Mitglieds, über `approvals:decide` abgesichert,
+und gehört auf eine Oberfläche, die weiß, wer fragt.
 
 ## Eine gehostete Seite { #a-hosted-page }
 

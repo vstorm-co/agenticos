@@ -71,6 +71,13 @@ class Perm(StrEnum):
     BUDGETS_MANAGE = "budgets:manage"
     RUNS_VIEW = "runs:view"
     AUDIT_READ = "audit:read"
+    # Calling the standalone ML services - parsing a document, recognising a
+    # scan, transcribing a recording, scanning text for personal data - without
+    # starting an agent run. Its own permission because the caller is usually
+    # not a person: it is another Urban Stack component holding a key, and
+    # widening `agents:run` to cover it would have handed every such integration
+    # the ability to spend the organization's model budget as well.
+    ML_INVOKE = "ml:invoke"
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -227,6 +234,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.CONNECTIONS_MANAGE: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
+        Perm.ML_INVOKE: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -243,6 +251,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
+        Perm.ML_INVOKE: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
     # unless it was shared.
@@ -258,6 +267,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
+        Perm.ML_INVOKE: Scope.ALL,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,

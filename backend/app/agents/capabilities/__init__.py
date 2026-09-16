@@ -19,6 +19,8 @@ Each capability lives in its own folder with a `_capability.py`, an optional
 
 from app.agents.capabilities._overrides import ToolOverrides
 from app.agents.capabilities._registry import (
+    FRAMEWORK_TOOL_NAMES,
+    LOAD_CAPABILITY,
     REGISTRY,
     TOOL_NAME_PATTERN,
     CapabilityBinding,
@@ -35,6 +37,8 @@ from app.agents.capabilities._registry import (
 )
 
 __all__ = [
+    "FRAMEWORK_TOOL_NAMES",
+    "LOAD_CAPABILITY",
     "REGISTRY",
     "TOOL_NAME_PATTERN",
     "CapabilityBinding",
