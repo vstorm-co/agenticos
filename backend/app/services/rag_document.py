@@ -400,9 +400,20 @@ class RAGDocumentService:
                 vector_document_id=replaced_document_id,
                 keep_id=doc.id,
             )
-        await NotificationService(self.db).ingestion_completed(
-            doc, attempt=attempt, chunk_count=chunk_count
-        )
+        try:
+            await NotificationService(self.db).ingestion_completed(
+                doc, attempt=attempt, chunk_count=chunk_count
+            )
+        except Exception:
+            # Best-effort past this point, the same contract `write()`'s own
+            # `use_savepoint` gives its other callers - but the audience
+            # resolution here runs *before* that savepoint opens, so a
+            # failure in it (not in the write itself) would otherwise
+            # propagate out of a settlement that already recorded a
+            # successfully vectorized document, and `_run_ingestion`'s own
+            # `except Exception` would mark it `ERROR` for a notification
+            # that has nothing to do with whether ingestion succeeded.
+            logger.exception("Failed to notify about a completed ingestion for %s", doc_id)
 
     async def _retire_superseded(
         self, *, collection_name: str, vector_document_id: str, keep_id: UUID
@@ -517,6 +528,13 @@ class RAGDocumentService:
             error_message="",
             completed_at=None,
             ingestion_attempt=new_attempt,
+            # Conditioned on the attempt this read still saw, not an
+            # unconditional write - two concurrent retries reading the same
+            # `doc.ingestion_attempt` must not both compute and dispatch the
+            # same `new_attempt`, which is exactly the collision
+            # `expected_attempt` closes for `complete_ingestion`/
+            # `fail_ingestion` one layer up.
+            expected_attempt=doc.ingestion_attempt,
         )
         if updated is None:
             raise NotFoundError(message="Document not found", details={"doc_id": doc_id})

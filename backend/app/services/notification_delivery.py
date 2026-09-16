@@ -100,7 +100,7 @@ class NotificationDeliveryService:
     # -- the claim (transaction 1) ---------------------------------------
 
     async def claim_and_advance(
-        self, *, now: datetime, limit: int = 100
+        self, *, now: datetime, limit: int = 30
     ) -> list[NotificationDelivery]:
         """Claim due deliveries and stamp their lease, in one committed step.
 
@@ -244,12 +244,31 @@ class NotificationDeliveryService:
         current membership role for an org-scoped notification, or `None` for
         a deployment-wide one (there is no role to have, only `is_app_admin`,
         already checked)."""
+        if notification.announcement_id is not None:
+            # Always deployment-wide (`organization_id` is a placeholder, per
+            # `write()`'s own docstring) but never app-admin-only - the
+            # audience is whoever `audience_spec` names, and `gate_for`'s
+            # `_announcement_visible` (`notification_center.py`) is the one
+            # place that already reads it correctly. Answering `is_app_admin`
+            # here instead skipped every ordinary recipient of a targeted or
+            # "all" announcement before that check was ever reached.
+            return True, None
         if notification.organization_id is None:
             return recipient.is_app_admin, None
         member = await member_repo.get(
             self.db, organization_id=notification.organization_id, user_id=recipient.id
         )
-        return member is not None, (member.role if member is not None else None)
+        if member is not None:
+            return True, member.role
+        # An app admin holds no membership row anywhere, but `_gate`'s
+        # `ORG_ADMIN_OR_APP_ADMIN` branch already treats one as reachable for
+        # an org-scoped row regardless (`notification_center.py`) - an
+        # impersonation or user-management `security_event` scoped to another
+        # organization is exactly the row `_security_audience` (`notifications.py`)
+        # queues an app admin for. `role=None` here is correct either way:
+        # an app admin's standing is `is_app_admin` alone, never a role in an
+        # organization they do not belong to.
+        return recipient.is_app_admin, None
 
     def _render(
         self, notification: Notification, *, recipient: User, role: str | None
