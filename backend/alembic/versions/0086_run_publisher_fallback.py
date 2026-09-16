@@ -12,6 +12,10 @@ notifications, chiefly) cannot tell a real initiator from a stand-in without it.
 Nothing is backfilled: an existing run predates this column either way, and
 `false` reads as "assume a real initiator", which is what every run before this
 migration already behaved as.
+
+Renumbered from 0081 alongside 0080_notification_center_schema's own move to
+0085 - see that migration's docstring for why the stack's own 0080/0081 pair
+collided with main's.
 """
 
 from collections.abc import Sequence
@@ -20,8 +24,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0081_run_publisher_fallback"
-down_revision: str | None = "0080_notification_center_schema"
+revision: str = "0086_run_publisher_fallback"
+down_revision: str | None = "0085_notification_center_schema"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

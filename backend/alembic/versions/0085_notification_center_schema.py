@@ -19,10 +19,16 @@ resolves to, and the dispatch-time attempt counter its occurrence id needs to
 survive a retry without colliding with the attempt before it - nothing in the
 ingestion pipeline persisted either before this (Decision 1).
 
-Revision ID: 0080_notification_center_schema
-Revises: 0079_audit_hash_chain
+Revision ID: 0085_notification_center_schema
+Revises: 0084_retention_policies
 Create Date: 2026-09-15
 
+Renumbered from 0080/0081 (#1420's own per-organization retention policies
+landed on `main` in that range while this stack sat stacked and unmerged,
+leaving two independent chains off `0079_audit_hash_chain` - `alembic upgrade
+head` on the merge ref sees two heads with neither depending on the other).
+Re-chained onto `main`'s actual head rather than renumbered in place, since a
+number alone does not join the two chains.
 """
 
 from collections.abc import Sequence
@@ -32,8 +38,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0080_notification_center_schema"
-down_revision: str | None = "0079_audit_hash_chain"
+revision: str = "0085_notification_center_schema"
+down_revision: str | None = "0084_retention_policies"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
