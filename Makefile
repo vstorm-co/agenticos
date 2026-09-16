@@ -1,4 +1,4 @@
-.PHONY: install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
+.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -820,6 +820,12 @@ docker-db:
 
 docker-db-stop:
 	docker compose stop db
+
+docker-minio:
+	docker compose --profile objectstore up -d minio
+	@echo ""
+	@echo "✅ MinIO started on port 9000 (console :9001, minioadmin / minioadmin)"
+	@echo "   FILE_STORAGE_BACKEND=s3 needs a bucket; the integration suite makes its own."
 
 docker-redis:
 	docker compose up -d redis

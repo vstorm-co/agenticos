@@ -1,5 +1,5 @@
 ---
-source_sha: "d6759c2a4490"
+source_sha: "24f0246443a9"
 ---
 
 # Sicherheit { #security }
@@ -79,17 +79,23 @@ steht hier klar, weil eine Prüfung es findet:
   hat, kann ihn nutzen, sie sind also durch Ablauf und Einmalverwendung
   geschützt, nicht durch Verschlüsselung. Session-Refresh-Token sind die
   Ausnahme, die im Ruhezustand gehasht ist (`sessions.refresh_token_hash`).
-- **Hochgeladene Dateien und Chat-Dateien** liegen im Klartext auf dem
-  Dateisystem des API-Containers (`app/services/file_storage.py`) — geschützt nur
-  durch Volume-Verschlüsselung.
+- **Hochgeladene Dateien und Chat-Dateien** liegen dort, wohin
+  `FILE_STORAGE_BACKEND` sie legt (`app/services/file_storage.py`). Bei `local`,
+  der Voreinstellung, ist das im Klartext das Dateisystem des API-Containers,
+  geschützt nur durch Volume-Verschlüsselung. Bei `s3` sind es Objekte in einem
+  Bucket, den das Deployment benennt, und jeder Schreibvorgang bittet den
+  Speicher, sie zu verschlüsseln — SSE-S3 oder SSE-KMS unter einem Schlüssel, den
+  der Kunde kontrolliert. `agenticos cmd doctor` gibt aus, in welchem der drei
+  Zustände ein laufendes Deployment ist.
 - **Nachrichteninhalte, `rag_documents` samt Vektoren und Sandbox-Workspaces**
   werden als Klartextspalten, pgvector-Zeilen und Workspace-Dateien gespeichert.
   Der Vault versiegelt Credentials, keine Inhalte; der Schutz im Ruhezustand ist
   hier auf Datenträgerebene.
 
-Ein S3-kompatibles Datei-Backend mit serverseitiger Verschlüsselung ist die
-Antwort auf Anwendungsebene für Object Storage und wird in
-[#1423](https://github.com/vstorm-co/agenticos/issues/1423) verfolgt.
+Das S3-Backend ist eine Entscheidung zur Deployment-Zeit und migriert nicht, was
+das lokale bereits hält; die Einstellungen stehen in der
+[Konfiguration](configuration.md#uploaded-files-at-rest), die Begründung in
+[Dateiverarbeitung](file-processing.md#storage).
 
 ## Was über eine Person gehalten wird, und was damit geschieht { #what-is-held-about-one-person-and-what-happens-to-it }
 
@@ -320,13 +326,13 @@ und kein Vorschlag.
   deploymentweites Token gesetzt ist, jeden Run traced, den der API-Prozess
   bedient, mit dem Inhalt jedes Agenten, der nicht `none` verlangt hat.
 - Konnektor- und API-Credentials sind pro Organisation im einen Vault versiegelt;
-  kurzlebige Bearer-Token und Inhalte im Ruhezustand (Dateien, Nachrichten, RAG,
-  Sandboxes) sind es nicht, und
-  [#1423](https://github.com/vstorm-co/agenticos/issues/1423) ist die Antwort auf
-  Anwendungsebene für Object Storage.
+  kurzlebige Bearer-Token und der übrige Inhalt im Ruhezustand (Nachrichten, RAG,
+  Sandboxes) sind es nicht. Hochgeladene Dateien sind das, was sich bewegt hat:
+  `FILE_STORAGE_BACKEND=s3` legt sie in einen Objektspeicher, der jeden
+  Schreibvorgang verschlüsselt.
 - Jede Kontrolle in der Matrix benennt einen Mechanismus und einen Test — und im
-  selben Atemzug ihre Lücken: Manipulationsnachweis und Dateiverschlüsselung auf
-  Anwendungsebene verlinken je das Issue, das sie bauen würde.
+  selben Atemzug ihre Lücken: der Manipulationsnachweis verlinkt das Issue, das
+  ihn bauen würde.
 - Schwachstellen meldest du und die Härtungs-Checkliste führst du aus über
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lies [Datenschutz](data-protection.md) und [Lizenzen](licenses.md) neben dieser

@@ -308,6 +308,15 @@ jobs:
         # `make check` too, where `test-migrations` is not.
         run: make db-check
 
+      # The object store the S3 file-storage backend is exercised against
+      # (#1423). A compose profile rather than a service container, because a
+      # service container cannot be given a command and MinIO's image needs one.
+      # Without it `tests/integration/test_s3_file_storage.py` skips itself, the
+      # same bargain the database fixtures make on a laptop - and a suite that
+      # silently skipped that backend in CI is how it would rot.
+      - name: Start the object store
+        run: make docker-minio
+
       - name: Run tests with the coverage gate
         # --cov with no argument uses the include list in pyproject.toml: the
         # platform layer, held at 100%. Template-inherited subsystems are
@@ -616,6 +625,21 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+      # The raw per-test output beside the report: the screenshot at the moment
+      # of failure, the video, the trace `retain-on-failure` kept, and the
+      # `error-context.md` Playwright writes naming the page as it stood. The
+      # report embeds most of it, but only for the runs it managed to finish -
+      # a suite the runner killed leaves `test-results/` and no report at all,
+      # which is the case #162 was diagnosed without.
+      - name: Upload the raw Playwright output when a journey fails
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-results
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Show the backend log when a journey fails
         # Half of an E2E failure is on the other side of the proxy.

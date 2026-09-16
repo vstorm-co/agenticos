@@ -1,5 +1,5 @@
 ---
-source_sha: "d6759c2a4490"
+source_sha: "24f0246443a9"
 ---
 
 # Seguridad { #security }
@@ -76,17 +76,23 @@ sin rodeos porque una revisión lo va a encontrar:
   usarlo, así que los protege la caducidad y el uso único, no el cifrado. Los
   refresh tokens de sesión son la excepción que sí se hashea en reposo
   (`sessions.refresh_token_hash`).
-- **Los archivos subidos y los del chat** están en claro en el sistema de
-  archivos del contenedor de la API (`app/services/file_storage.py`) —
-  protegidos solo por el cifrado del volumen.
+- **Los archivos subidos y los del chat** están donde los ponga
+  `FILE_STORAGE_BACKEND` (`app/services/file_storage.py`). Con `local`, el valor
+  por defecto, eso es en claro en el sistema de archivos del contenedor de la
+  API, protegido solo por el cifrado del volumen. Con `s3` son objetos en un
+  bucket que nombra el despliegue, y cada escritura pide al almacén que los
+  cifre — SSE-S3, o SSE-KMS bajo una clave que controla el cliente.
+  `agenticos cmd doctor` indica en cuál de los tres está un despliegue en
+  marcha.
 - **Los cuerpos de los mensajes, `rag_documents` y sus vectores, y los workspaces
   del sandbox** se guardan como columnas en texto plano, filas de pgvector y
   archivos del workspace. El vault sella credenciales, no contenido; la
   protección en reposo de esto es a nivel de disco.
 
-Un backend de archivos compatible con S3 y cifrado del lado del servidor es la
-respuesta a nivel de aplicación para el almacenamiento de objetos y se sigue en
-[#1423](https://github.com/vstorm-co/agenticos/issues/1423).
+El backend S3 es una elección del momento del despliegue y no migra lo que el
+local ya tiene; los ajustes están en la
+[configuración](configuration.md#uploaded-files-at-rest) y el razonamiento en
+[procesamiento de archivos](file-processing.md#storage).
 
 ## Qué se guarda sobre una persona, y qué ocurre con ello { #what-is-held-about-one-person-and-what-happens-to-it }
 
@@ -312,13 +318,13 @@ perfil y no una sugerencia.
   token a nivel de deployment, traza todos los runs que sirve el proceso de la
   API, con el contenido de todo agent que no haya pedido `none`.
 - Las credenciales de conectores y de API están selladas por organización en el
-  único vault; los tokens bearer de vida corta y el contenido en reposo
-  (archivos, mensajes, RAG, sandboxes) no lo están, y
-  [#1423](https://github.com/vstorm-co/agenticos/issues/1423) es la respuesta a
-  nivel de aplicación para el almacenamiento de objetos.
+  único vault; los tokens bearer de vida corta y el resto del contenido en reposo
+  (mensajes, RAG, sandboxes) no lo están. Los archivos subidos son lo que se ha
+  movido: `FILE_STORAGE_BACKEND=s3` los pone en un almacén de objetos que cifra
+  cada escritura.
 - Cada control de la matriz nombra un mecanismo y un test, y nombra sus huecos en
-  la misma frase — la evidencia de manipulación y el cifrado de archivos a nivel
-  de aplicación enlazan la issue que los construiría.
+  la misma frase — la evidencia de manipulación enlaza la issue que la
+  construiría.
 - Informa de vulnerabilidades y ejecuta la lista de endurecimiento desde
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lee [Protección de datos](data-protection.md) y [Licencias](licenses.md) junto a

@@ -1,5 +1,5 @@
 ---
-source_sha: "dba14340bbd8"
+source_sha: "b76da60d30ae"
 ---
 
 # Pruebas { #testing }
@@ -452,6 +452,37 @@ cada ocho). Así que:
 - **Un spec de producto que trata del renderizado lo dice**, y recarga primero si
   necesita una lista de la que fiarse. `vault.spec.ts` tiene tres llamadas a
   `page.reload()` marcadas con `#230`; cuando ese issue se cierre, salen.
+- **Un spec de producto que hizo la escritura espera igual que los fixtures.**
+  `nowListed` y `nowMatching` en `e2e/helpers.ts` son `nowThere` sacado de
+  `seed.setup.ts`, para que haya un primitivo y no dos
+  ([#162](https://github.com/vstorm-co/agenticos/issues/162)). Eso parte un fallo
+  en dos: un fallo en el sondeo es una escritura que nunca llegó, y un fallo en la
+  aserción posterior es una página que no dibujó una fila que la API sí servía.
+  `journey.spec.ts` termina probando que un run fue **tarificado** — tenían que
+  pasar cinco cosas, y un `toBeVisible()` desnudo sobre la fila solo decía que una
+  de ellas no pasó.
+
+### Cada espera dice qué estaba esperando { #every-wait-says-what-it-was-waiting-for }
+
+`expect(locator).toBeVisible()` falla con `element(s) not found`, que nombra lo
+único que no puede ser la causa. Playwright acepta un mensaje como segundo
+argumento, y los recorridos largos de esta suite lo usan:
+
+```ts
+await expect(
+  row,
+  `run ${id} is priced at ${cost}, but Activity draws no row for ${modelLabel}`,
+).toBeVisible();
+```
+
+Cuatro specs han flaqueado con la forma anónima, y cada uno costó un diagnóstico
+que empezaba de cero ([#130](https://github.com/vstorm-co/agenticos/issues/130),
+[#132](https://github.com/vstorm-co/agenticos/issues/132),
+[#154](https://github.com/vstorm-co/agenticos/issues/154),
+[#162](https://github.com/vstorm-co/agenticos/issues/162)). El mensaje cuesta una
+línea y es toda la diferencia entre «volvió a flaquear» y un diagnóstico. Si aun
+así uno falla en CI, `playwright-results` junto a `playwright-report` lleva la
+captura, el vídeo, la traza y el propio `error-context.md` de Playwright.
 
 ## La base de datos de pruebas { #test-database }
 

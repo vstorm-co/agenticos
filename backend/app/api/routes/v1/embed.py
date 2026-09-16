@@ -13,7 +13,6 @@ does that, and the same frames the dashboard chat already speaks work unchanged.
 from __future__ import annotations
 
 import logging
-import mimetypes
 from typing import Annotated, Any
 
 from fastapi import (
@@ -29,7 +28,6 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from fastapi.responses import FileResponse
 
 from app.api.deps import (
     DBSession,
@@ -40,13 +38,13 @@ from app.api.deps import (
     limit_hosted_config,
     limit_hosted_logo,
 )
+from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
 from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
 from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
-from app.services.file_storage import IMAGE_MIME_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +125,7 @@ async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
 
 @router.get(
     "/{public_key}/logo",
-    response_class=FileResponse,
+    response_class=Response,
     dependencies=[Depends(limit_hosted_logo)],
 )
 async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
@@ -153,19 +151,19 @@ async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
     named `x.html` reaches this route, and a bare `FileResponse` would let
     Starlette guess `text/html` from the suffix and serve a script from the origin
     the hosted page is on, where the frontend proxies this under
-    `script-src 'self' 'unsafe-inline'`. Refused rather than corrected: this route
-    hands out one image, and anything that is not one is not this page's logo.
+    `script-src 'self' 'unsafe-inline'`. So the type is read from the file's own
+    bytes, and anything that is not one of the four image types is refused rather
+    than corrected: this route hands out one image, and anything else is not this
+    page's logo.
     """
-    path = await service.page_logo_path(public_key)
-    if path is None:
+    stored = await service.page_logo_path(public_key)
+    if stored is None:
         raise HTTPException(status_code=404, detail="No logo")
-    media_type = mimetypes.guess_type(path)[0]
-    if media_type not in IMAGE_MIME_TYPES:
-        logger.warning(
-            "hosted_logo_not_an_image", extra={"public_key": public_key, "media_type": media_type}
-        )
+    response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
+    if response is None:
+        logger.warning("hosted_logo_not_an_image", extra={"public_key": public_key})
         raise HTTPException(status_code=404, detail="No logo")
-    return FileResponse(path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"})
+    return response
 
 
 @router.get(

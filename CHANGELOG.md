@@ -58,6 +58,55 @@ Two things are versioned separately from this file and worth knowing about:
   verification section is now the command above rather than SQL nobody can
   re-run identically. (#1596)
 
+## [0.0.461] - 2026-09-16
+
+### Added
+
+- An S3-compatible file-storage backend beside the local disk, selected by
+  `FILE_STORAGE_BACKEND=s3`. Every write asks the store for server-side
+  encryption — SSE-S3 by default, SSE-KMS under a key the deployment names — and
+  a `FILE_STORAGE_S3_PREFIX` keeps two deployments in one bucket apart. An
+  upload is cancellation-safe the way the local one is, and a download is
+  streamed in bounded chunks rather than held whole. Local stays the default and
+  nothing migrates between them; it is a deployment-time choice. `agenticos cmd doctor` prints which backend is running and whether
+  encryption is on, and `make docker-minio` starts a MinIO to develop against.
+  (#1423)
+
+### Changed
+
+- The seven routes that serve a stored file — both avatars, an agent's, a hosted
+  page's logo, the deployment's mark, a chat attachment and a knowledge-base
+  download — resolve it through the storage backend rather than through a path on
+  this host, so they answer on either backend. A local backend still streams from
+  disk. (#1423)
+- The deployment's logo and favicon are typed from the file's own bytes rather
+  than from the suffix its uploader chose, which is what the avatar routes
+  already did. The set of types served is unchanged. (#1423)
+
+## [0.0.460] - 2026-09-16
+
+### Added
+
+- A persisted `ask_user` question records which delegate asked it, and the
+  transcript says so — "Asked by researcher" rather than "Asked you" where a
+  specialist put the question. `ask_parent` hands the surface the question and
+  nothing else, so this needed `SubAgentState.name` upstream
+  (subagents-pydantic-ai 0.2.22, the new floor). A question the main agent asked
+  itself, and every question stored before this, names nobody. (#1042)
+
+## [0.0.459] - 2026-09-16
+
+### Fixed
+
+- The cost journey's last step waits for the API to report a priced run before
+  asking Activity to draw its row, so a failure says which of the five things it
+  crosses did not happen instead of `element(s) not found`. Every other wait in
+  that spec names what it was waiting for, `nowThere` moved out of
+  `seed.setup.ts` as `nowListed` / `nowMatching` so specs and fixtures share one
+  "the write has landed" step, and a failing `e2e` job now uploads
+  `test-results/` — the screenshot, the video, the trace and Playwright's
+  `error-context.md` — beside the HTML report. (#162)
+
 ## [0.0.458] - 2026-09-16
 
 ### Added

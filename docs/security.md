@@ -67,15 +67,20 @@ plainly because a review will find it:
   equality, not vault-sealed. Whoever holds the value can use it, so they are
   protected by expiry and single use rather than encryption. Session refresh
   tokens are the exception that is hashed at rest (`sessions.refresh_token_hash`).
-- **Uploaded and chat files** sit on the API container's filesystem in the clear
-  (`app/services/file_storage.py`) — protected only by volume encryption.
+- **Uploaded and chat files** sit wherever `FILE_STORAGE_BACKEND` puts them
+  (`app/services/file_storage.py`). On `local`, the default, that is the API
+  container's filesystem in the clear, protected only by volume encryption. On
+  `s3` they are objects in a bucket the deployment names, and every write asks
+  the store to encrypt them — SSE-S3, or SSE-KMS under a key the client
+  controls. `agenticos cmd doctor` prints which of the three a running
+  deployment is in.
 - **Message bodies, `rag_documents` and their vectors, and sandbox workspaces**
   are stored as plaintext columns, pgvector rows and workspace files. The vault
   seals credentials, not content; at-rest protection for these is disk-level.
 
-An S3-compatible file backend with server-side encryption is the app-level answer
-for object storage and is tracked in
-[#1423](https://github.com/vstorm-co/agenticos/issues/1423).
+The S3 backend is a deployment-time choice and does not migrate what the local
+one already holds; [configuration](configuration.md#uploaded-files-at-rest) has
+the settings and [file processing](file-processing.md#storage) the reasoning.
 
 ## What is held about one person, and what happens to it
 
@@ -297,12 +302,11 @@ rather than a suggestion.
   which is optional, and once a deployment-wide token is set traces every run,
   with the content of every agent that did not ask for `none`.
 - Connector and API credentials are sealed per organization in the one vault;
-  short-lived bearer tokens and content at rest (files, messages, RAG, sandboxes)
-  are not, with [#1423](https://github.com/vstorm-co/agenticos/issues/1423) the
-  app-level answer for object storage.
+  short-lived bearer tokens and the rest of the content at rest (messages, RAG,
+  sandboxes) are not. Uploaded files are the one that moved: `FILE_STORAGE_BACKEND=s3`
+  puts them in an object store that encrypts every write.
 - Every control in the matrix names a mechanism and a test, and names its gaps in
-  the same breath — tamper evidence and app-level file encryption each link the
-  issue that would build them.
+  the same breath — tamper evidence links the issue that would build it.
 - Report vulnerabilities and run the hardening checklist from
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   read [Data protection](data-protection.md) and [Licences](licenses.md) beside

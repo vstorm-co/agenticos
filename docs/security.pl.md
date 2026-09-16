@@ -1,5 +1,5 @@
 ---
-source_sha: "d6759c2a4490"
+source_sha: "24f0246443a9"
 ---
 
 # Bezpieczeństwo { #security }
@@ -72,17 +72,22 @@ wprost, bo przegląd i tak to znajdzie:
   wyszukiwane po równości, nie pieczętowane w vault. Kto ma wartość, ten może jej
   użyć, więc chroni je wygaśnięcie i jednorazowość, a nie szyfrowanie. Wyjątkiem
   są refresh tokeny sesji, haszowane w spoczynku (`sessions.refresh_token_hash`).
-- **Wgrane pliki i pliki z czatu** leżą na systemie plików kontenera API otwartym
-  tekstem (`app/services/file_storage.py`) — chroni je wyłącznie szyfrowanie
-  wolumenu.
+- **Wgrane pliki i pliki z czatu** leżą tam, gdzie umieści je
+  `FILE_STORAGE_BACKEND` (`app/services/file_storage.py`). Przy domyślnym
+  `local` jest to system plików kontenera API otwartym tekstem, chroniony
+  wyłącznie szyfrowaniem wolumenu. Przy `s3` są obiektami w buckecie, który
+  nazywa wdrożenie, a każdy zapis prosi magazyn o ich zaszyfrowanie — SSE-S3 albo
+  SSE-KMS kluczem kontrolowanym przez klienta. `agenticos cmd doctor` wypisuje,
+  w którym z tych trzech stanów jest działające wdrożenie.
 - **Treści wiadomości, `rag_documents` i ich wektory oraz workspace'y sandboksa**
   są przechowywane jako kolumny z tekstem jawnym, wiersze pgvector i pliki
   workspace'u. Vault pieczętuje poświadczenia, nie treść; ochrona tych rzeczy w
   spoczynku jest na poziomie dysku.
 
-Backend plików zgodny z S3, z szyfrowaniem po stronie serwera, jest odpowiedzią
-na poziomie aplikacji dla object storage i jest śledzony w
-[#1423](https://github.com/vstorm-co/agenticos/issues/1423).
+Backend S3 jest wyborem dokonywanym w czasie wdrożenia i nie migruje tego, co
+trzyma już lokalny; ustawienia są w
+[konfiguracji](configuration.md#uploaded-files-at-rest), a uzasadnienie
+w [przetwarzaniu plików](file-processing.md#storage).
 
 ## Co jest trzymane o jednej osobie i co się z tym dzieje { #what-is-held-about-one-person-and-what-happens-to-it }
 
@@ -302,12 +307,12 @@ nie sugestią.
   ustawiony, trace'uje każdy run obsłużony przez proces API, z treścią każdego
   agenta, który nie poprosił o `none`.
 - Poświadczenia konektorów i API są zapieczętowane per organizacja w jednym
-  vaulcie; krótkożyjące tokeny bearer i treść w spoczynku (pliki, wiadomości,
-  RAG, sandboksy) nie są, a [#1423](https://github.com/vstorm-co/agenticos/issues/1423)
-  jest odpowiedzią na poziomie aplikacji dla object storage.
+  vaulcie; krótkożyjące tokeny bearer i reszta treści w spoczynku (wiadomości,
+  RAG, sandboksy) nie są. Wgrane pliki są tym, co się zmieniło:
+  `FILE_STORAGE_BACKEND=s3` umieszcza je w object storage, który szyfruje każdy
+  zapis.
 - Każda kontrola w macierzy nazywa mechanizm i test, i tym samym tchem nazywa
-  swoje luki — dowód nienaruszalności i szyfrowanie plików na poziomie aplikacji
-  linkują issue, które by je zbudowały.
+  swoje luki — dowód nienaruszalności linkuje issue, które by go zbudowało.
 - Podatności zgłaszaj i listę kontrolną hardeningu uruchamiaj z
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   obok tej strony czytaj [Ochronę danych](data-protection.md) i
