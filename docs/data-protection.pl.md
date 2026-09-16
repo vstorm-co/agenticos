@@ -1,5 +1,5 @@
 ---
-source_sha: "dec48e072081"
+source_sha: "de798898a233"
 ---
 
 # Ochrona danych { #data-protection }
@@ -83,7 +83,7 @@ przez sprawdzenie rodzica.
 | `agent_runs`, `tool_approvals`, `run_manifests` | Ile każdy run kosztował i co zrobił | Prompt systemowy i ostatnie żądanie podane modelowi, argumenty narzędzi czekające na zatwierdzenie, osoba decydująca i jej notatka | Budżety, zatwierdzenia, historia runów |
 | `agent_triggers` | Runy zaplanowane i wyzwalane zdarzeniem | Prompt oraz konfiguracja i filtr źródła zdarzeń | Uruchamianie agenta bez człowieka |
 | `app_admin_audit_logs` | Kto zmienił dostęp albo wydał pieniądze — ślad organizacji i ślad administratora wdrożenia dzielą jedną tabelę | Aktor, podszywający się, adres IP, akcja i mapa `details`. Mapa przeważnie nazywa pola, ale niektóre wpisy trzymają wartości: e-mail konta, pod które się podszyto, e-mail konta usuniętego przez administratora, notatka publikacji | Rozliczalność. Zobacz [Nadzór](governance.md#audit) |
-| `notifications`, `notification_deliveries` | Każdy wiersz powiadomienia w aplikacji oraz jego dostarczenie mailem | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje tylko swój kanał, status i liczbę prób | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
+| `notifications`, `notification_deliveries` | Każdy wiersz powiadomienia w aplikacji oraz jego dostarczenie mailem | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje swój kanał, status, liczbę prób i oczyszczony powód niepowodzenia — nigdy tekst błędu od providera | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą i tak można odtworzyć z `notifications` | Rezygnacja z powiadomień i własny zapis autora |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
