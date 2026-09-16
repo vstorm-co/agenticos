@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.456] - 2026-09-16
+
 ### Changed
 
 - **A skill is now a capability of its own, and the model opens it with
