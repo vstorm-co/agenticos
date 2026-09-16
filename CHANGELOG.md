@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.459] - 2026-09-16
+
 ### Fixed
 
 - The cost journey's last step waits for the API to report a priced run before
