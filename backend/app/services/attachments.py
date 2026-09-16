@@ -405,7 +405,12 @@ class AttachmentRouter:
                     text_parts.append(plan.reference)
                     used += len(plan.reference)
                 else:
-                    text_parts.append(plan.reference[:remaining])
+                    # The whole reference is dropped rather than sliced: a
+                    # reference is a formatted block - a filename clause, a
+                    # workspace path, a fenced extract - and cutting it mid-way
+                    # loses the closing code fence, so the truncation notice that
+                    # follows lands *inside* the file's code block and the model
+                    # reads it as file contents (#1591).
                     text_parts.append(_TURN_TRUNCATED)
                     truncated = True
 

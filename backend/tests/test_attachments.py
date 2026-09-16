@@ -598,6 +598,25 @@ class TestThePerTurnTextBudget:
         # The third file's text never makes it in once the budget is spent.
         assert "z" * 400 not in prompt
 
+    async def test_a_truncated_reference_is_dropped_whole_not_sliced(self, storage, monkeypatch):
+        """A reference is a formatted block (a fenced extract); slicing it mid-way
+        drops the closing code fence, so the truncation notice lands *inside* the
+        file's code block and the model reads it as file contents. The over-budget
+        reference is dropped whole, leaving the fences balanced (#1591)."""
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "CHAT_TURN_TEXT_MAX_CHARS", 30)
+        files = [_file(filename="big.csv", parsed_content="x" * 400)]
+
+        prompt = await AttachmentRouter().build_prompt("go", files)
+
+        assert isinstance(prompt, str)
+        assert "size budget" in prompt
+        # No dangling code fence: the partial file body (and its unclosed ```) is not
+        # emitted, so the truncation notice is not swallowed into a code block.
+        assert prompt.count("```") % 2 == 0
+        assert "x" * 400 not in prompt
+
 
 class TestTheSiblingForTheNewFormats:
     async def test_a_presentation_gets_its_text_beside_it(self, storage):
