@@ -3,15 +3,18 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, UploadFile, status
+from fastapi import APIRouter, File, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import (
     CurrentAppAdmin,
     CurrentSessionId,
     CurrentUser,
+    DBSession,
     UserSvc,
 )
+from app.api.routes.v1.admin_users import delete_user as admin_delete_user
+from app.api.routes.v1.admin_users import update_user as admin_update_user
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.user import UserRead, UserUpdate
 from app.services.file_storage import sniff_image_media_type
@@ -102,18 +105,35 @@ async def read_user(
 async def update_user_by_id(
     user_id: UUID,
     user_in: UserUpdate,
-    user_service: UserSvc,
+    request: Request,
     admin: CurrentAppAdmin,
+    db: DBSession,
+    user_service: UserSvc,
 ) -> Any:
-    """Update user by ID (admin only)."""
-    return await user_service.admin_update(user_id, user_in, acting_admin_id=admin.id)
+    """Update user by ID (admin only).
+
+    Delegates to `admin_users.update_user` rather than repeating its audit
+    and notification write here - the two routers reach the same action from
+    two paths, and a second copy of "record it, then notify" is a second copy
+    that silently stopped being audited when only one of them was kept
+    current (#1598).
+    """
+    return await admin_update_user(user_id, user_in, request, admin, db, user_service)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_user_by_id(
     user_id: UUID,
-    user_service: UserSvc,
+    request: Request,
     admin: CurrentAppAdmin,
+    db: DBSession,
+    user_service: UserSvc,
+    reason: str | None = Query(
+        default=None,
+        max_length=500,
+        description="Why this account was deleted. Recorded in the audit trail.",
+    ),
 ) -> None:
-    """Delete user by ID (admin only)."""
-    await user_service.admin_delete(user_id, acting_admin_id=admin.id)
+    """Delete user by ID (admin only). Delegates to `admin_users.delete_user`,
+    for the same reason `update_user_by_id` above does."""
+    await admin_delete_user(user_id, request, admin, db, user_service, reason=reason)
