@@ -421,6 +421,30 @@ describe("the workspace panel", () => {
       expect(screen.getByText("invoice.pdf")).toBeVisible();
     });
 
+    it("draws a thumbnail for a render-safe image but not for a TIFF", async () => {
+      // A TIFF is an `image` kind no browser can draw inline, so it must get its
+      // glyph rather than a broken thumbnail; a PNG behind the same authenticated
+      // address is drawn (#1591).
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({ backend: "none", items: [], total: 0, bytes_total: 0 }),
+      );
+
+      draw(
+        <WorkspaceFiles
+          conversationId="c1"
+          attachments={[
+            attachment({ id: "p", filename: "shot.png", mime_type: "image/png" }),
+            attachment({ id: "t", filename: "scan.tiff", mime_type: "image/tiff" }),
+          ]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+
+      expect(screen.getByRole("img", { name: "shot.png" })).toBeVisible();
+      expect(screen.queryByRole("img", { name: "scan.tiff" })).toBeNull();
+    });
+
     it("counts them on the button beside the agent's own", async () => {
       draw(<WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />);
 

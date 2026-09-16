@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { getRunFileUrl, runAttachmentAccess } from "@/lib/file-api";
-import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
+import { isRenderSafeImage, suffixOf } from "@/lib/file-kinds";
 import { glideOrJump } from "@/lib/motion";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, ToolCall } from "@/types";
@@ -341,11 +341,7 @@ function TurnAttachments({ runId, files }: { runId: string; files: ChatMessageFi
             key={file.id}
             name={file.filename}
             mimeType={file.mime_type}
-            imageUrl={
-              resolveFileKind(file.filename, file.mime_type) === "image"
-                ? getRunFileUrl(runId, file.id)
-                : null
-            }
+            imageUrl={isRenderSafeImage(file.mime_type) ? getRunFileUrl(runId, file.id) : null}
             typeLabel={suffixOf(file.filename).toUpperCase() || file.file_type.toUpperCase()}
             onOpen={() => setOpened(file)}
           />
