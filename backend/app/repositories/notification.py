@@ -157,6 +157,7 @@ async def get_own(
         select(Notification).where(
             Notification.id == notification_id,
             Notification.recipient_user_id == recipient_id,
+            Notification.in_app_visible.is_(True),
             or_(
                 Notification.organization_id == organization_id,
                 Notification.organization_id.is_(None),
@@ -298,7 +299,7 @@ async def list_failed_deliveries(
         select(NotificationDelivery, Notification, func.count().over().label("total"))
         .join(Notification, Notification.id == NotificationDelivery.notification_id)
         .where(NotificationDelivery.status == DeliveryStatus.FAILED.value)
-        .order_by(NotificationDelivery.created_at.desc())
+        .order_by(NotificationDelivery.created_at.desc(), NotificationDelivery.id.desc())
         .offset(skip)
         .limit(limit)
     )
