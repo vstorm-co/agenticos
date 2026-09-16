@@ -889,8 +889,10 @@ add one, and `docs/howto/add-sync-connector.md` for a worked example.
 - **Routes → services → repositories.** A route never imports a repository.
 - A repository uses `db.flush()` and `db.refresh()`, **never** `db.commit()`. The
   request's session commits once, before the response is written.
-- The agent run path is the one sanctioned exception: it commits before the model
-  call and again in the terminal `finally`.
+- The agent run path is the main sanctioned exception: it commits before the model
+  call and again in the terminal `finally`. `MLService._record_failure` is the other,
+  and for the mirror-image reason - a usage record of a *refusal* has to survive the
+  rollback that refusal causes.
 - Background work that reads a row this request wrote is handed over with
   **`spawn_after_commit`**, never `spawn`.
 - A thin domain is a module; a thick one is a subpackage with a facade, and nothing

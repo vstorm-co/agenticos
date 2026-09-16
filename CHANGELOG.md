@@ -35,6 +35,111 @@ Two things are versioned separately from this file and worth knowing about:
   to `httpx2` is its own change with its own tests; until then the cap is what
   keeps the scheduled upgrade green rather than perpetually red. (#1485)
 
+## [0.0.448] - 2026-09-16
+
+### Added
+
+- **GitHub triggers can run on a GitHub App instead of an OAuth App.** The OAuth
+  path stays as the fallback and the two coexist; what it costs is the reason for
+  the second. A `repo` plus `admin:repo_hook` token is read-write on every
+  repository the *person* can administer, never expires, needs a hook created and
+  deleted per repository, and shares that account's rate limit. An App is
+  installed on the repositories somebody chose, its token is minted from a
+  private key in the vault and lives an hour, and it is already delivering - so
+  creating a trigger registers nothing.
+
+  The trade is that the URL stops naming the trigger: one App has one webhook URL
+  and one signing secret per installation. `POST /webhooks/github-app` takes the
+  installation id out of the payload to select candidate grants, verifies the
+  signature against that organization's own App secret, and fires **every** active
+  trigger pointing at that repository - which a per-trigger URL cannot do, and
+  which two triggers on one repository is exactly what the presets invite. A
+  delivery matching nothing answers 202 like one that fired everything.
+
+  Stored as a new `github_app` vault kind (app id, private key, webhook secret),
+  and `docs/triggers.md` has the comparison table plus how to tell which of the
+  two a given trigger is on. Connecting is the portal's own action rather than an
+  OAuth start - an App has no consent flow - and it proves the App id, the key
+  and the installation id together before writing the grant, which is the only
+  moment any of the three can be checked. (#1072)
+
+## [0.0.447] - 2026-09-16
+
+### Changed
+
+- **The desktop shell hands sign-in to the system browser.** Google's
+  authorization endpoint refuses an embedded user-agent
+  (`disallowed_useragent`), and the shell answered that by telling the console
+  window it was Safari - a workaround that worked and that Google's own policy
+  says not to rely on. It is gone. The window now refuses exactly one navigation:
+  a start at the deployment's own `/api/v1/oauth/<provider>/login`, which it opens
+  in your own browser with `client=desktop` and a per-attempt nonce appended.
+  Nothing in the console knows it is running in a shell, and nothing has to - and
+  because the console's same-origin hop is *followed* rather than intercepted, an
+  invitee signing in from the app still carries their staged invitation.
+
+  The callback reads that marker off the session it was recorded in at the
+  *start*, never off the return, and redirects to `agenticos://auth/callback`
+  with the single-use code the browser flow already mints. The shell sends the
+  console window to the page it already had, which swaps the code
+  server-to-server and sets the window's own cookies - so the browser's cookie
+  jar is left out of it, which is the point. A deep link can be fired by any
+  process on the machine, so what one may do is send the console to one path on
+  the server the user configured, with a code that redeems once - and only if it
+  carries the nonce this shell minted, so a local process holding a code cannot
+  move the window into somebody else's account. The marker is filed under each
+  attempt's own OAuth `state`, so two sign-ins in one browser cannot trade
+  destinations, and a single-instance lock stops a callback building a second
+  console beside the one waiting for it on Windows and Linux. (#1532)
+
+## [0.0.446] - 2026-09-16
+
+### Added
+
+- **The ML services answer on their own, without a conversation or an agent.**
+  Four of them: document analysis, OCR, speech to text and personal data
+  detection, under `/api/v1/ml/`. They are the implementations the agents
+  already use - the ingestion parsers, the guardrails' detectors, the
+  transcription client - reached directly, so another component with a key gets
+  the same answers an agent would rather than a second opinion. `GET
+  /ml/services` publishes the coverage matrix as data, including the two rows
+  that say no: personal names, postal addresses and telephone numbers need a
+  named-entity model this deployment does not ship, and image analysis is future
+  scope in the requirements themselves. One permission gates all four -
+  `ml:invoke`, deliberately not `agents:run`, so an integration that parses
+  documents cannot also spend the organization's model budget. Every call writes
+  a row to the new `ml_service_calls` table - the service, the tenant, byte and
+  unit counts, the duration, the outcome, and none of what was submitted or
+  returned. `deploy/profiles/ml-services/` runs the API image a second time as a
+  replica the ingress sends only these paths to, with its own workers, CPU and
+  memory. Parsing runs on the file-io pool rather than the request's event loop,
+  a worker holds at most `ML_MAX_CONCURRENT_PARSES` parses at once and refuses
+  rather than queues beyond that, uploads are read only up to the ceiling, and a
+  refused call's record is committed before the refusal rolls its transaction
+  back. Schema: `ml_service_calls`. #1595
+
+## [0.0.445] - 2026-09-16
+
+### Added
+
+- **A repeatable load and resilience suite, and two measured runs (NFA-004).**
+  `loadtest/` offers a stated workload mix at a stated arrival rate - reads,
+  streamed chat turns with a fifth of them cancelled, non-streaming runs,
+  retrieval, uploads and signed webhook deliveries - through ramp, sustain,
+  burst and recover phases, and prints a report naming what it measured, what it
+  could not, and each proposed threshold's verdict with the sample count beside
+  it. The model is a stub that is slow on purpose and can be told to fail, and it
+  serves the embeddings too, so a default run touches no paid provider and a
+  deployment with no provider key at all can still be measured. Arrival-rate
+  rather than worker-pool driving, because a closed loop slows its own offered
+  rate exactly when the server does. `make load-stub-model`, `make load-seed`,
+  `make load-test`; the workload, the thresholds and what the suite does not
+  claim are in `docs/load-testing.md`. Every offered request leaves a sample,
+  including one abandoned at the end of a run, so an overloaded run cannot
+  improve its own error rate by losing requests; the report shows the recovery
+  phase on its own, since that is what tells a deployment that absorbed a spike
+  from one that stayed on the floor. #1597
+
 ## [0.0.444] - 2026-09-16
 
 ### Added

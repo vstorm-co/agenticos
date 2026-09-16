@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.444"
+version = "0.0.448"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -371,6 +371,11 @@ ignore = [
 # shells out to `git` by name with a literal argv it builds itself (S603, S607) -
 # the same partial-path invocation already accepted for `tests/test_migrations.py`.
 "../scripts/**" = ["T201", "S603", "S607"]
+# The load harness is a console tool with the same shape: it prints its progress
+# and its report to stdout (T201), because a load run is watched while it runs and
+# its output is redirected into a results file afterwards. It is not imported by
+# the application - nothing under `app/` may import it - and it carries no gate.
+"../loadtest/**" = ["T201"]
 # Postgres cannot parameterise an identifier, so a table name must be
 # interpolated. `_validate_collection_name` rejects anything but
 # [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is
@@ -633,6 +638,7 @@ include = [
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
+    "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
@@ -733,6 +739,19 @@ include = [
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
+    # The standalone ML services (FA-069). Held here because the surface is one
+    # another Urban Stack component calls with a key and no person watching: the
+    # refusals are the contract, the tenant scoping on a call record is what keeps
+    # one integrator's usage out of another's, and a branch nobody exercises on
+    # purpose is exactly the one an unattended caller finds.
+    "app/services/ml/catalog.py",
+    "app/services/ml/pii.py",
+    "app/services/ml/parsing.py",
+    "app/services/ml/facade.py",
+    "app/db/models/ml_service_call.py",
+    "app/repositories/ml_service_call.py",
+    "app/schemas/ml.py",
+    "app/api/routes/v1/ml.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -942,6 +961,7 @@ include = [
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
+    "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
@@ -1042,6 +1062,19 @@ include = [
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
+    # The standalone ML services (FA-069). Held here because the surface is one
+    # another Urban Stack component calls with a key and no person watching: the
+    # refusals are the contract, the tenant scoping on a call record is what keeps
+    # one integrator's usage out of another's, and a branch nobody exercises on
+    # purpose is exactly the one an unattended caller finds.
+    "app/services/ml/catalog.py",
+    "app/services/ml/pii.py",
+    "app/services/ml/parsing.py",
+    "app/services/ml/facade.py",
+    "app/db/models/ml_service_call.py",
+    "app/repositories/ml_service_call.py",
+    "app/schemas/ml.py",
+    "app/api/routes/v1/ml.py",
 ]
 branch = true
 omit = [

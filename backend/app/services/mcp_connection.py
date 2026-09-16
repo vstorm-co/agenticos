@@ -38,7 +38,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from mcp.shared.auth import OAuthToken
-from pydantic import SecretStr
+from pydantic import SecretStr, TypeAdapter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,11 +56,16 @@ from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
 from app.agents.spec import McpServerRef, PersonalMcpServerRef
 from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
-from app.core.secret_kinds import SecretKind
+from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import McpConnection
@@ -76,7 +81,8 @@ from app.services import portal_catalog, portals
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
-from app.services.portals import github_oauth, google_oauth
+from app.services.portals import github_app, github_oauth, google_oauth
+from app.services.portals.github_app import GitHubAppPortalAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +351,16 @@ def _decode_payload(connection: McpConnection, encrypted: str | None) -> McpOAut
 # and `oauth_start_for_polled_portal` would raise a `KeyError` before writing
 # anything, which is the loud failure a silent empty string would not be.
 _POLLED_PORTAL_URL = {"google": "https://gmail.googleapis.com"}
+
+_GITHUB_APP_GRANT_URL = "https://api.github.com"
+"""What a GitHub App grant records as its address.
+
+The column is not nullable and every other grant points at the server it talks
+to, so this points at the one an installation token is spent against. Nothing
+resolves a connection by it - the App grant is found by its portal key and its
+installation id - and inventing a per-installation URL would imply a lookup that
+does not exist.
+"""
 
 # How stale a grant's `polled_at` must be before a tick claims it again, and how
 # many one tick takes. The interval matches the heartbeat's own minute; the batch
@@ -1215,6 +1231,109 @@ class McpConnectionService:
             scopes=scopes,
             state=state,
         )
+
+    async def connect_github_app(self, ctx: AuthContext, *, installation_id: str) -> McpConnection:
+        """Record which GitHub App installation this organization's triggers belong to.
+
+        The one portal here with no OAuth dance, because an App has none: somebody
+        installs it on the repositories they chose, GitHub shows an installation
+        id, and that id plus the App's own key in the vault is the whole grant.
+        Without this the portal declared a Connect action nothing could complete -
+        the frontend sends every GitHub portal to `oauth_start_for_org_github`,
+        which wants a `github_oauth_app` secret and makes an ordinary OAuth
+        connection, so an organization that stored only the App secret could
+        install the App, receive its deliveries, and have none of them match a
+        grant (#1072).
+
+        **The installation is proved before the row is written.** Minting a token
+        exercises the App id, the private key and the installation id together, so
+        a mistyped id or a PEM that lost its line breaks is refused here rather
+        than discovered as deliveries that quietly match nothing. It is also the
+        only moment any of the three can be checked: the vault never shows a
+        stored secret again.
+
+        Re-running it moves an existing grant to the new installation rather than
+        adding a second - the partial unique index allows one grant per portal per
+        organization, and two would be two installations with nothing to say which
+        a trigger meant.
+
+        Raises:
+            NotFoundError: The organization has stored no `github_app` secret.
+            BadRequestError: More than one such secret, or the portal is missing
+                from the catalog.
+            ExternalServiceError: GitHub would not mint a token for this
+                installation, which means the three values do not agree.
+            AuthorizationError: Under an impersonation, for the reason every other
+                binding is refused there (#1490).
+        """
+        refuse_binding_while_impersonating("Connecting an integration")
+        portal = portal_catalog.get_portal(GitHubAppPortalAdapter.portal_key)
+        if portal is None:
+            raise BadRequestError(
+                message="This deployment does not offer the GitHub App portal",
+                details={"portal_key": GitHubAppPortalAdapter.portal_key},
+            )
+        secret = TypeAdapter(GithubAppSecret).validate_python(
+            await OrganizationSecretService(self.db).app_secret(
+                ctx.organization_id, kind=SecretKind.GITHUB_APP
+            )
+        )
+        try:
+            await github_app.installation_token(
+                app_id=secret.app_id,
+                private_key=secret.private_key.get_secret_value(),
+                installation_id=installation_id,
+            )
+        except portals.PortalError as failure:
+            raise ExternalServiceError(
+                message=(
+                    "GitHub would not mint a token for that installation. Check the "
+                    "installation id, and that the private key was pasted whole."
+                ),
+                details={"installation_id": installation_id},
+            ) from failure
+
+        existing = await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=portal.key
+        )
+        if existing is not None:
+            connection = await mcp_connection_repo.update(
+                self.db,
+                db_connection=existing,
+                update_data={"portal_account_id": installation_id, "is_enabled": True},
+            )
+        else:
+            connection = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                name=portal.name,
+                url=_GITHUB_APP_GRANT_URL,
+                sealed_token=None,
+                secret_key_version=0,
+                allowed_tools=None,
+                catalog_key=None,
+                auth_type="none",
+                purpose="portal",
+                portal_key=portal.key,
+            )
+            connection = await mcp_connection_repo.update(
+                self.db,
+                db_connection=connection,
+                update_data={"portal_account_id": installation_id},
+            )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="portal.github_app.connected",
+            target_type="mcp_connection",
+            target_id=str(connection.id),
+            # The installation id is not a credential - it is in every delivery -
+            # and it is the one value an operator needs to recognise the grant.
+            details={"portal_key": portal.key, "installation_id": installation_id},
+        )
+        return connection
 
     async def oauth_callback(self, *, state: str, code: str) -> McpConnection:
         """Complete the flow: exchange the code for tokens and store them.

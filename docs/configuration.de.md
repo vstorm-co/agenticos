@@ -1,5 +1,5 @@
 ---
-source_sha: "9d8160596d6d"
+source_sha: "11b4afede893"
 ---
 
 # Konfiguration { #configuration }
@@ -55,6 +55,8 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `MAX_UPLOAD_SIZE_MB` | `50` | Obergrenze für Dokumente der Knowledge Base und die Zahl, aus der sich die Obergrenze für die gesamte Anfrage weiter unten ableitet. Ein Dokument dieser Größe wird in Chunks zerlegt und embedded, nicht am Stück gehalten |
 | `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | Was im Chat angehängt werden darf. Eine eigene Einstellung statt der obigen, weil ein Anhang an einen Agent ohne Workspace vollständig in den Prompt eingesetzt wird — die beiden Oberflächen scheitern bei derselben Größe also unterschiedlich. War fest verdrahtete 10 MiB, die kein Betreiber anheben konnte ([#498](https://github.com/vstorm-co/agenticos/issues/498)); der Frontend-Container liest dasselbe `CHAT_MAX_UPLOAD_SIZE_MB` zur Laufzeit, geben Sie also beiden Containern einen Wert, sonst lehnt der Composer eine Datei ab, die der Server annehmen würde |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Was eine **fremde Person** auf eine Hosted Page hochladen darf. Eine Obergrenze über `CHAT_MAX_UPLOAD_SIZE_MB`, nie ein Weg daran vorbei |
+| `ML_MAX_UPLOAD_SIZE_MB` | `25` | Was ein Aufruf der [ML-Dienste](ml-services.md) einreichen darf — ein Dokument zum Parsen, einen Scan zum Erkennen, eine Aufnahme zum Transkribieren. Eine eigene Einstellung, weil die Bytes innerhalb einer Anfrage geparst oder an eine Engine geschickt statt abgelegt werden, die Grenze also davon handelt, was ein einzelner synchroner Aufruf belegen darf. Sie liegt bei den 25 MB des Transkriptionsclients, der kleinsten Engine-Grenze hinter dieser Oberfläche |
+| `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Die monatliche Ausgabenobergrenze, mit der eine **neue** Organisation startet, in USD, damit sie nicht einen entlaufenen Agent von einer überraschenden Rechnung entfernt ist. Gilt nur bei der Erstellung; bestehende Organisationen bleiben unberührt, und jede Organisation lässt sich danach wieder auf kein Cap zurücksetzen. Muss positiv sein; lassen Sie den Wert **leer**, damit Organisationen ohne Cap starten (die ältere Opt-in-Haltung) |
@@ -128,6 +130,7 @@ Standardwert sein.
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google-OAuth2-Client-Secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | Callback-URL für OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend-URL für die OAuth2-Weiterleitungen |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | Das Schema, das die Desktop-Hülle für eine an den Systembrowser übergebene Anmeldung registriert ([Desktop](desktop.md#signing-in)). Der Callback baut daraus eine Weiterleitung, also eine Einstellung und nichts, was ein Aufrufer wählen kann |
 
 So kommen Sie an das Paar: [Google Cloud console](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.
@@ -949,6 +952,7 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
+| `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag
