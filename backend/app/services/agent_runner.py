@@ -2191,6 +2191,7 @@ class AgentRunnerService:
                 agent_id=agent.id,
                 agent_version_id=version_id or agent.current_version_id,
                 user_id=ctx.user_id,
+                initiated_by_publisher_fallback=subject_is_publisher_fallback,
                 conversation_id=conversation_id,
                 environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,

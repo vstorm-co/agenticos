@@ -382,7 +382,7 @@ class TestPrepare:
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            ),
+            ) as create_run,
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
                 new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
@@ -393,6 +393,11 @@ class TestPrepare:
 
         assert toolsets.await_args.kwargs["sender_user_id"] is None
         assert prepared.admitted_as.subject_is_publisher_fallback is True
+        # The same fact, carried onto the row itself - a run-finished
+        # notification reading `user_id` back later has no other way to
+        # tell a real initiator from the publisher standing in for one
+        # (#1598's own run-flood regression).
+        assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is True
 
     @pytest.mark.anyio
     async def test_a_resumed_run_gets_its_servers_back(self):
