@@ -934,6 +934,7 @@ def _entry(
     org_id=_UNSET,
     actor=_UNSET,
     target_type="user",
+    impersonator=None,
 ):
     entry = MagicMock()
     entry.id = uuid.uuid4()
@@ -941,6 +942,12 @@ def _entry(
     entry.organization_id = uuid.uuid4() if org_id is _UNSET else org_id
     entry.actor_user_id = uuid.uuid4() if actor is _UNSET else actor
     entry.target_type = target_type
+    # `MagicMock()` is truthy by default, and `security_event` reads this
+    # with `entry.impersonator_user_id or entry.actor_user_id` - an
+    # unconfigured mock here would silently win that `or` on every test that
+    # never mentions impersonation, rather than falling through to the actor
+    # every one of them actually means to assert on.
+    entry.impersonator_user_id = impersonator
     return entry
 
 
@@ -972,6 +979,22 @@ class TestSecurityEventAndConfigurationChanged:
         assert call["actor_user_id"] == entry.actor_user_id
         assert call["use_savepoint"] is True
         assert "/vault" in call["context_url"]
+
+    @pytest.mark.anyio
+    async def test_an_impersonated_write_rate_limits_the_impersonator_not_the_target(self, written):
+        """`record_audit` records an impersonated write's *actor* as the
+        impersonated account and the *impersonator* separately - keying the
+        rate limit on the actor alone gave every impersonated target its own
+        fresh budget and never bounded the administrator actually doing the
+        impersonating."""
+        admin = uuid.uuid4()
+        impersonator = uuid.uuid4()
+        entry = _entry(action="secret.created", target_type="secret", impersonator=impersonator)
+        with patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin)):
+            await NotificationService(MagicMock()).security_event(entry)
+
+        assert written.calls[0]["actor_user_id"] == impersonator
+        assert written.calls[0]["actor_user_id"] != entry.actor_user_id
 
     @pytest.mark.anyio
     async def test_an_org_scoped_entry_never_reaches_a_deployment_app_admin_alone(self, written):

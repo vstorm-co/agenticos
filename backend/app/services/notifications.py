@@ -520,7 +520,13 @@ class NotificationService:
                 "url": url,
             },
             organization_id=entry.organization_id,
-            actor_user_id=entry.actor_user_id,
+            # The real administrator, not `entry.actor_user_id` bare - an
+            # impersonated write records the impersonated account as the
+            # actor (`record_audit`'s own `entry.actor_user_id`/
+            # `impersonator_user_id` split), so keying the rate limit on it
+            # alone gives every impersonated target its own fresh budget and
+            # never actually bounds the administrator doing the impersonating.
+            actor_user_id=entry.impersonator_user_id or entry.actor_user_id,
             use_savepoint=True,
         )
 
