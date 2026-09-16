@@ -20,15 +20,25 @@ survive a retry without colliding with the attempt before it - nothing in the
 ingestion pipeline persisted either before this (Decision 1).
 
 Revision ID: 0085_notification_center_schema
-Revises: 0084_retention_policies
+Revises: 0079_audit_hash_chain
 Create Date: 2026-09-15
 
-Renumbered from 0080/0081 (#1420's own per-organization retention policies
-landed on `main` in that range while this stack sat stacked and unmerged,
-leaving two independent chains off `0079_audit_hash_chain` - `alembic upgrade
-head` on the merge ref sees two heads with neither depending on the other).
-Re-chained onto `main`'s actual head rather than renumbered in place, since a
-number alone does not join the two chains.
+Renumbered from 0080 - `main` gained its own, unrelated `0080`-`0084` range
+(#1420's own per-organization retention policies among them) while this stack
+sat stacked and unmerged, so the original number collided with a real file on
+`main` rather than only with an in-memory revision id.
+
+Still chained to `0079_audit_hash_chain`, not to any of `main`'s own
+migrations: a `git merge`/rebase of this whole stack onto current `main` is
+what actually reconciles the two chains (`alembic upgrade head` on that merge
+ref sees the two heads and asks for the one line this repository's own
+`tests/test_migration_chain.py` describes - point the later one's
+down_revision at the earlier one - once both chains, and the *models* `main`'s
+own migrations pair with, are truly present together). Chaining onto a
+revision from a different history without its models was tried and reverted:
+`alembic check` then reports every one of `main`'s tables and columns as
+"removed", because nothing in this repository's `app/db/models/` declares
+them - correctly, since they belong to features this stack does not carry.
 """
 
 from collections.abc import Sequence
@@ -39,7 +49,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0085_notification_center_schema"
-down_revision: str | None = "0084_retention_policies"
+down_revision: str | None = "0079_audit_hash_chain"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
