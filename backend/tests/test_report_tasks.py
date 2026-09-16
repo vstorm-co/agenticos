@@ -7,13 +7,14 @@ raising inside a weekly job nobody watches. Those are what these pin.
 """
 
 import uuid
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.agents.spec import AgentSpec, AlertSpec, NotificationSpec
-from app.worker.tasks.report_tasks import _run_agent_reports
+from app.worker.tasks.report_tasks import _run_agent_reports, _run_reports
 
 MODULE = "app.worker.tasks.report_tasks"
 
@@ -164,3 +165,51 @@ async def test_an_agent_whose_spec_declines_the_report_is_not_counted():
         reported = await _run_agent_reports(MagicMock(), notifications, "weekly", _WINDOW_START)
 
     assert reported == 0
+
+
+class TestWindowStartIsIdempotentAcrossRetries:
+    """The dedup key a retried report is caught on is `(subject, period,
+    window_start)` - so two invocations that both fire today, whether a
+    genuine Prefect retry or an accidental second trigger, must compute the
+    identical `window_start` or the constraint has nothing to catch
+    (`.claude/skills/background-task/SKILL.md`'s idempotency rule)."""
+
+    @asynccontextmanager
+    async def _fake_db_context(self):
+        yield MagicMock()
+
+    async def _captured_window_starts(self) -> list[datetime]:
+        captured: list[datetime] = []
+
+        class _Notifications:
+            def __init__(self, db):
+                pass
+
+            async def usage_report(self, organization_id, *, period, window_start):
+                captured.append(window_start)
+                return False
+
+        with (
+            patch(f"{MODULE}.get_db_context", self._fake_db_context),
+            patch(
+                f"{MODULE}.organization_repo.list_all",
+                new=AsyncMock(return_value=[MagicMock(id=uuid.uuid4())]),
+            ),
+            patch(f"{MODULE}.agent_repo.list_all_published", new=AsyncMock(return_value=[])),
+            patch(f"{MODULE}.NotificationService", new=_Notifications),
+        ):
+            await _run_reports("weekly")
+        return captured
+
+    @pytest.mark.anyio
+    async def test_the_window_start_is_rounded_to_midnight_utc(self):
+        captured = await self._captured_window_starts()
+        window_start = captured[0]
+        assert (window_start.hour, window_start.minute, window_start.second) == (0, 0, 0)
+        assert window_start.microsecond == 0
+
+    @pytest.mark.anyio
+    async def test_two_calls_the_same_day_compute_the_same_window(self):
+        first = await self._captured_window_starts()
+        second = await self._captured_window_starts()
+        assert first[0] == second[0]
