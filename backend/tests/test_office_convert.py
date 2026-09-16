@@ -21,25 +21,35 @@ from app.services import office_convert
 pytestmark = pytest.mark.anyio
 
 
+class FakeStderr:
+    """A stand-in for the child's stderr `StreamReader`: yields its bytes once, then
+    EOF. `hang` makes the read block, the way a child flooding or holding the pipe
+    open for the whole timeout does."""
+
+    def __init__(self, data: bytes, hang: bool) -> None:
+        self._data = data
+        self._hang = hang
+
+    async def read(self, n: int) -> bytes:
+        if self._hang:
+            await asyncio.sleep(10)
+        chunk, self._data = self._data[:n], self._data[n:]
+        return chunk
+
+
 class FakeProc:
     def __init__(
         self,
         *,
         returncode: int = 0,
         stderr: bytes = b"",
-        hang_communicate: bool = False,
+        hang_stderr: bool = False,
         hang_wait: bool = False,
     ) -> None:
         self.pid = 4242
         self.returncode = returncode
-        self._stderr = stderr
-        self._hang_communicate = hang_communicate
+        self.stderr = FakeStderr(stderr, hang_stderr)
         self._hang_wait = hang_wait
-
-    async def communicate(self) -> tuple[None, bytes]:
-        if self._hang_communicate:
-            await asyncio.sleep(10)
-        return None, self._stderr
 
     async def wait(self) -> int:
         if self._hang_wait:
@@ -118,7 +128,7 @@ class TestTeardown:
             office_convert.os, "killpg", lambda pgid, sig: killed.append((pgid, sig))
         )
 
-        result = await _convert(monkeypatch, FakeProc(hang_communicate=True), timeout=0.01)
+        result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
 
         assert result is None
         assert killed and killed[0][0] == 999  # the group was signalled
@@ -130,7 +140,7 @@ class TestTeardown:
         monkeypatch.setattr(config_module.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 0.01)
 
         result = await _convert(
-            monkeypatch, FakeProc(hang_communicate=True, hang_wait=True), timeout=0.01
+            monkeypatch, FakeProc(hang_stderr=True, hang_wait=True), timeout=0.01
         )
 
         assert result is None
@@ -146,7 +156,7 @@ class TestTeardown:
 
         monkeypatch.setattr(office_convert.os, "getpgid", _gone)
 
-        assert await _convert(monkeypatch, FakeProc(hang_communicate=True), timeout=0.01) is None
+        assert await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01) is None
 
     async def test_cancellation_kills_the_group_and_propagates(self, monkeypatch, present):
         killed: list[int] = []
@@ -155,7 +165,7 @@ class TestTeardown:
         monkeypatch.setattr(
             office_convert.asyncio,
             "create_subprocess_exec",
-            _exec(FakeProc(hang_communicate=True)),
+            _exec(FakeProc(hang_stderr=True)),
         )
 
         task = asyncio.ensure_future(
@@ -167,6 +177,36 @@ class TestTeardown:
         with pytest.raises(asyncio.CancelledError):
             await task
         assert killed  # the group was killed before the cancellation propagated
+
+    async def test_the_group_is_killed_even_after_the_leader_exits(self, monkeypatch, present):
+        """The leader can exit within the grace while a descendant ignores TERM. The
+        final group KILL is sent regardless of the leader, so the child cannot outlive
+        the timeout the group kill promises (#1591)."""
+        signals: list[int] = []
+        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
+        monkeypatch.setattr(office_convert.os, "killpg", lambda _pgid, sig: signals.append(sig))
+        monkeypatch.setattr(config_module.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 5)
+
+        # The drain hangs (the convert times out), but the leader exits promptly - no
+        # `hang_wait` - so `_reap` returns before the grace is up.
+        result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
+
+        assert result is None
+        assert office_convert.signal.SIGTERM in signals
+        assert office_convert.signal.SIGKILL in signals
+
+
+class TestStderrBounding:
+    async def test_a_flooding_stderr_is_bounded_to_the_prefix(self):
+        """`communicate()` would hold the whole stream; the drain reads to EOF (so the
+        child cannot deadlock the wait) but keeps only `_STDERR_MAX_BYTES` (#1591)."""
+        # Larger than one 64 KiB read, so the drain loops past the cap and the
+        # over-cap chunks are dropped rather than retained.
+        proc = FakeProc(returncode=0, stderr=b"x" * 200_000)
+
+        captured = await office_convert._drain(proc)
+
+        assert len(captured) == office_convert._STDERR_MAX_BYTES
 
 
 class TestConcurrency:

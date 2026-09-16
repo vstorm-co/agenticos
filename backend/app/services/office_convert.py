@@ -28,10 +28,20 @@ import sys
 import tempfile
 import weakref
 from pathlib import Path
+from typing import cast
 
+from app.core.blocking import run_blocking
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+_STDERR_MAX_BYTES = 8192
+"""How much of the child's stderr is retained for the diagnostic log.
+
+`communicate()` would accumulate the *whole* stream in memory before the `[:2000]`
+log slice, so a child flooding stderr for the length of the timeout could exhaust
+the worker despite the output-file limit; the drain reads to EOF (no pipe-buffer
+deadlock) but keeps only this prefix (#1591)."""
 
 # Run as a fresh, single-threaded Python process between fork and exec: it sets the
 # resource limits (skipping any the platform will not accept) and then `execv`s
@@ -94,10 +104,17 @@ async def libreoffice_convert(data: bytes, *, suffix: str, timeout: float) -> st
 
 
 async def _convert(soffice: str, data: bytes, suffix: str, timeout: float) -> str | None:
-    with tempfile.TemporaryDirectory(prefix="chatconv-") as tmp:
+    # The temp-dir create, the source write (up to CHAT_MAX_UPLOAD_SIZE_MB), the
+    # output read (up to CHAT_CONVERT_OUTPUT_MAX_BYTES) and the cleanup are all
+    # blocking filesystem syscalls; they run on the dedicated file pool rather than
+    # the request loop, the same rule `parse_content` and `file_storage` follow, so
+    # a slow or contended container filesystem cannot stall unrelated requests
+    # (#1108, #1591).
+    tmp = await run_blocking(_make_tmpdir)
+    try:
         tmpdir = Path(tmp)
         source = tmpdir / f"input{suffix}"
-        source.write_bytes(data)
+        await run_blocking(source.write_bytes, data)
         argv = [
             sys.executable,
             "-c",
@@ -129,26 +146,36 @@ async def _convert(soffice: str, data: bytes, suffix: str, timeout: float) -> st
                 extra={"stderr": stderr[:2000].decode("utf-8", "replace")},
             )
             return None
-        output = tmpdir / f"{source.stem}.txt"
-        if not output.exists():
-            logger.warning("libreoffice_convert_no_output")
-            return None
-        if output.stat().st_size > settings.CHAT_CONVERT_OUTPUT_MAX_BYTES:
-            logger.warning("libreoffice_convert_output_too_large")
-            return None
-        return output.read_text("utf-8", errors="replace").strip() or None
+        return await run_blocking(_read_output, tmpdir / f"{source.stem}.txt")
+    finally:
+        await run_blocking(shutil.rmtree, tmp, True)
+
+
+def _make_tmpdir() -> str:
+    return tempfile.mkdtemp(prefix="chatconv-")
+
+
+def _read_output(output: Path) -> str | None:
+    """Read the converted `.txt`, bounding the read at `CHAT_CONVERT_OUTPUT_MAX_BYTES`."""
+    if not output.exists():
+        logger.warning("libreoffice_convert_no_output")
+        return None
+    if output.stat().st_size > settings.CHAT_CONVERT_OUTPUT_MAX_BYTES:
+        logger.warning("libreoffice_convert_output_too_large")
+        return None
+    return output.read_text("utf-8", errors="replace").strip() or None
 
 
 async def _run(proc: asyncio.subprocess.Process, timeout: float) -> bytes | None:
     """Await the process draining stderr; kill the group on timeout or cancellation.
 
-    Returns the captured stderr, or `None` when the process timed out (and was
-    killed). `communicate` drains the pipe, so a child flooding stderr cannot
-    deadlock the wait. On cancellation the group is killed and reaped before the
-    cancellation propagates.
+    Returns the captured stderr prefix, or `None` when the process timed out (and
+    was killed). The drain reads stderr to EOF so a child flooding the pipe cannot
+    deadlock the wait, while retaining only `_STDERR_MAX_BYTES`. On cancellation the
+    group is killed and reaped before the cancellation propagates.
     """
     try:
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        stderr = await asyncio.wait_for(_drain(proc), timeout=timeout)
     except TimeoutError:
         await _terminate(proc)
         logger.warning("libreoffice_convert_timeout")
@@ -157,7 +184,20 @@ async def _run(proc: asyncio.subprocess.Process, timeout: float) -> bytes | None
         await _terminate(proc)
         raise
     else:
-        return stderr or b""
+        return stderr
+
+
+async def _drain(proc: asyncio.subprocess.Process) -> bytes:
+    """Read stderr to EOF, keeping at most `_STDERR_MAX_BYTES`, then reap the process."""
+    # `stderr=PIPE` guarantees a reader; the cast narrows away the Optional the
+    # subprocess API declares, without an unreachable None branch.
+    stream = cast(asyncio.StreamReader, proc.stderr)
+    captured = bytearray()
+    while chunk := await stream.read(65536):
+        if len(captured) < _STDERR_MAX_BYTES:
+            captured.extend(chunk[: _STDERR_MAX_BYTES - len(captured)])
+    await proc.wait()
+    return bytes(captured)
 
 
 async def _terminate(proc: asyncio.subprocess.Process) -> None:
@@ -166,15 +206,29 @@ async def _terminate(proc: asyncio.subprocess.Process) -> None:
 
 
 async def _teardown(proc: asyncio.subprocess.Process) -> None:
-    _killpg(proc, signal.SIGTERM)
+    # The group id is read *once*, up front, while the leader is certainly alive.
+    # Deriving it again after `_reap` has waited the leader is unsafe: the pid is
+    # gone (or recycled) by then, so a later `os.getpgid(proc.pid)` would raise or
+    # name a different group.
+    try:
+        pgid = os.getpgid(proc.pid)
+    except ProcessLookupError:
+        return
+    _killpg(pgid, signal.SIGTERM)
     if not await _reap(proc, settings.CHAT_CONVERT_KILL_GRACE_SECONDS):
-        _killpg(proc, signal.SIGKILL)
+        _killpg(pgid, signal.SIGKILL)
         await _reap(proc, settings.CHAT_CONVERT_KILL_GRACE_SECONDS)
+    else:
+        # The leader exited within the grace, but a descendant that ignored TERM is
+        # still in the group. The final group KILL is sent regardless of the leader,
+        # so a lingering child cannot survive the timeout/cancellation the group
+        # kill promises (#1591).
+        _killpg(pgid, signal.SIGKILL)
 
 
-def _killpg(proc: asyncio.subprocess.Process, sig: int) -> None:
+def _killpg(pgid: int, sig: int) -> None:
     with contextlib.suppress(ProcessLookupError, PermissionError):
-        os.killpg(os.getpgid(proc.pid), sig)
+        os.killpg(pgid, sig)
 
 
 async def _reap(proc: asyncio.subprocess.Process, grace: float) -> bool:
