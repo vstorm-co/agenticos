@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.449] - 2026-09-16
+
 ### Changed
 
 - **Every dependency upgraded to its newest release, with one deliberate cap.**
