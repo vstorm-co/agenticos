@@ -1,5 +1,5 @@
 ---
-source_sha: "a20c296fac18"
+source_sha: "2ffcb61f087d"
 ---
 
 # Datenschutz { #data-protection }
@@ -88,6 +88,8 @@ des Elternteils.
 | `agent_runs`, `tool_approvals`, `run_manifests` | Was jeder Run gekostet und getan hat | Der System-Prompt und die letzte an das Model übergebene Anfrage, Tool-Argumente, die auf Freigabe warten, die entscheidende Person und ihre Notiz | Budgets, Freigaben, Run-Historie |
 | `agent_triggers` | Geplante und ereignisgesteuerte Runs | Der Prompt sowie Konfiguration und Filter der Ereignisquelle | Einen Agent ohne Menschen laufen lassen |
 | `app_admin_audit_logs` | Wer Zugriff geändert oder Geld ausgegeben hat — die Spur der Organisation und die des Deployment-Administrators teilen sich eine Tabelle | Akteur, Impersonator, IP-Adresse, die Aktion und eine `details`-Map. Die Map benennt meist Felder, aber manche Einträge halten Werte: die E-Mail des impersonierten Kontos, die E-Mail eines vom Administrator gelöschten Kontos, eine Veröffentlichungsnotiz | Rechenschaft. Siehe [Governance](governance.md#audit) |
+| `notifications`, `notification_deliveries` | Jede In-App-Zeile und ihre E-Mail-Zustellung | Der Empfänger, eine vorgerenderte Zusammenfassung (nie ein roher Kommentar oder Secret-Wert) und die typisierten Variablen, aus denen eine E-Mail neu rendert; eine Zustellungszeile fügt nur ihren Kanal, Status und die Versuche hinzu | Warnungen, die eine Person einmal liest, unbeaufsichtigt. Siehe [Governance](governance.md#alerts) |
+| `notification_preferences`, `announcements` | Kanal-Umschalter je Ereignis, und die eigenen Ankündigungen eines App-Administrators | Eine Benutzer-Id je Umschalter; der Absender einer Ankündigung, ihr Text sowie die Organisationen und die Rolle, an die sie adressiert war — nie die aufgelöste Empfängerliste, die stattdessen aus `notifications` rekonstruierbar ist | Opt-out, und der eigene Nachweis des Verfassers |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Telegram oder Mattermost | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id | Den richtigen Thread fortsetzen |
 | `message_ratings` | Daumen und Kommentare zu Antworten | Der Bewertende und sein Kommentar | Qualitätsprüfung |
 | `agent_workspaces`, `sandbox_operations` | Dateien, an denen ein Agent gearbeitet hat, und das Log dessen, was er ausgeführt hat | Beim `state`-Backend die Dateien selbst, als JSON; bei einem Container die Session-Id und jedes Kommando, Ziel und Ergebnis-Resümee | Die Sandbox. Siehe [Die Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
@@ -163,7 +165,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Audit-Export | `GET /audit/export`, CSV oder JSONL über ein Fenster, auf `audit:read` gegated und in der Spur selbst festgehalten | [Governance](governance.md#audit) (#1422) |
 | Manipulationsnachweis der Spur | Noch keiner | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Traces | `observability.content` je Agent: `full` zeichnet alles auf, `none` nur Zeit, Tokens, Kosten und Tool-Namen | [Umgebungen](environments.md) (#1413); `redacted` ist [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Aufbewahrung nach Zeitplan | Nur `sandbox_operations`-Zeilen werden weggeräumt, nach 30 Tagen. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Aufbewahrung nach Zeitplan | `sandbox_operations`-Zeilen, nach 30 Tagen; `notifications`-Zeilen, eine *gelesene* nach 90 Tagen und jede Zeile nach einem Jahr unabhängig davon — `announcements` selbst sind ausgenommen, sodass, was gesendet wurde, über die Audit-Spur beantwortbar bleibt, nachdem ihre Zustellungen abgelaufen sind. Das Wegräumen abgebrochener Runs finalisiert sie; es löscht nichts | [Governance](governance.md#alerts); der Rest ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Löschung einer Person | Die Kontolöschung bereinigt, was sie blockieren würde; die Löschung des Memory ist ein eigener Aufruf und reicht bis mem0 | [Was das Löschen erreicht](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) für das, was es zurücklässt |
 | Zugang zu den eigenen Daten | Kein Export-Endpunkt; keine Sicht auf das eigene Memory | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Unternehmensidentität | Google-Anmeldung und Passwörter; noch kein OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |

@@ -1,5 +1,5 @@
 ---
-source_sha: "a20c296fac18"
+source_sha: "2ffcb61f087d"
 ---
 
 # Protección de datos { #data-protection }
@@ -86,6 +86,8 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `agent_runs`, `tool_approvals`, `run_manifests` | Lo que costó y lo que hizo cada run | El prompt de sistema y la última petición entregada al modelo, argumentos de herramientas a la espera de aprobación, la persona que decide y su nota | Budgets, aprobaciones, historial de runs |
 | `agent_triggers` | Runs programados y disparados por eventos | El prompt y la configuración y el filtro del origen de eventos | Ejecutar un agent sin una persona |
 | `app_admin_audit_logs` | Quién cambió accesos o gastó dinero — el rastro de la organización y el del administrador del deployment comparten tabla | Actor, suplantador, dirección IP, la acción y un mapa `details`. El mapa nombra sobre todo campos, pero algunas entradas guardan valores: el correo de la cuenta suplantada, el correo de una cuenta que un administrador borró, una nota de publicación | Rendición de cuentas. Consulta [Gobernanza](governance.md#audit) |
+| `notifications`, `notification_deliveries` | Cada fila en la app y su envío por correo | El destinatario, un resumen prerrenderizado (nunca un comentario en bruto ni un valor secreto) y las variables tipadas a partir de las cuales un correo se vuelve a renderizar; una fila de envío añade solo su canal, estado e intentos | Alertas que una persona lee una vez, sin supervisión. Consulta [Gobernanza](governance.md#alerts) |
+| `notification_preferences`, `announcements` | Interruptores de canal por evento, y las difusiones propias del app admin | Un id de usuario por interruptor; el remitente de una difusión, su cuerpo y las organizaciones y el rol a los que iba dirigida — nunca la lista resuelta de destinatarios, que se puede reconstruir a partir de `notifications` en su lugar | Exclusión voluntaria, y el registro propio de quien la escribió |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
 | `agent_workspaces`, `sandbox_operations` | Archivos sobre los que trabajó un agent y el registro de lo que ejecutó | Para el backend `state`, los propios archivos, en JSON; para un contenedor, el id de sesión y cada comando, destino y resumen del resultado | La sandbox. Consulta [La sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
@@ -160,7 +162,7 @@ una laguna, y así queda dicho.
 | Exportación de auditoría | `GET /audit/export`, CSV o JSONL sobre una ventana, con puerta en `audit:read` y registrada en el propio rastro | [Governance](governance.md#audit) (#1422) |
 | Prueba de no manipulación del rastro | Todavía ninguna | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta | [Entornos](environments.md) (#1413); `redacted` es [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retención programada | Solo se barren las filas de `sandbox_operations`, a los 30 días. El barrido de runs abandonados los finaliza; no borra nada | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retención programada | Las filas de `sandbox_operations`, a los 30 días; las filas de `notifications`, una *leída* a los 90 días y cualquier fila al año sin excepción — las propias `announcements` quedan excluidas, así que lo que se envió sigue siendo consultable desde el rastro de auditoría una vez que sus envíos caducan. El barrido de runs abandonados los finaliza; no borra nada | [Gobernanza](governance.md#alerts); el resto es [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
 | Acceso a los propios datos | No hay endpoint de exportación; no hay vista de la propia memoria | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Identidad corporativa | Inicio de sesión con Google y contraseñas; todavía sin OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |

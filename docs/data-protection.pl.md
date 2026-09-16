@@ -1,5 +1,5 @@
 ---
-source_sha: "a20c296fac18"
+source_sha: "2ffcb61f087d"
 ---
 
 # Ochrona danych { #data-protection }
@@ -83,6 +83,8 @@ przez sprawdzenie rodzica.
 | `agent_runs`, `tool_approvals`, `run_manifests` | Ile każdy run kosztował i co zrobił | Prompt systemowy i ostatnie żądanie podane modelowi, argumenty narzędzi czekające na zatwierdzenie, osoba decydująca i jej notatka | Budżety, zatwierdzenia, historia runów |
 | `agent_triggers` | Runy zaplanowane i wyzwalane zdarzeniem | Prompt oraz konfiguracja i filtr źródła zdarzeń | Uruchamianie agenta bez człowieka |
 | `app_admin_audit_logs` | Kto zmienił dostęp albo wydał pieniądze — ślad organizacji i ślad administratora wdrożenia dzielą jedną tabelę | Aktor, podszywający się, adres IP, akcja i mapa `details`. Mapa przeważnie nazywa pola, ale niektóre wpisy trzymają wartości: e-mail konta, pod które się podszyto, e-mail konta usuniętego przez administratora, notatka publikacji | Rozliczalność. Zobacz [Nadzór](governance.md#audit) |
+| `notifications`, `notification_deliveries` | Każdy wiersz powiadomienia w aplikacji oraz jego dostarczenie mailem | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje tylko swój kanał, status i liczbę prób | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
+| `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą i tak można odtworzyć z `notifications` | Rezygnacja z powiadomień i własny zapis autora |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
 | `agent_workspaces`, `sandbox_operations` | Pliki, na których pracował agent, i log tego, co uruchomił | Dla backendu `state` same pliki, jako JSON; dla kontenera id sesji oraz każda komenda, cel i podsumowanie wyniku | Sandbox. Zobacz [Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
@@ -157,7 +159,7 @@ jest luką — i tak jest nazwany.
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
 | Dowód nienaruszalności śladu | Jeszcze nie ma | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
 | Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); `redacted` to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retencja według harmonogramu | Zamiatane są tylko wiersze `sandbox_operations`, po 30 dniach. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Retencja według harmonogramu | Wiersze `sandbox_operations`, po 30 dniach; wiersze `notifications` — *przeczytany* po 90 dniach, a dowolny po roku niezależnie od stanu — same `announcements` są wyłączone, więc to, co zostało wysłane, wciąż da się wyjaśnić ze śladu audytu, gdy jego dostawy już się zestarzeją. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [Nadzór](governance.md#alerts); reszta to [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
 | Dostęp do własnych danych | Brak endpointu eksportu; brak wglądu we własną pamięć | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
 | Tożsamość korporacyjna | Logowanie Google i hasła; jeszcze bez OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
