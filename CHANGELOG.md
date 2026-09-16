@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.453] - 2026-09-16
+
 ### Added
 
 - **Single sign-on against the deployment's own identity provider.** A generic
