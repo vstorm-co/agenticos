@@ -1,5 +1,5 @@
 ---
-source_sha: "90b63b1d477c"
+source_sha: "6794d026b64e"
 ---
 
 # Protección de datos { #data-protection }
@@ -159,13 +159,13 @@ una laguna, y así queda dicho.
 | Datos personales en una columna de fallo | `rag_documents.error_message` y similares registran la etapa y la clase, nunca el texto del cliente | `app/services/rag/failures.py` (#423) |
 | Rendición de cuentas | Las entradas de auditoría comparten la transacción que actúa y fallan en cerrado; la suplantación nombra a ambas personas; las exportaciones masivas quedan registradas | [Gobernanza](governance.md#audit) |
 | Exportación de auditoría | `GET /audit/export`, CSV o JSONL sobre una ventana, con puerta en `audit:read` y registrada en el propio rastro | [Governance](governance.md#audit) (#1422) |
-| Prueba de no manipulación del rastro | Todavía ninguna | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta | [Entornos](environments.md) (#1413); un término medio `redacted` se descartó, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Prueba de no manipulación del rastro | Cada entrada se une a una cadena de hashes por organización, y cada cadena lleva un checkpoint en su marca más alta, de modo que una entrada reescrita, una cola cortada y una cadena borrada son todas detectables. `agenticos cmd audit-verify` las recorre y termina con código distinto de cero ante una rotura | [Gobernanza](governance.md#audit) (#1622, #1648). Detección, no prevención: quien tenga las credenciales de la propia base de datos puede volver a forjar una cadena o quitar el trigger que protege el checkpoint |
+| Trazas | `observability.content` por agent: `full` registra todo, `none` solo tiempo, tokens, coste y nombres de herramienta, y un especialista de ese agent hereda el modo | [Entornos](environments.md) (#1413); un término medio `redacted` se descartó, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retención programada | Por organización y por clase —conversaciones y sus archivos, runs y manifiestos, workspaces, memoria de agentes, documentos subidos y auditoría— dentro de un valor por defecto, un techo y un suelo de auditoría de todo el despliegue. Un barrido diario borra de verdad y registra recuentos, nunca contenido. Las copias de seguridad y todo lo ya enviado a un colector externo quedan fuera | [Retención](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py` |
 | Supresión de una persona | El borrado de la cuenta concilia lo que lo bloquearía; la supresión de la memoria es una llamada aparte y llega hasta mem0 | [Qué alcanza el borrado](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) para lo que deja |
-| Acceso a los propios datos | Una persona lee en Ajustes → Memoria todo lo que cada agente de aquí ha escrito sobre ella, y puede suspender una nota, restaurarla o borrarla. Leer el almacén *de otra persona* es solo de la administradora del despliegue —no de un rol de organización— y queda auditado con el actor, el tenant, el sujeto y un motivo, nunca el contenido. Los almacenes externos (mem0) se nombran en vez de listarse | [Leerla, y borrarla](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Aún no hay endpoint de exportación: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
+| Acceso a los propios datos | Una persona lee en Ajustes → Memoria todo lo que cada agente de aquí ha escrito sobre ella, y puede suspender una nota, restaurarla o borrarla. Leer el almacén *de otra persona* es solo de la administradora del despliegue —no de un rol de organización— y queda auditado con el actor, el tenant, el sujeto y un motivo, nunca el contenido. Los almacenes externos (mem0) se nombran en vez de listarse | [Leerla, y borrarla](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Todo lo demás que se guarda sobre ella vuelve de `GET /me/data/export`, acotado y auditado (#1421) |
 | Identidad corporativa | Inicio de sesión con Google y contraseñas; todavía sin OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
-| La matriz de controles que lee una revisión de seguridad | Esta página y [Ponerlo en marcha](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) añade el mapeo a HIPAA y SOC 2 |
+| La matriz de controles que lee una revisión de seguridad | [Seguridad](security.md#controls-matrix) asigna a cada control su mecanismo y el test que lo sostiene, en el marco de HIPAA §164.312 y SOC 2 CC6–CC8; esta página y [Ponerlo en marcha](rollout.md#what-your-security-review-will-ask) son el resto | [Seguridad](security.md) (#1412) |
 | Superficies públicas | La clave de visitante de una página alojada es aleatoria, nunca derivada de la persona; la admisión y las subidas se limitan por dirección, y la dirección vive en una clave de Redis durante la ventana y en ningún otro sitio | [Canales](channels.md#a-hosted-page) |
 | Avisos legales | Las URL de Términos y Privacidad propias del deployment sustituyen a las páginas incorporadas | [El deployment](deployment.md#identity) |
 
@@ -237,126 +237,95 @@ pedirá la revisión, distinta de la capacidad técnica que la hace posible.
 
 ## Verificar un deployment { #verifying-one-deployment }
 
-Comprobaciones reproducibles, desde el host, contra el deployment en marcha.
-Cada una imprime hechos que la revisión puede adjuntar; ninguna imprime una
-credencial ni los datos de una persona. Ejecuta los comandos desde `backend/`, o
-a través de `docker compose exec api`.
+Comprobaciones reproducibles, desde el host, contra el deployment en marcha. Cada
+una imprime hechos que la revisión puede adjuntar; ninguna imprime una credencial
+ni los datos de una persona. Ejecútalas desde `backend/`, o a través de
+`docker compose exec api`.
 
 ```bash
-# 1. ¿Puede arrancar, y van cifradas las conexiones a los almacenes?
-#    `postgres` informa del estado TLS de la conexión que el propio doctor hizo.
+# 1. ¿Arranca siquiera, y van cifradas las conexiones a los almacenes?
+#    `postgres` informa del estado TLS de la conexión que el propio doctor
+#    estableció.
 uv run agenticos cmd doctor
 
-# 2. Toda credencial sellada sigue abriéndose con las claves maestras
-#    configuradas.
+# 2. Cada credencial sellada sigue abriéndose con las master keys configuradas.
 uv run agenticos cmd vault-rotate --dry-run
 
-# 3. Los ajustes que deciden qué sale. Vacío es la respuesta silenciosa.
-env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
-  | sed -E 's/(KEY|TOKEN)=.+/\1=<set>/'
+# 3. Las cadenas de hashes del rastro de auditoría y sus checkpoints, recalculados.
+#    Termina con código distinto de cero si alguna cadena ha sido alterada.
+uv run agenticos cmd audit-verify
+
+# 4. Todo lo que este deployment ha configurado realmente: los ajustes que
+#    deciden qué sale, cada provider y endpoint que un agent puede alcanzar, las
+#    credenciales guardadas por propósito, las colecciones y quién calcula sus
+#    embeddings, los servidores de tu propia red, los servidores MCP, los
+#    portales de trigger, las fuentes de sincronización y los bots de canal, las
+#    capabilities que alcanzan una dirección propia, dónde se trazan los runs y
+#    cuánto contenido lleva un span, cuánto de cada almacén alcanzaría un periodo
+#    de retención, y los archivos bajo `MEDIA_DIR` a los que ya no apunta ninguna
+#    fila.
+uv run agenticos cmd data-protection-report --older-than 365
 ```
 
-`LOG_PROVIDER_WRITE_TO_DISK` tiene que ser `false` fuera de desarrollo: el
-provider de correo que registra en log escribe cuerpos de mensaje enteros en
-disco cuando está activo.
+El punto 4 es el que hay que adjuntar. Imprime configuración y recuentos, nunca
+contenido: ningún texto de mensaje, ningún documento, ningún valor de secreto ni
+pista de uno, y un ajuste que guarda una credencial se informa como definido o no
+definido en vez de imprimirse. `--older-than` es el periodo de retención que se
+está considerando, en días, y la última columna de su tabla de retención es lo
+que ese periodo ya habría eliminado.
 
-```sql
--- 4. Todos los providers y endpoints que un agent puede alcanzar, sin las
---    claves.
-SELECT o.name AS organization, p.label, p.provider, p.model, p.base_url
-FROM model_profiles p JOIN organizations o ON o.id = p.organization_id
-ORDER BY 1, 2;
+Su última sección es el recuento que predice
+[Qué alcanza el borrado](#what-deletion-reaches) en esta página: una fila de
+`chat_files` desaparece en cascada con su mensaje mientras los bytes se quedan,
+así que el número crece con cada conversación borrada hasta que
+[#1421](https://github.com/vstorm-co/agenticos/issues/1421) elimine ambos juntos.
+Las imágenes generadas y el directorio temporal de parseo quedan excluidos, ya
+que por diseño no tienen fila; todo lo demás que se cuenta ahí son bytes que el
+producto ya no encuentra y no puede borrar. Informa de un directorio y un
+recuento en vez de un nombre de archivo, porque una ruta almacenada conserva el
+nombre con el que se subió el archivo.
 
--- Perfiles que hablan HTTP plano. Cada uno debe apuntar a la propia red del
--- deployment; cualquier otra cosa envía los prompts y la clave en claro.
-SELECT label, provider, base_url FROM model_profiles WHERE base_url LIKE 'http://%';
+Dos secciones se leen de lo que se ejecuta y no de una tabla. **Destinos de las
+capabilities** enumera las capabilities vinculadas a un agent que alcanzan una
+dirección propia - `web_research` busca a través de DuckDuckGo sin credencial
+alguna y por tanto sin fila en ningún otro punto del informe - y **Tracing** se
+lee de cada versión ejecutable: la predeterminada y la que fija cada
+[entorno](environments.md) con nombre, porque un run a través de ese entorno usa
+la observabilidad de esa versión y no la de la predeterminada.
 
-SELECT o.name AS organization, s.purpose, s.kind, s.name
-FROM organization_secrets s JOIN organizations o ON o.id = s.organization_id
-ORDER BY 1, 2;
-
--- Colecciones: quién genera sus embeddings y cuáles parsean fuera.
-SELECT name, embedding_provider, embedding_model,
-       ingestion_config ->> 'pdf_parser' AS pdf_parser,
-       ingestion_config ->> 'llamaparse_secret_id' IS NOT NULL AS llamaparse_key,
-       embedding_endpoint_id, ingestion_config ->> 'ocr_endpoint_id' AS ocr_endpoint_id
-FROM knowledge_bases ORDER BY 1;
-
--- Los servidores de tu propia red a los que se pueden apuntar las colecciones.
--- Toda dirección de aquí debería ser una que operes tú.
-SELECT o.name AS organization, s.kind, s.provider, s.name, s.base_url, s.is_active
-FROM local_services s LEFT JOIN organizations o ON o.id = s.organization_id
-ORDER BY 1 NULLS FIRST, 2, 4;
-
-SELECT scope, name, url, auth_type FROM mcp_connections WHERE is_enabled ORDER BY 1, 2;
-SELECT name, connector_type, collection_name FROM sync_sources WHERE is_active ORDER BY 2, 1;
-
--- 5. Runs trazados a un proyecto propio: un token en el spec publicado, o en un
---    entorno.
-SELECT a.slug, v.version, 'spec' AS via
-FROM agent_versions v JOIN agents a ON a.id = v.agent_id
-WHERE v.spec -> 'observability' ->> 'token_secret_id' IS NOT NULL
-UNION ALL
-SELECT a.slug, NULL, 'environment ' || e.name
-FROM agent_environments e JOIN agents a ON a.id = e.agent_id
-WHERE e.logfire_token_secret_id IS NOT NULL;
-
--- 6. A qué tendría que llegar la retención. Ajusta la antigüedad al calendario
---    decidido.
-SELECT 'conversations' AS store, count(*) FROM conversations WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'agent_runs', count(*) FROM agent_runs WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'audit', count(*) FROM app_admin_audit_logs WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'agent_memory_files', count(*) FROM agent_memory_files
-UNION ALL SELECT 'chat_files', count(*) FROM chat_files;
-```
-
-```bash
-# 7. Bytes de adjuntos cuyas filas ya no están. Una fila chat_files desaparece
-#    en cascada con su mensaje mientras el archivo se queda, así que la
-#    diferencia crece con cada conversación borrada (ver "Qué alcanza el
-#    borrado"). Las imágenes generadas y el directorio temporal de parseo no
-#    tienen fila por diseño y quedan excluidos. A través del contenedor de la
-#    base de datos: la API conoce su cadena de conexión solo como un ajuste
-#    calculado, no como una variable que pudiera leer un shell.
-docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT storage_path FROM chat_files
-  UNION SELECT storage_path FROM rag_documents WHERE storage_path IS NOT NULL" \
-  | sort > /tmp/referenced.txt
-(cd "${MEDIA_DIR:-./media}" && find . -type f -not -path './generated_*' -not -path './_rag_tmp/*' \
-  | sed 's|^\./||' | sort) > /tmp/on_disk.txt
-comm -23 /tmp/on_disk.txt /tmp/referenced.txt | wc -l      # archivos que nada referencia
-```
-
-Los avatares y los logos de embeds también están en disco y se referencian desde
-`users.avatar_url` y `agent_embeds.logo_path`; añade esas columnas a la consulta
-si el recuento de arriba no es cero y quieres la lista exacta.
-
-Adjunta la salida de los puntos 1 a 6 a la revisión junto con los acuerdos de la
-sección anterior. El punto 7 es un recuento que vigilar hasta que
-[#1421](https://github.com/vstorm-co/agenticos/issues/1421) elimine los bytes
-con la conversación.
+Lo que ningún comando puede producir es la otra mitad de esta página: los
+acuerdos, las ubicaciones y las exclusiones de entrenamiento de la sección
+anterior. Adjúntalos junto a la salida.
 
 ## Condiciones abiertas para una primera puesta en marcha { #open-conditions-for-a-first-rollout }
 
-Escritas para el deployment para el que se redactó esta página, y ciertas de
+Enunciadas para el deployment para el que se escribió esta página, y ciertas para
 cualquier deployment hasta que cada una se cierre.
 
 **En el código, con seguimiento:**
 
-- Las trazas llevan contenido completo salvo que un agent ponga `observability.content` en `none`; no hay término medio filtrado — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
 - No hay retención programada — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Los bytes de los adjuntos y la memoria de una persona sobreviven al borrado de
   su propietario; no hay exportación de datos personales; el inventario de
-  supresión — [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- No hay prueba de no manipulación del rastro de auditoría — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+  borrado — [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - Archivos solo en disco local, cifrados por el volumen o nada — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- No hay vista de autoservicio de la propia memoria — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
+- No hay vista de autoservicio de la memoria propia — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - No hay inicio de sesión OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- La matriz de controles de HIPAA y SOC 2 — [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
 
-**En el deployment, decidido por su operador:** los acuerdos, las ubicaciones,
-las exclusiones de entrenamiento, el calendario de retención, la caducidad de
-las copias, el cifrado de disco, la salida de la sandbox y las páginas legales
-de la sección anterior.
+**Cerradas, y respondidas arriba en vez de aquí:** la prueba de no manipulación
+del rastro de auditoría (#1622, #1648), el modo de contenido de trazas por agent
+y su herencia por los especialistas (#1413, #1699), el trazado en el proceso
+que ejecuta un agent disparado (#1700) y la matriz de controles de HIPAA y SOC 2 en
+[Seguridad](security.md#controls-matrix) (#1412). Las trazas no tienen término
+medio filtrado y no lo tendrán
+([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); para un deployment
+que no pueda exportar contenido, la respuesta es `none`.
+
+**En el deployment, decididas por su operador:** los acuerdos, las ubicaciones,
+las exclusiones de entrenamiento, el calendario de retención, la caducidad de las
+copias de seguridad, el cifrado de disco, la salida de red de la sandbox y las
+páginas legales de la sección anterior. Cada una es la clase de prueba que
+`data-protection-report` deliberadamente no puede producir.
 
 Una revisión que encuentre cada fila de arriba cerrada o aceptada por escrito
 tiene lo que esta página puede darle. El resto es del deployment.
