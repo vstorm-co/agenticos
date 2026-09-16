@@ -19,8 +19,10 @@ Actually sending the resulting email, and retrying one that failed, is
 
 *Never notify twice for the same fact.* A budget breach is reported once per
 run, at the moment the run is recorded as stopped - not per model request that
-was refused. Enforced by the database now: `occurrence_id` is the run id (or
-`(subject, period, window_start)` for a report), unique per recipient.
+was refused. Enforced by the database now: `occurrence_id` is the run id for
+most of these (the parked approval ids for `approval_requested`, since a
+resumed run can park again on a new gated call under the same run id; `(subject,
+period, window_start)` for a report), unique per recipient.
 
 *Never mail somebody who opted out.* Each kind of email here maps to one
 preference on the user (`/settings/notifications`), consulted by the write
@@ -54,7 +56,7 @@ from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
 from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun
+from app.db.models.agent_run import AgentRun, ToolApproval
 from app.db.models.notification import NotificationEventType
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import member as member_repo
@@ -143,7 +145,7 @@ class NotificationService:
         )
 
     async def approval_requested(
-        self, run: AgentRun, *, agent: Agent, spec: AgentSpec, tools: list[str]
+        self, run: AgentRun, *, agent: Agent, spec: AgentSpec, approvals: list[ToolApproval]
     ) -> None:
         """A tool call is parked and the run is waiting on a person.
 
@@ -181,6 +183,7 @@ class NotificationService:
         # and below `lg` a focused run replaces the list - which would hide
         # them from the reader most likely to be on a phone.
         approvals_url = self._link("/runs?tab=approvals", run.organization_id)
+        tools = [approval.tool_id for approval in approvals]
         render_context = {
             "agent_name": agent.name,
             "tools": ", ".join(tools) if tools else "a tool call",
@@ -190,7 +193,15 @@ class NotificationService:
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.APPROVAL_REQUESTED,
-            occurrence_id=str(run.id),
+            # The approval ids, not the run id (the design's own occurrence
+            # key for this event): a resumed run can park again on a new
+            # gated call while keeping the same `AgentRun.id`, and the dedup
+            # constraint would otherwise discard the second request as a
+            # repeat of the first, leaving the new approval to age towards
+            # `expire_stale` with nobody told it exists. Every `ToolApproval`
+            # is a fresh row with its own id, so the sorted, joined set is
+            # unique to this exact pause even when the run id repeats.
+            occurrence_id=":".join(sorted(str(approval.id) for approval in approvals)),
             summary=f"{agent.name} is waiting on your approval",
             context_url=approvals_url,
             render_context=render_context,
