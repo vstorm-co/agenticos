@@ -149,6 +149,33 @@ class TestSkippingADroppedCollection:
         service.store.insert_document.assert_awaited_once()
 
 
+class TestDocumentTypeDerivation:
+    """`document_type` is the filter dimension, and the closed vocabulary it is
+    validated against is lower-case (built from the parser format lists). An
+    uppercase file extension - which routing accepts via `suffix.lower()` - must
+    be stored lower-cased, or the file can never match a `document_type` filter:
+    `pdf` is the only casing a caller can submit past `RetrievalFilters` (P1)."""
+
+    async def test_an_uppercase_extension_is_stored_lower_cased(self):
+        document = Document(
+            pages=[DocumentPage(page_num=1, content="body")],
+            metadata=DocumentMetadata(filename="REPORT.PDF", filesize=10, filetype="PDF"),
+        )
+        document.chunked_pages = [
+            DocumentPageChunk(chunk_content="c", chunk_num=0, page_num=1, content="c")
+        ]
+        processor = MagicMock(process_file=AsyncMock(return_value=document))
+
+        result = await _service(processor).ingest_file(
+            filepath=Path("REPORT.PDF"), collection_name="docs", replace=False
+        )
+
+        assert result.status is IngestionStatus.DONE
+        assert document.metadata.document_type == "pdf"
+        # The original case is kept on `filetype` for display.
+        assert document.metadata.filetype == "PDF"
+
+
 class TestWhatTheUploadPathRecords:
     async def test_the_worker_writes_the_chunk_count_it_was_given(self):
         document_id = str(uuid.uuid4())

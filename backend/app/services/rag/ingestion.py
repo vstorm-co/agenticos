@@ -171,7 +171,13 @@ class IngestionService:
             # document_type is the stored filetype/extension, a pure derivation
             # (FA-039 P1). A richer semantic document_category is deferred pending
             # issue-owner confirmation - do not overload document_type with it.
-            document.metadata.document_type = document.metadata.filetype or None
+            # Lower-cased so it matches the closed vocabulary (built from the
+            # lower-case parser format lists) and the routing that already lowers
+            # `suffix.lower()`: `filetype` keeps the original case for display, but
+            # a `REPORT.PDF` must be filterable as `pdf`, the only casing a caller
+            # can submit past `RetrievalFilters` validation (FA-039 P1).
+            filetype = document.metadata.filetype
+            document.metadata.document_type = filetype.lower() if filetype else None
 
             existing_id = None
             if replace:
