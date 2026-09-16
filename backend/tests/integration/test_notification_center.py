@@ -334,6 +334,36 @@ class TestMandatoryEvents:
         )
         assert rows == []
 
+    async def test_a_rate_limited_mandatory_write_with_no_actor_still_writes_nothing(
+        self, db, monkeypatch
+    ):
+        """A system-triggered audit entry has no human actor
+        (`AppAdminAuditLog.actor_user_id` is nullable), and that must still be
+        bounded, not exempted - the gap this guard exists to close."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        admin = await _member(db, org, role="admin")
+        service = NotificationCenterService(db)
+
+        calls: list[str] = []
+
+        async def _blocked(*, caller: str, **_kwargs):
+            calls.append(caller)
+            return notification_center.rate_limit.Decision(allowed=False, retry_after_seconds=30)
+
+        monkeypatch.setattr(notification_center.rate_limit, "consume", _blocked)
+
+        written = await service.write(
+            recipients=[admin.id],
+            event_type=NotificationEventType.SECURITY_EVENT,
+            occurrence_id="audit-no-actor",
+            summary="A secret was rotated",
+            organization_id=org.id,
+            actor_user_id=None,
+        )
+        assert written == []
+        assert calls == ["user:system:security_event"]
+
 
 class TestSavepointSafety:
     async def test_a_successful_write_under_a_savepoint_still_writes(self, db):
@@ -369,6 +399,30 @@ class TestSavepointSafety:
         db.add(await _user(db))
         await db.flush()
 
+    async def test_one_bad_recipient_does_not_discard_the_others(self, db):
+        """The savepoint is nested per recipient, not once around the whole
+        fan-out - a recipient a write cannot reach (deleted mid-flight, here
+        simulated with a bare random id) must not roll back rows already
+        written for the recipients ahead of it in the same call."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        good_recipient = await _member(db, org, role="member")
+        missing_recipient = uuid.uuid4()  # no such user - FK violation
+        service = NotificationCenterService(db)
+
+        written = await service.write(
+            recipients=[good_recipient.id, missing_recipient],
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id="run-partial-fk",
+            summary="Run completed",
+            organization_id=org.id,
+            use_savepoint=True,
+        )
+        assert [n.recipient_user_id for n in written] == [good_recipient.id]
+        # The caller's own transaction is still usable after the failed one.
+        db.add(await _user(db))
+        await db.flush()
+
     async def test_a_failed_write_without_a_savepoint_propagates(self, db):
         service = NotificationCenterService(db)
         with pytest.raises(Exception):  # noqa: B017 - an IntegrityError from asyncpg, not ours to name
@@ -394,7 +448,7 @@ class TestReadGateNone:
             summary="Run completed",
             organization_id=org.id,
         )
-        rows, gates = await service.list_inbox(
+        rows, gates, _ = await service.list_inbox(
             _ctx(recipient, org, role="viewer"), after=None, limit=10
         )
         assert len(rows) == 1
@@ -418,14 +472,14 @@ class TestReadGateApprovalDegrade:
             organization_id=org.id,
         )
 
-        decider_rows, decider_gates = await service.list_inbox(
+        decider_rows, decider_gates, _ = await service.list_inbox(
             _ctx(decider, org, role="operator"), after=None, limit=10
         )
         decider_gate = decider_gates[decider_rows[0].id]
         assert decider_gate.strip_context_url is False
         assert decider_gate.summary_override is None
 
-        non_decider_rows, non_decider_gates = await service.list_inbox(
+        non_decider_rows, non_decider_gates, _ = await service.list_inbox(
             _ctx(non_decider, org, role="member"), after=None, limit=10
         )
         non_decider_gate = non_decider_gates[non_decider_rows[0].id]
@@ -451,11 +505,11 @@ class TestReadGateOrgAdminOrAppAdmin:
             organization_id=org.id,
         )
 
-        admin_rows, _ = await service.list_inbox(
+        admin_rows, _, _ = await service.list_inbox(
             _ctx(admin, org, role="admin"), after=None, limit=10
         )
         assert len(admin_rows) == 1
-        member_rows, _ = await service.list_inbox(
+        member_rows, _, _ = await service.list_inbox(
             _ctx(member, org, role="member"), after=None, limit=10
         )
         assert member_rows == []
@@ -477,10 +531,10 @@ class TestReadGateOrgAdminOrAppAdmin:
         admin_ctx = AuthContext(
             user_id=app_admin.id, organization_id=org.id, role="member", is_app_admin=True
         )
-        admin_rows, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
+        admin_rows, _, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
         assert len(admin_rows) == 1
 
-        ordinary_rows, _ = await service.list_inbox(
+        ordinary_rows, _, _ = await service.list_inbox(
             _ctx(ordinary, org, role="admin"), after=None, limit=10
         )
         assert ordinary_rows == []
@@ -502,9 +556,9 @@ class TestReadGateAppAdmin:
         admin_ctx = AuthContext(
             user_id=app_admin.id, organization_id=org.id, role="member", is_app_admin=True
         )
-        rows, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
+        rows, _, _ = await service.list_inbox(admin_ctx, after=None, limit=10)
         assert len(rows) == 1
-        ordinary_rows, _ = await service.list_inbox(
+        ordinary_rows, _, _ = await service.list_inbox(
             _ctx(ordinary, org, role="admin"), after=None, limit=10
         )
         assert ordinary_rows == []
@@ -524,11 +578,11 @@ class TestReadGateRunsView:
             summary="Weekly usage report",
             organization_id=org.id,
         )
-        visible_rows, _ = await service.list_inbox(
+        visible_rows, _, _ = await service.list_inbox(
             _ctx(can_view, org, role="operator"), after=None, limit=10
         )
         assert len(visible_rows) == 1
-        hidden_rows, _ = await service.list_inbox(
+        hidden_rows, _, _ = await service.list_inbox(
             _ctx(cannot_view, org, role="viewer"), after=None, limit=10
         )
         assert hidden_rows == []
@@ -565,11 +619,11 @@ class TestReadGateCollectionsView:
             render_context={"collection_id": str(kb.id)},
             organization_id=org.id,
         )
-        owner_rows, _ = await service.list_inbox(
+        owner_rows, _, _ = await service.list_inbox(
             _ctx(owner, org, role="owner"), after=None, limit=10
         )
         assert len(owner_rows) == 1
-        member_rows, _ = await service.list_inbox(
+        member_rows, _, _ = await service.list_inbox(
             _ctx(member, org, role="member"), after=None, limit=10
         )
         assert member_rows == []
@@ -585,7 +639,7 @@ class TestReadGateCollectionsView:
             summary="A document failed to ingest",
             organization_id=org.id,
         )
-        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
     async def test_a_row_naming_a_deleted_collection_is_excluded(self, db):
@@ -600,7 +654,7 @@ class TestReadGateCollectionsView:
             render_context={"collection_id": str(uuid.uuid4())},
             organization_id=org.id,
         )
-        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
     async def test_a_row_carrying_a_malformed_collection_id_is_excluded_not_500(self, db):
@@ -619,7 +673,7 @@ class TestReadGateCollectionsView:
             render_context={"collection_id": "not-a-uuid"},
             organization_id=org.id,
         )
-        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
 
@@ -651,7 +705,9 @@ class TestReadGateAnnouncementAudience:
             summary="Scheduled maintenance",
             announcement_id=announcement.id,
         )
-        rows, _ = await service.list_inbox(_ctx(member, org, role="member"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
         assert len(rows) == 1
 
     async def test_a_named_organization_excludes_someone_from_a_different_one(self, db):
@@ -671,7 +727,7 @@ class TestReadGateAnnouncementAudience:
             summary="Scheduled maintenance",
             announcement_id=announcement.id,
         )
-        rows, _ = await service.list_inbox(
+        rows, _, _ = await service.list_inbox(
             _ctx(outsider, org_b, role="member"), after=None, limit=10
         )
         assert rows == []
@@ -691,8 +747,51 @@ class TestReadGateAnnouncementAudience:
             summary="Scheduled maintenance",
             announcement_id=announcement.id,
         )
-        rows, _ = await service.list_inbox(_ctx(member, org, role="member"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=10
+        )
         assert rows == []
+
+    async def test_an_admin_narrowed_announcement_reaches_an_owner_too(self, db):
+        """An owner outranks an admin - the same escalation-role convention
+        `security_event`'s `org_admins` audience already uses - so an "admin"
+        audience must not silently exclude the organization's owner."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db, actor=owner, audience_spec={"organizations": [str(org.id)], "role": "admin"}
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert len(rows) == 1
+
+    async def test_a_malformed_organization_id_in_the_audience_is_skipped(self, db):
+        """`audience_spec` is a JSONB blob with no schema enforcement - a
+        malformed entry must not 500 the rest of a reader's inbox."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        announcement = await self._announcement(
+            db,
+            actor=owner,
+            audience_spec={"organizations": ["not-a-uuid", str(org.id)], "role": None},
+        )
+        service = NotificationCenterService(db)
+        await service.write(
+            recipients=[owner.id],
+            event_type=NotificationEventType.ANNOUNCEMENT,
+            occurrence_id=str(announcement.id),
+            summary="Scheduled maintenance",
+            announcement_id=announcement.id,
+        )
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        assert len(rows) == 1
 
     async def test_a_row_with_no_announcement_id_is_excluded(self, db):
         owner = await _user(db)
@@ -705,7 +804,7 @@ class TestReadGateAnnouncementAudience:
             summary="Scheduled maintenance",
             organization_id=org.id,
         )
-        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
     async def test_a_row_naming_a_deleted_announcement_is_excluded(self, db):
@@ -724,7 +823,7 @@ class TestReadGateAnnouncementAudience:
         )
         await db.delete(announcement)
         await db.flush()
-        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
     async def test_a_row_naming_an_announcement_that_never_existed_is_excluded(self, db):
@@ -762,7 +861,7 @@ class TestReadGateAnnouncementAudience:
             summary="Scheduled maintenance",
             announcement_id=announcement.id,
         )
-        rows, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
+        rows, _, _ = await service.list_inbox(_ctx(owner, org, role="owner"), after=None, limit=10)
         assert rows == []
 
 
@@ -781,12 +880,15 @@ class TestListInboxPagination:
                 organization_id=org.id,
             )
         ctx = _ctx(recipient, org, role="member")
-        first_page, _ = await service.list_inbox(ctx, after=None, limit=2)
+        first_page, _, resume = await service.list_inbox(ctx, after=None, limit=2)
         assert len(first_page) == 2
-        cursor = (first_page[-1].created_at, first_page[-1].id)
-        second_page, _ = await service.list_inbox(ctx, after=cursor, limit=2)
+        assert resume == (first_page[-1].created_at, first_page[-1].id)
+        second_page, _, second_resume = await service.list_inbox(ctx, after=resume, limit=2)
         assert len(second_page) == 1
         assert second_page[0].id not in {row.id for row in first_page}
+        # Genuinely exhausted - a short batch, not the round cap - so there is
+        # nothing left to resume from.
+        assert second_resume is None
 
     async def test_a_fully_gated_backlog_exhausts_its_fetch_budget(self, db, monkeypatch):
         """Every candidate row is excluded, so the loop must run to its bound
@@ -805,8 +907,15 @@ class TestListInboxPagination:
                 summary="A secret was rotated",
                 organization_id=org.id,
             )
-        rows, _ = await service.list_inbox(_ctx(member, org, role="member"), after=None, limit=1)
+        rows, _, resume = await service.list_inbox(
+            _ctx(member, org, role="member"), after=None, limit=1
+        )
         assert rows == []
+        # The round cap cut the scan short, not a short or empty batch - a
+        # resume cursor must still come back, or a caller inferring "no more"
+        # from an empty page would drop every row past the cap rather than
+        # page to it.
+        assert resume is not None
 
 
 class TestUnreadCountAndMarkRead:
@@ -870,6 +979,37 @@ class TestUnreadCountAndMarkRead:
         )
         with pytest.raises(NotFoundError):
             await service.mark_one_read(_ctx(member, org, role="member"), notification.id)
+
+    async def test_marking_an_email_only_row_reads_as_missing(self, db):
+        """`get_own` must filter on `in_app_visible` the same way `list_inbox`
+        and `unread_count` already do - otherwise a row a recipient opted out
+        of seeing in-app is still readable and markable by its id."""
+        from app.core.exceptions import NotFoundError
+
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=recipient.id,
+                event_type=NotificationEventType.RUN_FAILED.value,
+                channel="in_app",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        service = NotificationCenterService(db)
+        [notification] = await service.write(
+            recipients=[recipient.id],
+            event_type=NotificationEventType.RUN_FAILED,
+            occurrence_id="run-email-only",
+            summary="Run failed",
+            organization_id=org.id,
+        )
+        assert notification.in_app_visible is False
+        with pytest.raises(NotFoundError):
+            await service.mark_one_read(_ctx(recipient, org, role="member"), notification.id)
 
     async def test_mark_all_read_only_marks_gate_visible_rows(self, db):
         owner = await _user(db)
@@ -953,7 +1093,7 @@ class TestListInboxNoRows:
         org = await _org(db, owner)
         recipient = await _member(db, org, role="member")
         service = NotificationCenterService(db)
-        rows, gates = await service.list_inbox(
+        rows, gates, _ = await service.list_inbox(
             _ctx(recipient, org, role="member"), after=None, limit=10
         )
         assert rows == []
