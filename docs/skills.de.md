@@ -1,5 +1,5 @@
 ---
-source_sha: "2491700b56ff"
+source_sha: "56976ecc2c20"
 ---
 
 # Skills { #skills }
@@ -16,9 +16,9 @@ Skills drehen das um:
 
 ```mermaid
 flowchart LR
-    A["the agent's context<br/><i>names + one-line descriptions only</i>"] -->|list_skills| B{is one relevant?}
+    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_skill - the body"]
+    B -->|yes| C["load_capability - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -30,9 +30,9 @@ Zwanzig Skills kosten ungefähr zwanzig *Beschreibungen* statt zwanzig
 
 !!! note "Discovery ist günstig, nicht kostenlos"
 
-    `list_skills` antwortet mit Name und Beschreibung jedes gebundenen Skills, und
-    dieses Ergebnis geht in die nächste Modellanfrage ein — jeder Skill, an den ein
-    Agent gebunden ist, kostet also Tokens in einer Runde, in der Discovery läuft.
+    Jeder gebundene Skill steht mit Name und einzeiliger Beschreibung im
+    Capability-Katalog, den das Modell in jeder Runde liest — einen Skill zu binden
+    kostet also Tokens, ganz gleich ob das Modell ihn jemals öffnet.
 
     Es ist eine Zeile pro Skill gegen einen Textkörper pro Skill, und deshalb geht
     die Rechnung auf. Es ist kein Grund, einen unbegrenzten Katalog zu binden.
@@ -88,17 +88,34 @@ wählt über `description`, nie über die Kategorie.
 
 ## Wie ein Agent einen liest { #how-an-agent-reads-one }
 
-Über die [Capability `skills`](reference/capabilities.md#skills), die drei Tools
-beisteuert:
+Über die [Capability `skills`](reference/capabilities.md#skills). Jeder Skill, den
+ein Agent bekommt, wird zu einer **eigenen Capability** — dem Modell mit Name und
+Beschreibung aufgelistet und bei Bedarf geöffnet:
 
-| Tool | Was es tut |
+| Wie | Was es tut |
 |---|---|
-| `list_skills` | Namen und einzeilige Beschreibungen von allem, was an diesen Agent gebunden ist |
-| `load_skill` | Der vollständige Textkörper eines Skills |
+| Der Capability-Katalog | Namen und einzeilige Beschreibungen von allem, was an diesen Agent gebunden ist |
+| `load_capability` | Der vollständige Textkörper eines Skills, in die Unterhaltung geholt |
 | `read_skill_resource` | Eine Datei neben einem Skill |
+
+`load_capability` ist das Tool des Agent-Frameworks selbst und keines, das diese
+Plattform veröffentlicht — ein Spec kann es also weder gewähren noch umbenennen.
+**Absichern** kann es das sehr wohl, denn dieser Aufruf öffnet einen Skill:
+`tool_approval` darauf ist, wie ein Agent einen Menschen fragt, bevor ein Skill das
+Modell erreicht, und ein Spec, der das frühere `load_skill` abgesichert hatte, wird
+darauf migriert statt ungesichert zu bleiben. Als eigenes Tool steuert die
+Capability `read_skill_resource` bei, und das auch nur, wenn mindestens einer der
+gebundenen Skills eine Datei zum Lesen mitbringt.
 
 Ein Spec bindet Skills über ihre Id in `skill_ids`, sodass ein Agent genau die
 sieht, die ihm gegeben wurden, und sonst nichts.
+
+**Ein Skill darf nicht heißen wie eine Capability.** Jeder liegt unter seinem
+eigenen Namen im selben Namensraum wie `knowledge`, `planning` und der Rest - ein
+Skill namens `planning` auf einem Agent, der auch die Planning-Capability hat, ist
+also ein Duplikat, das das Framework vor dem ersten Token ablehnt. Einen solchen
+anzulegen wird abgewiesen, und einen Agent zu veröffentlichen, der an einen so
+benannten Skill gebunden ist, ebenfalls.
 
 Die Capability ohne gebundene Skills zu aktivieren ist nutzlos — geben Sie dem
 Agent Skills, oder lassen Sie die Capability aus.

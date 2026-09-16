@@ -41,6 +41,13 @@ class LockScope(IntEnum):
     #: and appends under this lock, so two audited writes for the same org cannot
     #: read the same head and fork the chain (#1622).
     AUDIT_CHAIN_PER_ORG = 5
+    #: Everything held *about* one person, against their erasure. A note is keyed
+    #: by the string `person:<id>` with no foreign key, so a run writing one while
+    #: the account is being deleted commits after the purge has read the table and
+    #: recreates personal data about somebody who asked to be forgotten. The write
+    #: and the purge take this, so one waits for the other and the write that loses
+    #: finds no account to write about (#1421).
+    PERSONAL_DATA_PER_USER = 6
 
 
 def _key(subject: UUID) -> int:

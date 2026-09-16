@@ -1,5 +1,5 @@
 ---
-source_sha: "19e1cf45e6f9"
+source_sha: "f7f1f1d75aa0"
 ---
 
 # Uprawnienia { #permissions }
@@ -91,7 +91,17 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `connections:view`, `connections:manage`, `mcp:manage`,
-`channels:manage`, `runs:view`, `audit:read`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`.
+
+!!! example "Dlaczego `ml:invoke` to nie `agents:run`"
+
+    [Usługi ML](ml-services.md) wywołuje inny komponent z kluczem, bez rozmowy i
+    bez agenta. Wciągnięcie ich do `agents:run` dałoby każdej takiej integracji
+    również możliwość wydawania budżetu modelowego organizacji - wyłącznie
+    dlatego, że jedno i drugie to "poproszenie platformy o pracę".
+
+    Trzyma je każda rola poza `viewer`, bo odczytanie struktury dokumentu nie
+    jest czynnością uprzywilejowaną; wydawanie pieniędzy na model jest.
 
 !!! example "Dlaczego `connections:view` i `connections:manage` to dwa uprawnienia"
 
@@ -140,9 +150,9 @@ własnych.
 |---|---|---|---|---|
 | `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
 | `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
-| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view` |
-| `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view` |
-| `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | żadne |
+| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
+| `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
+| `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
 | `viewer` | czyta | `view` `SHARED` | żadne | żadne |
 
 Rozróżnienie między `builder` a `admin` jest tym ciekawym: builder widzi całą

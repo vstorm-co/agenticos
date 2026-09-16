@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import offloaded_history
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
 from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
@@ -459,8 +460,9 @@ class ChatAgentRunner:
             # summary too: the resume replays the parked state, but the *next*
             # turn reads the conversation and would otherwise summarise again.
             if prepared.built.context.summarized:
-                summarized = ModelMessagesTypeAdapter.dump_python(
-                    result.all_messages(), mode="json"
+                summarized = await offloaded_history(
+                    prepared.built.capabilities,
+                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
             status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
             finished_cleanly = True

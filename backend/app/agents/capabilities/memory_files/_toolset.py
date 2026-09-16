@@ -25,9 +25,14 @@ from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.agents.memory_scope import memory_owner_key
+from app.core.memory_keys import INDEX_NAME as _INDEX_NAME
 from app.services import memory as memory_store
 
-INDEX_NAME = "MEMORY.md"
+#: Re-exported, so every existing import keeps working. It lives in
+#: `app.core.memory_keys` - a leaf module - because the service that prunes a
+#: suppressed note's line out of the index needs it too, and importing it from
+#: here is a cycle.
+INDEX_NAME = _INDEX_NAME
 """The note the capability injects. Ordinary to the tools, load-bearing to the prompt."""
 
 # Refusals the model reads as results, not retries: a store the run does not have

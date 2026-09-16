@@ -191,15 +191,46 @@ class TestReadingAttachments:
     async def test_the_read_is_scoped_to_the_caller(self, db) -> None:
         """`get_many` filtered on id alone, which is the disclosure half: the
         victim's filename, MIME type and size rendered in the attacker's
-        conversation. A foreign id now resolves to nothing."""
+        conversation. A foreign id is refused as unknown, which is also the
+        answer an id that never existed gets - the refusal distinguishes
+        neither, and carries nothing off the row."""
         victim = await _member(db)
         fresh = await _upload(db, victim)
         attacker = await _member(db)
 
-        rows = await ConversationService(db).list_attached_files(
-            [str(fresh.id)], user_id=attacker.id
-        )
+        with pytest.raises(BadRequestError) as refusal:
+            await ConversationService(db).list_attached_files([str(fresh.id)], user_id=attacker.id)
 
-        assert rows == []
+        assert refusal.value.details == {"unknown": [str(fresh.id)], "already_attached": []}
+        assert fresh.filename not in str(refusal.value.details)
         mine = await ConversationService(db).list_attached_files([str(fresh.id)], user_id=victim.id)
         assert [row.id for row in mine] == [fresh.id]
+
+    async def test_a_file_already_on_a_turn_cannot_be_attached_again(self, db) -> None:
+        """The model would have received it while `_attach` moved no row, so the
+        turn that used the file could not show it. Refused before the run."""
+        owner = await _member(db)
+        message = await _message(db, owner)
+        upload = await _upload(db, owner)
+        await chat_file_repo.link_to_message(
+            db, message_id=message.id, file_ids=[upload.id], user_id=owner.id
+        )
+
+        with pytest.raises(BadRequestError) as refusal:
+            await ConversationService(db).list_attached_files([str(upload.id)], user_id=owner.id)
+
+        assert refusal.value.details == {"unknown": [], "already_attached": [str(upload.id)]}
+
+    async def test_an_id_that_resolves_to_nothing_is_refused_rather_than_dropped(self, db) -> None:
+        """A run on silently partial input is billed, answered, and missing the
+        document the caller believed it had sent."""
+        owner = await _member(db)
+        present = await _upload(db, owner)
+        absent = uuid.uuid4()
+
+        with pytest.raises(BadRequestError) as refusal:
+            await ConversationService(db).list_attached_files(
+                [str(present.id), str(absent)], user_id=owner.id
+            )
+
+        assert refusal.value.details["unknown"] == [str(absent)]
