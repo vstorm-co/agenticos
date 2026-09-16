@@ -1,5 +1,5 @@
 ---
-source_sha: "d5916ee653ba"
+source_sha: "04d344a0f5a0"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -212,16 +212,23 @@ Browser, und das Ergebnis kommt zur App zurück (#1532).
 
 Was der Reihe nach passiert:
 
-1. Das Fenster sieht eine Navigation zu `/api/oauth/<Anbieter>/login`, übergibt
-   sie mit angehängtem `client=desktop` an den Systembrowser und folgt ihr nicht.
-   Nichts in der Konsole weiß, dass sie in einer Hülle läuft, und muss es nicht.
-2. Sie melden sich dort an, in einem echten Browser, mit Ihren Passwörtern, Ihren
+1. Das eigene `/api/oauth/<Anbieter>/login` der Konsole läuft **im Fenster**, wo
+   sich das httpOnly-Cookie mit einer hinterlegten Einladung lesen und anhängen
+   lässt. Die Hülle fängt diesen Sprung genau deshalb nicht ab, damit ein
+   Eingeladener, der sich aus der App anmeldet, von einem `invite_only`-Deployment
+   nicht abgewiesen wird.
+2. Das Fenster sieht dann eine Navigation zum `/api/v1/oauth/<Anbieter>/login` des
+   *Deployments*, übergibt sie mit angehängtem `client=desktop` und einer frisch
+   geprägten `desktop_nonce` an den Systembrowser und folgt ihr nicht. Nichts in
+   der Konsole weiß, dass sie in einer Hülle läuft, und muss es nicht.
+3. Sie melden sich dort an, in einem echten Browser, mit Ihren Passwörtern, Ihren
    Erweiterungen und welchem zweiten Faktor auch immer.
-3. Der Callback des Deployments sieht `client=desktop` - beim *Start* in der
-   Sitzung vermerkt, nie vom Rückweg gelesen - und leitet auf
+4. Der Callback des Deployments sieht, dass dieser Versuch ein Desktop-Versuch war
+   - beim *Start* in der Sitzung vermerkt, unter dem `state` genau dieses
+   Versuchs, nie vom Rückweg gelesen - und leitet auf
    `agenticos://auth/callback?code=…` um, mit einem Einmalcode, der nach einer
-   Minute abläuft.
-4. Das Betriebssystem reicht diesen Link an die App. Die Hülle schickt das
+   Minute abläuft, samt der übergebenen Nonce.
+5. Das Betriebssystem reicht diesen Link an die App. Die Hülle schickt das
    Konsolenfenster auf `<Ihr Server>/auth/callback?code=…`, die Seite, die es
    ohnehin gibt: sie tauscht den Code Server-zu-Server gegen das Tokenpaar, und
    die eigenen Cookies des Fensters werden gesetzt. Der Cookie-Speicher des
@@ -232,6 +239,23 @@ eng gefasst, was einer hier darf: die Konsole auf *einen* Pfad schicken, auf dem
 Server, den *Sie* konfiguriert haben, mit einem Code, der genau einmal eingelöst
 wird. Er kann keine Adresse benennen, und eine zweite Verwendung antwortet mit
 401.
+
+Es muss außerdem die Anmeldung **dieser** App sein. Die Hülle prägt eine Nonce,
+wenn sie den Browser öffnet, das Deployment gibt sie mit dem Code zurück, und ein
+Link mit irgendeiner anderen wird ignoriert — ein lokaler Prozess mit einem Code
+aus Ihrem Deployment kann Ihr Fenster also nicht in fremde Hände geben. Die Nonce
+wird beim Eintreffen eines Links aus dem Fach genommen, ein Replay desselben Links
+findet demnach nichts mehr.
+
+Zwei Versuche in einem Browser bleiben ebenfalls getrennt: der Vermerk liegt unter
+dem eigenen `state` jedes Versuchs statt einmal pro Sitzung, sodass eine gewöhnliche
+Anmeldung, während eine Desktop-Anmeldung wartet, kein Ergebnis mehr an die falsche
+Stelle schickt.
+
+Unter Windows und Linux startet das Öffnen eines registrierten Schemas die
+ausführbare Datei erneut — während einer Anmeldung also eine zweite Konsole neben
+der wartenden. Die Hülle hält eine Single-Instance-Sperre, und der zweite Prozess
+übergibt seine Argumente an den ersten und beendet sich.
 
 Das Deployment muss beim Schema mitspielen - `DESKTOP_DEEP_LINK_SCHEME`,
 `agenticos`, sofern es niemand geändert hat - und bei seiner eigenen öffentlichen

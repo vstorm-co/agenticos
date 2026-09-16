@@ -22,3 +22,14 @@ tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-opener = "2"
+# The per-attempt nonce that binds a deep-linked sign-in to the window that
+# started it. Already in the tree through Tauri; declared because this code
+# calls it.
+uuid = { version = "1", features = ["v4"] }
+
+# Desktop only, which is what the plugin supports - and this shell is desktop
+# only anyway. On Windows and Linux a registered scheme starts the executable
+# again, so without this a sign-in callback builds a second console beside the
+# one that is waiting for it.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"

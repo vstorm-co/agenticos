@@ -186,16 +186,22 @@ and the result comes back to the app (#1532).
 
 What happens, in order:
 
-1. The window sees a navigation to `/api/oauth/<provider>/login`, hands it to the
-   system browser with `client=desktop` appended, and does not follow it. Nothing
-   in the console knows it is running in a shell, and nothing has to.
-2. You sign in there, in a real browser with your own passwords, your own
+1. The console's own `/api/oauth/<provider>/login` runs **in the window**, where
+   it can read the httpOnly cookie holding a staged invitation and attach it. The
+   shell does not intercept that hop, precisely so an invitee signing in from the
+   app is not refused by an `invite_only` deployment.
+2. The window then sees a navigation to the *deployment's*
+   `/api/v1/oauth/<provider>/login`, hands it to the system browser with
+   `client=desktop` and a freshly minted `desktop_nonce` appended, and does not
+   follow it. Nothing in the console knows it is running in a shell, and nothing
+   has to.
+3. You sign in there, in a real browser with your own passwords, your own
    extensions and whatever second factor you use.
-3. The deployment's callback sees `client=desktop` - recorded in the session at
-   the *start*, never read off the return - and redirects to
-   `agenticos://auth/callback?code=…` with a single-use code that expires in a
-   minute.
-4. The operating system hands that link to the app. The shell sends the console
+4. The deployment's callback sees that this attempt was a desktop one - recorded
+   in the session at the *start* under that attempt's OAuth `state`, never read
+   off the return - and redirects to `agenticos://auth/callback?code=…` with a
+   single-use code that expires in a minute, plus the nonce it was given.
+5. The operating system hands that link to the app. The shell sends the console
    window to `<your server>/auth/callback?code=…`, the page that already exists:
    it swaps the code for the token pair server-to-server and the window's own
    cookies are set. The browser's cookie jar is left out of it, which is the
@@ -205,6 +211,22 @@ What happens, in order:
 allowed to do here is narrow: send the console to one path, on the server *you*
 configured, carrying a code that redeems exactly once. It cannot name an address,
 and a second use of a code answers 401.
+
+It also has to be **this** app's sign-in. The shell mints a nonce when it opens
+the browser, the deployment hands it back with the code, and a link carrying any
+other one is ignored — so a local process holding a code from your deployment
+cannot move your window into somebody else's account. The nonce is taken out of
+the slot when a link arrives, so a replay of the same link finds nothing.
+
+Two attempts in one browser stay apart, too: the marker is filed under each
+attempt's own OAuth `state` rather than kept once per session, so starting an
+ordinary sign-in while a desktop one is waiting no longer sends either result to
+the wrong place.
+
+On Windows and Linux, opening a registered scheme starts the executable again —
+which during a sign-in means a second console beside the one waiting for it. The
+shell holds a single-instance lock and the second process hands its arguments to
+the first and exits.
 
 The deployment has to agree about the scheme - `DESKTOP_DEEP_LINK_SCHEME`,
 `agenticos` unless somebody changed it - and about its own public address, since

@@ -24,9 +24,11 @@ Two things are versioned separately from this file and worth knowing about:
   (`disallowed_useragent`), and the shell answered that by telling the console
   window it was Safari - a workaround that worked and that Google's own policy
   says not to rely on. It is gone. The window now refuses exactly one navigation:
-  a start at `/api/oauth/<provider>/login`, which it opens in your own browser
-  with `client=desktop` appended. Nothing in the console knows it is running in a
-  shell, and nothing has to.
+  a start at the deployment's own `/api/v1/oauth/<provider>/login`, which it opens
+  in your own browser with `client=desktop` and a per-attempt nonce appended.
+  Nothing in the console knows it is running in a shell, and nothing has to - and
+  because the console's same-origin hop is *followed* rather than intercepted, an
+  invitee signing in from the app still carries their staged invitation.
 
   The callback reads that marker off the session it was recorded in at the
   *start*, never off the return, and redirects to `agenticos://auth/callback`
@@ -35,7 +37,12 @@ Two things are versioned separately from this file and worth knowing about:
   server-to-server and sets the window's own cookies - so the browser's cookie
   jar is left out of it, which is the point. A deep link can be fired by any
   process on the machine, so what one may do is send the console to one path on
-  the server the user configured, with a code that redeems once. (#1532)
+  the server the user configured, with a code that redeems once - and only if it
+  carries the nonce this shell minted, so a local process holding a code cannot
+  move the window into somebody else's account. The marker is filed under each
+  attempt's own OAuth `state`, so two sign-ins in one browser cannot trade
+  destinations, and a single-instance lock stops a callback building a second
+  console beside the one waiting for it on Windows and Linux. (#1532)
 
 ## [0.0.444] - 2026-09-16
 

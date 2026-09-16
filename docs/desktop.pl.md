@@ -1,5 +1,5 @@
 ---
-source_sha: "d5916ee653ba"
+source_sha: "04d344a0f5a0"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -204,16 +204,21 @@ wynik wraca do aplikacji (#1532).
 
 Co się dzieje, po kolei:
 
-1. Okno widzi nawigację do `/api/oauth/<dostawca>/login`, przekazuje ją
-   przeglądarce systemowej z dopisanym `client=desktop` i za nią nie idzie. Nic w
-   konsoli nie wie, że działa w shellu, i nie musi.
-2. Logujesz się tam, w prawdziwej przeglądarce, ze swoimi hasłami, swoimi
+1. Własne `/api/oauth/<dostawca>/login` konsoli wykonuje się **w oknie**, gdzie da
+   się odczytać ciasteczko httpOnly z odłożonym zaproszeniem i je dopiąć. Shell
+   nie przechwytuje tego skoku właśnie po to, żeby zaproszony logujący się z
+   aplikacji nie został odrzucony przez wdrożenie `invite_only`.
+2. Okno widzi następnie nawigację do `/api/v1/oauth/<dostawca>/login` *wdrożenia*,
+   przekazuje ją przeglądarce systemowej z dopisanym `client=desktop` i świeżo
+   wybitym `desktop_nonce`, i za nią nie idzie. Nic w konsoli nie wie, że działa w
+   shellu, i nie musi.
+3. Logujesz się tam, w prawdziwej przeglądarce, ze swoimi hasłami, swoimi
    rozszerzeniami i jakiegokolwiek drugiego składnika używasz.
-3. Callback wdrożenia widzi `client=desktop` — zapisane w sesji na *starcie*,
-   nigdy czytane z powrotu — i przekierowuje na
-   `agenticos://auth/callback?code=…` z jednorazowym kodem, który wygasa po
-   minucie.
-4. System operacyjny podaje ten link aplikacji. Shell wysyła okno konsoli na
+4. Callback wdrożenia widzi, że ta próba była desktopowa — zapisane w sesji na
+   *starcie*, pod `state` tej właśnie próby, nigdy czytane z powrotu — i
+   przekierowuje na `agenticos://auth/callback?code=…` z jednorazowym kodem, który
+   wygasa po minucie, plus otrzymanym nonce.
+5. System operacyjny podaje ten link aplikacji. Shell wysyła okno konsoli na
    `<twój serwer>/auth/callback?code=…`, czyli stronę, która już istnieje:
    wymienia kod na parę tokenów serwer-do-serwera i ustawiają się własne
    ciasteczka okna. Słoik ciasteczek przeglądarki zostaje z tego wyłączony, o co
@@ -223,6 +228,21 @@ Co się dzieje, po kolei:
 mu tutaj, jest wąskie: wysłać konsolę na jedną ścieżkę, na serwerze, który *ty*
 skonfigurowałeś, niosąc kod wymieniany dokładnie raz. Nie może nazwać adresu, a
 drugie użycie kodu odpowiada 401.
+
+Musi to być też logowanie **tej** aplikacji. Shell wybija nonce, otwierając
+przeglądarkę, wdrożenie oddaje go razem z kodem, a link niosący jakikolwiek inny
+zostaje zignorowany — więc lokalny proces mający kod z twojego wdrożenia nie
+przeniesie twojego okna na czyjeś konto. Nonce jest wyjmowany ze slotu, gdy
+przychodzi link, więc powtórka tego samego linku nie znajduje już nic.
+
+Dwie próby w jednej przeglądarce też się nie mieszają: znacznik jest zapisany pod
+własnym `state` każdej próby, a nie raz na sesję, więc rozpoczęcie zwykłego
+logowania, gdy desktopowe czeka, nie wysyła już żadnego z wyników w złe miejsce.
+
+Na Windows i Linuksie otwarcie zarejestrowanego schematu uruchamia plik
+wykonywalny ponownie — co w trakcie logowania oznacza drugą konsolę obok tej,
+która czeka. Shell trzyma blokadę pojedynczej instancji, a drugi proces przekazuje
+swoje argumenty pierwszemu i kończy pracę.
 
 Wdrożenie musi się zgadzać co do schematu — `DESKTOP_DEEP_LINK_SCHEME`,
 `agenticos`, o ile nikt tego nie zmienił — i co do własnego publicznego adresu, bo

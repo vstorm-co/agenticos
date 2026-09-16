@@ -1,5 +1,5 @@
 ---
-source_sha: "d5916ee653ba"
+source_sha: "04d344a0f5a0"
 ---
 
 # La aplicación de escritorio { #the-desktop-app }
@@ -202,16 +202,22 @@ resultado vuelve a la aplicación (#1532).
 
 Qué ocurre, en orden:
 
-1. La ventana ve una navegación a `/api/oauth/<proveedor>/login`, se la pasa al
-   navegador del sistema con `client=desktop` añadido y no la sigue. Nada en la
-   consola sabe que corre dentro de una carcasa, y no hace falta.
-2. Inicias sesión allí, en un navegador de verdad, con tus contraseñas, tus
+1. El propio `/api/oauth/<proveedor>/login` de la consola se ejecuta **en la
+   ventana**, donde sí se puede leer la cookie httpOnly con una invitación
+   preparada y adjuntarla. La carcasa no intercepta ese salto precisamente para
+   que a un invitado que inicia sesión desde la aplicación no lo rechace un
+   despliegue `invite_only`.
+2. La ventana ve entonces una navegación al `/api/v1/oauth/<proveedor>/login` del
+   *despliegue*, se la pasa al navegador del sistema con `client=desktop` añadido
+   y un `desktop_nonce` recién acuñado, y no la sigue. Nada en la consola sabe que
+   corre dentro de una carcasa, y no hace falta.
+3. Inicias sesión allí, en un navegador de verdad, con tus contraseñas, tus
    extensiones y el segundo factor que uses.
-3. El callback del despliegue ve `client=desktop` —anotado en la sesión al
-   *empezar*, nunca leído de la vuelta— y redirige a
-   `agenticos://auth/callback?code=…` con un código de un solo uso que caduca en
-   un minuto.
-4. El sistema operativo entrega ese enlace a la aplicación. La carcasa manda la
+4. El callback del despliegue ve que este intento fue de escritorio —anotado en la
+   sesión al *empezar*, bajo el `state` de ese intento concreto, nunca leído de la
+   vuelta— y redirige a `agenticos://auth/callback?code=…` con un código de un solo
+   uso que caduca en un minuto, más el nonce que recibió.
+5. El sistema operativo entrega ese enlace a la aplicación. La carcasa manda la
    ventana de la consola a `<tu servidor>/auth/callback?code=…`, la página que ya
    existe: canjea el código por el par de tokens servidor a servidor y se
    establecen las cookies propias de la ventana. El almacén de cookies del
@@ -221,6 +227,23 @@ Qué ocurre, en orden:
 se le permite aquí es estrecho: mandar la consola a *una* ruta, en el servidor que
 *tú* configuraste, con un código que se canjea exactamente una vez. No puede
 nombrar una dirección, y un segundo uso responde 401.
+
+También tiene que ser el inicio de sesión de **esta** aplicación. La carcasa acuña
+un nonce al abrir el navegador, el despliegue lo devuelve junto al código, y un
+enlace que lleve cualquier otro se ignora, así que un proceso local con un código
+de tu despliegue no puede mover tu ventana a la cuenta de otra persona. El nonce se
+retira de su hueco cuando llega un enlace, de modo que repetir el mismo enlace ya
+no encuentra nada.
+
+Dos intentos en un mismo navegador tampoco se mezclan: la marca queda archivada bajo
+el `state` propio de cada intento en lugar de una vez por sesión, así que empezar un
+inicio de sesión normal mientras uno de escritorio espera ya no manda ningún
+resultado al sitio equivocado.
+
+En Windows y Linux, abrir un esquema registrado arranca el ejecutable otra vez —lo
+que durante un inicio de sesión significa una segunda consola junto a la que espera.
+La carcasa mantiene un bloqueo de instancia única y el segundo proceso entrega sus
+argumentos al primero y termina.
 
 El despliegue tiene que coincidir en el esquema —`DESKTOP_DEEP_LINK_SCHEME`,
 `agenticos` si nadie lo cambió— y en su propia dirección pública, porque es adonde
