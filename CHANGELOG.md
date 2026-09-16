@@ -44,6 +44,20 @@ Two things are versioned separately from this file and worth knowing about:
   as a complete inventory would be worse than one that says what it misses.
   (#1594)
 
+## [0.0.444] - 2026-09-16
+
+### Added
+
+- **The connect dialog takes a client registered by hand, so HubSpot can be
+  connected from the UI.** #1620 taught the OAuth start to accept `client_id` and
+  `client_secret`, and left them reachable only through the API - so "Connect &
+  check" on HubSpot still ended at "This server rejected the client registration
+  request" with nowhere to type the credentials its MCP auth app hands out.
+  Choosing OAuth now shows *Your own client*: the two fields, and the redirect
+  URL the provider has to hold exactly. Left empty, nothing changes - the server
+  registers this app itself. A secret typed with no client ID is refused before
+  the request, which is what the backend would do one round trip later.
+
 ## [0.0.443] - 2026-09-15
 
 ### Fixed
