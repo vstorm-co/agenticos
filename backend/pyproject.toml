@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.444"
+version = "0.0.445"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -356,6 +356,11 @@ ignore = [
 # shells out to `git` by name with a literal argv it builds itself (S603, S607) -
 # the same partial-path invocation already accepted for `tests/test_migrations.py`.
 "../scripts/**" = ["T201", "S603", "S607"]
+# The load harness is a console tool with the same shape: it prints its progress
+# and its report to stdout (T201), because a load run is watched while it runs and
+# its output is redirected into a results file afterwards. It is not imported by
+# the application - nothing under `app/` may import it - and it carries no gate.
+"../loadtest/**" = ["T201"]
 # Postgres cannot parameterise an identifier, so a table name must be
 # interpolated. `_validate_collection_name` rejects anything but
 # [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is

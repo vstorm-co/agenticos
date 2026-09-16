@@ -41,6 +41,28 @@ Two things are versioned separately from this file and worth knowing about:
   refused call's record is committed before the refusal rolls its transaction
   back. Schema: `ml_service_calls`. #1595
 
+## [0.0.445] - 2026-09-16
+
+### Added
+
+- **A repeatable load and resilience suite, and two measured runs (NFA-004).**
+  `loadtest/` offers a stated workload mix at a stated arrival rate - reads,
+  streamed chat turns with a fifth of them cancelled, non-streaming runs,
+  retrieval, uploads and signed webhook deliveries - through ramp, sustain,
+  burst and recover phases, and prints a report naming what it measured, what it
+  could not, and each proposed threshold's verdict with the sample count beside
+  it. The model is a stub that is slow on purpose and can be told to fail, and it
+  serves the embeddings too, so a default run touches no paid provider and a
+  deployment with no provider key at all can still be measured. Arrival-rate
+  rather than worker-pool driving, because a closed loop slows its own offered
+  rate exactly when the server does. `make load-stub-model`, `make load-seed`,
+  `make load-test`; the workload, the thresholds and what the suite does not
+  claim are in `docs/load-testing.md`. Every offered request leaves a sample,
+  including one abandoned at the end of a run, so an overloaded run cannot
+  improve its own error rate by losing requests; the report shows the recovery
+  phase on its own, since that is what tells a deployment that absorbed a spike
+  from one that stayed on the floor. #1597
+
 ## [0.0.444] - 2026-09-16
 
 ### Added

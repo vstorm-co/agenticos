@@ -300,6 +300,7 @@ nav:
           - patterns.md
           - adding_features.md
           - testing.md
+          - load-testing.md
           - code-review.md
           - branching.md
           - howto/translate.md
