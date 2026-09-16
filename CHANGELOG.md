@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.446] - 2026-09-16
+
 ### Added
 
 - **The ML services answer on their own, without a conversation or an agent.**
