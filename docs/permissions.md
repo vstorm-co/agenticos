@@ -88,7 +88,18 @@ Two kinds of permission, and they behave differently.
 **Global** permissions are binary and org-wide: `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
 `connections:view`, `connections:manage`, `mcp:manage`, `channels:manage`,
-`runs:view`, `audit:read`.
+`runs:view`, `audit:read`, `ml:invoke`.
+
+!!! example "Why `ml:invoke` is not `agents:run`"
+
+    The [ML services](ml-services.md) are called by another component holding a
+    key, with no conversation and no agent. Folding them into `agents:run` would
+    hand every such integration the ability to spend the organization's model
+    budget as well, for no reason other than that both are "asking the platform
+    to do work".
+
+    Every role but `viewer` holds it, because reading a document's structure is
+    not a privileged act; spending money on a model is.
 
 !!! example "Why `connections:view` and `connections:manage` are two"
 
@@ -133,9 +144,9 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 |---|---|---|---|---|
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view` |
-| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view` |
-| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | none |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
+| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
 | `viewer` | reads | `view` `SHARED` | none | none |
 
 The `builder` / `admin` distinction is the interesting one: a builder sees the

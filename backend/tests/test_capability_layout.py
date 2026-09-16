@@ -49,6 +49,9 @@ TOOLLESS = {
     # Rewrites the history a request carries, before it goes out. Nothing the
     # model chooses, so nothing for a person to approve.
     "compaction",
+    # Rewrites what a compacted history is *stored* as, after the run. Further
+    # still from anything a model chooses than compaction is.
+    "media",
     # Appends steering text to the request tail, before it goes out. Nothing the
     # model chooses, so nothing for a person to approve.
     "system_reminders",
@@ -56,7 +59,8 @@ TOOLLESS = {
 
 # Capabilities whose tools come from a library rather than this repository.
 EXTERNAL_TOOLSET = {
-    # `pydantic_ai_skills.SkillsToolset`, filtered to the safe three.
+    # `pydantic_ai_skills.SkillsCapability`, with its script tool switched off, so
+    # `read_skill_resource` is the one tool left.
     "skills",
     # `pydantic_ai_backends.ConsoleCapability`. The tool *text* is still this
     # repository's - `_capability.py` declares it once and hands the same

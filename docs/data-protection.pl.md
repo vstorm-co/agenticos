@@ -1,5 +1,5 @@
 ---
-source_sha: "de798898a233"
+source_sha: "bc9e2e3d8aad"
 ---
 
 # Ochrona danych { #data-protection }
@@ -87,6 +87,7 @@ przez sprawdzenie rodzica.
 | `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą i tak można odtworzyć z `notifications` | Rezygnacja z powiadomień i własny zapis autora |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
+| `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
 | `agent_workspaces`, `sandbox_operations` | Pliki, na których pracował agent, i log tego, co uruchomił | Dla backendu `state` same pliki, jako JSON; dla kontenera id sesji oraz każda komenda, cel i podsumowanie wyniku | Sandbox. Zobacz [Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Poświadczenia i to, gdzie wskazują | Wyłącznie zapieczętowany szyfrogram, z podpowiedzią; provider, model i `base_url` jawnie | Sięganie do providerów. Zobacz [Sekrety](secrets.md) |
 
@@ -158,10 +159,10 @@ jest luką — i tak jest nazwany.
 | Rozliczalność | Wpisy audytu dzielą transakcję działającą i zawodzą zamknięte; podszycie nazywa obie osoby; eksporty masowe są zapisywane | [Nadzór](governance.md#audit) |
 | Eksport audytu | `GET /audit/export`, CSV albo JSONL w oknie czasu, bramkowany na `audit:read` i zapisywany w samym śladzie | [Governance](governance.md#audit) (#1422) |
 | Dowód nienaruszalności śladu | Jeszcze nie ma | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); `redacted` to [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retencja według harmonogramu | Wiersze `sandbox_operations`, po 30 dniach; wiersze `notifications` — *przeczytany* po 90 dniach, a każdy wiersz po roku bez względu na to. Same `announcements` są wyłączone, więc to, co zostało wysłane, pozostaje możliwe do sprawdzenia w śladzie audytu, nawet gdy jego dostawy się przedawnią. Zamiatanie porzuconych runów finalizuje je; niczego nie usuwa | [Nadzór](governance.md#alerts); reszta to [#1420](https://github.com/vstorm-co/agenticos/issues/1420) |
+| Trace'y | `observability.content` per agent: `full` zapisuje wszystko, `none` tylko czas, tokeny, koszt i nazwy narzędzi | [Środowiska](environments.md) (#1413); stan pośredni `redacted` został odrzucony, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Retencja według harmonogramu | Na organizację i na klasę — rozmowy i ich pliki, runy i manifesty, workspace'y, pamięć agentów, wgrane dokumenty i audyt — w ramach domyślnej wartości, sufitu i podłogi audytu na poziomie wdrożenia. Codzienny sweep usuwa twardo i zapisuje liczniki, nigdy treść. Backupy i cokolwiek już wysłane do zewnętrznego kolektora są poza tym. `notifications` nie jest jedną z tych klas: zamiast tego jest zamiatane według własnego, stałego harmonogramu — wiersz *przeczytany* po 90 dniach, a każdy wiersz po roku bez względu na to. Same `announcements` są wyłączone, więc to, co zostało wysłane, pozostaje możliwe do sprawdzenia w śladzie audytu, nawet gdy jego dostawy się przedawnią | [Retencja](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; zamiatanie powiadomień to `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
 | Usunięcie jednej osoby | Usunięcie konta uzgadnia to, co by je zablokowało; usunięcie pamięci to osobne wywołanie i sięga do mem0 | [Co obejmuje usunięcie](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) co do tego, co zostawia |
-| Dostęp do własnych danych | Brak endpointu eksportu; brak wglądu we własną pamięć | [#1421](https://github.com/vstorm-co/agenticos/issues/1421), [#1594](https://github.com/vstorm-co/agenticos/issues/1594) |
+| Dostęp do własnych danych | Osoba czyta w Ustawienia → Pamięć wszystko, co każdy agent tutaj o niej zapisał, i może notatkę wyłączyć, przywrócić albo usunąć. Czytanie *cudzego* magazynu należy wyłącznie do administratora wdrożenia — nie do roli w organizacji — i jest audytowane z aktorem, tenantem, podmiotem i powodem, nigdy z treścią. Magazyny zewnętrzne (mem0) są nazwane, a nie listowane | [Jak to czytać i jak wymazać](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Endpointu eksportu jeszcze nie ma: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
 | Tożsamość korporacyjna | Logowanie Google i hasła; jeszcze bez OIDC | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
 | Macierz kontroli, którą czyta przegląd bezpieczeństwa | Ta strona i [Wdrażanie](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) dodaje mapowanie na HIPAA i SOC 2 |
 | Powierzchnie publiczne | Klucz odwiedzającego hostowanej strony jest losowy, nigdy wyprowadzony z osoby; wpuszczanie i wgrywanie są rate-limitowane per adres, a adres leży w kluczu Redisa na czas okna i nigdzie indziej | [Kanały](channels.md#a-hosted-page) |
@@ -176,8 +177,13 @@ specu i bez `logfire_token_secret_id` na żadnym środowisku nic nie jest
 wysyłane, a id trace'u i tak jest zapisywane lokalnie. Wdrożenie, które
 potrzebuje trace'ów bez treści, ustawia agentowi `observability.content` na
 `none`: zapisywane są czas, tokeny, koszt i nazwy narzędzi, a żaden tekst
-wiadomości nie wychodzi. Cokolwiek pomiędzy — treść przepuszczona przez filtr PII
-— to [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
+wiadomości nie wychodzi — i tryb ten dziedziczy specjalista tego agenta, czy to
+napisany inline przez autora, czy wymyślony przez model w trakcie runu.
+
+Trzeciego trybu pomiędzy nie ma. Eksport wyczyszczony filtrem PII to gwarancja,
+której nikt nie zaudytuje — jeden identyfikator, który filtr przepuści, już
+wyszedł, a operator sądzi, że nie — więc wybór jest świadomie między całą treścią
+a żadną ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)).
 
 ### Co obejmuje usunięcie { #what-deletion-reaches }
 
@@ -330,13 +336,11 @@ wdrożenia, dopóki każdy z nich się nie zamknie.
 **W kodzie, śledzone:**
 
 - Trace'y niosą pełną treść, chyba że agent ustawi `observability.content` na `none`; nie ma stanu pośredniego — [#1616](https://github.com/vstorm-co/agenticos/issues/1616).
-- Retencja według harmonogramu obejmuje `sandbox_operations` i `notifications`; każda inna tabela trzyma swoje wiersze aż do usunięcia konta — [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 - Bajty załączników i pamięć osoby przeżywają usunięcie swojego właściciela; brak
   eksportu danych osobowych; inwentarz usunięcia —
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
 - Brak dowodu nienaruszalności śladu audytowego — [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Pliki wyłącznie na dysku lokalnym, szyfrowane przez wolumen albo wcale — [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
-- Brak samoobsługowego wglądu we własną pamięć — [#1594](https://github.com/vstorm-co/agenticos/issues/1594).
 - Brak logowania OIDC — [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
 - Macierz kontroli HIPAA i SOC 2 — [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
 

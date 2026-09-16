@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.agents.compaction_events import CompactionEvent
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.services.embed_session import MAX_MESSAGE_CHARS, EmbedSession
@@ -190,6 +191,21 @@ class TestTheRestOfTheSession:
         history = await session._history(MagicMock())
 
         assert history == []
+
+    async def test_a_compaction_frame_reaches_a_visitor_who_shows_nothing_else(self):
+        """The sink the runner calls when the thread outgrew the model's window.
+        It is not behind a trace switch: a summary takes tens of seconds, and a
+        socket that streams and says nothing simply stops for that long (#936)."""
+        session = _session()
+
+        await session._compaction_event(
+            CompactionEvent(kind="compaction_started", messages_before=62)
+        )
+
+        kind, data = _sent(session)[0]
+        assert kind == "compaction_started"
+        assert data["kind"] == "compaction_started"
+        assert data["messages_before"] == 62
 
 
 class TestTheThreadAVisitorComesBackTo:
