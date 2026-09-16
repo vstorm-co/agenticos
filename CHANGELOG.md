@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.455] - 2026-09-16
+
 ### Added
 
 - `GET /me/data/export` — everything this deployment holds about you as one JSON
