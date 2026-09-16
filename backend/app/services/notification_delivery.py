@@ -244,6 +244,15 @@ class NotificationDeliveryService:
         current membership role for an org-scoped notification, or `None` for
         a deployment-wide one (there is no role to have, only `is_app_admin`,
         already checked)."""
+        if notification.announcement_id is not None:
+            # Always deployment-wide (`organization_id` is a placeholder, per
+            # `write()`'s own docstring) but never app-admin-only - the
+            # audience is whoever `audience_spec` names, and `gate_for`'s
+            # `_announcement_visible` (`notification_center.py`) is the one
+            # place that already reads it correctly. Answering `is_app_admin`
+            # here instead skipped every ordinary recipient of a targeted or
+            # "all" announcement before that check was ever reached.
+            return True, None
         if notification.organization_id is None:
             return recipient.is_app_admin, None
         member = await member_repo.get(
