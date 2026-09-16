@@ -1,5 +1,5 @@
 ---
-source_sha: "7c669e2dd1af"
+source_sha: "f9fddc50824a"
 ---
 
 # Governance { #governance }
@@ -1329,6 +1329,12 @@ die abschließt oder scheitert, und die eigene Ankündigung eines App-Admins -
 Organisation und, optional, nach Rolle, und beschränkt auf einen oder beide
 Kanäle.
 
+Die eine Ausnahme sind die weiter unten beschriebenen wöchentlichen und
+monatlichen Usage-Reports, die auf dem Agent konfiguriert werden: Beide
+teilen sich eine einzige, veraltete E-Mail-Einstellung, sodass das Abschalten
+der E-Mail des einen Reports auch die des anderen abschaltet - die
+In-App-Zeile jedes Reports schaltet sich weiterhin einzeln.
+
 Anders als alles oben lässt sich ein Sicherheitsereignis oder eine
 Konfigurationsänderung auf keinem der beiden Kanäle abschalten. Es erreicht
 die eigenen Owner und Admins dieser Organisation - nicht das breitere
@@ -1338,6 +1344,13 @@ Fall bekommt sie stattdessen jeder App-Admin. Nichts davon weitet aus, was
 diese Seite dokumentiert: Es ist dasselbe Postfach, in dem die oben auf dem
 Agent konfigurierten Alerts landen, und die Opt-out-Regel unten gilt
 weiterhin für alles, was sich abschalten lässt.
+
+Aber nicht unbegrenzt: Jedes ist auf zwanzig Schreibvorgänge pro Minute je
+Akteur und Ereignistyp begrenzt, sodass bei einem Konto mit schnellen
+Änderungen der Rest still verworfen wird, statt jeden Admin zu überfluten -
+der Audit-Eintrag dahinter wird trotzdem aufgezeichnet, auf dem Trail selbst
+([Audit](#audit)), unabhängig davon, ob die Benachrichtigung das Limit
+überstanden hat.
 
 Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
 *gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet

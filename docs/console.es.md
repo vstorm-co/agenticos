@@ -1,5 +1,5 @@
 ---
-source_sha: "02c6139a530f"
+source_sha: "969649ecfaa2"
 ---
 
 # La consola { #the-console }
@@ -63,7 +63,10 @@ todavía no ha caducado.
 Una fila con un destino es un enlace; una sin él — el anuncio propio de un
 admin, la mayoría de las veces — solo se puede marcar como leída. Marcar una
 como leída, o todas a la vez, actualiza el contador al instante; nada aquí
-espera a que se recargue la página.
+espera a que se recargue la página. **Mark all read** barre hasta quinientas
+filas no leídas de una vez — a partir de ahí, el contador se queda justo por
+encima de cero y un clic más termina el resto, en lugar de que la insignia
+subestime en silencio lo que aún queda por leer.
 
 Qué llega aquí y qué se puede desactivar le toca explicarlo a
 [Governance](governance.md#alerts) — esta página es solo los dos sitios donde

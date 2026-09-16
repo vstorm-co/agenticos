@@ -1,5 +1,5 @@
 ---
-source_sha: "7c669e2dd1af"
+source_sha: "f9fddc50824a"
 ---
 
 # Governance { #governance }
@@ -1245,6 +1245,11 @@ administratora aplikacji - `POST /admin/announcements`, jeszcze bez strony w
 konsoli - adresowane do organizacji i, opcjonalnie, do roli, oraz ograniczone
 do jednego albo obu kanałów.
 
+Jedyny wyjątek to tygodniowe i miesięczne raporty użycia konfigurowane na
+agencie, opisane niżej: oba dzielą jedno, starsze ustawienie e-maila, więc
+wyłączenie e-maila jednego raportu wyłącza też e-mail drugiego — wiersz w
+aplikacji dla każdego z nich nadal przełącza się osobno.
+
 W przeciwieństwie do wszystkiego powyżej, zdarzenia bezpieczeństwa i zmiany
 konfiguracji nie da się wyłączyć na żadnym z kanałów. Trafiają do właścicieli i
 administratorów tej konkretnej organizacji — nie do szerszej grupy odbiorców
@@ -1254,6 +1259,13 @@ tego do każdego administratora aplikacji. Nic z tego nie poszerza tego, co
 dokumentuje ta strona: to ta sama skrzynka, do której trafiają alerty
 konfigurowane na agencie powyżej, a reguła rezygnacji poniżej wciąż dotyczy
 wszystkiego, co można wyłączyć.
+
+Nie jest to jednak nieograniczone: każde jest ograniczone do dwudziestu
+zapisów na minutę na aktora i typ zdarzenia, więc jedno konto wprowadzające
+szybkie zmiany ma resztę po cichu odrzucaną, zamiast zalewać każdego
+administratora — wpis audytowy stojący za każdym z nich i tak zostaje
+zapisany, na samym śladzie ([Audyt](#audit)), niezależnie od tego, czy
+powiadomienie przetrwało limit.
 
 Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
 jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został

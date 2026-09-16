@@ -1,5 +1,5 @@
 ---
-source_sha: "02c6139a530f"
+source_sha: "969649ecfaa2"
 ---
 
 # Konsola { #the-console }
@@ -63,7 +63,10 @@ nie wypadło z zasięgu.
 Wiersz z celem jest linkiem; ten bez celu — najczęściej własne ogłoszenie
 administratora aplikacji — służy tylko do oznaczenia jako przeczytany.
 Oznaczenie jednego wiersza jako przeczytanego albo wszystkich naraz od razu
-aktualizuje licznik; nic tutaj nie czeka na przeładowanie strony.
+aktualizuje licznik; nic tutaj nie czeka na przeładowanie strony. **Mark all
+read** zbiera naraz do pięciuset nieprzeczytanych wierszy — powyżej tego
+licznik zatrzymuje się tuż przed zerem, a kolejne kliknięcie dokańcza resztę,
+zamiast żeby plakietka po cichu zaniżała to, co wciąż jest nieprzeczytane.
 
 To, co tu trafia i co można wyłączyć, wyjaśnia [Governance](governance.md#alerts)
 — ta strona to tylko dwa miejsca, w których to czytasz: dzwonek dla tego, co

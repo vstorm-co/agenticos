@@ -56,7 +56,10 @@ paging back through everything that has not aged out yet.
 
 A row with a destination is a link; one without - an admin's own broadcast, most
 often - is only ever something to mark read. Marking one read, or everything at
-once, updates the count immediately; nothing here waits on a page reload.
+once, updates the count immediately; nothing here waits on a page reload. "Mark
+all read" sweeps up to five hundred unread rows at once - past that, the count
+lands just short of zero and a further click finishes it, rather than the badge
+silently understating what is still unread.
 
 What lands here and what can be turned off is [Governance's](governance.md#alerts)
 to explain — this page is only the two places you read it: the bell for what

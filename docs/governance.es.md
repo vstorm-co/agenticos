@@ -1,5 +1,5 @@
 ---
-source_sha: "7c669e2dd1af"
+source_sha: "f9fddc50824a"
 ---
 
 # Governance { #governance }
@@ -1217,16 +1217,26 @@ anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
 
+La única excepción son los informes de uso semanales y mensuales configurados
+en el agent, más abajo: ambos comparten una única preferencia de correo
+heredada, así que apagar el correo de un informe apaga también el del otro —
+la fila en la aplicación de cada uno se sigue activando por separado.
+
 A diferencia de todo lo de arriba, un evento de seguridad o un cambio de
 configuración no se puede apagar en ninguno de los dos canales. Llega a los
 owners y admins de esa misma organización — no a la audiencia `admins` más
 amplia de arriba, y nunca a los app admins del deployment, salvo que la propia
-acción no tenga organización a la que atribuirla, en cuyo caso la recibe en su
-lugar cada app admin.
+acción no tenga organización a la que atribuirla, en cuyo caso la recibe cada
+app admin. Nada de esto ensancha lo que documenta esta página: es
+el mismo buzón donde aterrizan las alertas configuradas en el agent de
+arriba, y la regla de exclusión de abajo se sigue aplicando a todo lo que se
+puede apagar.
 
-Nada de esto ensancha lo que documenta esta página: es el mismo buzón donde
-aterrizan las alertas configuradas en el agent de arriba, y la regla de
-exclusión de abajo se sigue aplicando a todo lo que se puede apagar.
+Pero no sin límite: cada uno está limitado a veinte escrituras por minuto por
+actor y tipo de evento, así que una cuenta que hace cambios rápidos ve el
+resto descartado en silencio, en lugar de inundar a cada admin — la entrada
+de audit detrás de cada uno se registra de todos modos, en el propio trail
+([Audit](#audit)), sin importar si la notificación sobrevivió al límite.
 
 Una fila se retira del buzón noventa días después de escribirse si está
 *leída*, y un año después sin importar si llegó a abrirse — contando siempre

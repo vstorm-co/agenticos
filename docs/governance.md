@@ -1150,11 +1150,16 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
-email off, or the other way round. The same page also carries every other event
-the inbox delivers: a run finishing or failing unattended, a document's ingestion
-completing or failing, and an app admin's own broadcast - `POST
-/admin/announcements`, not yet a console page - addressed by organization and,
-optionally, role, and restricted to one or both channels.
+email off, or the other way round. The same page also carries every other
+event the inbox delivers: a run finishing or failing unattended, a document's
+ingestion completing or failing, and an app admin's own broadcast - `POST
+/admin/announcements`, not yet a console page - addressed by organization
+and, optionally, role, and restricted to one or both channels.
+
+The one exception is the weekly and monthly usage reports configured on the
+agent, below: both share a single legacy email preference, so turning one
+report's email off turns off the other's too - the in-app row for each still
+switches on its own.
 
 Unlike everything above, a security event or a configuration change cannot be
 turned off on either channel. It reaches that organization's own owners and
@@ -1163,6 +1168,12 @@ admins unless the action itself has no organization to attribute it to, in which
 case every app admin gets it instead. None of this widens what this page
 documents: it is the same inbox the agent-configured alerts above land in, and
 the opt-out rule below still applies to everything that can be turned off.
+
+Not unbounded, though: each is capped at twenty writes a minute per actor and
+event type, so one account making rapid changes has the rest silently dropped
+rather than flooding every admin - the audit entry behind each one is
+recorded regardless, on the trail itself ([Audit](#audit)), whether or not the
+notification survived the limit.
 
 A row is dropped from the inbox ninety days after it was written if it was
 *read*, and a year after regardless of whether it ever was - both counted from

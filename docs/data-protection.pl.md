@@ -1,5 +1,5 @@
 ---
-source_sha: "bc9e2e3d8aad"
+source_sha: "67e8a7081d46"
 ---
 
 # Ochrona danych { #data-protection }
@@ -84,7 +84,7 @@ przez sprawdzenie rodzica.
 | `agent_triggers` | Runy zaplanowane i wyzwalane zdarzeniem | Prompt oraz konfiguracja i filtr źródła zdarzeń | Uruchamianie agenta bez człowieka |
 | `app_admin_audit_logs` | Kto zmienił dostęp albo wydał pieniądze — ślad organizacji i ślad administratora wdrożenia dzielą jedną tabelę | Aktor, podszywający się, adres IP, akcja i mapa `details`. Mapa przeważnie nazywa pola, ale niektóre wpisy trzymają wartości: e-mail konta, pod które się podszyto, e-mail konta usuniętego przez administratora, notatka publikacji | Rozliczalność. Zobacz [Nadzór](governance.md#audit) |
 | `notifications`, `notification_deliveries` | Każdy wiersz powiadomienia w aplikacji oraz jego dostarczenie mailem | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje swój kanał, status, liczbę prób i oczyszczony powód niepowodzenia — nigdy tekst błędu od providera | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
-| `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą i tak można odtworzyć z `notifications` | Rezygnacja z powiadomień i własny zapis autora |
+| `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą można odtworzyć z `notifications` tylko dopóki ten wiersz nie wypadnie w ramach [zamiatania retencji powiadomień](governance.md#alerts) — po czym wpis audytowy zachowuje tylko liczbę, nigdy odbiorców | Rezygnacja z powiadomień i własny zapis autora |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
 | `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
@@ -104,7 +104,7 @@ kopiami czatu i idą razem z nim.
 | Redis | Kubełki rate limitu kluczowane wywołującym — dla powierzchni publicznej to **jawny adres IP**, w kluczu, na czas TTL okna; klucze deduplikacji triggerów i kanałów; stan wymiany OAuth; zaparkowane zaproszenia | Po wygaśnięciu; nic tutaj nie przeżywa swoich minut |
 | Prefect | Historia i logi flow-runów | Parametry to id i ścieżki, z jednym wyjątkiem: **`event_context` runu wyzwolonego zdarzeniem** — nadawca, temat i treść wiadomości Gmail, zgłoszenia GitHub, ładunku webhooka — podróżuje jako parametr flow i zostaje w historii runów. Logi workera przechodzą przez ten sam filtr redakcji co logi API |
 | Logfire, jeśli skonfigurowany | Trace'y każdego runu | Retencja providera. Dziś trace niesie pełny prompt, wyjście i argumenty narzędzi — zobacz [Trace'y](#traces) |
-| Twój relay SMTP | Zaproszenia, magic linki, prośby o zatwierdzenie, alerty budżetowe, raporty użycia | Cokolwiek relay zachowa. Mail o zatwierdzeniu nazywa agenta, narzędzie i link, a nie argumenty narzędzia |
+| Twój relay SMTP | Zaproszenia, magic linki, prośby o zatwierdzenie, alerty budżetowe, raporty użycia oraz własny mail [skrzynki powiadomień](governance.md#alerts) - nienadzorowane zakończenie albo błąd runa, zakończenie albo błąd ingestii dokumentu, zdarzenie bezpieczeństwa albo zmiana konfiguracji, własne ogłoszenie administratora | Cokolwiek relay zachowa. Mail o zatwierdzeniu nazywa agenta, narzędzie i link, a nie argumenty narzędzia |
 | Kopie zapasowe | `pg_dump` to cała baza; wolumen mediów to pliki | Twoje wygaśnięcie kopii. Usunięcie nigdy nie sięga kopii już zrobionej — zobacz [Kopie zapasowe](deploy.md#backups) |
 
 ## Co opuszcza wdrożenie { #what-leaves-the-deployment }

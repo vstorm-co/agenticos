@@ -1,5 +1,5 @@
 ---
-source_sha: "02c6139a530f"
+source_sha: "969649ecfaa2"
 ---
 
 # Die Konsole { #the-console }
@@ -65,7 +65,10 @@ alles, was noch nicht aus dem Aufbewahrungsfenster gefallen ist.
 Eine Zeile mit einem Ziel ist ein Link; eine ohne - meist die eigene
 Ankündigung eines Admins - lässt sich immer nur als gelesen markieren. Eine
 Zeile als gelesen zu markieren, oder alle auf einmal, aktualisiert die
-Zählung sofort; nichts hier wartet auf ein Neuladen der Seite.
+Zählung sofort; nichts hier wartet auf ein Neuladen der Seite. **Mark all
+read** räumt bis zu fünfhundert ungelesene Zeilen auf einmal auf - darüber
+hinaus landet die Zählung knapp über null, und ein weiterer Klick beendet den
+Rest, statt dass das Badge still zu wenig Ungelesenes anzeigt.
 
 Was hier landet und was sich abschalten lässt, zu erklären, ist Sache von
 [Governance](governance.md#alerts) — diese Seite ist nur die beiden Stellen,
