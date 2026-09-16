@@ -18,7 +18,9 @@ interface UseNotificationPreferencesResult {
   isLoading: boolean;
   error: string | null;
   /** Whether `event_type`'s `channel` is on - unset pairs default to on
-   * (the server's own default), matching what `GET` never has to say. */
+   * (the server's own default), matching what `GET` never has to say. Only
+   * meaningful once the read has actually succeeded; a caller with `error`
+   * set has no stored value to fall back to and must not trust this. */
   isEnabled: (eventType: string, channel: NotificationChannel) => boolean;
   setPreference: (
     eventType: string,
@@ -67,6 +69,11 @@ export function useNotificationPreferences(): UseNotificationPreferencesResult {
         channel,
         enabled,
       });
+      // A background refetch already in flight when this PATCH started can
+      // otherwise land after this write and replace it with the pre-write
+      // value it read, reverting the switch until the next refetch (the same
+      // dedup race `use-secrets.ts`'s `invalidate` cancels for).
+      await queryClient.cancelQueries({ queryKey: qk.notifications.preferences() });
       queryClient.setQueryData<NotificationPreference[]>(
         qk.notifications.preferences(),
         (prev = []) => {

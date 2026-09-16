@@ -39,13 +39,14 @@ const setPreference = vi.fn();
 let currentUser: Partial<User>;
 let currentPreferences: NotificationPreference[];
 let preferencesLoading: boolean;
+let preferencesError: string | null;
 
 vi.mock("@/hooks", () => ({
   useAuth: () => ({ user: currentUser }),
   useNotificationPreferences: () => ({
     preferences: currentPreferences,
     isLoading: preferencesLoading,
-    error: null,
+    error: preferencesError,
     isEnabled: (eventType: string, channel: string) => {
       const stored = currentPreferences.find(
         (p) => p.event_type === eventType && p.channel === channel,
@@ -80,6 +81,7 @@ describe("the notifications settings page", () => {
     currentUser = makeUser();
     currentPreferences = [];
     preferencesLoading = false;
+    preferencesError = null;
   });
 
   it("offers one legacy switch per email PATCH /users/me still gates", () => {
@@ -187,6 +189,19 @@ describe("the notifications settings page", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Run completed - In-app" }));
 
     expect(setPreference).toHaveBeenCalledWith("run_completed", "in_app", false);
+  });
+
+  it("shows no preference switch, fabricating no value, when the list failed to load", () => {
+    preferencesError = "Not authenticated";
+    render(<NotificationsSettingsPage />);
+
+    // Every unset pair reads as enabled by default - true only for a
+    // successful, empty read. Rendering the switches here would present
+    // every one of them as on regardless of what is actually saved.
+    expect(screen.queryByRole("switch", { name: "Run completed - In-app" })).toBeNull();
+    expect(screen.getByText("Not authenticated")).toBeInTheDocument();
+    // The first section answers to `user`, not this hook, and still works.
+    expect(screen.getByRole("switch", { name: "Budget alerts" })).toBeInTheDocument();
   });
 
   it("disables every preference switch while the list is still loading", () => {
