@@ -1,5 +1,5 @@
 ---
-source_sha: "dba14340bbd8"
+source_sha: "b76da60d30ae"
 ---
 
 # Testowanie { #testing }
@@ -455,6 +455,37 @@ przebiegów). Zatem:
   stronę najpierw, jeśli potrzebuje listy, której może zaufać. `vault.spec.ts` ma
   trzy wywołania `page.reload()` oznaczone `#230`; kiedy ta sprawa się zamknie,
   znikną.
+- **Spec produktowy, który sam zrobił zapis, czeka tak samo jak fixture'y.**
+  `nowListed` i `nowMatching` w `e2e/helpers.ts` to `nowThere` wyciągnięte
+  z `seed.setup.ts`, żeby prymityw był jeden, a nie dwa
+  ([#162](https://github.com/vstorm-co/agenticos/issues/162)). Dzieli to jedną
+  porażkę na dwie: porażka w pollingu to zapis, który nigdy nie wylądował,
+  a porażka w asercji po nim to strona, która nie narysowała wiersza podawanego
+  przez API. `journey.spec.ts` kończy się dowodem, że run został **wyceniony** —
+  musiało wydarzyć się pięć rzeczy, a gołe `toBeVisible()` na wierszu mówiło
+  tylko, że jedna z nich nie.
+
+### Każde czekanie mówi, na co czekało { #every-wait-says-what-it-was-waiting-for }
+
+`expect(locator).toBeVisible()` kończy się komunikatem `element(s) not found`,
+który nazywa jedyną rzecz niemogącą być przyczyną. Playwright przyjmuje komunikat
+jako drugi argument i długie podróże w tym pakiecie z tego korzystają:
+
+```ts
+await expect(
+  row,
+  `run ${id} is priced at ${cost}, but Activity draws no row for ${modelLabel}`,
+).toBeVisible();
+```
+
+Cztery specy flakowały w formie anonimowej i każdy kosztował diagnozę zaczynaną
+od zera ([#130](https://github.com/vstorm-co/agenticos/issues/130),
+[#132](https://github.com/vstorm-co/agenticos/issues/132),
+[#154](https://github.com/vstorm-co/agenticos/issues/154),
+[#162](https://github.com/vstorm-co/agenticos/issues/162)). Komunikat kosztuje
+jedną linijkę i jest całą różnicą między „znowu flaknęło” a diagnozą. Gdy mimo to
+któryś padnie w CI, `playwright-results` obok `playwright-report` niesie zrzut
+ekranu, wideo, trace i własny `error-context.md` Playwrighta.
 
 ## Testowa baza danych { #test-database }
 

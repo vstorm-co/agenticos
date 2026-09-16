@@ -223,6 +223,20 @@ history is a run nobody is accountable for.
 Both boundaries are proved against a real database in
 `tests/integration/test_run_commit_boundary.py`.
 
+### The one other early commit
+
+`SessionService.detect_refresh_reuse` is the second, and for the opposite reason:
+not that the transaction would be held too long, but that it is about to be
+thrown away. A refresh token that matched no live session may be a replay of one
+a session rotated away, and the response is to end that chain and record it — and
+then to refuse the caller, which raises `AuthenticationError` through the session
+context's *exception* branch and rolls the request back.
+
+Uncommitted, that is a 401, a compromised chain still live, and no record that
+anything happened. `test_the_response_survives_the_refusal_that_follows_it` rolls
+back after the call and asserts what is still there
+([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
 Visibility cuts both ways. Anything that used to reason "an executing run's row
 cannot be seen" now reasons about a row that *is* seen, and the agent-triggers
 scheduler is the one place that did.
@@ -893,6 +907,10 @@ add one, and `docs/howto/add-sync-connector.md` for a worked example.
   call and again in the terminal `finally`. `MLService._record_failure` is the other,
   and for the mirror-image reason - a usage record of a *refusal* has to survive the
   rollback that refusal causes.
+- Two sanctioned exceptions. The agent run path commits before the model call and
+  again in the terminal `finally`; `SessionService.detect_refresh_reuse` commits
+  the session it just revoked and the entry recording why, because its caller
+  raises a 401 immediately afterwards and the rollback would undo both.
 - Background work that reads a row this request wrote is handed over with
   **`spawn_after_commit`**, never `spawn`.
 - A thin domain is a module; a thick one is a subpackage with a facade, and nothing
