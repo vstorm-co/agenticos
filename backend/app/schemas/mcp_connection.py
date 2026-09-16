@@ -285,6 +285,26 @@ class McpOAuthStartResult(BaseSchema):
     authorization_url: str
 
 
+class GithubAppInstall(BaseSchema):
+    """The one thing connecting a GitHub App needs: which installation this is.
+
+    No consent URL and no callback, because an App has neither. Somebody installs
+    it on the repositories they chose and GitHub puts the installation id in the
+    settings URL; this records it against the App already in the organization's
+    vault.
+    """
+
+    installation_id: str = Field(
+        min_length=1,
+        max_length=32,
+        pattern=r"^\d+$",
+        description=(
+            "The numeric installation id, from the URL of the App's installation "
+            "settings page. Not a secret - it travels in every delivery."
+        ),
+    )
+
+
 class McpOAuthCallback(BaseSchema):
     """Payload the frontend callback route forwards from the provider redirect."""
 

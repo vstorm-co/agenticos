@@ -1,5 +1,5 @@
 ---
-source_sha: "f819ae10b8cc"
+source_sha: "4771f415a4dc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -278,7 +278,7 @@ Cada frame lleva `{ "type": …, "data": { … } }`.
 | `type` | `data` | Significado |
 |---|---|---|
 | `ready` | `visitor` | Conectado. `visitor: true` cuando un token identificó a la persona. |
-| `history` | `messages` | Solo en una página alojada: lo que se dijo en el hilo que este visitante retoma. Cada entrada es `role`, `text` y `at`, así que un turno reproducido conserva la hora debajo. |
+| `history` | `messages` | Lo que se dijo en el hilo que este visitante retoma — **una página alojada con visitante anónimo**, la única conexión que lleva una clave de continuidad: la conversación de un widget dura lo que su socket, y a un visitante `jwt` ya lo nombra su token. Cada entrada es `role`, `text` y `at`, así que un turno reproducido conserva la hora debajo. |
 | `model_request_start` | — | El agent ha ido al modelo. Muestra un indicador. |
 | `part_start` | `index`, `part_type` | Empieza un bloque de la respuesta. Se envía solo para un bloque que esta superficie vaya a llevar de verdad — una página que no muestra razonamiento no anuncia un `ThinkingPart`, porque el anuncio por sí solo ya dice que el agent razonó. |
 | `text_delta` | `index`, `content` | Palabras de la respuesta. Añádelas. |
@@ -291,6 +291,7 @@ Cada frame lleva `{ "type": …, "data": { … } }`.
 | `final_result` | `output` | Con qué terminó el run. Vacío en un turno que quedó aparcado. |
 | `complete` | — | El turno ha terminado. **No lleva uso**: lo que costó un run es asunto del operador, no del visitante. |
 | `error` | `message` | Algo que el visitante debe ver: rate limit, budget alcanzado, un rechazo, un turno que no produjo nada. |
+| `compaction_started`, `compaction_finished`, `compaction_impossible` | según el frame | El agente ordena sus propias notas porque el hilo desbordó la ventana del modelo. Se envía siempre, sean cuales sean los interruptores del operador: un resumen tarda decenas de segundos, y una superficie que hace streaming y no dice nada simplemente se detiene ese rato ([#936](https://github.com/vstorm-co/agenticos/issues/936)). |
 
 Algunos frames del dashboard nunca llegan a un socket público, y son rechazos, no
 ajustes. **`user_prompt_processed`** lleva el prompt *tal como se ensambló* — la
@@ -354,6 +355,72 @@ run, y un provider que no emitió deltas lo deja como la única copia de la
 respuesta.
 
 ---
+
+## Qué ofrece cada superficie, y por qué las diferencias son diferencias { #what-each-surface-offers-and-why-the-differences-are-differences }
+
+Tres superficies ejecutan el mismo agente a través del mismo runner: el chat del
+panel, este socket y la API pública. **No** ofrecen la misma ejecución, y hasta
+[#936](https://github.com/vstorm-co/agenticos/issues/936) nada decía cuáles de
+esas diferencias eran decisiones.
+
+Ahora sí. Cada «no» de abajo tiene un motivo, y un motivo es o bien «aquí esto
+estaría mal» o bien «esto todavía no está construido» — nunca silencio.
+
+| | `/chat` (panel) | WebSocket en crudo | La API pública |
+|---|---|---|---|
+| Streaming | sí | sí, filtrado por lo que el operador muestra | **no** — el POST es la vía sin streaming; una variante SSE es otra cuestión |
+| Adjuntos | sí | sí (`file_ids`) **en una página alojada** — el endpoint de subida resuelve la clave a través de `find_page`, así que un widget o un socket en crudo no tienen ruta que produzca un id | sí (`file_ids`), y siguen el mismo camino que en todas partes |
+| Continuidad de la conversación | sí | sí (`continuity_key`), en una página alojada con visitante anónimo | sí (`conversation_id`) |
+| `environment_id` | sí | **no, deliberadamente** — véase abajo | sí |
+| Anulación del modelo | sí | **no, deliberadamente**: una superficie pública no puede dejar que su visitante elija lo que gasta | **no**: la petición no lleva `model_profile_id`. Qué versión se ejecuta sigue siendo del que llama, por `environment_id`, y un entorno puede fijar una que nunca fue la predeterminada |
+| `ask_user` | sí | **no, todavía no** — véase abajo | **no, con razón**: nadie espera colgado de una petición HTTP para responder una pregunta |
+| Aviso de compactación | sí | sí | n/a — no hay nada en streaming a quien decírselo |
+| Frames de delegación | sí | **no, deliberadamente**: enganchar un sink hace que la biblioteca abra una petición *en streaming* por cada hijo, así que un delegado cuyo proveedor no sabe hacer streaming se rompe en cuanto alguien mira |
+| Aprobaciones: aparcan la ejecución | sí | sí | sí |
+| Aprobaciones: un camino hasta la decisión | sí (`/runs`) | una frase, deliberadamente: a un desconocido con un enlace no se le enseña una URL a la consola de otra persona | sí — el resultado lleva `parked`, que nombra qué espera y a qué aprobación enviar la decisión |
+
+### `environment_id` en el socket, y por qué es de quien publica { #environment_id-on-the-socket-and-why-it-is-the-publishers }
+
+La API lo tiene porque quien llama es la organización: probar un entorno de
+desarrollo antes de promocionarlo es su propio trabajo sobre su propio agente. Quien
+llama a un socket es quien tiene la clave del embed, y en un widget eso es el
+navegador de un desconocido. Un frame que eligiera el entorno dejaría al visitante
+escoger qué *versión* del agente le responde — incluida una que la organización no ha
+promocionado, que es lo contrario de lo que significa publicar una versión.
+
+Así que se rechaza con esa forma. Si una integración de primera parte necesita
+ejecutar un entorno con nombre, su sitio es la configuración del propio embed, donde
+quien publica elige una vez y todos los visitantes reciben la misma respuesta.
+
+### `ask_user` en el socket, y qué haría falta { #ask_user-on-the-socket-and-what-it-would-need }
+
+El docstring del módulo `ask_user` dice que la pausa y la reanudación viven «en la
+sesión WebSocket», y se refiere a la sesión del *chat*. Este socket está igual de
+vivo, con una persona igualmente sentada delante — así que a un delegado que
+preguntaría se le dice que no se ha podido localizar a nadie, que es la respuesta
+correcta para una ejecución programada y la equivocada aquí.
+
+No se cierra aquí porque la mitad que falta no es del servidor. El vocabulario de
+frames no tiene `ask_user` ni `ask_user_response`, y el widget no tiene formulario
+para dibujar uno — así que enganchar el callback aparcaría ejecuciones en una
+pregunta que nada puede responder, y eso es peor que rechazarlo. Qué hace falta: los
+dos frames, el formulario del widget y una decisión sobre la *página alojada*, donde
+a quien se pregunta es un desconocido y la pregunta puede llevar cualquier cosa que
+el agente haya decidido decir.
+
+### Aprobaciones en el socket: decididas, y deliberadamente sin ampliar { #approvals-on-the-socket-decided-and-deliberately-not-widened }
+
+Una ejecución aparcada responde al visitante con «Eso necesita que alguien lo apruebe
+antes de poder ejecutarse», y así se queda. El socket en crudo se vende como una
+interfaz que construyes tú — una app móvil, un kiosco — y a un cliente de primera
+parte con un usuario autenticado se le podría en principio entregar la llamada
+aparcada y una forma de decidirla.
+
+No se hace, porque la clave del embed no identifica a un *miembro*: identifica la
+superficie publicada de un despliegue, y la persona del otro lado puede ser
+cualquiera a quien la integración haya dejado entrar. Decidir una aprobación es un
+acto de miembro, protegido por `approvals:decide`, y pertenece a una superficie que
+sabe quién pregunta.
 
 ## Una página alojada { #a-hosted-page }
 

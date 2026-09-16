@@ -37,6 +37,7 @@ from app.worker.tasks.notification_tasks import (
 from app.worker.tasks.rag_tasks import (
     check_scheduled_syncs_flow,
     ingest_document_flow,
+    retention_sweep_flow,
     sync_collection_flow,
     sync_single_source_flow,
 )
@@ -155,6 +156,17 @@ async def main() -> None:
         await teardown_reservation_sweep_flow.ato_deployment(
             name="teardown-reservation-sweep",
             schedules=[IntervalSchedule(interval=timedelta(seconds=3600))],
+        )
+    )
+    # Daily: apply every organization's retention policy. Every period is
+    # measured in days, so the hour a row leaves is nobody's business, and an
+    # hourly sweep would ask every tenant the same question twenty-four times
+    # for one answer. It works a backlog off over several days rather than
+    # blocking the runner for an hour on the first pass (#1420).
+    deployments.append(
+        await retention_sweep_flow.ato_deployment(
+            name="retention-sweep",
+            schedules=[IntervalSchedule(interval=timedelta(seconds=86400))],
         )
     )
     # Usage reports. An interval rather than a cron because the schedule only

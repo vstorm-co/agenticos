@@ -228,6 +228,14 @@ class TestTheLimitsThemselves:
 
         assert rate_limit.auth_limit() == Limit(attempts=5, window_seconds=60)
 
+    def test_the_export_allowance_is_counted_per_hour(self, monkeypatch):
+        """Not per minute, and the window is the point. What is rationed is not
+        load - assembling everything about a person is cheap - but how fast a
+        stolen session can walk the deployment's people (#1421)."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EXPORT_PER_HOUR", 3)
+
+        assert rate_limit.export_limit() == Limit(attempts=3, window_seconds=3_600)
+
     async def test_admission_is_counted_per_address(self, monkeypatch):
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 2)
         monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", False)

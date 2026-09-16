@@ -7,10 +7,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OAuthBlock } from "./oauth-buttons";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
-import { AUTH_GLYPHS, type AuthProvider } from "@/lib/auth-glyphs.generated";
-import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
+import { AUTH_GLYPHS } from "@/lib/auth-glyphs.generated";
+import { DEFAULT_PUBLIC_CONFIG, type PublicConfig, type SignInProvider } from "@/lib/public-config";
 
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({
+  useTranslations:
+    () =>
+    (key: string, values?: Record<string, string>): string =>
+      values ? `${key}:${values.provider}` : key,
+}));
 
 afterEach(() => {
   window.sessionStorage.clear();
@@ -18,8 +23,9 @@ afterEach(() => {
 
 /** Mount the block under a deployment offering exactly these providers. */
 function renderWith(
-  providers: readonly AuthProvider[],
+  providers: readonly SignInProvider[],
   props: Partial<Parameters<typeof OAuthBlock>[0]> = {},
+  config: Partial<PublicConfig> = {},
 ) {
   return render(
     <PublicConfigProvider
@@ -27,6 +33,7 @@ function renderWith(
         ...DEFAULT_PUBLIC_CONFIG,
         apiUrl: "https://api.acme.example",
         oauthProviders: providers,
+        ...config,
       }}
     >
       <OAuthBlock label="or" {...props} />
@@ -120,6 +127,44 @@ describe("the OAuth buttons", () => {
     );
 
     expect(source).not.toMatch(/brand-icon|brand-glyphs\.generated/);
+  });
+
+  it("calls the generic provider what the deployment calls it (#1419)", () => {
+    // `oidc` is whatever identity provider the company runs, so unlike Google it
+    // has no name of its own to print - a button saying "Continue with OIDC"
+    // names a protocol at somebody who is looking for their employer.
+    renderWith(["oidc"], {}, { oidcDisplayName: "Acme SSO" });
+
+    expect(screen.getByRole("link", { name: "continueWithProvider:Acme SSO" })).toHaveAttribute(
+      "href",
+      "/api/oauth/oidc/login",
+    );
+  });
+
+  it("falls back to a plain key when the deployment picked no mark", () => {
+    // A generic provider has no brand, and a sign-in page that will not render
+    // for want of a logo is worse than one drawing a key.
+    renderWith(["oidc"]);
+
+    expect(document.querySelectorAll("svg")).toHaveLength(1);
+  });
+
+  it("draws the mark a deployment on Entra ID picked", () => {
+    renderWith(["oidc"], {}, { oidcIcon: "microsoft" });
+
+    const svg = document.querySelector("svg");
+    expect(svg).toHaveAttribute("viewBox", AUTH_GLYPHS.microsoft.viewBox);
+  });
+
+  it("offers the generic provider beside a branded one", () => {
+    renderWith(["google", "oidc"], { variant: "signup" }, { oidcDisplayName: "Keycloak" });
+
+    const links = screen.getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/api/oauth/google/login",
+      "/api/oauth/oidc/login",
+    ]);
+    expect(links[1]).toHaveAccessibleName("signUpWithProvider:Keycloak");
   });
 
   it("ships exactly the three identity-provider marks", () => {
