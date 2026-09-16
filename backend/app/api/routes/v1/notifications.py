@@ -32,7 +32,7 @@ async def list_notifications(
 ) -> Any:
     """The caller's own inbox, newest first, gate-filtered (Decision 7)."""
     after = decode_cursor(cursor) if cursor else None
-    rows, gates = await service.list_inbox(ctx, after=after, limit=limit)
+    rows, gates, resume = await service.list_inbox(ctx, after=after, limit=limit)
     items = [
         NotificationRead.from_row(
             row,
@@ -41,7 +41,7 @@ async def list_notifications(
         )
         for row in rows
     ]
-    next_cursor = encode_cursor(rows[-1].created_at, rows[-1].id) if len(rows) == limit else None
+    next_cursor = encode_cursor(*resume) if resume is not None else None
     return NotificationList(items=items, next_cursor=next_cursor)
 
 
