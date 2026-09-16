@@ -1,5 +1,5 @@
 ---
-source_sha: "bc2eb9e0e3fc"
+source_sha: "149759ed0ebf"
 ---
 
 # Datenschutz { #data-protection }
@@ -265,7 +265,8 @@ uv run agenticos cmd audit-verify
 #    Einstellungen, die entscheiden, was hinausgeht, jeden Provider und
 #    Endpunkt, den ein Agent erreichen kann, die gehaltenen Zugangsdaten nach
 #    Zweck, die Collections und wer sie einbettet, die Server im eigenen Netz,
-#    die MCP-Server, Sync-Quellen und Channel-Bots, wohin Runs getraced werden
+#    die MCP-Server, Trigger-Portale, Sync-Quellen und Channel-Bots, die
+#    Capabilities, die eine eigene Adresse erreichen, wohin Runs getraced werden
 #    und wie viel Inhalt ein Span trägt, wie viel jedes Speichers eine
 #    Aufbewahrungsfrist erfassen würde, und die Dateien unter `MEDIA_DIR`, auf
 #    die keine Zeile mehr zeigt.
@@ -287,7 +288,16 @@ Bytes bleiben, die Zahl wächst also mit jeder gelöschten Konversation, bis
 entfernt. Generierte Bilder und das Parse-Arbeitsverzeichnis sind
 ausgenommen - sie haben von vornherein keine Zeile; alles andere, was dort
 gezählt wird, sind Bytes, die das Produkt nicht mehr findet und nicht löschen
-kann.
+kann. Er meldet ein Verzeichnis und eine Zahl statt eines Dateinamens, denn ein
+gespeicherter Pfad behält den Namen, unter dem die Datei hochgeladen wurde.
+
+Zwei Abschnitte werden aus dem gelesen, was läuft, und nicht aus einer Tabelle.
+**Capability-Ziele** listet die an einen Agenten gebundenen Capabilities auf, die
+eine eigene Adresse erreichen - `web_research` sucht ohne jedes Zugangsdatum über
+DuckDuckGo und damit ohne Zeile irgendwo sonst im Bericht - und **Tracing** wird
+aus jeder lauffähigen Version gelesen: der Standardversion und der, die jede
+benannte [Umgebung](environments.md) anheftet, denn ein Run über diese Umgebung
+nutzt die Observability jener Version und nicht die der Standardversion.
 
 Was kein Befehl erzeugen kann, ist die andere Hälfte dieser Seite: die
 Vereinbarungen, Standorte und Trainingsausschlüsse des vorherigen Abschnitts.

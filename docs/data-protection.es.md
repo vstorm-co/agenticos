@@ -1,5 +1,5 @@
 ---
-source_sha: "bc2eb9e0e3fc"
+source_sha: "149759ed0ebf"
 ---
 
 # Protección de datos { #data-protection }
@@ -257,10 +257,11 @@ uv run agenticos cmd audit-verify
 # 4. Todo lo que este deployment ha configurado realmente: los ajustes que
 #    deciden qué sale, cada provider y endpoint que un agent puede alcanzar, las
 #    credenciales guardadas por propósito, las colecciones y quién calcula sus
-#    embeddings, los servidores de tu propia red, los servidores MCP, las fuentes
-#    de sincronización y los bots de canal, dónde se trazan los runs y cuánto
-#    contenido lleva un span, cuánto de cada almacén alcanzaría un periodo de
-#    retención, y los archivos bajo `MEDIA_DIR` a los que ya no apunta ninguna
+#    embeddings, los servidores de tu propia red, los servidores MCP, los
+#    portales de trigger, las fuentes de sincronización y los bots de canal, las
+#    capabilities que alcanzan una dirección propia, dónde se trazan los runs y
+#    cuánto contenido lleva un span, cuánto de cada almacén alcanzaría un periodo
+#    de retención, y los archivos bajo `MEDIA_DIR` a los que ya no apunta ninguna
 #    fila.
 uv run agenticos cmd data-protection-report --older-than 365
 ```
@@ -279,7 +280,17 @@ así que el número crece con cada conversación borrada hasta que
 [#1421](https://github.com/vstorm-co/agenticos/issues/1421) elimine ambos juntos.
 Las imágenes generadas y el directorio temporal de parseo quedan excluidos, ya
 que por diseño no tienen fila; todo lo demás que se cuenta ahí son bytes que el
-producto ya no encuentra y no puede borrar.
+producto ya no encuentra y no puede borrar. Informa de un directorio y un
+recuento en vez de un nombre de archivo, porque una ruta almacenada conserva el
+nombre con el que se subió el archivo.
+
+Dos secciones se leen de lo que se ejecuta y no de una tabla. **Destinos de las
+capabilities** enumera las capabilities vinculadas a un agent que alcanzan una
+dirección propia - `web_research` busca a través de DuckDuckGo sin credencial
+alguna y por tanto sin fila en ningún otro punto del informe - y **Tracing** se
+lee de cada versión ejecutable: la predeterminada y la que fija cada
+[entorno](environments.md) con nombre, porque un run a través de ese entorno usa
+la observabilidad de esa versión y no la de la predeterminada.
 
 Lo que ningún comando puede producir es la otra mitad de esta página: los
 acuerdos, las ubicaciones y las exclusiones de entrenamiento de la sección

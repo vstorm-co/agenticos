@@ -22,11 +22,14 @@ import pytest
 from click.testing import CliRunner
 from sqlalchemy import inspect
 
+from app.agents.capabilities import _registry as capability_registry
 from app.commands import data_protection as report
 from app.commands.data_protection import (
+    CAPABILITIES_STAYING_INSIDE,
     MEDIA_PATH_COLUMNS,
-    ORPHAN_SAMPLE,
+    OUTBOUND_CAPABILITIES,
     Section,
+    _capability_destinations,
     _collect,
     _collections,
     _credentials,
@@ -85,11 +88,21 @@ class TestWhatItReports:
         assert section.rows[1][4] == "provider default"
 
     async def test_credentials_name_the_third_party_and_never_the_value(self) -> None:
-        db = _db([("City", "llm", "api_key", "OpenAI production")])
+        db = _db([("City", "llm", "api_key", "OpenAI production")], counts=[0] * 8)
 
         section = await _credentials(db)
 
-        assert section.rows == [["City", "llm", "api_key", "OpenAI production"]]
+        assert section.rows[0] == ["City", "llm", "api_key", "OpenAI production"]
+
+    async def test_credentials_count_the_tables_that_seal_in_place(self) -> None:
+        """A bot token is a sealed credential that has no organization_secrets row."""
+        db = _db([], counts=[3] + [0] * 7)
+
+        section = await _credentials(db)
+
+        counted = {row[1].split(" (")[0]: row[3] for row in section.rows}
+        assert counted["channel_bots"] == 3
+        assert "organization_secrets" not in counted
 
     async def test_collections_report_an_off_site_parse_only_with_its_own_key(self) -> None:
         db = _db(
@@ -128,8 +141,9 @@ class TestWhatItReports:
     async def test_external_connections_cover_mcp_sync_and_channels(self) -> None:
         db = _db(
             [("org", "linear", "https://mcp.linear.app/sse", "oauth")],
+            [],
             [("gdrive", "Handbook drive", "handbook")],
-            [("telegram", "city-bot")],
+            [("telegram", "city-bot", None)],
         )
 
         section = await _external_connections(db)
@@ -138,11 +152,81 @@ class TestWhatItReports:
         assert section.rows[0][1] == "org/linear"
 
     async def test_sync_source_without_a_collection_still_reports(self) -> None:
-        db = _db([], [("s3", "Bucket", None)], [])
+        db = _db([], [], [("s3", "Bucket", None)], [])
 
         section = await _external_connections(db)
 
         assert section.rows == [["Sync source", "Bucket", "s3", "-"]]
+
+    async def test_a_portal_grant_is_not_reported_as_an_mcp_server(self) -> None:
+        """A Gmail grant a trigger reads is not an address tool arguments reach."""
+        db = _db([], [("org", "gmail", "gmail")], [], [])
+
+        section = await _external_connections(db)
+
+        assert section.rows == [["Trigger portal", "org/gmail", "gmail", "grant"]]
+
+    async def test_a_query_string_is_redacted_because_it_can_be_the_credential(self) -> None:
+        db = _db([("org", "hosted", "https://mcp.example/sse?key=live-token", "none")], [], [], [])
+
+        section = await _external_connections(db)
+
+        assert section.rows[0][2] == "https://mcp.example/sse?<redacted>"
+        assert "live-token" not in str(section.rows)
+
+    async def test_a_bot_with_no_server_of_its_own_reports_its_platform(self) -> None:
+        db = _db([], [], [], [("slack", "city-bot", None)])
+
+        section = await _external_connections(db)
+
+        assert section.rows == [["Channel bot", "city-bot", "slack", "slack"]]
+
+    async def test_a_sync_source_row_keeps_its_shape_when_a_url_has_no_query(self) -> None:
+        db = _db([("org", "hosted", "https://mcp.example/sse", "none")], [], [], [])
+
+        section = await _external_connections(db)
+
+        assert section.rows[0][2] == "https://mcp.example/sse"
+
+    async def test_a_self_hosted_bot_reports_the_server_it_posts_to(self) -> None:
+        db = _db([], [], [], [("mattermost", "city-bot", "https://chat.city.example")])
+
+        section = await _external_connections(db)
+
+        assert section.rows == [
+            ["Channel bot", "city-bot", "https://chat.city.example", "mattermost"]
+        ]
+
+
+class TestCapabilityDestinations:
+    """A capability reaches an address no row in any other section names."""
+
+    async def test_reports_an_outbound_capability_of_a_runnable_version(self) -> None:
+        db = _db(
+            [("research", 4, {"capabilities": [{"id": "web_research"}, {"id": "clock"}]})],
+            [],
+        )
+
+        section = await _capability_destinations(db)
+
+        assert len(section.rows) == 1
+        assert section.rows[0][:3] == ["agent research", "default v4", "web_research"]
+        assert "DuckDuckGo" in section.rows[0][3]
+
+    async def test_reports_a_version_only_an_environment_pins(self) -> None:
+        db = _db([], [("research", "production", 2, {"capabilities": [{"id": "web_fetch"}]})])
+
+        section = await _capability_destinations(db)
+
+        assert section.rows[0][1] == "environment production v2"
+
+    def test_every_registered_capability_is_classified(self) -> None:
+        """A new capability fails here rather than leaving the inventory short."""
+        capability_registry.load_builtins()
+        registered = {definition.id for definition in capability_registry.all_capabilities()}
+
+        assert registered == set(OUTBOUND_CAPABILITIES) | CAPABILITIES_STAYING_INSIDE
+        assert not set(OUTBOUND_CAPABILITIES) & CAPABILITIES_STAYING_INSIDE
 
 
 class TestTracing:
@@ -153,12 +237,13 @@ class TestTracing:
     ) -> None:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", "pylf_v1_eu_token")
         db = _db(
+            [("support", "production")],
             [
                 ("support", 3, {"observability": {"content": "none"}}),
                 ("billing", 1, {"observability": {"token_secret_id": str(uuid.uuid4())}}),
                 ("triage", 2, {}),
             ],
-            [("support", "production")],
+            [("support", "production", 3, {"observability": {"content": "none"}})],
         )
 
         section = await _tracing(db)
@@ -167,13 +252,26 @@ class TestTracing:
         assert section.rows[1][3] == "content: none"
         assert section.rows[2][2] == "own project"
         assert section.rows[3][3] == "content: full"
-        assert section.rows[4] == ["agent support", "environment production", "own project", "-"]
+        assert section.rows[4][:3] == ["agent support", "environment production v3", "own project"]
+
+    async def test_an_environment_is_read_off_the_version_it_pins(self) -> None:
+        """A pinned version exports under its own observability, not the default's."""
+        db = _db(
+            [],
+            [("support", 5, {"observability": {"content": "none"}})],
+            [("support", "staging", 2, {"observability": {"token_secret_id": str(uuid.uuid4())}})],
+        )
+
+        section = await _tracing(db)
+
+        assert section.rows[1][1:] == ["default v5", "-", "content: none"]
+        assert section.rows[2][1:] == ["environment staging v2", "own project", "content: full"]
 
     async def test_without_a_token_nothing_is_exported(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", None)
-        db = _db([], [])
+        db = _db([], [], [])
 
         section = await _tracing(db)
 
@@ -184,17 +282,25 @@ class TestRetention:
     """Counts only - the section exists to size a schedule, not to read rows."""
 
     async def test_counts_every_store_twice_and_never_selects_a_row(self) -> None:
-        db = _db(counts=[10, 4, 9, 3, 8, 2, 7, 1, 6, 0, 5, 0, 4, 0])
+        db = _db(counts=[10, 4, 9, 3, 8, 2, 7, 1, 6, 0, 5, 0, 4, 0, 3, 0, 2, 0])
 
         section = await _retention(db, older_than_days=90)
 
-        assert len(section.rows) == 7
+        assert len(section.rows) == 9
         assert section.rows[0] == ["conversations", 10, 4]
         assert "90 days" in section.title
         db.execute.assert_not_called()
 
+    async def test_counts_the_stores_deleting_a_conversation_never_reaches(self) -> None:
+        """An embed visitor and a user-scoped workspace outlive the conversation."""
+        db = _db(counts=[0] * 18)
+
+        section = await _retention(db, older_than_days=365)
+
+        assert [row[0] for row in section.rows][-2:] == ["embed_visitors", "agent_workspaces"]
+
     async def test_an_empty_store_counts_as_zero_rather_than_none(self) -> None:
-        db = _db(counts=[None] * 14)
+        db = _db(counts=[None] * 18)
 
         section = await _retention(db, older_than_days=365)
 
@@ -228,22 +334,24 @@ class TestUnreferencedMedia:
 
         section = await _unreferenced_media(db)
 
-        assert section.rows == [["user/orphan.pdf"]]
+        assert section.rows == [["user", 1]]
         assert "(1 under" in section.title
 
-    async def test_a_long_list_is_truncated_with_a_count(
+    async def test_names_no_file_because_a_stored_path_carries_its_filename(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        (tmp_path / "user").mkdir()
-        for index in range(ORPHAN_SAMPLE + 3):
-            (tmp_path / "user" / f"{index:03d}.pdf").write_text("x")
+        """The report is written to be attached to a review, so it counts."""
+        (tmp_path / "chat" / "0f1e").mkdir(parents=True)
+        (tmp_path / "chat" / "0f1e" / "medical-results.pdf").write_text("x")
+        (tmp_path / "chat" / "0f1e" / "payslip.pdf").write_text("x")
         monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
         db = _db(*([[]] * len(MEDIA_PATH_COLUMNS)))
 
         section = await _unreferenced_media(db)
 
-        assert len(section.rows) == ORPHAN_SAMPLE + 1
-        assert section.rows[-1] == ["... and 3 more"]
+        assert section.rows == [["chat/0f1e", 2]]
+        assert "medical-results" not in str(section.rows)
+        assert "(2 under" in section.title
 
     def test_every_media_path_column_the_models_declare_is_in_the_list(self) -> None:
         listed = {(column.parent.class_.__name__, column.key) for column in MEDIA_PATH_COLUMNS}
@@ -287,6 +395,17 @@ class TestTheReportItself:
         assert cells.count("unset") == 3
         assert "none" in cells
 
+    def test_the_settings_say_which_mail_path_is_live(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With EMAIL_PROVIDER=log the SMTP rows describe a hop nobody takes."""
+        monkeypatch.setattr(settings, "EMAIL_PROVIDER", "log")
+
+        cells = _cells(_settings_section())
+
+        assert "EMAIL_PROVIDER" in cells
+        assert "log" in cells
+
     def test_an_empty_section_says_so_rather_than_printing_a_bare_heading(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -320,7 +439,19 @@ class TestTheReportItself:
             "Deployment settings",
             "Model destinations",
         ]
-        assert len(sections) == 9
+        assert len(sections) == 10
+
+    def test_a_cell_cannot_carry_bytes_the_terminal_would_act_on(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An MCP server's name is typed by a tenant; an operator reads this in a shell."""
+        forged = "server\x1b[2Jcleared"
+
+        _render(Section(title="Full", note="one row", headers=("A",), rows=[[forged]]))
+
+        out = capsys.readouterr().out
+        assert "\x1b[2J" not in out
+        assert "\\x1bcleared" in out.replace("[2J", "")
 
     def test_the_command_prints_the_sections_and_the_condition_it_cannot_check(self) -> None:
         sections = [Section(title="Model destinations", note="n", headers=("A",), rows=[["x"]])]

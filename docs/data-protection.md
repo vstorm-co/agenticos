@@ -243,10 +243,11 @@ uv run agenticos cmd audit-verify
 # 4. Everything this deployment actually configured: the settings that decide
 #    what leaves, every provider and endpoint an agent can reach, the
 #    credentials held by purpose, the collections and who embeds them, the
-#    servers on your own network, the MCP servers, sync sources and channel
-#    bots, where runs are traced and how much content a span carries, how much
-#    of each store a retention period would reach, and the files under
-#    `MEDIA_DIR` no row points at any more.
+#    servers on your own network, the MCP servers, trigger portals, sync sources
+#    and channel bots, the capabilities that reach an address of their own,
+#    where runs are traced and how much content a span carries, how much of each
+#    store a retention period would reach, and the files under `MEDIA_DIR` no row
+#    points at any more.
 uv run agenticos cmd data-protection-report --older-than 365
 ```
 
@@ -264,7 +265,16 @@ every deleted conversation until
 [#1421](https://github.com/vstorm-co/agenticos/issues/1421) removes the two
 together. Generated images and the parse scratch directory are excluded, having
 no row by design; everything else counted there is bytes the product can no
-longer find and cannot delete.
+longer find and cannot delete. It reports a directory and a count rather than a
+filename, because a stored path keeps the name the file was uploaded under.
+
+Two sections are read off what runs rather than off a table. **Capability
+destinations** lists the capabilities an agent is bound to that reach an address
+of their own - `web_research` searches through DuckDuckGo with no credential and
+therefore no row anywhere else in the report - and **Tracing** is read off each
+runnable version: the default one, and the one each named
+[environment](environments.md) pins, because a run through that environment uses
+that version's observability rather than the default's.
 
 What no command can produce is the other half of this page: the agreements,
 locations and training exclusions of the previous section. Attach those beside

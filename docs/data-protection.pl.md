@@ -1,5 +1,5 @@
 ---
-source_sha: "bc2eb9e0e3fc"
+source_sha: "149759ed0ebf"
 ---
 
 # Ochrona danych { #data-protection }
@@ -250,9 +250,10 @@ uv run agenticos cmd audit-verify
 #    o tym, co wychodzi na zewnątrz, każdy provider i endpoint, do którego może
 #    sięgnąć agent, trzymane poświadczenia według przeznaczenia, kolekcje i to,
 #    kto liczy dla nich embeddingi, serwery we własnej sieci, serwery MCP,
-#    źródła synchronizacji i boty kanałów, gdzie trafiają trace'y runów i ile
-#    treści niesie span, ile w każdym magazynie objąłby okres retencji oraz
-#    pliki pod `MEDIA_DIR`, na które nie wskazuje już żaden wiersz.
+#    portale triggerów, źródła synchronizacji i boty kanałów, zdolności, które
+#    sięgają pod własny adres, gdzie trafiają trace'y runów i ile treści niesie
+#    span, ile w każdym magazynie objąłby okres retencji oraz pliki pod
+#    `MEDIA_DIR`, na które nie wskazuje już żaden wiersz.
 uv run agenticos cmd data-protection-report --older-than 365
 ```
 
@@ -270,7 +271,16 @@ liczba rośnie z każdą usuniętą konwersacją, dopóki
 [#1421](https://github.com/vstorm-co/agenticos/issues/1421) nie zacznie usuwać
 obu naraz. Wygenerowane obrazy i katalog roboczy parsowania są wyłączone, bo z
 założenia nie mają wiersza; wszystko inne, co się tam liczy, to bajty, których
-produkt już nie znajdzie i nie umie usunąć.
+produkt już nie znajdzie i nie umie usunąć. Raportuje katalog i liczbę, a nie
+nazwę pliku, bo zapisana ścieżka zachowuje nazwę, pod którą plik został wgrany.
+
+Dwie sekcje czyta się z tego, co się wykonuje, a nie z tabeli. **Cele zdolności**
+wymieniają zdolności podpięte do agenta, które sięgają pod własny adres —
+`web_research` szuka przez DuckDuckGo bez żadnego poświadczenia, a więc bez
+wiersza gdziekolwiek indziej w raporcie — a **Tracing** czyta się z każdej wersji
+zdolnej do uruchomienia: domyślnej oraz tej, którą przypina każde nazwane
+[środowisko](environments.md), bo run przez to środowisko używa obserwowalności
+tamtej wersji, a nie domyślnej.
 
 Czego żadna komenda nie wytworzy, to druga połowa tej strony: umowy, lokalizacje
 i wyłączenia z treningu z poprzedniej sekcji. Załącz je obok wyniku.

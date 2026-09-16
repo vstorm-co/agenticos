@@ -27,15 +27,22 @@ Two things are versioned separately from this file and worth knowing about:
   replaces both: the settings that decide what leaves, every provider and
   endpoint an agent can reach, the credentials held by purpose, the collections
   and who embeds them, the servers on the deployment's own network, the MCP
-  servers, sync sources and channel bots, where runs are traced and how much
-  content a span carries, how much of each store a retention period would reach,
-  and the files under `MEDIA_DIR` that no row points at any more. It prints
-  configuration and counts only - no message text, no document, no secret value
-  and no hint of one, and a setting holding a credential is reported as set or
-  unset - so the output is attachable to a review as it stands. The
-  unreferenced-file count is derived from a declared list of every media-path
-  column, which a test holds against the models so a new column cannot silently
-  turn its files into apparent orphans. (#1596)
+  servers, trigger portals, sync sources and channel bots, the capabilities that
+  reach an address of their own with no row naming it, where runs are traced and
+  how much content a span carries, how much of each store a retention period
+  would reach, and the files under `MEDIA_DIR` that no row points at any more.
+  It prints configuration and counts only - no message text, no document, no
+  secret value and no hint of one, a setting holding a credential is reported as
+  set or unset, a URL's query string is redacted because it can be the
+  credential, and the unreferenced files are a directory and a count rather than
+  filenames a person uploaded - so the output is attachable to a review as it
+  stands. Tracing and the capability inventory are read off every version that
+  can run, the default one and each environment's pinned one, rather than off
+  the default alone. The unreferenced-file count is derived from a declared list
+  of every media-path column, and the capability inventory from a declared
+  classification of every registered capability, both of which a test holds
+  against the code so neither list can rot into a plausible wrong answer.
+  (#1596)
 
 ### Documentation
 
