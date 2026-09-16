@@ -664,6 +664,19 @@ class TestLoadingTheRows:
         assert await module.load_attached_files(object(), [uuid4()], user_id=caller) == ["row"]
         assert service.list_attached_files.await_args.kwargs["user_id"] == caller
 
+    async def test_a_run_reads_its_turn_by_the_message_it_wrote(self, monkeypatch):
+        """The run loads what it just linked, by message rather than by id (#1756)."""
+        from app.services import attachments as module
+
+        message_id = uuid4()
+        service = SimpleNamespace(list_message_attachments=AsyncMock(return_value=["row"]))
+        monkeypatch.setattr(
+            "app.api.deps.get_conversation_service", lambda db: service, raising=True
+        )
+
+        assert await module.load_message_attachments(object(), message_id) == ["row"]
+        assert service.list_message_attachments.await_args.args[0] == message_id
+
 
 class TestWhatTheModelIsToldAboutAFailedWrite:
     """It says what happened. It used to say why, and be wrong.

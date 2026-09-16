@@ -613,3 +613,10 @@ async def load_attached_files(db: Any, file_ids: list[str], *, user_id: UUID) ->
     from app.api.deps import get_conversation_service
 
     return await get_conversation_service(db).list_attached_files(file_ids, user_id=user_id)
+
+
+async def load_message_attachments(db: Any, message_id: UUID) -> list[ChatFile]:
+    """This turn's attachments, read by the message they were just linked to (#1756)."""
+    from app.api.deps import get_conversation_service
+
+    return await get_conversation_service(db).list_message_attachments(message_id)

@@ -234,3 +234,47 @@ class TestReadingAttachments:
             )
 
         assert refusal.value.details["unknown"] == [str(absent)]
+
+
+class TestTheRunReadsItsOwnTurn:
+    """`list_message_attachments` is how a run loads what it just linked (#1756).
+
+    `persist_user_turn` links the frame's files to the new message and then the
+    run reads them back. Reading them with `list_attached_files` refused the
+    turn's own just-linked files as "already attached" and dropped every
+    attachment before the model call - so the run reads by the message instead.
+    """
+
+    async def test_it_returns_the_files_linked_to_the_message(self, db) -> None:
+        """The exact case `list_attached_files` rejects (see
+        `test_a_file_already_on_a_turn_cannot_be_attached_again`): a file already
+        on the turn's message is what the run must read, not refuse."""
+        owner = await _member(db)
+        message = await _message(db, owner)
+        upload = await _upload(db, owner, filename="report.xlsx")
+        await chat_file_repo.link_to_message(
+            db, message_id=message.id, file_ids=[upload.id], user_id=owner.id
+        )
+
+        rows = await ConversationService(db).list_message_attachments(message.id)
+
+        assert [row.id for row in rows] == [upload.id]
+
+    async def test_a_message_with_no_attachments_reads_empty(self, db) -> None:
+        owner = await _member(db)
+        message = await _message(db, owner)
+
+        assert await ConversationService(db).list_message_attachments(message.id) == []
+
+    async def test_it_reads_only_this_message_not_another_turn(self, db) -> None:
+        """Scoped to the message the turn wrote, so one turn never inlines a
+        sibling turn's files."""
+        owner = await _member(db)
+        mine = await _message(db, owner)
+        other = await _message(db, owner)
+        upload = await _upload(db, owner)
+        await chat_file_repo.link_to_message(
+            db, message_id=other.id, file_ids=[upload.id], user_id=owner.id
+        )
+
+        assert await ConversationService(db).list_message_attachments(mine.id) == []

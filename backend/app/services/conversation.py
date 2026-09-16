@@ -999,6 +999,17 @@ class ConversationService:
                 details={"file_ids": sorted(set(ids))},
             )
 
+    async def list_message_attachments(self, message_id: UUID) -> list[Any]:
+        """This turn's attachments, read by the message they were linked to (#1756).
+
+        The run's own load path, distinct from `list_attached_files`: that one
+        validates a *fresh* submission and refuses an already-linked id, which is
+        exactly what the turn's files are once `persist_user_turn` has linked them
+        to `message_id`. Ownership was enforced at link time (#706), so reading by
+        the message is the same reach without the unlinked-guard fighting it.
+        """
+        return await chat_file_repo.list_for_message(self.db, message_id)
+
     async def list_attached_files(self, file_ids: list[str], *, user_id: UUID) -> list[Any]:
         """The caller's rows behind the ids a client sent; anybody else's resolve to nothing (#706).
 
