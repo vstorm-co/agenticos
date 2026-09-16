@@ -38,6 +38,14 @@ async def ingest_github_app_event(request: Request, service: AgentTriggerSvc) ->
 
     A delivery matching nothing answers 202, the same as one that fired
     everything: among verified deliveries the response gives nothing away.
+
+    **Each submission is isolated**, the way the scheduled and polling dispatch
+    loops isolate theirs. `prepare_app_fires` has already claimed this delivery
+    id for every decision it returned, so a raise part-way through the loop would
+    abandon the remaining triggers *and* leave them unreachable by GitHub's retry
+    for the claim's fifteen minutes - one Prefect hiccup silently losing three
+    organizations' events. A failure is logged against its own trigger and the
+    next one is still tried.
     """
     headers = dict(request.headers)
     body = await request.body()
@@ -46,7 +54,14 @@ async def ingest_github_app_event(request: Request, service: AgentTriggerSvc) ->
     from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
 
     for decision in decisions:
-        await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
+        try:
+            await dispatch_trigger_fire(
+                str(decision.trigger_id), event_context=decision.event_context
+            )
+        except Exception:
+            logger.exception(
+                "github_app_dispatch_failed", extra={"trigger_id": str(decision.trigger_id)}
+            )
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
 

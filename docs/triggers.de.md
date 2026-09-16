@@ -1,5 +1,5 @@
 ---
-source_sha: "ae23827b7dce"
+source_sha: "3c3d227eb5e7"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -261,9 +261,30 @@ von der Plattform beim Anlegen hinzugefügt.
    zweien zu raten.
 4. **App installieren** auf den gewünschten Repositories, über den Reiter
    *Install App*. Das, und nur das, ist was das Deployment erreichen kann.
+5. **Verbinden** — über die Schaltfläche *Connect* des Portals, die nach der
+   **Installations-ID** fragt. GitHub setzt sie ans Ende der URL der
+   Einstellungsseite der Installation selbst
+   (`…/settings/installations/<Installations-ID>`). Sie ist kein Geheimnis: sie
+   reist in jeder Lieferung mit und ist es, was der Plattform sagt, zu welchem
+   Grant eine Lieferung gehört.
+
+Schritt 5 hat auf dem OAuth-Pfad keine Entsprechung, weil eine App keinen
+Zustimmungsfluss zu starten hat. Das Verbinden prägt sofort ein Installationstoken
+— nicht um es zu behalten, sondern um zu beweisen, dass App-ID, privater Schlüssel
+und Installations-ID zusammenpassen. Eine vertippte ID oder ein PEM, das auf dem
+Weg ins Formular seine Zeilenumbrüche verloren hat, wird dort abgelehnt statt
+später als Lieferungen entdeckt, die still zu nichts passen. Es ist außerdem der
+einzige Moment, in dem der Schlüssel überhaupt geprüft werden kann: der Vault
+zeigt ein gespeichertes Geheimnis nie wieder.
 
 Einen Trigger anzulegen wählt dann ein Repository aus der Installation und
 registriert nichts.
+
+!!! tip "Abschalten"
+
+    Die Verbindung zu deaktivieren sorgt dafür, dass Lieferungen gar nicht mehr
+    zugeordnet werden — abgeschaltete Grants sind keine Kandidaten. Das ist der
+    Notschalter für die ganze Installation, ohne GitHub anzufassen.
 
 ### Wenn eine Lieferung eintrifft { #when-a-delivery-arrives }
 

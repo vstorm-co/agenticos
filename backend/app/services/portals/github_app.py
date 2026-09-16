@@ -90,33 +90,47 @@ def app_jwt(*, app_id: str, private_key: str, now: float | None = None) -> str:
     )
 
 
+def cache_key(app_id: str, installation_id: str) -> str:
+    """What a cached token is filed under: the App *and* the installation.
+
+    Both, and this is the whole of it. An installation id is unique within one
+    GitHub App and not across Apps, and this platform deliberately lets two
+    organizations hold Apps of their own - the grant lookup and the migration
+    were written for exactly that. Keyed on the installation alone, org B asking
+    for installation `42` would be handed the token org A minted for *its*
+    installation `42`, and would then enumerate A's repositories under A's
+    credential. The id is not a secret, so the key is the pair in clear.
+    """
+    return f"{app_id}:{installation_id}"
+
+
 class InstallationTokens:
     """Installation tokens, minted on demand and reused until they are nearly stale.
 
-    In-process and per installation. A cache that lived in Redis would be a
-    credential at rest outside the vault for an hour; a cache that did not exist
-    would mint a token per delivery, and GitHub rate-limits the minting endpoint
-    like any other. Worker and API each keep their own, which is correct - a
-    token is valid wherever it is used.
+    In-process, and keyed by App and installation together - see `cache_key`.
+    A cache that lived in Redis would be a credential at rest outside the vault
+    for an hour; a cache that did not exist would mint a token per delivery, and
+    GitHub rate-limits the minting endpoint like any other. Worker and API each
+    keep their own, which is correct - a token is valid wherever it is used.
     """
 
     def __init__(self) -> None:
         self._tokens: dict[str, InstallationToken] = {}
 
-    def cached(self, installation_id: str, *, now: float | None = None) -> str | None:
-        """A token for this installation that is still comfortably valid, or None."""
-        held = self._tokens.get(installation_id)
+    def cached(self, app_id: str, installation_id: str, *, now: float | None = None) -> str | None:
+        """A token for this App's installation that is still comfortably valid."""
+        held = self._tokens.get(cache_key(app_id, installation_id))
         moment = now if now is not None else time.time()
         if held is None or held.expires_at - _TOKEN_SKEW_SECONDS <= moment:
             return None
         return held.token
 
-    def remember(self, installation_id: str, token: InstallationToken) -> None:
-        self._tokens[installation_id] = token
+    def remember(self, app_id: str, installation_id: str, token: InstallationToken) -> None:
+        self._tokens[cache_key(app_id, installation_id)] = token
 
-    def forget(self, installation_id: str) -> None:
+    def forget(self, app_id: str, installation_id: str) -> None:
         """Drop a token the provider has refused, so the next call mints a fresh one."""
-        self._tokens.pop(installation_id, None)
+        self._tokens.pop(cache_key(app_id, installation_id), None)
 
 
 #: The process's cache. One per process, so nothing has to pass it around.
@@ -133,7 +147,7 @@ async def installation_token(
             The caller treats it as it treats any provider failure - the grant is
             not wrong, the provider is not answering.
     """
-    cached = TOKENS.cached(installation_id, now=now)
+    cached = TOKENS.cached(app_id, installation_id, now=now)
     if cached is not None:
         return cached
 
@@ -166,7 +180,7 @@ async def installation_token(
         token=str(body["token"]),
         expires_at=(now if now is not None else time.time()) + 3600.0,
     )
-    TOKENS.remember(installation_id, token)
+    TOKENS.remember(app_id, installation_id, token)
     return token.token
 
 

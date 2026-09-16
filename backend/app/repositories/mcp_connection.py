@@ -483,12 +483,19 @@ async def portal_grants_for_account(
     A list rather than one row, because two organizations could in principle hold
     grants the provider numbered the same, and answering the first would give one
     of them the other's deliveries.
+
+    A disabled grant is not a candidate. Every other path that consumes one
+    filters on `is_enabled` - the polling claim and `webhook_access_token` both
+    do - and without it here, turning the integration off would leave deliveries
+    arriving, authenticating against the organization's own secret and firing its
+    triggers. The toggle has to be the kill switch it looks like.
     """
     result = await db.execute(
         select(McpConnection).where(
             McpConnection.purpose == "portal",
             McpConnection.portal_key == portal_key,
             McpConnection.portal_account_id == portal_account_id,
+            McpConnection.is_enabled.is_(True),
         )
     )
     return list(result.scalars().all())

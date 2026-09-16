@@ -691,6 +691,16 @@ class AgentTriggerService:
                 target=data.target,
                 secret=cast(str, plaintext_secret),
             )
+        elif portal is not None and portal.delivery is DeliveryMode.APP_WEBHOOK and data.target:
+            # An App portal registers nothing - the installation already delivers -
+            # but the row still has to remember *which* repository this trigger is
+            # for, because that is what `prepare_app_fires` matches a delivery
+            # against. Only the auto-registration branch above wrote
+            # `provider_target`, so an App trigger saved a null one and every
+            # correctly signed delivery was skipped for not matching it.
+            trigger.provider_target = data.target
+            trigger.delivery_mode = portal.delivery.value
+            await self.db.flush()
         # Reload before returning: opening the run-log conversation flushed a
         # `conversation_id` update, and the server-side `updated_at` (onupdate) it
         # triggered is now expired on the instance. Serializing the response reads

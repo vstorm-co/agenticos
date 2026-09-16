@@ -38,7 +38,10 @@ Two things are versioned separately from this file and worth knowing about:
 
   Stored as a new `github_app` vault kind (app id, private key, webhook secret),
   and `docs/triggers.md` has the comparison table plus how to tell which of the
-  two a given trigger is on. (#1072)
+  two a given trigger is on. Connecting is the portal's own action rather than an
+  OAuth start - an App has no consent flow - and it proves the App id, the key
+  and the installation id together before writing the grant, which is the only
+  moment any of the three can be checked. (#1072)
 
 ## [0.0.444] - 2026-09-16
 

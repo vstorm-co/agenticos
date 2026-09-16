@@ -230,9 +230,29 @@ platform when the trigger was created.
    delivery path reads it by organization and refuses to guess between two.
 4. **Install the App** on the repositories you want, from the App's *Install App*
    tab. That, and only that, is what the deployment can reach.
+5. **Connect it** — the portal's *Connect* button, which asks for the
+   **installation id**. GitHub puts it at the end of the URL of the
+   installation's own settings page
+   (`…/settings/installations/<installation id>`). It is not a secret: it travels
+   in every delivery, and it is what tells the platform which grant a delivery
+   belongs to.
+
+Step 5 is the one with no equivalent on the OAuth path, because an App has no
+consent flow to run. Connecting mints one installation token straight away — not
+to keep, but to prove the App ID, the private key and the installation id agree.
+A mistyped id, or a PEM that lost its line breaks on the way into the form, is
+refused there rather than discovered later as deliveries that quietly match
+nothing. It is also the only moment the key can be checked at all: the vault
+never shows a stored secret again.
 
 Creating a trigger then picks a repository from the installation and registers
 nothing.
+
+!!! tip "Turning it off"
+
+    Disabling the connection stops deliveries being matched at all — grants that
+    are switched off are not candidates. That is the kill switch for the whole
+    installation, without touching GitHub.
 
 ### When a delivery arrives
 

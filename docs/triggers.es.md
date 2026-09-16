@@ -1,5 +1,5 @@
 ---
-source_sha: "ae23827b7dce"
+source_sha: "3c3d227eb5e7"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -251,9 +251,29 @@ plataforma al crearlo.
    entre dos.
 4. **Instala la App** en los repositorios que quieras, desde la pestaña *Install
    App*. Eso, y solo eso, es lo que el despliegue puede alcanzar.
+5. **Conéctala** — con el botón *Connect* del portal, que pide el **id de
+   instalación**. GitHub lo pone al final de la URL de la página de ajustes de la
+   propia instalación (`…/settings/installations/<id de instalación>`). No es un
+   secreto: viaja en cada entrega y es lo que le dice a la plataforma a qué grant
+   pertenece una entrega.
+
+El paso 5 no tiene equivalente en la ruta OAuth, porque una App no tiene ningún
+flujo de consentimiento que arrancar. Conectarla acuña de inmediato un token de
+instalación —no para guardarlo, sino para demostrar que el App ID, la clave
+privada y el id de instalación concuerdan. Un id mal tecleado, o un PEM que perdió
+sus saltos de línea camino del formulario, se rechaza ahí en lugar de descubrirse
+más tarde como entregas que en silencio no encajan con nada. Es además el único
+momento en que la clave puede comprobarse: el vault no vuelve a mostrar un secreto
+guardado.
 
 Crear un trigger elige entonces un repositorio de la instalación y no registra
 nada.
+
+!!! tip "Apagarlo"
+
+    Desactivar la conexión hace que las entregas dejen de emparejarse del todo —
+    los grants desactivados no son candidatos. Ese es el interruptor de toda la
+    instalación, sin tocar GitHub.
 
 ### Cuando llega una entrega { #when-a-delivery-arrives }
 

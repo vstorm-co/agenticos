@@ -1,5 +1,5 @@
 ---
-source_sha: "ae23827b7dce"
+source_sha: "3c3d227eb5e7"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -247,8 +247,27 @@ tworzeniu.
    ścieżka dostawy czyta go po organizacji i odmawia zgadywania między dwoma.
 4. **Zainstaluj Appa** na repozytoriach, które chcesz, z zakładki *Install App*.
    To — i tylko to — jest tym, do czego wdrożenie może sięgnąć.
+5. **Połącz go** — przyciskiem *Connect* na portalu, który pyta o **id
+   instalacji**. GitHub umieszcza je na końcu adresu strony ustawień samej
+   instalacji (`…/settings/installations/<id instalacji>`). To nie jest sekret:
+   jedzie w każdej dostawie i to ono mówi platformie, do którego grantu dostawa
+   należy.
+
+Krok 5 nie ma odpowiednika na ścieżce OAuth, bo App nie ma flow zgody do
+uruchomienia. Połączenie od razu mintuje jeden token instalacji — nie po to, żeby
+go trzymać, ale żeby udowodnić, że App ID, klucz prywatny i id instalacji zgadzają
+się ze sobą. Literówka w id albo PEM, który po drodze do formularza stracił
+podziały wierszy, zostaje odrzucony tam, a nie odkryty później jako dostawy, które
+po cichu do niczego nie pasują. To jest też jedyny moment, w którym klucz w ogóle
+da się sprawdzić: vault nigdy więcej nie pokazuje zapisanego sekretu.
 
 Tworzenie triggera wybiera wtedy repozytorium z instalacji i nie rejestruje nic.
+
+!!! tip "Wyłączanie"
+
+    Wyłączenie połączenia sprawia, że dostawy przestają być w ogóle dopasowywane —
+    wyłączone granty nie są kandydatami. To jest wyłącznik dla całej instalacji,
+    bez dotykania GitHuba.
 
 ### Kiedy przychodzi dostawa { #when-a-delivery-arrives }
 

@@ -306,6 +306,13 @@ class GithubAppSecret(_SecretBase):
     private_key: CredentialStr = Field(
         title="Private key",
         description="The PEM the App's settings page generated. Signs the JWT that mints installation tokens",
+        # The one multi-line secret in this file, and it has to say so. The vault
+        # form is generated from this schema, and a `CredentialStr` alone renders
+        # as `<input type="password">` - where a browser strips the line breaks
+        # out of the value, collapsing the PEM's header, body and footer into a
+        # key `jwt.encode` cannot use. The failure then surfaces an hour later as
+        # an installation token that will not mint (#1072).
+        json_schema_extra={"x-textarea": True},
     )
     webhook_secret: CredentialStr = Field(
         title="Webhook secret",

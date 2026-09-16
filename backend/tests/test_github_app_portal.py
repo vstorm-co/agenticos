@@ -14,10 +14,12 @@ and what a delivery nobody claims is answered with.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
 import uuid
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,7 +28,9 @@ from pydantic import SecretStr
 
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.secret_kinds import GithubAppSecret
+from app.services import impersonation as impersonation_service
 from app.services.agent_trigger import AgentTriggerService
+from app.services.impersonation import ActiveImpersonation
 from app.services.portals.github_app import (
     GitHubAppPortalAdapter,
     InstallationTokens,
@@ -36,6 +40,25 @@ from app.services.portals.github_app import (
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 SERVICE = "app.services.agent_trigger"
+
+
+@contextlib.contextmanager
+def _impersonating():
+    """Run the block as an administrator acting as another account (#1438)."""
+    token = impersonation_service._active.set(
+        ActiveImpersonation(
+            session_id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            impersonator_id=uuid.uuid4(),
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+    )
+    try:
+        yield
+    finally:
+        impersonation_service._active.reset(token)
+
+
 ORG = uuid.uuid4()
 OTHER_ORG = uuid.uuid4()
 INSTALLATION = "42"
@@ -262,24 +285,53 @@ class TestTheAppsOwnCredentials:
         from app.services.portals.github_app import InstallationToken
 
         tokens = InstallationTokens()
-        tokens.remember("42", InstallationToken(token="ghs_x", expires_at=1_000.0))
+        tokens.remember("1", "42", InstallationToken(token="ghs_x", expires_at=1_000.0))
 
-        assert tokens.cached("42", now=900.0) == "ghs_x"
+        assert tokens.cached("1", "42", now=900.0) == "ghs_x"
         # Inside the skew, so it is treated as gone rather than handed out to a
         # request that would reach GitHub after it expired.
-        assert tokens.cached("42", now=950.0) is None
+        assert tokens.cached("1", "42", now=950.0) is None
 
     def test_an_unknown_installation_has_nothing_cached(self) -> None:
-        assert InstallationTokens().cached("99") is None
+        assert InstallationTokens().cached("1", "99") is None
 
     def test_a_refused_token_is_forgotten(self) -> None:
         from app.services.portals.github_app import InstallationToken
 
         tokens = InstallationTokens()
-        tokens.remember("42", InstallationToken(token="ghs_x", expires_at=1e12))
-        tokens.forget("42")
+        tokens.remember("1", "42", InstallationToken(token="ghs_x", expires_at=1e12))
+        tokens.forget("1", "42")
 
-        assert tokens.cached("42") is None
+        assert tokens.cached("1", "42") is None
+
+    @pytest.mark.security
+    def test_another_apps_installation_of_the_same_id_gets_nothing(self) -> None:
+        """Two organizations may hold Apps of their own, and an installation id is
+        unique within an App rather than across them - which the grant lookup and
+        the migration both allow deliberately.
+
+        Keyed on the installation alone, the second organization would be handed
+        the first one's token and would enumerate its repositories under its
+        credential.
+        """
+        from app.services.portals.github_app import InstallationToken
+
+        tokens = InstallationTokens()
+        tokens.remember("app-a", "42", InstallationToken(token="ghs_a", expires_at=1e12))
+
+        assert tokens.cached("app-a", "42") == "ghs_a"
+        assert tokens.cached("app-b", "42") is None
+
+    def test_forgetting_one_apps_token_leaves_the_others(self) -> None:
+        from app.services.portals.github_app import InstallationToken
+
+        tokens = InstallationTokens()
+        tokens.remember("app-a", "42", InstallationToken(token="ghs_a", expires_at=1e12))
+        tokens.remember("app-b", "42", InstallationToken(token="ghs_b", expires_at=1e12))
+        tokens.forget("app-a", "42")
+
+        assert tokens.cached("app-a", "42") is None
+        assert tokens.cached("app-b", "42") == "ghs_b"
 
 
 class TestWhatTheAdapterRegisters:
@@ -331,14 +383,14 @@ class TestMintingAnInstallationToken:
 
         assert token == "ghs_new"
         # And the next caller does not mint a second one.
-        assert module.TOKENS.cached("42", now=1_100.0) == "ghs_new"
+        assert module.TOKENS.cached("1", "42", now=1_100.0) == "ghs_new"
 
     async def test_a_cached_token_costs_no_request(self, monkeypatch) -> None:
         from app.services.portals import github_app as module
         from app.services.portals.github_app import InstallationToken
 
         cache = InstallationTokens()
-        cache.remember("42", InstallationToken(token="ghs_held", expires_at=1e12))
+        cache.remember("1", "42", InstallationToken(token="ghs_held", expires_at=1e12))
         monkeypatch.setattr(module, "TOKENS", cache)
 
         def refuse(request):  # pragma: no cover - the point is that it is not called
@@ -527,3 +579,238 @@ class TestTheStoredCredential:
             await service.app_secret(ORG, kind=SecretKind.GITHUB_APP)
 
         assert refusal.value.details["names"] == ["one", "two"]
+
+
+class TestConnectingAnInstallation:
+    """The Connect action the portal declares, which nothing used to complete.
+
+    The frontend sends every GitHub portal to the OAuth start, which wants a
+    `github_oauth_app` secret and makes an ordinary OAuth connection. An
+    organization that stored only the App secret could therefore install the App,
+    receive its deliveries, and have none of them match a grant - the portal
+    offered a button that led nowhere.
+    """
+
+    CONNECTIONS = "app.services.mcp_connection"
+
+    def _service(self):
+        from app.services.mcp_connection import McpConnectionService
+
+        session = MagicMock()
+        session.commit = AsyncMock()
+        session.rollback = AsyncMock()
+        return McpConnectionService(session)
+
+    def _ctx(self):
+        from app.core.permissions import AuthContext, OrgRoleName
+
+        return AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role=OrgRoleName.OWNER.value)
+
+    def _secret(self):
+        return GithubAppSecret(
+            app_id="12345",
+            private_key=SecretStr(_private_key()),
+            webhook_secret=SecretStr(SECRET),
+        )
+
+    async def test_a_first_connection_writes_the_installation_on_a_portal_grant(self) -> None:
+        created = SimpleNamespace(id=uuid.uuid4(), portal_account_id=None)
+        with (
+            patch(
+                f"{self.CONNECTIONS}.OrganizationSecretService.app_secret",
+                new=AsyncMock(return_value=self._secret()),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.github_app.installation_token",
+                new=AsyncMock(return_value="ghs_ok"),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.mcp_connection_repo.get_portal_grant",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.mcp_connection_repo.create_org_scoped",
+                new=AsyncMock(return_value=created),
+            ) as create,
+            patch(
+                f"{self.CONNECTIONS}.mcp_connection_repo.update",
+                new=AsyncMock(return_value=created),
+            ) as update,
+            patch(f"{self.CONNECTIONS}.record_audit", new=AsyncMock()) as audited,
+        ):
+            await self._service().connect_github_app(self._ctx(), installation_id=INSTALLATION)
+
+        assert create.await_args.kwargs["purpose"] == "portal"
+        assert create.await_args.kwargs["portal_key"] == GitHubAppPortalAdapter.portal_key
+        assert update.await_args.kwargs["update_data"]["portal_account_id"] == INSTALLATION
+        assert audited.await_args.kwargs["details"]["installation_id"] == INSTALLATION
+
+    async def test_reconnecting_moves_the_existing_grant_rather_than_adding_one(self) -> None:
+        """One grant per portal per organization - two would be two installations
+        with nothing to say which a trigger meant."""
+        existing = SimpleNamespace(id=uuid.uuid4(), portal_account_id="7")
+        with (
+            patch(
+                f"{self.CONNECTIONS}.OrganizationSecretService.app_secret",
+                new=AsyncMock(return_value=self._secret()),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.github_app.installation_token",
+                new=AsyncMock(return_value="ghs_ok"),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.mcp_connection_repo.get_portal_grant",
+                new=AsyncMock(return_value=existing),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.mcp_connection_repo.create_org_scoped", new=AsyncMock()
+            ) as create,
+            patch(
+                f"{self.CONNECTIONS}.mcp_connection_repo.update",
+                new=AsyncMock(return_value=existing),
+            ) as update,
+            patch(f"{self.CONNECTIONS}.record_audit", new=AsyncMock()),
+        ):
+            await self._service().connect_github_app(self._ctx(), installation_id=INSTALLATION)
+
+        create.assert_not_awaited()
+        written = update.await_args.kwargs["update_data"]
+        assert written["portal_account_id"] == INSTALLATION
+        # Re-connecting a grant somebody had switched off turns it back on, or the
+        # button would report success and change nothing.
+        assert written["is_enabled"] is True
+
+    async def test_an_installation_github_refuses_never_reaches_the_database(self) -> None:
+        """The three values are proved together before the row is written.
+
+        A mistyped id or a PEM that lost its line breaks is refused here rather
+        than discovered later as deliveries that quietly match nothing - and the
+        vault never shows a stored secret again, so this is the only moment any
+        of the three can be checked at all.
+        """
+        from app.core.exceptions import ExternalServiceError
+        from app.services.portals.exceptions import PortalUnreachable
+
+        with (
+            patch(
+                f"{self.CONNECTIONS}.OrganizationSecretService.app_secret",
+                new=AsyncMock(return_value=self._secret()),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.github_app.installation_token",
+                new=AsyncMock(side_effect=PortalUnreachable(message="refused")),
+            ),
+            patch(
+                f"{self.CONNECTIONS}.mcp_connection_repo.create_org_scoped", new=AsyncMock()
+            ) as create,
+            pytest.raises(ExternalServiceError) as caught,
+        ):
+            await self._service().connect_github_app(self._ctx(), installation_id="999")
+
+        create.assert_not_awaited()
+        assert "private key" in caught.value.message
+
+    async def test_a_deployment_without_the_portal_refuses_before_reading_a_secret(self) -> None:
+        """The catalog is data, and a build that dropped the entry should say so
+        rather than write a grant for a portal nothing can deliver to."""
+        from app.core.exceptions import BadRequestError
+
+        with (
+            patch(f"{self.CONNECTIONS}.portal_catalog.get_portal", return_value=None),
+            patch(
+                f"{self.CONNECTIONS}.OrganizationSecretService.app_secret", new=AsyncMock()
+            ) as read,
+            pytest.raises(BadRequestError),
+        ):
+            await self._service().connect_github_app(self._ctx(), installation_id=INSTALLATION)
+
+        read.assert_not_awaited()
+
+    async def test_an_organization_with_no_app_secret_is_told_what_is_missing(self) -> None:
+        with (
+            patch(
+                f"{self.CONNECTIONS}.OrganizationSecretService.app_secret",
+                new=AsyncMock(side_effect=NotFoundError(message="no github_app secret")),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await self._service().connect_github_app(self._ctx(), installation_id=INSTALLATION)
+
+    async def test_it_is_refused_while_impersonating(self) -> None:
+        """Every binding is, for the reason #1438 gives: the administrator's own
+        grant would be recorded against a member who never consented."""
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await self._service().connect_github_app(self._ctx(), installation_id=INSTALLATION)
+
+
+class TestWhatADisabledGrantDoes:
+    @pytest.mark.security
+    async def test_a_disabled_grant_is_not_a_candidate_for_a_delivery(self) -> None:
+        """Turning the integration off has to be the kill switch it looks like.
+
+        Every other path that consumes a grant filters on `is_enabled`; without it
+        here, deliveries would keep arriving, authenticate against the
+        organization's own secret, and fire its triggers.
+        """
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import mcp_connection as repo
+
+        statements: list[object] = []
+
+        class _Session:
+            async def execute(self, statement):
+                statements.append(statement)
+                return MagicMock(
+                    scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+                )
+
+        await repo.portal_grants_for_account(
+            _Session(),  # ty: ignore[invalid-argument-type]
+            portal_key="github_app",
+            portal_account_id=INSTALLATION,
+        )
+
+        compiled = str(statements[-1].compile(dialect=postgresql.dialect()))
+        assert "is_enabled" in compiled
+
+
+class TestOneDeliveryThatFiresSeveralTriggers:
+    async def test_a_failed_submission_does_not_abandon_the_others(self) -> None:
+        """`prepare_app_fires` has already claimed the delivery for every decision.
+
+        So a raise part-way through the loop would lose the remaining triggers
+        *and* make GitHub's retry a no-op for the claim's fifteen minutes - one
+        Prefect hiccup silently dropping another organization's event.
+        """
+        from app.api.routes.v1 import trigger_webhooks
+
+        first, second, third = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        decisions = [
+            SimpleNamespace(trigger_id=trigger, event_context={})
+            for trigger in (first, second, third)
+        ]
+        submitted: list[str] = []
+
+        async def dispatch(trigger_id: str, *, event_context: dict) -> None:
+            del event_context
+            submitted.append(trigger_id)
+            if trigger_id == str(second):
+                raise RuntimeError("prefect said no")
+
+        service = MagicMock()
+        service.prepare_app_fires = AsyncMock(return_value=decisions)
+        request = MagicMock()
+        request.headers = {}
+        request.body = AsyncMock(return_value=b"{}")
+
+        with patch(
+            "app.worker.tasks.trigger_tasks.dispatch_trigger_fire",
+            new=AsyncMock(side_effect=dispatch),
+        ):
+            response = await trigger_webhooks.ingest_github_app_event(request, service)
+
+        assert submitted == [str(first), str(second), str(third)]
+        # And the provider is still told the delivery was taken, so its retry does
+        # not arrive against a claim that is already held.
+        assert response.status_code == 202

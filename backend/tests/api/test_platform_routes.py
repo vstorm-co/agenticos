@@ -370,6 +370,15 @@ CALLS: tuple[Call, ...] = (
         body={"portal_key": "google"},
     ),
     Call(
+        # The App variant, which is not an OAuth start at all: an App has no
+        # consent flow, so connecting it is recording which installation this
+        # organization's triggers belong to. Same permission for the same reason.
+        "POST",
+        "/mcp-connections/portals/github-app",
+        Perm.MCP_MANAGE,
+        body={"installation_id": "42"},
+    ),
+    Call(
         "POST",
         "/mcp-connections",
         Perm.MCP_MANAGE,
