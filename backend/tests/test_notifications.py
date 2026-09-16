@@ -48,6 +48,18 @@ def _run(*, org_id=None, user_id=None, cost="1.50"):
     return run
 
 
+def _approvals(*tool_ids: str) -> list[MagicMock]:
+    """A pending `ToolApproval` per tool id, each with its own fresh id -
+    what `approval_requested`'s occurrence key is now built from."""
+    approvals = []
+    for tool_id in tool_ids:
+        approval = MagicMock()
+        approval.id = uuid.uuid4()
+        approval.tool_id = tool_id
+        approvals.append(approval)
+    return approvals
+
+
 def _agent(*, owner_user_id=None, name="Support", org_id=None):
     agent = MagicMock()
     agent.id = uuid.uuid4()
@@ -287,7 +299,7 @@ class TestEveryPersonIsResolvedInsideTheOrganization:
                 run,
                 agent=_agent(),
                 spec=_spec(approvals=AlertSpec(to=[AlertAudience.CHOSEN], user_ids=chosen)),
-                tools=["send_email"],
+                approvals=_approvals("send_email"),
             )
 
         kwargs = scoped.await_args.kwargs
@@ -309,7 +321,7 @@ class TestEveryPersonIsResolvedInsideTheOrganization:
                 _run(),
                 agent=_agent(),
                 spec=_spec(approvals=AlertSpec(to=[AlertAudience.CHOSEN], user_ids=[uuid.uuid4()])),
-                tools=["x"],
+                approvals=_approvals("x"),
             )
 
         assert written.calls == []
@@ -350,7 +362,7 @@ class TestEveryPersonIsResolvedInsideTheOrganization:
                 _run(user_id=initiator),
                 agent=_agent(),
                 spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
-                tools=["x"],
+                approvals=_approvals("x"),
             )
 
         assert scoped.await_args.kwargs["user_ids"] == [initiator]
@@ -387,7 +399,7 @@ class TestEveryPersonIsResolvedInsideTheOrganization:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=scoped),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                _run(user_id=None), agent=_agent(owner_user_id=None), spec=_spec(), tools=[]
+                _run(user_id=None), agent=_agent(owner_user_id=None), spec=_spec(), approvals=[]
             )
 
         scoped.assert_not_awaited()
@@ -413,7 +425,7 @@ class TestApprovalRequested:
                 _run(user_id=uuid.uuid4()),
                 agent=_agent(),
                 spec=_spec(),
-                tools=["send_email"],
+                approvals=_approvals("send_email"),
             )
 
         assert len(written.calls) == 1
@@ -435,7 +447,7 @@ class TestApprovalRequested:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                _run(user_id=None), agent=_agent(), spec=_spec(), tools=["x"]
+                _run(user_id=None), agent=_agent(), spec=_spec(), approvals=_approvals("x")
             )
 
         assert written.calls[0]["recipients"] == [root_id]
@@ -450,7 +462,7 @@ class TestApprovalRequested:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                _run(user_id=None), agent=_agent(), spec=_spec(), tools=[]
+                _run(user_id=None), agent=_agent(), spec=_spec(), approvals=[]
             )
 
         call = written.calls[0]
@@ -465,7 +477,7 @@ class TestApprovalRequested:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                _run(user_id=uuid.uuid4()), agent=_agent(), spec=_spec(), tools=["x"]
+                _run(user_id=uuid.uuid4()), agent=_agent(), spec=_spec(), approvals=_approvals("x")
             )
 
         assert written.calls == []
@@ -483,7 +495,7 @@ class TestApprovalRequested:
                 _run(user_id=uuid.uuid4()),
                 agent=_agent(),
                 spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
-                tools=["send_email"],
+                approvals=_approvals("send_email"),
             )
 
         assert written.calls[0]["recipients"] == [asker_id]
@@ -493,20 +505,56 @@ class TestApprovalRequested:
         roles.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_the_occurrence_id_is_the_run(self, written):
-        """One write per run reaching `AWAITING_APPROVAL`, even when several
-        tool calls parked at once - there is no single approval row this call
-        site holds, only the run and the pending tool ids."""
+    async def test_the_occurrence_id_is_the_approval_not_the_run(self, written):
+        """A resumed run can park again on a new gated call while keeping the
+        same `AgentRun.id` - the design's own occurrence key for this event
+        is the approval id, precisely so the second request is not discarded
+        as a repeat of the first."""
+        run = _run(user_id=uuid.uuid4())
+        approvals = _approvals("x")
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), approvals=approvals
+            )
+
+        assert written.calls[0]["occurrence_id"] == str(approvals[0].id)
+        assert written.calls[0]["occurrence_id"] != str(run.id)
+
+    @pytest.mark.anyio
+    async def test_two_pauses_on_the_same_run_get_two_occurrence_ids(self, written):
         run = _run(user_id=uuid.uuid4())
         with (
             patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                run, agent=_agent(), spec=_spec(), tools=["x"]
+                run, agent=_agent(), spec=_spec(), approvals=_approvals("x")
+            )
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), approvals=_approvals("y")
             )
 
-        assert written.calls[0]["occurrence_id"] == str(run.id)
+        first, second = written.calls[0]["occurrence_id"], written.calls[1]["occurrence_id"]
+        assert first != second
+
+    @pytest.mark.anyio
+    async def test_several_calls_parked_at_once_share_one_occurrence_id(self, written):
+        """One write per pause, not per tool call - the sorted, joined set of
+        approval ids is stable regardless of which order they are handed in."""
+        run = _run(user_id=uuid.uuid4())
+        approvals = _approvals("send_email", "delete_file")
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(uuid.uuid4())),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), approvals=approvals
+            )
+
+        assert written.calls[0]["occurrence_id"] == ":".join(sorted(str(a.id) for a in approvals))
 
     @pytest.mark.anyio
     async def test_the_write_carries_a_savepoint(self, written):
@@ -515,7 +563,7 @@ class TestApprovalRequested:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                _run(user_id=uuid.uuid4()), agent=_agent(), spec=_spec(), tools=["x"]
+                _run(user_id=uuid.uuid4()), agent=_agent(), spec=_spec(), approvals=_approvals("x")
             )
 
         assert written.calls[0]["use_savepoint"] is True
@@ -1305,7 +1353,7 @@ class TestEveryLinkNamesItsOrganization:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                run, agent=_agent(), spec=_spec(), tools=["send_email"]
+                run, agent=_agent(), spec=_spec(), approvals=_approvals("send_email")
             )
 
         call = written.calls[0]
@@ -1385,7 +1433,7 @@ class TestWhereAnAlertSends:
             patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
         ):
             await NotificationService(MagicMock()).approval_requested(
-                _run(), agent=_agent(), spec=_spec(), tools=["send_email"]
+                _run(), agent=_agent(), spec=_spec(), approvals=_approvals("send_email")
             )
 
         approvals_url = written.calls[0]["render_context"]["approvals_url"]

@@ -42,9 +42,14 @@ async def _run_reports(period: ReportPeriod) -> dict[str, int]:
     deduplicated on is `(subject, period, window_start)` (Decision 1), so a
     flow restarted after a partial failure must compute the *same* window on
     its second attempt or the dedup constraint has nothing to catch - every
-    organization already notified once would be notified again.
+    organization already notified once would be notified again. Rounded to
+    midnight UTC for exactly that reason: a plain `datetime.now(UTC)` differs
+    by however many seconds a retry took to fire, which is enough to change
+    the occurrence id and defeat the dedup it exists for. A weekly or monthly
+    digest loses nothing readers would notice from being dated to the day
+    rather than the second.
     """
-    window_start = datetime.now(UTC)
+    window_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     async with get_db_context() as db:
         organizations = await organization_repo.list_all(db)
         notifications = NotificationService(db)
