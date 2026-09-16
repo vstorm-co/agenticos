@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.458] - 2026-09-16
+
 ### Added
 
 - Refresh-token reuse detection. Rotation re-keys a session row in place, so a
