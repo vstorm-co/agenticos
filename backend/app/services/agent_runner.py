@@ -3462,12 +3462,8 @@ class AgentRunnerService:
             approvals = await agent_run_repo.list_approvals_for_run(
                 self.db, run_id=run.id, organization_id=run.organization_id
             )
-            pending = [
-                approval.tool_id
-                for approval in approvals
-                if approval.status == ApprovalStatus.PENDING.value
-            ]
-            await notifications.approval_requested(run, agent=agent, spec=spec, tools=pending)
+            pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
+            await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
 
     async def execute(
         self,
