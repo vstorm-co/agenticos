@@ -138,7 +138,7 @@ with a mocked API — cheaper and more precise), a service rule (unit), or a con
 
 `auth`, `agents`, `chat`, `journey`, `models`, `skills`, `vault`, `sharing`,
 `navigation`, `sidebar`, `sidebar-active`, `activity`, `refusals`, `mcp-servers`,
-`kb-ingestion`, `kb-integrations`. Read the closest one before adding a new file —
+`kb-ingestion`, `kb-integrations`, `notifications`. Read the closest one before adding a new file —
 `refusals.spec.ts` in particular, since asserting a refusal is where this suite earns
 its keep.
 
