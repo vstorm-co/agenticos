@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 
 from sqlalchemy import and_, or_, select, update
@@ -58,31 +59,39 @@ async def insert_delivery(
     return delivery
 
 
-async def get_channel_preference(
-    db: AsyncSession, *, user_id: uuid.UUID, event_type: str, channel: str
-) -> bool | None:
-    """The stored preference for one `(user, event_type, channel)`, or `None` if unset.
-
-    `None` means "no row yet" - Decision 4's default-enabled is applied by the
-    caller, not baked in here, so a caller that must tell "explicitly off" from
-    "never asked" can.
+async def get_channel_preferences(
+    db: AsyncSession, *, user_ids: Sequence[uuid.UUID], event_type: str, channel: str
+) -> dict[uuid.UUID, bool]:
+    """The stored `(user, event_type, channel)` preference for every id in
+    `user_ids`, in one query - a fan-out writing several recipients' rows
+    reads every preference it needs once, rather than one at a time. A
+    `user_id` absent from the answer means no row yet; Decision 4's
+    default-enabled is applied by the caller, not baked in here, so a caller
+    that must tell "explicitly off" from "never asked" can.
     """
-    return await db.scalar(
-        select(NotificationChannelPreference.enabled).where(
-            NotificationChannelPreference.user_id == user_id,
+    if not user_ids:
+        return {}
+    result = await db.execute(
+        select(NotificationChannelPreference.user_id, NotificationChannelPreference.enabled).where(
+            NotificationChannelPreference.user_id.in_(user_ids),
             NotificationChannelPreference.event_type == event_type,
             NotificationChannelPreference.channel == channel,
         )
     )
+    return dict(result.tuples().all())
 
 
-async def get_legacy_email_preference(
-    db: AsyncSession, *, user_id: uuid.UUID, column: NotificationPreference
-) -> bool | None:
-    """One of the three legacy boolean columns on `User` - still authoritative
-    for the email channel of the three agent-lifecycle events they cover
-    (Decision 4). `None` only when the user row itself is gone."""
-    return await db.scalar(select(getattr(User, column)).where(User.id == user_id))
+async def get_legacy_email_preferences(
+    db: AsyncSession, *, user_ids: Sequence[uuid.UUID], column: NotificationPreference
+) -> dict[uuid.UUID, bool]:
+    """One of the three legacy boolean columns on `User`, for every id in
+    `user_ids` in one query - still authoritative for the email channel of the
+    three agent-lifecycle events they cover (Decision 4). A `user_id` absent
+    from the answer means that user row itself is gone."""
+    if not user_ids:
+        return {}
+    result = await db.execute(select(User.id, getattr(User, column)).where(User.id.in_(user_ids)))
+    return dict(result.tuples().all())
 
 
 async def list_inbox_page(
@@ -90,18 +99,33 @@ async def list_inbox_page(
     *,
     recipient_id: uuid.UUID,
     organization_id: uuid.UUID,
+    is_app_admin: bool = False,
     after: tuple[datetime, uuid.UUID] | None,
     limit: int,
 ) -> list[Notification]:
     """A page of the inbox, newest first - `id` breaks a `created_at` tie one
-    transaction writing several recipients' rows at once can produce."""
+    transaction writing several recipients' rows at once can produce.
+
+    `is_app_admin` drops the organization filter entirely rather than
+    narrowing it to `organization_id`: an app admin can be a legitimate
+    recipient of an org-scoped row (the "admins" audience includes them, with
+    no membership of their own in that organization), and
+    `get_active_organization` refuses to let them select an organization they
+    do not belong to - so without this, that row is gated visible but never
+    fetched, since the active-organization filter runs before the gate ever
+    sees it.
+    """
     conditions = [
         Notification.recipient_user_id == recipient_id,
         Notification.in_app_visible.is_(True),
-        or_(
-            Notification.organization_id == organization_id, Notification.organization_id.is_(None)
-        ),
     ]
+    if not is_app_admin:
+        conditions.append(
+            or_(
+                Notification.organization_id == organization_id,
+                Notification.organization_id.is_(None),
+            )
+        )
     if after is not None:
         after_created_at, after_id = after
         conditions.append(
@@ -120,7 +144,12 @@ async def list_inbox_page(
 
 
 async def list_unread(
-    db: AsyncSession, *, recipient_id: uuid.UUID, organization_id: uuid.UUID, cap: int
+    db: AsyncSession,
+    *,
+    recipient_id: uuid.UUID,
+    organization_id: uuid.UUID,
+    is_app_admin: bool = False,
+    cap: int,
 ) -> list[Notification]:
     """Candidate unread rows, newest first, up to `cap`.
 
@@ -128,18 +157,24 @@ async def list_unread(
     (Decision 7), which cannot be expressed as a plain `COUNT`/`UPDATE` - each
     candidate row is re-checked in the service layer. `cap` bounds that work
     for an account with an unbounded backlog.
+
+    `is_app_admin` - see `list_inbox_page`'s own note on the same parameter.
     """
-    result = await db.execute(
-        select(Notification)
-        .where(
-            Notification.recipient_user_id == recipient_id,
-            Notification.in_app_visible.is_(True),
-            Notification.read_at.is_(None),
+    conditions = [
+        Notification.recipient_user_id == recipient_id,
+        Notification.in_app_visible.is_(True),
+        Notification.read_at.is_(None),
+    ]
+    if not is_app_admin:
+        conditions.append(
             or_(
                 Notification.organization_id == organization_id,
                 Notification.organization_id.is_(None),
-            ),
+            )
         )
+    result = await db.execute(
+        select(Notification)
+        .where(*conditions)
         .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(cap)
     )
@@ -152,18 +187,24 @@ async def get_own(
     notification_id: uuid.UUID,
     recipient_id: uuid.UUID,
     organization_id: uuid.UUID,
+    is_app_admin: bool = False,
 ) -> Notification | None:
-    return await db.scalar(
-        select(Notification).where(
-            Notification.id == notification_id,
-            Notification.recipient_user_id == recipient_id,
-            Notification.in_app_visible.is_(True),
+    """`is_app_admin` - see `list_inbox_page`'s own note on the same
+    parameter: a row `list_inbox` now surfaces to an app admin outside their
+    own organizations must be reachable here too, or marking it read 404s."""
+    conditions = [
+        Notification.id == notification_id,
+        Notification.recipient_user_id == recipient_id,
+        Notification.in_app_visible.is_(True),
+    ]
+    if not is_app_admin:
+        conditions.append(
             or_(
                 Notification.organization_id == organization_id,
                 Notification.organization_id.is_(None),
-            ),
+            )
         )
-    )
+    return await db.scalar(select(Notification).where(*conditions))
 
 
 async def mark_read(
@@ -186,5 +227,13 @@ async def mark_ids_read(db: AsyncSession, *, ids: list[uuid.UUID], read_at: date
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 
-async def get_announcement(db: AsyncSession, announcement_id: uuid.UUID) -> Announcement | None:
-    return await db.get(Announcement, announcement_id)
+async def get_announcements(
+    db: AsyncSession, announcement_ids: Sequence[uuid.UUID]
+) -> list[Announcement]:
+    """Every announcement among `announcement_ids` that still exists, in one
+    query - a caller resolving several notifications' announcements in one
+    page reads every one it needs at once, rather than one at a time."""
+    if not announcement_ids:
+        return []
+    result = await db.execute(select(Announcement).where(Announcement.id.in_(announcement_ids)))
+    return list(result.scalars().all())
