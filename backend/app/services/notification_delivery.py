@@ -251,7 +251,7 @@ class NotificationDeliveryService:
         )
         if member is not None:
             return True, member.role
-        # An app admin holds no membership row anywhere, but `_gate`'s
+        # An app admin holds no membership row anywhere, but `gate_for`'s
         # `ORG_ADMIN_OR_APP_ADMIN` branch already treats one as reachable for
         # an org-scoped row regardless (`notification_center.py`) - an
         # impersonation or user-management `security_event` scoped to another

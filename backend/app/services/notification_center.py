@@ -9,6 +9,7 @@ mark-all-read would otherwise return gate-blind.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import uuid
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.announcement import Announcement
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.user import NotificationPreference
 from app.repositories import knowledge_base as knowledge_base_repo
@@ -45,6 +48,25 @@ LEGACY_EMAIL_COLUMN: dict[NotificationEventType, NotificationPreference] = {
 }
 
 _ESCALATION_ROLES = {OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value}
+
+# Every caller of `write()` names a real organization but three: `ANNOUNCEMENT`
+# and `CONFIGURATION_CHANGED` are always deployment-wide (an announcement can
+# name several organizations at once, and a deployment setting has no single
+# tenant to attribute it to), and `SECURITY_EVENT` is conditionally so - an
+# app-admin-audience audit entry (impersonation, an app admin's own user
+# management) has no organization either, while one scoped to a tenant's own
+# secret or sandbox connection does. Anything else with `organization_id=None`
+# is a producer that forgot to pass one, not a legitimate deployment-wide
+# event - `write()` catches that rather than letting the row silently reach
+# every organization the recipient is a member of (Decision 2's `OR
+# organization_id IS NULL` read predicate has no per-event exception).
+_DEPLOYMENT_WIDE_ELIGIBLE = frozenset(
+    {
+        NotificationEventType.SECURITY_EVENT,
+        NotificationEventType.CONFIGURATION_CHANGED,
+        NotificationEventType.ANNOUNCEMENT,
+    }
+)
 
 # A mandatory event's write budget, keyed on (actor_user_id, event_type) -
 # Decision 1's guard against an ordinary write access turning into an
@@ -110,6 +132,20 @@ class _Gate:
     summary_override: str | None = None
 
 
+@dataclass
+class _GateCache:
+    """Every `COLLECTIONS_VIEW`/`ANNOUNCEMENT_AUDIENCE` row's dependency in one
+    page, resolved once rather than once per row - built by `_build_gate_cache`
+    ahead of a batch of `gate_for` calls that would otherwise each query the
+    knowledge base or the announcement (and its audience) fresh, even when
+    several rows in the same page share one collection or one announcement.
+    """
+
+    kb_by_id: dict[uuid.UUID, KnowledgeBase]
+    kb_access_by_id: dict[uuid.UUID, bool]
+    announcement_visible_by_id: dict[uuid.UUID, bool]
+
+
 class NotificationCenterService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -142,7 +178,15 @@ class NotificationCenterService:
         caller's transaction proceeds and commits normally either way.
         Without it, a failure propagates to the caller, which is correct for
         a context built around this write succeeding.
+
+        Raises:
+            AssertionError: `organization_id` is `None` for an event type that
+                is not deployment-wide-eligible - a producer that forgot to
+                scope its write, not a caller this method can guess a tenant
+                for.
         """
+        if organization_id is None and event_type not in _DEPLOYMENT_WIDE_ELIGIBLE:
+            raise AssertionError(f"{event_type.value} requires an organization_id")
         mandatory = is_mandatory(event_type)
         if mandatory:
             # `actor_user_id` is usually who to key the budget on, but a
@@ -191,8 +235,48 @@ class NotificationCenterService:
         mandatory: bool,
         use_savepoint: bool,
     ) -> list[Notification]:
+        """Preference reads batch across the whole fan-out - one query per
+        channel rather than one per recipient (a mandatory event's rows skip
+        both entirely, since they are visible/delivered regardless). The
+        insert side stays per recipient: `insert_notification_if_new`'s
+        dedup-on-conflict is what makes one bad recipient's FK violation, under
+        `use_savepoint`, discard only its own row rather than every recipient
+        ahead of it - a bulk insert would need to give that up.
+        """
+        in_app_by_recipient: dict[uuid.UUID, bool] = {}
+        email_by_recipient: dict[uuid.UUID, bool] = {}
+        if not mandatory:
+            in_app_by_recipient = await notification_repo.get_channel_preferences(
+                self.db,
+                user_ids=recipients,
+                event_type=event_type.value,
+                channel=NotificationChannel.IN_APP.value,
+            )
+            legacy_column = LEGACY_EMAIL_COLUMN.get(event_type)
+            # Exactly one authoritative lookup per event type (Decision 4):
+            # the legacy column for the three events it already governs, the
+            # preference table for every other event type - the two
+            # vocabularies never overlap.
+            email_by_recipient = (
+                await notification_repo.get_legacy_email_preferences(
+                    self.db, user_ids=recipients, column=legacy_column
+                )
+                if legacy_column is not None
+                else await notification_repo.get_channel_preferences(
+                    self.db,
+                    user_ids=recipients,
+                    event_type=event_type.value,
+                    channel=NotificationChannel.EMAIL.value,
+                )
+            )
+
         written: list[Notification] = []
         for recipient_id in recipients:
+            # A recipient absent from either map means the same as a `None`
+            # read did before batching: no preference row yet (or, for the
+            # legacy column, a user row already gone) - default enabled.
+            in_app_visible = mandatory or in_app_by_recipient.get(recipient_id, True)
+            email_enabled = mandatory or email_by_recipient.get(recipient_id, True)
             if not use_savepoint:
                 notification = await self._write_one(
                     recipient_id=recipient_id,
@@ -203,7 +287,8 @@ class NotificationCenterService:
                     render_context=render_context,
                     organization_id=organization_id,
                     announcement_id=announcement_id,
-                    mandatory=mandatory,
+                    in_app_visible=in_app_visible,
+                    email_enabled=email_enabled,
                 )
                 if notification is not None:
                     written.append(notification)
@@ -225,7 +310,8 @@ class NotificationCenterService:
                         render_context=render_context,
                         organization_id=organization_id,
                         announcement_id=announcement_id,
-                        mandatory=mandatory,
+                        in_app_visible=in_app_visible,
+                        email_enabled=email_enabled,
                     )
             except Exception:  # pragma: no cover
                 # Directly verified (a forced FK violation logs exactly this
@@ -261,11 +347,9 @@ class NotificationCenterService:
         render_context: dict[str, Any] | None,
         organization_id: uuid.UUID | None,
         announcement_id: uuid.UUID | None,
-        mandatory: bool,
+        in_app_visible: bool,
+        email_enabled: bool,
     ) -> Notification | None:
-        in_app_visible = mandatory or await self._channel_enabled(
-            recipient_id, event_type, NotificationChannel.IN_APP
-        )
         notification = Notification(
             id=uuid.uuid4(),
             organization_id=organization_id,
@@ -282,7 +366,6 @@ class NotificationCenterService:
         if not inserted:
             return None
 
-        email_enabled = mandatory or await self.email_channel_enabled(recipient_id, event_type)
         if email_enabled:
             await notification_repo.insert_delivery(
                 self.db,
@@ -294,10 +377,10 @@ class NotificationCenterService:
     async def _channel_enabled(
         self, user_id: uuid.UUID, event_type: NotificationEventType, channel: NotificationChannel
     ) -> bool:
-        stored = await notification_repo.get_channel_preference(
-            self.db, user_id=user_id, event_type=event_type.value, channel=channel.value
+        prefs = await notification_repo.get_channel_preferences(
+            self.db, user_ids=[user_id], event_type=event_type.value, channel=channel.value
         )
-        return True if stored is None else stored
+        return prefs.get(user_id, True)
 
     async def email_channel_enabled(
         self, user_id: uuid.UUID, event_type: NotificationEventType
@@ -309,14 +392,18 @@ class NotificationCenterService:
         Public: also the send-time recheck `notification_delivery.py` performs
         immediately before calling the email provider (Decision 3), so a
         preference switched off during a provider outage is honoured by the
-        retry that finally succeeds rather than by the write alone.
+        retry that finally succeeds rather than by the write alone. `write()`'s
+        own fan-out does not call this - it reads the same two repository
+        functions in bulk across every recipient before its loop starts
+        (`_write_rows`), and this is the one-row shape of the same lookup for
+        a caller checking a single recipient on its own.
         """
         legacy_column = LEGACY_EMAIL_COLUMN.get(event_type)
         if legacy_column is not None:
-            stored = await notification_repo.get_legacy_email_preference(
-                self.db, user_id=user_id, column=legacy_column
+            prefs = await notification_repo.get_legacy_email_preferences(
+                self.db, user_ids=[user_id], column=legacy_column
             )
-            return True if stored is None else stored
+            return prefs.get(user_id, True)
         return await self._channel_enabled(user_id, event_type, NotificationChannel.EMAIL)
 
     # -- reads, all gate-aware (Decision 7) ------------------------------
@@ -341,13 +428,15 @@ class NotificationCenterService:
                 self.db,
                 recipient_id=user_id,
                 organization_id=ctx.organization_id,
+                is_app_admin=ctx.is_app_admin,
                 after=cursor,
                 limit=limit,
             )
             if not batch:
                 return visible, gates, None
+            cache = await self._build_gate_cache(ctx, batch)
             for row in batch:
-                gate = await self.gate_for(ctx, row)
+                gate = await self.gate_for(ctx, row, cache)
                 if gate.visible:
                     visible.append(row)
                     gates[row.id] = gate
@@ -364,11 +453,13 @@ class NotificationCenterService:
             self.db,
             recipient_id=user_id,
             organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
             cap=_UNREAD_CANDIDATE_CAP,
         )
+        cache = await self._build_gate_cache(ctx, candidates)
         count = 0
         for row in candidates:
-            gate = await self.gate_for(ctx, row)
+            gate = await self.gate_for(ctx, row, cache)
             if gate.visible:
                 count += 1
         return count
@@ -384,6 +475,7 @@ class NotificationCenterService:
             notification_id=notification_id,
             recipient_id=user_id,
             organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
         )
         if notification is None:
             raise NotFoundError(
@@ -408,11 +500,13 @@ class NotificationCenterService:
             self.db,
             recipient_id=user_id,
             organization_id=ctx.organization_id,
+            is_app_admin=ctx.is_app_admin,
             cap=_UNREAD_CANDIDATE_CAP,
         )
+        cache = await self._build_gate_cache(ctx, candidates)
         visible_ids = []
         for row in candidates:
-            gate = await self.gate_for(ctx, row)
+            gate = await self.gate_for(ctx, row, cache)
             if gate.visible:
                 visible_ids.append(row.id)
         return await notification_repo.mark_ids_read(
@@ -427,7 +521,52 @@ class NotificationCenterService:
 
     # -- the gate-aware predicate itself ---------------------------------
 
-    async def gate_for(self, ctx: AuthContext, notification: Notification) -> _Gate:
+    async def _build_gate_cache(
+        self, ctx: AuthContext, notifications: list[Notification]
+    ) -> _GateCache:
+        """Resolve every `COLLECTIONS_VIEW`/`ANNOUNCEMENT_AUDIENCE` row's
+        dependency once for the whole batch, ahead of the per-row `gate_for`
+        calls that follow - one query per *distinct* collection or
+        announcement in the batch, not one per row, even when several rows
+        (an ingestion outcome and its own sync summary; several recipients of
+        one announcement) share the same one."""
+        collection_ids: set[uuid.UUID] = set()
+        announcement_ids: set[uuid.UUID] = set()
+        for notification in notifications:
+            gate = content_gate_for(NotificationEventType(notification.event_type))
+            if gate is ContentGate.COLLECTIONS_VIEW:
+                raw_collection_id = (notification.render_context or {}).get("collection_id")
+                if raw_collection_id:
+                    # Nothing this service writes produces a malformed value,
+                    # but `render_context` is a JSONB blob with no schema
+                    # enforcement - one is treated the same as a collection
+                    # that no longer exists, silently.
+                    with contextlib.suppress(ValueError):
+                        collection_ids.add(uuid.UUID(str(raw_collection_id)))
+            elif (
+                gate is ContentGate.ANNOUNCEMENT_AUDIENCE
+                and notification.announcement_id is not None
+            ):
+                announcement_ids.add(notification.announcement_id)
+
+        kb_by_id = await knowledge_base_repo.get_by_ids(self.db, list(collection_ids))
+        kb_access_by_id = {
+            kb_id: await readable_kb(self.db, ctx, kb) for kb_id, kb in kb_by_id.items()
+        }
+        announcements = await notification_repo.get_announcements(self.db, list(announcement_ids))
+        announcement_visible_by_id = {
+            announcement.id: await self._resolve_announcement_visible(ctx, announcement)
+            for announcement in announcements
+        }
+        return _GateCache(
+            kb_by_id=kb_by_id,
+            kb_access_by_id=kb_access_by_id,
+            announcement_visible_by_id=announcement_visible_by_id,
+        )
+
+    async def gate_for(
+        self, ctx: AuthContext, notification: Notification, cache: _GateCache | None = None
+    ) -> _Gate:
         """Decision 7's recheck for one row, against `ctx`'s *current* standing.
 
         Public rather than the four read paths' private helper: the email
@@ -438,7 +577,15 @@ class NotificationCenterService:
         `runs:view` would otherwise still be mailed after they no longer
         did. One gate, read by both channels, is what keeps that from being
         two answers to the same question that can disagree.
+
+        `cache`, when given, is `_build_gate_cache`'s per-page batching - the
+        read paths checking several rows at once build one and pass it in.
+        A caller checking a single row on its own (`mark_one_read`,
+        `notification_delivery.py`'s send-time recheck) gets one built just
+        for it.
         """
+        if cache is None:
+            cache = await self._build_gate_cache(ctx, [notification])
         gate = content_gate_for(NotificationEventType(notification.event_type))
         if gate is ContentGate.NONE:
             return _Gate(visible=True)
@@ -461,26 +608,46 @@ class NotificationCenterService:
         if gate is ContentGate.RUNS_VIEW:
             return _Gate(visible=ctx.has(Perm.RUNS_VIEW))
         if gate is ContentGate.COLLECTIONS_VIEW:
-            return _Gate(visible=await self._collections_visible(ctx, notification))
+            return _Gate(visible=self._collections_visible(ctx, notification, cache))
         if gate is ContentGate.ANNOUNCEMENT_AUDIENCE:
-            return _Gate(visible=await self._announcement_visible(ctx, notification))
+            return _Gate(visible=self._announcement_visible(notification, cache))
         raise AssertionError(f"unhandled content gate: {gate}")  # pragma: no cover
 
-    async def _collections_visible(self, ctx: AuthContext, notification: Notification) -> bool:
+    def _collections_visible(
+        self, ctx: AuthContext, notification: Notification, cache: _GateCache
+    ) -> bool:
         """`render_context["collection_id"]` is this event's own contract
         (Decision 1): the knowledge base an ingestion outcome is about, read
-        back here rather than trusted from anywhere else."""
+        back via `cache` (built by `_build_gate_cache`) rather than trusted
+        from anywhere else."""
         render_context = notification.render_context or {}
         raw_collection_id = render_context.get("collection_id")
         if raw_collection_id is None:
             return False
         if raw_collection_id == "":
-            # `NotificationService.sync_failed` writes this literal empty
-            # string for a sync that never reached a collection - an unknown
-            # connector, a source with no collection assigned - so there is
-            # nothing to recheck access against. The audience was already
-            # narrowed to the initiator or an org admin when this was written.
-            return True
+            # `NotificationService`'s ingestion-outcome writes stamp this
+            # literal empty string whenever the FK they read
+            # (`doc.knowledge_base_id`) is already null at write time - and
+            # that is ambiguous on its own. A source that never had a
+            # collection assigned reads back null the same way one whose
+            # collection was deleted (`ondelete="SET NULL"`) mid-ingestion
+            # does, in the gap between the FK read and this write. `doc
+            # .collection_name` is a plain column, independent of that FK,
+            # so it still holds the name in the second case - its presence
+            # is what tells the two apart.
+            if not render_context.get("collection_name"):
+                # Genuinely never assigned: there is nothing to recheck
+                # access against, and the audience was already narrowed to
+                # the initiator or an org admin when this was written.
+                return True
+            # The collection existed and is gone, so there is no live grant
+            # left to check - fall back to the same escalation roles
+            # `ORG_ADMIN_OR_APP_ADMIN` checks elsewhere in this method,
+            # rechecked fresh against the caller's *current* standing rather
+            # than trusting who was an admin when this was written. That
+            # freshness is what a live collection already gets for free,
+            # from `readable_kb`'s own fresh recheck below.
+            return ctx.is_app_admin or ctx.role in _ESCALATION_ROLES
         try:
             collection_id = uuid.UUID(str(raw_collection_id))
         except ValueError:
@@ -490,32 +657,31 @@ class NotificationCenterService:
             # rather than a 500 that takes the rest of the caller's inbox
             # down with this one row.
             return False
-        kb = await knowledge_base_repo.get_by_id(self.db, collection_id)
-        if kb is None:
+        if collection_id not in cache.kb_by_id:
             return False
-        # `readable_kb`, not the raw `resolve_access` call it wraps: a
-        # personal knowledge base is owner-only by construction
-        # (`collection_access.py`), and `resolve_access` alone has no notion
-        # of that - an org admin whose `collections:view` scope is `ALL`
-        # would pass the generic grant check for a colleague's personal
-        # collection, leaking that its ingestion notifications (filenames,
-        # outcomes) exist at all.
-        return await readable_kb(self.db, ctx, kb)
+        # `cache.kb_access_by_id` is `readable_kb`'s own check
+        # (`collection_access.py`), not the raw `resolve_access` call it
+        # wraps: a personal knowledge base is owner-only by construction,
+        # and `resolve_access` alone has no notion of that - an org admin
+        # whose `collections:view` scope is `ALL` would pass the generic
+        # grant check for a colleague's personal collection, leaking that
+        # its ingestion notifications (filenames, outcomes) exist at all.
+        return cache.kb_access_by_id.get(collection_id, False)
 
-    async def _announcement_visible(self, ctx: AuthContext, notification: Notification) -> bool:
-        # `ctx.user_id` is already guaranteed non-null here - every caller of
-        # `gate_for` goes through `_require_caller` first. `announcement_id` is
-        # not: nothing ties it to `event_type` at the schema level, so a
-        # malformed row is possible even though nothing this service writes
-        # produces one.
-        assert ctx.user_id is not None
+    def _announcement_visible(self, notification: Notification, cache: _GateCache) -> bool:
         if notification.announcement_id is None:
             return False
-        announcement = await notification_repo.get_announcement(
-            self.db, notification.announcement_id
-        )
-        if announcement is None:
-            return False
+        return cache.announcement_visible_by_id.get(notification.announcement_id, False)
+
+    async def _resolve_announcement_visible(
+        self, ctx: AuthContext, announcement: Announcement
+    ) -> bool:
+        """The actual audience check `_announcement_visible` used to run per
+        row - now run once per distinct announcement in a batch, by
+        `_build_gate_cache`."""
+        # `ctx.user_id` is already guaranteed non-null here - every caller of
+        # `gate_for` goes through `_require_caller` first.
+        assert ctx.user_id is not None
         spec = announcement.audience_spec or {}
         role = spec.get("role")
         # An "admin" audience means the same escalation roles `org_admins`
