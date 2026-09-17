@@ -16,6 +16,7 @@ import logging
 from datetime import UTC, datetime
 
 from prefect import flow
+from prefect.context import FlowRunContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -48,8 +49,24 @@ async def _run_reports(period: ReportPeriod) -> dict[str, int]:
     the occurrence id and defeat the dedup it exists for. A weekly or monthly
     digest loses nothing readers would notice from being dated to the day
     rather than the second.
+
+    Rounding alone still misses one case: a retry that itself straddles
+    midnight (the first attempt at 23:59:58, the retry at 00:00:02) rounds to
+    two different days on wall-clock time alone. `FlowRunContext.flow_run
+    .expected_start_time` is Prefect's own scheduled time for this run, fixed
+    when the run was scheduled and identical across every attempt of it -
+    reading it instead closes that gap. Outside a real flow run (every test
+    here, which calls this directly) `FlowRunContext.get()` is `None`, and
+    wall-clock time is the only answer there is.
     """
-    window_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    flow_run_context = FlowRunContext.get()
+    expected_start_time = (
+        flow_run_context.flow_run.expected_start_time
+        if flow_run_context is not None and flow_run_context.flow_run is not None
+        else None
+    )
+    base_time = expected_start_time if expected_start_time is not None else datetime.now(UTC)
+    window_start = base_time.replace(hour=0, minute=0, second=0, microsecond=0)
     async with get_db_context() as db:
         organizations = await organization_repo.list_all(db)
         notifications = NotificationService(db)

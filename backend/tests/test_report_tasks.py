@@ -213,3 +213,19 @@ class TestWindowStartIsIdempotentAcrossRetries:
         first = await self._captured_window_starts()
         second = await self._captured_window_starts()
         assert first[0] == second[0]
+
+    @pytest.mark.anyio
+    async def test_a_real_flow_runs_scheduled_time_wins_over_the_midnight_it_straddles(self):
+        """Rounding alone survives a retry landing a few seconds later, not
+        one whose wall clock crosses midnight between attempts. Two
+        attempts of the *same scheduled run* share one `expected_start_time`
+        regardless of when either actually executes - reading it, when a
+        real flow run provides one, is what closes that gap."""
+        expected_start_time = datetime(2026, 3, 4, 23, 59, 59, tzinfo=UTC)
+        flow_run_context = MagicMock()
+        flow_run_context.flow_run.expected_start_time = expected_start_time
+
+        with patch(f"{MODULE}.FlowRunContext.get", return_value=flow_run_context):
+            captured = await self._captured_window_starts()
+
+        assert captured[0] == datetime(2026, 3, 4, tzinfo=UTC)
