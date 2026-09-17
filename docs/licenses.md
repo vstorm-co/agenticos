@@ -128,10 +128,11 @@ Debian keeps each package's licence at `/usr/share/doc/<package>/copyright` insi
 the image and publishes the corresponding source for every binary it ships, which
 is what the GPL and LGPL source obligation for a redistributed image rests on. The
 backend image adds LibreOffice (MPL-2.0) and Tesseract (Apache-2.0) as Debian
-packages, used unmodified as separate processes. The per-release SBOM planned in
-[#1415](https://github.com/vstorm-co/agenticos/issues/1415) will record the exact
-package set of each image; until it ships, the Dockerfiles and the base image
-digests are the inventory of that layer.
+packages, used unmodified as separate processes. The per-release SBOM records the
+exact package set of each image: `sbom-api.cdx.json` and `sbom-frontend.cdx.json`
+are attached to every release, generated from the published manifests, and
+[the component inventory](reference/components.md) is the readable index of
+them.
 
 ## The AGPL component
 
@@ -280,8 +281,10 @@ Before a release is cut, and as evidence attached to it:
   release actually uses
 - [ ] If a model family was added to the catalog or the model table above, its
   licence was read from the current model card
-- [ ] When the per-release SBOM from #1415 exists: it is attached to the release
-  and its component set agrees with the notices for the two images
+- [ ] The release carries `sbom-api.cdx.json` and `sbom-frontend.cdx.json`, and
+  their component set agrees with the notices for the two images
+- [ ] The [component inventory](reference/components.md) still describes the sets
+  this release ships
 
 ## Recap
 
