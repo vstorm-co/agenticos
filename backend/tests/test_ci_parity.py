@@ -90,6 +90,11 @@ CI_ONLY_TARGETS = {
     # Informational, `if: always()`, and reported at `--cov-fail-under=0`. It
     # gates nothing, so requiring it locally would only cost a second suite run.
     "coverage-all",
+    # Starts MinIO for `tests/integration/test_s3_file_storage.py` (#1423).
+    # Environment setup rather than a check - `check` checks a checkout, it does
+    # not build one - and the suite skips itself where the store is not there, so
+    # a laptop without Docker still runs everything else.
+    "docker-minio",
     # Writes the security refusal-test list to the job summary and an artifact
     # (#1417). Informational and `if: always()`; the `security` marker is held by
     # `tests/test_security_marker.py`, which `make test` already runs, so the
