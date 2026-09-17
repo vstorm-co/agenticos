@@ -1404,8 +1404,7 @@ class TestAPagesOwnPicture:
     @pytest.mark.anyio
     async def test_the_public_route_serves_the_uploaded_file(self):
         embed = _embed(kind="page", config={"logo": "custom"}, logo_path="0f9c/abc123_logo.png")
-        storage = MagicMock()
-        storage.get_full_path.return_value = MagicMock(exists=lambda: True)
+        storage = MagicMock(exists=AsyncMock(return_value=True))
 
         with (
             patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=embed)),
@@ -1413,8 +1412,10 @@ class TestAPagesOwnPicture:
         ):
             path = await _service().page_logo_path("key-123")
 
-        assert path is not None
-        storage.get_full_path.assert_called_once_with("0f9c/abc123_logo.png")
+        # The storage path rather than a path on this host: the route resolves it
+        # through the backend, which may be an object store (#1423).
+        assert path == "0f9c/abc123_logo.png"
+        storage.exists.assert_awaited_once_with("0f9c/abc123_logo.png")
 
     @pytest.mark.anyio
     async def test_a_custom_logo_with_nothing_uploaded_shows_none(self):
@@ -1463,8 +1464,7 @@ class TestAPagesOwnPicture:
         """A path in the column is not a file on the disk. The route resolves the
         one and answers 404 for the other, so this has to ask the same question."""
         embed = _embed(kind="page", config={"logo": "agent"})
-        storage = MagicMock()
-        storage.get_full_path.return_value = MagicMock(exists=lambda: False)
+        storage = MagicMock(exists=AsyncMock(return_value=False))
 
         with (
             patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_agent("a/b.png"))),
@@ -1477,8 +1477,7 @@ class TestAPagesOwnPicture:
     @pytest.mark.anyio
     async def test_an_avatar_that_is_there_is_advertised(self):
         embed = _embed(kind="page", config={"logo": "agent"})
-        storage = MagicMock()
-        storage.get_full_path.return_value = MagicMock(exists=lambda: True)
+        storage = MagicMock(exists=AsyncMock(return_value=True))
 
         with (
             patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_agent("a/b.png"))),
