@@ -1022,7 +1022,7 @@ class ConversationService:
             )
 
     async def list_turn_attachments(
-        self, message_id: UUID, file_ids: list[str], *, user_id: UUID
+        self, message_id: UUID | None, file_ids: list[str], *, user_id: UUID
     ) -> list[Any]:
         """This turn's attachments: the caller's own files among `file_ids` that
         are linked to this turn's message or still unlinked (#1756).
@@ -1036,6 +1036,10 @@ class ConversationService:
         transient link failure does not silently drop the turn's attachments; a
         file already on a *different* message is skipped - `persist_user_turn`
         refuses to re-link one, so it never reaches here.
+
+        `message_id` is None when `persist_user_turn` swallowed a write failure and
+        wrote no prompt row: only the caller's still-unlinked uploads then match, so
+        the files still reach the model rather than being dropped (#1654 review).
         """
         ids, _ = _file_uuids(file_ids)
         rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)

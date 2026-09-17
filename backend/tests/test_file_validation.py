@@ -21,6 +21,9 @@ validate_bytes = FileUploadService.validate_bytes
 OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1rest"
 ZIP = b"PK\x03\x04rest"
 TIFF_LE = b"II*\x00rest"
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
+GIF = b"GIF89a" + b"\x00" * 16
 
 
 class TestTheMetadataPhase:
@@ -108,3 +111,18 @@ class TestTheBytePhase:
         valid, message = validate_bytes(b"GIF89a...", "image/tiff", "s.tiff")
         assert valid is False
         assert message is not None and "do not match" in message
+
+    def test_a_valid_web_safe_image_passes(self):
+        assert validate_bytes(PNG, "image/png", "a.png")[0] is True
+        assert validate_bytes(JPEG, None, "b.jpg")[0] is True
+        assert validate_bytes(GIF, "application/octet-stream", "c.gif")[0] is True
+
+    def test_a_corrupt_web_safe_image_is_refused(self):
+        # A `.png` whose bytes are not a PNG would be stored under `image/png` and
+        # then fail at the vision provider, killing the turn: refuse it here (#1654).
+        valid, message = validate_bytes(b"not an image at all", None, "a.png")
+        assert valid is False
+        assert message is not None and "do not match" in message
+
+    def test_a_web_safe_image_whose_bytes_are_a_different_image_is_refused(self):
+        assert validate_bytes(PNG, "image/jpeg", "b.jpg")[0] is False

@@ -30,7 +30,7 @@ import weakref
 from pathlib import Path
 from typing import cast
 
-from app.core.blocking import run_blocking
+from app.core.blocking import create_cancel_safe, run_blocking
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,18 @@ async def _convert(soffice: str, data: bytes, suffix: str, timeout: float) -> st
     # the request loop, the same rule `parse_content` and `file_storage` follow, so
     # a slow or contended container filesystem cannot stall unrelated requests
     # (#1108, #1591).
-    tmp = await run_blocking(_make_tmpdir)
+    # Created cancellation-safe: `run_blocking` cannot interrupt a submitted job, so
+    # a task cancelled while `mkdtemp` was in flight would leave `/tmp/chatconv-*`
+    # created but never assigned to `tmp` and never cleaned, and repeated cancelled
+    # DOC uploads would leak temp storage. `create_cancel_safe` shields the create
+    # and, on cancellation, removes what it made before the cancel propagates - the
+    # holder carries the generated path out, since it returns None (#1654 review).
+    holder: list[str] = []
+    await create_cancel_safe(
+        lambda: holder.append(_make_tmpdir()),
+        lambda: shutil.rmtree(holder[0], ignore_errors=True) if holder else None,
+    )
+    tmp = holder[0]
     try:
         tmpdir = Path(tmp)
         source = tmpdir / f"input{suffix}"
@@ -137,7 +148,14 @@ async def _convert(soffice: str, data: bytes, suffix: str, timeout: float) -> st
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
         )
-        stderr = await _run(proc, timeout)
+        # The process-group id, captured now, not derived at teardown. Reading
+        # `os.getpgid(proc.pid)` after a timeout or cancellation could race the child
+        # watcher reaping the leader (LibreOffice's launcher exits after forking
+        # `soffice.bin`) and raise `ProcessLookupError`, so teardown returned without
+        # signalling a survivor still in the group. `start_new_session=True` makes the
+        # child a group leader, so its pgid is its pid (#1654 review).
+        pgid = proc.pid
+        stderr = await _run(proc, pgid, timeout)
         if stderr is None:
             return None
         if proc.returncode != 0:
@@ -166,7 +184,7 @@ def _read_output(output: Path) -> str | None:
     return output.read_text("utf-8", errors="replace").strip() or None
 
 
-async def _run(proc: asyncio.subprocess.Process, timeout: float) -> bytes | None:
+async def _run(proc: asyncio.subprocess.Process, pgid: int, timeout: float) -> bytes | None:
     """Await the process draining stderr; kill the group on timeout or cancellation.
 
     Returns the captured stderr prefix, or `None` when the process timed out (and
@@ -177,11 +195,11 @@ async def _run(proc: asyncio.subprocess.Process, timeout: float) -> bytes | None
     try:
         stderr = await asyncio.wait_for(_drain(proc), timeout=timeout)
     except TimeoutError:
-        await _terminate(proc)
+        await _terminate(proc, pgid)
         logger.warning("libreoffice_convert_timeout")
         return None
     except asyncio.CancelledError:
-        await _terminate(proc)
+        await _terminate(proc, pgid)
         raise
     else:
         return stderr
@@ -200,20 +218,17 @@ async def _drain(proc: asyncio.subprocess.Process) -> bytes:
     return bytes(captured)
 
 
-async def _terminate(proc: asyncio.subprocess.Process) -> None:
+async def _terminate(proc: asyncio.subprocess.Process, pgid: int) -> None:
     """Kill the process group and reap it, shielded so a cancellation cannot orphan it."""
-    await asyncio.shield(asyncio.ensure_future(_teardown(proc)))
+    await asyncio.shield(asyncio.ensure_future(_teardown(proc, pgid)))
 
 
-async def _teardown(proc: asyncio.subprocess.Process) -> None:
-    # The group id is read *once*, up front, while the leader is certainly alive.
-    # Deriving it again after `_reap` has waited the leader is unsafe: the pid is
-    # gone (or recycled) by then, so a later `os.getpgid(proc.pid)` would raise or
-    # name a different group.
-    try:
-        pgid = os.getpgid(proc.pid)
-    except ProcessLookupError:
-        return
+async def _teardown(proc: asyncio.subprocess.Process, pgid: int) -> None:
+    # `pgid` was captured at spawn, so it is used directly rather than re-derived
+    # from `proc.pid`: by teardown the leader may already be reaped, and
+    # `os.getpgid` would then raise `ProcessLookupError` and leave a surviving
+    # descendant in the group unsignalled (#1654 review). `_killpg` already swallows
+    # a group that is wholly gone.
     _killpg(pgid, signal.SIGTERM)
     if not await _reap(proc, settings.CHAT_CONVERT_KILL_GRACE_SECONDS):
         _killpg(pgid, signal.SIGKILL)

@@ -123,7 +123,6 @@ class TestTheHappyAndFailurePaths:
 class TestTeardown:
     async def test_a_timeout_kills_and_returns_none(self, monkeypatch, present):
         killed: list[tuple[int, int]] = []
-        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
         monkeypatch.setattr(
             office_convert.os, "killpg", lambda pgid, sig: killed.append((pgid, sig))
         )
@@ -131,7 +130,8 @@ class TestTeardown:
         result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
 
         assert result is None
-        assert killed and killed[0][0] == 999  # the group was signalled
+        # The group, signalled by the pgid captured at spawn (the leader's pid).
+        assert killed and killed[0][0] == 4242
 
     async def test_a_wedged_child_is_escalated_to_kill(self, monkeypatch, present):
         signals: list[int] = []
@@ -147,16 +147,25 @@ class TestTeardown:
         assert office_convert.signal.SIGTERM in signals
         assert office_convert.signal.SIGKILL in signals
 
-    async def test_a_dead_group_is_swallowed_not_raised(self, monkeypatch, present):
-        """`getpgid` on an already-reaped pid raises `ProcessLookupError`; teardown
-        must absorb it rather than turning a timeout into a crash."""
+    async def test_the_group_is_signalled_from_the_spawn_time_pgid(self, monkeypatch, present):
+        """The pgid is captured at spawn, so a leader reaped before teardown - which
+        would make a teardown-time `os.getpgid` raise `ProcessLookupError` and skip
+        the kill - does not stop the surviving group being signalled (#1654 review)."""
+        killed: list[tuple[int, int]] = []
 
         def _gone(_pid: int) -> int:
             raise ProcessLookupError
 
         monkeypatch.setattr(office_convert.os, "getpgid", _gone)
+        monkeypatch.setattr(
+            office_convert.os, "killpg", lambda pgid, sig: killed.append((pgid, sig))
+        )
 
-        assert await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01) is None
+        result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
+
+        assert result is None
+        # Signalled with the spawn-time pgid, never a teardown re-derivation.
+        assert killed and killed[0][0] == 4242
 
     async def test_cancellation_kills_the_group_and_propagates(self, monkeypatch, present):
         killed: list[int] = []
@@ -231,3 +240,41 @@ class TestConcurrency:
         ]
         assert len(profiles) == 2
         assert profiles[0] != profiles[1]  # a per-call profile, not one shared lock
+
+
+class TestTmpdirCancellationSafety:
+    async def test_a_cancel_during_tmpdir_creation_cleans_it_up(self, monkeypatch, present):
+        """`run_blocking` cannot interrupt `mkdtemp`; a task cancelled while it runs
+        must not leave `/tmp/chatconv-*` created-but-unreferenced (#1654 review)."""
+        import time
+
+        created: list[str] = []
+        removed: list[str] = []
+        real_mkdtemp = office_convert.tempfile.mkdtemp
+        real_rmtree = office_convert.shutil.rmtree
+
+        def slow_mkdtemp(**kwargs: object) -> str:
+            time.sleep(0.1)
+            path = real_mkdtemp(**kwargs)
+            created.append(path)
+            return path
+
+        def recording_rmtree(path: object, *args: object, **kwargs: object) -> None:
+            removed.append(str(path))
+            real_rmtree(str(path), ignore_errors=True)
+
+        monkeypatch.setattr(office_convert.tempfile, "mkdtemp", slow_mkdtemp)
+        monkeypatch.setattr(office_convert.shutil, "rmtree", recording_rmtree)
+
+        task = asyncio.ensure_future(
+            office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=10)
+        )
+        await asyncio.sleep(0.02)
+        task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        # mkdtemp ran to completion under the shield, and the created dir was removed.
+        assert created
+        assert removed == created

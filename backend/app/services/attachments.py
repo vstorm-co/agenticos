@@ -616,7 +616,7 @@ async def load_attached_files(db: Any, file_ids: list[str], *, user_id: UUID) ->
 
 
 async def load_turn_attachments(
-    db: Any, message_id: UUID, file_ids: list[str], *, user_id: UUID
+    db: Any, message_id: UUID | None, file_ids: list[str], *, user_id: UUID
 ) -> list[ChatFile]:
     """This turn's attachments: linked to its message or the caller's own still-
     unlinked uploads, read by id rather than by the frame's re-validated ids (#1756)."""

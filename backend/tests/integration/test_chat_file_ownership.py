@@ -310,3 +310,16 @@ class TestTheRunReadsItsOwnTurn:
             )
             == []
         )
+
+    async def test_a_lost_prompt_row_still_reads_the_unlinked_uploads(self, db) -> None:
+        """`persist_user_turn` swallowed a write failure and wrote no message, so
+        message_id is None; the caller's still-unlinked uploads must still reach the
+        model rather than being dropped from a billed turn (#1654 review)."""
+        owner = await _member(db)
+        unlinked = await _upload(db, owner)
+
+        rows = await ConversationService(db).list_turn_attachments(
+            None, [str(unlinked.id)], user_id=owner.id
+        )
+
+        assert [row.id for row in rows] == [unlinked.id]

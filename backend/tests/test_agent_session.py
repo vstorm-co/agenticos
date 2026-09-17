@@ -1491,6 +1491,31 @@ class TestAttachedFiles:
         assert load.await_args.args[1] == prompt_message_id
         assert load.await_args.args[2] == ["f1", "f2"]
 
+    async def test_a_lost_prompt_row_still_loads_the_files(self):
+        """`persist_user_turn` swallows a transient write failure, leaving
+        `message_id` None; the files must still be loaded (the loader keeps the
+        caller's unlinked uploads for a None message) rather than dropped from a
+        billed turn (#1654 review)."""
+        session = _session()
+        rows = [MagicMock()]
+        run = AsyncMock(return_value=_finished_turn())
+
+        with (
+            _chat(run, prompt_message_id=None),
+            patch(
+                "app.services.agent_session.load_turn_attachments",
+                new=AsyncMock(return_value=rows),
+            ) as load,
+        ):
+            await session.process_message(
+                {"message": "look", "agent_id": str(uuid4()), "file_ids": ["f1"]}
+            )
+
+        assert run.await_args is not None
+        assert run.await_args.kwargs["attachments"] == rows
+        # Not short-circuited to []: the loader is called with a None message id.
+        assert load.await_args.args[1] is None
+
 
 class TestStreamingAModelResponse:
     """Every model-request event, translated into the frame the chat reads.

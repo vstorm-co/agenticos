@@ -352,10 +352,13 @@ class AgentSession:
             # The files, not a prompt built from them. Where an attachment goes
             # depends on whether the agent has a workspace, and only `prepare`
             # knows that - so the routing happens one layer down.
+            # `prompt.message_id` may be None when `persist_user_turn` swallowed a
+            # transient write failure so the turn could still run. The load path
+            # keeps the caller's still-unlinked uploads in that case (a None message
+            # matches unlinked rows), so a lost prompt row does not silently drop
+            # the files the user submitted and paid for (#1654 review).
             attachments = (
-                await self._attached_files(prompt.message_id, file_ids)
-                if file_ids and prompt.message_id is not None
-                else []
+                await self._attached_files(prompt.message_id, file_ids) if file_ids else []
             )
 
             frames = RunFrames(
@@ -737,7 +740,7 @@ class AgentSession:
                 exclude_message_id=prompt_message_id,
             )
 
-    async def _attached_files(self, message_id: UUID, file_ids: list[Any]) -> list[ChatFile]:
+    async def _attached_files(self, message_id: UUID | None, file_ids: list[Any]) -> list[ChatFile]:
         """The rows for the files this turn attached (#1756).
 
         Read on their own session: the turn's own session is opened later and

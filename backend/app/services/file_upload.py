@@ -27,7 +27,12 @@ from app.services.file_storage import (
     normalize_media_type,
     resolve_format,
     sniff_container,
+    sniff_image_header,
 )
+
+# The web-safe raster images: no ZIP/OLE/TIFF container, but each has a cheap
+# magic-number signature the byte phase can still check (#1654 review).
+_WEB_SAFE_IMAGE_MIMES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
 from app.services.office_convert import libreoffice_convert
 
 logger = logging.getLogger(__name__)
@@ -131,6 +136,23 @@ def _decode_declared(data: bytes) -> str | None:
     return None
 
 
+def _charset_param(content_type: str | None) -> str | None:
+    """The `charset` of a media type, lower-cased, or None.
+
+    A `text/plain; charset=windows-1252` upload names an encoding the text parser
+    must try: `validate_upload` accepts the parameterised type, but `canonical_mime`
+    strips the parameter for persistence, so it is read from the caller's declared
+    type before that happens and threaded into decoding (#1654 review).
+    """
+    if not content_type or ";" not in content_type:
+        return None
+    for part in content_type.split(";")[1:]:
+        key, _, value = part.strip().partition("=")
+        if key.strip().lower() == "charset":
+            return value.strip().strip('"').lower() or None
+    return None
+
+
 def safe_unzip(data: bytes) -> io.BytesIO:
     """Validate a ZIP-backed office file's decompression, then hand back a stream.
 
@@ -178,6 +200,29 @@ def _clamp_odf_space_runs(document: Any, budget: int) -> None:
         clamped = max(0, min(count, remaining))
         element.setAttribute("c", str(clamped))
         remaining -= clamped
+
+
+def _odf_text_blocks(document: Any, qnames: set[tuple[str, str]]) -> list[str]:
+    """`extractText` of every element whose qname is in `qnames`, in document order.
+
+    A pre-order walk of the body that does not descend into a collected block, so
+    the paragraphs and headings interleave in reading order and nothing is
+    extracted twice. `getElementsByType` per type would lose that interleaving,
+    which is exactly the structure a heading carries (#1654 review).
+    """
+    from odf.teletype import extractText
+
+    lines: list[str] = []
+
+    def walk(node: Any) -> None:
+        for child in getattr(node, "childNodes", ()):
+            if getattr(child, "qname", None) in qnames:
+                lines.append(extractText(child))
+            else:
+                walk(child)
+
+    walk(document.body)
+    return lines
 
 
 @dataclass(frozen=True)
@@ -331,13 +376,22 @@ class FileUploadService:
         OLE-backed legacy formats, the ZIP-backed OOXML/OpenDocument ones — the magic
         bytes must match the resolved format. This catches a forged signature and a
         MIME/extension conflict that only the content reveals, on a file that already
-        cleared `validate_upload`. Formats with no cheap signature (PDF, the text
-        family, the web-safe images) are not sniffed here.
+        cleared `validate_upload`. PDF and the text family have no cheap signature and
+        are not sniffed; the web-safe images do have one and are checked below, so a
+        corrupt or mislabelled image is refused at upload rather than stored under an
+        image MIME and failing the whole chat turn at the vision provider (#1654).
         """
         container = expected_container(content_type, filename)
-        if container is None:
+        if container is not None:
+            if sniff_container(data) != container:
+                return (
+                    False,
+                    "This file could not be accepted — its contents do not match its "
+                    "type or extension.",
+                )
             return True, None
-        if sniff_container(data) != container:
+        resolved = canonical_mime(content_type, filename)
+        if resolved in _WEB_SAFE_IMAGE_MIMES and sniff_image_header(data) != resolved:
             return (
                 False,
                 "This file could not be accepted — its contents do not match its "
@@ -356,6 +410,7 @@ class FileUploadService:
         file_type: str,
         mime_type: str = "",
         filename: str = "",
+        charset: str | None = None,
     ) -> str | None:
         """Parse file content into text, dispatched by the canonical format.
 
@@ -369,12 +424,15 @@ class FileUploadService:
         `soffice` subprocess (`office_convert.py`), already off the loop and bounded
         by its own semaphore.
         """
-        text = await self._parse_by_format(data, file_type, resolve_format(mime_type, filename))
+        fmt = resolve_format(mime_type, filename)
+        text = await self._parse_by_format(data, file_type, fmt, charset)
         return cap_text(text, settings.CHAT_PARSED_TEXT_MAX_CHARS)
 
-    async def _parse_by_format(self, data: bytes, file_type: str, fmt: str) -> str | None:
+    async def _parse_by_format(
+        self, data: bytes, file_type: str, fmt: str, charset: str | None = None
+    ) -> str | None:
         if file_type == "text":
-            return await run_blocking(self._parse_text_content, data)
+            return await run_blocking(self._parse_text_content, data, charset)
         if file_type == "pdf":
             return await run_blocking(self._parse_pdf_content, data)
         if file_type == "docx":
@@ -398,18 +456,28 @@ class FileUploadService:
         return None
 
     @staticmethod
-    def _parse_text_content(data: bytes) -> str | None:
+    def _parse_text_content(data: bytes, charset: str | None = None) -> str | None:
         """Extract text from text-based files.
 
         UTF-8 first, then a BOM/`encoding=`-declaration fallback: a UTF-16 or UTF-32
         XML document (common for exported XML) would fail an unconditional UTF-8
         decode, so its declared encoding is honoured rather than assumed (#1591,
-        §7 #9).
+        §7 #9). Last, the media type's own `charset` when the caller declared one: a
+        `text/plain; charset=windows-1252` file has neither a BOM nor an XML
+        declaration, so without this it decoded to nothing at all (#1654 review).
         """
         try:
             return data.decode("utf-8")
         except UnicodeDecodeError:
-            return _decode_declared(data)
+            declared = _decode_declared(data)
+            if declared is not None:
+                return declared
+            if charset:
+                try:
+                    return data.decode(charset)
+                except (LookupError, UnicodeDecodeError):
+                    return None
+            return None
 
     @staticmethod
     def _parse_pdf_pymupdf(data: bytes) -> str | None:
@@ -527,21 +595,33 @@ class FileUploadService:
             )
             blocks: list[str] = []
             budget = _XLS_MAX_CELLS
+            # A character budget beside the cell count, charged per cell *before* the
+            # `"\t".join` below. A BIFF shared string can be reused by up to a million
+            # LABELSST cells at a few bytes each, so the cell count alone does not stop
+            # a single ~32 KB string from materialising a multi-GB join long before
+            # `cap_text` runs - the same bound the ODS parser already carries (#1654
+            # review).
+            char_budget = settings.CHAT_PARSED_TEXT_MAX_CHARS
             for sheet in book.sheets():
                 rows: list[str] = []
                 for r in range(sheet.nrows):
-                    width = sheet.row_len(r)
-                    cells = [_xls_cell(book, sheet.cell(r, c)) for c in range(width)]
-                    budget -= width
+                    cells: list[str] = []
+                    for c in range(sheet.row_len(r)):
+                        text = _xls_cell(book, sheet.cell(r, c))
+                        cells.append(text)
+                        budget -= 1
+                        char_budget -= len(text)
+                        if budget <= 0 or char_budget <= 0:
+                            break
                     while cells and cells[-1] == "":
                         cells.pop()
                     if cells:
                         rows.append("\t".join(cells))
-                    if budget <= 0:
+                    if budget <= 0 or char_budget <= 0:
                         break
                 if rows:
                     blocks.append(f"Sheet: {sheet.name}\n" + "\n".join(rows))
-                if budget <= 0:
+                if budget <= 0 or char_budget <= 0:
                     break
             return "\n\n".join(blocks) or None
         except Exception as e:
@@ -552,10 +632,12 @@ class FileUploadService:
     def _parse_ods_content(data: bytes) -> str | None:
         """Extract an OpenDocument spreadsheet as tab-separated sheets."""
         try:
+            from odf.namespaces import TABLENS
             from odf.opendocument import load
-            from odf.table import Table, TableCell, TableRow
+            from odf.table import Table, TableRow
             from odf.teletype import extractText
 
+            covered_q = (TABLENS, "covered-table-cell")
             document: Any = load(safe_unzip(data))
             # `extractText` below expands `<text:s>` before any cap, so the space
             # runs are clamped in the DOM first (#1591, §7 finding 3).
@@ -568,8 +650,16 @@ class FileUploadService:
                 rows: list[str] = []
                 for row in table.getElementsByType(TableRow):
                     cells: list[str] = []
-                    for cell in row.getElementsByType(TableCell):
-                        text = extractText(cell)
+                    # Walk the row's own children in order, not `getElementsByType`:
+                    # a merged range represents its non-leading positions with
+                    # `table:covered-table-cell`, a distinct element that the type
+                    # filter skipped - so a value after a merge shifted a column left
+                    # and corrupted the layout handed to the model. A covered cell is
+                    # an empty placeholder; every other child is an ordinary cell
+                    # (odfpy admits nothing else into a row), each honouring its
+                    # repeat count and the budgets (#1654 review).
+                    for cell in row.childNodes:
+                        text = "" if cell.qname == covered_q else extractText(cell)
                         # Clamped to *both* budgets: the repeat count is
                         # attacker-controlled, so an unclamped `[text] * repeat`
                         # allocates an unbounded list (the cell budget), and the later
@@ -620,16 +710,18 @@ class FileUploadService:
 
     @staticmethod
     def _parse_odt_content(data: bytes) -> str | None:
-        """Extract the paragraphs of an OpenDocument text document."""
+        """Extract the paragraphs and headings of an OpenDocument text document."""
         try:
+            from odf.namespaces import TEXTNS
             from odf.opendocument import load
-            from odf.teletype import extractText
-            from odf.text import P
 
             document: Any = load(safe_unzip(data))
             # `extractText` expands `<text:s>` before any cap; clamp first (#1591).
             _clamp_odf_space_runs(document, settings.CHAT_PARSED_TEXT_MAX_CHARS)
-            lines = [extractText(p) for p in document.getElementsByType(P)]
+            # Headings are `text:h`, not `text:p`; collecting only paragraphs dropped
+            # every title and section heading and the structure they carry (#1654
+            # review).
+            lines = _odf_text_blocks(document, {(TEXTNS, "p"), (TEXTNS, "h")})
             return "\n".join(line for line in lines if line.strip()) or None
         except Exception as e:
             logger.warning("ODT parsing failed: %s", e)
@@ -743,7 +835,11 @@ class FileUploadService:
         # route and the inline-conversion path read one trustworthy field (#1591).
         resolved_mime = canonical_mime(content_type, filename)
         file_type = self.classify_file(resolved_mime, filename)
-        parsed_content = await self.parse_content(file_data, file_type, resolved_mime, filename)
+        # Read the declared charset before `canonical_mime` discards it, so a
+        # non-UTF-8 text file the caller labelled still decodes (#1654 review).
+        parsed_content = await self.parse_content(
+            file_data, file_type, resolved_mime, filename, _charset_param(content_type)
+        )
 
         storage = get_file_storage()
         storage_path = await storage.save(str(user_id), filename, file_data)
@@ -899,7 +995,17 @@ def _msg_attachments(ole: Any) -> list[str]:
 def _msg_text(ole: Any) -> str | None:
     """Assemble the readable text of an Outlook message from its MAPI streams."""
     subject = _msg_stream(ole, "0037")
-    sender = _msg_stream(ole, "0C1A") or _msg_stream(ole, "0C1F")
+    # Both the display name (PidTagSenderName) and the address
+    # (PidTagSenderEmailAddress): an `or` kept only the name and discarded the
+    # address, so "who sent this" lost the answer the stream held. Rendered
+    # `Name <addr>` like the recipient path (#1654 review).
+    sender_name = _msg_stream(ole, "0C1A")
+    sender_email = _msg_stream(ole, "0C1F")
+    sender = (
+        f"{sender_name} <{sender_email}>"
+        if sender_name and sender_email
+        else (sender_name or sender_email)
+    )
     body = _msg_stream(ole, "1000") or _msg_html_body(ole)
     recipients = _msg_recipients(ole)
     attachments = _msg_attachments(ole)

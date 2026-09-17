@@ -721,3 +721,112 @@ class TestLegacyXlsIsBounded:
         )
 
         assert FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0anything") is None
+
+
+class TestReviewFixesFA013:
+    """Regression tests for the PR #1654 (feat/1591) code-review findings."""
+
+    def test_a_long_shared_string_is_bounded_by_output_not_cell_count(self, monkeypatch):
+        """A BIFF shared string reused by many cells cannot materialise a giant join:
+        the character budget stops the sweep before the cell budget does (#1654 review)."""
+        import xlrd
+
+        big = "x" * 100_000
+
+        class _BigCellSheet:
+            name = "Big"
+            nrows = 1_000_000
+
+            def __init__(self) -> None:
+                self.reads = 0
+
+            def row_len(self, _r: int) -> int:
+                return 1
+
+            def cell(self, _r: int, _c: int) -> TestLegacyXlsIsBounded._Cell:
+                self.reads += 1
+                return TestLegacyXlsIsBounded._Cell(big)
+
+        sheet = _BigCellSheet()
+        monkeypatch.setattr(xlrd, "open_workbook", lambda **_k: TestLegacyXlsIsBounded._Book(sheet))
+
+        text = FileUploadService._parse_xls_content(b"\xd0\xcf\x11\xe0x")
+
+        assert text is not None
+        # ~CHAT_PARSED_TEXT_MAX_CHARS / 100_000 cells read, not the million-row budget.
+        assert sheet.reads <= (fu.settings.CHAT_PARSED_TEXT_MAX_CHARS // 100_000) + 2
+
+    def test_ods_covered_cells_keep_the_following_columns_aligned(self):
+        from odf.opendocument import OpenDocumentSpreadsheet
+        from odf.table import CoveredTableCell, Table, TableCell, TableRow
+        from odf.text import P
+
+        document = OpenDocumentSpreadsheet()
+        table = Table(name="Merged")
+        row = TableRow()
+        lead = TableCell(numbercolumnsspanned=2)
+        lead.addElement(P(text="A"))
+        row.addElement(lead)
+        row.addElement(CoveredTableCell())
+        tail = TableCell()
+        tail.addElement(P(text="C"))
+        row.addElement(tail)
+        table.addElement(row)
+        document.spreadsheet.addElement(table)
+        buffer = io.BytesIO()
+        document.save(buffer)
+
+        text = FileUploadService._parse_ods_content(buffer.getvalue())
+
+        # C stays in the third column: A, <covered placeholder>, C.
+        assert text == "Sheet: Merged\nA\t\tC"
+
+    def test_odt_headings_are_included_in_document_order(self):
+        from odf.opendocument import OpenDocumentText
+        from odf.text import H, P
+
+        document = OpenDocumentText()
+        document.text.addElement(H(outlinelevel=1, text="Section One"))
+        document.text.addElement(P(text="First paragraph."))
+        document.text.addElement(H(outlinelevel=2, text="Section Two"))
+        document.text.addElement(P(text="Second paragraph."))
+        buffer = io.BytesIO()
+        document.save(buffer)
+
+        text = FileUploadService._parse_odt_content(buffer.getvalue())
+
+        assert text == "Section One\nFirst paragraph.\nSection Two\nSecond paragraph."
+
+    def test_the_msg_sender_keeps_both_name_and_address(self):
+        ole = _Ole(
+            {
+                "__substg1.0_0C1A001F": _u16("Alice"),
+                "__substg1.0_0C1F001F": _u16("alice@example.com"),
+            },
+            [],
+        )
+
+        assert fu._msg_text(ole) == "From: Alice <alice@example.com>"
+
+    def test_the_msg_sender_falls_back_to_the_address_alone(self):
+        ole = _Ole({"__substg1.0_0C1F001F": _u16("alice@example.com")}, [])
+
+        assert fu._msg_text(ole) == "From: alice@example.com"
+
+    def test_a_declared_charset_decodes_a_non_utf8_text_file(self):
+        # windows-1252 bytes with no BOM and no XML declaration: only the declared
+        # charset can recover them (#1654 review).
+        data = "Café résumé — naïve".encode("windows-1252")
+
+        assert FileUploadService._parse_text_content(data) is None
+        assert FileUploadService._parse_text_content(data, "windows-1252") == "Café résumé — naïve"
+
+    def test_an_unknown_declared_charset_is_a_clean_none(self):
+        assert FileUploadService._parse_text_content(b"\xff\xfe\x00", "not-a-charset") is None
+
+    def test_charset_param_is_read_from_a_parameterised_media_type(self):
+        assert fu._charset_param("text/plain; charset=windows-1252") == "windows-1252"
+        assert fu._charset_param('text/plain; charset="UTF-8"') == "utf-8"
+        assert fu._charset_param("text/plain") is None
+        assert fu._charset_param(None) is None
+        assert fu._charset_param("text/plain; format=flowed") is None
