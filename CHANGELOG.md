@@ -17,6 +17,103 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.463] - 2026-09-16
+
+### Added
+
+- CodeQL runs on every pull request (`security-extended`, for Python,
+  JavaScript/TypeScript, Rust and the workflows) instead of weekly on `main`
+  through GitHub's default setup, so a finding is attached to the commit that
+  introduced it and is readable before the merge. The weekly full run is kept for
+  query packs that update between merges. Two repository settings go with it and
+  a workflow cannot make either — default setup has to be switched off, and
+  refusing the merge is code-scanning merge protection on `main`'s ruleset. Both
+  are named in `docs/branching.md`. (#1415)
+- `make audit-frontend` — `bun audit --audit-level=high` over `frontend/bun.lock`
+  — in the `Security Scan` job and in `make check`. Nothing read that lockfile
+  before. (#1415)
+- A CycloneDX SBOM per image, generated from the published manifest and attached
+  to each release as `sbom-api.cdx.json` and `sbom-frontend.cdx.json`; `make sbom`
+  writes the same documents locally from the source tree. (#1415)
+- `docs/reference/components.md`, the readable component inventory: what this
+  project writes, what it depends on, what ships in each image, and the models and
+  services a deployment adds that no image SBOM can see. (#1415)
+
+### Fixed
+
+- Frontend dependency advisories the new audit found: `next` raised past two
+  unauthenticated-RCE advisories, `postcss` past two source-map path-traversal
+  advisories, and `nanoid` and `js-yaml` pinned forward through `overrides`
+  because their parents have not moved. (#1415)
+
+## [0.0.462] - 2026-09-16
+
+### Added
+
+- **`agenticos cmd data-protection-report` prints the evidence a data-protection
+  review of one deployment asks for.** The verification checklist on the data
+  protection page was a page of SQL to paste into `psql` by hand plus a shell
+  pipeline for the one question SQL cannot answer, which is not something a
+  reviewer can reproduce or an operator can re-run on a schedule. The command
+  replaces both: the settings that decide what leaves, every provider and
+  endpoint an agent can reach, the credentials held by purpose, the collections
+  and who embeds them, the servers on the deployment's own network, the MCP
+  servers, trigger portals, sync sources and channel bots, the capabilities that
+  reach an address of their own with no row naming it, where runs are traced and
+  how much content a span carries, how much of each store a retention period
+  would reach, and the files under `MEDIA_DIR` that no row points at any more.
+  It prints configuration and counts only - no message text, no document, no
+  secret value and no hint of one, a setting holding a credential is reported as
+  set or unset, a URL's query string is redacted because it can be the
+  credential, and the unreferenced files are a directory and a count rather than
+  filenames a person uploaded - so the output is attachable to a review as it
+  stands. Tracing and the capability inventory are read off every version that
+  can run, the default one and each environment's pinned one, rather than off
+  the default alone. The unreferenced-file count is derived from a declared list
+  of every media-path column, and the capability inventory from a declared
+  classification of every registered capability, both of which a test holds
+  against the code so neither list can rot into a plausible wrong answer.
+  (#1596)
+
+### Documentation
+
+- **The data protection page stopped describing implemented controls as gaps.**
+  Three of the open conditions it listed have closed since it was written, and a
+  review reading it would have been told the platform lacks controls it has: the
+  audit trail's tamper evidence now exists as a per-organization hash chain with
+  a checkpoint at each chain's high-water mark and `agenticos cmd audit-verify`
+  to walk them (#1622, #1648), the HIPAA and SOC 2 controls matrix is on the
+  security page (#1412), and the filtered trace-content mode the page listed as
+  pending was decided against (#1616) rather than still coming - so `none` is
+  the answer for a deployment that may not export message text. The
+  verification section is now the command above rather than SQL nobody can
+  re-run identically. (#1596)
+
+## [0.0.461] - 2026-09-16
+
+### Added
+
+- An S3-compatible file-storage backend beside the local disk, selected by
+  `FILE_STORAGE_BACKEND=s3`. Every write asks the store for server-side
+  encryption — SSE-S3 by default, SSE-KMS under a key the deployment names — and
+  a `FILE_STORAGE_S3_PREFIX` keeps two deployments in one bucket apart. An
+  upload is cancellation-safe the way the local one is, and a download is
+  streamed in bounded chunks rather than held whole. Local stays the default and
+  nothing migrates between them; it is a deployment-time choice. `agenticos cmd doctor` prints which backend is running and whether
+  encryption is on, and `make docker-minio` starts a MinIO to develop against.
+  (#1423)
+
+### Changed
+
+- The seven routes that serve a stored file — both avatars, an agent's, a hosted
+  page's logo, the deployment's mark, a chat attachment and a knowledge-base
+  download — resolve it through the storage backend rather than through a path on
+  this host, so they answer on either backend. A local backend still streams from
+  disk. (#1423)
+- The deployment's logo and favicon are typed from the file's own bytes rather
+  than from the suffix its uploader chose, which is what the avatar routes
+  already did. The set of types served is unchanged. (#1423)
+
 ## [0.0.460] - 2026-09-16
 
 ### Added

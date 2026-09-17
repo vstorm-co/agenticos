@@ -1,5 +1,5 @@
 ---
-source_sha: "6fcf1f4dbc8e"
+source_sha: "441ec39f5257"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -249,15 +249,48 @@ Methode `parse_async` auf, die die Anbindung nicht definiert.
 
 ### Speicherung { #storage }
 
-Dateien werden vom `FileStorageService` in das Verzeichnis `media/` gespeichert:
+Jede hochgeladene Datei — ein Chat-Anhang, ein Avatar, das Zeichen des
+Deployments, das Original eines Wissensdatenbank-Dokuments — geht durch ein
+Speicher-Backend, gewählt über `FILE_STORAGE_BACKEND` zur Deployment-Zeit und nie
+pro Organisation. Welches es auch ist, eine Zeile hält denselben
+**Speicherpfad**: `{owner}/{uuid}_{filename}`.
+
+`local`, die Voreinstellung, schreibt sie unter `MEDIA_DIR`:
 
 ```
 media/
   {user_id}/
-    document.pdf
-    screenshot.png
+    a1b2c3d4e5f6_document.pdf
+    f6e5d4c3b2a1_screenshot.png
     ...
 ```
+
+`s3` schreibt dieselben Pfade als Objekt-Keys in einen S3-kompatiblen Bucket,
+unter `FILE_STORAGE_S3_PREFIX`, und bittet den Speicher, jeden davon zu
+verschlüsseln — SSE-S3 als Vorgabe, SSE-KMS mit einem Schlüssel, den das
+Deployment benennt. Die Einstellungen stehen in der
+[Konfiguration](configuration.md#uploaded-files-at-rest).
+
+!!! info "Welches Backend, und was jedes von Ihnen verlangt"
+
+    Lokal ist die ehrliche Antwort für einen einzelnen Host: verschlüsseln Sie das
+    Volume, und die Dateien sind so geschützt wie die Platte. Es hört auf, eine zu
+    sein, bei der zweiten API-Replik — zwei Container, zwei Platten, und eine in
+    die eine hochgeladene Datei ist auf der anderen ein 404 — und wenn ein Kunde
+    seine Dateien unter einem Schlüssel will, den er kontrolliert.
+
+    Ein Backend-Wechsel verschiebt nicht, was das andere bereits hält, und hier
+    migriert das nichts. Es ist eine Entscheidung beim Aufsetzen des Deployments;
+    ein späterer Wechsel braucht die Dateien von Hand kopiert, und die Pfade sind
+    auf beiden Seiten gleich, also genügt eine Kopie.
+
+    Agent-Workspaces sind in keinem der beiden Backends. Ein `state`-Workspace
+    lebt in dieser Datenbank und ein `docker`-Workspace im Speicher des
+    Sandbox-Hosts, ein Objektspeicher ändert also nichts daran, wo sie sind —
+    siehe [die Sandbox](sandbox.md).
+
+`agenticos cmd doctor` gibt aus, welches Backend ein laufendes Deployment nutzt
+und ob die Verschlüsselung an ist.
 
 ### Das Modell ChatFile { #chatfile-model }
 
