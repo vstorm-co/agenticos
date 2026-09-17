@@ -466,7 +466,7 @@ class AgentEmbedService:
         )
 
     async def page_logo_path(self, public_key: str) -> str | None:
-        """The file a hosted page's logo is served from, or `None` if there is none.
+        """The storage path a hosted page's logo is served from, or `None`.
 
         The image is the agent's avatar or the organization's, both already
         uploaded through the paths that exist for them - so publishing a page adds
@@ -480,7 +480,7 @@ class AgentEmbedService:
         return await self._logo_file(embed, PageConfig.model_validate(embed.config))
 
     async def _logo_file(self, embed: AgentEmbed, config: PageConfig) -> str | None:
-        """Where this page's logo actually is on disk, if it is anywhere.
+        """The storage path of this page's logo, if the backend still holds one.
 
         Takes the embed rather than a key so the two callers can share it without
         reading the row twice: the config route already holds it, and it has to ask
@@ -503,8 +503,7 @@ class AgentEmbedService:
         if not stored:
             return None
 
-        full = get_file_storage().get_full_path(stored)
-        return str(full) if full is not None and full.exists() else None
+        return stored if await get_file_storage().exists(stored) else None
 
     async def _logo_url(self, embed: AgentEmbed, config: PageConfig) -> str | None:
         """Where the page fetches its logo, or `None` when there is none to fetch.

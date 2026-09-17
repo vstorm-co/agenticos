@@ -21,8 +21,7 @@ deployment-wide bucket. It is a single indexed-by-nothing read of one row.
 
 from typing import Any
 
-from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Response
 
 from app.api.deps import CurrentUser, DeploymentSettingsSvc
 from app.api.routes.v1._branding_bytes import serve_branding_image
@@ -48,13 +47,13 @@ async def get_notice(service: DeploymentSettingsSvc, _user: CurrentUser) -> Any:
     return await service.notice()
 
 
-@router.get("/logo", response_class=FileResponse)
+@router.get("/logo", response_class=Response)
 async def get_logo(service: DeploymentSettingsSvc) -> Any:
     """The uploaded wordmark, or 404 when the built-in mark is in use."""
     return await serve_branding_image(service, "logo")
 
 
-@router.get("/favicon", response_class=FileResponse)
+@router.get("/favicon", response_class=Response)
 async def get_favicon(service: DeploymentSettingsSvc) -> Any:
     """The uploaded browser-tab icon, or 404 when the built-in one is in use."""
     return await serve_branding_image(service, "favicon")

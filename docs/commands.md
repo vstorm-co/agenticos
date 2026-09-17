@@ -351,6 +351,18 @@ uv run agenticos cmd audit-skill-bindings
 uv run agenticos cmd audit-verify
 uv run agenticos cmd audit-verify --org <org-id>
 
+# Print the configuration a data-protection review of this deployment asks for:
+# the settings that decide what leaves, every provider and endpoint an agent can
+# reach, the credentials held by purpose, the collections and who embeds them,
+# the servers on your own network, the MCP servers, sync sources and channel
+# bots, where runs are traced and how much content a span carries, how much of
+# each store a retention period would reach, and the files under MEDIA_DIR no row
+# points at any more. Configuration and counts only - no message text, no
+# document, no secret value and no hint of one, so the output is attachable as it
+# stands. --older-than is the retention period under consideration, in days.
+uv run agenticos cmd data-protection-report
+uv run agenticos cmd data-protection-report --older-than 90
+
 # Re-wrap every stored secret under the current master key - the staged rotation
 # docs/secrets.md describes. Configure the old and new key side by side in
 # VAULT_MASTER_KEYS first; --dry-run fully unseals every stored envelope without

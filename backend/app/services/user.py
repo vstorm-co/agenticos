@@ -462,10 +462,6 @@ class UserService:
             self.db, db_user=user, update_data={"avatar_url": storage_path}
         )
 
-    def get_avatar_path(self, avatar_url: str) -> str | None:
-        full_path = get_file_storage().get_full_path(avatar_url)
-        return str(full_path) if full_path is not None else None
-
     async def delete(self, user_id: UUID) -> User:
         """Remove the account, what is about the person, and nothing the team owns.
 
