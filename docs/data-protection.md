@@ -154,13 +154,13 @@ one.
 | Personal data in a failure column | `rag_documents.error_message` and friends record the stage and class, never the client's text | `app/services/rag/failures.py` (#423) |
 | Accountability | Audit entries share the acting transaction and fail closed; impersonation names both people; bulk exports are recorded | [Governance](governance.md#audit) |
 | Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
-| Tamper evidence on the trail | None yet | [#1622](https://github.com/vstorm-co/agenticos/issues/1622) |
-| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
+| Tamper evidence on the trail | Every entry joins a per-organization hash chain, and each chain carries a checkpoint at its high-water mark, so a rewritten entry, a dropped tail and a deleted chain are all detectable. `agenticos cmd audit-verify` walks them and exits non-zero on a break | [Governance](governance.md#audit) (#1622, #1648). Detection, not prevention: whoever holds the database's own credentials can re-forge a chain or drop the checkpoint's trigger |
+| Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only, and a specialist of that agent inherits it | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
 | Retention on a schedule | Per organization and per class - conversations and their files, runs and manifests, workspaces, agent memory, uploaded documents and audit - within a deployment-wide default, ceiling and audit floor. A daily sweep hard-deletes and records counts, never content. Backups and anything already shipped to an external collector are outside it. `notifications` is not one of those classes: it sweeps on its own fixed schedule instead, a *read* row after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out | [Retention](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; the notification sweep is `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
 | Erasure of one person | Account deletion reconciles what would block it; memory erasure is a separate call and reaches mem0 | [What deletion reaches](#what-deletion-reaches); [#1421](https://github.com/vstorm-co/agenticos/issues/1421) for what it leaves |
-| Access to one's own data | A person reads what every agent here has written down about them at Settings → Memory, and may suppress a note, restore it or delete it. Reading somebody *else's* store is the deployment administrator's alone - not an organization role - and is audited with the actor, the tenant, the subject and a reason, never the content. External (mem0) stores are named rather than listed | [Reading it, and erasing it](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. No export endpoint yet: [#1421](https://github.com/vstorm-co/agenticos/issues/1421) |
+| Access to one's own data | A person reads what every agent here has written down about them at Settings → Memory, and may suppress a note, restore it or delete it. Reading somebody *else's* store is the deployment administrator's alone - not an organization role - and is audited with the actor, the tenant, the subject and a reason, never the content. External (mem0) stores are named rather than listed | [Reading it, and erasing it](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Everything else held about them comes back from `GET /me/data/export`, bounded and audited (#1421) |
 | Enterprise identity | Google sign-in and passwords; no OIDC yet | [#1419](https://github.com/vstorm-co/agenticos/issues/1419) |
-| The controls matrix a security review reads | This page and [Rolling it out](rollout.md#what-your-security-review-will-ask) | [#1412](https://github.com/vstorm-co/agenticos/issues/1412) adds the HIPAA and SOC 2 mapping |
+| The controls matrix a security review reads | [Security](security.md#controls-matrix) maps each control to its mechanism and the test holding it, framed against HIPAA §164.312 and SOC 2 CC6–CC8; this page and [Rolling it out](rollout.md#what-your-security-review-will-ask) are the rest | [Security](security.md) (#1412) |
 | Public surfaces | A hosted page's visitor key is random, never derived from the person; admission and uploads are rate-limited per address, the address held in a Redis key for the window and nowhere else | [Channels](channels.md#a-hosted-page) |
 | Legal notices | The deployment's own Terms and Privacy URLs replace the built-in pages | [The deployment](deployment.md#identity) |
 
@@ -227,9 +227,9 @@ ask for, distinct from the technical capability that makes it possible.
 
 ## Verifying one deployment
 
-Reproducible checks, from the host, against the running deployment. Each
-prints facts the review can attach; none prints a credential or a person's
-data. Run the commands from `backend/`, or through `docker compose exec api`.
+Reproducible checks, from the host, against the running deployment. Each prints
+facts the review can attach; none prints a credential or a person's data. Run
+them from `backend/`, or through `docker compose exec api`.
 
 ```bash
 # 1. Can it run, and are the store connections encrypted? `postgres` reports
@@ -239,85 +239,49 @@ uv run agenticos cmd doctor
 # 2. Every sealed credential still opens under the configured master keys.
 uv run agenticos cmd vault-rotate --dry-run
 
-# 3. The settings that decide what leaves. Empty is the quiet answer.
-env | grep -E '^(ENVIRONMENT|LOGFIRE_TOKEN|LOGFIRE_BASE_URL|MEM0_ALLOWED_HOSTS|POSTGRES_SSLMODE|REDIS_SSL|SMTP_TLS|LOG_PROVIDER_WRITE_TO_DISK|RATE_LIMIT_TRUST_FORWARDED_FOR)=' \
-  | sed -E 's/(KEY|TOKEN)=.+/\1=<set>/'
+# 3. The audit trail's hash chains and their checkpoints, recomputed. Exits
+#    non-zero if any chain has been altered.
+uv run agenticos cmd audit-verify
+
+# 4. Everything this deployment actually configured: the settings that decide
+#    what leaves, every provider and endpoint an agent can reach, the
+#    credentials held by purpose, the collections and who embeds them, the
+#    servers on your own network, the MCP servers, trigger portals, sync sources
+#    and channel bots, the capabilities that reach an address of their own,
+#    where runs are traced and how much content a span carries, how much of each
+#    store a retention period would reach, and the files under `MEDIA_DIR` no row
+#    points at any more.
+uv run agenticos cmd data-protection-report --older-than 365
 ```
 
-`LOG_PROVIDER_WRITE_TO_DISK` must be `false` outside development: the logging
-email provider writes whole mail bodies to disk when it is on.
+Item 4 is the one to attach. It prints configuration and counts and never
+content: no message text, no document, no secret value and no hint of one, and
+a setting holding a credential is reported as set or unset rather than printed.
+`--older-than` is the retention period under consideration, in days, and the
+last column of its retention table is what that period would already have
+removed.
 
-```sql
--- 4. Every provider and endpoint an agent can reach, without the keys.
-SELECT o.name AS organization, p.label, p.provider, p.model, p.base_url
-FROM model_profiles p JOIN organizations o ON o.id = p.organization_id
-ORDER BY 1, 2;
+Its last section is the count this page's
+[What deletion reaches](#what-deletion-reaches) predicts: a `chat_files` row
+cascades away with its message while the bytes stay, so the number grows with
+every deleted conversation until
+[#1421](https://github.com/vstorm-co/agenticos/issues/1421) removes the two
+together. Generated images and the parse scratch directory are excluded, having
+no row by design; everything else counted there is bytes the product can no
+longer find and cannot delete. It reports a directory and a count rather than a
+filename, because a stored path keeps the name the file was uploaded under.
 
--- Profiles that speak plain HTTP. Each must point at the deployment's own
--- network; anything else sends prompts and the key in clear.
-SELECT label, provider, base_url FROM model_profiles WHERE base_url LIKE 'http://%';
+Two sections are read off what runs rather than off a table. **Capability
+destinations** lists the capabilities an agent is bound to that reach an address
+of their own - `web_research` searches through DuckDuckGo with no credential and
+therefore no row anywhere else in the report - and **Tracing** is read off each
+runnable version: the default one, and the one each named
+[environment](environments.md) pins, because a run through that environment uses
+that version's observability rather than the default's.
 
-SELECT o.name AS organization, s.purpose, s.kind, s.name
-FROM organization_secrets s JOIN organizations o ON o.id = s.organization_id
-ORDER BY 1, 2;
-
--- Collections: who embeds them, and which parse off-site.
-SELECT name, embedding_provider, embedding_model,
-       ingestion_config ->> 'pdf_parser' AS pdf_parser,
-       ingestion_config ->> 'llamaparse_secret_id' IS NOT NULL AS llamaparse_key,
-       embedding_endpoint_id, ingestion_config ->> 'ocr_endpoint_id' AS ocr_endpoint_id
-FROM knowledge_bases ORDER BY 1;
-
--- The servers on your own network collections may be pointed at. Every address
--- here should be one you run.
-SELECT o.name AS organization, s.kind, s.provider, s.name, s.base_url, s.is_active
-FROM local_services s LEFT JOIN organizations o ON o.id = s.organization_id
-ORDER BY 1 NULLS FIRST, 2, 4;
-
-SELECT scope, name, url, auth_type FROM mcp_connections WHERE is_enabled ORDER BY 1, 2;
-SELECT name, connector_type, collection_name FROM sync_sources WHERE is_active ORDER BY 2, 1;
-
--- 5. Runs traced to a project of their own: a token on the published spec, or
---    on an environment.
-SELECT a.slug, v.version, 'spec' AS via
-FROM agent_versions v JOIN agents a ON a.id = v.agent_id
-WHERE v.spec -> 'observability' ->> 'token_secret_id' IS NOT NULL
-UNION ALL
-SELECT a.slug, NULL, 'environment ' || e.name
-FROM agent_environments e JOIN agents a ON a.id = e.agent_id
-WHERE e.logfire_token_secret_id IS NOT NULL;
-
--- 6. What retention would have to reach. Adjust the age to the schedule decided.
-SELECT 'conversations' AS store, count(*) FROM conversations WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'agent_runs', count(*) FROM agent_runs WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'audit', count(*) FROM app_admin_audit_logs WHERE created_at < now() - interval '365 days'
-UNION ALL SELECT 'agent_memory_files', count(*) FROM agent_memory_files
-UNION ALL SELECT 'chat_files', count(*) FROM chat_files;
-```
-
-```bash
-# 7. Attachment bytes whose rows are gone. A chat_files row cascades away with
-#    its message while the file stays, so the difference grows with every
-#    deleted conversation (see "What deletion reaches"). Generated images and
-#    the parse scratch directory have no row by design and are excluded.
-#    Through the database container: the API knows its connection string only
-#    as a computed setting, not as a variable a shell could read.
-docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT storage_path FROM chat_files
-  UNION SELECT storage_path FROM rag_documents WHERE storage_path IS NOT NULL" \
-  | sort > /tmp/referenced.txt
-(cd "${MEDIA_DIR:-./media}" && find . -type f -not -path './generated_*' -not -path './_rag_tmp/*' \
-  | sed 's|^\./||' | sort) > /tmp/on_disk.txt
-comm -23 /tmp/on_disk.txt /tmp/referenced.txt | wc -l      # files nothing references
-```
-
-Avatars and embed logos are also on disk and referenced from `users.avatar_url`
-and `agent_embeds.logo_path`; add those columns to the query if the count
-above is not zero and you want the list exact.
-
-Attach the output of 1 to 6 to the review together with the agreements from the
-previous section. Item 7 is a count to watch until
-[#1421](https://github.com/vstorm-co/agenticos/issues/1421) removes the bytes
-with the conversation.
+What no command can produce is the other half of this page: the agreements,
+locations and training exclusions of the previous section. Attach those beside
+the output.
 
 ## Open conditions for a first rollout
 
@@ -330,14 +294,21 @@ deployment until each closes.
 - Attachment bytes and a person's memory survive their owner's deletion; no
   personal data export; the erasure inventory -
   [#1421](https://github.com/vstorm-co/agenticos/issues/1421).
-- No tamper evidence on the audit trail - [#1622](https://github.com/vstorm-co/agenticos/issues/1622).
 - Files on local disk only, encrypted by the volume or not at all - [#1423](https://github.com/vstorm-co/agenticos/issues/1423).
 - No OIDC sign-in - [#1419](https://github.com/vstorm-co/agenticos/issues/1419).
-- The HIPAA and SOC 2 controls matrix - [#1412](https://github.com/vstorm-co/agenticos/issues/1412).
+
+**Closed, and answered above rather than here:** the audit trail's tamper
+evidence (#1622, #1648), the per-agent trace content mode and its inheritance by
+specialists (#1413, #1699), tracing in the process that runs a fired agent
+(#1700), and the HIPAA and SOC 2 controls matrix in [Security](security.md#controls-matrix) (#1412).
+Traces have no filtered middle ground and will not get one
+([#1616](https://github.com/vstorm-co/agenticos/issues/1616)); `none` is the
+answer for a deployment that may not export content.
 
 **In the deployment, decided by its operator:** the agreements, locations,
 training exclusions, retention schedule, backup expiry, disk encryption, sandbox
-egress and legal pages of the previous section.
+egress and legal pages of the previous section. Each is the kind of evidence
+`data-protection-report` deliberately cannot produce.
 
 A review that finds every row above either closed or accepted in writing has
 what this page can give it. The rest is the deployment's.

@@ -24,6 +24,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
@@ -32,11 +33,10 @@ pytestmark = pytest.mark.anyio
 
 
 @asynccontextmanager
-async def _client(service: MagicMock, uploads: MagicMock) -> AsyncIterator[AsyncClient]:
+async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
     context = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OPERATOR.value)
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_agent_runner_service] = lambda: service
-    app.dependency_overrides[deps.get_file_upload_service] = lambda: uploads
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
@@ -50,15 +50,26 @@ def _attachment(filename: str = "scan.pdf") -> MagicMock:
     )
 
 
-async def test_a_reviewer_reads_the_bytes_inline(tmp_path: Path) -> None:
+def _store(monkeypatch, root: Path, storage_path: str, data: bytes) -> None:
+    """Write `data` where the local backend would have.
+
+    The route resolves the row's own `storage_path` through the storage backend
+    since #1423 - an object store has no path on this host - so these point the
+    local backend at `tmp_path` rather than handing the route a path.
+    """
+    monkeypatch.setattr(settings, "MEDIA_DIR", root)
+    target = root / storage_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+
+
+async def test_a_reviewer_reads_the_bytes_inline(tmp_path: Path, monkeypatch) -> None:
     """`inline`, because the run timeline embeds this URL: a preview that always
     downloads is a preview nobody looks at."""
-    stored = tmp_path / "scan.pdf"
-    stored.write_bytes(b"%PDF-1.7 not really")
+    _store(monkeypatch, tmp_path, "stored/scan.pdf", b"%PDF-1.7 not really")
     service = MagicMock(get_run_attachment=AsyncMock(return_value=_attachment()))
-    uploads = MagicMock(get_file_path=MagicMock(return_value=str(stored)))
 
-    async with _client(service, uploads) as client:
+    async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{uuid4()}/files/{uuid4()}")
 
     assert response.status_code == 200
@@ -72,13 +83,14 @@ async def test_a_reviewer_reads_the_bytes_inline(tmp_path: Path) -> None:
     assert response.headers["content-security-policy"] == "frame-ancestors 'self'"
 
 
-async def test_a_stored_html_attachment_is_downloaded_not_rendered(tmp_path: Path) -> None:
+async def test_a_stored_html_attachment_is_downloaded_not_rendered(
+    tmp_path: Path, monkeypatch
+) -> None:
     """`text/html` is a valid attachment - the agent reads it - but the frontend
     serves this from the app's own origin, so an inline one would be a stored
     script (#702). Only a render-safe type is shown inline; this is forced to
     download, and sniffing is off so the type cannot be sniffed past."""
-    stored = tmp_path / "page.html"
-    stored.write_bytes(b"<script>fetch('/api/v1/users/me')</script>")
+    _store(monkeypatch, tmp_path, "stored/page.html", b"<script>fetch('/api/v1/users/me')</script>")
     service = MagicMock(
         get_run_attachment=AsyncMock(
             return_value=MagicMock(
@@ -89,22 +101,19 @@ async def test_a_stored_html_attachment_is_downloaded_not_rendered(tmp_path: Pat
             )
         )
     )
-    uploads = MagicMock(get_file_path=MagicMock(return_value=str(stored)))
 
-    async with _client(service, uploads) as client:
+    async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{uuid4()}/files/{uuid4()}")
 
     assert response.headers["content-disposition"] == "attachment; filename*=UTF-8''page.html"
     assert response.headers["x-content-type-options"] == "nosniff"
 
 
-async def test_the_download_button_forces_the_browsers_dialog(tmp_path: Path) -> None:
-    stored = tmp_path / "scan.pdf"
-    stored.write_bytes(b"bytes")
+async def test_the_download_button_forces_the_browsers_dialog(tmp_path: Path, monkeypatch) -> None:
+    _store(monkeypatch, tmp_path, "stored/scan.pdf", b"bytes")
     service = MagicMock(get_run_attachment=AsyncMock(return_value=_attachment()))
-    uploads = MagicMock(get_file_path=MagicMock(return_value=str(stored)))
 
-    async with _client(service, uploads) as client:
+    async with _client(service) as client:
         response = await client.get(
             f"/api/v1/runs/{uuid4()}/files/{uuid4()}", params={"disposition": "attachment"}
         )
@@ -112,15 +121,15 @@ async def test_the_download_button_forces_the_browsers_dialog(tmp_path: Path) ->
     assert response.headers["content-disposition"] == "attachment; filename*=UTF-8''scan.pdf"
 
 
-async def test_a_quote_in_the_filename_cannot_break_out_of_the_header(tmp_path: Path) -> None:
-    stored = tmp_path / "odd"
-    stored.write_bytes(b"bytes")
+async def test_a_quote_in_the_filename_cannot_break_out_of_the_header(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _store(monkeypatch, tmp_path, "stored/scan.pdf", b"bytes")
     service = MagicMock(
         get_run_attachment=AsyncMock(return_value=_attachment('a"; filename="other.pdf'))
     )
-    uploads = MagicMock(get_file_path=MagicMock(return_value=str(stored)))
 
-    async with _client(service, uploads) as client:
+    async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{uuid4()}/files/{uuid4()}")
 
     # Percent-encoded, so there is no quote to close and no semicolon to open a
@@ -131,13 +140,15 @@ async def test_a_quote_in_the_filename_cannot_break_out_of_the_header(tmp_path: 
     )
 
 
-async def test_a_row_whose_bytes_are_gone_is_a_404_rather_than_an_empty_document() -> None:
+async def test_a_row_whose_bytes_are_gone_is_a_404_rather_than_an_empty_document(
+    tmp_path: Path, monkeypatch
+) -> None:
     """A row and its file can part company - a restored database, a cleaned
     volume - and zero bytes reads as an empty document rather than a missing one."""
+    monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
     service = MagicMock(get_run_attachment=AsyncMock(return_value=_attachment()))
-    uploads = MagicMock(get_file_path=MagicMock(return_value=None))
 
-    async with _client(service, uploads) as client:
+    async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{uuid4()}/files/{uuid4()}")
 
     assert response.status_code == 404
@@ -149,7 +160,7 @@ async def test_a_run_in_another_tenant_reads_as_absent() -> None:
         get_run_attachment=AsyncMock(side_effect=NotFoundError(message="Run not found"))
     )
 
-    async with _client(service, MagicMock()) as client:
+    async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{uuid4()}/files/{uuid4()}")
 
     assert response.status_code == 404
@@ -160,7 +171,7 @@ async def test_a_caller_without_runs_view_is_refused() -> None:
         get_run_attachment=AsyncMock(side_effect=AuthorizationError(message="Insufficient"))
     )
 
-    async with _client(service, MagicMock()) as client:
+    async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{uuid4()}/files/{uuid4()}")
 
     assert response.status_code == 403
