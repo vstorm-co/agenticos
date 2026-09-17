@@ -4,7 +4,6 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, File, Query, Request, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.api.deps import (
     CurrentAppAdmin,
@@ -13,11 +12,11 @@ from app.api.deps import (
     DBSession,
     UserSvc,
 )
+from app.api.routes.v1._stored_bytes import stored_image_response
 from app.api.routes.v1.admin_users import delete_user as admin_delete_user
 from app.api.routes.v1.admin_users import update_user as admin_update_user
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.user import UserRead, UserUpdate
-from app.services.file_storage import sniff_image_media_type
 
 router = APIRouter()
 
@@ -76,19 +75,16 @@ async def get_avatar(user_id: UUID, user_service: UserSvc) -> Any:
     user = await user_service.get_by_id(user_id)
     if not user.avatar_url:
         raise NotFoundError(message="No avatar set")
-    file_path = user_service.get_avatar_path(user.avatar_url)
-    if not file_path:
-        raise NotFoundError(message="Avatar file not found")
     # Pinned to the file's actual image type, and refused if it is not an image at
     # all: the avatar is served from the app's own origin, and the upload kept
     # whatever suffix the caller's filename had (#702). Hardcoding image/jpeg here
     # named a lie for a stored png and, worse, said nothing about a stored .html.
-    media_type = sniff_image_media_type(file_path)
-    if media_type is None:
-        raise NotFoundError(message="Avatar file not found")
-    return FileResponse(
-        path=file_path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
+    response = await stored_image_response(
+        user.avatar_url, headers={"X-Content-Type-Options": "nosniff"}
     )
+    if response is None:
+        raise NotFoundError(message="Avatar file not found")
+    return response
 
 
 @router.get("/{user_id}", response_model=UserRead)
