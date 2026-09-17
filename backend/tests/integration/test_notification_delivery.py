@@ -433,6 +433,39 @@ class TestSendAndSettlePreference:
 
         assert outcome == "skipped"
 
+    async def test_an_event_with_no_legacy_column_reads_the_preference_table_instead(self, db):
+        """`email_channel_enabled` has two lookups, not one (Decision 4):
+        `budget_exceeded` above goes through the legacy `User` column, but a
+        newer event type like `run_completed` has none and falls through to
+        the preference table - the same `_channel_enabled` the write path's
+        own batched fan-out reads in bulk, here in its one-recipient shape."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        db.add(
+            NotificationChannelPreference(
+                id=uuid.uuid4(),
+                user_id=recipient.id,
+                event_type=NotificationEventType.RUN_COMPLETED.value,
+                channel="email",
+                enabled=False,
+            )
+        )
+        await db.flush()
+        now = datetime.now(UTC)
+        delivery = await _delivery(
+            db,
+            recipient=recipient,
+            organization_id=org.id,
+            event_type=NotificationEventType.RUN_COMPLETED,
+            claimed_at=now,
+            attempts=1,
+        )
+
+        outcome = await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
+
+        assert outcome == "skipped"
+
     async def test_a_mandatory_event_ignores_the_preference_and_reaches_the_render_step(self, db):
         """The proof the bypass took effect: the preference is off, but the
         outcome is a template failure (`security_event` has none yet), not a
@@ -468,7 +501,7 @@ class TestSendAndSettlePreference:
         assert "no email template" in delivery.last_error
 
     async def test_an_app_admin_with_no_membership_is_still_reachable(self, db):
-        """An app admin holds no membership row anywhere, but `_gate`'s
+        """An app admin holds no membership row anywhere, but `gate_for`'s
         `ORG_ADMIN_OR_APP_ADMIN` branch already treats one as reachable for an
         org-scoped row regardless - `_current_role` must agree, or a
         `security_event` queued for an app-admin-audience action (a user
