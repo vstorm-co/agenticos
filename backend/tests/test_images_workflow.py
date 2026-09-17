@@ -197,3 +197,80 @@ class TestTheComposeFilesPullWhatTheWorkflowPublishes:
             assert registry != "ghcr.io", (
                 f"the override pins {name} to a registry image; it exists to build from the tree"
             )
+
+
+class TestTheReleaseCarriesAnInventory:
+    """#1415: a client answering "what is in it" without building it.
+
+    The document is generated from the *published manifest*, not from the source
+    tree, so an inventory that silently starts describing a checkout would be a
+    different claim under the same file name. And it is attached to the release
+    only on a `v*` tag - on `main` there is no release to attach it to, and a
+    run artifact is the honest place for `edge`'s inventory.
+    """
+
+    def test_both_images_get_one(self, workflow: dict[str, Any]) -> None:
+        assert set(workflow["jobs"]["sbom"]["strategy"]["matrix"]["image"]) == {
+            "backend",
+            "frontend",
+        }
+
+    def test_each_published_architecture_gets_its_own(self, workflow: dict[str, Any]) -> None:
+        """A published tag is a manifest list, and syft resolves one to a single
+        variant - the runner's. An arm64 deployment assessed against that
+        document is assessed against packages it does not have, and missing the
+        ones it does: the frontend image installs a different
+        `@img/sharp-libvips-linux-*` per architecture."""
+        job = workflow["jobs"]["sbom"]
+        assert set(job["strategy"]["matrix"]["arch"]) == {"amd64", "arm64"}
+        generate = next(step for step in job["steps"] if "syft scan" in step.get("run", ""))
+        assert "--platform" in generate["run"]
+        assert "${{ matrix.arch }}" in generate["run"]
+
+    def test_it_reads_the_published_image_rather_than_the_tree(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        generate = next(
+            step for step in workflow["jobs"]["sbom"]["steps"] if "syft scan" in step.get("run", "")
+        )
+        assert "${{ env.IMAGE_PREFIX }}" in generate["env"]["REF"]
+        assert "registry:" in generate["run"]
+        assert "cyclonedx-json" in generate["run"]
+
+    def test_a_tag_with_no_release_behind_it_does_not_fail_the_publish(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        """`gh release upload` uploads into a release and creates none. The cut
+        makes the tag and the release in one call, so ordinarily there is one -
+        but a tag pushed by hand is a missing inventory, not a red publish, and
+        the run artifact is still the copy."""
+        upload = next(
+            step
+            for step in workflow["jobs"]["sbom"]["steps"]
+            if "gh release upload" in step.get("run", "")
+        )
+        assert "gh release view" in upload["run"]
+
+    def test_it_runs_after_the_publish_it_describes(self, workflow: dict[str, Any]) -> None:
+        assert "publish" in workflow["jobs"]["sbom"]["needs"]
+
+    def test_the_release_upload_happens_only_on_a_version_tag(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        upload = next(
+            step
+            for step in workflow["jobs"]["sbom"]["steps"]
+            if "gh release upload" in step.get("run", "")
+        )
+        assert upload["if"] == "startsWith(github.ref, 'refs/tags/v')"
+
+    def test_only_the_job_that_writes_a_release_holds_contents_write(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        assert workflow["permissions"] == {"contents": "read"}
+        writing = {
+            name
+            for name, job in workflow["jobs"].items()
+            if job.get("permissions", {}).get("contents") == "write"
+        }
+        assert writing == {"sbom"}
