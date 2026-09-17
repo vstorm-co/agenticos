@@ -150,6 +150,16 @@ obligations = "Keep the copyright notice. Not redistributed by this project."
 fulfilled_by = "Pulled by the operator; named here with its source."
 
 [[component]]
+name = "quay.io/minio/minio (Docker image)"
+version = "RELEASE.2025-04-22T22-12-26Z"
+kind = "service image, deployment (optional object store)"
+license = "AGPL-3.0-or-later"
+source = "https://github.com/minio/minio"
+status = "accepted"
+obligations = "Network copyleft: a modified MinIO offered over a network owes its users the modified source (s.13)."
+fulfilled_by = "Pulled by the operator from quay.io and run unmodified beside the deployment, behind the `objectstore` compose profile; nothing here is built from or linked against it. It is a separate service this project speaks S3 to, not a component of either published image, and a deployment on AWS S3 or another compatible store runs none of it. Named here because the compose file offers it (#1423)."
+
+[[component]]
 name = "ghcr.io/vstorm-co/sandboxd"
 version = "0.2"
 kind = "service image, deployment (optional agent sandbox)"

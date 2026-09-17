@@ -1,5 +1,5 @@
 ---
-source_sha: "097a2caa4c8d"
+source_sha: "ed41ce8850a9"
 ---
 
 # Lizenzen und Drittanbieter-Hinweise { #licences-and-third-party-notices }
@@ -146,10 +146,11 @@ bedeutet. Debian legt die Lizenz jedes Pakets unter
 zugehörigen Quellcode zu jedem Binary, das es ausliefert - darauf ruht die
 Quellcode-Pflicht von GPL und LGPL für ein weitergegebenes Image. Das
 Backend-Image ergänzt LibreOffice (MPL-2.0) und Tesseract (Apache-2.0) als
-Debian-Pakete, unverändert genutzt als separate Prozesse. Das in
-[#1415](https://github.com/vstorm-co/agenticos/issues/1415) geplante SBOM pro
-Release wird den genauen Paketsatz jedes Images festhalten; bis es kommt, sind
-die Dockerfiles und die Digests der Base-Images das Inventar dieser Schicht.
+Debian-Pakete, unverändert genutzt als separate Prozesse. Das SBOM pro Release
+hält den genauen Paketsatz jedes Images fest: `sbom-api.cdx.json` und
+`sbom-frontend.cdx.json` hängen an jedem Release, erzeugt aus den
+veröffentlichten Manifesten, und [das
+Komponenteninventar](reference/components.md) ist ihr lesbarer Index.
 
 ## Die AGPL-Komponente { #the-agpl-component }
 
@@ -319,8 +320,10 @@ Bevor ein Release geschnitten wird, und als Nachweis, der daran hängt:
   Release tatsächlich nutzt
 - [ ] Wurde dem Katalog oder der Modelltabelle oben eine Modellfamilie
   hinzugefügt, wurde ihre Lizenz aus der aktuellen Model Card gelesen
-- [ ] Sobald das SBOM pro Release aus #1415 existiert: Es hängt am Release, und
-  sein Komponentensatz stimmt mit den Notices für die beiden Images überein
+- [ ] Das Release trägt `sbom-api.cdx.json` und `sbom-frontend.cdx.json`, und ihr
+  Komponentensatz stimmt mit den Notices für die beiden Images überein
+- [ ] Das [Komponenteninventar](reference/components.md) beschreibt weiterhin die
+  Mengen, die dieses Release ausliefert
 
 ## Fazit { #recap }
 

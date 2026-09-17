@@ -33,7 +33,6 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.api.deps import get_current_user, get_db_session
-from app.api.routes.v1 import _branding_bytes
 from app.core.config import settings
 from app.main import app
 from app.schemas.deployment_settings import (
@@ -265,10 +264,10 @@ class TestServingTheBytes:
         assert response.status_code == 404
 
     async def test_a_row_pointing_at_a_file_that_is_gone_is_a_404(
-        self, anyone: AsyncClient, service: _Service, monkeypatch
+        self, anyone: AsyncClient, service: _Service, monkeypatch, tmp_path: Path
     ):
+        monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
         service.stored = "deployment/vanished.png"
-        monkeypatch.setattr(_branding_bytes, "get_file_storage", lambda: _Storage(full_path=None))
 
         response = await anyone.get(f"{settings.API_V1_STR}/branding/logo")
 
@@ -277,25 +276,19 @@ class TestServingTheBytes:
     async def test_the_stored_bytes_are_served_with_the_type_decided_here(
         self, anyone: AsyncClient, service: _Service, monkeypatch, tmp_path: Path
     ):
-        mark = tmp_path / "logo.png"
-        mark.write_bytes(b"\x89PNG\r\n")
-        service.stored = "deployment/logo.png"
-        monkeypatch.setattr(_branding_bytes, "get_file_storage", lambda: _Storage(full_path=mark))
+        service.stored = _store(monkeypatch, tmp_path, "deployment/logo.png", b"\x89PNG\r\n\x1a\n")
 
         response = await anyone.get(f"{settings.API_V1_STR}/branding/logo")
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/png"
-        assert response.content == b"\x89PNG\r\n"
+        assert response.content == b"\x89PNG\r\n\x1a\n"
 
     async def test_it_is_served_without_a_session(
         self, anyone: AsyncClient, service: _Service, monkeypatch, tmp_path: Path
     ):
         """A browser fetching a favicon carries no cookie this API would read."""
-        mark = tmp_path / "favicon.gif"
-        mark.write_bytes(b"GIF89a")
-        service.stored = "deployment/favicon.gif"
-        monkeypatch.setattr(_branding_bytes, "get_file_storage", lambda: _Storage(full_path=mark))
+        service.stored = _store(monkeypatch, tmp_path, "deployment/favicon.gif", b"GIF89a")
 
         response = await anyone.get(f"{settings.API_V1_STR}/branding/favicon")
 
@@ -308,10 +301,9 @@ class TestServingTheBytes:
         served from the origin the app's own pages run on - so a bare `FileResponse`
         would let Starlette guess `text/html` and serve a script. Refused rather than
         corrected: this route hands out one image."""
-        script = tmp_path / "logo.html"
-        script.write_text("<script>alert(1)</script>")
-        service.stored = "deployment/logo.html"
-        monkeypatch.setattr(_branding_bytes, "get_file_storage", lambda: _Storage(full_path=script))
+        service.stored = _store(
+            monkeypatch, tmp_path, "deployment/logo.html", b"<script>alert(1)</script>"
+        )
 
         response = await anyone.get(f"{settings.API_V1_STR}/branding/logo")
 
@@ -320,10 +312,7 @@ class TestServingTheBytes:
     async def test_it_forbids_content_type_sniffing(
         self, anyone: AsyncClient, service: _Service, monkeypatch, tmp_path: Path
     ):
-        mark = tmp_path / "logo.webp"
-        mark.write_bytes(b"RIFF")
-        service.stored = "deployment/logo.webp"
-        monkeypatch.setattr(_branding_bytes, "get_file_storage", lambda: _Storage(full_path=mark))
+        service.stored = _store(monkeypatch, tmp_path, "deployment/logo.webp", b"RIFF....WEBP")
 
         response = await anyone.get(f"{settings.API_V1_STR}/branding/logo")
 
@@ -335,19 +324,22 @@ class TestServingTheBytes:
         """Safe because the address carries the row's write time: replacing the image
         changes the `?v=` the branding response hands out, so a long-lived copy is
         only ever reused for bytes that have not changed."""
-        mark = tmp_path / "logo.jpg"
-        mark.write_bytes(b"\xff\xd8\xff")
-        service.stored = "deployment/logo.jpg"
-        monkeypatch.setattr(_branding_bytes, "get_file_storage", lambda: _Storage(full_path=mark))
+        service.stored = _store(monkeypatch, tmp_path, "deployment/logo.jpg", b"\xff\xd8\xff")
 
         response = await anyone.get(f"{settings.API_V1_STR}/branding/logo")
 
         assert "immutable" in response.headers["cache-control"]
 
 
-class _Storage:
-    def __init__(self, *, full_path: Path | None) -> None:
-        self._full_path = full_path
+def _store(monkeypatch: pytest.MonkeyPatch, root: Path, storage_path: str, data: bytes) -> str:
+    """Write `data` where the local backend would have, and return its storage path.
 
-    def get_full_path(self, _stored: str) -> Path | None:
-        return self._full_path
+    The routes take a storage path rather than a path on this host since #1423,
+    so these point the local backend at `tmp_path` and let it resolve - which is
+    also what makes the 404 cases exercise the real resolution.
+    """
+    monkeypatch.setattr(settings, "MEDIA_DIR", root)
+    target = root / storage_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return storage_path
