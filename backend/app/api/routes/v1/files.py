@@ -59,7 +59,7 @@ async def download_file(
             status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
         ) from None
 
-    return chat_file_response(file_upload_svc, chat_file, disposition=disposition)
+    return await chat_file_response(chat_file, disposition=disposition)
 
 
 @router.get("/{file_id}/info", response_model=FileInfo)

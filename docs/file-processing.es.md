@@ -1,5 +1,5 @@
 ---
-source_sha: "6fcf1f4dbc8e"
+source_sha: "441ec39f5257"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -241,15 +241,47 @@ método `parse_async` que el binding no define.
 
 ### Almacenamiento { #storage }
 
-`FileStorageService` guarda los archivos en el directorio `media/`:
+Todo archivo subido — un adjunto del chat, un avatar, la marca del despliegue, el
+original de un documento de la base de conocimiento — pasa por un único backend de
+almacenamiento, elegido con `FILE_STORAGE_BACKEND` en el momento del despliegue y
+nunca por organización. Sea cual sea, una fila registra la misma **ruta de
+almacenamiento**: `{owner}/{uuid}_{filename}`.
+
+`local`, el valor por defecto, los escribe bajo `MEDIA_DIR`:
 
 ```
 media/
   {user_id}/
-    document.pdf
-    screenshot.png
+    a1b2c3d4e5f6_document.pdf
+    f6e5d4c3b2a1_screenshot.png
     ...
 ```
+
+`s3` escribe esas mismas rutas como claves de objeto en un bucket compatible con
+S3, bajo `FILE_STORAGE_S3_PREFIX`, y pide al almacén que cifre cada una de ellas
+— SSE-S3 por defecto, SSE-KMS con una clave que nombra el despliegue. Los ajustes
+están en la [configuración](configuration.md#uploaded-files-at-rest).
+
+!!! info "Qué backend ejecutar, y qué le pide cada uno"
+
+    El local es la respuesta honesta para un solo host: cifre el volumen y los
+    archivos quedan tan protegidos como el disco. Deja de serlo en la segunda
+    réplica de la API — dos contenedores, dos discos, y un archivo subido a uno es
+    un 404 en el otro — y cuando un cliente quiere sus archivos bajo una clave que
+    él controla.
+
+    Cambiar de backend no mueve lo que el otro ya tiene, y aquí nada lo migra. Es
+    una decisión que se toma al montar el despliegue; un cambio posterior exige
+    copiar los archivos a mano, y las rutas son iguales en ambos lados, así que
+    basta con una copia.
+
+    Los workspaces de los agents no están en ninguno de los dos backends. Un
+    workspace `state` vive en esta base de datos y uno `docker` en el
+    almacenamiento del host de la sandbox, así que un almacén de objetos no cambia
+    dónde están — véase [la sandbox](sandbox.md).
+
+`agenticos cmd doctor` indica qué backend usa un despliegue en marcha y si el
+cifrado está activo.
 
 ### El modelo ChatFile { #chatfile-model }
 

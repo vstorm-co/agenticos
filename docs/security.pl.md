@@ -1,5 +1,5 @@
 ---
-source_sha: "d6759c2a4490"
+source_sha: "a16194cf5597"
 ---
 
 # Bezpieczeństwo { #security }
@@ -72,17 +72,22 @@ wprost, bo przegląd i tak to znajdzie:
   wyszukiwane po równości, nie pieczętowane w vault. Kto ma wartość, ten może jej
   użyć, więc chroni je wygaśnięcie i jednorazowość, a nie szyfrowanie. Wyjątkiem
   są refresh tokeny sesji, haszowane w spoczynku (`sessions.refresh_token_hash`).
-- **Wgrane pliki i pliki z czatu** leżą na systemie plików kontenera API otwartym
-  tekstem (`app/services/file_storage.py`) — chroni je wyłącznie szyfrowanie
-  wolumenu.
+- **Wgrane pliki i pliki z czatu** leżą tam, gdzie umieści je
+  `FILE_STORAGE_BACKEND` (`app/services/file_storage.py`). Przy domyślnym
+  `local` jest to system plików kontenera API otwartym tekstem, chroniony
+  wyłącznie szyfrowaniem wolumenu. Przy `s3` są obiektami w buckecie, który
+  nazywa wdrożenie, a każdy zapis prosi magazyn o ich zaszyfrowanie — SSE-S3 albo
+  SSE-KMS kluczem kontrolowanym przez klienta. `agenticos cmd doctor` wypisuje,
+  w którym z tych trzech stanów jest działające wdrożenie.
 - **Treści wiadomości, `rag_documents` i ich wektory oraz workspace'y sandboksa**
   są przechowywane jako kolumny z tekstem jawnym, wiersze pgvector i pliki
   workspace'u. Vault pieczętuje poświadczenia, nie treść; ochrona tych rzeczy w
   spoczynku jest na poziomie dysku.
 
-Backend plików zgodny z S3, z szyfrowaniem po stronie serwera, jest odpowiedzią
-na poziomie aplikacji dla object storage i jest śledzony w
-[#1423](https://github.com/vstorm-co/agenticos/issues/1423).
+Backend S3 jest wyborem dokonywanym w czasie wdrożenia i nie migruje tego, co
+trzyma już lokalny; ustawienia są w
+[konfiguracji](configuration.md#uploaded-files-at-rest), a uzasadnienie
+w [przetwarzaniu plików](file-processing.md#storage).
 
 ## Co jest trzymane o jednej osobie i co się z tym dzieje { #what-is-held-about-one-person-and-what-happens-to-it }
 
@@ -198,6 +203,9 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Spec jest odrzucany przy publikacji, nigdy w czasie runu | `validate_spec` (`app/services/agent_registry.py`) — nieznana capability, nieprzyznany scope, `secret_id` złego rodzaju albo z innej organizacji, osobiste połączenie MCP | `test_agent_registry.py`, `test_capability_secrets.py::TestPublishValidation` |
 | Budżet jest sprawdzany przed żądaniem do modelu, a koszt zapisywany nawet przy błędzie | `BudgetGuard.wrap_model_request` bramkuje przed wywołaniem (`app/agents/capabilities/budget/`); koszt runu jest zapisywany w terminalnym `finally` (`app/services/agent_runner.py`) | `test_spend.py::TestBudgetGuard`, `test_agent_runner.py::…::test_a_failed_run_still_records_its_cost` |
 | Zatwierdzenie jest rozstrzygane dokładnie raz | `ApprovalService.decide` odmawia wierszowi innemu niż oczekujący, odczytanemu `for_update` (`app/services/approvals.py`) | `test_approvals_queue.py::TestDecidingTwiceIsRefused` |
+| Analiza statyczna dosięga zmiany, która wprowadza znalezisko | CodeQL (`security-extended`) na każdym pull requeście dla Pythona, JavaScriptu/TypeScriptu, Rusta i workflowów, plus cotygodniowy pełny przebieg (`.github/workflows/codeql.yml`). Scalenia odmawia ochrona scalania na podstawie code scanningu w rulesecie `main`, a nie status samego joba — zobacz [gałęzie](branching.md#what-is-enforced-and-by-what) | `test_codeql_workflow.py` |
+| Zależność ze znaną podatnością przerywa pull requesta | `make audit` na `backend/uv.lock` i `make audit-frontend` na `frontend/bun.lock`, oba w zadaniu `Security Scan` i w `make check` | `test_ci_parity.py` |
+| To, co zawiera wydanie, da się odczytać bez budowania | SBOM CycloneDX na obraz, generowany z opublikowanego manifestu i dołączany do wydania; [inwentarz komponentów](reference/components.md) jest czytelnym indeksem | `test_images_workflow.py::TestTheReleaseCarriesAnInventory` |
 
 ### Poufność poświadczeń · HIPAA §164.312(a)(2)(iv) { #confidentiality-of-credentials-hipaa-164312a2iv }
 
@@ -302,12 +310,12 @@ nie sugestią.
   ustawiony, trace'uje każdy run obsłużony przez proces API, z treścią każdego
   agenta, który nie poprosił o `none`.
 - Poświadczenia konektorów i API są zapieczętowane per organizacja w jednym
-  vaulcie; krótkożyjące tokeny bearer i treść w spoczynku (pliki, wiadomości,
-  RAG, sandboksy) nie są, a [#1423](https://github.com/vstorm-co/agenticos/issues/1423)
-  jest odpowiedzią na poziomie aplikacji dla object storage.
+  vaulcie; krótkożyjące tokeny bearer i reszta treści w spoczynku (wiadomości,
+  RAG, sandboksy) nie są. Wgrane pliki są tym, co się zmieniło:
+  `FILE_STORAGE_BACKEND=s3` umieszcza je w object storage, który szyfruje każdy
+  zapis.
 - Każda kontrola w macierzy nazywa mechanizm i test, i tym samym tchem nazywa
-  swoje luki — dowód nienaruszalności i szyfrowanie plików na poziomie aplikacji
-  linkują issue, które by je zbudowały.
+  swoje luki — dowód nienaruszalności linkuje issue, które by go zbudowało.
 - Podatności zgłaszaj i listę kontrolną hardeningu uruchamiaj z
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   obok tej strony czytaj [Ochronę danych](data-protection.md) i
