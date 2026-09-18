@@ -53,6 +53,8 @@ Two things are versioned separately from this file and worth knowing about:
   and `filters.parent_doc_id` is a 400 conflict. Programmatic callers sending any
   other filter string — which did nothing before — must move to `filters`.
 
+## [0.0.467] - 2026-09-18
+
 ### Fixed
 
 - **A value somebody submitted can no longer write a log entry of its own.** A
