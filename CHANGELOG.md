@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A value somebody submitted can no longer write a log entry of its own.** A
+  log entry is one line, so a value carrying a newline wrote a second one - with
+  a timestamp, a level and a message of the sender's choosing, indistinguishable
+  from a real entry in any text log. The clearest way in was the rate limiter's
+  `caller`, which can be the address typed into a sign-in form, or an
+  `X-Forwarded-For` header where a deployment trusts one. The filter that already
+  sits on every handler in every process escapes the control characters that end
+  a line, in the message, its arguments, the rendered traceback and anything
+  passed through `extra=` - so a call site cannot forget, and a deployment that
+  swaps in a JSON or key-value formatter does not acquire the hole by doing so.
+  Tab is left alone; the attempt is still recorded, as `\n`, rather than swallowed.
+  (CodeQL `py/log-injection`)
+
 ## [0.0.466] - 2026-09-18
 
 ### Added
