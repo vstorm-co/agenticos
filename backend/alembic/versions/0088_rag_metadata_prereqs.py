@@ -30,12 +30,13 @@ part of this migration; this ships only the schema/index prerequisites.
 
 Cross-branch numbering note: originally authored as `0081` off
 `0080_audit_checkpoints`; rebased to `0083` off `0082_portal_account_id`, then to
-`0087` off `0086_scope_rag_rows_by_org` as parallel branches
-(`0081_ml_service_calls`, `0082_portal_account_id`, `0083_memory_deactivation`,
+`0087` off `0086_scope_rag_rows_by_org`, then to `0088` off
+`0087_agent_categories_tags` as parallel branches (`0081_ml_service_calls`,
+`0082_portal_account_id`, `0083_memory_deactivation`,
 `0084_retention_policies`, `0085_refresh_reuse_detection`,
-`0086_scope_rag_rows_by_org`) reached main first. `down_revision` is pinned to
-the current head; this rebases again if another migration lands ahead of the
-merge.
+`0086_scope_rag_rows_by_org`, `0087_agent_categories_tags`) reached main first.
+`down_revision` is pinned to the current head; this rebases again if another
+migration lands ahead of the merge.
 
 The index names and the function body are written out here rather than imported
 from `app.db.vector_tables`: a migration is a snapshot of what existed when it
@@ -49,8 +50,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0087_rag_metadata_prereqs"
-down_revision: str | Sequence[str] | None = "0086_scope_rag_rows_by_org"
+revision: str = "0088_rag_metadata_prereqs"
+down_revision: str | Sequence[str] | None = "0087_agent_categories_tags"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
