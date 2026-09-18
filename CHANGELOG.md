@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.472] - 2026-09-19
+
 ### Fixed
 
 - **The security controls matrix reported four shipped controls as missing.**
