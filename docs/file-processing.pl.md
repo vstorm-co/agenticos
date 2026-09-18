@@ -1,5 +1,5 @@
 ---
-source_sha: "c0c8a6cf4278"
+source_sha: "7dfb1219d808"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -794,6 +794,47 @@ informacją.
 **Wewnątrz kolekcji nie ma izolacji per dokument.** Dostęp rozstrzygany jest na
 poziomie kolekcji, więc sięgnięcie po jedną sięga po każdy dokument w niej — i to
 jest ta rzecz, którą trzeba rozważyć, decydując, co gdzie wciągnąć.
+
+### Zawężanie wyszukiwania { #narrowing-a-search }
+
+`POST /rag/search` i narzędzie retrieval agenta przyjmują obok zapytania obiekt
+`filters`. Cztery wymiary, wszystkie stemplowane na każdym chunku przy ingestii:
+
+| Pole | To |
+|---|---|
+| `source` | Skąd wziął się dokument — upload, konektor synchronizacji — ze stałego słownika |
+| `document_type` | Sparsowany filetype, wyprowadzony przy ingestii, a nie podany |
+| `organizational_unit` | Jedyny wymiar pochodzący od autora i zależny od korpusu |
+| `date_from` / `date_to` | Domknięty zakres po własnej dacie dokumentu |
+
+**OR wewnątrz pola, AND pomiędzy polami.** `source: ["upload", "google_drive"]`
+pasuje do każdego z nich; dołożenie `document_type: ["pdf"]` zawęża do PDF-ów wśród
+tych dwóch. Chunk, który nie niesie wartości dla filtrowanego wymiaru, **zawodzi
+zamknięcie** — jest wykluczany, a nie dopuszczany, więc filtr nigdy nie poszerza tego,
+do czego zapytanie już sięgało. Pusta lista jest odrzucana z 422, a nie czytana jako
+„pasuje wszystko" — ta sama zasada odmowy zamiast ciszy, którą trzyma się cała ta
+strona.
+
+**Filtr nie sięgnie innego tenanta.** Ograniczenie tenantowe budowane jest z własnej
+rozwiązanej kolekcji wołającego, nigdy z ciała żądania — nie ma pola, w którym można
+by je nazwać — i jest ANDowane do zapytania przed policzeniem top-k, więc selektywny
+filtr nie wyciągnie wiersza spoza zakresu. Kolekcja app-scoped, obejmująca całe
+wdrożenie, dopasowywana jest po *braku ostemplowanego tenanta*, a nie po równości,
+której każda organizacja by nie spełniła — i to właśnie pozwala wszystkim czytać
+wspólną bazę, nie czytając siebie nawzajem.
+
+**`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
+`organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,
+bo ten wymiar jest tym, co napisali autorzy: zgadnięta wartość zwraca po cichu pustkę,
+co czyta się jako „nic na ten temat", a nie „nie ma takiej jednostki".
+
+!!! warning "Stary string `filter` jest przestarzały"
+
+    `POST /rag/search` przyjmował kiedyś string `filter`, z którego honorowany był
+    wyłącznie `parent_doc_id == "<id>"` — każda inna klauzula była porzucana bez
+    słowa. Teraz przyjmuje to jedno wyrażenie, a **wszystko inne odrzuca z 400**,
+    zamiast ignorować. Używaj `filters`; podanie naraz stringa i
+    `filters.parent_doc_id` to konflikt, również 400.
 
 ### Śledzenie dokumentów { #document-tracking }
 

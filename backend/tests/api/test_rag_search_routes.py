@@ -125,16 +125,20 @@ class TestScopeAndFilters:
         )
         assert resp.status_code == 422
 
-    async def test_several_collections_use_the_multi_path_with_scope(
+    async def test_several_collections_use_the_multi_path_with_a_scope_each(
         self, client: AsyncClient, access: MagicMock, retrieval: MagicMock
     ) -> None:
+        """One scope per name, and no shared default to fall back to: every
+        collection the route names is one it resolved and authorized a base for,
+        so the map covers all of them."""
         resp = await client.post(
             _SEARCH,
             json={"query": "x", "collection_names": ["a", "b"]},
         )
         assert resp.status_code == 200
-        scope = retrieval.retrieve_multi.await_args.kwargs["scope"]
-        assert scope.organization_id == _ORGANIZATION
+        kwargs = retrieval.retrieve_multi.await_args.kwargs
+        assert set(kwargs["scopes"]) == set(kwargs["collection_names"])
+        assert all(scope.organization_id == _ORGANIZATION for scope in kwargs["scopes"].values())
 
 
 class TestLegacyFilterShim:

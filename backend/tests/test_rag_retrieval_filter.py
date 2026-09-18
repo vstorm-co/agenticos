@@ -121,10 +121,11 @@ class TestThreadingScopeAndFiltersToTheStore:
         store.search = AsyncMock(return_value=[])
         org = uuid4()
 
+        scope = TenantScope(organization_id=org)
         await _retrieval_over(store).retrieve_multi(
             query="anything",
             collection_names=["a", "b"],
-            scope=TenantScope(organization_id=org),
+            scopes={"a": scope, "b": scope},
             filters=RetrievalFilters(document_type=["pdf"]),
         )
 
@@ -177,7 +178,6 @@ class TestResolvingScopePerCollection:
         await _retrieval_over(store).retrieve_multi(
             query="q",
             collection_names=["a", "b"],
-            scope=org_scope,
             scopes={"a": org_scope, "b": app_scope},
         )
 
@@ -187,20 +187,21 @@ class TestResolvingScopePerCollection:
         }
         assert by_collection == {"a": org_scope, "b": app_scope}
 
-    async def test_retrieve_multi_falls_back_to_scope_for_a_name_absent_from_scopes(self):
-        shared = TenantScope(organization_id=uuid.uuid4())
+    async def test_a_name_with_no_scope_is_refused_rather_than_read_under_another(self):
+        """There is no shared default to fall back to, and that is the point: a
+        collection whose scope the caller did not resolve would otherwise be read
+        under a *different* collection's tenant - the one mistake the map exists
+        to prevent. Both in-tree callers build it from the same bases they build
+        the name list from, so a gap is a bug in a caller, not a caller's input."""
         store = MagicMock()
         store.search = AsyncMock(return_value=[])
 
-        await _retrieval_over(store).retrieve_multi(
-            query="q",
-            collection_names=["a", "b"],
-            scope=shared,
-            scopes={"a": AppScope()},
-        )
+        with pytest.raises(AssertionError, match="b"):
+            await _retrieval_over(store).retrieve_multi(
+                query="q",
+                collection_names=["a", "b"],
+                scopes={"a": AppScope()},
+            )
 
-        by_collection = {
-            call.kwargs["collection_name"]: call.kwargs["query_filter"].scope
-            for call in store.search.await_args_list
-        }
-        assert by_collection == {"a": AppScope(), "b": shared}
+        # Refused before the first collection is read, not part-way through.
+        assert not store.search.called

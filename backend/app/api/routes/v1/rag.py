@@ -281,7 +281,6 @@ async def search_documents(
         results = await retrieval_service.retrieve_multi(
             query=request.query,
             collection_names=collections,
-            scope=scopes[collections[0]],
             scopes=scopes,
             filters=filters,
             limit=request.limit,

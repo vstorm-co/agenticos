@@ -252,11 +252,10 @@ class RetrievalService(BaseRetrievalService):
         query: str,
         collection_names: list[str],
         *,
-        scope: RetrievalScope,
+        scopes: Mapping[str, RetrievalScope],
         filters: RetrievalFilters | None = None,
         limit: int = 5,
         min_score: float = 0.0,
-        scopes: Mapping[str, RetrievalScope] | None = None,
     ) -> list[SearchResult]:
         """Search several collections and merge what they return.
 
@@ -274,12 +273,25 @@ class RetrievalService(BaseRetrievalService):
         an app-scoped one (#1684, FA-039) - so each collection is read under the
         scope that matches its own rows rather than one shared scope built from
         the caller's raw organization, which cannot match an app-scoped base's
-        untagged rows. A name absent from it, or `scopes=None`, falls back to the
-        single `scope` every collection then shares.
+        untagged rows.
+
+        One per name, with no fallback: a shared default would read a collection
+        whose scope the caller did not resolve under a *different* collection's
+        tenant, which is the one mistake this whole parameter exists to prevent.
+        A name with no scope is refused instead.
+
+        Raises:
+            AssertionError: A name in `collection_names` has no scope. Not a
+                caller's input error - both in-tree callers build the map from
+                the same bases they build the name list from - so it is a bug in
+                a caller rather than something to answer with a 4xx.
         """
+        missing = [name for name in collection_names if name not in scopes]
+        if missing:
+            raise AssertionError(f"no retrieval scope resolved for: {', '.join(sorted(missing))}")
         all_results: list[SearchResult] = []
         for name in collection_names:
-            this_scope = scopes[name] if scopes is not None and name in scopes else scope
+            this_scope = scopes[name]
             all_results.extend(
                 await self.retrieve(
                     query=query,

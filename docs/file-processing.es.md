@@ -1,5 +1,5 @@
 ---
-source_sha: "c0c8a6cf4278"
+source_sha: "7dfb1219d808"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -808,6 +808,48 @@ sitio ya es información.
 **Dentro de una colección no hay aislamiento por documento.** El acceso se decide
 en la colección, así que llegar a una es llegar a todos sus documentos — que es lo
 que hay que sopesar al decidir qué se ingiere dónde.
+
+### Acotar una búsqueda { #narrowing-a-search }
+
+`POST /rag/search` y la herramienta de retrieval del agent aceptan un objeto `filters`
+junto a la consulta. Cuatro dimensiones, todas selladas en cada chunk durante la
+ingesta:
+
+| Campo | Es |
+|---|---|
+| `source` | De dónde vino el documento — la subida, un conector de sincronización — de un vocabulario fijo |
+| `document_type` | El filetype parseado, derivado en la ingesta en vez de suministrado |
+| `organizational_unit` | La única dimensión puesta por el autor y dependiente del corpus |
+| `date_from` / `date_to` | Un rango inclusivo sobre la fecha propia del documento |
+
+**OR dentro de un campo, AND entre campos.** `source: ["upload", "google_drive"]`
+casa con cualquiera de los dos; añadir `document_type: ["pdf"]` acota a los PDF de
+entre esos dos. Un chunk sin valor para una dimensión filtrada **falla cerrado** — se
+excluye en lugar de admitirse, así que un filtro nunca amplía lo que la consulta ya
+alcanzaba. Una lista vacía se rechaza con 422 en vez de leerse como «casa con todo»,
+la misma regla de rechazo antes que silencio que sigue el resto de esta página.
+
+**Un filtro no llega a otro tenant.** La restricción de tenant se construye a partir
+de la colección resuelta del propio llamante, nunca del cuerpo de la petición — no hay
+campo donde nombrar uno — y se une con AND a la consulta antes de calcular el top-k,
+de modo que un filtro selectivo no puede sacar una fila de fuera del ámbito. Una
+colección app-scoped, de todo el deployment, se casa por *no llevar tenant sellado* en
+vez de por una igualdad que toda organización incumpliría — y eso es lo que permite
+que todos lean la base compartida sin que nadie lea la de los demás.
+
+**`GET /rag/collections/{name}/filter-values`** responde con los valores de
+`organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.
+Existe porque esa dimensión es lo que escribieron los autores: adivinar un valor
+devuelve vacío en silencio, y eso se lee como «no hay nada sobre el tema» en lugar de
+«no existe esa unidad».
+
+!!! warning "La vieja cadena `filter` está obsoleta"
+
+    `POST /rag/search` aceptaba antes una cadena `filter` de la que solo
+    `parent_doc_id == "<id>"` llegó a honrarse — cualquier otra cláusula se
+    descartaba sin decir nada. Ahora acepta esa única expresión y **rechaza el resto
+    con 400** en lugar de ignorarlo. Usa `filters`; dar a la vez la cadena y
+    `filters.parent_doc_id` es un conflicto, también 400.
 
 ### Seguimiento de documentos { #document-tracking }
 

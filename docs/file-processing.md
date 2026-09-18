@@ -747,6 +747,46 @@ are derived from what people call their knowledge bases, so confirming that
 collection, so reaching one reaches every document in it — which is the thing to weigh
 when deciding what to ingest where.
 
+### Narrowing a search { #narrowing-a-search }
+
+`POST /rag/search` and the agent's retrieval tool take a `filters` object beside the
+query. Four dimensions, all stamped onto every chunk at ingest:
+
+| Field | Is |
+|---|---|
+| `source` | Where the document came from — the upload, a sync connector — from a fixed vocabulary |
+| `document_type` | The parsed filetype, derived at ingest rather than supplied |
+| `organizational_unit` | The one author-supplied, corpus-dependent dimension |
+| `date_from` / `date_to` | An inclusive range over the document's own date |
+
+**OR within a field, AND across them.** `source: ["upload", "google_drive"]` matches
+either; adding `document_type: ["pdf"]` narrows to PDFs among those two. A chunk that
+carries no value for a dimension being filtered on **fails closed** — it is excluded
+rather than admitted, so a filter never widens what the query already reached. An
+empty list is refused with 422 rather than read as "match everything", which is the
+same refusal-over-silence rule the rest of this page follows.
+
+**A filter cannot reach another tenant.** The tenant restriction is built from the
+caller's own resolved collection, never from the request body — there is no field in
+which to name one — and it is ANDed into the query before the top-k is computed, so a
+selective filter cannot surface a row from outside the scope. An app-scoped,
+deployment-wide collection is matched on *having no tenant stamped* rather than on an
+equality every organization would fail, which is what lets everybody read the shared
+base without anybody reading each other's.
+
+**`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
+values actually present in the collection, under that same scope. It exists because
+that dimension is whatever the authors wrote: guessing a value returns silently empty,
+which reads as "nothing on this subject" rather than "no such unit".
+
+!!! warning "The old `filter` string is deprecated"
+
+    `POST /rag/search` used to take a `filter` string, of which only
+    `parent_doc_id == "<id>"` was ever honoured — every other clause was dropped
+    without a word. It now accepts that one expression and **refuses anything else
+    with 400** rather than ignoring it. Use `filters` instead; supplying both the
+    string and `filters.parent_doc_id` is a conflict, also 400.
+
 ### Document tracking
 
 

@@ -166,7 +166,6 @@ async def search_knowledge_base(
             results = await service.retrieve_multi(
                 query=query,
                 collection_names=resolved,
-                scope=scopes[resolved[0]],
                 scopes=scopes,
                 filters=filters,
                 limit=top_k,

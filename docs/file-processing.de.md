@@ -1,5 +1,5 @@
 ---
-source_sha: "c0c8a6cf4278"
+source_sha: "7dfb1219d808"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -841,6 +841,50 @@ Menschen ihre Wissensdatenbanken nennen, zu bestätigen, dass
 wird an der Collection entschieden, eine zu erreichen erreicht also jedes Dokument
 darin — und genau das ist abzuwägen, wenn man entscheidet, was wohin eingelesen
 wird.
+
+### Eine Suche eingrenzen { #narrowing-a-search }
+
+`POST /rag/search` und das Retrieval-Werkzeug des Agents nehmen neben der Anfrage ein
+`filters`-Objekt entgegen. Vier Dimensionen, alle beim Ingest auf jeden Chunk
+gestempelt:
+
+| Feld | Ist |
+|---|---|
+| `source` | Woher das Dokument kam — der Upload, ein Sync-Konnektor — aus einem festen Vokabular |
+| `document_type` | Der geparste Filetype, beim Ingest abgeleitet statt mitgegeben |
+| `organizational_unit` | Die eine vom Autor gesetzte, korpusabhängige Dimension |
+| `date_from` / `date_to` | Ein einschließender Bereich über das eigene Datum des Dokuments |
+
+**ODER innerhalb eines Feldes, UND über die Felder hinweg.**
+`source: ["upload", "google_drive"]` trifft beides; `document_type: ["pdf"]` daneben
+grenzt auf PDFs unter diesen beiden ein. Ein Chunk ohne Wert für eine gefilterte
+Dimension **schließt sich selbst aus** — er wird ausgeschlossen statt zugelassen, so
+dass ein Filter nie erweitert, was die Anfrage ohnehin schon erreichte. Eine leere
+Liste wird mit 422 abgelehnt statt als „trifft alles" gelesen — dieselbe Regel
+„Ablehnung vor Stille", der diese Seite durchgehend folgt.
+
+**Ein Filter reicht nicht in einen anderen Tenant.** Die Tenant-Einschränkung wird aus
+der eigenen aufgelösten Collection des Aufrufers gebaut, nie aus dem Request-Body — es
+gibt kein Feld, in dem sich einer benennen ließe — und sie wird in die Anfrage
+ge-UNDet, bevor die Top-k berechnet werden, so dass ein selektiver Filter keine Zeile
+von außerhalb des Scopes hervorholen kann. Eine app-scoped, deploymentweite Collection
+wird darüber getroffen, dass *kein Tenant aufgestempelt ist*, statt über eine
+Gleichheit, an der jede Organisation scheitern würde - und genau das lässt alle die
+geteilte Basis lesen, ohne dass jemand die der anderen liest.
+
+**`GET /rag/collections/{name}/filter-values`** antwortet mit den
+`organizational_unit`-Werten, die in der Collection tatsächlich vorkommen, unter
+demselben Scope. Es existiert, weil diese Dimension das ist, was die Autoren
+geschrieben haben: ein geratener Wert liefert still nichts, und das liest sich als
+„dazu gibt es nichts" statt als „diese Einheit gibt es nicht".
+
+!!! warning "Der alte `filter`-String ist veraltet"
+
+    `POST /rag/search` nahm früher einen `filter`-String, von dem nur
+    `parent_doc_id == "<id>"` je beachtet wurde — jede andere Klausel wurde
+    kommentarlos verworfen. Jetzt nimmt er diesen einen Ausdruck und **lehnt alles
+    andere mit 400 ab**, statt es zu ignorieren. Nutzen Sie `filters`; beides zugleich
+    anzugeben, den String und `filters.parent_doc_id`, ist ein Konflikt, ebenfalls 400.
 
 ### Dokumentverfolgung { #document-tracking }
 

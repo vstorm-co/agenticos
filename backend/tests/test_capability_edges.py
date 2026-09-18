@@ -80,11 +80,12 @@ class TestSearchingSeveralCollections:
             ]
         )
 
+        scope = TenantScope(organization_id=uuid4())
         with pytest.raises(RuntimeError):
             await _retrieval_over(store).retrieve_multi(
                 query="anything",
                 collection_names=["healthy", "broken"],
-                scope=TenantScope(organization_id=uuid4()),
+                scopes={"healthy": scope, "broken": scope},
             )
 
     @pytest.mark.anyio
@@ -96,10 +97,11 @@ class TestSearchingSeveralCollections:
             side_effect=[[SearchResult(content="found", score=0.9)], []],
         )
 
+        scope = TenantScope(organization_id=uuid4())
         results = await _retrieval_over(store).retrieve_multi(
             query="anything",
             collection_names=["populated", "never_ingested"],
-            scope=TenantScope(organization_id=uuid4()),
+            scopes={"populated": scope, "never_ingested": scope},
         )
 
         assert [r.content for r in results] == ["found"]
