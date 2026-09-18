@@ -1105,7 +1105,13 @@ def get_ingestion_service(
     processor: DocumentProcessorSvc,
     vector_store: VectorStoreSvc,
 ) -> IngestionService:
-    """Create IngestionService instance."""
+    """Create IngestionService instance.
+
+    No tenant is bound here: the request never ingests through this service (the
+    API dispatches ingestion to a worker), and its one use - deleting a document -
+    passes the collection's own tenant explicitly, resolved from the knowledge
+    base the route already loaded (#1684).
+    """
     return IngestionService(processor=processor, vector_store=vector_store)
 
 

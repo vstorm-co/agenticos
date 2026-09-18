@@ -310,6 +310,29 @@ describe("what the model was actually handed", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("draws a thumbnail for a render-safe image but not for a TIFF", () => {
+    // A TIFF is an `image` kind no browser draws inline; on the run detail it must
+    // get its glyph rather than a broken thumbnail, while a PNG is drawn (#1591).
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          role: "user",
+          content: "look",
+          files: [
+            { id: "p", filename: "shot.png", mime_type: "image/png", file_type: "image" },
+            { id: "t", filename: "scan.tiff", mime_type: "image/tiff", file_type: "image" },
+          ],
+        }),
+      ],
+    });
+
+    renderTimeline();
+
+    expect(screen.getByRole("img", { name: "shot.png" })).toBeVisible();
+    expect(screen.queryByRole("img", { name: "scan.tiff" })).toBeNull();
+  });
+
   it("puts the model, the cost and the context carried on the turn", () => {
     serve({
       items: [

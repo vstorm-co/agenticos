@@ -64,7 +64,7 @@ class _StoreWith:
         self.asked_for: tuple[str, str] | None = None
 
     async def get_document_chunks(
-        self, collection_name: str, document_id: str
+        self, collection_name: str, document_id: str, organization_id: object = None
     ) -> list[DocumentChunk]:
         self.asked_for = (collection_name, document_id)
         return self.chunks

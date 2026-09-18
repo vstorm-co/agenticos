@@ -38,6 +38,9 @@ pytestmark = pytest.mark.anyio
 
 MODULE = "app.services.retention"
 NOW = datetime(2026, 9, 15, 12, 0, tzinfo=UTC)
+# The *collection's* tenant, which is what the chunks were stamped with - not
+# the organization being swept, and `None` for an app-scoped base (#1684).
+TENANT = uuid.UUID("11111111-1111-1111-1111-111111111111")
 
 
 class TestWhichNumberWins:
@@ -503,7 +506,7 @@ class TestTheSweep:
         self._one_organization(monkeypatch, {"knowledge_documents": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch)
-        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb", "vec", None)]
+        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb", "vec", None, TENANT)]
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
 
         results = await service.sweep(now=NOW)
@@ -586,7 +589,7 @@ class TestTheSweep:
         repo = self._repo(monkeypatch)
         document_id = uuid.uuid4()
         repo["expiring_documents"].side_effect = [
-            [(document_id, "kb_main", "vec-1", "uploads/a.pdf")],
+            [(document_id, "kb_main", "vec-1", "uploads/a.pdf", TENANT)],
             [],
         ]
         repo["delete_documents"].return_value = 1
@@ -595,10 +598,41 @@ class TestTheSweep:
 
         results = await service.sweep(now=NOW)
 
-        remove_vectors.assert_awaited_once_with("kb_main", "vec-1")
+        remove_vectors.assert_awaited_once_with("kb_main", "vec-1", TENANT)
         storage.delete.assert_awaited_with("uploads/a.pdf")
         assert repo["delete_documents"].await_args.kwargs["document_ids"] == [document_id]
         assert results[0].removed["knowledge_documents"] == 1
+
+    @pytest.mark.security
+    async def test_the_collections_tenant_reaches_the_remover_not_the_sweeping_org(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A shared runtime table keeps each collection's rows apart by that tag,
+        so a delete scoped to anything else matches nothing and leaves content
+        searchable with its row gone (#1684). An app-scoped base carries no tenant
+        at all, and `None` has to reach the store as itself."""
+        remove_vectors = AsyncMock(return_value=True)
+        service = _service(remove_vectors=remove_vectors)
+        self._one_organization(monkeypatch, {"knowledge_documents": 30})
+        monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
+        repo = self._repo(monkeypatch)
+        repo["expiring_documents"].side_effect = [
+            [
+                (uuid.uuid4(), "kb_org", "vec-org", None, TENANT),
+                (uuid.uuid4(), "kb_app", "vec-app", None, None),
+            ],
+            [],
+        ]
+        repo["delete_documents"].return_value = 2
+        self._storage(monkeypatch)
+        monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())
+
+        await service.sweep(now=NOW)
+
+        assert [call.args for call in remove_vectors.await_args_list] == [
+            ("kb_org", "vec-org", TENANT),
+            ("kb_app", "vec-app", None),
+        ]
 
     async def test_a_document_with_no_vectors_and_no_file_still_leaves(
         self, monkeypatch: pytest.MonkeyPatch
@@ -610,7 +644,7 @@ class TestTheSweep:
         self._one_organization(monkeypatch, {"knowledge_documents": 30})
         monkeypatch.setattr(f"{MODULE}.deployment_settings_repo.get", AsyncMock(return_value=None))
         repo = self._repo(monkeypatch)
-        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb_main", None, None)]
+        repo["expiring_documents"].return_value = [(uuid.uuid4(), "kb_main", None, None, TENANT)]
         repo["delete_documents"].return_value = 1
         storage = self._storage(monkeypatch)
         monkeypatch.setattr(f"{MODULE}.record_audit", AsyncMock())

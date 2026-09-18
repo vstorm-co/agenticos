@@ -1,5 +1,5 @@
 ---
-source_sha: "969649ecfaa2"
+source_sha: "d9b29b5b013c"
 ---
 
 # La consola { #the-console }
@@ -117,6 +117,12 @@ Son tuyos, no de la organización.
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
 | **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
 | **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, ajustes del despliegue | [El despliegue](deployment.md) |
+
+El catálogo de **Agents** se puede filtrar por **category** y **tag** — las
+etiquetas editables y locales a la organización que se muestran en la tarjeta de
+cada agent. Las categories y los tags de un agent los mantienes desde su página
+de detalle, junto a los controles del avatar, y el cambio surte efecto al
+momento, sin publicar una nueva versión.
 
 ## Cuando una página parece vacía { #when-a-page-looks-empty }
 

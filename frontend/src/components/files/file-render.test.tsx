@@ -143,6 +143,24 @@ describe("showing a file's bytes", () => {
     expect(screen.getByRole("img", { name: "chart.png" })).toHaveAttribute("src", "blob:x");
   });
 
+  it("offers a TIFF as a download, not a broken image", () => {
+    // The server sends a TIFF with `media_type=image/tiff`, so `startsWith("image/")`
+    // would have drawn a broken `<img>`; the render-safe allowlist sends it to the
+    // download card instead (#1591).
+    const onDownload = vi.fn();
+    render(
+      <FileBytesView
+        name="scan.tiff"
+        url="blob:x"
+        mediaType="image/tiff"
+        onDownload={onDownload}
+      />,
+    );
+
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByRole("button", { name: /Download/ })).toBeInTheDocument();
+  });
+
   it("renders a PDF in a frame the browser routes to its own viewer", () => {
     render(<FileBytesView {...props} name="report.pdf" mediaType="application/pdf" />);
 

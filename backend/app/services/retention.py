@@ -92,7 +92,14 @@ class SweepResult:
 #: `max_connections` exhaustion in #948 that put it there). A sweep constructed
 #: without one cannot purge documents and says so, which is better than a class
 #: that silently does nothing on every surface but the flow.
-VectorRemover = Callable[[str, str], Awaitable[bool]]
+#: Removes one document's vectors: collection, vector document id, tenant.
+#:
+#: The tenant is the tag the chunks were stamped with at ingest, which is the
+#: collection's rather than the sweeping organization's - `None` for an
+#: app-scoped base whose rows are deployment-wide (#1684). Passed explicitly
+#: because the ingester this sweep builds is bound to no tenant of its own: it
+#: exists to delete by id across every organization.
+VectorRemover = Callable[[str, str, UUID | None], Awaitable[bool]]
 
 
 class RetentionService:
@@ -298,16 +305,16 @@ class RetentionService:
         if self.remove_vectors is None:
             raise RuntimeError("retention sweep has no vector remover; cannot purge documents")
 
-        for _, collection, vector_document_id, _ in expiring:
+        for _, collection, vector_document_id, _, tenant in expiring:
             if not vector_document_id:
                 continue
             # `IngestionService.remove_document` catches its own store failures
             # and answers False rather than raising, so discarding the answer
             # would delete the only handle to content that is still searchable -
             # with no row left for a later sweep to retry (#992's shape again).
-            if not await self.remove_vectors(collection, vector_document_id):
+            if not await self.remove_vectors(collection, vector_document_id, tenant):
                 raise RuntimeError("the vector store did not confirm the removal")
-        await self._unlink([path for *_, path in expiring if path])
+        await self._unlink([row[3] for row in expiring if row[3]])
         return await retention_repo.delete_documents(
             self.db, document_ids=[row[0] for row in expiring]
         )

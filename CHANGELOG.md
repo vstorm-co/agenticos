@@ -17,6 +17,108 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.468] - 2026-09-18
+
+### Added
+
+- **An agent carries categories and tags, and the catalog filters by them.**
+  Anyone who may edit an agent can add, change and remove both through
+  `PATCH /agents/{id}/metadata`, and `GET /agents` narrows by repeatable
+  `category` and `tag` parameters - values OR within a facet, AND across them,
+  matched case-insensitively. They are metadata on the agent record rather than
+  part of the versioned spec, which is how the avatar already works: YAML export
+  and import are unchanged, no `SPEC_VERSION` moves, and nobody has to publish a
+  version to retag. Values are normalized once on the way in - trimmed,
+  whitespace-collapsed, case-folded, de-duplicated - and bounded at ten
+  categories and twenty tags of thirty-two characters each, a longer one
+  answering 422. The filter can only narrow what the caller could already see: it
+  adds a predicate to the listing query that already enforces the tenant and the
+  grants, so it cannot surface another organization's agent. Migration
+  `0087_agent_categories_tags`. (#1592)
+
+## [0.0.467] - 2026-09-18
+
+### Fixed
+
+- **A value somebody submitted can no longer write a log entry of its own.** A
+  log entry is one line, so a value carrying a newline wrote a second one - with
+  a timestamp, a level and a message of the sender's choosing, indistinguishable
+  from a real entry in any text log. The clearest way in was the rate limiter's
+  `caller`, which can be the address typed into a sign-in form, or an
+  `X-Forwarded-For` header where a deployment trusts one. The filter that already
+  sits on every handler in every process escapes the control characters that end
+  a line, in the message, its arguments, the rendered traceback and anything
+  passed through `extra=` - so a call site cannot forget, and a deployment that
+  swaps in a JSON or key-value formatter does not acquire the hole by doing so.
+  Tab is left alone; the attempt is still recorded, as `\n`, rather than swallowed.
+  (CodeQL `py/log-injection`)
+
+## [0.0.466] - 2026-09-18
+
+### Added
+
+- **Eight more chat attachment formats, and `application/xml`.** DOC, XLS, PPTX,
+  MSG, TIFF, ODP, ODS and ODT upload and parse into text or images the model can
+  use, alongside the eleven that already worked - in chat, including for an agent
+  with no workspace (FA-013). Pure-Python parsers where one exists (xlrd, odfpy,
+  python-pptx, olefile) and a managed `soffice` subprocess only for DOC, killable
+  and resource-bounded; a TIFF is rendered to PNG for the vision path, page-capped
+  and never held whole. An `.msg` reports To, Cc and Bcc as the file records them
+  rather than calling every recipient a direct one. The ZIP- and OLE-backed
+  parsers are bomb-guarded, and one turn is bounded in both directions - the text
+  it pastes and the image bytes it carries - so several large attachments cannot
+  compound past what a worker can hold. A format that cannot be shown inline is
+  named in the prompt with its path, rather than silently absent. (#1591)
+
+### Fixed
+
+- **Chat attachments reach the model again.** A chat turn linked its uploaded
+  file to the new message and then re-validated it as *unlinked*, which failed
+  and dropped every attachment before the model call — the turn looked skipped,
+  with no reply. The run now reads its own turn's files directly, keeping the row
+  where it is linked to this message or still unlinked, so `list_attached_files`'
+  unlinked-guard still protects a fresh submission without rejecting the turn's
+  own files. (#1756)
+
+## [0.0.465] - 2026-09-18
+
+### Fixed
+
+- **RAG ingestion no longer crosses tenants on a shared collection name.** A
+  `rag_<collection>` runtime table is keyed by collection name only, and a name
+  is not unique across organizations - two that pick the same name share one
+  physical table. The ingestion replace/dedup path found and deleted a document
+  with no tenant predicate, so one organization could overwrite and delete
+  another's document, and a search could read another's chunk content. Every
+  chunk now records its ingesting organization, and the existence lookup, the
+  replace-delete, deletes, listings, counts, chunk reads and search all scope to
+  it. A schema change stamps existing rows for a collection owned by a single
+  organization; rows in a name shared by several are left untagged, since they
+  carry no evidence of which wrote which (#1684).
+- **The tenant scope now reaches the last three paths that could still cross it.**
+  A local-directory sync into an org- or personal-backed collection stamps its
+  rows with that collection's tenant instead of writing them untagged; a search
+  reads under the tenant of the knowledge base the caller was authorized for
+  rather than one re-resolved from the name; and the organization-purge re-stamp
+  resolves a surviving base's documents inside its own update, closing the window
+  in which a document deleted at that moment could be un-deleted, and fails the
+  cleanup so its retries re-run rather than stranding a base stamped with the
+  removed organization (#1684).
+
+## [0.0.464] - 2026-09-18
+
+### Fixed
+
+- **A LibreOffice conversion that runs past its deadline is killed rather than
+  left holding the worker.** The timeout cancelled the wait and not the process,
+  so an office document that made `soffice` hang kept a slot on the bounded file
+  pool for as long as it liked - and enough of them stopped every other
+  conversion in the deployment. The teardown is TERM, a grace period, then KILL
+  from a `finally` that survives being cancelled again; the conversion and the
+  parse share one deadline, so a file cannot spend the whole budget converting
+  and then start parsing; and the failure names the format rather than the
+  temporary path it was written to. (#1685)
+
 ## [0.0.463] - 2026-09-16
 
 ### Added

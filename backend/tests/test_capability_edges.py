@@ -70,6 +70,7 @@ class TestSearchingSeveralCollections:
         held and nothing on any screen said so.
         """
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(
             side_effect=[
                 [SearchResult(content="from the healthy one", score=0.9)],
@@ -86,6 +87,7 @@ class TestSearchingSeveralCollections:
     async def test_an_empty_collection_is_not_a_failure(self):
         """The store reports an absent table as no results, so it merges as none."""
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(
             side_effect=[[SearchResult(content="found", score=0.9)], []],
         )
@@ -105,6 +107,7 @@ class TestSearchingSeveralCollections:
         silently dropped the attribution from every result.
         """
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         results = await _retrieval_over(store).retrieve(

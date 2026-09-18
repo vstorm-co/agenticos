@@ -1,5 +1,5 @@
 ---
-source_sha: "441ec39f5257"
+source_sha: "c0c8a6cf4278"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -18,7 +18,7 @@ Wenn jemand im Chat eine Datei hochlädt, läuft die folgende Pipeline:
 ```mermaid
 flowchart TD
     U["Upload<br/><code>POST /api/v1/files/upload</code>"] --> V["Validate<br/>MIME against the allowed list, size limit"]
-    V --> C["Classify<br/>image · pdf · docx · spreadsheet · text"]
+    V --> C["Classify<br/>image · pdf · docx · spreadsheet · document · presentation · email · text"]
     C --> P["Parse<br/>extract text — images skip this"]
     P --> S["Store<br/><code>media/{user_id}/</code>"]
     S --> R["Record<br/>a <code>ChatFile</code> row"]
@@ -106,10 +106,15 @@ Text in seinem Prompt.
 | Kategorie | MIME-Typen | Endungen | Verarbeitung |
 |----------|-----------|------------|------------|
 | **Bilder** | image/jpeg, image/png, image/webp, image/gif | .jpg, .png, .webp, .gif | Unverändert gespeichert. Als `BinaryContent` an das LLM zur Bildanalyse gesendet. |
+| **TIFF** | image/tiff | .tiff, .tif | Unverändert gespeichert; erst beim Anzeigen für das Modell in PNG-Seite(n) umgewandelt, begrenzt durch `CHAT_TIFF_MAX_INLINE_PAGES`. Im Browser nicht inline dargestellt — als Download ausgeliefert. |
 | **PDF** | application/pdf | .pdf | Text über den konfigurierten PDF-Parser extrahiert. Als Kontext an den Prompt angehängt. |
-| **DOCX** | application/vnd.openxmlformats-officedocument.wordprocessingml.document | .docx | Absätze über `python-docx` extrahiert. Als Kontext an den Prompt angehängt. |
-| **Tabelle** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12 | .xlsx, .xlsm | Jedes Blatt über `openpyxl` gelesen, benannt, Zeilen tabulatorgetrennt. Als Kontext an den Prompt angehängt. `.xls` wird abgelehnt — ein anderes Format, das einen anderen Leser braucht. |
-| **Text** | text/plain, text/markdown | .txt, .md | Direkt als UTF-8 dekodiert. Als Kontext an den Prompt angehängt. |
+| **DOCX** | …wordprocessingml.document | .docx | Absätze über `python-docx` extrahiert. Als Kontext an den Prompt angehängt. |
+| **DOC** | application/msword | .doc | Über einen verwalteten LibreOffice-Subprozess (`soffice`) in Text umgewandelt. Benötigt LibreOffice im Image; fehlt es, wird der Text als nicht verfügbar gemeldet. |
+| **Tabelle** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12, application/vnd.ms-excel, …opendocument.spreadsheet | .xlsx, .xlsm, .xls, .ods | Jedes Blatt gelesen, benannt, Zeilen tabulatorgetrennt — `openpyxl` für OOXML, `xlrd` für das alte `.xls`, `odfpy` für `.ods`. Als Kontext an den Prompt angehängt. |
+| **Präsentation** | …presentationml.presentation, …opendocument.presentation | .pptx, .odp | Text aus Formen, Tabellenzellen und Foliennotizen über `python-pptx` (`.pptx`) oder `odfpy` (`.odp`). Als Kontext an den Prompt angehängt. |
+| **Dokument (OpenDocument)** | …opendocument.text | .odt | Absätze über `odfpy`. Als Kontext an den Prompt angehängt. |
+| **E-Mail** | application/vnd.ms-outlook | .msg | Kopfzeilen und Text aus den OLE/MAPI-Streams über `olefile` (BSD) gelesen; eingebettete Anhänge werden nur namentlich aufgelistet, nicht rekursiv extrahiert. Als Kontext an den Prompt angehängt. |
+| **Text** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Direkt als UTF-8 dekodiert (XML nach seiner deklarierten BOM/Kodierung). Als Kontext an den Prompt angehängt. |
 
 ### Wohin ein Anhang geht, hängt vom Agent ab { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -124,9 +129,10 @@ bekommt die Datei statt des Textes:
 
 | Anhang | Ohne Workspace | Mit einem Workspace |
 |---|---|---|
-| text, csv, md, json | geparster Text inline eingefügt | nach `uploads/` geschrieben, die Nachricht trägt eine Referenz und die ersten 20 Zeilen |
-| pdf, docx, Tabelle | geparster Text inline eingefügt | nach `uploads/` geschrieben, mit dem extrahierten Text daneben, sofern die Laufzeitumgebung sie nicht selbst lesen kann; Referenz und die ersten 20 Zeilen |
+| text, csv, md, json, xml | geparster Text inline eingefügt | nach `uploads/` geschrieben, die Nachricht trägt eine Referenz und die ersten 20 Zeilen |
+| pdf, docx, spreadsheet, document, presentation, email | geparster Text inline eingefügt | nach `uploads/` geschrieben, mit dem extrahierten Text daneben, sofern die Laufzeitumgebung sie nicht selbst lesen kann (`email` bekommt ihn immer — `lit` kann `.msg` nicht lesen); Referenz und die ersten 20 Zeilen |
 | Bild | `BinaryContent` | `BinaryContent` **und** geschrieben; die Referenz nennt den Pfad |
+| tiff | PNG-Seite(n) als `BinaryContent`, Seitengrenze vermerkt | Original-`.tiff` geschrieben; PNG-Seite(n) angezeigt, Seitengrenze vermerkt |
 
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede
@@ -150,6 +156,17 @@ Das Parsen geschieht so oder so serverseitig, denn der *Text* ist das, was ein
 Agent ohne Workspace bekommt und woraus die 20 Zeilen in der Nachricht stammen.
 Den Upload ohne Parsen anzunehmen würde einen Agent mit Workspace als unlesbare
 Bytes erreichen und einen ohne Workspace als gar nichts.
+
+**Einschränkungen.** Ein gescanntes PDF oder TIFF liefert ein Bild, keinen
+OCR-Text — der Chat-Pfad hat keine OCR (die Wissensdatenbank schon, über
+LiteParse). Tabellen in Office- und DOCX-Dateien werden zu tabulator- oder
+zeilengetrenntem Text abgeflacht. DOC benötigt LibreOffice im Image; ohne wird der
+Text als nicht verfügbar gemeldet. Eingebettete Anhänge einer `.msg` werden nur
+namentlich aufgelistet, nicht extrahiert. Ein mehrseitiges TIFF zeigt dem Modell
+bis zu `CHAT_TIFF_MAX_INLINE_PAGES` Seiten; ein Agent mit Workspace öffnet den Rest
+aus dem Original auf der Festplatte. Der extrahierte Text ist auf
+`CHAT_PARSED_TEXT_MAX_CHARS` begrenzt, und Budgets pro Datei und pro Runde begrenzen,
+was einem Agent ohne Workspace eingefügt wird.
 
 **Ein abgelehnter Schreibvorgang wird einmal gesagt, über den Workspace.** Ein
 Run, dessen Workspace eine Datei nicht annimmt, ist ein Run, dessen Shell- und
@@ -301,10 +318,10 @@ Das Datenbankmodell `ChatFile` verfolgt hochgeladene Dateien:
 | `id` | UUID | Primärschlüssel |
 | `user_id` | UUID/FK | Eigentümer (für die Zugriffskontrolle verwendet) |
 | `filename` | String | Ursprünglicher Dateiname |
-| `mime_type` | String | MIME-Typ (z. B. `application/pdf`) |
+| `mime_type` | String | Aufgelöster (kanonischer) MIME-Typ — eine `application/octet-stream`-`.tiff` wird als `image/tiff` gespeichert, damit der Download- und der Inline-Umwandlungspfad ein verlässliches Feld lesen. Vor FA-013 hochgeladene Zeilen behalten ihren deklarierten Typ; die Leser tolerieren beides. |
 | `size` | Integer | Dateigröße in Bytes |
 | `storage_path` | String | Relativer Pfad im Speicher |
-| `file_type` | String | Klassifizierter Typ: `image`, `pdf`, `docx`, `spreadsheet`, `text` |
+| `file_type` | String | Klassifizierter Typ: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Extrahierter Textinhalt (NULL bei Bildern) |
 | `message_id` | UUID/FK | Verknüpfte Nachricht (gesetzt beim Senden der Nachricht) |
 | `created_at` | DateTime | Zeitpunkt des Uploads |

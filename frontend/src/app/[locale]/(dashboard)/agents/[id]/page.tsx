@@ -45,6 +45,7 @@ import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
+import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
@@ -872,6 +873,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
         }
       />
 
+      {((agent.categories ?? []).length > 0 || (agent.tags ?? []).length > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(agent.categories ?? []).map((label) => (
+            <Badge
+              key={`c:${label}`}
+              variant="outline"
+              className="text-muted-foreground font-normal"
+            >
+              {label}
+            </Badge>
+          ))}
+          {(agent.tags ?? []).map((label) => (
+            <Badge
+              key={`t:${label}`}
+              variant="outline"
+              className="text-muted-foreground font-normal"
+            >
+              {label}
+            </Badge>
+          ))}
+        </div>
+      )}
+
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
         <DialogContent className={cn(DIALOG_SCROLL, DIALOG_CANVAS)}>
           <DialogHeader>
@@ -1120,6 +1144,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
               />
             </CardContent>
           </Card>
+
+          {/* Discovery metadata, not the spec: it autosaves at once like the
+              avatar, so it hangs off the same role-level `canEdit` every other
+              editing control on this page does. */}
+          {canEdit && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("discovery")}</CardTitle>
+                <CardDescription>{t("discoveryHelp")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetadataEditor
+                  agentId={id}
+                  categories={agent.categories ?? []}
+                  tags={agent.tags ?? []}
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="toolbox" className="mt-6 space-y-6">

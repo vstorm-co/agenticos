@@ -71,6 +71,19 @@ The route carries a **rate limit rather than a permission gate**. Permission is
 decided inside the service, against that specific agent's grants — a role gate
 on a per-resource route [cannot see them](permissions.md).
 
+`PATCH /api/v1/agents/{id}/metadata` sets an agent's **categories** and **tags**
+with a body like `{"categories": [...], "tags": [...]}`, where an empty list
+clears that facet. Values are normalized — trimmed, whitespace-collapsed,
+case-folded and de-duplicated — and bounded: at most 10 categories and 20 tags,
+each at most 32 characters, a longer item answering `422`. Like the run route it
+carries no role gate; the grant-aware `agents:edit` check inside the service
+decides, so a viewer holding an edit grant on one agent may retag it.
+
+`GET /api/v1/agents` filters that catalog through repeatable `category` and `tag`
+query parameters: values **OR within a facet** and **AND across facets**, matched
+case-insensitively (a query value folds the way a stored one does, and a blank
+value is ignored). The filter only narrows what you could already see — it never
+crosses a tenant or a grant boundary.
 ## The ML services
 
 Four of the platform's services answer on their own, with no conversation and no
