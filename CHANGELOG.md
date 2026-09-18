@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Eight more chat attachment formats, and `application/xml`.** DOC, XLS, PPTX,
+  MSG, TIFF, ODP, ODS and ODT upload and parse into text or images the model can
+  use, alongside the eleven that already worked - in chat, including for an agent
+  with no workspace (FA-013). Pure-Python parsers where one exists (xlrd, odfpy,
+  python-pptx, olefile) and a managed `soffice` subprocess only for DOC, killable
+  and resource-bounded; a TIFF is rendered to PNG for the vision path, page-capped
+  and never held whole. An `.msg` reports To, Cc and Bcc as the file records them
+  rather than calling every recipient a direct one. The ZIP- and OLE-backed
+  parsers are bomb-guarded, and one turn is bounded in both directions - the text
+  it pastes and the image bytes it carries - so several large attachments cannot
+  compound past what a worker can hold. A format that cannot be shown inline is
+  named in the prompt with its path, rather than silently absent. (#1591)
+
 ### Fixed
 
 - **Chat attachments reach the model again.** A chat turn linked its uploaded

@@ -180,6 +180,17 @@ def _u16(text: str) -> bytes:
     return text.encode("utf-16-le")
 
 
+def _recipient_type(value: int) -> bytes:
+    """A `__properties_version1.0` stream carrying `PidTagRecipientType`.
+
+    Eight bytes of header, then one sixteen-byte entry: the property tag
+    (0x0C150003, little-endian), four reserved bytes, then the value.
+    """
+    return (
+        b"\x00" * 8 + b"\x03\x00\x15\x0c" + b"\x00" * 4 + value.to_bytes(4, "little") + b"\x00" * 4
+    )
+
+
 class TestOutlookMsg:
     def test_headers_body_recipients_and_attachment_names(self):
         ole = _Ole(
@@ -206,6 +217,49 @@ class TestOutlookMsg:
         assert "Subject: Quarterly numbers" in text
         assert "The body text." in text
         assert "Attachments: invoice.pdf" in text
+
+    def test_a_copied_recipient_is_not_reported_as_addressed(self):
+        """MAPI files every recipient in one kind of storage and tells them apart
+        by `PidTagRecipientType` alone, so reading the storages without it said
+        everyone had been written to directly - a false answer to the question a
+        person attaches an email to ask (#1591 review)."""
+        ole = _Ole(
+            {
+                "__substg1.0_0C1A001F": _u16("Alice"),
+                "__recip_version1.0_#00000000/__substg1.0_39FE001F": _u16("bob@example.com"),
+                "__recip_version1.0_#00000000/__properties_version1.0": _recipient_type(1),
+                "__recip_version1.0_#00000001/__substg1.0_39FE001F": _u16("carol@example.com"),
+                "__recip_version1.0_#00000001/__properties_version1.0": _recipient_type(2),
+                "__recip_version1.0_#00000002/__substg1.0_39FE001F": _u16("dan@example.com"),
+                "__recip_version1.0_#00000002/__properties_version1.0": _recipient_type(3),
+            },
+            [
+                ["__recip_version1.0_#00000000", "__substg1.0_39FE001F"],
+                ["__recip_version1.0_#00000001", "__substg1.0_39FE001F"],
+                ["__recip_version1.0_#00000002", "__substg1.0_39FE001F"],
+            ],
+        )
+
+        text = fu._msg_text(ole)
+
+        assert text is not None
+        assert "To: bob@example.com" in text
+        assert "Cc: carol@example.com" in text
+        assert "Bcc: dan@example.com" in text
+
+    def test_a_recipient_with_no_type_is_still_a_recipient(self):
+        """Dropping them would be the worse error, and `To` is what the file said
+        before the property was read at all."""
+        ole = _Ole(
+            {"__recip_version1.0_#00000000/__substg1.0_39FE001F": _u16("bob@example.com")},
+            [["__recip_version1.0_#00000000", "__substg1.0_39FE001F"]],
+        )
+
+        text = fu._msg_text(ole)
+
+        assert text is not None
+        assert "To: bob@example.com" in text
+        assert "Cc:" not in text
 
     def test_the_html_body_is_the_fallback_stripped_of_tags(self):
         ole = _Ole({"__substg1.0_10130102": b"<html><body>Hello <b>bold</b></body></html>"}, [])

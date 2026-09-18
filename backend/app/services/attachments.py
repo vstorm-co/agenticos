@@ -319,6 +319,20 @@ _TURN_TRUNCATED = (
 so several large attachments in one turn cannot compound past it."""
 
 
+def _inline_budget_spent(chat_file: ChatFile) -> str:
+    """This turn has no room left to show another image, and says so once.
+
+    The model is told rather than left to wonder why an attachment it can see
+    named is not in front of it - and it still has the path, so it can read the
+    file deliberately if the answer needs it.
+    """
+    return (
+        f"\n---\nAttached image: {chat_file.filename} ({_size(chat_file)}) - not shown "
+        "inline: this turn has already reached the limit on how much image data it "
+        "can carry."
+    )
+
+
 def _tiff_unshowable(chat_file: ChatFile) -> str:
     """A TIFF that yielded no usable page - a bomb, or every page over the cap."""
     return (
@@ -394,11 +408,16 @@ class AttachmentRouter:
         budget = settings.CHAT_TURN_TEXT_MAX_CHARS
         used = 0
         truncated = False
+        # The same idea for the images, in bytes. A per-file cap bounds one
+        # attachment; nothing bounded a turn carrying several, and a TIFF alone
+        # can reach fifty megabytes at the defaults (#1591 review).
+        inline_budget = settings.CHAT_TURN_INLINE_MAX_BYTES
         for chat_file in files:
-            plan = await self.route(chat_file)
+            plan = await self.route(chat_file, inline_budget=inline_budget)
             refused = refused or plan.refused
             if plan.inline:
                 inline.extend(plan.inline)
+                inline_budget -= sum(len(part.data) for part in plan.inline)
             if plan.reference and not truncated:
                 remaining = budget - used
                 if len(plan.reference) <= remaining:
@@ -428,7 +447,9 @@ class AttachmentRouter:
             return [full_text, *inline]
         return full_text
 
-    async def route(self, chat_file: ChatFile) -> AttachmentPlan:
+    async def route(
+        self, chat_file: ChatFile, *, inline_budget: int | None = None
+    ) -> AttachmentPlan:
         """Where one file goes, and what the model is told about it.
 
         A file that cannot be loaded is skipped rather than failing the turn:
@@ -436,20 +457,22 @@ class AttachmentRouter:
         the attachment beats not answering.
         """
         try:
-            return await self._route(chat_file)
+            return await self._route(chat_file, inline_budget)
         except Exception:
             logger.warning(
                 "attachment_routing_failed", extra={"file_id": str(chat_file.id)}, exc_info=True
             )
             return AttachmentPlan(reference=_unprocessable(chat_file), inline=[])
 
-    async def _route(self, chat_file: ChatFile) -> AttachmentPlan:
+    async def _route(self, chat_file: ChatFile, inline_budget: int | None) -> AttachmentPlan:
         backend = self._backend
         if backend is None:
-            return await self._without_workspace(chat_file)
-        return await self._into_workspace(backend, chat_file)
+            return await self._without_workspace(chat_file, inline_budget)
+        return await self._into_workspace(backend, chat_file, inline_budget)
 
-    async def _without_workspace(self, chat_file: ChatFile) -> AttachmentPlan:
+    async def _without_workspace(
+        self, chat_file: ChatFile, inline_budget: int | None = None
+    ) -> AttachmentPlan:
         """What an agent with nowhere to put files gets.
 
         The image ceiling applies here too. It used not to: this path inlined an
@@ -465,7 +488,7 @@ class AttachmentRouter:
         cannot be looked at instead of silence.
         """
         if chat_file.file_type == "image":
-            result = await self._inline_images(chat_file, None)
+            result = await self._inline_images(chat_file, None, inline_budget)
             if result.images:
                 return AttachmentPlan(reference=result.note, inline=result.images)
             # No image: a TIFF whose pages could not be shown carries its own note;
@@ -478,7 +501,10 @@ class AttachmentRouter:
         return AttachmentPlan(reference=_unreadable(chat_file), inline=[])
 
     async def _into_workspace(
-        self, backend: AsyncBackendProtocol, chat_file: ChatFile
+        self,
+        backend: AsyncBackendProtocol,
+        chat_file: ChatFile,
+        inline_budget: int | None = None,
     ) -> AttachmentPlan:
         path = workspace_path(chat_file)
         data: bytes | None = None
@@ -512,7 +538,7 @@ class AttachmentRouter:
         reference = _referenced(chat_file, path, sibling=sibling)
         if chat_file.file_type != "image":
             return AttachmentPlan(reference=reference, inline=[])
-        result = await self._inline_images(chat_file, data)
+        result = await self._inline_images(chat_file, data, inline_budget)
         if result.note is not None:
             reference += result.note
         return AttachmentPlan(reference=reference, inline=result.images)
@@ -570,7 +596,9 @@ class AttachmentRouter:
                 "attachment_text_not_written", extra={"path": sibling, "reason": result.error}
             )
 
-    async def _inline_images(self, chat_file: ChatFile, data: bytes | None) -> InlineResult:
+    async def _inline_images(
+        self, chat_file: ChatFile, data: bytes | None, inline_budget: int | None = None
+    ) -> InlineResult:
         """The image(s) the model should see, and any note about what was left out.
 
         A TIFF is converted to one PNG per page (bomb-guarded, metadata-stripped,
@@ -582,8 +610,16 @@ class AttachmentRouter:
         because each converted page is bounded on its own.
         """
         is_tiff = chat_file.mime_type == _TIFF_MIME
+        # What this turn has left, across every attachment on it. `None` is the
+        # standalone call - a caller routing one file on its own gets the
+        # single-file ceiling, which is what every per-file bound here already is.
+        remaining = settings.CHAT_TURN_INLINE_MAX_BYTES if inline_budget is None else inline_budget
+        if remaining <= 0:
+            return InlineResult(images=[], note=_inline_budget_spent(chat_file))
         if not is_tiff and chat_file.size > settings.SANDBOX_INLINE_IMAGE_MAX_BYTES:
             return InlineResult(images=[])
+        if not is_tiff and chat_file.size > remaining:
+            return InlineResult(images=[], note=_inline_budget_spent(chat_file))
         if data is None:
             data = await get_file_storage().load(chat_file.storage_path)
         if is_tiff:
@@ -599,6 +635,7 @@ class AttachmentRouter:
                     max_pages=settings.CHAT_TIFF_MAX_INLINE_PAGES,
                     max_bytes=settings.SANDBOX_INLINE_IMAGE_MAX_BYTES,
                     max_pixels=settings.CHAT_IMAGE_MAX_PIXELS,
+                    max_total_bytes=remaining,
                 )
             )
             images = [BinaryContent(data=png, media_type="image/png") for png in conversion.images]

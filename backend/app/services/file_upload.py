@@ -243,7 +243,7 @@ class TiffConversion:
 
 
 def tiff_pages_to_png(
-    data: bytes, *, max_pages: int, max_bytes: int, max_pixels: int
+    data: bytes, *, max_pages: int, max_bytes: int, max_pixels: int, max_total_bytes: int
 ) -> TiffConversion:
     """Convert a TIFF's pages to PNG for the model, bomb-guarded and metadata-free.
 
@@ -261,6 +261,12 @@ def tiff_pages_to_png(
     images: list[bytes] = []
     omitted = False
     total: int | None = None
+    # What the *turn* has left. `max_pages` and `max_bytes` bound one page and one
+    # file - ten pages of five megabytes is fifty from a single attachment, and
+    # nothing bounded several attachments together, so one turn could hold
+    # hundreds of megabytes of PNG before the provider request was even encoded
+    # (#1591 review).
+    remaining = max_total_bytes
     try:
         img_ctx = Image.open(io.BytesIO(data))
     except Exception as exc:  # Not a TIFF, or a header too broken to open at all.
@@ -305,6 +311,13 @@ def tiff_pages_to_png(
             if png is None:
                 omitted = True
                 continue
+            if len(png) > remaining:
+                # Stopping here rather than discarding afterwards is the point:
+                # the next frame is never decoded, so the bytes this bounds are
+                # never held.
+                omitted = True
+                break
+            remaining -= len(png)
             images.append(png)
     return TiffConversion(images=images, total=total, omitted=omitted)
 
@@ -955,20 +968,60 @@ def _msg_html_body(ole: Any) -> str | None:
     return " ".join(text.split()) or None
 
 
-def _msg_recipients(ole: Any) -> list[str]:
-    """The recipients, normalised to `Name <addr>` from the `__recip` storages."""
+#: `PidTagRecipientType` (0x0C15), by the header each value belongs under.
+#:
+#: MAPI files every recipient of a message in one `__recip_version1.0_*` storage
+#: and tells them apart by this property alone. Reading the storages without it
+#: labelled the whole list `To`, so a message that copied somebody arrived at the
+#: model saying they had been addressed directly - a false answer to "who was
+#: this actually sent to", which is a question a person asks of an attached email
+#: (#1591 review). 0 is the originator, which is the `From` line already.
+_MSG_RECIPIENT_TYPES = {1: "To", 2: "Cc", 3: "Bcc"}
+
+
+def _msg_recipients(ole: Any) -> dict[str, list[str]]:
+    """The recipients as `Name <addr>`, grouped by To, Cc and Bcc."""
     storages = sorted(
         {entry[0] for entry in ole.listdir() if entry[0].startswith("__recip_version1.0_")}
     )
-    people: list[str] = []
+    grouped: dict[str, list[str]] = {"To": [], "Cc": [], "Bcc": []}
     for storage in storages:
         display = _msg_sub(ole, storage, "3001")
         email = _msg_sub(ole, storage, "39FE") or _msg_sub(ole, storage, "3003")
         if display and email:
-            people.append(f"{display} <{email}>")
+            person = f"{display} <{email}>"
         elif display or email:
-            people.append(display or email or "")
-    return people
+            person = display or email or ""
+        else:
+            continue
+        # An unreadable or absent type reads as `To`: the recipient is real and
+        # dropping them would be the worse error, and `To` is what the file would
+        # have said before this property was consulted at all.
+        grouped[_MSG_RECIPIENT_TYPES.get(_msg_recipient_type(ole, storage) or 1, "To")].append(
+            person
+        )
+    return grouped
+
+
+def _msg_recipient_type(ole: Any, storage: str) -> int | None:
+    """`PidTagRecipientType` for one recipient storage, or None if unreadable.
+
+    A fixed-width property, so it lives in the storage's `__properties_version1.0`
+    stream rather than a `__substg1.0_*` one: sixteen-byte entries after an
+    eight-byte header, each beginning with the little-endian property tag and
+    carrying its value eight bytes in.
+    """
+    name = f"{storage}/__properties_version1.0"
+    if not ole.exists(name):
+        return None
+    try:
+        blob = ole.openstream(name).read()
+    except Exception:  # A truncated or unreadable stream is not a failed parse.
+        return None
+    for offset in range(8, len(blob) - 15, 16):
+        if blob[offset : offset + 4] == b"\x03\x00\x15\x0c":
+            return int.from_bytes(blob[offset + 8 : offset + 12], "little")
+    return None
 
 
 def _msg_sub(ole: Any, storage: str, prop: str) -> str | None:
@@ -1013,8 +1066,9 @@ def _msg_text(ole: Any) -> str | None:
     parts: list[str] = []
     if sender:
         parts.append(f"From: {sender}")
-    if recipients:
-        parts.append(f"To: {', '.join(recipients)}")
+    for header, people in recipients.items():
+        if people:
+            parts.append(f"{header}: {', '.join(people)}")
     if subject:
         parts.append(f"Subject: {subject}")
     header = "\n".join(parts)

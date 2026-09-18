@@ -144,6 +144,53 @@ class TestWithAWorkspace:
         assert isinstance(prompt, str)
         assert workspace_path(chat_file) in prompt
 
+    async def test_a_turn_stops_inlining_images_once_its_budget_is_spent(
+        self, storage, monkeypatch
+    ):
+        """A per-file cap bounds one attachment; nothing bounded a turn carrying
+        several, and one TIFF alone reaches fifty megabytes at the defaults. The
+        second image is named rather than dropped silently (#1591 review)."""
+        from app.core import config as config_module
+
+        # The budget is spent on the bytes actually held, so the store answers
+        # with as many as the row claims.
+        storage.return_value = b"\x89PNG" + b"\x00" * 4996
+        monkeypatch.setattr(config_module.settings, "CHAT_TURN_INLINE_MAX_BYTES", 6000)
+        monkeypatch.setattr(config_module.settings, "SANDBOX_INLINE_IMAGE_MAX_BYTES", 10_000)
+        backend = _workspace()
+        first = _file(file_type="image", mime_type="image/png", parsed_content=None, size=5000)
+        second = _file(file_type="image", mime_type="image/png", parsed_content=None, size=5000)
+
+        prompt = await AttachmentRouter(backend).build_prompt("compare", [first, second])
+
+        assert isinstance(prompt, list)
+        assert sum(isinstance(part, BinaryContent) for part in prompt) == 1
+        assert "already reached the limit" in prompt[0]
+
+    async def test_an_image_larger_than_what_the_turn_has_left_is_named_not_shown(
+        self, storage, monkeypatch
+    ):
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOX_INLINE_IMAGE_MAX_BYTES", 10_000)
+        backend = _workspace()
+        chat_file = _file(file_type="image", mime_type="image/png", parsed_content=None, size=5000)
+
+        router = AttachmentRouter(backend)
+        plan = await router.route(chat_file, inline_budget=100)
+
+        assert plan.inline == []
+        assert plan.reference is not None
+        assert "already reached the limit" in plan.reference
+
+        # And an allowance already spent to the byte, which is the TIFF case too:
+        # a TIFF is not gated on its stored size, so nothing else would stop it.
+        spent = await router.route(chat_file, inline_budget=0)
+
+        assert spent.inline == []
+        assert spent.reference is not None
+        assert "already reached the limit" in spent.reference
+
     async def test_a_pdf_keeps_its_bytes_and_gains_its_text(self, storage):
         """A shell has no tool for a PDF; the extracted text is the usable half."""
         backend = _workspace()

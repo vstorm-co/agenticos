@@ -93,6 +93,14 @@ class Settings(BaseSettings):
     CHAT_PARSED_TEXT_MAX_CHARS: int = Field(default=1_000_000, gt=0)
     CHAT_PROMPT_TEXT_MAX_CHARS: int = Field(default=200_000, gt=0)
     CHAT_TURN_TEXT_MAX_CHARS: int = Field(default=500_000, gt=0)
+    # How many bytes of inline image one turn may carry, across every attachment.
+    # `SANDBOX_INLINE_IMAGE_MAX_BYTES` bounds one image and
+    # `CHAT_TIFF_MAX_INLINE_PAGES` one TIFF, which multiply to fifty megabytes
+    # from a single file - and nothing bounded several files together, so a turn
+    # could hold hundreds of megabytes before the provider request was encoded.
+    # The chat takes no per-turn file count, and even a public embed takes three
+    # (#1591 review).
+    CHAT_TURN_INLINE_MAX_BYTES: int = Field(default=20 * 1024 * 1024, gt=0)
 
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
