@@ -94,6 +94,19 @@ Two things are versioned separately from this file and worth knowing about:
   impersonated account, giving one person a fresh allowance per account they
   can act as; it uses the same real-administrator key `security_event` already
   did. (#1598)
+- **A notification past its retention window is no longer emailed on its way
+  out.** Nothing orders the delivery sweep against the retention sweep, so a
+  worker recovering from a long outage ran both and whichever went first
+  decided whether a row past its declared window was sent. The claim applies
+  the retention sweep's own cutoffs. (#1598)
+- **A sync of a source with no collection reaches the person who triggered
+  it.** The producer passed the source's name where the read gate expects an
+  empty marker, so an unassigned source read as a collection deleted
+  mid-sync - visible only to administrators. (#1598)
+- **A scheduled report's window end bounds its purged spend too.** Live runs
+  and ingestion honoured `until`; purged run spend did not, so a report
+  delayed into a later month reported spend its own breakdown never
+  described. (#1420, #1598)
 - **"Mark all read" no longer claims an inbox it only partly cleared.** Both the
   count and the sweep cap at five hundred candidates, so subtracting one from
   the other zeroed the badge while older rows were still unread. The count is

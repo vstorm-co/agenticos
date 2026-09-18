@@ -86,7 +86,7 @@ async def organization_spend_since(
     # to zero on the thirty-first, and a cap metered on the figure stops
     # enforcing for the rest of the month (#1420).
     purged_spend = await retention_repo.sum_purged_cost_since(
-        db, organization_id=organization_id, since=since
+        db, organization_id=organization_id, since=since, until=until
     )
     return run_spend + ingestion_spend + purged_spend
 

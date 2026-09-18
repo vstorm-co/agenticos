@@ -88,6 +88,8 @@ async def _delivery(
     claimed_at: datetime | None = None,
     claimed_until: datetime | None = None,
     announcement_id: uuid.UUID | None = None,
+    created_at: datetime | None = None,
+    read_at: datetime | None = None,
 ) -> NotificationDelivery:
     notification = Notification(
         id=uuid.uuid4(),
@@ -100,9 +102,13 @@ async def _delivery(
         render_context=render_context or {},
         in_app_visible=True,
         announcement_id=announcement_id,
+        read_at=read_at,
     )
     db.add(notification)
     await db.flush()
+    if created_at is not None:
+        notification.created_at = created_at
+        await db.flush()
     delivery = NotificationDelivery(
         id=uuid.uuid4(),
         notification_id=notification.id,
@@ -194,6 +200,59 @@ class TestClaimAndAdvance:
         claimed = await NotificationDeliveryService(db).claim_and_advance(now=datetime.now(UTC))
 
         assert claimed == []
+
+    async def test_a_notification_past_its_outer_retention_is_never_sent(self, db):
+        """Nothing orders the delivery sweep against the retention sweep, so a
+        worker recovering from a long outage runs both - and whichever went
+        first decided whether a notification past its declared window was
+        emailed on its way to being deleted."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        await _delivery(
+            db,
+            recipient=recipient,
+            organization_id=org.id,
+            created_at=datetime.now(UTC) - timedelta(days=400),
+        )
+
+        claimed = await NotificationDeliveryService(db).claim_and_advance(now=datetime.now(UTC))
+
+        assert claimed == []
+
+    async def test_a_read_notification_past_its_own_window_is_never_sent(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        old = datetime.now(UTC) - timedelta(days=100)
+        await _delivery(
+            db,
+            recipient=recipient,
+            organization_id=org.id,
+            created_at=old,
+            read_at=old + timedelta(days=1),
+        )
+
+        claimed = await NotificationDeliveryService(db).claim_and_advance(now=datetime.now(UTC))
+
+        assert claimed == []
+
+    async def test_an_unread_notification_of_the_same_age_is_still_sent(self, db):
+        """The read cutoff is the shorter of the two, and only a *read* row
+        takes it - an unread one keeps its year."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        recipient = await _member(db, org, role="member")
+        delivery = await _delivery(
+            db,
+            recipient=recipient,
+            organization_id=org.id,
+            created_at=datetime.now(UTC) - timedelta(days=100),
+        )
+
+        claimed = await NotificationDeliveryService(db).claim_and_advance(now=datetime.now(UTC))
+
+        assert [d.id for d in claimed] == [delivery.id]
 
     async def test_a_sent_or_failed_row_is_never_claimed(self, db):
         owner = await _user(db)

@@ -1179,7 +1179,9 @@ A row is dropped from the inbox ninety days after it was written if it was
 *read*, and a year after regardless of whether it ever was - both counted from
 when the row was written, never from when it was read, so a row opened the day
 before its outer bound ages out with every other row that old. A background
-sweep, not something a person triggers.
+sweep, not something a person triggers - and the email sweep will not send a
+row it has already passed, so a worker recovering from a long outage cannot
+mail out a notification on its way to being deleted.
 
 What survives past that depends on what the notice was about. A security event,
 a configuration change and an admin's own broadcast begin as an audit entry, and

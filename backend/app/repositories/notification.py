@@ -294,7 +294,13 @@ async def get_delivery(db: AsyncSession, delivery_id: uuid.UUID) -> Notification
 
 
 async def claim_pending_deliveries(
-    db: AsyncSession, *, now: datetime, max_attempts: int, limit: int = 100
+    db: AsyncSession,
+    *,
+    now: datetime,
+    max_attempts: int,
+    read_cutoff: datetime,
+    outer_cutoff: datetime,
+    limit: int = 100,
 ) -> list[NotificationDelivery]:
     """Deliveries due to send, locked so a second sweep tick takes none of them.
 
@@ -304,18 +310,33 @@ async def claim_pending_deliveries(
     `claimed_until` and increments `attempts` on the returned rows and flushes
     them under this same lock, the way `AgentTriggerService.claim_and_advance`
     does for a trigger.
+
+    The two cutoffs are `delete_expired`'s own, and are here because nothing
+    else orders the two sweeps against each other: a worker recovering after a
+    long outage runs both, and whichever goes first decides whether a
+    notification past its declared retention window is emailed on the way out.
+    A row this sweep may not send is left to the retention sweep rather than
+    settled here - it is about to be deleted, and a status nobody will read is
+    not worth a write.
+
+    Locked `of=NotificationDelivery`: the join is a predicate on the
+    notification, not a row this sweep intends to change, and locking it would
+    contend with an inbox read for no reason.
     """
     result = await db.execute(
         select(NotificationDelivery)
+        .join(Notification, Notification.id == NotificationDelivery.notification_id)
         .where(
             NotificationDelivery.status == DeliveryStatus.PENDING.value,
             NotificationDelivery.attempts < max_attempts,
             (NotificationDelivery.claimed_until.is_(None))
             | (NotificationDelivery.claimed_until <= now),
+            Notification.created_at >= outer_cutoff,
+            (Notification.read_at.is_(None)) | (Notification.created_at >= read_cutoff),
         )
         .order_by(NotificationDelivery.created_at.asc())
         .limit(limit)
-        .with_for_update(skip_locked=True)
+        .with_for_update(skip_locked=True, of=NotificationDelivery)
     )
     return list(result.scalars().all())
 

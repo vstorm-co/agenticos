@@ -1,5 +1,5 @@
 ---
-source_sha: "a25d7824053b"
+source_sha: "85ef2c391a1b"
 ---
 
 # Governance { #governance }
@@ -1242,7 +1242,10 @@ Una fila se retira del buzón noventa días después de escribirse si está
 *leída*, y un año después sin importar si llegó a abrirse — contando siempre
 desde que se escribió, nunca desde que se leyó, así que una fila abierta el
 día antes de su límite superior desaparece junto con cualquier otra de esa
-edad. Un barrido en segundo plano, no algo que dispare una persona.
+edad. Un barrido en segundo plano, no algo que dispare una persona — y el
+barrido de correo no envía una fila que ya lo haya superado, así que un worker
+que se recupera de una caída larga no puede mandar una notificación camino de
+su borrado.
 
 Lo que sobrevive a eso depende de sobre qué era el aviso. Un evento de
 seguridad, un cambio de configuración y el anuncio propio de un admin empiezan

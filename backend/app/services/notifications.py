@@ -464,11 +464,15 @@ class NotificationService:
         if not recipients:
             return
         collection_url = self._collection_link(collection_id, organization_id)
+        # A source with no collection assigned has no name to quote, and the
+        # empty `collection_name` it passes is the read gate's own marker for
+        # that case rather than a value to render (`_collections_visible`).
+        subject = f"'{collection_name}'" if collection_name else "a source with no collection"
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.INGESTION_FAILED,
             occurrence_id=occurrence_id,
-            summary=f"Sync of '{collection_name}' failed: {error}",
+            summary=f"Sync of {subject} failed: {error}",
             context_url=collection_url,
             render_context={
                 "collection_name": collection_name,

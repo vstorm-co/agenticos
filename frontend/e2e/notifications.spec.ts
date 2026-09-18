@@ -69,10 +69,26 @@ test.describe("Notifications", () => {
     // something is unread.
     await storeThrowawaySecret(page, `e2e-notif-markall-${Date.now().toString(36)}`);
 
+    // Before the reload, not after: the response to the write is sent before
+    // its own transaction has finished committing, so a reload racing it
+    // fetches the pre-write count, caches zero, and polls again a minute
+    // later - long after this test has given up waiting for the offer.
+    const unread = await nowMatching(
+      page.request,
+      "/api/notifications",
+      (row) => row.summary === SECURITY_EVENT_SUMMARY && row.read_at === null,
+      "the unread security event for the secret just stored",
+    );
+    expect(unread.id, "the row this test just produced should be readable back").toBeTruthy();
+
     // The badge polls every 60s (`UNREAD_COUNT_POLL_MS`) rather than
     // invalidating on an unrelated write, so a reload - a fresh mount's own
     // first fetch - is what a person would do to see it sooner, too.
     await page.reload();
+
+    // The badge itself, before it is cleared: "no digits afterwards" passes
+    // just as well against a badge that never rendered at all.
+    await expect(bellTrigger(page)).toContainText(/\d/);
 
     await openBell(page);
     await page.getByRole("button", { name: "Mark all read" }).click();
@@ -128,7 +144,14 @@ test.describe("Notifications", () => {
     await page.goto("/vault");
 
     await openBell(page);
-    await page.getByText(SECURITY_EVENT_SUMMARY).first().click();
+
+    // The `href` before the navigation, because this test starts on `/vault`:
+    // asserting the URL alone would pass against a row that regressed to a
+    // button, or whose click does nothing at all.
+    const row = page.getByRole("link", { name: new RegExp(SECURITY_EVENT_SUMMARY) }).first();
+    await expect(row).toHaveAttribute("href", /\/vault/);
+
+    await row.click();
 
     // A plain `<a href>` to the deployment's own origin, not a client-side
     // route change - `notification-bell.tsx`'s own reason for using one.

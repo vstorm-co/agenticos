@@ -914,6 +914,32 @@ class TestSyncCompletedAndFailed:
         assert written.calls[0]["recipients"] == [admin]
 
     @pytest.mark.anyio
+    async def test_a_source_with_no_collection_keeps_the_gates_empty_marker(self, written):
+        """An empty `collection_name` beside an empty `collection_id` is what
+        tells `_collections_visible` a source was never assigned a collection
+        from one whose collection was deleted mid-sync - and the two are shown
+        to different people, so a readable stand-in in this field hides the
+        failure from the very person who triggered it."""
+        triggerer = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(triggerer)):
+            await NotificationService(MagicMock()).sync_failed(
+                organization_id=uuid.uuid4(),
+                initiator_user_id=triggerer,
+                occurrence_id="src-4:2024-01-01",
+                collection_name="",
+                collection_id=None,
+                error="Source has no assigned collection.",
+            )
+
+        call = written.calls[0]
+        assert call["render_context"]["collection_name"] == ""
+        assert call["render_context"]["collection_id"] == ""
+        # The sentence still reads, without an empty pair of quotes in it.
+        assert call["summary"] == (
+            "Sync of a source with no collection failed: Source has no assigned collection."
+        )
+
+    @pytest.mark.anyio
     async def test_a_failed_sync_with_nobody_to_tell_writes_nothing(self, written):
         with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
             await NotificationService(MagicMock()).sync_failed(

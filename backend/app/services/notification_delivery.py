@@ -27,7 +27,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.permissions import ROLE_PERMS, AuthContext, Perm
-from app.db.models.notification import Notification, NotificationEventType
+from app.db.models.notification import (
+    NOTIFICATION_OUTER_RETENTION_DAYS,
+    NOTIFICATION_READ_RETENTION_DAYS,
+    Notification,
+    NotificationEventType,
+)
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.user import User
 from app.repositories import member as member_repo
@@ -111,7 +116,14 @@ class NotificationDeliveryService:
         one.
         """
         claimed = await notification_repo.claim_pending_deliveries(
-            self.db, now=now, max_attempts=MAX_ATTEMPTS, limit=limit
+            self.db,
+            now=now,
+            max_attempts=MAX_ATTEMPTS,
+            # The retention sweep's own cutoffs: a delivery whose notification
+            # is past its window is not sent on the way to being deleted.
+            read_cutoff=now - timedelta(days=NOTIFICATION_READ_RETENTION_DAYS),
+            outer_cutoff=now - timedelta(days=NOTIFICATION_OUTER_RETENTION_DAYS),
+            limit=limit,
         )
         for delivery in claimed:
             delivery.claimed_at = now

@@ -157,6 +157,31 @@ class TestWhatSurvives:
         assert await organization_spend_since(db, organization.id, month_start) == before
         assert before == Decimal("5.25")
 
+    async def test_a_reports_window_end_bounds_the_purged_spend_too(self, db: AsyncSession):
+        """A scheduled report passes a fixed `until` so a delayed run computes
+        the figure its dedup key was keyed on. Live runs and ingestion honoured
+        it; purged spend did not, so a report delayed into a later month
+        reported spend from months its own breakdown never described. Bounded
+        at the same month grain the lower bound already uses."""
+        organization, user = await _tenant(db)
+        last_month_end = NOW.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        previous_month_start = (last_month_end - timedelta(days=1)).replace(day=1)
+        await _run(db, organization, user, age_days=11, cost="4.25")
+        organization.retention_days = {"runs": 7}
+        await db.flush()
+
+        await RetentionService(db).sweep(now=NOW)
+
+        # A report for the month before this one: the purged run is this
+        # month's, and must not land in it.
+        assert await organization_spend_since(
+            db, organization.id, previous_month_start, until=last_month_end
+        ) == Decimal("0")
+        # The same run, asked for without an end bound, is still counted.
+        assert await organization_spend_since(db, organization.id, previous_month_start) == Decimal(
+            "4.25"
+        )
+
     @pytest.mark.security
     async def test_a_delegates_cost_is_not_billed_a_second_time(self, db: AsyncSession):
         """A parent's `cost_usd` already contains what its delegates spent, and

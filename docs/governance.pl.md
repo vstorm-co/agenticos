@@ -1,5 +1,5 @@
 ---
-source_sha: "a25d7824053b"
+source_sha: "85ef2c391a1b"
 ---
 
 # Governance { #governance }
@@ -1271,7 +1271,9 @@ Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
 jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został
 otwarty — licząc zawsze od zapisania, nigdy od przeczytania, więc wiersz
 otwarty dzień przed swoją górną granicą znika razem z każdym innym w tym
-wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek.
+wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek — a zamiatanie
+mailowe nie wyśle wiersza, który już przekroczył tę granicę, więc worker
+wracający po długiej przerwie nie rozśle powiadomień w drodze do ich usunięcia.
 
 To, co przetrwa dłużej, zależy od tego, czego powiadomienie dotyczyło. Zdarzenie
 bezpieczeństwa, zmiana konfiguracji i własne ogłoszenie administratora zaczynają

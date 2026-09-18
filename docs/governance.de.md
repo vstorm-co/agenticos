@@ -1,5 +1,5 @@
 ---
-source_sha: "a25d7824053b"
+source_sha: "85ef2c391a1b"
 ---
 
 # Governance { #governance }
@@ -1356,7 +1356,10 @@ Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
 *gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
 wurde - beides gezählt ab dem Schreiben, nie ab dem Lesen, sodass eine am Tag
 vor ihrer oberen Grenze geöffnete Zeile mit jeder anderen so alten
-zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst.
+zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst - und der
+E-Mail-Sweep versendet keine Zeile, die diese Grenze bereits überschritten hat,
+sodass ein nach langem Ausfall wiederanlaufender Worker keine Benachrichtigung
+auf ihrem Weg in die Löschung verschicken kann.
 
 Was das übersteht, hängt davon ab, worum es in der Benachrichtigung ging. Ein
 Sicherheitsereignis, eine Konfigurationsänderung und die eigene Ankündigung

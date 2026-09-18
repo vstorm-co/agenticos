@@ -875,7 +875,14 @@ async def _notify_sync_start_failure(
         organization_id=source.organization_id,
         initiator_user_id=initiator_user_id,
         occurrence_id=occurrence_id,
-        collection_name=source.collection_name or source.name,
+        # The gate's own marker, not a readable stand-in: an empty
+        # `collection_name` beside an empty `collection_id` is what tells
+        # `_collections_visible` a source was never assigned a collection
+        # from one whose collection was deleted mid-sync, and the two are
+        # shown to different people. `source.name` here made every
+        # unassigned source look like the second, hiding the failure from
+        # the very person who triggered it.
+        collection_name=source.collection_name or "",
         collection_id=kb.id if kb else None,
         error=message,
     )
