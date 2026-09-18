@@ -1,5 +1,5 @@
 ---
-source_sha: "bee20df52ff2"
+source_sha: "4af3be1ca985"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -81,6 +81,22 @@ Berechtigung entscheidet der Service, anhand der Grants genau dieses Agents — 
 Rollen-Tor auf einer Route für eine einzelne Ressource
 [kann sie nicht sehen](permissions.md).
 
+`PATCH /api/v1/agents/{id}/metadata` setzt die **Categories** und **Tags** eines
+Agents mit einem Body wie `{"categories": [...], "tags": [...]}`, wobei eine leere
+Liste den jeweiligen Aspekt löscht. Die Werte werden normalisiert — getrimmt,
+Leerraum zusammengefasst, in der Groß-/Kleinschreibung gefaltet und dedupliziert
+— und begrenzt: höchstens 10 Categories und 20 Tags, jeweils höchstens 32
+Zeichen, ein längeres Element antwortet mit `422`. Wie die Run-Route trägt sie
+kein Rollen-Tor; es entscheidet die grant-bewusste Prüfung `agents:edit` im
+Service, sodass ein Viewer mit einem Edit-Grant auf einem Agent diesen mit Tags
+versehen darf.
+
+`GET /api/v1/agents` filtert diesen Katalog über die wiederholbaren
+Query-Parameter `category` und `tag`: Werte verknüpfen **OR innerhalb eines
+Aspekts** und **AND über Aspekte hinweg**, ohne Rücksicht auf Groß-/Kleinschreibung
+(ein Query-Wert wird so gefaltet wie ein gespeicherter, und ein leerer Wert wird
+ignoriert). Der Filter engt nur ein, was Sie ohnehin schon sehen konnten — er
+überschreitet nie eine Tenant- oder Grant-Grenze.
 ## Die ML-Dienste { #the-ml-services }
 
 Vier Dienste der Plattform antworten für sich allein, ohne Unterhaltung und ohne

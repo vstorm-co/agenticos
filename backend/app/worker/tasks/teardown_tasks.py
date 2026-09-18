@@ -26,6 +26,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from prefect import flow
 from prefect.deployments import run_deployment
@@ -59,6 +60,15 @@ _CLEANUP_DEPLOYMENT = "org-purge-cleanup/org-purge-cleanup"
 # are already gone (#1274).
 _MAX_PATHS_PER_RUN = 500
 
+# One run carries at most this many re-stamp entries, bounded for the same reason
+# as the storage paths: an organization with many personal knowledge bases can
+# orphan one entry per base, each an `[collection_name, org_id, kb_id]` triple, and
+# the whole parameter payload has to stay under Prefect's 512 KiB flow-parameter
+# limit or `run_deployment` rejects the run after the organization row is already
+# gone (#1684). The entries are far smaller than a storage path, so the bound is the
+# same order rather than tuned finer.
+_MAX_RESTAMPS_PER_RUN = 500
+
 # The submission is fired after the commit that removed the rows, so a run lost to
 # a transient Prefect outage - or to the deployment not being registered yet
 # during a rollout - has no row left to reconstruct it and no heartbeat to
@@ -76,7 +86,11 @@ _SUBMIT_BACKOFF_SECONDS = 2.0
 _RESERVATION_MAX_AGE = timedelta(hours=1)
 
 
-async def dispatch_external_state_cleanup(storage_paths: list[str], collections: list[str]) -> None:
+async def dispatch_external_state_cleanup(
+    storage_paths: list[str],
+    collections: list[str],
+    restamps: list[list[str]] | None = None,
+) -> None:
     """Submit a committed delete's external-state cleanup as durable flow runs.
 
     Each run submits-and-returns (`run_deployment(timeout=0)`): the run is recorded
@@ -86,29 +100,53 @@ async def dispatch_external_state_cleanup(storage_paths: list[str], collections:
     #1349). Handed to `spawn_after_commit` by its caller, so it runs only once the
     relational teardown has committed.
 
-    The paths are chunked across runs so no run's parameters approach Prefect's
-    512 KiB limit. Collections ride the first run only - `delete_collection` is
-    idempotent, but re-checking them once is enough. The window none of this closes
-    is commit-to-dispatch: a crash after the commit but before this fires still
-    loses the cleanup, which only a record committed *with* the delete (an outbox)
-    would close - a larger change deferred.
+    The paths and the re-stamps are each chunked across runs so no run's parameters
+    approach Prefect's 512 KiB limit - an organization with enough personal bases
+    would otherwise overflow the first run with re-stamp entries the way a large
+    corpus overflows it with paths (#1684). The two are chunked independently and
+    zipped onto as many runs as the longer needs; collections ride the first run
+    only - `delete_collection` is idempotent, but re-checking them once is enough.
+    The window none of this closes is commit-to-dispatch: a crash after the commit
+    but before this fires still loses the cleanup, which only a record committed
+    *with* the delete (an outbox) would close - a larger change deferred.
     """
-    chunks = [
+    restamps = restamps or []
+    path_chunks = [
         storage_paths[i : i + _MAX_PATHS_PER_RUN]
         for i in range(0, len(storage_paths), _MAX_PATHS_PER_RUN)
-    ] or [[]]
-    for index, chunk in enumerate(chunks):
-        await _submit_cleanup_run(chunk, collections if index == 0 else [])
+    ]
+    restamp_chunks = [
+        restamps[i : i + _MAX_RESTAMPS_PER_RUN]
+        for i in range(0, len(restamps), _MAX_RESTAMPS_PER_RUN)
+    ]
+    run_count = max(len(path_chunks), len(restamp_chunks), 1)
+    for index in range(run_count):
+        paths = path_chunks[index] if index < len(path_chunks) else []
+        run_restamps = restamp_chunks[index] if index < len(restamp_chunks) else []
+        await _submit_cleanup_run(paths, collections if index == 0 else [], run_restamps)
 
 
-async def _submit_cleanup_run(storage_paths: list[str], collections: list[str]) -> None:
+async def _submit_cleanup_run(
+    storage_paths: list[str], collections: list[str], restamps: list[list[str]]
+) -> None:
     """One `run_deployment` submission, retried before it is given up on.
 
     A submission lost for good is a run that never existed, so its file chunk (and,
     on the first run, the table drops) is orphaned with no row to reconstruct it.
     Best-effort past the retries: a chunk that cannot be submitted is logged and the
     remaining chunks still go, rather than one transient failure aborting the rest.
+
+    `restamps` is left out of the parameters when empty - the common purge has none
+    - so an ordinary run submits exactly the payload it always did, and only a purge
+    that actually orphaned a personal base carries the newer parameter across an
+    upgrade (#1684).
     """
+    parameters: dict[str, list[str] | list[list[str]]] = {
+        "storage_paths": storage_paths,
+        "collections": collections,
+    }
+    if restamps:
+        parameters["restamps"] = restamps
     for attempt in range(_SUBMIT_ATTEMPTS):
         try:
             # `run_deployment` is sync-compatible: its stub unions the coroutine it
@@ -116,7 +154,7 @@ async def _submit_cleanup_run(storage_paths: list[str], collections: list[str]) 
             # ty cannot tell which applies. Awaiting it is correct here.
             await run_deployment(  # ty: ignore[invalid-await]
                 name=_CLEANUP_DEPLOYMENT,
-                parameters={"storage_paths": storage_paths, "collections": collections},
+                parameters=parameters,
                 timeout=0,
             )
         except Exception:
@@ -175,7 +213,9 @@ async def _drop_then_release(store: PgVectorStore, db: AsyncSession, collection:
 
 
 async def cleanup_external_state(
-    storage_paths: list[str], collections: list[str]
+    storage_paths: list[str],
+    collections: list[str],
+    restamps: list[list[str]] | None = None,
 ) -> dict[str, int]:
     """Unlink a committed delete's stored uploads and drop its unreferenced vector tables.
 
@@ -193,12 +233,29 @@ async def cleanup_external_state(
     name), and that one falls back to the reference check so it does not drop a name
     reclaimed since. The drop, the ordered release and the lock live in
     :func:`_drop_then_release`.
+
+    `restamps` are the personal bases an organization purge orphaned: each
+    `[collection, org_id, kb_id]` untags that org's rows for that base's own
+    surviving documents on a table the base still keeps alive, so its new
+    `vector_tenant=None` reaches them again rather than leaving them stranded behind
+    the `IS NULL` read scope (#1684). The base's surviving `parent_doc_id`s are
+    resolved inside the store's one update statement, from `rag_documents` - so a
+    document deleted before or concurrently with this run is no longer among them
+    and its rows are left stamped (untagging them would un-delete it) rather than
+    resurrected, with no window between a separate read and the update for the id set
+    to go stale. Re-stamping is idempotent - a table already dropped is a no-op and
+    an absent tag strips to nothing - so it is safe under the flow's retries; a
+    re-stamp that fails is raised below so those retries actually re-run it, because
+    a base left stamped with the deleted org is unreadable and undeletable and has no
+    other safety net (#1684).
     """
+    from app.core.exceptions import DatabaseError
     from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
     from app.repositories import collection_teardown_repo, knowledge_base_repo
     from app.services.file_storage import get_file_storage
 
+    restamps = restamps or []
     storage = get_file_storage()
     for storage_path in storage_paths:
         # Best-effort but not silent: the row that named this file is committed-gone,
@@ -210,7 +267,9 @@ async def cleanup_external_state(
             logger.warning("Failed to unlink stored file %s: %s", storage_path, exc)
 
     dropped = 0
-    if collections:
+    restamped = 0
+    restamp_failures: list[str] = []
+    if collections or restamps:
         async with _vector_store() as store, get_worker_db_context() as db:
             for collection in collections:
                 await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
@@ -226,11 +285,35 @@ async def cleanup_external_state(
                     continue
                 if await _drop_then_release(store, db, collection):
                     dropped += 1
+            for collection, org_id, kb_id in restamps:
+                # Isolated per entry so one bad re-stamp does not abort the rest, but
+                # collected rather than swallowed: the org row that named this state
+                # is committed-gone and the personal base survives, so a re-stamp
+                # left undone strands the base behind the IS NULL scope with no sweep
+                # to reattempt it. The store resolves the base's surviving documents
+                # inside its update, so a document deleted since (or concurrently) is
+                # absent and stays stamped rather than un-deleted (#1684).
+                try:
+                    await store.restamp_documents_to_untagged(collection, UUID(org_id), UUID(kb_id))
+                except SQLAlchemyError as exc:
+                    logger.warning("Failed to re-stamp collection %s: %s", collection, exc)
+                    restamp_failures.append(collection)
+                else:
+                    restamped += 1
 
     logger.info(
-        "external_state_cleanup", extra={"unlinked": len(storage_paths), "dropped": dropped}
+        "external_state_cleanup",
+        extra={"unlinked": len(storage_paths), "dropped": dropped, "restamped": restamped},
     )
-    return {"unlinked": len(storage_paths), "dropped": dropped}
+    # Raised after the loop, not inside it, so every entry is attempted and the drops
+    # and unlinks still complete; the flow then fails and its retries re-run the whole
+    # idempotent cleanup, re-attempting the re-stamps that could not commit (#1684).
+    if restamp_failures:
+        raise DatabaseError(
+            message="Failed to re-stamp orphaned personal knowledge bases on organization purge",
+            details={"collections": restamp_failures},
+        )
+    return {"unlinked": len(storage_paths), "dropped": dropped, "restamped": restamped}
 
 
 async def sweep_teardown_reservations() -> dict[str, int]:
@@ -283,7 +366,9 @@ async def sweep_teardown_reservations() -> dict[str, int]:
 # `_CLEANUP_DEPLOYMENT`). The Python name is general; the Prefect name is not renamed.
 @flow(name="org-purge-cleanup", log_prints=True, retries=3, retry_delay_seconds=30)
 async def external_state_cleanup_flow(
-    storage_paths: list[str], collections: list[str]
+    storage_paths: list[str],
+    collections: list[str],
+    restamps: list[list[str]] | None = None,
 ) -> dict[str, int]:
     """The durable wrapper: what `dispatch_external_state_cleanup` submits.
 
@@ -291,9 +376,12 @@ async def external_state_cleanup_flow(
     Prefect runtime. The `@flow` is what carries the durability - the run and its
     parameters are recorded on the Prefect server, and `retries` re-run it on a
     worker if it or the process it was dispatched from dies (#1274, #1349).
+
+    `restamps` defaults to `None` so a run queued before it existed - an upgrade
+    replaying an old run under the retained deployment name - still binds (#1684).
     """
     setup_logging()
-    return await cleanup_external_state(storage_paths, collections)
+    return await cleanup_external_state(storage_paths, collections, restamps)
 
 
 @flow(name="teardown-reservation-sweep", log_prints=True)

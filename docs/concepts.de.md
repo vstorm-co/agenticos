@@ -1,5 +1,5 @@
 ---
-source_sha: "48d994ed75f4"
+source_sha: "e10c0995c043"
 ---
 
 # Begriffe { #concepts }
@@ -56,6 +56,20 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
     installierenden Skills. Sie benennen kein Model und keine Collection, denn
     das sind UUIDs, die niemand außerhalb Ihres Deployments hat — weshalb ein
     installiertes Template ein Draft ist.
+
+!!! note "Categories und Tags stehen neben dem Spec, nicht in ihm"
+
+    Eine Agent-Zeile trägt außerdem editierbare **Categories** und **Tags** —
+    organisationslokale Labels zum Finden und Filtern von Agents. Wie ein Avatar
+    ändern sie weder, was der Agent ausführt, noch was sein exportiertes YAML
+    bedeutet, sodass ein Neu-Taggen keine Veröffentlichung und keine neue Version
+    braucht; sie sind Zeilen-Metadaten, kein Spec-Feld.
+
+    Sie bleiben außerhalb des portablen Artefakts, und genau das ist der Sinn,
+    sie aus dem Spec herauszuhalten: Der Export eines Specs gibt keine Categories
+    oder Tags aus, ein Import lässt die vorhandenen Categories und Tags des Ziels
+    unverändert (die Datei trägt keine, also löscht und überschreibt er sie
+    nicht), und nur ein Klon startet ohne Tags.
 
 ## Version { #version }
 

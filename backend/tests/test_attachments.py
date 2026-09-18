@@ -62,6 +62,21 @@ class TestWithoutAWorkspace:
         assert "month,total" in prompt
         assert "```" in prompt
 
+    async def test_a_large_paste_is_capped_per_file(self, storage, monkeypatch):
+        # The no-workspace paste path is the only one that inlines a file's whole
+        # parse, so it honours the documented per-file prompt cap rather than
+        # putting an unbounded parse in front of the model (#1591, §7 finding 9).
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "CHAT_PROMPT_TEXT_MAX_CHARS", 100)
+        prompt = await AttachmentRouter().build_prompt(
+            "summarise", [_file(parsed_content="a" * 5000)]
+        )
+
+        assert isinstance(prompt, str)
+        assert "truncated 100 of 5000 chars" in prompt
+        assert "a" * 5000 not in prompt
+
     async def test_an_image_is_sent_for_the_model_to_look_at(self, storage):
         prompt = await AttachmentRouter().build_prompt(
             "what is this?", [_file(file_type="image", mime_type="image/png")]
@@ -128,6 +143,54 @@ class TestWithAWorkspace:
 
         assert isinstance(prompt, str)
         assert workspace_path(chat_file) in prompt
+
+    @pytest.mark.security
+    async def test_a_turn_stops_inlining_images_once_its_budget_is_spent(
+        self, storage, monkeypatch
+    ):
+        """A per-file cap bounds one attachment; nothing bounded a turn carrying
+        several, and one TIFF alone reaches fifty megabytes at the defaults. The
+        second image is named rather than dropped silently (#1591 review)."""
+        from app.core import config as config_module
+
+        # The budget is spent on the bytes actually held, so the store answers
+        # with as many as the row claims.
+        storage.return_value = b"\x89PNG" + b"\x00" * 4996
+        monkeypatch.setattr(config_module.settings, "CHAT_TURN_INLINE_MAX_BYTES", 6000)
+        monkeypatch.setattr(config_module.settings, "SANDBOX_INLINE_IMAGE_MAX_BYTES", 10_000)
+        backend = _workspace()
+        first = _file(file_type="image", mime_type="image/png", parsed_content=None, size=5000)
+        second = _file(file_type="image", mime_type="image/png", parsed_content=None, size=5000)
+
+        prompt = await AttachmentRouter(backend).build_prompt("compare", [first, second])
+
+        assert isinstance(prompt, list)
+        assert sum(isinstance(part, BinaryContent) for part in prompt) == 1
+        assert "already reached the limit" in prompt[0]
+
+    async def test_an_image_larger_than_what_the_turn_has_left_is_named_not_shown(
+        self, storage, monkeypatch
+    ):
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "SANDBOX_INLINE_IMAGE_MAX_BYTES", 10_000)
+        backend = _workspace()
+        chat_file = _file(file_type="image", mime_type="image/png", parsed_content=None, size=5000)
+
+        router = AttachmentRouter(backend)
+        plan = await router.route(chat_file, inline_budget=100)
+
+        assert plan.inline == []
+        assert plan.reference is not None
+        assert "already reached the limit" in plan.reference
+
+        # And an allowance already spent to the byte, which is the TIFF case too:
+        # a TIFF is not gated on its stored size, so nothing else would stop it.
+        spent = await router.route(chat_file, inline_budget=0)
+
+        assert spent.inline == []
+        assert spent.reference is not None
+        assert "already reached the limit" in spent.reference
 
     async def test_a_pdf_keeps_its_bytes_and_gains_its_text(self, storage):
         """A shell has no tool for a PDF; the extracted text is the usable half."""
@@ -474,6 +537,167 @@ class TestASecondTurn:
         assert storage.await_count == 2
 
 
+class TestTiffPagesForTheModel:
+    """A TIFF the vision APIs cannot take is converted to PNG at the point it is
+    shown, multi-page scans contributing more than page one. The conversion is
+    driven by a stubbed `tiff_pages_to_png` so every routing branch is exercised
+    without a real bomb or a real multi-page decode (those are covered in
+    `test_tiff_attachment.py`)."""
+
+    @staticmethod
+    def _tiff(**overrides):
+        return _file(
+            filename="scan.tiff",
+            mime_type="image/tiff",
+            file_type="image",
+            parsed_content=None,
+            **overrides,
+        )
+
+    @staticmethod
+    def _stub(monkeypatch, conversion):
+        from app.services.file_upload import TiffConversion
+
+        monkeypatch.setattr(
+            attachments_module,
+            "tiff_pages_to_png",
+            lambda data, **_kwargs: (
+                conversion
+                if isinstance(conversion, TiffConversion)
+                else TiffConversion(**conversion)
+            ),
+        )
+
+    async def test_a_single_page_tiff_is_shown_as_one_png(self, storage, monkeypatch):
+        self._stub(monkeypatch, {"images": [b"PNG-A"], "total": 1, "omitted": False})
+
+        prompt = await AttachmentRouter().build_prompt("what is this", [self._tiff()])
+
+        assert isinstance(prompt, list)
+        assert isinstance(prompt[1], BinaryContent)
+        assert prompt[1].media_type == "image/png"
+        assert prompt[1].data == b"PNG-A"
+
+    async def test_a_multi_page_tiff_names_shown_and_total_when_known(self, storage, monkeypatch):
+        self._stub(monkeypatch, {"images": [b"P1", b"P2"], "total": 5, "omitted": True})
+
+        prompt = await AttachmentRouter().build_prompt("read it", [self._tiff()])
+
+        assert isinstance(prompt, list)
+        assert sum(isinstance(part, BinaryContent) for part in prompt) == 2
+        assert "Showing 2 of 5 pages" in prompt[0]
+
+    async def test_an_unknown_total_says_pages_were_omitted(self, storage, monkeypatch):
+        self._stub(monkeypatch, {"images": [b"P1"], "total": None, "omitted": True})
+
+        prompt = await AttachmentRouter().build_prompt("read it", [self._tiff()])
+
+        assert "additional pages" in prompt[0]
+
+    async def test_a_tiff_with_no_usable_page_is_named_not_dropped(self, storage, monkeypatch):
+        self._stub(monkeypatch, {"images": [], "total": None, "omitted": True})
+
+        prompt = await AttachmentRouter().build_prompt("what is this", [self._tiff()])
+
+        assert isinstance(prompt, str)
+        assert "scan.tiff" in prompt
+        assert "could not be converted" in prompt
+
+    async def test_a_workspace_tiff_is_referenced_and_its_pages_shown(self, storage, monkeypatch):
+        self._stub(monkeypatch, {"images": [b"P1", b"P2"], "total": 4, "omitted": True})
+        backend = _workspace()
+        chat_file = self._tiff()
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert isinstance(prompt, list)
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt[0]
+        assert "Showing 2 of 4 pages" in prompt[0]
+        assert backend.exists(workspace_path(chat_file))
+
+    async def test_a_workspace_tiff_that_fits_needs_no_note(self, storage, monkeypatch):
+        self._stub(monkeypatch, {"images": [b"P1"], "total": 1, "omitted": False})
+
+        prompt = await AttachmentRouter(_workspace()).build_prompt("look", [self._tiff()])
+
+        assert isinstance(prompt, list)
+        assert "Showing" not in prompt[0]
+
+
+class TestThePerTurnTextBudget:
+    """Several large attachments in one turn compound past any per-file cap on the
+    no-workspace paste path, so the running total is bounded once (#1591)."""
+
+    async def test_text_past_the_turn_budget_is_truncated_and_said_once(self, storage, monkeypatch):
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "CHAT_TURN_TEXT_MAX_CHARS", 60)
+        files = [
+            _file(filename="a.csv", parsed_content="x" * 400),
+            _file(filename="b.csv", parsed_content="y" * 400),
+            _file(filename="c.csv", parsed_content="z" * 400),
+        ]
+
+        prompt = await AttachmentRouter().build_prompt("go", files)
+
+        assert isinstance(prompt, str)
+        assert "size budget" in prompt
+        assert prompt.count("size budget") == 1
+        # The third file's text never makes it in once the budget is spent.
+        assert "z" * 400 not in prompt
+
+    async def test_a_truncated_reference_is_dropped_whole_not_sliced(self, storage, monkeypatch):
+        """A reference is a formatted block (a fenced extract); slicing it mid-way
+        drops the closing code fence, so the truncation notice lands *inside* the
+        file's code block and the model reads it as file contents. The over-budget
+        reference is dropped whole, leaving the fences balanced (#1591)."""
+        from app.core import config as config_module
+
+        monkeypatch.setattr(config_module.settings, "CHAT_TURN_TEXT_MAX_CHARS", 30)
+        files = [_file(filename="big.csv", parsed_content="x" * 400)]
+
+        prompt = await AttachmentRouter().build_prompt("go", files)
+
+        assert isinstance(prompt, str)
+        assert "size budget" in prompt
+        # No dangling code fence: the partial file body (and its unclosed ```) is not
+        # emitted, so the truncation notice is not swallowed into a code block.
+        assert prompt.count("```") % 2 == 0
+        assert "x" * 400 not in prompt
+
+
+class TestTheSiblingForTheNewFormats:
+    async def test_a_presentation_gets_its_text_beside_it(self, storage):
+        chat_file = _file(filename="deck.pptx", file_type="presentation", parsed_content="Slide 1")
+        backend = _workspace()
+
+        await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
+
+    async def test_an_email_gets_a_sibling_even_on_a_lit_runtime(self, storage):
+        """`lit` reads office documents but not `.msg`, so the extracted text is the
+        only readable form and must be written even where the sibling is otherwise
+        skipped (#1591, §5 #7)."""
+        chat_file = _file(filename="thread.msg", file_type="email", parsed_content="From: a@b")
+        backend = _workspace()
+
+        prompt = await AttachmentRouter(backend, can_parse=True).build_prompt(
+            "read it", [chat_file]
+        )
+
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert "beside it at" in prompt
+
+    async def test_a_document_is_skipped_beside_it_on_a_lit_runtime(self, storage):
+        chat_file = _file(filename="memo.doc", file_type="document", parsed_content="Dear all")
+        backend = _workspace()
+
+        await AttachmentRouter(backend, can_parse=True).build_prompt("read it", [chat_file])
+
+        assert not backend.exists(f"{workspace_path(chat_file)}.txt")
+
+
 class TestLoadingTheRows:
     async def test_the_ids_a_client_sent_are_resolved_as_the_caller(self, monkeypatch):
         """The sender's id rides along, because the read is scoped to it (#706)."""
@@ -487,6 +711,23 @@ class TestLoadingTheRows:
 
         assert await module.load_attached_files(object(), [uuid4()], user_id=caller) == ["row"]
         assert service.list_attached_files.await_args.kwargs["user_id"] == caller
+
+    async def test_a_run_reads_its_turn_by_message_and_caller(self, monkeypatch):
+        """The run loads what it just linked, by id and scoped to the caller (#1756)."""
+        from app.services import attachments as module
+
+        message_id = uuid4()
+        caller = uuid4()
+        service = SimpleNamespace(list_turn_attachments=AsyncMock(return_value=["row"]))
+        monkeypatch.setattr(
+            "app.api.deps.get_conversation_service", lambda db: service, raising=True
+        )
+
+        assert await module.load_turn_attachments(object(), message_id, ["f1"], user_id=caller) == [
+            "row"
+        ]
+        assert service.list_turn_attachments.await_args.args == (message_id, ["f1"])
+        assert service.list_turn_attachments.await_args.kwargs["user_id"] == caller
 
 
 class TestWhatTheModelIsToldAboutAFailedWrite:

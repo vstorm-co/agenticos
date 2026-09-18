@@ -19,6 +19,7 @@ the bytes twice stops being worth it.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 from dataclasses import dataclass
@@ -29,11 +30,26 @@ from uuid import UUID
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
 
+from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
 from app.services.file_storage import get_file_storage
+from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
 
 logger = logging.getLogger(__name__)
+
+_TIFF_MIME = "image/tiff"
+"""A canonical TIFF is converted to PNG for the model; anything else typed `image`
+is one of the four web-safe rasters the vision APIs take as-is. Keyed on the
+*resolved* MIME (stored canonical), so a legacy `application/octet-stream` row is
+served as a download rather than mis-converted."""
+
+_TEXT_BEARING = {"pdf", "docx", "spreadsheet", "document", "presentation", "email"}
+"""File types whose extracted text is worth writing beside the original."""
+
+_LIT_READABLE = {"pdf", "docx", "spreadsheet", "document", "presentation"}
+"""What a `lit`-carrying runtime reads itself, so the sibling is redundant there.
+`email` is deliberately absent: `lit` cannot read a `.msg`, so it always gets one."""
 
 UPLOAD_DIR = "uploads"
 """Where attachments land, **relative to the workspace's working directory**.
@@ -71,8 +87,10 @@ class AttachmentPlan:
     reference: str | None
     """The text describing it, appended to the user's message."""
 
-    inline: BinaryContent | None
-    """Bytes the model should see directly, when it can and should."""
+    inline: list[BinaryContent]
+    """Bytes the model should see directly, when it can and should. A list because
+    a multi-page TIFF becomes one PNG per page; the single-image and no-image cases
+    are a one- and a zero-element list."""
 
     refused: bool = False
     """Whether the workspace would not take this file.
@@ -80,6 +98,18 @@ class AttachmentPlan:
     Carried on the plan rather than inferred from the reference's wording, so the
     turn can say once that the workspace is unavailable - see `_WORKSPACE_REFUSED`.
     """
+
+
+@dataclass(frozen=True)
+class InlineResult:
+    """The image(s) an attachment contributes, plus any note about what was left out.
+
+    The page-count facts live only inside the TIFF conversion, but the reference is
+    built separately by `_referenced`/`_pasted`, so the note is threaded across on
+    the result rather than lost (#1591, §8 finding F)."""
+
+    images: list[BinaryContent]
+    note: str | None = None
 
 
 _WORKSPACE_REFUSED = (
@@ -149,8 +179,17 @@ def _size(chat_file: ChatFile) -> str:
 
 
 def _pasted(chat_file: ChatFile) -> str:
-    """The whole file, inline. What every attachment used to get."""
-    return f"\n---\nAttached file: {chat_file.filename}\n```\n{chat_file.parsed_content}\n```"
+    """The whole file, inline. What every attachment used to get.
+
+    Capped per file at `CHAT_PROMPT_TEXT_MAX_CHARS`: this no-workspace path is the
+    only one that pastes a file's full parse into the prompt, so without a per-file
+    bound a single large attachment defeats the layered budget the setting documents
+    (the stored parse is capped at `CHAT_PARSED_TEXT_MAX_CHARS`, the turn aggregate at
+    `CHAT_TURN_TEXT_MAX_CHARS`). The marker `cap_text` leaves tells the model the rest
+    exists in the file (#1591, §7 finding 9).
+    """
+    body = cap_text(chat_file.parsed_content, settings.CHAT_PROMPT_TEXT_MAX_CHARS)
+    return f"\n---\nAttached file: {chat_file.filename}\n```\n{body}\n```"
 
 
 def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
@@ -161,7 +200,7 @@ def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
     named the sibling on the turn that created it would stop naming a file that is
     still there.
     """
-    if chat_file.file_type in {"pdf", "docx", "spreadsheet"} and chat_file.parsed_content:
+    if chat_file.file_type in _TEXT_BEARING and chat_file.parsed_content:
         return f"{path}.txt"
     return None
 
@@ -272,6 +311,56 @@ def _unprocessable(chat_file: ChatFile) -> str:
     )
 
 
+_TURN_TRUNCATED = (
+    "\n---\nFurther attached text was omitted: the files on this turn exceeded the "
+    "size budget. Ask about a specific file to have its full text pulled in."
+)
+"""Said once when the per-turn text budget (`CHAT_TURN_TEXT_MAX_CHARS`) is reached,
+so several large attachments in one turn cannot compound past it."""
+
+
+def _inline_budget_spent(chat_file: ChatFile) -> str:
+    """This turn has no room left to show another image, and says so once.
+
+    The model is told rather than left to wonder why an attachment it can see
+    named is not in front of it - and it still has the path, so it can read the
+    file deliberately if the answer needs it.
+    """
+    return (
+        f"\n---\nAttached image: {chat_file.filename} ({_size(chat_file)}) - not shown "
+        "inline: this turn has already reached the limit on how much image data it "
+        "can carry."
+    )
+
+
+def _tiff_unshowable(chat_file: ChatFile) -> str:
+    """A TIFF that yielded no usable page - a bomb, or every page over the cap."""
+    return (
+        f"\n---\nAttached image: {chat_file.filename} ({_size(chat_file)}) - it could "
+        "not be converted to an image the model can view."
+    )
+
+
+def _tiff_note(chat_file: ChatFile, conversion: TiffConversion) -> str | None:
+    """The note about omitted TIFF pages, or `None` when every page was shown.
+
+    Names the total only when it is *safely* known (the sequence was exhausted); a
+    bounded stop that never walked the whole IFD chain says only that pages were
+    omitted (#1591, §7 finding 5)."""
+    if not conversion.omitted:
+        return None
+    shown = len(conversion.images)
+    if conversion.total is not None:
+        return (
+            f"\n(Showing {shown} of {conversion.total} pages of {chat_file.filename}; "
+            "the rest are in the original.)"
+        )
+    return (
+        f"\n(Showing the first {shown} pages of {chat_file.filename}; additional pages "
+        "were omitted.)"
+    )
+
+
 class AttachmentRouter:
     """Turns attached files into a prompt, and into files an agent can open.
 
@@ -311,13 +400,38 @@ class AttachmentRouter:
         text_parts: list[str] = []
         inline: list[BinaryContent] = []
         refused = False
+        # The per-turn text budget. The no-workspace path pastes each file's full
+        # parsed text, so several large attachments in one turn compound past any
+        # per-file cap; the running total is bounded here and said once (#1591,
+        # §7 finding 8). Only the reference text is counted - the inline images are
+        # bounded by their own per-image caps.
+        budget = settings.CHAT_TURN_TEXT_MAX_CHARS
+        used = 0
+        truncated = False
+        # The same idea for the images, in bytes. A per-file cap bounds one
+        # attachment; nothing bounded a turn carrying several, and a TIFF alone
+        # can reach fifty megabytes at the defaults (#1591 review).
+        inline_budget = settings.CHAT_TURN_INLINE_MAX_BYTES
         for chat_file in files:
-            plan = await self.route(chat_file)
+            plan = await self.route(chat_file, inline_budget=inline_budget)
             refused = refused or plan.refused
-            if plan.reference:
-                text_parts.append(plan.reference)
-            if plan.inline is not None:
-                inline.append(plan.inline)
+            if plan.inline:
+                inline.extend(plan.inline)
+                inline_budget -= sum(len(part.data) for part in plan.inline)
+            if plan.reference and not truncated:
+                remaining = budget - used
+                if len(plan.reference) <= remaining:
+                    text_parts.append(plan.reference)
+                    used += len(plan.reference)
+                else:
+                    # The whole reference is dropped rather than sliced: a
+                    # reference is a formatted block - a filename clause, a
+                    # workspace path, a fenced extract - and cutting it mid-way
+                    # loses the closing code fence, so the truncation notice that
+                    # follows lands *inside* the file's code block and the model
+                    # reads it as file contents (#1591).
+                    text_parts.append(_TURN_TRUNCATED)
+                    truncated = True
 
         # **Said once, about the workspace, not once per file.** A run whose
         # workspace will not take a write is a run whose shell and file tools will
@@ -333,7 +447,9 @@ class AttachmentRouter:
             return [full_text, *inline]
         return full_text
 
-    async def route(self, chat_file: ChatFile) -> AttachmentPlan:
+    async def route(
+        self, chat_file: ChatFile, *, inline_budget: int | None = None
+    ) -> AttachmentPlan:
         """Where one file goes, and what the model is told about it.
 
         A file that cannot be loaded is skipped rather than failing the turn:
@@ -341,24 +457,26 @@ class AttachmentRouter:
         the attachment beats not answering.
         """
         try:
-            return await self._route(chat_file)
+            return await self._route(chat_file, inline_budget)
         except Exception:
             logger.warning(
                 "attachment_routing_failed", extra={"file_id": str(chat_file.id)}, exc_info=True
             )
-            return AttachmentPlan(reference=_unprocessable(chat_file), inline=None)
+            return AttachmentPlan(reference=_unprocessable(chat_file), inline=[])
 
-    async def _route(self, chat_file: ChatFile) -> AttachmentPlan:
+    async def _route(self, chat_file: ChatFile, inline_budget: int | None) -> AttachmentPlan:
         backend = self._backend
         if backend is None:
-            return await self._without_workspace(chat_file)
-        return await self._into_workspace(backend, chat_file)
+            return await self._without_workspace(chat_file, inline_budget)
+        return await self._into_workspace(backend, chat_file, inline_budget)
 
-    async def _without_workspace(self, chat_file: ChatFile) -> AttachmentPlan:
+    async def _without_workspace(
+        self, chat_file: ChatFile, inline_budget: int | None = None
+    ) -> AttachmentPlan:
         """What an agent with nowhere to put files gets.
 
         The image ceiling applies here too. It used not to: this path inlined an
-        image of any size while `_inline_image` beside it honoured
+        image of any size while `_inline_images` beside it honoured
         `SANDBOX_INLINE_IMAGE_MAX_BYTES`, so the same 40 MB screenshot was refused
         by an agent *with* a workspace and loaded whole by one without - the wrong
         way round, since the one with a workspace has a path to offer instead and
@@ -370,16 +488,23 @@ class AttachmentRouter:
         cannot be looked at instead of silence.
         """
         if chat_file.file_type == "image":
-            inline = await self._inline_image(chat_file, None)
-            if inline is None:
-                return AttachmentPlan(reference=_too_large_to_show(chat_file), inline=None)
-            return AttachmentPlan(reference=None, inline=inline)
+            result = await self._inline_images(chat_file, None, inline_budget)
+            if result.images:
+                return AttachmentPlan(reference=result.note, inline=result.images)
+            # No image: a TIFF whose pages could not be shown carries its own note;
+            # a web-safe image past the inline ceiling is the too-large case.
+            if result.note is not None:
+                return AttachmentPlan(reference=result.note, inline=[])
+            return AttachmentPlan(reference=_too_large_to_show(chat_file), inline=[])
         if chat_file.parsed_content:
-            return AttachmentPlan(reference=_pasted(chat_file), inline=None)
-        return AttachmentPlan(reference=_unreadable(chat_file), inline=None)
+            return AttachmentPlan(reference=_pasted(chat_file), inline=[])
+        return AttachmentPlan(reference=_unreadable(chat_file), inline=[])
 
     async def _into_workspace(
-        self, backend: AsyncBackendProtocol, chat_file: ChatFile
+        self,
+        backend: AsyncBackendProtocol,
+        chat_file: ChatFile,
+        inline_budget: int | None = None,
     ) -> AttachmentPlan:
         path = workspace_path(chat_file)
         data: bytes | None = None
@@ -398,26 +523,25 @@ class AttachmentRouter:
                 #
                 # An image is the exception, and the reason is the same one that
                 # makes images go both ways: the model can still *see* it, and
-                # `_inline_image` has its own, much smaller ceiling.
+                # `_inline_images` has its own, much smaller per-image ceiling.
                 logger.info("attachment_not_written", extra={"path": path, "reason": result.error})
                 if chat_file.file_type == "image":
                     plan = await self._without_workspace(chat_file)
                     return AttachmentPlan(
                         reference=plan.reference, inline=plan.inline, refused=True
                     )
-                return AttachmentPlan(reference=_unstored(chat_file), inline=None, refused=True)
+                return AttachmentPlan(reference=_unstored(chat_file), inline=[], refused=True)
 
             await self._write_extracted_text(backend, chat_file, path)
 
         sibling = await self._sibling_present(backend, chat_file, path)
+        reference = _referenced(chat_file, path, sibling=sibling)
         if chat_file.file_type != "image":
-            return AttachmentPlan(
-                reference=_referenced(chat_file, path, sibling=sibling), inline=None
-            )
-        return AttachmentPlan(
-            reference=_referenced(chat_file, path, sibling=sibling),
-            inline=await self._inline_image(chat_file, data),
-        )
+            return AttachmentPlan(reference=reference, inline=[])
+        result = await self._inline_images(chat_file, data, inline_budget)
+        if result.note is not None:
+            reference += result.note
+        return AttachmentPlan(reference=reference, inline=result.images)
 
     async def _sibling_present(
         self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
@@ -431,12 +555,21 @@ class AttachmentRouter:
         one round trip is worth: naming a file that is not there costs the model a
         tool call to discover it and leaves it with the head sample.
         """
-        if self._can_parse:
+        if self._skips_sibling(chat_file):
             return None
         sibling = _text_sibling(chat_file, path)
         if sibling is None:
             return None
         return sibling if await backend.exists(sibling) else None
+
+    def _skips_sibling(self, chat_file: ChatFile) -> bool:
+        """Whether the extracted-text sibling is redundant for this file.
+
+        Only where the runtime carries `lit` *and* `lit` can read the format
+        itself. An `email` (`.msg`) is never skipped: `lit` reads office documents
+        but not Outlook messages, so its extracted text is the only readable form
+        (#1591, §5 #7)."""
+        return self._can_parse and chat_file.file_type in _LIT_READABLE
 
     async def _write_extracted_text(
         self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
@@ -449,7 +582,7 @@ class AttachmentRouter:
         because a `state` workspace has no shell at all and an `.xlsx` in one is a
         zip of XML that `read_file` returns as mojibake.
         """
-        if self._can_parse:
+        if self._skips_sibling(chat_file):
             return
         sibling = _text_sibling(chat_file, path)
         if sibling is None or not chat_file.parsed_content:
@@ -463,18 +596,53 @@ class AttachmentRouter:
                 "attachment_text_not_written", extra={"path": sibling, "reason": result.error}
             )
 
-    async def _inline_image(self, chat_file: ChatFile, data: bytes | None) -> BinaryContent | None:
-        """The picture itself, when it is small enough to be worth sending twice.
+    async def _inline_images(
+        self, chat_file: ChatFile, data: bytes | None, inline_budget: int | None = None
+    ) -> InlineResult:
+        """The image(s) the model should see, and any note about what was left out.
 
-        Past the ceiling the model gets the path and can `read_file` it
-        deliberately - which for a large image is usually after resizing it,
-        the thing it needed the file on disk for anyway.
+        A TIFF is converted to one PNG per page (bomb-guarded, metadata-stripped,
+        each within the per-page cap) since the vision APIs do not accept TIFF; a
+        web-safe image is sent as-is when it is inside the inline ceiling. Past the
+        ceiling a web-safe image gets no inline bytes - the model is given the path
+        and can `read_file` it deliberately, usually after resizing, the thing it
+        needed the file on disk for. TIFF is not gated on the whole-file size,
+        because each converted page is bounded on its own.
         """
-        if chat_file.size > settings.SANDBOX_INLINE_IMAGE_MAX_BYTES:
-            return None
+        is_tiff = chat_file.mime_type == _TIFF_MIME
+        # What this turn has left, across every attachment on it. `None` is the
+        # standalone call - a caller routing one file on its own gets the
+        # single-file ceiling, which is what every per-file bound here already is.
+        remaining = settings.CHAT_TURN_INLINE_MAX_BYTES if inline_budget is None else inline_budget
+        if remaining <= 0:
+            return InlineResult(images=[], note=_inline_budget_spent(chat_file))
+        if not is_tiff and chat_file.size > settings.SANDBOX_INLINE_IMAGE_MAX_BYTES:
+            return InlineResult(images=[])
+        if not is_tiff and chat_file.size > remaining:
+            return InlineResult(images=[], note=_inline_budget_spent(chat_file))
         if data is None:
             data = await get_file_storage().load(chat_file.storage_path)
-        return BinaryContent(data=data, media_type=chat_file.mime_type)
+        if is_tiff:
+            # On the file pool, not the request loop: the conversion is Pillow
+            # decode / resize / PNG-encode over up to `CHAT_TIFF_MAX_INLINE_PAGES`
+            # pages - the same blocking CPU work `parse_content` already keeps off
+            # the loop (#1108), which a direct call here reintroduced, stalling
+            # every other request on the worker for its length.
+            conversion = await run_blocking(
+                functools.partial(
+                    tiff_pages_to_png,
+                    data,
+                    max_pages=settings.CHAT_TIFF_MAX_INLINE_PAGES,
+                    max_bytes=settings.SANDBOX_INLINE_IMAGE_MAX_BYTES,
+                    max_pixels=settings.CHAT_IMAGE_MAX_PIXELS,
+                    max_total_bytes=remaining,
+                )
+            )
+            images = [BinaryContent(data=png, media_type="image/png") for png in conversion.images]
+            if not images:
+                return InlineResult(images=[], note=_tiff_unshowable(chat_file))
+            return InlineResult(images=images, note=_tiff_note(chat_file, conversion))
+        return InlineResult(images=[BinaryContent(data=data, media_type=chat_file.mime_type)])
 
 
 async def load_attached_files(db: Any, file_ids: list[str], *, user_id: UUID) -> list[ChatFile]:
@@ -482,3 +650,15 @@ async def load_attached_files(db: Any, file_ids: list[str], *, user_id: UUID) ->
     from app.api.deps import get_conversation_service
 
     return await get_conversation_service(db).list_attached_files(file_ids, user_id=user_id)
+
+
+async def load_turn_attachments(
+    db: Any, message_id: UUID | None, file_ids: list[str], *, user_id: UUID
+) -> list[ChatFile]:
+    """This turn's attachments: linked to its message or the caller's own still-
+    unlinked uploads, read by id rather than by the frame's re-validated ids (#1756)."""
+    from app.api.deps import get_conversation_service
+
+    return await get_conversation_service(db).list_turn_attachments(
+        message_id, file_ids, user_id=user_id
+    )

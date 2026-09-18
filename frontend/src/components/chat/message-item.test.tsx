@@ -531,6 +531,20 @@ describe("what a person attached", () => {
     expect(screen.getByTitle("Open logo.png")).toBeInTheDocument();
   });
 
+  it("shows a TIFF as a file card, not an inline thumbnail", async () => {
+    // A TIFF has `file_type: "image"` and `mime_type: "image/tiff"`, but no browser
+    // draws it inline, so it must be a card whose src is not the download URL (#1591).
+    item({
+      role: "user",
+      content: "See this",
+      files: [file({ filename: "scan.tiff", file_type: "image", mime_type: "image/tiff" })],
+    });
+
+    // No inline thumbnail; the shared card names it and its type instead.
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByText("TIFF")).toBeInTheDocument();
+  });
+
   it("shows anything else as a chip that opens the preview", async () => {
     item({ role: "user", content: "See this", files: [file()] });
 

@@ -338,6 +338,16 @@ export interface Agent {
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
   channels?: string[];
   /**
+   * Editable, org-local discovery metadata - not part of the versioned spec, so
+   * retagging is a cheap row edit like the avatar, never a publish. Optional in
+   * this type to match the other listing-filled fields (`channels?`,
+   * `shared_user_count?`): the backend always sends them, but a required field
+   * here would break every fixture that builds a complete `Agent` and omits the
+   * listing-only ones. Render code reads them as `agent.categories ?? []`.
+   */
+  categories?: string[];
+  tags?: string[];
+  /**
    * The published version's monthly cap - the one the runner enforces, not
    * the draft's promise. Null for drafts and uncapped agents. Listing only.
    */

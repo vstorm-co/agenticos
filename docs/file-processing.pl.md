@@ -1,5 +1,5 @@
 ---
-source_sha: "441ec39f5257"
+source_sha: "c0c8a6cf4278"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -18,7 +18,7 @@ Kiedy ktoś wgrywa plik w interfejsie czatu, uruchamia się następujący pipeli
 ```mermaid
 flowchart TD
     U["Upload<br/><code>POST /api/v1/files/upload</code>"] --> V["Validate<br/>MIME against the allowed list, size limit"]
-    V --> C["Classify<br/>image · pdf · docx · spreadsheet · text"]
+    V --> C["Classify<br/>image · pdf · docx · spreadsheet · document · presentation · email · text"]
     C --> P["Parse<br/>extract text — images skip this"]
     P --> S["Store<br/><code>media/{user_id}/</code>"]
     S --> R["Record<br/>a <code>ChatFile</code> row"]
@@ -100,10 +100,15 @@ plik, który może otworzyć, a agent bez niego dostaje tekst w swoim prompcie.
 | Kategoria | Typy MIME | Rozszerzenia | Przetwarzanie |
 |----------|-----------|------------|------------|
 | **Obrazy** | image/jpeg, image/png, image/webp, image/gif | .jpg, .png, .webp, .gif | Zapisywane bez zmian. Wysyłane do LLM jako `BinaryContent` do analizy wizyjnej. |
+| **TIFF** | image/tiff | .tiff, .tif | Zapisywany bez zmian; w chwili pokazania modelowi konwertowany na stronę(-y) PNG, z limitem `CHAT_TIFF_MAX_INLINE_PAGES`. W przeglądarce nie jest pokazywany inline — serwowany jako pobranie. |
 | **PDF** | application/pdf | .pdf | Tekst wyciągany skonfigurowanym parserem PDF. Doklejany do promptu jako kontekst. |
-| **DOCX** | application/vnd.openxmlformats-officedocument.wordprocessingml.document | .docx | Akapity wyciągane przez `python-docx`. Doklejane do promptu jako kontekst. |
-| **Arkusz** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12 | .xlsx, .xlsm | Każdy arkusz czytany przez `openpyxl`, nazwany, wiersze rozdzielone tabulatorami. Doklejane do promptu jako kontekst. `.xls` jest odrzucany — to inny format wymagający innego czytnika. |
-| **Tekst** | text/plain, text/markdown | .txt, .md | Dekodowany wprost jako UTF-8. Doklejany do promptu jako kontekst. |
+| **DOCX** | …wordprocessingml.document | .docx | Akapity wyciągane przez `python-docx`. Doklejane do promptu jako kontekst. |
+| **DOC** | application/msword | .doc | Konwertowany na tekst przez zarządzany podproces LibreOffice (`soffice`). Wymaga LibreOffice w obrazie; gdy go brak, tekst jest zgłaszany jako niedostępny. |
+| **Arkusz** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12, application/vnd.ms-excel, …opendocument.spreadsheet | .xlsx, .xlsm, .xls, .ods | Każdy arkusz czytany, nazwany, wiersze rozdzielone tabulatorami — `openpyxl` dla OOXML, `xlrd` dla starego `.xls`, `odfpy` dla `.ods`. Doklejane do promptu jako kontekst. |
+| **Prezentacja** | …presentationml.presentation, …opendocument.presentation | .pptx, .odp | Tekst kształtów, komórki tabel i notatki slajdów przez `python-pptx` (`.pptx`) lub `odfpy` (`.odp`). Doklejane do promptu jako kontekst. |
+| **Dokument (OpenDocument)** | …opendocument.text | .odt | Akapity przez `odfpy`. Doklejane do promptu jako kontekst. |
+| **E-mail** | application/vnd.ms-outlook | .msg | Nagłówki i treść czytane ze strumieni OLE/MAPI przez `olefile` (BSD); załączniki osadzone są wypisywane po nazwie, nie wypakowywane rekurencyjnie. Doklejane do promptu jako kontekst. |
+| **Tekst** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Dekodowany wprost jako UTF-8 (XML wg zadeklarowanego BOM/kodowania). Doklejany do promptu jako kontekst. |
 
 ### Dokąd trafia załącznik, zależy od agenta { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -118,9 +123,10 @@ plik zamiast tekstu:
 
 | Załącznik | Bez workspace'u | Z workspace'em |
 |---|---|---|
-| text, csv, md, json | sparsowany tekst wklejony inline | zapisany do `uploads/`, komunikat niesie referencję i 20 pierwszych linii |
-| pdf, docx, arkusz | sparsowany tekst wklejony inline | zapisany do `uploads/`, z wyciągniętym tekstem obok, chyba że runtime umie go przeczytać; referencja i 20 pierwszych linii |
+| text, csv, md, json, xml | sparsowany tekst wklejony inline | zapisany do `uploads/`, komunikat niesie referencję i 20 pierwszych linii |
+| pdf, docx, spreadsheet, document, presentation, email | sparsowany tekst wklejony inline | zapisany do `uploads/`, z wyciągniętym tekstem obok, chyba że runtime umie go przeczytać (`email` dostaje go zawsze — `lit` nie czyta `.msg`); referencja i 20 pierwszych linii |
 | obraz | `BinaryContent` | `BinaryContent` **oraz** zapis; referencja podaje ścieżkę |
+| tiff | strona(-y) PNG jako `BinaryContent`, z odnotowanym limitem stron | zapisany oryginał `.tiff`; pokazane strony PNG, z odnotowanym limitem stron |
 
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego
@@ -142,6 +148,16 @@ Parsowanie i tak dzieje się po stronie serwera, bo *tekst* jest tym, co dostaje
 agent bez workspace'u, i tym, z czego pochodzi 20-linijkowy początek w
 komunikacie. Przyjęcie uploadu bez sparsowania dotarłoby do agenta z workspace'em
 jako nieczytelne bajty, a do agenta bez niego jako zupełnie nic.
+
+**Ograniczenia.** Zeskanowany PDF lub TIFF daje obraz, nie tekst z OCR — ścieżka
+czatu nie ma OCR (baza wiedzy ma, przez LiteParse). Tabele w formatach biurowych i
+w DOCX są spłaszczane do tekstu rozdzielonego tabulatorami lub nowymi liniami. DOC
+wymaga LibreOffice w obrazie; bez niego tekst jest zgłaszany jako niedostępny.
+Osadzone załączniki pliku `.msg` są wypisywane po nazwie, nie wypakowywane.
+Wielostronicowy TIFF pokazuje modelowi do `CHAT_TIFF_MAX_INLINE_PAGES` stron; agent
+z workspace'em otwiera resztę z oryginału na dysku. Wyciągnięty tekst jest
+ograniczony do `CHAT_PARSED_TEXT_MAX_CHARS`, a budżety na plik i na turę ograniczają
+to, co jest wklejane agentowi bez workspace'u.
 
 **Odmowa zapisu jest powiedziana raz i dotyczy workspace'u.** Run, którego
 workspace nie przyjmie pliku, to run, w którym shell i narzędzia plikowe też
@@ -281,10 +297,10 @@ Model bazodanowy `ChatFile` śledzi wgrane pliki:
 | `id` | UUID | Klucz główny |
 | `user_id` | UUID/FK | Właściciel (używany do kontroli dostępu) |
 | `filename` | String | Oryginalna nazwa pliku |
-| `mime_type` | String | Typ MIME (np. `application/pdf`) |
+| `mime_type` | String | Rozpoznany (kanoniczny) typ MIME — `.tiff` z `application/octet-stream` jest zapisywany jako `image/tiff`, więc ścieżka pobierania i konwersji inline czyta jedno wiarygodne pole. Wiersze wgrane przed FA-013 zachowują swój zadeklarowany typ; czytelnicy tolerują oba. |
 | `size` | Integer | Rozmiar pliku w bajtach |
 | `storage_path` | String | Ścieżka względna w magazynie |
-| `file_type` | String | Sklasyfikowany typ: `image`, `pdf`, `docx`, `spreadsheet`, `text` |
+| `file_type` | String | Sklasyfikowany typ: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Wyciągnięta treść tekstowa (NULL dla obrazów) |
 | `message_id` | UUID/FK | Powiązany komunikat (ustawiany przy wysłaniu komunikatu) |
 | `created_at` | DateTime | Znacznik czasu uploadu |

@@ -91,6 +91,11 @@ yours, not the organization's.
 | **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |
 | **Admin** | The deployment itself: users, tenants, system, deployment settings | [The deployment](deployment.md) |
 
+The **Agents** catalog can be filtered by **category** and **tag** — the editable,
+organization-local labels shown on each agent's card. You maintain an agent's
+categories and tags from its detail page, beside the avatar controls, and the
+change takes effect at once, without publishing a new version.
+
 ## When a page looks empty
 
 **An empty state and a failed request look the same.** Every page here fans out

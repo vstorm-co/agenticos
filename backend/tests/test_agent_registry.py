@@ -138,6 +138,10 @@ def _agent(ctx: AuthContext, **overrides):
     agent.name = "Support"
     agent.description = None
     agent.has_avatar = False
+    # Real list[str] columns, not the MagicMocks a bare attribute would be, so the
+    # hand-built AgentRead in list_agents validates them.
+    agent.categories = []
+    agent.tags = []
     agent.draft_spec = _spec().model_dump(mode="json")
     agent.current_version_id = None
     agent.created_at = None
@@ -267,6 +271,165 @@ class TestGet:
             found = await AgentRegistryService(_db()).get(ctx, agent.id)
 
         assert found is agent
+
+
+class TestMetadata:
+    @pytest.mark.anyio
+    async def test_set_metadata_checks_edit_access_then_persists(self):
+        """The write goes through the grant-aware AGENTS_EDIT check, then updates."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        agent = _agent(ctx)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            result = await AgentRegistryService(_db()).set_metadata(
+                ctx, agent.id, categories=["sales"], tags=["eu", "vip"]
+            )
+
+        assert result is agent
+        assert update.call_args.kwargs["update_data"] == {
+            "categories": ["sales"],
+            "tags": ["eu", "vip"],
+        }
+
+    @pytest.mark.anyio
+    async def test_set_metadata_without_edit_is_refused_as_not_found(self):
+        """A caller the resource check refuses never reaches the update."""
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as update,
+            pytest.raises(NotFoundError),
+        ):
+            await AgentRegistryService(_db()).set_metadata(ctx, agent.id, categories=[], tags=[])
+
+        assert update.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_a_viewer_with_an_edit_grant_may_set_metadata(self):
+        """A grant widens edit access to one agent without promoting the Viewer."""
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.EDIT),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            await AgentRegistryService(_db()).set_metadata(
+                ctx, agent.id, categories=["ops"], tags=[]
+            )
+
+        assert update.call_args.kwargs["update_data"] == {"categories": ["ops"], "tags": []}
+
+    @pytest.mark.anyio
+    async def test_list_agents_tolerant_normalizes_and_caps_the_facet(self):
+        """Filter params are folded and bounded before they reach the repository.
+
+        Over-length items are dropped (not raised on, not truncated) and each
+        facet is capped, so a runaway query narrows rather than 500s or matches
+        something the caller never typed.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([], 0)),
+            ) as list_visible,
+        ):
+            await AgentRegistryService(_db()).list_agents(
+                ctx,
+                categories=["Sales", "sales", "  ", "x" * 40],
+                tags=[f"t{i}" for i in range(30)],
+            )
+
+        assert list_visible.call_args.kwargs["categories"] == ["sales"]
+        assert len(list_visible.call_args.kwargs["tags"]) == 20
+
+    @pytest.mark.anyio
+    async def test_list_agents_returns_nothing_when_every_category_is_invalid(self):
+        """An all-invalid facet must not broaden into an unfiltered listing.
+
+        Every supplied category is over the stored width, so none folds to a
+        valid label - the query must answer empty rather than falling back to
+        "no predicate" and returning every agent the caller can see.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([_agent(ctx)], 1)),
+            ) as list_visible,
+        ):
+            rows, total = await AgentRegistryService(_db()).list_agents(ctx, categories=["x" * 40])
+
+        assert rows == []
+        assert total == 0
+        assert list_visible.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_list_agents_returns_nothing_when_every_tag_is_invalid(self):
+        """The same guard applies to the tags facet, independently of categories."""
+        ctx = _ctx(OrgRoleName.OWNER)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([_agent(ctx)], 1)),
+            ) as list_visible,
+        ):
+            rows, total = await AgentRegistryService(_db()).list_agents(ctx, tags=["y" * 40])
+
+        assert rows == []
+        assert total == 0
+        assert list_visible.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_a_listed_agent_carries_its_categories_and_tags(self):
+        """The hand-built list row reads the columns, not a false empty list."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        listed = _agent(ctx, categories=["sales"], tags=["eu", "vip"])
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([listed], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(f"{REGISTRY_PATH}.accessible_ids", new=AsyncMock(return_value=set())),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].categories == ["sales"]
+        assert rows[0].tags == ["eu", "vip"]
 
 
 class TestList:

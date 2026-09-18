@@ -18,7 +18,7 @@ client of it, and a client's own scripts are another. There is deliberately no
 private variant, which is what keeps "the Builder is just another client" true.
 """
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
@@ -44,6 +44,7 @@ from app.schemas.agent import (
     AgentDetail,
     AgentDraftUpdate,
     AgentList,
+    AgentMetadataRequest,
     AgentPublish,
     AgentRead,
     AgentRollback,
@@ -215,14 +216,25 @@ async def list_agents(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     include_archived: bool = Query(False),
+    category: Annotated[
+        list[str], Query(description="Keep agents in any of these categories")
+    ] = [],  # noqa: B006
+    tag: Annotated[list[str], Query(description="Keep agents carrying any of these tags")] = [],  # noqa: B006
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Agents this member can see - their own, plus what was shared with them."""
+    """Agents this member can see - their own, plus what was shared with them.
+
+    `category`/`tag` are repeatable discovery filters: OR within a facet, AND
+    across facets, matched case-insensitively (query values are folded the same
+    way stored ones are). The service folds and bounds them.
+    """
     items, total = await service.list_agents(
         ctx,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        categories=category,
+        tags=tag,
         skip=skip,
         limit=limit,
     )
@@ -450,6 +462,24 @@ async def set_agent_avatar_color(
 ) -> Any:
     """Choose the colour the agent's fallback avatar uses, or null for auto."""
     return await service.set_avatar_color(ctx, agent_id, color=data.color)
+
+
+@router.patch(
+    "/{agent_id}/metadata",
+    response_model=AgentRead,
+)
+async def set_agent_metadata(
+    agent_id: UUID,
+    data: AgentMetadataRequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Set the agent's discovery categories and tags, or clear a facet with [].
+
+    Per-resource, so no route gate: the service's grant-aware `AGENTS_EDIT` check
+    decides, and a Viewer holding an explicit edit grant on this agent is allowed.
+    """
+    return await service.set_metadata(ctx, agent_id, categories=data.categories, tags=data.tags)
 
 
 @router.get(

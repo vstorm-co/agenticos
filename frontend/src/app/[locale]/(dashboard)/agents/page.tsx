@@ -7,6 +7,7 @@ import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
+import { ChipsInput } from "@/components/agents/chips-input";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
@@ -74,6 +75,11 @@ export default function AgentsPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  // The discovery facet is server-driven: it filters the whole set rather than
+  // the fetched page, so it drives the request rather than the client `useMemo`
+  // the status and text filters do.
+  const [categories, setCategories] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const tTemplates = useTranslations("agentTemplates");
@@ -83,11 +89,26 @@ export default function AgentsPage() {
   // Archived agents are fetched only when they could be shown. The list is the
   // same query otherwise, so switching between the first three filters costs
   // nothing.
-  const { agents, isLoading, clone, archive, unarchive, remove } = useAgents({
+  const { agents, total, isLoading, clone, archive, unarchive, remove } = useAgents({
     includeArchived: filter === "all" || filter === "archived",
+    categories,
+    tags,
   });
   const { can } = usePermissions();
   const canEdit = can(Perm.agentsEdit);
+
+  // Any narrowing at all - the client status/text filters and the server facet.
+  // A zero-match facet returns an empty page, so this is what tells "no agent
+  // matched" from "no agents exist", and it gates the Clear-filters CTA.
+  const filtersActive =
+    filter !== "all" || query.trim() !== "" || categories.length > 0 || tags.length > 0;
+
+  const clearFilters = () => {
+    setFilter("all");
+    setQuery("");
+    setCategories([]);
+    setTags([]);
+  };
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -124,6 +145,24 @@ export default function AgentsPage() {
         </SelectContent>
       </Select>
       <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
+      <ChipsInput
+        values={categories}
+        onChange={setCategories}
+        inputLabel={t("filterByCategory")}
+        removeLabel={(value) => t("removeCategoryFilter", { value })}
+        placeholder={t("filterByCategory")}
+        maxItems={10}
+        maxLength={32}
+      />
+      <ChipsInput
+        values={tags}
+        onChange={setTags}
+        inputLabel={t("filterByTag")}
+        removeLabel={(value) => t("removeTagFilter", { value })}
+        placeholder={t("filterByTag")}
+        maxItems={20}
+        maxLength={32}
+      />
     </div>
   );
 
@@ -174,26 +213,23 @@ export default function AgentsPage() {
           </div>
         </AgentsCard>
       ) : (
-        <AgentsCard visible={visible.length} total={agents.length} controls={galleryControls}>
+        <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
           {visible.length === 0 ? (
             <ListCardEmpty
               icon={Bot}
-              title={agents.length === 0 ? t("noAgentsYet") : t("nothingMatches")}
+              title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
               description={
-                agents.length === 0
-                  ? canEdit
+                filtersActive
+                  ? t("noAgentHereMatches")
+                  : canEdit
                     ? t("createOneGiveInstructions")
                     : t("nobodyHasSharedAgent")
-                  : t("noAgentHereMatches")
               }
               cta={
-                agents.length > 0
+                filtersActive
                   ? {
                       label: t("clearFilters"),
-                      onClick: () => {
-                        setFilter("all");
-                        setQuery("");
-                      },
+                      onClick: clearFilters,
                     }
                   : undefined
               }

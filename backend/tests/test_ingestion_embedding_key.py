@@ -106,7 +106,9 @@ async def _store() -> PgVectorStore:
         "app.worker.tasks.rag_tasks.create_async_engine",
         return_value=MagicMock(dispose=AsyncMock()),
     ):
-        async with _ingestion_service(processor=MagicMock(), organization_id=None) as service:
+        async with _ingestion_service(
+            processor=MagicMock(), organization_id=None, tenant=None
+        ) as service:
             store = service.store
     assert isinstance(store, PgVectorStore)
     return store

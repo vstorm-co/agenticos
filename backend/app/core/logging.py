@@ -1,16 +1,50 @@
-"""Logging utilities - PII redaction filter for GDPR/compliance safety."""
+"""Logging utilities - the filter every handler carries: PII, and forged lines."""
 
 import logging
 import re
 from typing import ClassVar
 
+#: Bytes that end a log line, or move a terminal reading one.
+#:
+#: A log entry is one line, and the reader of a text log splits on newlines - so
+#: a value carrying one writes a second entry of the attacker's choosing, with
+#: their own timestamp, level and message. `caller` in the rate limiter is the
+#: clearest way in: it can be `id:<the address somebody submitted>`, stripped and
+#: lower-cased and otherwise theirs, or an `X-Forwarded-For` header where a
+#: deployment trusts one. Escaping is not sanitising the value away - the line
+#: still says what arrived, as `\n`, which is the point: a forged entry is
+#: unreadable *as* an entry, and the real one keeps its evidence.
+_LINE_BREAKERS = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
+
+#: What `LogRecord.__dict__` holds before anything is added through `extra=`.
+#:
+#: Read once, from a throwaway record, rather than written out: the attribute set
+#: is the standard library's and has grown between versions (`taskName` in 3.12),
+#: and a list copied here would silently stop covering a new one.
+_STANDARD_RECORD_KEYS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None).__dict__) | {
+    "message",
+    "asctime",
+}
+
 
 class PiiRedactionFilter(logging.Filter):
-    """Logging filter that redacts personally identifiable information.
+    """Logging filter that redacts PII and neutralises forged log lines.
 
     Automatically scrubs email addresses, JWT tokens, API keys, bearer tokens,
     and password-like values from log messages to prevent PII leaks to
     log aggregators (Datadog, CloudWatch, Logfire, etc.).
+
+    It also escapes the control characters that let a value **end the line it is
+    written on** and start another (`py/log-injection`). That is the second half
+    of the same bargain and lives here for the same reason the first does: this
+    filter is already on every handler in every process, so a call site cannot
+    forget it, and the alternative - sanitising at each of the dozen places a
+    request value reaches a log - is the copy that ends up weaker.
+
+    Values passed through `extra=` are escaped too. The default formatter does
+    not render them, so they cannot forge a line today; a deployment that plugs
+    in one that does - a JSON or key-value formatter, which is the ordinary
+    production choice - must not acquire the hole by changing its formatter.
 
     Usage:
         logging.getLogger().addFilter(PiiRedactionFilter())
@@ -70,12 +104,30 @@ class PiiRedactionFilter(logging.Filter):
             record.exc_text = self._redact(record.exc_text)
         if record.stack_info:
             record.stack_info = self._redact(record.stack_info)
+        # Anything a call site added through `extra=`, which arrives as an
+        # attribute on the record rather than in `msg` or `args`.
+        for key, value in record.__dict__.items():
+            if key not in _STANDARD_RECORD_KEYS and isinstance(value, str):
+                record.__dict__[key] = self._redact(value)
         return True
 
     def _redact(self, value: str) -> str:
         for pattern, replacement in self.PATTERNS:
             value = pattern.sub(replacement, value)
-        return value
+        return _escape_line_breakers(value)
+
+
+def _escape_line_breakers(value: str) -> str:
+    """Write a control character out rather than letting it end the line.
+
+    Newline and carriage return become `\\n` and `\\r`; everything else in the
+    C0 range and `DEL` becomes its `\\xNN` escape. Tab is left alone: it breaks
+    no line and is ordinary in a message somebody wrote.
+    """
+    return _LINE_BREAKERS.sub(
+        lambda match: {"\n": "\\n", "\r": "\\r"}.get(match.group(), f"\\x{ord(match.group()):02x}"),
+        value,
+    )
 
 
 def setup_logging() -> None:
