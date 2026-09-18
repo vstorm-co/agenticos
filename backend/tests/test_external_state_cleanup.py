@@ -95,6 +95,58 @@ class TestDispatch:
 
         assert run.await_count == teardown_tasks._SUBMIT_ATTEMPTS
 
+    async def test_it_carries_the_orphaned_restamps_on_the_first_run(self) -> None:
+        """The personal bases a purge orphaned ride the run so the durable cleanup
+        untags their rows; like the drops they go on the first run only (#1684)."""
+        run = AsyncMock()
+        with patch.object(teardown_tasks, "run_deployment", run):
+            await dispatch_external_state_cleanup([], [], [["handbook", "org-1", "kb-1"]])
+
+        run.assert_awaited_once_with(
+            name="org-purge-cleanup/org-purge-cleanup",
+            parameters={
+                "storage_paths": [],
+                "collections": [],
+                "restamps": [["handbook", "org-1", "kb-1"]],
+            },
+            timeout=0,
+        )
+
+    async def test_it_omits_restamps_when_there_are_none(self) -> None:
+        """The common purge orphans nothing, so its payload is exactly what it always
+        was - only a purge that orphaned a base carries the newer parameter across an
+        upgrade (#1684)."""
+        run = AsyncMock()
+        with patch.object(teardown_tasks, "run_deployment", run):
+            await dispatch_external_state_cleanup(["a/one.txt"], ["docs"])
+
+        assert "restamps" not in run.await_args.kwargs["parameters"]
+
+    async def test_restamps_ride_only_the_first_of_several_chunks(self) -> None:
+        paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_RUN + 1)]
+        run = AsyncMock()
+        with patch.object(teardown_tasks, "run_deployment", run):
+            await dispatch_external_state_cleanup(paths, [], [["handbook", "org-1", "kb-1"]])
+
+        first, second = run.await_args_list
+        assert first.kwargs["parameters"]["restamps"] == [["handbook", "org-1", "kb-1"]]
+        assert "restamps" not in second.kwargs["parameters"]
+
+    async def test_many_restamps_are_chunked_across_runs(self) -> None:
+        """An organization with more personal bases than a run can carry spreads its
+        re-stamps across runs, the way storage paths are, so no run's parameters
+        overflow Prefect's 512 KiB limit (#1684)."""
+        restamps = [
+            [f"kb-{i}", "org-1", f"id-{i}"] for i in range(teardown_tasks._MAX_RESTAMPS_PER_RUN + 1)
+        ]
+        run = AsyncMock()
+        with patch.object(teardown_tasks, "run_deployment", run):
+            await dispatch_external_state_cleanup([], [], restamps)
+
+        first, second = run.await_args_list
+        assert len(first.kwargs["parameters"]["restamps"]) == teardown_tasks._MAX_RESTAMPS_PER_RUN
+        assert second.kwargs["parameters"]["restamps"] == [restamps[-1]]
+
 
 @asynccontextmanager
 async def _db_ctx() -> Any:
@@ -108,7 +160,7 @@ def _patch_cleanup() -> Any:
     and reserved it, so the cleanup drops unconditionally, then releases the name's
     reservation (#1362)."""
     storage = MagicMock(delete=AsyncMock())
-    store = MagicMock(delete_collection=AsyncMock())
+    store = MagicMock(delete_collection=AsyncMock(), restamp_documents_to_untagged=AsyncMock())
     engine = MagicMock(dispose=AsyncMock())
     release = AsyncMock()
 
@@ -132,7 +184,7 @@ class TestTheCleanup:
         assert storage.delete.await_count == 2
         assert store.delete_collection.await_count == 2
         assert [call.args[1] for call in release.await_args_list] == ["docs", "wiki"]
-        assert result == {"unlinked": 2, "dropped": 2}
+        assert result == {"unlinked": 2, "dropped": 2, "restamped": 0}
         engine.dispose.assert_awaited_once()
 
     async def test_a_failed_drop_leaves_the_reservation_for_a_retry(self) -> None:
@@ -145,7 +197,7 @@ class TestTheCleanup:
             result = await cleanup_external_state([], ["docs"])
 
         release.assert_not_awaited()
-        assert result == {"unlinked": 0, "dropped": 0}
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0}
 
     async def test_a_failed_unlink_does_not_abort_the_rest(self) -> None:
         """Best-effort: a file already gone is not a reason to abandon the cleanup."""
@@ -154,7 +206,7 @@ class TestTheCleanup:
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state(["u/a.txt"], ["docs"])
 
-        assert result == {"unlinked": 1, "dropped": 1}
+        assert result == {"unlinked": 1, "dropped": 1, "restamped": 0}
 
     async def test_no_collections_touches_no_store(self) -> None:
         """A purge that only left files behind builds no vector-store engine."""
@@ -170,7 +222,7 @@ class TestTheCleanup:
             result = await cleanup_external_state(["u/a.txt"], [])
 
         make_engine.assert_not_called()
-        assert result == {"unlinked": 1, "dropped": 0}
+        assert result == {"unlinked": 1, "dropped": 0, "restamped": 0}
 
     async def test_it_locks_and_releases_each_collection_it_drops(self) -> None:
         """The drop takes the advisory lock it shares with the claim path (#1355), and
@@ -221,7 +273,58 @@ class TestTheCleanup:
 
         store.delete_collection.assert_not_awaited()
         release.assert_not_awaited()
-        assert result == {"unlinked": 0, "dropped": 0}
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0}
+
+    async def test_it_untags_each_orphaned_personal_bases_own_documents(self) -> None:
+        """A purge orphans a personal base by nulling its org; the cleanup hands the
+        store that base's id and tenant, and the store untags exactly that base's own
+        surviving rows so its new `vector_tenant=None` reaches them again (#1684)."""
+        from uuid import UUID
+
+        _storage, store, _engine, _release, patches = _patch_cleanup()
+        org = "11111111-1111-1111-1111-111111111111"
+        kb = "22222222-2222-2222-2222-222222222222"
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            result = await cleanup_external_state([], [], [["handbook", org, kb]])
+
+        store.restamp_documents_to_untagged.assert_awaited_once_with(
+            "handbook", UUID(org), UUID(kb)
+        )
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 1}
+
+    async def test_a_failed_restamp_attempts_the_rest_then_fails_the_flow(self) -> None:
+        """A re-stamp has no sweep to reattempt it, so a failure is isolated per entry
+        - the others still run - but then raised, failing the flow so its retries
+        re-run the idempotent cleanup rather than leaving a base stranded (#1684)."""
+        from app.core.exceptions import DatabaseError
+
+        _storage, store, _engine, _release, patches = _patch_cleanup()
+        org, kb = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+        store.restamp_documents_to_untagged = AsyncMock(side_effect=[SQLAlchemyError("blip"), None])
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patches[5],
+            pytest.raises(DatabaseError) as excinfo,
+        ):
+            await cleanup_external_state([], [], [["bad", org, kb], ["good", org, kb]])
+
+        assert store.restamp_documents_to_untagged.await_count == 2
+        assert excinfo.value.details == {"collections": ["bad"]}
+
+    async def test_restamps_alone_still_build_the_store(self) -> None:
+        """A purge that only orphaned a personal base - no files, no drops - still
+        opens the vector store to untag it."""
+        _storage, store, engine, _release, patches = _patch_cleanup()
+        org, kb = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            await cleanup_external_state([], [], [["handbook", org, kb]])
+
+        store.restamp_documents_to_untagged.assert_awaited_once()
+        engine.dispose.assert_awaited_once()
 
 
 class TestTheFlow:
@@ -232,8 +335,15 @@ class TestTheFlow:
         with patch.object(teardown_tasks, "cleanup_external_state", impl):
             result = await external_state_cleanup_flow(["u/a.txt"], ["docs"])
 
-        impl.assert_awaited_once_with(["u/a.txt"], ["docs"])
+        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], None)
         assert result == {"unlinked": 1, "dropped": 1}
+
+    async def test_it_passes_the_restamps_through(self) -> None:
+        impl = AsyncMock(return_value={"unlinked": 0, "dropped": 0, "restamped": 1})
+        with patch.object(teardown_tasks, "cleanup_external_state", impl):
+            await external_state_cleanup_flow([], [], [["handbook", "org-1", "kb-1"]])
+
+        impl.assert_awaited_once_with([], [], [["handbook", "org-1", "kb-1"]])
 
 
 def _patch_sweep(stale: list[Any], *, reserved: bool = True) -> Any:

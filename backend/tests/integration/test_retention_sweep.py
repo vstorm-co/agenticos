@@ -324,10 +324,10 @@ class TestTheOtherClasses:
             row.created_at = NOW - timedelta(days=200)
         organization.retention_days = {"knowledge_documents": 30}
         await db.flush()
-        removed_vectors: list[tuple[str, str]] = []
+        removed_vectors: list[tuple[str, str, uuid.UUID | None]] = []
 
-        async def remove(collection: str, document_id: str) -> bool:
-            removed_vectors.append((collection, document_id))
+        async def remove(collection: str, document_id: str, tenant: uuid.UUID | None) -> bool:
+            removed_vectors.append((collection, document_id, tenant))
             return True
 
         storage = MagicMock()
@@ -337,7 +337,9 @@ class TestTheOtherClasses:
 
         remaining = (await db.execute(select(RAGDocument.filename))).scalars().all()
         assert list(remaining) == ["synced.pdf"]
-        assert removed_vectors == [("kb_main", "vec-1")]
+        # No knowledge base behind these rows, so no tag to scope by: the chunks
+        # of a document tracked under none were never stamped with one (#1684).
+        assert removed_vectors == [("kb_main", "vec-1", None)]
         storage.delete.assert_awaited_with("uploads/report.pdf")
 
     @pytest.mark.security

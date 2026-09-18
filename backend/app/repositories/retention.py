@@ -21,7 +21,8 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, delete, func, select
+from sqlalchemy import CursorResult, case, delete, func, literal, select
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +30,7 @@ from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
@@ -261,8 +263,15 @@ async def delete_memory(
 
 async def expiring_documents(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> list[tuple[UUID, str, str | None, str | None]]:
-    """Uploaded documents past their window: id, collection, vector id, file.
+) -> list[tuple[UUID, str, str | None, str | None, UUID | None]]:
+    """Uploaded documents past their window: id, collection, vector id, file, tenant.
+
+    **The tenant comes off the knowledge base, not off the document.** A
+    collection name is not unique across organizations, so the runtime table is
+    shared and each row carries the tag its chunks were stamped with at ingest
+    (#1684) - which is the base's organization, and `None` for an app-scoped one.
+    Sweeping with this organization's id instead would match nothing for an
+    app-scoped base and leave content searchable with its row gone.
 
     **`source_path IS NULL` is the whole of the synchronization answer.** A
     document a connector put there is that source's to remove - purging it here
@@ -282,7 +291,12 @@ async def expiring_documents(
             RAGDocument.collection_name,
             RAGDocument.vector_document_id,
             RAGDocument.storage_path,
+            case(
+                (KnowledgeBase.scope == KBScope.APP.value, literal(None, PG_UUID(as_uuid=True))),
+                else_=KnowledgeBase.organization_id,
+            ),
         )
+        .outerjoin(KnowledgeBase, KnowledgeBase.id == RAGDocument.knowledge_base_id)
         .where(
             RAGDocument.organization_id == organization_id,
             RAGDocument.created_at < cutoff,
@@ -292,7 +306,7 @@ async def expiring_documents(
         .order_by(RAGDocument.created_at)
         .limit(limit)
     )
-    return [(row[0], row[1], row[2], row[3]) for row in rows.all()]
+    return [(row[0], row[1], row[2], row[3], row[4]) for row in rows.all()]
 
 
 async def delete_documents(db: AsyncSession, *, document_ids: list[UUID]) -> int:

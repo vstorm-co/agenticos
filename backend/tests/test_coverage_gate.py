@@ -72,6 +72,7 @@ PLATFORM_MODULES = (
     "app/core/vault.py",
     "app/core/background.py",
     "app/core/blocking.py",
+    "app/core/office_convert.py",
     "app/core/field_errors.py",
     "app/db/vector_tables.py",
     "app/services/access.py",

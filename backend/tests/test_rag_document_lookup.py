@@ -328,7 +328,9 @@ class TestReplacingADocument:
 
         assert result.status is IngestionStatus.DONE
         assert result.replaced_document_id == "doc-old"
-        store.delete_document.assert_awaited_once_with("kb", "doc-old")
+        # The replace-delete carries the ingester's bound tenant (None here), so
+        # it can only remove the old document within that tenant's rows (#1684).
+        store.delete_document.assert_awaited_once_with("kb", "doc-old", None)
 
 
 class TestTheIndexedLookupIssuesOneStatementPerKey:

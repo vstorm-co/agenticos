@@ -1,280 +1,382 @@
-"""The one subprocess in the chat attachment feature: managed, bounded, killable.
+"""The LibreOffice conversion, and above all its kill-on-timeout (#1685).
 
-`soffice` may be absent on this host, so every test here mocks the subprocess. The
-questions are the ones a bespoke manager exists to answer: does an absent binary
-degrade gracefully, does a timeout actually kill the process group, does a
-cancellation reap the child rather than orphan it, and does a flooding child not
-deadlock the wait (#1591, §7 findings 3-4).
+`liteparse` converts office documents by spawning `soffice` from its Rust core
+with no way to kill it, so a hung conversion runs to completion (default 600s)
+and leaves an orphaned process. `app.core.office_convert` owns the subprocess
+instead and tears its whole process group down on timeout or cancellation. These
+tests stand in a fake `soffice` for the real one - a small script that hangs,
+ignores `SIGTERM`, forks a child, or exits a chosen way - so the teardown is
+exercised on every machine, LibreOffice installed or not.
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
+import stat
+import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
 
-from app.core import config as config_module
-from app.services import office_convert
+from app.core import office_convert
+from app.core.office_convert import (
+    OfficeConversionError,
+    OfficeConversionTimeout,
+    convert_to_pdf,
+)
 
 pytestmark = pytest.mark.anyio
 
 
-class FakeStderr:
-    """A stand-in for the child's stderr `StreamReader`: yields its bytes once, then
-    EOF. `hang` makes the read block, the way a child flooding or holding the pipe
-    open for the whole timeout does."""
+def _write_fake_soffice(directory: Path, body: str, *, name: str = "fake_soffice") -> Path:
+    """Write an executable fake `soffice` whose body is the given script.
 
-    def __init__(self, data: bytes, hang: bool) -> None:
-        self._data = data
-        self._hang = hang
-
-    async def read(self, n: int) -> bytes:
-        if self._hang:
-            await asyncio.sleep(10)
-        chunk, self._data = self._data[:n], self._data[n:]
-        return chunk
-
-
-class FakeProc:
-    def __init__(
-        self,
-        *,
-        returncode: int = 0,
-        stderr: bytes = b"",
-        hang_stderr: bool = False,
-        hang_wait: bool = False,
-    ) -> None:
-        self.pid = 4242
-        self.returncode = returncode
-        self.stderr = FakeStderr(stderr, hang_stderr)
-        self._hang_wait = hang_wait
-
-    async def wait(self) -> int:
-        if self._hang_wait:
-            await asyncio.sleep(10)
-        return self.returncode
-
-
-def _exec(
-    proc: FakeProc, *, output: bytes | None = None, seen: list[tuple[Any, ...]] | None = None
-):
-    async def run(*argv: Any, **_kwargs: Any) -> FakeProc:
-        if seen is not None:
-            seen.append(argv)
-        if output is not None:
-            outdir = Path(argv[argv.index("--outdir") + 1])
-            source = Path(argv[-1])
-            (outdir / f"{source.stem}.txt").write_bytes(output)
-        return proc
-
-    return run
-
-
-@pytest.fixture
-def present(monkeypatch):
-    """LibreOffice is on PATH."""
-    monkeypatch.setattr(office_convert.shutil, "which", lambda name: f"/usr/bin/{name}")
-
-
-async def _convert(monkeypatch, proc: FakeProc, *, output: bytes | None = None, timeout: float = 5):
-    monkeypatch.setattr(
-        office_convert.asyncio, "create_subprocess_exec", _exec(proc, output=output)
+    The body may use `outdir` (the `--outdir` value) and `source` (the last
+    argument), which the preamble parses out of `sys.argv` the way the real
+    command is called.
+    """
+    script = directory / name
+    preamble = (
+        f"#!{sys.executable}\n"
+        "import os, signal, subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        "argv = sys.argv[1:]\n"
+        "outdir = Path(argv[argv.index('--outdir') + 1])\n"
+        "source = Path(argv[-1])\n"
     )
-    return await office_convert.libreoffice_convert(b"doc-bytes", suffix=".doc", timeout=timeout)
+    script.write_text(preamble + body)
+    script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return script
 
 
-class TestTheHappyAndFailurePaths:
-    async def test_absent_libreoffice_degrades_to_none(self, monkeypatch):
-        monkeypatch.setattr(office_convert.shutil, "which", lambda _name: None)
-
-        assert await office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=1) is None
-
-    async def test_a_successful_conversion_returns_the_text(self, monkeypatch, present):
-        text = await _convert(monkeypatch, FakeProc(returncode=0), output=b"Clause 1. Agreed.")
-
-        assert text == "Clause 1. Agreed."
-
-    async def test_a_conversion_with_stderr_warnings_still_succeeds(self, monkeypatch, present):
-        text = await _convert(
-            monkeypatch, FakeProc(returncode=0, stderr=b"a warning"), output=b"body"
-        )
-
-        assert text == "body"
-
-    async def test_a_nonzero_exit_is_none(self, monkeypatch, present):
-        assert (
-            await _convert(monkeypatch, FakeProc(returncode=1, stderr=b"boom"), output=b"x") is None
-        )
-
-    async def test_missing_output_is_none(self, monkeypatch, present):
-        assert await _convert(monkeypatch, FakeProc(returncode=0), output=None) is None
-
-    async def test_empty_output_is_none(self, monkeypatch, present):
-        assert await _convert(monkeypatch, FakeProc(returncode=0), output=b"   \n") is None
-
-    async def test_oversized_output_is_none(self, monkeypatch, present):
-        monkeypatch.setattr(config_module.settings, "CHAT_CONVERT_OUTPUT_MAX_BYTES", 5)
-
-        assert await _convert(monkeypatch, FakeProc(returncode=0), output=b"x" * 100) is None
+def _use_fake(monkeypatch: pytest.MonkeyPatch, script: Path) -> None:
+    monkeypatch.setattr(office_convert, "soffice_command", lambda: str(script))
 
 
-class TestTeardown:
-    async def test_a_timeout_kills_and_returns_none(self, monkeypatch, present):
-        killed: list[tuple[int, int]] = []
-        monkeypatch.setattr(
-            office_convert.os, "killpg", lambda pgid, sig: killed.append((pgid, sig))
-        )
+def _spy_group_pids(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Record the process-group ids teardown signals, then signal for real.
 
-        result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
+    Captures the pid convert_to_pdf actually spawned without depending on the
+    fake writing it to a file - which races the conversion timeout under load.
+    """
+    seen: list[int] = []
+    real = office_convert._signal_group
 
-        assert result is None
-        # The group, signalled by the pgid captured at spawn (the leader's pid).
-        assert killed and killed[0][0] == 4242
+    def spy(pid: int, sig: signal.Signals) -> None:
+        seen.append(pid)
+        real(pid, sig)
 
-    async def test_a_wedged_child_is_escalated_to_kill(self, monkeypatch, present):
-        signals: list[int] = []
-        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
-        monkeypatch.setattr(office_convert.os, "killpg", lambda _pgid, sig: signals.append(sig))
-        monkeypatch.setattr(config_module.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 0.01)
-
-        result = await _convert(
-            monkeypatch, FakeProc(hang_stderr=True, hang_wait=True), timeout=0.01
-        )
-
-        assert result is None
-        assert office_convert.signal.SIGTERM in signals
-        assert office_convert.signal.SIGKILL in signals
-
-    async def test_the_group_is_signalled_from_the_spawn_time_pgid(self, monkeypatch, present):
-        """The pgid is captured at spawn, so a leader reaped before teardown - which
-        would make a teardown-time `os.getpgid` raise `ProcessLookupError` and skip
-        the kill - does not stop the surviving group being signalled (#1654 review)."""
-        killed: list[tuple[int, int]] = []
-
-        def _gone(_pid: int) -> int:
-            raise ProcessLookupError
-
-        monkeypatch.setattr(office_convert.os, "getpgid", _gone)
-        monkeypatch.setattr(
-            office_convert.os, "killpg", lambda pgid, sig: killed.append((pgid, sig))
-        )
-
-        result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
-
-        assert result is None
-        # Signalled with the spawn-time pgid, never a teardown re-derivation.
-        assert killed and killed[0][0] == 4242
-
-    async def test_cancellation_kills_the_group_and_propagates(self, monkeypatch, present):
-        killed: list[int] = []
-        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
-        monkeypatch.setattr(office_convert.os, "killpg", lambda _pgid, sig: killed.append(sig))
-        monkeypatch.setattr(
-            office_convert.asyncio,
-            "create_subprocess_exec",
-            _exec(FakeProc(hang_stderr=True)),
-        )
-
-        task = asyncio.ensure_future(
-            office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=10)
-        )
-        await asyncio.sleep(0.05)
-        task.cancel()
-
-        with pytest.raises(asyncio.CancelledError):
-            await task
-        assert killed  # the group was killed before the cancellation propagated
-
-    async def test_the_group_is_killed_even_after_the_leader_exits(self, monkeypatch, present):
-        """The leader can exit within the grace while a descendant ignores TERM. The
-        final group KILL is sent regardless of the leader, so the child cannot outlive
-        the timeout the group kill promises (#1591)."""
-        signals: list[int] = []
-        monkeypatch.setattr(office_convert.os, "getpgid", lambda _pid: 999)
-        monkeypatch.setattr(office_convert.os, "killpg", lambda _pgid, sig: signals.append(sig))
-        monkeypatch.setattr(config_module.settings, "CHAT_CONVERT_KILL_GRACE_SECONDS", 5)
-
-        # The drain hangs (the convert times out), but the leader exits promptly - no
-        # `hang_wait` - so `_reap` returns before the grace is up.
-        result = await _convert(monkeypatch, FakeProc(hang_stderr=True), timeout=0.01)
-
-        assert result is None
-        assert office_convert.signal.SIGTERM in signals
-        assert office_convert.signal.SIGKILL in signals
+    monkeypatch.setattr(office_convert, "_signal_group", spy)
+    return seen
 
 
-class TestStderrBounding:
-    async def test_a_flooding_stderr_is_bounded_to_the_prefix(self):
-        """`communicate()` would hold the whole stream; the drain reads to EOF (so the
-        child cannot deadlock the wait) but keeps only `_STDERR_MAX_BYTES` (#1591)."""
-        # Larger than one 64 KiB read, so the drain loops past the cap and the
-        # over-cap chunks are dropped rather than retained.
-        proc = FakeProc(returncode=0, stderr=b"x" * 200_000)
-
-        captured = await office_convert._drain(proc)
-
-        assert len(captured) == office_convert._STDERR_MAX_BYTES
-
-
-class TestConcurrency:
-    async def test_concurrent_conversions_share_the_semaphore_and_use_distinct_profiles(
-        self, monkeypatch, present
-    ):
-        seen: list[tuple[Any, ...]] = []
-        monkeypatch.setattr(
-            office_convert.asyncio,
-            "create_subprocess_exec",
-            _exec(FakeProc(returncode=0), output=b"ok", seen=seen),
-        )
-
-        results = await asyncio.gather(
-            office_convert.libreoffice_convert(b"a", suffix=".doc", timeout=5),
-            office_convert.libreoffice_convert(b"b", suffix=".doc", timeout=5),
-        )
-
-        assert results == ["ok", "ok"]
-        profiles = [
-            arg for argv in seen for arg in argv if str(arg).startswith("-env:UserInstallation=")
-        ]
-        assert len(profiles) == 2
-        assert profiles[0] != profiles[1]  # a per-call profile, not one shared lock
-
-
-class TestTmpdirCancellationSafety:
-    async def test_a_cancel_during_tmpdir_creation_cleans_it_up(self, monkeypatch, present):
-        """`run_blocking` cannot interrupt `mkdtemp`; a task cancelled while it runs
-        must not leave `/tmp/chatconv-*` created-but-unreferenced (#1654 review)."""
-        import time
-
-        created: list[str] = []
-        removed: list[str] = []
-        real_mkdtemp = office_convert.tempfile.mkdtemp
-        real_rmtree = office_convert.shutil.rmtree
-
-        def slow_mkdtemp(**kwargs: object) -> str:
-            time.sleep(0.1)
-            path = real_mkdtemp(**kwargs)
-            created.append(path)
-            return path
-
-        def recording_rmtree(path: object, *args: object, **kwargs: object) -> None:
-            removed.append(str(path))
-            real_rmtree(str(path), ignore_errors=True)
-
-        monkeypatch.setattr(office_convert.tempfile, "mkdtemp", slow_mkdtemp)
-        monkeypatch.setattr(office_convert.shutil, "rmtree", recording_rmtree)
-
-        task = asyncio.ensure_future(
-            office_convert.libreoffice_convert(b"x", suffix=".doc", timeout=10)
-        )
+async def _wait_gone(pid: int, timeout: float = 5.0) -> bool:
+    """Poll until `pid` no longer exists, returning whether it went away."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
         await asyncio.sleep(0.02)
-        task.cancel()
+    return False
 
-        with pytest.raises(asyncio.CancelledError):
-            await task
 
-        # mkdtemp ran to completion under the shield, and the created dir was removed.
-        assert created
-        assert removed == created
+def test_soffice_command_prefers_libreoffice(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        office_convert.shutil,
+        "which",
+        lambda name: "/usr/bin/libreoffice" if name == "libreoffice" else None,
+    )
+    assert office_convert.soffice_command() == "/usr/bin/libreoffice"
+
+
+def test_soffice_command_falls_back_to_the_soffice_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        office_convert.shutil,
+        "which",
+        lambda name: "/usr/bin/soffice" if name == "soffice" else None,
+    )
+    assert office_convert.soffice_command() == "/usr/bin/soffice"
+
+
+def test_soffice_command_finds_the_macos_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(office_convert.shutil, "which", lambda _name: None)
+    bundle = tmp_path / "soffice"
+    bundle.write_text("")
+    monkeypatch.setattr(office_convert, "_MACOS_SOFFICE", bundle)
+    assert office_convert.soffice_command() == str(bundle)
+
+
+def test_soffice_command_is_none_when_libreoffice_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(office_convert.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(office_convert, "_MACOS_SOFFICE", tmp_path / "absent")
+    assert office_convert.soffice_command() is None
+
+
+async def test_a_successful_conversion_returns_the_pdf_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _write_fake_soffice(
+        tmp_path,
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4 fake')\nsys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    source = tmp_path / "quarterly.xlsx"
+    source.write_bytes(b"not really a spreadsheet")
+
+    pdf = await convert_to_pdf(source, out_dir, timeout_seconds=10)
+
+    assert pdf == out_dir / "quarterly.pdf"
+    assert pdf.read_bytes().startswith(b"%PDF")
+
+
+async def test_a_missing_libreoffice_is_named_without_a_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(office_convert, "soffice_command", lambda: None)
+    source = tmp_path / "deck.pptx"
+
+    with pytest.raises(OfficeConversionError) as excinfo:
+        await convert_to_pdf(source, tmp_path, timeout_seconds=10)
+
+    assert "deck.pptx" in str(excinfo.value)
+    assert str(tmp_path) not in str(excinfo.value)
+
+
+async def test_a_nonzero_exit_is_a_conversion_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _write_fake_soffice(
+        tmp_path,
+        "print('conversion boom', file=sys.stderr)\nsys.exit(3)\n",
+    )
+    _use_fake(monkeypatch, script)
+
+    with pytest.raises(OfficeConversionError) as excinfo:
+        await convert_to_pdf(tmp_path / "notes.odt", tmp_path, timeout_seconds=10)
+
+    assert "notes.odt" in str(excinfo.value)
+    assert not isinstance(excinfo.value, OfficeConversionTimeout)
+
+
+async def test_a_clean_exit_that_writes_no_pdf_is_a_conversion_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LibreOffice can return 0 and still produce nothing; that is a failure."""
+    script = _write_fake_soffice(tmp_path, "sys.exit(0)\n")
+    _use_fake(monkeypatch, script)
+
+    with pytest.raises(OfficeConversionError) as excinfo:
+        await convert_to_pdf(tmp_path / "empty.doc", tmp_path, timeout_seconds=10)
+
+    assert "empty.doc" in str(excinfo.value)
+
+
+async def test_a_conversion_past_its_deadline_is_killed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hang raises promptly and the subprocess is gone, not left running."""
+    script = _write_fake_soffice(tmp_path, "time.sleep(3600)\n")
+    _use_fake(monkeypatch, script)
+    pids = _spy_group_pids(monkeypatch)
+
+    with pytest.raises(OfficeConversionTimeout) as excinfo:
+        await convert_to_pdf(tmp_path / "huge.doc", tmp_path, timeout_seconds=0.3)
+
+    assert "huge.doc" in str(excinfo.value)
+    assert pids, "teardown never signalled the process group"
+    assert await _wait_gone(pids[0]), "soffice was left running after the timeout"
+
+
+async def test_a_subprocess_that_ignores_sigterm_is_killed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The grace-then-SIGKILL path: a process trapping SIGTERM still dies."""
+    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
+    script = _write_fake_soffice(
+        tmp_path,
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(3600)\n",
+    )
+    _use_fake(monkeypatch, script)
+    pids = _spy_group_pids(monkeypatch)
+
+    with pytest.raises(OfficeConversionTimeout):
+        await convert_to_pdf(tmp_path / "stubborn.doc", tmp_path, timeout_seconds=0.3)
+
+    assert pids, "teardown never signalled the process group"
+    assert await _wait_gone(pids[0]), "a SIGTERM-ignoring soffice survived"
+
+
+async def test_the_whole_process_group_is_reaped_not_only_the_launcher(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The P1 case: the launcher exits on SIGTERM while a helper ignores it.
+
+    soffice forks helpers into its group; if teardown waited only on the
+    launcher it would return with a helper still running. The helper here traps
+    SIGTERM and ticks a heartbeat file, so only the group-wide SIGKILL can stop
+    it - a heartbeat that goes still proves the whole group was reaped, without
+    the reap-timing ambiguity of polling for a zombie pid. Teardown is driven
+    directly, after the group is confirmed up, so nothing races an internal
+    timeout.
+    """
+    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 0.2)
+    child = _write_fake_soffice(
+        tmp_path,
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "n = 0\n"
+        "while True:\n"
+        "    (outdir / 'heartbeat.txt').write_text(str(n))\n"
+        "    n += 1\n"
+        "    time.sleep(0.02)\n",
+        name="fake_soffice_child",
+    )
+    parent = _write_fake_soffice(
+        tmp_path,
+        f"subprocess.Popen([{str(child)!r}, '--outdir', str(outdir), 'x'])\ntime.sleep(3600)\n",
+        name="fake_soffice_parent",
+    )
+    proc = await asyncio.create_subprocess_exec(
+        str(parent),
+        "--outdir",
+        str(tmp_path),
+        "x",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    heartbeat = tmp_path / "heartbeat.txt"
+    for _ in range(500):
+        if heartbeat.exists():
+            break
+        await asyncio.sleep(0.02)
+    assert heartbeat.exists(), "the helper never started"
+
+    await office_convert._terminate_process_group(proc)
+
+    ticked = heartbeat.read_text()
+    await asyncio.sleep(0.5)
+    assert heartbeat.read_text() == ticked, "a soffice helper kept running"
+
+
+async def test_cancellation_tears_the_subprocess_down(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancelled ingest must not leave soffice running behind it."""
+    script = _write_fake_soffice(
+        tmp_path,
+        "(outdir / 'pids.txt').write_text(str(os.getpid()))\ntime.sleep(3600)\n",
+    )
+    _use_fake(monkeypatch, script)
+
+    task = asyncio.ensure_future(
+        convert_to_pdf(tmp_path / "slow.doc", tmp_path, timeout_seconds=60)
+    )
+    pids = tmp_path / "pids.txt"
+    for _ in range(500):
+        if pids.exists():
+            break
+        await asyncio.sleep(0.02)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    pid = int(pids.read_text())
+    assert await _wait_gone(pid), "cancellation left soffice running"
+
+
+async def test_tearing_down_an_already_exited_process_is_a_noop() -> None:
+    """Teardown races the process exiting; a finished, empty group is fine.
+
+    Both signals land on a group that has gone, and reaping an already-reaped
+    launcher must not raise - exercising the ProcessLookupError suppression.
+    """
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, "-c", "pass", start_new_session=True
+    )
+    await proc.wait()
+
+    await office_convert._terminate_process_group(proc)
+    # The group is gone; signalling it again must still not raise.
+    office_convert._signal_group(proc.pid, signal.SIGTERM)
+
+
+async def test_teardown_kills_the_group_even_when_cancelled_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second cancellation during the grace wait must not skip the SIGKILL.
+
+    An overlapping timeout-and-shutdown cancel can interrupt teardown while it
+    waits out the grace period; if that skipped the kill, a SIGTERM-ignoring
+    soffice would survive - the exact orphan this guards against.
+    """
+    monkeypatch.setattr(office_convert, "_KILL_GRACE_SECONDS", 30.0)
+    script = _write_fake_soffice(
+        tmp_path,
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "(outdir / 'up.txt').write_text('1')\n"
+        "time.sleep(3600)\n",
+    )
+    proc = await asyncio.create_subprocess_exec(
+        str(script),
+        "--outdir",
+        str(tmp_path),
+        "x",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    up = tmp_path / "up.txt"
+    for _ in range(500):
+        if up.exists():
+            break
+        await asyncio.sleep(0.02)
+
+    task = asyncio.ensure_future(office_convert._terminate_process_group(proc))
+    await asyncio.sleep(0.2)  # let it send SIGTERM and settle into the grace wait
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    # The finally-block SIGKILL fired despite the cancellation; reaping confirms
+    # the process died from it rather than still running.
+    returncode = await asyncio.wait_for(proc.wait(), timeout=5)
+    assert returncode == -signal.SIGKILL
+
+
+async def test_the_profile_path_is_passed_as_an_escaped_file_uri(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A temp dir with spaces or reserved characters still yields a valid URI.
+
+    LibreOffice reads `-env:UserInstallation` as a URI, so a raw path with a
+    space or `#` would be misparsed; `Path.as_uri()` percent-encodes it.
+    """
+    profile = tmp_path / "pro file#1"
+    profile.mkdir()
+    monkeypatch.setattr(office_convert.tempfile, "mkdtemp", lambda prefix=None: str(profile))
+    script = _write_fake_soffice(
+        tmp_path,
+        "env = next(a for a in argv if a.startswith('-env:UserInstallation='))\n"
+        "(outdir / 'env.txt').write_text(env)\n"
+        "(outdir / (source.stem + '.pdf')).write_bytes(b'%PDF-1.4')\n"
+        "sys.exit(0)\n",
+    )
+    _use_fake(monkeypatch, script)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    await convert_to_pdf(tmp_path / "quarterly.xlsx", out_dir, timeout_seconds=10)
+
+    passed = (out_dir / "env.txt").read_text()
+    assert passed == f"-env:UserInstallation={profile.as_uri()}"
+    assert "%20" in passed

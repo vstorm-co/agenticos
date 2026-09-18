@@ -49,6 +49,7 @@ EXEMPT: dict[str, str] = {
     "tests/api/test_platform_routes.py::TestReadingWhatARunIsParkedOn::test_the_parked_calls_come_back_with_the_approval_to_decide": "reads parked approvals for an authorized caller, display/read",
     "tests/api/test_run_export_routes.py::TestTheFiltersReachTheService::test_approval_filters_arrive_as_named": "query filters reach the service, plumbing, no refusal",
     "tests/integration/test_agent_trigger_schema.py::TestTheEventShapeRejectsABadRow::test_a_polled_event_trigger_with_no_secret_is_accepted": "the valid polled shape is accepted, schema accept-complement",
+    "tests/integration/test_audit_hash_chain.py::TestTheDeploymentChain::test_a_tenant_less_write_chains_and_verifies": "a deployment-wide (tenant-less) audit chain verifies, functionality, keyword coincidental",
     "tests/integration/test_deletion_reconciliation.py::TestDeletingAUser::test_deleting_a_member_promotes_their_private_secret_to_the_org": "deleting a member promotes their private secret to the org, reconciliation, no refusal",
     "tests/integration/test_platform_flows.py::TestTheListingCarriesThePublishedCap::test_a_version_with_no_budget_block_answers_null": "a version with no budget block reports a null cap, listing, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_a_deleted_secret_is_gone_and_a_second_delete_says_so": "delete is idempotent (a second delete returns False), CRUD, no refusal",
@@ -113,6 +114,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_vault.py::TestRotation::test_a_secret_sealed_under_the_old_master_key_survives_a_real_rotation": "a secret survives a real master-key rotation, rotation correctness, no refusal",
     "tests/test_vault.py::TestRotation::test_rewrap_preserves_the_secret": "rewrap preserves the secret across a version bump, rotation round-trip, no refusal",
     "tests/test_web_search.py::TestConfiguration::test_a_keyless_method_publishes_without_a_secret": "a keyless web-search method needs no secret, conditional requirement, no refusal",
+    "tests/test_liteparse_office_timeout.py::test_the_conversion_and_parse_share_one_timeout_budget": "a conversion/parse time budget, not a spend budget, no refusal",
 }
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.463"
+version = "0.0.465"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -545,6 +545,9 @@ include = [
     # The dedicated bounded pool for blocking file work, kept off the executor
     # bcrypt and DNS share; its write is cancellation-safe (#1108).
     "app/core/blocking.py",
+    # The LibreOffice conversion the RAG parser (and, later, chat) drives, owned
+    # here so a hung `soffice` is killed on timeout rather than orphaned (#1685).
+    "app/core/office_convert.py",
     # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
@@ -855,6 +858,9 @@ include = [
     # The dedicated bounded pool for blocking file work, kept off the executor
     # bcrypt and DNS share; its write is cancellation-safe (#1108).
     "app/core/blocking.py",
+    # The LibreOffice conversion the RAG parser (and, later, chat) drives, owned
+    # here so a hung `soffice` is killed on timeout rather than orphaned (#1685).
+    "app/core/office_convert.py",
     # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
