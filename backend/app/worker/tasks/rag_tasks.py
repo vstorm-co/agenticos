@@ -632,10 +632,12 @@ async def _run_sync(
                         # the filename fallback, and the row and the vector would
                         # now disagree about which file this is (#996).
                         source_path=source_path,
-                        # Deployment-scoped: a local path belongs to no tenant, so
-                        # no organization_id is stamped and these chunks are
-                        # reachable only through the unscoped maintenance path,
-                        # never a tenant-scoped search (FA-039 R5).
+                        # The origin only. Which tenant these chunks carry is not
+                        # decided here and never from the path: it is the
+                        # destination base's own `vector_tenant`, bound on the
+                        # ingester above - an organization's id for an org or
+                        # personal base, `None` for an app-scoped one, which
+                        # `AppScope` is what reads back (FA-039 R5, #1684).
                         source=Source.LOCAL,
                         doc_date=iso_doc_date(stat_result.st_mtime),
                     )
