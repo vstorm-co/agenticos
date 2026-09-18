@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [0.0.464] - 2026-09-18
 
+### Fixed
+
+- **A LibreOffice conversion that runs past its deadline is killed rather than
+  left holding the worker.** The timeout cancelled the wait and not the process,
+  so an office document that made `soffice` hang kept a slot on the bounded file
+  pool for as long as it liked - and enough of them stopped every other
+  conversion in the deployment. The teardown is TERM, a grace period, then KILL
+  from a `finally` that survives being cancelled again; the conversion and the
+  parse share one deadline, so a file cannot spend the whole budget converting
+  and then start parsing; and the failure names the format rather than the
+  temporary path it was written to. (#1685)
+
 ## [0.0.463] - 2026-09-16
 
 ### Added
