@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.464] - 2026-09-18
+
 ## [0.0.463] - 2026-09-16
 
 ### Added
