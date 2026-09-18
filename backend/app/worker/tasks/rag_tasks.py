@@ -388,7 +388,6 @@ async def _run_ingestion(
                     replace=replace,
                     source_path=source_path,
                     still_wanted=lambda: _still_ingestable(rag_document_id, collection_name),
-                    organization_id=str(organization_id) if organization_id is not None else None,
                     source=Source.UPLOAD,
                     doc_date=iso_doc_date(upload_mtime),
                 )
@@ -1001,13 +1000,12 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                                 # go, or the collection grows a copy.
                                 replace=True,
                                 source_path=remote_file.source_path,
-                                # Trusted tenant from the source's own organization;
-                                # source is the connector's canonical name (gdrive,
-                                # s3); doc_date is the remote file's modified time,
-                                # else this file's mtime, else ingestion time.
-                                organization_id=(
-                                    str(organization_id) if organization_id is not None else None
-                                ),
+                                # The trusted tenant already rides `ingester`'s own
+                                # bound `self._tenant`, resolved from the source's
+                                # collection when it was built above; `source` is
+                                # the connector's canonical name (gdrive, s3);
+                                # doc_date is the remote file's modified time, else
+                                # this file's mtime, else ingestion time.
                                 source=source.connector_type,
                                 doc_date=iso_doc_date(
                                     remote_file.modified_at, stat_result.st_mtime

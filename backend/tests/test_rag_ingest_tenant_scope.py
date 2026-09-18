@@ -122,6 +122,41 @@ class TestTheIngesterThreadsItsBoundTenant:
 
         assert store.find_existing_document.await_args.kwargs["tenant"] == ORG_B
 
+    async def test_document_metadata_mirrors_the_bound_tenant_not_a_caller_value(self):
+        """`document.metadata.organization_id` is set from `self._tenant` alone.
+
+        It used to be set from a caller-supplied `organization_id` naming the
+        *paying* organization, which disagreed with the bound tenant for an
+        app-scoped base (`self._tenant is None` even though a real organization
+        uploaded and paid) - mistagging the row with the payer and leaving it
+        unreachable by every scope (#1684, FA-039). There is no `organization_id`
+        parameter on `ingest_file` to pass a conflicting value through any more.
+        """
+        service, store = _service(ORG_A)
+
+        await service.ingest_file(
+            filepath=Path("handbook.pdf"),
+            collection_name="kb",
+            replace=True,
+            source_path="/srv/sync/handbook.pdf",
+        )
+
+        document = store.insert_document.await_args.kwargs["document"]
+        assert document.metadata.organization_id == str(ORG_A)
+
+    async def test_an_app_scoped_ingester_stamps_no_organization_on_the_document(self):
+        service, store = _service(None)
+
+        await service.ingest_file(
+            filepath=Path("handbook.pdf"),
+            collection_name="kb",
+            replace=True,
+            source_path="/srv/sync/handbook.pdf",
+        )
+
+        document = store.insert_document.await_args.kwargs["document"]
+        assert document.metadata.organization_id is None
+
     async def test_remove_document_uses_the_bound_tenant_by_default(self):
         service, store = _service(ORG_A)
 
@@ -164,10 +199,24 @@ class TestTheChunkMetadataCarriesTheTenant:
 
     def test_no_tenant_leaves_no_tag(self):
         """A deployment-wide write (app-scoped, CLI, local sync) stamps nothing,
-        so the `IS NULL` scope its own reads use matches it."""
+        so the `IS NULL` scope its own reads use matches it. `DocumentMetadata`
+        always carries the key (pydantic dumps every field), so this is a null
+        value rather than an absent key - `metadata->>'organization_id'` reads
+        both as SQL NULL, which is what the scope actually tests against."""
         meta = self._store()._build_chunk_metadata(self._chunk(), _document(), None)
 
-        assert "organization_id" not in meta
+        assert meta["organization_id"] is None
+
+    def test_a_tenant_set_directly_on_document_metadata_is_stamped(self):
+        """A caller with no separate tenant argument - a direct store caller
+        seeding rows, not through `IngestionService` - sets
+        `document.metadata.organization_id` itself and gets it stamped as-is."""
+        doc = _document()
+        doc.metadata.organization_id = str(ORG_A)
+
+        meta = self._store()._build_chunk_metadata(self._chunk(), doc, None)
+
+        assert meta["organization_id"] == str(ORG_A)
 
 
 class TestKnowledgeBaseVectorTenant:

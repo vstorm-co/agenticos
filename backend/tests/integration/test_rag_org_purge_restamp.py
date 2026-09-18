@@ -33,6 +33,8 @@ from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
 from app.repositories import knowledge_base_repo
 from app.services.organization import OrganizationService
+from app.services.rag.config import RAGSettings
+from app.services.rag.filters import AppScope, RetrievalQuery
 from app.services.rag.vectorstore import PgVectorStore
 from app.worker.tasks.teardown_tasks import cleanup_external_state
 
@@ -56,6 +58,7 @@ def _store(engine: AsyncEngine) -> PgVectorStore:
     store = PgVectorStore.__new__(PgVectorStore)
     store.async_session = async_sessionmaker(engine, expire_on_commit=False)
     store.dim = 3
+    store.settings = RAGSettings()  # search()'s HNSW tuning reads it (FA-039 H1)
     store.embedder = None  # type: ignore[assignment]  # unread for DDL and the scoped ops
     store._resolver = _no_resolution  # type: ignore[assignment]
     return store
@@ -230,7 +233,9 @@ class TestTheStoreReStamp:
         store._for_collection = AsyncMock(  # type: ignore[method-assign]
             return_value=(MagicMock(embed_query=MagicMock(return_value=[0.1, 0.2, 0.3])), 3)
         )
-        results = await store.search(COLLECTION, "anything", limit=10, tenant=None)
+        results = await store.search(
+            COLLECTION, "anything", RetrievalQuery(scope=AppScope()), limit=10
+        )
 
         assert found is not None and found.document_id == "doc-a"
         assert info.total_vectors == 2  # doc-a and doc-none, both untagged now

@@ -28,6 +28,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.services.rag.config import RAGSettings
+from app.services.rag.filters import RetrievalQuery, TenantScope
 from app.services.rag.models import SearchResult
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -53,6 +55,7 @@ def _store(engine: AsyncEngine) -> PgVectorStore:
     store = PgVectorStore.__new__(PgVectorStore)
     store.async_session = async_sessionmaker(engine, expire_on_commit=False)
     store.dim = 3
+    store.settings = RAGSettings()  # search()'s HNSW tuning reads it (FA-039 H1)
     store.embedder = None  # type: ignore[assignment]  # unread for DDL and the scoped ops
     store._resolver = _no_resolution  # type: ignore[assignment]
     return store
@@ -192,7 +195,9 @@ async def test_search_does_not_leak_another_tenants_chunk_content(engine: AsyncE
     embedder = MagicMock(embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]))
     store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
 
-    results: list[SearchResult] = await store.search(COLLECTION, "anything", limit=10, tenant=ORG_A)
+    results: list[SearchResult] = await store.search(
+        COLLECTION, "anything", RetrievalQuery(scope=TenantScope(organization_id=ORG_A)), limit=10
+    )
 
     contents = {r.content for r in results}
     assert contents == {"content of doc-a"}
