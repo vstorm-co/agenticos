@@ -595,7 +595,6 @@ class TestTheLocalDirectorySync:
             patch.object(rag_tasks, "EmbeddingService", new=MagicMock()),
             patch.object(rag_tasks, "get_worker_db_context", new=_db),
             patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
-            patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
             patch.object(rag_tasks, "IngestionConfigService") as config_service,
             patch.object(
                 rag_tasks.IngestionService, "ingest_file", new=AsyncMock(return_value=result)
@@ -610,9 +609,51 @@ class TestTheLocalDirectorySync:
                 ),
             ),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+            patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
         ):
             config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+            config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
             yield documents
+
+    @pytest.mark.security
+    async def test_it_stamps_the_rows_with_the_authorized_bases_tenant(self, tmp_path: Path):
+        """The route resolved and authorized a knowledge base and passes its id; the
+        flow loads it and stamps every row with that base's tenant and organization,
+        rather than writing them untagged into an org-backed collection where normal
+        reads would never see them (#1684)."""
+        org = uuid.uuid4()
+        kb = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=org,
+            vector_tenant=org,
+            ingestion_config={},
+            embedding_model="text-embedding-3-small",
+        )
+        (tmp_path / "handbook.md").write_text("body")
+
+        captured: dict[str, Any] = {}
+
+        @asynccontextmanager
+        async def _ingestion(*, processor: Any, organization_id: Any, tenant: Any) -> Any:
+            captured["tenant"] = tenant
+            captured["organization_id"] = organization_id
+            yield MagicMock(ingest_file=AsyncMock(return_value=_result()))
+
+        async with self._syncing(result=_result()) as documents:
+            with (
+                patch.object(
+                    rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=kb)
+                ),
+                patch.object(rag_tasks, "_ingestion_service", new=_ingestion),
+            ):
+                await rag_tasks._run_sync(
+                    str(uuid.uuid4()), "local", "docs", "full", str(tmp_path), str(kb.id)
+                )
+
+        assert captured == {"tenant": org, "organization_id": org}
+        created = documents.create_document.await_args.kwargs
+        assert created["organization_id"] == org
+        assert created["knowledge_base_id"] == kb.id
 
     async def test_a_file_that_failed_to_parse_keeps_its_own_reason(self, tmp_path: Path):
         (tmp_path / "handbook.md").write_text("body")

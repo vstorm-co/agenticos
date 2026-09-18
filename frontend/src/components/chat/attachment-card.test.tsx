@@ -86,6 +86,19 @@ describe("AttachmentCard", () => {
     );
   });
 
+  it("shows a TIFF as a download card, not a broken thumbnail", () => {
+    // A TIFF is an `image` kind but no browser draws it inline, so the card must not
+    // point an `<img>` at the download URL (#1591).
+    render(
+      <AttachmentCard
+        file={file({ filename: "scan.tiff", mime_type: "image/tiff", file_type: "image" })}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("img", { name: "scan.tiff" })).toBeNull();
+  });
+
   it("quotes nothing when there is nothing to quote", () => {
     // An image has no parsed text, and neither does a file the parser refused.
     // An empty quote block reads as an empty file.

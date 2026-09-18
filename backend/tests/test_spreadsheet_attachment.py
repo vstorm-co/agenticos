@@ -46,10 +46,19 @@ class TestTheGate:
         assert XLSX in ALLOWED_MIME_TYPES
         assert XLSM in ALLOWED_MIME_TYPES
 
-    def test_the_old_excel_format_is_still_refused(self):
-        """`.xls` is a different format needing a different reader. Accepting it
-        on the strength of the name would be the defect this module opens on."""
-        assert "application/vnd.ms-excel" not in ALLOWED_MIME_TYPES
+    def test_the_legacy_and_opendocument_spreadsheets_are_now_accepted(self):
+        """`.xls` (xlrd) and `.ods` (odfpy) gained readers with FA-013, so both are
+        accepted now - a type with a parser reaches an agent as text, not nothing."""
+        assert "application/vnd.ms-excel" in ALLOWED_MIME_TYPES
+        assert "application/vnd.oasis.opendocument.spreadsheet" in ALLOWED_MIME_TYPES
+
+    def test_xls_and_ods_classify_as_spreadsheets(self):
+        assert classify_file("application/vnd.ms-excel", "old.xls") == "spreadsheet"
+        assert classify_file("application/octet-stream", "old.xls") == "spreadsheet"
+        assert (
+            classify_file("application/vnd.oasis.opendocument.spreadsheet", "book.ods")
+            == "spreadsheet"
+        )
 
     def test_a_workbook_is_its_own_kind_and_not_text(self):
         """Classified as text it would be decoded as UTF-8, and the workspace

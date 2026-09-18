@@ -93,8 +93,14 @@ class RAGSyncService:
         collection_name: str,
         mode: str,
         path: str,
+        knowledge_base_id: UUID | None = None,
     ) -> SyncLog:
-        """Persist a sync log and dispatch the local-sync task on the configured backend."""
+        """Persist a sync log and dispatch the local-sync task on the configured backend.
+
+        `knowledge_base_id` is the base the route resolved and authorized for this
+        collection; the flow reads its tenant so the synced rows are stamped and
+        scoped to it rather than written untagged into an org-backed table (#1684).
+        """
         sync_log = await self.create_sync_log(
             source="local",
             collection_name=collection_name,
@@ -118,6 +124,7 @@ class RAGSyncService:
                 collection_name=collection_name,
                 mode=mode,
                 path=path,
+                knowledge_base_id=None if knowledge_base_id is None else str(knowledge_base_id),
             ),
             name=f"sync-collection-{collection_name}",
         )

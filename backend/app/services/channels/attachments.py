@@ -132,8 +132,12 @@ class ChannelAttachmentService:
 
         for attachment in attachments:
             # Checked against the claim first: fetching a gigabyte in order to
-            # reject it is the thing worth not doing.
-            valid, error = self.uploads.validate_upload(attachment.mime_type, attachment.size)
+            # reject it is the thing worth not doing. The filename carries the
+            # extension, so an `application/octet-stream` `.odt`/`.msg` (which
+            # platforms routinely send) is accepted on the extension it names.
+            valid, error = self.uploads.validate_upload(
+                attachment.mime_type, attachment.size, attachment.filename
+            )
             if not valid:
                 refusals.append(f"{attachment.filename}: {_why(attachment, error)}")
                 continue
@@ -159,9 +163,22 @@ class ChannelAttachmentService:
 
             # Again, against the bytes. A platform that under-reported the size,
             # or a handle that resolved to something else, gets caught here.
-            valid, error = self.uploads.validate_upload(attachment.mime_type, len(data))
+            valid, error = self.uploads.validate_upload(
+                attachment.mime_type, len(data), attachment.filename
+            )
             if not valid:
                 refusals.append(f"{attachment.filename}: {_why(attachment, error)}")
+                continue
+
+            # And against the content, now the bytes are in hand: a forged
+            # signature or a MIME/extension conflict the header hid is caught here
+            # rather than reaching a parser. The channel user sees a concise,
+            # non-leaking refusal distinct from the size message.
+            valid, error = self.uploads.validate_bytes(
+                data, attachment.mime_type, attachment.filename
+            )
+            if not valid:
+                refusals.append(f"{attachment.filename}: {error}")
                 continue
 
             stored.append(

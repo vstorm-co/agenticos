@@ -1469,13 +1469,14 @@ class TestAttachedFiles:
         session = _session()
         rows = [MagicMock(), MagicMock()]
         run = AsyncMock(return_value=_finished_turn())
+        prompt_message_id = uuid4()
 
         with (
-            _chat(run),
+            _chat(run, prompt_message_id=prompt_message_id),
             patch(
-                "app.services.agent_session.load_attached_files",
+                "app.services.agent_session.load_turn_attachments",
                 new=AsyncMock(return_value=rows),
-            ),
+            ) as load,
         ):
             await session.process_message(
                 {"message": "", "agent_id": str(uuid4()), "file_ids": ["f1", "f2"]}
@@ -1484,6 +1485,36 @@ class TestAttachedFiles:
         assert _frame_types(session) == ["user_prompt", "message_saved", "complete"]
         assert run.await_args is not None
         assert run.await_args.kwargs["attachments"] == rows
+        # Read against the message `persist_user_turn` just wrote and the caller's
+        # own ids - the ids are linked by then, and re-checking them as unlinked
+        # dropped every attachment before the model call (#1756).
+        assert load.await_args.args[1] == prompt_message_id
+        assert load.await_args.args[2] == ["f1", "f2"]
+
+    async def test_a_lost_prompt_row_still_loads_the_files(self):
+        """`persist_user_turn` swallows a transient write failure, leaving
+        `message_id` None; the files must still be loaded (the loader keeps the
+        caller's unlinked uploads for a None message) rather than dropped from a
+        billed turn (#1654 review)."""
+        session = _session()
+        rows = [MagicMock()]
+        run = AsyncMock(return_value=_finished_turn())
+
+        with (
+            _chat(run, prompt_message_id=None),
+            patch(
+                "app.services.agent_session.load_turn_attachments",
+                new=AsyncMock(return_value=rows),
+            ) as load,
+        ):
+            await session.process_message(
+                {"message": "look", "agent_id": str(uuid4()), "file_ids": ["f1"]}
+            )
+
+        assert run.await_args is not None
+        assert run.await_args.kwargs["attachments"] == rows
+        # Not short-circuited to []: the loader is called with a None message id.
+        assert load.await_args.args[1] is None
 
 
 class TestStreamingAModelResponse:

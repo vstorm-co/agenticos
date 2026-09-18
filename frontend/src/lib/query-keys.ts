@@ -5,6 +5,7 @@
  * invalidate precisely (e.g. `queryClient.invalidateQueries({ queryKey: qk.runs.all() })`).
  * Keep keys hierarchical: broader prefixes invalidate everything beneath them.
  */
+import { canonicalFacet } from "@/lib/agent-facets";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
@@ -29,8 +30,21 @@ export const qk = {
   },
   agents: {
     all: () => ["agents"] as const,
-    /** `includeArchived` is part of the key: the two lists are different rows. */
-    list: (includeArchived = false) => ["agents", "list", includeArchived] as const,
+    /**
+     * `includeArchived` is part of the key: the two lists are different rows.
+     * So is the discovery facet - the server applies it, so two category/tag
+     * selections are two lists and neither may answer for the other from a stale
+     * cache. Keyed on a *sorted* copy so the order the chips were typed in does
+     * not split the cache.
+     */
+    list: (includeArchived = false, categories: string[] = [], tags: string[] = []) =>
+      [
+        "agents",
+        "list",
+        includeArchived,
+        canonicalFacet(categories),
+        canonicalFacet(tags),
+      ] as const,
     // One boolean assembled from as many pages as it takes - "may this caller
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.

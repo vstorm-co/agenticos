@@ -32,6 +32,10 @@ evidence = "text_unidecode-1.3.dist-info/LICENSE.txt: 'redistribute it and/or mo
 license = "BSD-3-Clause OR Apache-2.0"
 evidence = "uritemplate-4.2.0.dist-info/licenses/LICENSE: 'made available under the terms of either of the licenses found in LICENSE.APACHE or LICENSE.BSD'; the License field says 'BSD 3-Clause OR Apache-2.0' in non-SPDX spelling"
 
+[overrides.python."odfpy"]
+license = "LGPL-2.1-or-later"
+evidence = "odfpy-1.4.1 ships no licence file and its License field is empty; its trove classifiers name Apache, GPL and LGPL, but every library source under odf/ (e.g. odf/namespaces.py, odf/office.py) carries the same header - 'This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License ... version 2.1 ... or (at your option) any later version', Copyright (C) 2006-2013 Søren Roug, European Environment Agency. The imported library is therefore taken under LGPL-2.1-or-later."
+
 [notices.npm."client-only"]
 holder = "Meta Platforms, Inc. and affiliates"
 evidence = "client-only 0.0.1 names no author; its package.json points at reactjs.org and facebook/react, and the React repository's LICENSE is MIT, Copyright (c) Meta Platforms, Inc. and affiliates"
@@ -61,6 +65,12 @@ license = "LGPL-3.0-or-later"
 status = "accepted"
 obligations = "Ship the licence text, keep the library replaceable, make its source available. Used only by Alembic's synchronous engine, unmodified, as a separately installed wheel."
 fulfilled_by = "The wheel's LICENSE is in the image under its dist-info; the wheel is a separate file a deployment can replace; source at https://github.com/psycopg/psycopg2."
+
+[review.python."odfpy"]
+license = "LGPL-2.1-or-later"
+status = "accepted"
+obligations = "Weak copyleft: ship the licence text, keep the library replaceable, and make its (unmodified) source available. Used to read the text out of ODT/ODS/ODP chat attachments (app/services/file_upload.py), imported unmodified as a separately installed pure-Python wheel."
+fulfilled_by = "Unmodified; imported at the call site and replaceable by reinstalling the wheel. The wheel ships no licence file, so the LGPL-2.1-or-later text is placed beside it in the image and named with its source in THIRD_PARTY_NOTICES.md; source at https://github.com/eea/odfpy. The LGPL leaves AgenticOS's own Apache-2.0 licence unchanged - only odfpy itself stays under the LGPL - so it adds no obligation on the platform beyond the already-accepted psycopg2-binary and sharp-libvips LGPL components."
 
 [review.python."pymupdf"]
 license = "AGPL-3.0-only"

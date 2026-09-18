@@ -1,5 +1,5 @@
 ---
-source_sha: "bee20df52ff2"
+source_sha: "4af3be1ca985"
 ---
 
 # API HTTP { #the-http-api }
@@ -77,6 +77,20 @@ Ta trasa niesie **limit tempa, a nie bramkę uprawnień**. Uprawnienie jest
 rozstrzygane wewnątrz serwisu, wobec grantów tego konkretnego agenta — bramka
 rolowa na trasie per zasób [nie widzi ich](permissions.md).
 
+`PATCH /api/v1/agents/{id}/metadata` ustawia **categories** i **tags** agenta
+ciałem w rodzaju `{"categories": [...], "tags": [...]}`, gdzie pusta lista
+czyści dany aspekt. Wartości są normalizowane — przycinane, ze scaloną spacją,
+zwinięte wielkością liter i odduplikowane — oraz ograniczone: najwyżej 10
+categories i 20 tagów, każdy najwyżej 32 znaki, a dłuższy element odpowiada
+`422`. Podobnie jak trasa run, nie niesie bramki rolowej; rozstrzyga
+uwzględniające granty sprawdzenie `agents:edit` wewnątrz serwisu, więc viewer z
+grantem edycji na jednym agencie może go otagować.
+
+`GET /api/v1/agents` filtruje ten katalog powtarzalnymi parametrami zapytania
+`category` i `tag`: wartości łączą się przez **OR w obrębie aspektu** i **AND
+między aspektami**, dopasowywane bez względu na wielkość liter (wartość zapytania
+zwija się tak jak zapisana, a pusta wartość jest pomijana). Filtr tylko zawęża
+to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
 ## Usługi ML { #the-ml-services }
 
 Cztery usługi platformy odpowiadają samodzielnie, bez rozmowy i bez agenta za

@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
+import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
 import { extractSources } from "@/lib/chat-sources";
 import type { SourceItem } from "@/lib/chat-sources";
@@ -455,8 +456,11 @@ type AttachmentDisplay =
   | { kind: "unknown"; id: string };
 
 function kindFor(file: ChatMessageFile): "image" | "file" {
-  if (file.file_type === "image") return "image";
-  if (file.mime_type.startsWith("image/")) return "image";
+  // A thumbnail only for a type the browser can draw inline. A TIFF has
+  // `file_type: "image"` and `mime_type: "image/tiff"` but neither draws inline, so
+  // it takes a file card, not a broken thumbnail whose src is the download URL
+  // (#1591).
+  if (isRenderSafeImage(file.mime_type)) return "image";
   return "file";
 }
 

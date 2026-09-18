@@ -113,7 +113,31 @@ class TestResolution:
             key_source=EmbeddingKeySource.ORGANIZATION,
             base_url="https://openrouter.ai/api/v1",
             provider="openrouter",
+            # An org-scoped collection scopes its runtime rows to its own
+            # organization (#1684); an app-scoped one resolves to None.
+            vector_tenant=_ORG,
         )
+
+    async def test_an_org_collection_scopes_its_runtime_rows_to_its_organization(self):
+        """The tenant the runtime vector table is scoped by rides home with the
+        key: an org-scoped base carries its own organization (#1684)."""
+        resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), _sealed_key_row("sk-valid-key"))
+
+        assert resolved is not None
+        assert resolved.vector_tenant == _ORG
+
+    @pytest.mark.security
+    async def test_an_app_collection_is_deployment_wide_and_scopes_to_no_tenant(self):
+        """An app-scoped base is readable by every organization, so its rows carry
+        no tenant and every caller reads them through the same scope (#1684)."""
+        from app.db.models.knowledge_base import KBScope
+
+        app_kb = _kb(secret_id=uuid.uuid4(), organization_id=None)
+        app_kb.scope = KBScope.APP.value
+        resolved, _ = await _resolve(app_kb, _sealed_key_row("sk-valid-key"))
+
+        assert resolved is not None
+        assert resolved.vector_tenant is None
 
     async def test_the_organizations_own_key_is_unsealed_and_used(self):
         secret_id = uuid.uuid4()

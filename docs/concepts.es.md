@@ -1,5 +1,5 @@
 ---
-source_sha: "48d994ed75f4"
+source_sha: "e10c0995c043"
 ---
 
 # Conceptos { #concepts }
@@ -54,6 +54,20 @@ El spec cumple dos reglas, y son las que lo hacen útil.
     No nombran ni modelo ni colección, porque esos son UUIDs que nadie fuera de
     tu despliegue tiene - que es por lo que una plantilla instalada es un
     borrador.
+
+!!! note "Las categories y los tags están junto al spec, no dentro de él"
+
+    Una fila de agent lleva además **categories** y **tags** editables —
+    etiquetas locales a la organización para encontrar y filtrar agents. Como un
+    avatar, no cambian ni lo que el agent ejecuta ni lo que significa su YAML
+    exportado, así que volver a etiquetar no necesita publicación ni una nueva
+    versión; son metadatos de la fila, no un campo del spec.
+
+    Se quedan fuera del artefacto portable, y ese es justo el sentido de
+    mantenerlos fuera del spec: exportar un spec no emite ninguna category ni tag,
+    importar uno deja las categories y los tags existentes del destino sin cambios
+    (el fichero no lleva ninguno, así que ni los borra ni los sobrescribe), y solo
+    un clon arranca sin tags.
 
 ## Versión { #version }
 
