@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.469] - 2026-09-18
+
 ### Added
 
 - **A notification center: every unattended alert in one inbox, in the console
