@@ -286,11 +286,13 @@ nav:
           - howto/use-ratings.md
   - Reference:
       - api.md
+      - ml-services.md
       - configuration.md
       - commands.md
       - reference/spec.md
       - reference/capabilities.md
       - reference/permissions.md
+      - reference/components.md
   - Resources:
       - resources/index.md
       - Development - contributing:
@@ -299,6 +301,7 @@ nav:
           - patterns.md
           - adding_features.md
           - testing.md
+          - load-testing.md
           - code-review.md
           - branching.md
           - howto/translate.md

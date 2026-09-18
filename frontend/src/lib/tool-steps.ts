@@ -198,15 +198,16 @@ export function toolStep(
  * What a finished call is called, when the tool's own name is not the useful answer.
  *
  * A loaded skill is the clearest case: the step that matters says *Refund Policy*, not
- * *Load Skill* - which skill it was is the whole content of the step.
+ * *Load Capability* - which skill it was is the whole content of the step. Its id is
+ * the skill's name, because every skill an agent is given is a capability of its own.
  */
 function finishedLabel(
   name: string,
   args: Record<string, unknown> | undefined,
   t: Translate,
 ): string {
-  if (name === "load_skill") {
-    const skill = text((args ?? {}).skill_name);
+  if (name === "load_capability") {
+    const skill = text((args ?? {}).id);
     if (skill !== null) return titleWords(skill);
   }
   return toolDisplayName(name, t);

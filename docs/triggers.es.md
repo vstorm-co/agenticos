@@ -1,5 +1,5 @@
 ---
-source_sha: "395f13f5fc74"
+source_sha: "3c3d227eb5e7"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -211,6 +211,90 @@ Connect que solo podría fallar. A diferencia de GitHub, el cliente es del
 *despliegue* y no de cada organización: la pantalla de consentimiento de Google
 para un scope de buzón necesita un proyecto verificado, que un operador registra
 una vez y que ninguno de sus inquilinos puede registrar en absoluto.
+
+## Dos maneras de conectar GitHub, y cómo saber cuál tienes { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
+
+Hay dos, y un despliegue puede ofrecer una o ambas. El selector muestra **GitHub**
+y **GitHub (App)** como fuentes distintas, y cuál usa un trigger se decide al
+crearlo (#1072).
+
+| | GitHub (OAuth App) | GitHub (App) |
+|---|---|---|
+| Qué guarda | Un token de acceso de la **persona** que dio el consentimiento | Un id de instalación más la clave privada de la App en el vault |
+| Qué alcanza | Todo repositorio que esa cuenta pueda administrar —`repo` más `admin:repo_hook`, lectura y escritura | Los repositorios en los que se instaló la App, con los permisos que la App declara |
+| Cuánto dura | Para siempre. Un token clásico de OAuth App no tiene refresco ni caducidad, así que uno filtrado vale hasta que alguien lo revoque a mano | Una hora. Acuñado a demanda desde la clave, que nunca sale del vault |
+| Hooks | Uno por repositorio, creado con el trigger y borrado con él | Ninguno. La App ya está entregando |
+| Límite de peticiones | Los 5000/hora de la persona, compartidos con todo lo demás que esa cuenta autorizó | El propio de la App |
+| Dónde entrega | `/api/v1/webhooks/triggers/github/<id del trigger>` —una URL por trigger | `/api/v1/webhooks/github-app` —una URL para todas las instalaciones |
+
+**Cómo saber en cuál está un trigger:** por su fuente. Un trigger creado bajo
+**GitHub (App)** no tiene webhook que encontrar en los ajustes del repositorio,
+porque no existe; uno bajo **GitHub** tiene exactamente uno, añadido por la
+plataforma al crearlo.
+
+### Configurar la App (una vez por organización) { #setting-up-the-app-once-per-organization }
+
+1. **Registra la App** en [github.com/settings/apps](https://github.com/settings/apps)
+   (o el equivalente de tu organización).
+   - **Webhook URL**: `https://<tu despliegue>/api/v1/webhooks/github-app`. Una
+     URL para todas las instalaciones, y por eso la dirección pública del
+     despliegue es aquí un requisito de configuración y no un valor de ejecución.
+   - **Webhook secret**: genéralo. Firma cada entrega de cada instalación de esta
+     App.
+   - **Permisos**: `Issues: Read-only` y `Metadata: Read-only`. No se lee nada
+     más, y cualquier cosa por encima es acceso que nadie necesita.
+   - **Suscríbete a eventos**: `Issues`.
+2. **Genera una clave privada** en la misma página y descarga el PEM.
+3. **Guarda las tres en el vault** como un secreto **GitHub App**: el App ID, la
+   clave privada y el webhook secret. Uno por organización y visible para la
+   organización: la ruta de entrega lo lee por organización y se niega a adivinar
+   entre dos.
+4. **Instala la App** en los repositorios que quieras, desde la pestaña *Install
+   App*. Eso, y solo eso, es lo que el despliegue puede alcanzar.
+5. **Conéctala** — con el botón *Connect* del portal, que pide el **id de
+   instalación**. GitHub lo pone al final de la URL de la página de ajustes de la
+   propia instalación (`…/settings/installations/<id de instalación>`). No es un
+   secreto: viaja en cada entrega y es lo que le dice a la plataforma a qué grant
+   pertenece una entrega.
+
+El paso 5 no tiene equivalente en la ruta OAuth, porque una App no tiene ningún
+flujo de consentimiento que arrancar. Conectarla acuña de inmediato un token de
+instalación —no para guardarlo, sino para demostrar que el App ID, la clave
+privada y el id de instalación concuerdan. Un id mal tecleado, o un PEM que perdió
+sus saltos de línea camino del formulario, se rechaza ahí en lugar de descubrirse
+más tarde como entregas que en silencio no encajan con nada. Es además el único
+momento en que la clave puede comprobarse: el vault no vuelve a mostrar un secreto
+guardado.
+
+Crear un trigger elige entonces un repositorio de la instalación y no registra
+nada.
+
+!!! tip "Apagarlo"
+
+    Desactivar la conexión hace que las entregas dejen de emparejarse del todo —
+    los grants desactivados no son candidatos. Ese es el interruptor de toda la
+    instalación, sin tocar GitHub.
+
+### Cuando llega una entrega { #when-a-delivery-arrives }
+
+Una URL, así que la ruta no nombra nada. El id de instalación del payload
+selecciona los grants a los que podría pertenecer, el webhook secret de la App
+para esa organización verifica la firma, y el repositorio y el evento eligen los
+triggers —**todos**, no uno—. Dos triggers sobre el mismo repositorio disparan los
+dos, que es lo que los presets invitan y lo que una URL por trigger no puede hacer
+por construcción.
+
+Una entrega que no coincide con nada responde `202` igual que una que lo disparó
+todo. Una firma que no verifica contra ningún candidato es un `403`, así que
+**Recent Deliveries** de GitHub le muestra a quien configuró mal la App qué falla.
+
+### Cuál elegir { #which-to-choose }
+
+La App, salvo que no puedas registrar una. La vía de OAuth App es el recurso para
+un despliegue cuya organización de GitHub no deja a nadie crear una App, y no se
+va a ninguna parte —pero un token que puede escribir en todos los repositorios que
+alcance una administradora, y que nunca caduca, es una credencial muy grande para
+leer issues.
 
 ## Una receta con GitHub (~5 minutos) { #a-github-recipe-5-minutes }
 

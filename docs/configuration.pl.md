@@ -1,5 +1,5 @@
 ---
-source_sha: "6ae659f3a930"
+source_sha: "7f462475932a"
 ---
 
 # Konfiguracja { #configuration }
@@ -54,6 +54,8 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `MAX_UPLOAD_SIZE_MB` | `50` | Limit dokumentu w knowledge base i liczba, z której wyprowadzany jest opisany niżej sufit całego żądania. Dokument tej wielkości jest dzielony na chunki i embedowany, a nie trzymany w jednym kawałku |
 | `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | Co można załączyć w czacie. Ma własne ustawienie zamiast tego powyżej, bo załącznik do agenta bez workspace'u jest wklejany w całości do promptu — więc obie powierzchnie zawodzą inaczej przy tym samym rozmiarze. Kiedyś było to zahardkodowane 10 MiB, którego żaden operator nie mógł podnieść ([#498](https://github.com/vstorm-co/agenticos/issues/498)); kontener frontendu czyta ten sam `CHAT_MAX_UPLOAD_SIZE_MB` w czasie działania, więc daj obu kontenerom jedną wartość albo composer odrzuci plik, który serwer by przyjął |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Co **obcy** może przesłać na hostowaną stronę. Sufit nałożony na `CHAT_MAX_UPLOAD_SIZE_MB`, nigdy sposób na jego obejście |
+| `ML_MAX_UPLOAD_SIZE_MB` | `25` | Ile może wysłać jedno wywołanie [usług ML](ml-services.md) — dokument do sparsowania, skan do rozpoznania, nagranie do transkrypcji. Własne ustawienie, bo bajty są parsowane albo wysyłane do silnika w obrębie jednego żądania, a nie zapisywane, więc limit dotyczy tego, ile może zająć pojedyncze synchroniczne wywołanie. Stoi na 25 MB klienta transkrypcji, najniższym limicie silnika za tą powierzchnią |
+| `ML_MAX_CONCURRENT_PARSES` | `4` | Ile dokumentów jeden worker parsuje naraz na potrzeby [usług ML](ml-services.md). Limit tempa liczy starty i nie widzi tego, co wciąż trwa, więc bez tego minutowy przydział wywołań OCR to tyle samo rozpoznawań w locie. Powyżej tej liczby wywołujący dostaje odmowę z `Retry-After`, a nie miejsce w kolejce |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na które może wskazywać self-hostowana usługa pamięci mem0. `base_url` pochodzi ze speca agenta, więc bez allowlisty Builder, który może podpiąć (ale nie odczytać) współdzielony klucz mem0, mógłby wycelować go we własny serwer i przechwycić klucz z nagłówka żądania. Pusta wartość odrzuca self-hostowane mem0 i dopuszcza wyłącznie zarządzaną chmurę; dodaj zaufaną nazwę hosta, aby włączyć wdrożenie self-hosted. Zobacz [sekrety](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Rozmiar dedykowanej puli wątków, która wykonuje blokującą pracę na plikach — parsowanie uploadu oraz odczyt i zapis jego bajtów. Trzymana poza domyślnym współdzielonym executorem `asyncio`, który obsługuje też `bcrypt` i DNS przypiętych hostów, żeby fala uploadów nie zostawiła logowania i wychodzących żądań w kolejce za nimi ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Podnieś ją na hoście, który parsuje wiele uploadów naraz. Musi być dodatnią liczbą całkowitą — `0` lub wartość ujemna zostaje odrzucona przy starcie |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Miesięczny sufit wydatków, z którym startuje **nowa** organizacja, w USD, żeby nie była o jednego rozbieganego agenta od zaskakującego rachunku. Obowiązuje tylko przy tworzeniu; istniejące organizacje pozostają nietknięte i każdej organizacji można później wyczyścić limit. Musi być dodatni; zostaw **pusty**, aby organizacje startowały bez limitu (starsza postawa opt-in) |
@@ -125,6 +127,7 @@ Walidacja produkcyjna: `API_KEY` nie może używać wartości domyślnej przy
 | `GOOGLE_CLIENT_SECRET` | (empty) | Client secret Google OAuth2 |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | URL callbacku OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | URL frontendu dla przekierowań OAuth2 |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | Schemat, który rejestruje shell desktopowy dla logowania przekazanego przeglądarce systemowej ([Desktop](desktop.md#signing-in)). Callback buduje z niego przekierowanie, więc to ustawienie, a nie coś, co wybiera wołający |
 
 Skąd wziąć tę parę: [konsola Google Cloud](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.
@@ -141,6 +144,79 @@ dostępu serwera frontendu i do `Referer` następnego żądania same-origin, a r
 token jest ważny przez tydzień. Frontend wymienia kod na parę tokenów
 serwer–serwer pod `POST /api/v1/oauth/exchange`, które realizuje go dokładnie raz.
 
+
+### Logowanie jednokrotne (generyczne OIDC) { #single-sign-on-generic-oidc }
+
+Dowolny dostawca tożsamości publikujący dokument discovery: Microsoft Entra ID,
+Okta, Keycloak, Auth0, Authentik, Google Workspace przez swój endpoint OIDC.
+Firma hostująca to u siebie już jakiegoś używa i nie będzie zakładać lokalnych
+haseł swoim pracownikom — bez tego jej MFA i jej offboarding są rozwiązywane
+dwa razy.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (puste) | URL issuera. Puste znaczy brak SSO, a callback odpowiada 404 |
+| `OIDC_CLIENT_ID` | (puste) | Klient, którego dostawca wydał dla tego wdrożenia |
+| `OIDC_CLIENT_SECRET` | (puste) | Jego sekret |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | Callback, zarejestrowany u dostawcy |
+| `OIDC_SCOPES` | `openid email profile` | Rozdzielone spacją. Dodaj własny scope dostawcy, jeśli potrzebuje go dla claimów |
+| `OIDC_VERIFIED_CLAIM` | (puste) | Trzeci claim akceptowany jako „ten adres jest potwierdzony”, dla dostawcy, który nazywa go po swojemu |
+
+Issuer to jedyny URL. Authorization, token, userinfo i JWKS biorą się z
+`<issuer>/.well-known/openid-configuration`, który dostawca utrzymuje aktualny
+przez rotację kluczy czy przeniesienie endpointu — więc nie ma kolejnych adresów,
+które da się subtelnie pomylić. Flow to authorization code z PKCE.
+
+Claimy czytane są z ID tokena, a z endpointu **UserInfo** wtedy, gdy ID token ich
+nie niesie. Dostawca ma prawo trzymać `email` i swój claim weryfikacji w UserInfo
+i nie umieszczać żadnego w tokenie, więc czytanie samego tokena odrzucałoby w
+pełni zgodnego dostawcę o jedno żądanie od poprawnej tożsamości.
+
+Dwa przyciski po stronie frontendu, konfigurowane tam:
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO |
+| `OIDC_DISPLAY_NAME` | `SSO` | Jak przycisk nazywa dostawcę: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (puste) | `google`, `github` albo `microsoft` — znaki, które strona logowania już wozi. Cokolwiek innego rysuje zwykły klucz |
+
+Gdzie mieszka który issuer i co zarejestrować:
+
+| Dostawca | Issuer | Redirect URI rejestruj jako |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions |
+| **Okta** | `https://<org>.okta.com` (albo `/oauth2/<id>` własnego serwera autoryzacji) | Sign-in redirect URI w aplikacji typu **Web** |
+| **Keycloak** | `https://<host>/realms/<realm>` | Valid redirect URI w kliencie confidential z włączonym standard flow |
+
+Dwie rzeczy, których platforma wymaga od dowolnego dostawcy, na którego ją skierujesz:
+
+- **Adres musi być potwierdzony.** Akceptowane są dwa claimy: standardowy
+  `email_verified` i `xms_edov` Entra ID, które Entra wysyła zamiast niego —
+  `email_verified` nie emituje w ogóle, a `xms_edov` jest claimem **opcjonalnym**,
+  włączanym na rejestracji aplikacji, więc tenant Entra, który go nie włączył, nie
+  wysyła żadnego i każde logowanie jest odrzucane. `OIDC_VERIFIED_CLAIM` nazywa
+  trzeci dla dostawcy, który mówi na to inaczej. Brak liczy się jako brak
+  potwierdzenia: niepotwierdzony adres oznacza, że ktokolwiek u tego dostawcy może
+  zgłosić czyjś służbowy adres, a lista dozwolonych domen niżej stoi na tym, że
+  adres coś znaczy.
+- **Stabilny `sub`.** Konto jest kluczowane po nim, nie po adresie, więc osoba,
+  która zmieni nazwisko albo której domenę ktoś wykupi, zachowuje swoją historię
+  — a kolejny właściciel zwolnionego adresu jej nie dziedziczy. Zapisywany jest
+  **z przestrzenią nazw issuera**, bo `sub` jest unikalny w obrębie swojego
+  issuera i nigdzie indziej: przestawienie wdrożenia na inny tenant albo realm nie
+  może wtedy zalogować nowego podmiotu na konto starego.
+
+Polityka rejestracji działa tu dokładnie tak, jak działa dla formularza
+rejestracji: wdrożenie `invite_only` odmawia logowania SSO komuś, kogo nikt nie
+zaprosił, a lista dozwolonych domen odmawia adresowi spoza niej — tym samym
+zdaniem na stronie logowania. Zobacz
+[Kto może się zarejestrować](deployment.md#who-may-register). Mapowanie grup
+dostawcy na role w organizacji nie jest tego częścią; ludzie się logują, a
+administrator ich umieszcza.
+
+SAML i SCIM nie są zaimplementowane. Większość dostawców tożsamości, których
+używa średniej wielkości firma, mówi po OIDC, a te ustawienia to całość tego,
+czego potrzebują.
 
 ## Baza danych (PostgreSQL) { #database-postgresql }
 
@@ -354,11 +430,12 @@ czyta, [co opuszcza maszynę](data-protection.md#traces).
 
 Trzy rzeczy mogą skierować runy do projektu i nakładają się na siebie:
 
-- `LOGFIRE_TOKEN` stąd instrumentuje Pydantic AI globalnie **w procesie API**
-  (`app/main.py`), więc każdy run obsłużony tam trafia do projektu samego
-  wdrożenia. Run wykonany przez workera Prefect nie jest objęty, bo ten proces
-  nigdy nie konfiguruje Logfire
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- `LOGFIRE_TOKEN` stąd instrumentuje Pydantic AI globalnie, więc każdy run trafia
+  do projektu samego wdrożenia. Konfigurują go dwa procesy: API przy starcie
+  (`app/main.py`) oraz odpalony run w workerze Prefect, który ustawia się sam, bo
+  każdy flow run dostaje własny podproces. Spany workera niosą
+  `<nazwa usługi>-worker`, więc w jednym projekcie da się odróżnić wolny run
+  zaplanowany od wolnej tury czatu.
 - [Środowisko](environments.md#tracing-per-environment) może nieść własny token
   zapisu, zapieczętowany w vaulcie, który przekierowuje związane z nim runy.
 - Blok [`observability`](reference/spec.md#observability) agenta nazywa projekt
@@ -368,11 +445,11 @@ Tryb `content` agenta decyduje, ile niesie każdy span: `full`, domyślny, zapis
 wiadomość, wyjście i każde wywołanie narzędzia; `none` zapisuje tylko czas,
 tokeny, koszt i nazwy narzędzi. Jest stosowany tam, gdzie agent jest
 instrumentowany, więc trzyma niezależnie od tego, który token trace'uje run — przy
-tym na poziomie wdrożenia agent zostaje przypięty do instrumentacji bez treści.
-Dwa ograniczenia, zanim na tym polegasz: podpięcie jej jest best-effort, a błąd
-jest logowany, gdy run trwa dalej; oraz inline specjalista jest budowany ze specu
-bez bloku observability, więc jego własne spany wciąż niosą treść
-([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
+tym na poziomie wdrożenia agent zostaje przypięty do instrumentacji bez treści,
+a specjalista, do którego agent deleguje — napisany inline albo wymyślony
+w trakcie runu przez model — dziedziczy tryb. Jedno
+ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
+best-effort, a błąd jest logowany, gdy run trwa dalej.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
@@ -470,6 +547,39 @@ na Drive własnemu adresowi e-mail konta serwisowego** — to taki sam principal
 każdy inny, a folder, którego nikt mu nie udostępnił, listuje się jako pusty, a nie
 jako odrzucony.
 
+## Wgrane pliki w spoczynku { #uploaded-files-at-rest }
+
+Gdzie leżą załączniki z czatu, avatary, obrazy brandingu i oryginały dokumentów
+bazy wiedzy. Jeden backend na wdrożenie, nigdy per organizacja, a jego zmiana nie
+przenosi tego, co trzyma już ten drugi.
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` zapisuje pod `MEDIA_DIR`; `s3` zapisuje do bucketu zgodnego z S3 |
+| `FILE_STORAGE_S3_BUCKET` | (puste) | Bucket. Wymagany przy backendzie `s3`; API odmawia rozpoczęcia uploadu bez niego |
+| `FILE_STORAGE_S3_ENDPOINT` | (brak) | Puste dla AWS. Adres usługi dla MinIO lub innego zgodnego magazynu |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | Region AWS |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (puste) | Na AWS zostaw **puste**: odpowiada wtedy własny łańcuch poświadczeń boto3, czyli profil instancji albo rola IRSA, a nie długowieczny klucz w pliku środowiskowym |
+| `FILE_STORAGE_S3_SECRET_KEY` | (puste) | Druga połowa, tak samo |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` dla MinIO i większości zgodnych magazynów, które adresują bucket ścieżką. Żądanie w stylu virtual-host trafia u nich na błąd DNS, a nie na S3 |
+| `FILE_STORAGE_S3_PREFIX` | (puste) | Każdy klucz zapisywany przez to wdrożenie leży pod nim, więc jeden bucket może pomieścić więcej niż jedno wdrożenie bez mieszania kluczy |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | O co magazyn jest proszony przy każdym zapisie: `sse-s3` (własny klucz bucketu), `sse-kms` (klucz poniżej) albo `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (brak) | Identyfikator albo ARN klucza KMS. **Wymagany** przy trybie `sse-kms`: S3 czyta nienazwany `aws:kms` jako własny klucz zarządzany przez AWS `aws/s3`, a nie jako domyślny klucz bucketu, więc puste oznaczałoby szyfrowanie kluczem, którego nikt nie wybrał |
+
+!!! warning "`none` jest dla magazynu bez KMS i nie jest szyfrowaniem"
+
+    MinIO odmawia SSE-S3, dopóki nie skonfigurowano serwera KES, więc zgodny
+    magazyn bez KMS potrzebuje `none`, żeby w ogóle działać — a wdrożenie
+    pracujące w ten sposób ma tyle szyfrowania, ile dają mu wolumeny, i nic
+    ponad to. `agenticos cmd doctor` raportuje taką konfigurację jako
+    nieskonfigurowaną, a nie zdrową, i to samo mówi wiersz o spoczynku
+    w [bezpieczeństwie](security.md#what-is-encrypted-where).
+
+Bucket, do którego zapisuje wdrożenie, potrzebuje `s3:PutObject`, `s3:GetObject`,
+`s3:DeleteObject` i `s3:ListBucket`, a przy trybie `sse-kms` dodatkowo
+`kms:Encrypt`, `kms:Decrypt` i `kms:GenerateDataKey` na kluczu. Lokalne MinIO
+uruchamia `make docker-minio` na `:9000` z `minioadmin` / `minioadmin`.
+
 ### Synchronizacja S3/MinIO { #s3minio-sync }
 
 | Zmienna | Domyślnie | Opis |
@@ -479,6 +589,10 @@ jako odrzucony.
 | `S3_RAG_SECRET_KEY` | (empty) | Secret key, tak samo |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Nazwa bucketa |
 | `S3_RAG_REGION` | `us-east-1` | Region AWS. Własny region poświadczenia wygrywa tam, gdzie je ma |
+
+To jest *konektor synchronizacji*, który czyta bucket należący do tenanta — a nie
+magazyn plików samego wdrożenia opisany wyżej. Konfiguruje się je osobno i jest to
+świadome: jedno jest infrastrukturą, drugie danymi tenanta.
 
 **Para kluczy tutaj należy do CLI, a nie do źródła synchronizacji.** Źródło
 synchronizacji `s3` nazywa sekret `aws_credentials` w vaulcie swojej organizacji,
@@ -884,6 +998,7 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
+| `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

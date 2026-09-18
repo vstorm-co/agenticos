@@ -609,7 +609,10 @@ class RAGDocumentService:
         """Get file download information for a document.
 
         Returns:
-            Tuple of (file_path, filename, mime_type).
+            Tuple of (storage_path, filename, mime_type). The storage path the
+            backend wrote, not a path on this host: an object store has no
+            second kind, and the route hands this to the one place that knows how
+            to turn either into a response (#1423).
 
         Raises:
             NotFoundError: If document or its file does not exist.
@@ -618,9 +621,7 @@ class RAGDocumentService:
         if not doc.storage_path:
             raise NotFoundError(message="No file stored for this document")
 
-        storage = get_file_storage()
-        file_path = storage.get_full_path(doc.storage_path)
-        if not file_path:
+        if not await get_file_storage().exists(doc.storage_path):
             raise NotFoundError(message="File not found on disk")
 
         mime_map = {
@@ -630,4 +631,4 @@ class RAGDocumentService:
             "md": "text/markdown",
         }
         mime_type = mime_map.get(doc.filetype, "application/octet-stream")
-        return str(file_path), doc.filename, mime_type
+        return doc.storage_path, doc.filename, mime_type

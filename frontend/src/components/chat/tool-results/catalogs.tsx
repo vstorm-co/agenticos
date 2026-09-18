@@ -4,14 +4,18 @@ import { BookOpen, FileText } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 /**
- * What the agent found when it looked - the context files it may read, the skills
- * it may load.
+ * What the agent found when it looked - the context files it may read.
  *
- * Both steps used to be `render: "none"`: a line saying the agent looked, with
+ * The step used to be `render: "none"`: a line saying the agent looked, with
  * nothing to open. The reasoning was that a prompt fragment is not something a
  * person reads, and it was wrong in the one case that matters - somebody asking
  * "does it actually see my glossary". The answer to that is the list, and the list
  * is right there in the result.
+ *
+ * Skills had a list of their own until they became deferred capabilities: the model
+ * reads them in its capability catalog now, so nothing emits `list_skills` - but a
+ * conversation recorded before the change still holds one, and its renderer is kept
+ * here for exactly that.
  */
 
 interface Entry {
@@ -31,12 +35,12 @@ export function parseContextList(result: string): Entry[] | null {
 }
 
 /**
- * `list_skills` answers with a mapping of name to description.
+ * `list_skills` answered with a mapping of name to description.
  *
- * Reached as an object where the socket kept the shape, and as its JSON where
- * something stringified it on the way, so both are read. Anything else - an error
- * sentence, a mapping with nothing in it - is no list, and the step says so rather
- * than drawing an empty box.
+ * Nothing emits it any more - the model reads its capability catalog instead -
+ * but a conversation recorded before the change holds the call and its result,
+ * and rendering those through the generic view was a visible loss for threads
+ * nobody had touched (#1704 review).
  */
 export function parseSkillList(result: unknown): Entry[] | null {
   const value = typeof result === "string" ? tryParse(result) : result;
@@ -66,7 +70,7 @@ export function ContextListResult({ resultText }: { resultText: string }) {
   return <EntryList entries={parseContextList(resultText)} kind="context" empty={t("noContext")} />;
 }
 
-/** The skills this agent can load. */
+/** The skills a thread recorded before they became deferred capabilities. */
 export function SkillListResult({ result }: { result: unknown }) {
   const t = useTranslations("chat.tools");
   return <EntryList entries={parseSkillList(result)} kind="skill" empty={t("noSkills")} />;

@@ -460,6 +460,20 @@ class OrganizationService:
                 dispatch_external_state_cleanup(storage_paths, to_drop, restamps),
                 name="org_purge_cleanup",
             )
+        # Whatever the `media` capability offloaded out of any of this tenant's
+        # compacted histories. Content-addressed objects record nothing about who
+        # still references them, so the tenant's prefix is the outer bound of
+        # their lifetime and this is where it ends (#55). Unconditional: it is
+        # one directory removal, and a tenant that offloaded nothing has none.
+        from app.agents.capabilities.media import organization_prefix_for
+        from app.core.background import spawn_after_commit as spawn
+        from app.services.file_storage import delete_prefix_best_effort
+
+        spawn(
+            self.db,
+            delete_prefix_best_effort(organization_prefix_for(org.id)),
+            name="org_purge_media",
+        )
 
     async def upload_avatar(
         self,
@@ -493,7 +507,3 @@ class OrganizationService:
             f"avatars/orgs/{org_id}", avatar_filename(content_type), file_data
         )
         return await organization_repo.update(self.db, org, avatar_url=storage_path)
-
-    def get_avatar_path(self, avatar_url: str) -> str | None:
-        full_path = get_file_storage().get_full_path(avatar_url)
-        return str(full_path) if full_path is not None else None

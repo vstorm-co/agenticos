@@ -50,6 +50,8 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. A document at this size is chunked and embedded, not held in one piece |
 | `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | What may be attached in chat. Its own setting rather than the one above, because an attachment to an agent with no workspace is pasted whole into the prompt — so the two surfaces fail differently at the same size. Was a hardcoded 10 MiB no operator could raise ([#498](https://github.com/vstorm-co/agenticos/issues/498)); the frontend container reads the same `CHAT_MAX_UPLOAD_SIZE_MB` at runtime, so give both containers one value or the composer refuses a file the server would take |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
+| `ML_MAX_UPLOAD_SIZE_MB` | `25` | What one call to the [ML services](ml-services.md) may submit — a document to parse, a scan to recognise, a recording to transcribe. Its own setting because the bytes are parsed or sent to an engine inside one request rather than written down, so the ceiling is about what a single synchronous call may occupy. It sits at the transcription client's own 25 MB, the smallest engine ceiling behind that surface |
+| `ML_MAX_CONCURRENT_PARSES` | `4` | How many documents one worker parses at once for the [ML services](ml-services.md). A rate limit counts starts and cannot see what is still running, so without this a minute's allowance of OCR calls is that many recognitions in flight. Over it a caller is refused with a `Retry-After` rather than queued |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a self-hosted mem0 memory service may point at. A `base_url` comes from an agent spec, so without an allowlist a Builder who can bind (but not read) a shared mem0 key could aim it at their own server and capture the key from the request header. Empty refuses self-hosted mem0 and allows only the managed cloud; add a trusted hostname to enable a self-hosted deployment. See [secrets](secrets.md) |
 | `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
@@ -120,6 +122,7 @@ Production validation: `API_KEY` cannot use the default value in
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google OAuth2 client secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | OAuth2 callback URL |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for OAuth2 redirects |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | The scheme the desktop shell registers for a sign-in handed to the system browser ([Desktop](desktop.md#signing-in)). The callback builds a redirect out of it, so it is a setting rather than anything a caller can choose |
 
 Getting the pair: [Google Cloud console](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.
@@ -138,6 +141,78 @@ and the refresh token is good for a week. The frontend swaps the code for the
 token pair server to server at `POST /api/v1/oauth/exchange`, which redeems it
 exactly once.
 
+
+### Single sign-on (generic OIDC)
+
+Any identity provider that publishes a discovery document: Microsoft Entra ID,
+Okta, Keycloak, Auth0, Authentik, Google Workspace through its OIDC endpoint. A
+company self-hosting this runs one already, and will not create local passwords
+for its staff - without this, its MFA and its offboarding are solved twice.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (empty) | The issuer URL. Empty means no SSO, and the callback answers 404 |
+| `OIDC_CLIENT_ID` | (empty) | The client the provider issued for this deployment |
+| `OIDC_CLIENT_SECRET` | (empty) | Its secret |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | The callback, registered at the provider |
+| `OIDC_SCOPES` | `openid email profile` | Space-separated. Add the provider's own scope where it needs one for the claims |
+| `OIDC_VERIFIED_CLAIM` | (empty) | A third claim to accept as "this address is confirmed", for a provider that names it something of its own |
+
+The issuer is the only URL. Authorization, token, userinfo and JWKS come from
+`<issuer>/.well-known/openid-configuration`, which the provider keeps correct
+across a key rotation or an endpoint move - so there are no further endpoints to
+get subtly wrong. The flow is authorization-code with PKCE.
+
+The claims are read from the ID token, and from the **UserInfo endpoint** when
+the ID token does not carry them. A provider is entitled to keep `email` and its
+verification claim at UserInfo and put neither in the token, so reading only the
+token would refuse an entirely compliant provider one request short of a valid
+identity.
+
+Two buttons on the frontend, configured there:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only |
+| `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
+
+Where each issuer lives, and what to register:
+
+| Provider | Issuer | Register the redirect URI as |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions |
+| **Okta** | `https://<org>.okta.com` (or a custom authorization server's `/oauth2/<id>`) | A sign-in redirect URI on a **Web** application |
+| **Keycloak** | `https://<host>/realms/<realm>` | A valid redirect URI on a confidential client with standard flow enabled |
+
+Two things the platform requires of whatever provider it is pointed at:
+
+- **The address must be confirmed.** Two claims are accepted: the standard
+  `email_verified`, and Entra ID's `xms_edov`, which is what Entra sends instead
+  - it emits no `email_verified` at all, and it is an **optional claim** you
+  enable on the app registration, so an Entra tenant that has not enabled it
+  sends neither and every sign-in is refused. `OIDC_VERIFIED_CLAIM` names a third
+  for a provider that calls it something else. Absent counts as not verified: an
+  unconfirmed address means anybody at that provider can claim anybody's work
+  address, and the domain allow-list below is built on an address meaning
+  something.
+- **A stable `sub`.** The account is keyed on it, not on the address, so a
+  person who changes their name or whose domain is bought keeps their history -
+  and the next holder of a freed address does not inherit it. It is stored
+  **namespaced by the issuer**, because a `sub` is unique within its issuer and
+  nowhere else: pointing the deployment at a different tenant or realm cannot
+  then sign a new principal into an old one's account.
+
+The sign-up policy applies here exactly as it applies to the registration form:
+an `invite_only` deployment refuses an SSO sign-in from somebody nobody invited,
+and an allowed-domains list refuses an address outside it, with the same
+sentence on the sign-in page. See
+[Who may register](deployment.md#who-may-register). Mapping a provider's groups
+to roles inside an organization is not part of this; people sign in, and an
+administrator places them.
+
+SAML and SCIM are not implemented. Most identity providers a mid-size company
+runs speak OIDC, and these settings are the whole of what they need.
 
 ## Database (PostgreSQL)
 
@@ -348,11 +423,12 @@ reads [what leaves the machine](data-protection.md#traces) before setting it.
 
 Three things can point runs at a project, and they stack:
 
-- `LOGFIRE_TOKEN` here instruments Pydantic AI globally **in the API process**
-  (`app/main.py`), so every run served there exports into the deployment's own
-  project. A run executed by the Prefect worker is not covered, because that
-  process never configures Logfire
-  ([#1700](https://github.com/vstorm-co/agenticos/issues/1700)).
+- `LOGFIRE_TOKEN` here instruments Pydantic AI globally, so every run exports
+  into the deployment's own project. Two processes configure it: the API at
+  startup (`app/main.py`), and a fired run in the Prefect worker, which sets
+  itself up because each flow run gets a subprocess of its own. The worker's
+  spans carry `<service name>-worker`, so one project can tell a slow scheduled
+  run from a slow chat turn.
 - An [environment](environments.md#tracing-per-environment) can carry its own
   write token, sealed in the vault, which redirects the runs bound to it.
 - An agent's [`observability`](reference/spec.md#observability) block names a
@@ -362,11 +438,11 @@ The agent's `content` mode decides how much each span carries: `full`, the
 default, records the message, the output and every tool call; `none` records
 timing, tokens, cost and tool names only. It is applied where the agent is
 instrumented, so it holds whichever token traces the run — under the
-deployment-wide one the agent is pinned to content-free instrumentation instead.
-Two limits before relying on it: attaching that is best-effort, and a failure is
-logged while the run continues; and an inline specialist is built from a spec
-carrying no observability block, so its own spans still hold content
-([#1699](https://github.com/vstorm-co/agenticos/issues/1699)).
+deployment-wide one the agent is pinned to content-free instrumentation instead,
+and a specialist the agent delegates to — written inline or invented mid-run by
+the model — inherits the mode. One limit
+before relying on it: attaching that instrumentation is best-effort, and a
+failure is logged while the run continues.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -463,6 +539,40 @@ folder with the service account's own email address** - it is a principal like
 any other, and a folder nobody shared with it lists as empty rather than as
 refused.
 
+## Uploaded files at rest
+
+Where chat attachments, avatars, branding images and the originals of
+knowledge-base documents are stored. One backend per deployment, never per
+organization, and switching it does not move what the other already holds.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` writes under `MEDIA_DIR`; `s3` writes to an S3-compatible bucket |
+| `FILE_STORAGE_S3_BUCKET` | (empty) | The bucket. Required when the backend is `s3`; the API refuses to start an upload without it |
+| `FILE_STORAGE_S3_ENDPOINT` | (none) | Empty for AWS. The address of the service for MinIO or another compatible store |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | AWS region |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (empty) | Leave **empty on AWS**: boto3's own credential chain then answers, which is an instance profile or an IRSA role rather than a long-lived key in an environment file |
+| `FILE_STORAGE_S3_SECRET_KEY` | (empty) | The other half, same |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` for MinIO and most compatible stores, which address a bucket by path. A virtual-host request to one fails DNS rather than S3 |
+| `FILE_STORAGE_S3_PREFIX` | (empty) | Every key this deployment writes sits under it, so one bucket can hold more than one deployment without their keys meeting |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | What the store is asked for on every write: `sse-s3` (the bucket's own key), `sse-kms` (the key below), or `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (none) | The KMS key id or ARN. **Required** when the mode is `sse-kms`: S3 reads an unnamed `aws:kms` as its own AWS-managed `aws/s3` key rather than as the bucket's default, so leaving it empty would encrypt under a key nobody chose |
+
+!!! warning "`none` is for a store with no KMS behind it, and it is not encryption"
+
+    MinIO refuses SSE-S3 unless a KES server is configured, so a compatible store
+    with no KMS needs `none` to work at all — and a deployment running that way
+    has the encryption its volumes give it and nothing more.
+    `agenticos cmd doctor` reports that configuration as unconfigured rather than
+    healthy, and the at-rest row in [security](security.md#what-is-encrypted-where)
+    says the same.
+
+A bucket the deployment writes to needs `s3:PutObject`, `s3:GetObject`,
+`s3:DeleteObject` and `s3:ListBucket` on it, plus `kms:Encrypt`,
+`kms:Decrypt` and `kms:GenerateDataKey` on the key when the mode is `sse-kms`.
+For a local MinIO, `make docker-minio` starts one on `:9000` with
+`minioadmin` / `minioadmin`.
+
 ### S3/MinIO sync
 
 | Variable | Default | Description |
@@ -472,6 +582,10 @@ refused.
 | `S3_RAG_SECRET_KEY` | (empty) | Secret key, same |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Bucket name |
 | `S3_RAG_REGION` | `us-east-1` | AWS region. A credential's own region wins where it has one |
+
+This is the *sync connector*, which reads a bucket a tenant owns — not the
+deployment's own file storage above. The two are configured separately and
+deliberately: one is infrastructure, the other is a tenant's data.
 
 **The key pair here is the CLI's, not a sync source's.** An `s3` sync source names
 an `aws_credentials` secret in its organization's vault, the same way a `gdrive` one
@@ -862,6 +976,7 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
+| `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with

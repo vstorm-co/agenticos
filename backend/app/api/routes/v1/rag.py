@@ -38,7 +38,6 @@ listing, which is why the stream was not worth rebuilding.
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.api.deps import (
     Auth,
@@ -53,6 +52,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.rag import (
@@ -398,16 +398,19 @@ async def download_rag_document(
 ) -> Any:
     """Download the original file for a tracked document."""
     doc = await access.readable_document(ctx, doc_id)
-    file_path, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
-    return FileResponse(
-        path=file_path,
-        filename=filename,
+    stored, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
+    response = await stored_file_response(
+        stored,
         media_type=mime_type,
+        attachment_name=filename,
         # The BFF forwards this rather than inventing one, which is why it is here:
         # a stored document does not change, and re-downloading it every time the
         # viewer is opened is a round trip for bytes the browser already has.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+    if response is None:
+        raise NotFoundError(message="File not found on disk")
+    return response
 
 
 @router.delete(

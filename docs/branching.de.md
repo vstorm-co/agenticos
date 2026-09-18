@@ -1,5 +1,5 @@
 ---
-source_sha: "c8b11ff21e6a"
+source_sha: "66365d6bce1a"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -34,6 +34,7 @@ Staging-Branch, den niemand brauchte, und kostete einen zweiten Ort, an dem jede
 |---|---|
 | Kein direkter Push auf `main` | Ruleset — ein Pull Request ist erforderlich |
 | CI grün vor dem Merge | Erforderliche Status-Checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| Kein neuer Code-Scanning-Alert wird gemergt | Merge-Schutz durch Code Scanning im Ruleset. **Nicht** der Status der `analyze`-Jobs selbst, der grün ist, was die Analyse auch gefunden hat — siehe [CodeQL](#codeql-runs-on-the-pull-request) unten |
 | Squash beim Merge | Ruleset — die einzige erlaubte Merge-Methode |
 | Konversationen aufgelöst | Ruleset |
 | Veraltete Freigaben werden bei einem neuen Push verworfen | Ruleset |
@@ -150,14 +151,39 @@ an einem Lauf die Regression zeigen. Dieselbe Datei prüft die andere Eigenschaf
 die kein Lauf zeigen kann — dass jeder Job seine eigene Laufzeit begrenzt, siehe
 unten.
 
-Zwei Grenzen, die klar gesagt gehören. **Ein grüner gestapelter Pull Request
-wurde gegen sein Elternteil geprüft, nicht gegen `main`** — Checks gehören zu
-einem Head-Commit, also trägt das Umhängen das alte Ergebnis unverändert weiter;
-das liegt am Stapeln selbst und nicht an etwas, das ein Trigger beheben könnte,
-und es ist ein Grund, Stapel kurz zu halten. Und **CodeQL ist hier nicht
-konfiguriert**: es läuft aus GitHubs Standardeinrichtung, deren Trigger nicht in
-diesem Repository liegen, also ist es nicht unsere Entscheidung, ob es einen
-gestapelten Pull Request liest.
+Eine Grenze, die klar gesagt gehört: **ein grüner gestapelter Pull Request wurde
+gegen sein Elternteil geprüft, nicht gegen `main`** — Checks gehören zu einem
+Head-Commit, also trägt das Umhängen das alte Ergebnis unverändert weiter; das
+liegt am Stapeln selbst und nicht an etwas, das ein Trigger beheben könnte, und es
+ist ein Grund, Stapel kurz zu halten.
+
+### CodeQL läuft am Pull Request { #codeql-runs-on-the-pull-request }
+
+CodeQL war hier die zweite Grenze. Es lief aus GitHubs Standardeinrichtung auf einem
+wöchentlichen Plan, deren Trigger nicht in diesem Repository liegen, also traf ein
+Fund erst nach dem Merge, der ihn eingeführt hatte, auf `main` ein.
+`.github/workflows/codeql.yml` ersetzt das
+([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): die Analyse läuft am
+Pull Request, auf demselben Trigger wie alles andere hier, und der wöchentliche
+vollständige Lauf bleibt für die Query-Packs, die sich zwischen Merges
+aktualisieren. Zum Workflow gehören zwei Repository-Einstellungen, und keine davon kann es selbst
+vornehmen. Die erste: die Standardeinrichtung muss abgeschaltet werden — GitHub
+weist den Upload einer erweiterten Konfiguration ab, solange sie konfiguriert ist,
+die beiden können also nicht nebeneinander bestehen:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
+
+Die zweite ist das, was einen Merge tatsächlich verweigert. **Ein grüner
+`analyze`-Job heißt, dass die Analyse gelaufen ist, nicht dass sie nichts gefunden
+hat**: `codeql-action/analyze` lädt seine Ergebnisse hoch und endet mit 0, was auch
+immer darin steht. Den Pull Request blockiert der
+[Merge-Schutz durch Code Scanning](https://docs.github.com/en/code-security/code-scanning/managing-code-scanning-alerts/about-code-scanning-alerts),
+eine Regel im Ruleset von `main` neben den sechs erforderlichen Status-Checks, mit
+einem Werkzeug und einer Schwellenwert-Stufe konfiguriert. Ohne ihn ist der Alert am
+Pull Request und im Security-Tab sichtbar, und nichts hält den Merge auf — also
+dort, wo dieses Repository vorher war, nur langsamer.
 
 ### Jeder Job begrenzt seine eigene Laufzeit { #every-job-bounds-its-own-runtime }
 

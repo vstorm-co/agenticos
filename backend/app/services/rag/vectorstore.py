@@ -585,7 +585,7 @@ class PgVectorStore(BaseVectorStore):
                 (VECTOR_CONTENT_HASH_INDEX_SUFFIX, "content_hash"),
                 # The tenant key every row-level op scopes by (#1684). Hash, like
                 # the others: the lookups are equality only, and
-                # `0081_scope_rag_rows_by_org` backfills the collections created
+                # `0086_scope_rag_rows_by_org` backfills the collections created
                 # before this key existed.
                 (VECTOR_ORG_INDEX_SUFFIX, "organization_id"),
             ):

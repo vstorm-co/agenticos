@@ -56,6 +56,8 @@ EXEMPT: dict[str, str] = {
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_deleting_the_organization_takes_its_secrets_with_it": "deleting the organization cascades its secrets, lifecycle, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_several_secrets_resolve_in_one_query": "batch resolves several secrets for a run, query feature, no refusal",
     "tests/integration/test_admin_org_owner.py::TestTheDetail::test_it_carries_the_members_owner_budget_and_size": "reads the budget onto an admin's page, display, no refusal",
+    "tests/test_media_offload.py::TestTheBytesHaveALifetime::test_the_tenant_s_media_is_removed_with_the_tenant": "a teardown removing a prefix, not a refusal - the isolation case beside it carries the marker",
+    "tests/test_codeql_workflow.py::test_the_upload_permission_is_scoped_to_the_analysing_job": "a GitHub Actions permission in a workflow file, not a runtime refusal",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_capability_needing_no_secret_gets_none": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_conditional_secret_the_default_config_does_not_need_gets_none": "picks a stand-in value for a documentation stub, no runtime secret",
     "tests/test_capability_contracts.py::TestDocumentationSecret::test_a_non_api_key_secret_gets_no_stand_in": "picks a stand-in value for a documentation stub, no runtime secret",
@@ -111,6 +113,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_vault.py::TestRotation::test_a_secret_sealed_under_the_old_master_key_survives_a_real_rotation": "a secret survives a real master-key rotation, rotation correctness, no refusal",
     "tests/test_vault.py::TestRotation::test_rewrap_preserves_the_secret": "rewrap preserves the secret across a version bump, rotation round-trip, no refusal",
     "tests/test_web_search.py::TestConfiguration::test_a_keyless_method_publishes_without_a_secret": "a keyless web-search method needs no secret, conditional requirement, no refusal",
+    "tests/test_liteparse_office_timeout.py::test_the_conversion_and_parse_share_one_timeout_budget": "a conversion/parse time budget, not a spend budget, no refusal",
 }
 
 
