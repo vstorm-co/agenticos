@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.470] - 2026-09-18
+
+### Fixed
+
+- **A token refresh no longer cancels the chat turn it was streaming.** The
+  console re-mints its access token on a timer nobody asked for, roughly every
+  twenty minutes per open tab, and each new value closed the socket an answer
+  was streaming on. The server read that close as the reader leaving and
+  cancelled the run, so a half-written reply was recorded `cancelled` and
+  labelled *stopped* in the transcript while the composer went on spinning -
+  the frame that would have ended the turn on screen had gone to the socket
+  that just went away. Three changes: the socket is identified by its address
+  rather than by the credential it shook hands with, so a refreshed token
+  reaches the next handshake without disturbing the live one; a socket that
+  goes away lets its turn reach its own end and write itself to the transcript,
+  bounded at ten minutes rather than cancelled on the spot, with a run parked
+  on a question answered as nothing rather than left holding that bound open;
+  and a client whose socket dropped mid-answer ends the turn on screen and
+  offers a re-read of the transcript, which is where a finished turn lands. A
+  turn somebody asked to stop still stops at once. (#1764)
+
 ## [0.0.469] - 2026-09-18
 
 ### Added
