@@ -60,6 +60,14 @@ _HASH_KEYS: tuple[tuple[str, str], ...] = (
     ("_orgunit_idx", "organizational_unit"),
 )
 
+# The three this revision introduces. `_org_idx` is not among them:
+# `0086_scope_rag_rows_by_org` created it and its own `downgrade` drops it, so
+# dropping it here would leave a chain downgraded only past this revision
+# without an index an earlier one is still responsible for. Created above
+# regardless, `IF NOT EXISTS`, because a collection created between the two
+# revisions has it either way and re-stating it costs nothing.
+_OWN_SUFFIXES: frozenset[str] = frozenset({"_source_idx", "_doctype_idx", "_orgunit_idx"})
+
 _DOCDATE_SUFFIX = "_docdate_idx"
 
 _SAFE_TO_DATE_UP = r"""
@@ -119,6 +127,7 @@ def downgrade() -> None:
     for table in _runtime_vector_tables(conn):
         op.execute(f"DROP INDEX IF EXISTS {table}{_DOCDATE_SUFFIX}")
         for suffix, _key in _HASH_KEYS:
-            op.execute(f"DROP INDEX IF EXISTS {table}{suffix}")
+            if suffix in _OWN_SUFFIXES:
+                op.execute(f"DROP INDEX IF EXISTS {table}{suffix}")
     # Dropped after the indexes that depend on the function's expression.
     op.execute("DROP FUNCTION IF EXISTS rag_safe_to_date(text)")

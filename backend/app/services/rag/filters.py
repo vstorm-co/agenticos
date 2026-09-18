@@ -313,6 +313,7 @@ def resolve_legacy_filter(
 __all__ = [
     "DOCUMENT_TYPE_VOCABULARY",
     "SOURCE_VOCABULARY",
+    "AppScope",
     "DocumentType",
     "RetrievalFilters",
     "RetrievalQuery",
@@ -322,4 +323,5 @@ __all__ = [
     "UnscopedScope",
     "compose",
     "resolve_legacy_filter",
+    "scope_for_tenant",
 ]
