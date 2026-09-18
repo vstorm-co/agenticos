@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.471] - 2026-09-18
+
 ### Added
 
 - **RAG metadata filters, and a server-derived tenant scope on retrieval
