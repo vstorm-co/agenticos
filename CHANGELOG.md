@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.466] - 2026-09-18
+
 ### Added
 
 - **Eight more chat attachment formats, and `application/xml`.** DOC, XLS, PPTX,
