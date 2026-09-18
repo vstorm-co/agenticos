@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.467] - 2026-09-18
+
 ### Fixed
 
 - **A value somebody submitted can no longer write a log entry of its own.** A
