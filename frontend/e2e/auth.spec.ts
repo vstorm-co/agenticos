@@ -162,19 +162,38 @@ test.describe("Authentication", () => {
       // cannot produce it.
       await expect(accountMenu(page)).toBeVisible();
     });
+  });
+});
 
-    test("signing out ends the session, not just the page", async ({ page }) => {
-      await page.goto("/dashboard");
-      await accountMenu(page).click();
+/**
+ * Signing out ends the session server-side, not just the page.
+ *
+ * On its own throwaway session rather than the suite's shared one. Since #1501,
+ * signing out genuinely deactivates the session row, and the token is bound to
+ * it - so ending `AUTH_STATE` here would refuse it on every spec that runs after
+ * this, and the whole suite from here on would find itself back at /login. The
+ * sidebar's log-out ends only the current session (`/auth/logout`, not
+ * `DELETE /sessions`), so a fresh sign-in makes a session this test can end
+ * without touching the one everything else runs on.
+ */
+test.describe("Signing out", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
 
-      await page.getByRole("menuitem", { name: /log out|sign out/i }).click();
-      await expect(page).toHaveURL(/\/login/);
+  test("ends the session, not just the page", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(OWNER_EMAIL);
+    await page.getByLabel("Password").fill(OWNER_PASSWORD);
+    await page.getByRole("button", { name: "Login" }).click();
+    await expect(page).toHaveURL(/\/dashboard(\?.*)?$/, { timeout: 30_000 });
 
-      // The redirect alone would also happen if only client state were cleared.
-      // Asking for a protected page again is what proves the cookie is gone.
-      await page.goto("/agents");
-      await expect(page).toHaveURL(/\/login/);
-    });
+    await accountMenu(page).click();
+    await page.getByRole("menuitem", { name: /log out|sign out/i }).click();
+    await expect(page).toHaveURL(/\/login/);
+
+    // The redirect alone would also happen if only client state were cleared.
+    // Asking for a protected page again is what proves the session is gone.
+    await page.goto("/agents");
+    await expect(page).toHaveURL(/\/login/);
   });
 });
 

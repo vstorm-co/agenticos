@@ -11,6 +11,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import type { User, LoginRequest, RegisterRequest } from "@/types";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
+import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
 
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
 // many components mount useAuth(). Concurrent mounts share the in-flight
@@ -202,8 +203,13 @@ export function useAuth() {
     [router, setUser, setLoading, queryClient],
   );
 
-  const register = useCallback(async (data: RegisterRequest) => {
-    const response = await apiClient.post<{ id: string; email: string }>("/auth/register", data);
+  // The flow names which staged invitation's cookie the register proxy forwards for
+  // the sign-up admission (#1414); a registration reached with none forwards none.
+  const register = useCallback(async (data: RegisterRequest, invitationFlow?: string | null) => {
+    const path = invitationFlow
+      ? `/auth/register?${INVITATION_FLOW_PARAM}=${invitationFlow}`
+      : "/auth/register";
+    const response = await apiClient.post<{ id: string; email: string }>(path, data);
     return response;
   }, []);
 

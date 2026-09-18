@@ -294,6 +294,25 @@ describe("the ordered timeline", () => {
     expect(getByText("eu-west-1")).toBeInTheDocument();
   });
 
+  it("names the delegate that asked, where one did (#1042)", () => {
+    // "the deployer asked" and "the agent asked" are different things to read on
+    // a replayed turn, and the transcript could not tell them apart.
+    const { getByText, queryByText } = item({
+      parts: [
+        {
+          id: "p-1",
+          type: "ask_user",
+          question: "Which region?",
+          answer: "eu-west-1",
+          askedBy: "deployer",
+        },
+      ],
+    });
+
+    expect(getByText("Asked by deployer")).toBeInTheDocument();
+    expect(queryByText("Asked you")).not.toBeInTheDocument();
+  });
+
   it("opens the reasoning while it is the part being written, and closes it after", () => {
     // A thinking block left open on every past turn buries the answers.
     const parts: ChatMessage["parts"] = [{ id: "p-1", type: "thinking", content: "Checking." }];
@@ -660,7 +679,7 @@ describe("what a turn cost, under the turn", () => {
   const usage = {
     input_tokens: 1200,
     output_tokens: 300,
-    cost_usd: 0.0125,
+    cost_usd: "0.0125",
     cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
@@ -852,7 +871,7 @@ describe("the footer of a turn drawn in several messages", () => {
   const USAGE: TurnUsage = {
     input_tokens: 6603,
     output_tokens: 189,
-    cost_usd: 0.0133,
+    cost_usd: "0.0133",
     cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,

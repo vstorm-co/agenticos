@@ -11,7 +11,6 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
-    Boolean,
     ForeignKey,
     Integer,
     String,
@@ -81,8 +80,6 @@ class ModelProfile(Base, TimestampMixin):
     context_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Model settings (temperature, max_tokens...) applied on every run.
     params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
-    # Whether a user may substitute their own key when running with this profile.
-    allow_byo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Ordered profile ids tried when the primary fails - becomes a FallbackModel.
     fallback_profile_ids: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default="[]"

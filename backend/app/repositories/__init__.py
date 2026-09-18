@@ -17,6 +17,8 @@ from app.repositories import conversation_share as conversation_share_repo
 from app.repositories import message_rating as message_rating_repo
 
 from app.repositories import knowledge_base as knowledge_base_repo
+from app.repositories import local_service as local_service_repo
+from app.repositories import ml_service_call as ml_service_call_repo
 from app.repositories import collection_teardown as collection_teardown_repo
 
 from app.repositories import channel_bot as channel_bot_repo
@@ -37,7 +39,9 @@ from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
 from app.repositories import audit_log as audit_log_repo
+from app.repositories import personal_data as personal_data_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
+from app.repositories import retention as retention_repo
 from app.repositories import credential as credential_repo
 from app.repositories import resource_grant as resource_grant_repo
 from app.repositories import skill as skill_repo
@@ -69,6 +73,8 @@ __all__ = [
     "conversation_share_repo",
     "message_rating_repo",
     "knowledge_base_repo",
+    "local_service_repo",
+    "ml_service_call_repo",
     "collection_teardown_repo",
     "channel_bot_repo",
     "channel_identity_repo",
@@ -86,6 +92,7 @@ __all__ = [
     "organization_secret_repo",
     "resource_grant_repo",
     "audit_log_repo",
+    "personal_data_repo",
     "credential_repo",
     "agent_repo",
     "agent_environment_repo",
@@ -100,6 +107,7 @@ __all__ = [
     "sandbox_operation_repo",
     "skill_proposal_repo",
     "ingestion_spend_repo",
+    "retention_repo",
     "skill_repo",
     "context_repo",
     "memory_repo",

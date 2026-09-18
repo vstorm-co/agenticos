@@ -223,6 +223,20 @@ history is a run nobody is accountable for.
 Both boundaries are proved against a real database in
 `tests/integration/test_run_commit_boundary.py`.
 
+### The one other early commit
+
+`SessionService.detect_refresh_reuse` is the second, and for the opposite reason:
+not that the transaction would be held too long, but that it is about to be
+thrown away. A refresh token that matched no live session may be a replay of one
+a session rotated away, and the response is to end that chain and record it — and
+then to refuse the caller, which raises `AuthenticationError` through the session
+context's *exception* branch and rolls the request back.
+
+Uncommitted, that is a 401, a compromised chain still live, and no record that
+anything happened. `test_the_response_survives_the_refusal_that_follows_it` rolls
+back after the call and asserts what is still there
+([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
 Visibility cuts both ways. Anything that used to reason "an executing run's row
 cannot be seen" now reasons about a row that *is* seen, and the agent-triggers
 scheduler is the one place that did.
@@ -523,8 +537,9 @@ and the rest is what stops the one shape from meaning two things again:
   whoever can drop a file in the synced folder, and both checks in
   `app/services/rag/remote_names.py` run inside a background sync, where the
   reader is a log rather than a form. Same for a Google Drive source read back
-  without its credential: the row is stored, and `CONFIG_SCHEMA` is what refuses
-  it at the route.
+  without its credential: the row is stored, and the connector's
+  `validate_config`, derived from its `CONFIG_MODEL`, is what refuses it at the
+  route.
 - **A conflict.** `AlreadyExistsError` reports a fact about a row that already
   exists, not about the shape of what was sent — and which of a form's own
   inputs produced the taken value is a thing only the form knows, since an
@@ -877,8 +892,9 @@ Each ingested document gets:
 Remote document sources use pluggable connectors in
 `app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`
 with `list_files()` and `_fetch()`, declares a `SECRET_KIND` naming the vault
-secret that authenticates it, and declares a `CONFIG_SCHEMA` of
-`ConnectorConfigField`s saying how to find the documents. `download_file()` is
+secret that authenticates it, and declares a `CONFIG_MODEL` - a Pydantic model
+saying how to find the documents, published to the wizard as JSON Schema.
+`download_file()` is
 concrete and decides where a file may land. See `docs/patterns.md` for how to
 add one, and `docs/howto/add-sync-connector.md` for a worked example.
 
@@ -887,8 +903,14 @@ add one, and `docs/howto/add-sync-connector.md` for a worked example.
 - **Routes → services → repositories.** A route never imports a repository.
 - A repository uses `db.flush()` and `db.refresh()`, **never** `db.commit()`. The
   request's session commits once, before the response is written.
-- The agent run path is the one sanctioned exception: it commits before the model
-  call and again in the terminal `finally`.
+- The agent run path is the main sanctioned exception: it commits before the model
+  call and again in the terminal `finally`. `MLService._record_failure` is the other,
+  and for the mirror-image reason - a usage record of a *refusal* has to survive the
+  rollback that refusal causes.
+- Two sanctioned exceptions. The agent run path commits before the model call and
+  again in the terminal `finally`; `SessionService.detect_refresh_reuse` commits
+  the session it just revoked and the entry recording why, because its caller
+  raises a 401 immediately afterwards and the rollback would undo both.
 - Background work that reads a row this request wrote is handed over with
   **`spawn_after_commit`**, never `spawn`.
 - A thin domain is a module; a thick one is a subpackage with a facade, and nothing

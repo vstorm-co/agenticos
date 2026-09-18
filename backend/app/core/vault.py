@@ -124,6 +124,18 @@ def current_key_version() -> int:
     return max(_configured_master_keys())
 
 
+def is_key_version_available(key_version: int) -> bool:
+    """Whether a secret sealed at this version can still be unwrapped.
+
+    A `SECRET_KEY` rotation, or a version dropped from `VAULT_MASTER_KEYS` before
+    every row moved off it, leaves sealed rows whose version no longer has a
+    master key - `unseal` then fails at `_master_key`. This answers that without
+    decrypting anything, so a caller can tell a usable credential from one the
+    deployment can no longer open.
+    """
+    return key_version in _configured_master_keys()
+
+
 def _master_key(key_version: int) -> str:
     """The master key that sealed envelopes at this version.
 

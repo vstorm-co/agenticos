@@ -18,26 +18,21 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build arguments for environment variables. NEXT_PUBLIC_* are inlined into the
-# client bundle at build time, and .env.local is dockerignored, so they must be
-# passed as build args (see docker-compose.frontend.yml) or the browser bundle
-# bakes in stale defaults.
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_WS_URL=ws://localhost:8000
-ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
-ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
-ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
-ARG NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=10
-ENV NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=$NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB
-ARG NEXT_PUBLIC_OAUTH_PROVIDERS=google
-ENV NEXT_PUBLIC_OAUTH_PROVIDERS=$NEXT_PUBLIC_OAUTH_PROVIDERS
-ARG NEXT_PUBLIC_RAG_ENABLED=false
-ENV NEXT_PUBLIC_RAG_ENABLED=$NEXT_PUBLIC_RAG_ENABLED
+# No build arguments: the public URLs and limits the browser needs are runtime
+# environment, read on every request, so one image serves every deployment
+# (see src/lib/public-config.ts).
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN bun run build
+
+# Every package's own licence file, kept under the package's path, a NOTICE and
+# the licence text for a package that publishes none, and this image's NOTICE and
+# the fonts' OFL. The standalone output traces JavaScript and `package.json` only,
+# so without this the runner would ship MIT and LGPL code with none of the notices
+# those licences require (docs/licenses.md). The index of what is here is
+# THIRD_PARTY_NOTICES.md in the repository, which this build context does not see.
+RUN bun run collect:licenses /app/licenses
 
 # Production image
 FROM base AS runner
@@ -51,6 +46,7 @@ RUN useradd --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:bun /app/public ./public
 COPY --from=builder --chown=nextjs:bun /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:bun /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:bun /app/licenses ./licenses
 
 USER nextjs
 

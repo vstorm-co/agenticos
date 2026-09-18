@@ -142,6 +142,20 @@ def test_a_specialist_without_a_model_runs_on_its_parents() -> None:
     assert converted.subagents == []
 
 
+def test_the_parents_trace_content_mode_comes_with_the_conversion() -> None:
+    """`content` is a rule about what may be recorded in the run, so it travels
+    even though the project it would be recorded in does not. Without it a
+    specialist of an agent published with `none` was instrumented by the
+    deployment's global default, content on (#1699)."""
+    specialist = SpecialistSpec(**_specialist())
+
+    converted = specialist.to_agent_spec(fallback_model_profile_id=uuid4(), trace_content="none")
+
+    assert converted.observability is not None
+    assert converted.observability.content == "none"
+    assert converted.observability.token_secret_id is None
+
+
 def test_a_specialist_keeps_a_model_profile_it_names() -> None:
     """The fallback applies only when the specialist chose nothing."""
     own = uuid4()

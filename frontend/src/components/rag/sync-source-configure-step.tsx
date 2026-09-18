@@ -4,7 +4,6 @@ import { Cog } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { SchemaForm } from "@/components/agents/schema-form";
-import { connectorConfigToJsonSchema } from "@/lib/connector-schema";
 import type { ConnectorInfo, SyncSourceCreate } from "@/lib/rag-api";
 
 export function ConfigureStep({
@@ -26,7 +25,7 @@ export function ConfigureStep({
   errors?: Readonly<Record<string, string>>;
 }) {
   const t = useTranslations("rag");
-  const hasFields = Object.keys(connector.config_schema).length > 0;
+  const hasFields = Object.keys(connector.config_schema.properties ?? {}).length > 0;
 
   if (!hasFields) {
     return (
@@ -54,7 +53,7 @@ export function ConfigureStep({
         })}
       </p>
       <SchemaForm
-        schema={connectorConfigToJsonSchema(connector.config_schema)}
+        schema={connector.config_schema}
         value={form.config}
         onChange={(config) => setForm((f) => ({ ...f, config }))}
         idPrefix="cfg"

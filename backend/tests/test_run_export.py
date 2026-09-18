@@ -83,27 +83,8 @@ def _run(**overrides) -> SimpleNamespace:
 
 
 class TestCells:
-    def test_a_formula_leading_cell_is_neutralised(self):
-        """A cell opening on `=` is a formula in a spreadsheet, so it is quoted."""
-        assert run_export._escape("=cmd()") == "'=cmd()"
-
-    def test_a_plain_cell_is_left_alone(self):
-        assert run_export._escape("openai") == "openai"
-
-    def test_a_negative_number_stays_summable(self):
-        """A leading `-` is a formula prefix only on a string; a number keeps it,
-        so a credit exports as `-1.50` a spreadsheet sums rather than quoted text."""
-        assert run_export._cell(Decimal("-1.50")) == "-1.50"
-
-    def test_none_is_an_empty_cell_not_the_word_none(self):
-        assert run_export._cell(None) == ""
-
-    def test_a_bool_is_lowercase_words(self):
-        assert (run_export._cell(True), run_export._cell(False)) == ("true", "false")
-
-    def test_a_datetime_is_iso(self):
-        assert run_export._cell(_WINDOW[0]) == "2026-08-01T00:00:00+00:00"
-
+    # The CSV cell and injection-guard primitives moved to `app/services/exporting.py`
+    # and are tested in `test_exporting.py`; `_json_args` is run-specific and stays.
     def test_tool_args_are_json_sorted(self):
         assert run_export._json_args({"b": 1, "a": 2}) == '{"a": 2, "b": 1}'
 

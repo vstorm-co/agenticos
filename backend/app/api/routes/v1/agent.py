@@ -30,6 +30,9 @@ async def agent_websocket(
         websocket,
         user,
         organization,
+        # Stashed by `get_current_user_ws`, so the session can re-check it on
+        # every frame and close a socket whose session was revoked (#1437).
+        auth_token=websocket.state.auth_token,
     )
 
     try:

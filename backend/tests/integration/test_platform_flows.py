@@ -431,8 +431,8 @@ async def estate(db) -> TwoTenants:
             name="Handbook",
             collection_name=f"kb_{uuid.uuid4().hex[:8]}",
             ingestion_config=deployment_defaults().model_dump(mode="json"),
-            embedding_model=settings.EMBEDDING_MODEL,
-            embedding_dim=settings.rag.embeddings_config.dim,
+            embedding_model=_BUILT_WITH,
+            embedding_dim=_BUILT_WIDTH,
         )
         db.add(collection)
         collections.append(collection)
@@ -530,8 +530,8 @@ async def _kb_row(
         is_default=is_default,
         visibility=visibility,
         ingestion_config=(ingestion_config or deployment_defaults()).model_dump(mode="json"),
-        embedding_model=embedding_model or settings.EMBEDDING_MODEL,
-        embedding_dim=settings.rag.embeddings_config.dim,
+        embedding_model=embedding_model or _BUILT_WITH,
+        embedding_dim=_BUILT_WIDTH,
     )
     db.add(kb)
     await db.flush()
@@ -715,6 +715,7 @@ class TestTenantIsolation:
         assert [agent.id for agent in items] == [estate.home_agent.id]
         assert total == 1
 
+    @pytest.mark.security
     async def test_an_agent_in_another_tenant_is_not_found_by_its_own_owner(
         self, db, estate: TwoTenants
     ) -> None:
@@ -730,12 +731,14 @@ class TestTenantIsolation:
         # that counted another organization's rows offers a page that is empty.
         assert total == 1
 
+    @pytest.mark.security
     async def test_a_skill_in_another_tenant_is_not_found_by_its_own_owner(
         self, db, estate: TwoTenants
     ) -> None:
         with pytest.raises(NotFoundError):
             await SkillService(db).get(estate.home.ctx, estate.other_skill.id)
 
+    @pytest.mark.security
     async def test_a_collection_in_another_tenant_is_unreachable(
         self, db, estate: TwoTenants
     ) -> None:
@@ -799,6 +802,7 @@ class TestTenantIsolation:
         """The other tenant's run costs nine dollars; it must not appear on this bill."""
         assert await AgentRunnerService(db).monthly_spend(estate.home.ctx) == Decimal("1")
 
+    @pytest.mark.security
     async def test_an_approval_from_another_tenant_cannot_be_decided(
         self, db, estate: TwoTenants
     ) -> None:
@@ -883,6 +887,7 @@ class TestTenantIsolation:
         assert response.status_code == 200
         assert [item["filename"] for item in response.json()["items"]] == ["ours.txt"]
 
+    @pytest.mark.security
     async def test_a_tracked_document_in_another_tenant_cannot_be_deleted(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -928,6 +933,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_a_file_cannot_be_ingested_into_another_tenants_collection(
         self, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -939,6 +945,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_claiming_a_collection_name_another_tenant_owns_is_refused(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -956,6 +963,7 @@ class TestTenantIsolation:
         )
         assert [kb.organization_id for kb in rows.scalars()] == [rag_estate.other.organization.id]
 
+    @pytest.mark.security
     async def test_another_tenants_sync_source_cannot_be_deleted(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -967,6 +975,7 @@ class TestTenantIsolation:
         assert response.status_code == 404
         assert await db.get(SyncSource, rag_estate.other_source.id) is not None
 
+    @pytest.mark.security
     async def test_another_tenants_integration_cannot_be_cloned_for_its_credentials(
         self, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -978,6 +987,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_another_tenants_sync_run_cannot_be_cancelled(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -1008,6 +1018,7 @@ class TestTenantIsolation:
     # The clone below is the exception, and goes through the app: what it checks
     # lives in the route.
 
+    @pytest.mark.security
     async def test_another_tenants_integration_cannot_be_cloned_into_a_knowledge_base(
         self, db, kb_api: KbClient, rag_estate: RagEstate
     ) -> None:
@@ -1058,6 +1069,7 @@ class TestTenantIsolation:
         assert theirs.value.message == invented.value.message
         assert set(theirs.value.details or {}) == set(invented.value.details or {})
 
+    @pytest.mark.security
     async def test_a_knowledge_base_in_another_tenant_cannot_be_deleted_by_its_own_owner(
         self, db, rag_estate: RagEstate
     ) -> None:
@@ -1069,6 +1081,7 @@ class TestTenantIsolation:
 
         assert await db.get(KnowledgeBase, rag_estate.other_collection.id) is not None
 
+    @pytest.mark.security
     async def test_another_tenants_default_base_is_not_reported_as_undeletable(
         self, db, rag_estate: RagEstate
     ) -> None:
@@ -1342,12 +1355,44 @@ def uploads(tmp_path, monkeypatch):
     return queued
 
 
+_BUILT_WITH = "text-embedding-3-large"
+_BUILT_WIDTH = 3072
+"""What every collection these flows create embeds with - a model OpenRouter serves."""
+
+
+async def _embedding_key(db, tenant: Tenant, *, collection: str) -> OrganizationSecret:
+    """An OpenRouter key in the tenant's vault, for one collection to pay with.
+
+    There is no deployment-wide embedding key, so `KnowledgeBaseService.create`
+    refuses an organization collection that names none - and checks that the
+    chooser can see the key it names, which is why this goes through the vault
+    service as the tenant's owner rather than being inserted as a row. Named
+    after the collection because a secret's name is unique per organization and
+    several tests give one tenant several collections.
+    """
+    return await OrganizationSecretService(db).create(
+        tenant.ctx,
+        name=f"Embeddings for {collection}",
+        value=ApiKeySecret(api_key="sk-test-embeddings-key"),
+        purpose="openrouter",
+    )
+
+
 async def _collection_with(
-    db, tenant: Tenant, *, name: str, config: IngestionConfig
+    db, tenant: Tenant, *, name: str, config: IngestionConfig | None = None
 ) -> KnowledgeBase:
     """A collection created through the service that guards its configuration."""
+    key = await _embedding_key(db, tenant, collection=name)
     return await KnowledgeBaseService(db).create(
-        KnowledgeBaseCreate(name=name, scope="org", collection_name=name, ingestion_config=config),
+        KnowledgeBaseCreate(
+            name=name,
+            scope="org",
+            collection_name=name,
+            ingestion_config=config,
+            embedding_model=_BUILT_WITH,
+            embedding_provider="openrouter",
+            embedding_secret_id=key.id,
+        ),
         ctx=tenant.ctx,
     )
 
@@ -1400,10 +1445,7 @@ class TestHowACollectionReadsItsDocuments:
     async def test_a_collection_with_no_opinion_gets_the_deployments(self, db) -> None:
         tenant = await _tenant(db, name="Casual")
 
-        collection = await KnowledgeBaseService(db).create(
-            KnowledgeBaseCreate(name="notes", scope="org", collection_name="notes"),
-            ctx=tenant.ctx,
-        )
+        collection = await _collection_with(db, tenant, name="notes")
 
         assert collection.ingestion_config == deployment_defaults().model_dump(mode="json")
 
@@ -1429,25 +1471,31 @@ class TestHowACollectionReadsItsDocuments:
         )
         assert isinstance(processor.pdf_parser, LiteParseParser)
 
-    async def test_a_parser_that_cannot_be_built_is_refused_not_quietly_swapped(
-        self, db, uploads, monkeypatch
+    async def test_a_parser_that_cannot_be_billed_is_refused_not_quietly_swapped(
+        self, db, uploads
     ) -> None:
         """LlamaParse without a key must not fall back to the local parser.
 
         A collection whose owner chose the cloud parser for scanned contracts
         and silently got PyMuPDF has an index full of blank pages and nothing
-        anywhere saying so.
+        anywhere saying so. There is no deployment key to fall back to either, so
+        the form refuses the collection, and a stored configuration that lost
+        its key refuses the parse.
         """
-        monkeypatch.setattr(settings, "LLAMAPARSE_API_KEY", "")
         tenant = await _tenant(db, name="Cloudless")
-        collection = await _collection_with(
-            db, tenant, name="cloud", config=IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
-        )
-        document = await _upload(db, tenant, collection)
 
-        with pytest.raises(ValueError, match="LLAMAPARSE_API_KEY"):
+        with pytest.raises(BadRequestError) as refusal:
+            await _collection_with(
+                db,
+                tenant,
+                name="cloud",
+                config=IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE),
+            )
+        assert refusal.value.details["fields"][0]["field"] == "llamaparse_secret_id"
+
+        with pytest.raises(BadRequestError, match="LlamaParse"):
             await IngestionConfigService(db).build_processor(
-                document.organization_id, IngestionConfig.model_validate(document.ingestion_config)
+                tenant.organization.id, IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
             )
 
     async def test_an_override_wins_for_that_document_and_no_other(self, db, uploads) -> None:
@@ -1638,28 +1686,23 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
 
         collection = await _collection_with(db, tenant, name="indexed", config=IngestionConfig())
 
-        assert collection.embedding_model == settings.EMBEDDING_MODEL
-        assert collection.embedding_dim == settings.rag.embeddings_config.dim
+        assert collection.embedding_model == _BUILT_WITH
+        assert collection.embedding_dim == _BUILT_WIDTH
 
-    async def test_a_changed_deployment_default_no_longer_strands_a_collection(
-        self, db, uploads, monkeypatch
-    ) -> None:
+    async def test_a_collection_keeps_the_model_it_was_built_with(self, db, uploads) -> None:
         """The store embeds each collection with its own recorded model.
 
-        Changing `EMBEDDING_MODEL` used to make every existing collection
-        refuse ingestion until the variable was restored. The default now only
-        decides what *new* collections are built with - this one keeps
-        indexing, and its documents keep recording the model that actually
-        produced their vectors.
+        There used to be a deployment-wide `EMBEDDING_MODEL`, and changing it
+        made every existing collection refuse ingestion until it was restored.
+        The model is the collection's own now, so its documents keep recording
+        the model that actually produced their vectors.
         """
         tenant = await _tenant(db, name="Switched")
         collection = await _collection_with(db, tenant, name="switched", config=IngestionConfig())
-        built_with = collection.embedding_model
-        monkeypatch.setattr(settings, "EMBEDDING_MODEL", "voyage-3")
 
         document = await _upload(db, tenant, collection)
 
-        assert document.embedding_model == built_with
+        assert document.embedding_model == collection.embedding_model == _BUILT_WITH
 
     async def test_a_document_records_the_model_its_vectors_came_from(self, db, uploads) -> None:
         tenant = await _tenant(db, name="Traceable")
@@ -1854,6 +1897,7 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].chunks == 12
         assert await rag_document_repo.get_by_id(db, first.id) is None
 
+    @pytest.mark.security
     async def test_another_tenants_documents_are_not_counted(self, db) -> None:
         """The counts are keyed on `collection_name`, and `rag_documents` carries a
         nullable `organization_id` that a sync task never stamps - so the tenant
@@ -2406,11 +2450,11 @@ class TestBindingAnMcpServerToAnAgent:
         personal = await _mcp_connection(db, tenant, name="notion", scope="user")
         seen: list[list[str]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([spec.name for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         await build_toolsets_for_agent(
             db,
@@ -2444,11 +2488,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[tuple[str, str]]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([(spec.name, spec.url) for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         resolved = await build_toolsets_for_agent(
             db,
@@ -2476,11 +2520,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[str]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([spec.url for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         resolved = await build_toolsets_for_agent(
             db,
@@ -2508,11 +2552,11 @@ class TestBindingAnMcpServerToAnAgent:
         )
         seen: list[list[str]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([spec.url for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         resolved = await build_toolsets_for_agent(
             db,
@@ -3701,6 +3745,7 @@ class TestTheOrganizationsSecrets:
         )
         return secret.id
 
+    @pytest.mark.security
     async def test_a_stored_secret_keeps_only_a_hint_in_the_clear(self, db) -> None:
         tenant = await _tenant(db, name="Secretive")
 
@@ -3720,6 +3765,7 @@ class TestTheOrganizationsSecrets:
         assert stored is not None
         assert "wx-live-abcd4242" not in stored.sealed_secret
 
+    @pytest.mark.security
     async def test_a_secret_from_another_organization_is_unreachable(self, db) -> None:
         """Both locks, in one test.
 
@@ -3778,16 +3824,16 @@ class TestTheOrganizationsSecrets:
     async def test_several_secrets_resolve_in_one_query(self, db) -> None:
         """A run reads every secret its bindings name; one query, not one each."""
         tenant = await _tenant(db, name="Batched")
-        first = await self._store(db, tenant, name="Weather", key="wx-1111")
-        second = await self._store(db, tenant, name="Maps", key="mp-2222")
+        first = await self._store(db, tenant, name="Weather", key="wx-key-1111")
+        second = await self._store(db, tenant, name="Maps", key="mp-key-2222")
 
         resolved = await OrganizationSecretService(db).resolve_for_bindings(
             tenant.ctx, [first, second]
         )
 
         assert {secret.api_key.get_secret_value() for secret in resolved.values()} == {
-            "wx-1111",
-            "mp-2222",
+            "wx-key-1111",
+            "mp-key-2222",
         }
 
     async def test_deleting_the_organization_takes_its_secrets_with_it(self, db) -> None:
@@ -3817,6 +3863,7 @@ class TestTheOrganizationsSecrets:
             is False
         )
 
+    @pytest.mark.security
     async def test_a_secret_is_found_by_name_inside_its_own_organization_only(self, db) -> None:
         theirs = await _tenant(db, name="NamedTheirs")
         mine = await _tenant(db, name="NamedMine")
@@ -4423,6 +4470,7 @@ class TestWhereAChatAccountHasBeenUsed:
 
         assert found == {}
 
+    @pytest.mark.security
     async def test_a_bot_from_another_tenant_is_never_reported_to_this_person(
         self, db, estate: TwoTenants
     ) -> None:

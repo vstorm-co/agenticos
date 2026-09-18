@@ -4,6 +4,7 @@ import {
   AGENT_BUILDER,
   KB_DETAIL,
   ORG_MEMBERS,
+  ORG_RETENTION,
   ORG_ROLES,
   pageHasSteps,
   pageKey,
@@ -62,9 +63,13 @@ describe("pageKey", () => {
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
   });
 
-  it("splits the two organization detail routes onto their own identities", () => {
+  it("splits the three organization detail routes onto their own identities", () => {
     expect(pageKey("/orgs/abc-123/members")).toBe(ORG_MEMBERS);
     expect(pageKey("/orgs/abc-123/roles")).toBe(ORG_ROLES);
+    // Its own identity rather than a third stop on the members walk: the page is
+    // gated on `org:settings`, and an ungated step waits four seconds for a card
+    // the refusal never mounts (#1420).
+    expect(pageKey("/orgs/abc-123/retention")).toBe(ORG_RETENTION);
   });
 
   it("collapses each settings tab and each workspace onto one identity", () => {
@@ -192,10 +197,12 @@ describe("stepsForPage", () => {
   });
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
-    // Settings collapses its four tabs onto one identity, so help opened on any of
-    // them lands the same stop; a workspace detail has its own.
+    // Settings collapses its five tabs onto one identity, so help opened on any of
+    // them lands the same stops; a workspace detail has its own. The memory stop
+    // is optional - its card renders only where an agent has written something.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "my-memory",
     ]);
     expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",
@@ -237,6 +244,7 @@ describe("stepsForPage", () => {
       "knowledge-tabs",
       "knowledge-integrations",
       "knowledge-add-integration",
+      "knowledge-local-services",
       ...KB_STEPS,
     ]);
   });

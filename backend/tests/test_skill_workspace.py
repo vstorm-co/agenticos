@@ -213,6 +213,15 @@ class TestCollectingWhatTheAgentChanged:
 
         assert await collect_changes(backend, state) == []
 
+    async def test_frontmatter_that_is_not_a_mapping_is_refused_the_same_way(self):
+        """Valid YAML, wrong shape - a list or a sentence where keys were expected."""
+        backend = _backend()
+        state = await materialise(backend, [_Skill()])
+
+        backend.write(f"{SKILLS_ROOT}/refunds/SKILL.md", "---\n- refunds\n---\n\nbody")
+
+        assert await collect_changes(backend, state) == []
+
     async def test_a_body_with_no_frontmatter_proposes_an_empty_description(self):
         """Accepted rather than refused: the instructions are there and readable,
         and a reviewer can see the description is missing and fill it in."""
@@ -226,7 +235,7 @@ class TestCollectingWhatTheAgentChanged:
         assert change.content == "Ask for the receipt."
 
     async def test_a_file_nested_deeper_than_a_skill_belongs_to_no_skill(self):
-        """A skill is a directory of files. Treating `/skills/a/b/c` as `a`'s
+        """A skill is a directory of files. Treating `/workspace/skills/a/b/c` as `a`'s
         would flatten two paths onto one resource name."""
         backend = _backend()
         state = await materialise(backend, [_Skill()])
@@ -248,7 +257,7 @@ class TestCollectingWhatTheAgentChanged:
 
     async def test_a_directory_in_the_listing_is_not_read_as_a_file(self):
         """`StateBackend` reports only files; a container-backed workspace lists a
-        real filesystem, where `/skills/refunds` is itself an entry. Reading it
+        real filesystem, where `/workspace/skills/refunds` is itself an entry. Reading it
         would raise where nothing is wrong."""
 
         class _WithDirectories:

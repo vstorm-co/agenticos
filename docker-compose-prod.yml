@@ -1,6 +1,12 @@
 # Production. `make prod`.
 #
-#   docker compose --env-file backend/.env -f docker-compose-prod.yml up -d --build
+#   docker compose --env-file backend/.env -f docker-compose-prod.yml pull
+#   docker compose --env-file backend/.env -f docker-compose-prod.yml up -d
+#
+# The images are pulled, not built: `ghcr.io/vstorm-co/agenticos-backend` at
+# the `AGENTICOS_VERSION` in `backend/.env` - a release, `latest` when unset,
+# or the `sha-<short>` a commit published, which is what `scripts/deploy.sh`
+# pins. Pin a release rather than tracking `latest` on a host you care about.
 #
 # Prerequisites:
 #   1. `backend/.env` with real secrets. The same file serves every environment;
@@ -24,20 +30,34 @@
 # could have answered anything.
 
 services:
+  # Runs the migrations and exits; `app` and `prefect-runner` wait for it to have
+  # completed. This is what `make prod` and `scripts/deploy.sh` used to do with
+  # an `exec` after `up`, and what a bare `docker compose up -d` on this file
+  # did not do at all. `docker compose logs migrate` is where a failed migration
+  # says why the API never started.
+  migrate:
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    command: agenticos db upgrade
+    env_file:
+      - ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+    networks:
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   app:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: agenticos_backend:prod
-    container_name: agenticos_backend
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
     volumes:
       - media_data:/app/media
-      # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.
-      # Build context is ./backend so the dir isn't in the image — mount it.
-      - ./emails:/app/emails:ro
     env_file:
       - ./backend/.env
     environment:
@@ -85,8 +105,8 @@ services:
       # forwarded address is only a limit while nothing can reach past it.
       - "${BIND_HOST:-127.0.0.1}:8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     # Moved out of backend/Dockerfile, which the Prefect runner shares and could
@@ -120,7 +140,6 @@ services:
     # written to, and on postgres:16-alpine that fails with
     # `extension "vector" is not available`.
     image: pgvector/pgvector:pg16
-    container_name: agenticos_db
     # Postgres ships defaults sized for a machine from 2005 - `shared_buffers`
     # is 128 MB whatever the host has. These are the standard ratios against the
     # 2G limit below, so the two move together: a quarter of it resident, and
@@ -165,22 +184,21 @@ services:
           memory: 2G
 
   redis:
-    image: redis:7-alpine
-    container_name: agenticos_redis
+    image: valkey/valkey:8-alpine
     # A cache with no ceiling is a cache that grows until the container is
     # killed, and this one holds rate-limit buckets, channel dedupe claims and
     # membership answers - all of which are rebuildable, none of which is worth
     # an OOM. `allkeys-lru` because everything here has a TTL anyway; the policy
     # only decides what goes first if one is ever forgotten.
     command: >-
-      redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       --maxmemory 384mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
       - data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "valkey-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -196,7 +214,6 @@ services:
     # collection syncs and scheduled reports never ran: an upload was accepted
     # and the document stayed unsearchable forever.
     image: prefecthq/prefect:3-latest
-    container_name: agenticos_prefect_server
     command: prefect server start --host 0.0.0.0
     volumes:
       - prefect_data:/root/.local/share/prefect/
@@ -227,12 +244,9 @@ services:
           memory: 768M
 
   prefect-runner:
-    image: agenticos_backend:prod
-    pull_policy: never
-    container_name: agenticos_prefect_runner
+    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
     volumes:
       - media_data:/app/media
-      - ./emails:/app/emails:ro
     command: python -m app.worker.prefect_app
     env_file:
       - ./backend/.env
@@ -256,8 +270,8 @@ services:
     depends_on:
       prefect-server:
         condition: service_healthy
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       app:
         condition: service_started
     # 503 once the runner has missed two polls; the start_period covers the
@@ -283,7 +297,6 @@ services:
   # pinned rather than tracking a minor.
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
-    container_name: agenticos_sandboxd_prod
     profiles: [sandbox]
     # The token comes from the same file every other secret in this stack comes
     # from, rather than through compose interpolation. Interpolation reads the
@@ -364,12 +377,17 @@ services:
     restart: unless-stopped
 
 networks:
+  # Named so `docker-compose-prod.frontend.yml`, a project of its own, can join
+  # `edge` as an external network. Two stacks on one host set
+  # AGENTICOS_DATA_NETWORK and AGENTICOS_EDGE_NETWORK apart in backend/.env -
+  # both files read it - or every `db`, `redis` and `app` alias resolves across
+  # them.
   data:
-    name: agenticos_data
+    name: ${AGENTICOS_DATA_NETWORK:-agenticos_data}
     driver: bridge
     internal: true
   edge:
-    name: agenticos_edge
+    name: ${AGENTICOS_EDGE_NETWORK:-agenticos_edge}
     driver: bridge
 
 volumes:

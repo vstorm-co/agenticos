@@ -48,13 +48,19 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.media import (
+    CONVERSATION_RESOURCE as MEDIA_CONVERSATION_RESOURCE,
+)
+from app.agents.capabilities.media import (
+    ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
+)
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
 from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import ModelRequestSpec
-from app.agents.observability import instrument_agent
+from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
@@ -139,6 +145,7 @@ def build_agent(
     organization_id: UUID,
     agent_id: UUID | None = None,
     run_id: UUID | None = None,
+    conversation_id: UUID | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
     audience: RunAudience | None = None,
@@ -166,6 +173,10 @@ def build_agent(
             ones the spec gated - `ApprovalMode.ASK_ALL` on a chat session
             (#925). It only ever tightens, so nothing checks a permission for
             it; the spec's own gates stay where they are underneath.
+        conversation_id: The thread this run belongs to, where it belongs to
+            one. Read by the `media` capability, whose offloaded bytes live under
+            the thread's own prefix so that deleting the thread deletes them -
+            a content hash records nothing about who still references it (#55).
         resources: Values resolved from the database for this run - collection
             names, skills - which capabilities need but must never fetch
             themselves.
@@ -240,6 +251,13 @@ def build_agent(
             MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
             CONTEXT_GAUGE_RESOURCE: gauge,
             REMINDER_STATE_RESOURCE: reminder_state,
+            # Whose media store this run offloads to, and under which thread's
+            # prefix. Here rather than in the capability's configuration, because
+            # a builder that could choose the organization could point one
+            # tenant's media at another's - and because what will eventually
+            # delete the bytes is the conversation, not a setting.
+            MEDIA_ORGANIZATION_RESOURCE: organization_id,
+            MEDIA_CONVERSATION_RESOURCE: conversation_id,
         },
         secrets=secrets,
     )
@@ -463,22 +481,35 @@ def _instrument(
     may have been deleted after publish, and the choice is between an agent that
     runs untraced and an agent that does not run - publishing is where a missing
     secret is refused, and a run is far too late.
+
+    `content="none"` is enforced even when no per-agent exporter attaches. The
+    deployment instruments Pydantic AI globally with content on, so an agent that
+    asked for no content but has no token - or whose token has gone, or whose
+    traces the environment routes - would otherwise leak its prompts to the
+    operator's project through that global default. `suppress_content` pins it to
+    a content-free instrumentation instead.
     """
     observability = spec.observability
-    if observability is None or observability.token_secret_id is None:
+    if observability is None:
         return
 
-    secret = secrets.get(observability.token_secret_id)
-    if not isinstance(secret, ApiKeySecret):
-        logger.warning(
-            "agent_logfire_token_unavailable",
-            extra={"agent_id": str(agent_id) if agent_id else None},
-        )
-        return
+    want_content = observability.content != "none"
+    attached = False
+    if observability.token_secret_id is not None:
+        secret = secrets.get(observability.token_secret_id)
+        if isinstance(secret, ApiKeySecret):
+            attached = instrument_agent(
+                agent,
+                token=secret.api_key.get_secret_value(),
+                service_name=observability.service_name or spec.name,
+                environment=observability.environment,
+                include_content=want_content,
+            )
+        else:
+            logger.warning(
+                "agent_logfire_token_unavailable",
+                extra={"agent_id": str(agent_id) if agent_id else None},
+            )
 
-    instrument_agent(
-        agent,
-        token=secret.api_key.get_secret_value(),
-        service_name=observability.service_name or spec.name,
-        environment=observability.environment,
-    )
+    if not attached and not want_content:
+        suppress_content(agent)

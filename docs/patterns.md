@@ -292,8 +292,11 @@ pattern defined in `app/services/rag/connectors/`. Each connector inherits from
 3. Register the connector in `CONNECTOR_REGISTRY`.
 
 ```python
+from pathlib import Path
+
+from pydantic import BaseModel, Field
+
 from app.core.secret_kinds import SecretKind, StorableSecret
-from app.schemas.sync_source import ConnectorConfigField
 from app.services.rag.connectors import (
     CONNECTOR_REGISTRY,
     BaseSyncConnector,
@@ -301,15 +304,18 @@ from app.services.rag.connectors import (
     RemoteFile,
 )
 
+class SharePointConfig(BaseModel):
+    # No default, so the one required field; the wizard draws it from the
+    # model's JSON Schema and a refusal names its title.
+    site_url: str = Field(title="Site URL")
+
 class SharePointConnector(BaseSyncConnector):
     CONNECTOR_TYPE = "sharepoint"
     DISPLAY_NAME = "SharePoint"
     # What authenticates it. The credential is a vault secret the source names,
-    # unsealed by the caller - never a field of CONFIG_SCHEMA.
+    # unsealed by the caller - never a field of CONFIG_MODEL.
     SECRET_KIND = SecretKind.API_KEY
-    CONFIG_SCHEMA = {
-        "site_url": ConnectorConfigField(type="string", required=True, label="Site URL"),
-    }
+    CONFIG_MODEL = SharePointConfig
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None

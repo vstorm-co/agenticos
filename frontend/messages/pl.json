@@ -42,6 +42,7 @@
     "logout": "Wyloguj"
   },
   "nav": {
+    "memory": "Pamięć",
     "dashboard": "Panel",
     "chat": "Czat",
     "knowledge": "Wiedza",
@@ -156,6 +157,7 @@
     "backSign2": "Wróć do logowania",
     "checkYourInbox": "Sprawdź skrzynkę",
     "continueWithGithub": "Kontynuuj z GitHub",
+    "continueWithProvider": "Kontynuuj z {provider}",
     "continueWithMicrosoft": "Kontynuuj z Microsoft",
     "createHeading": "Utwórz swój <em>workspace.</em>",
     "dropYourEmailBelow": "Podaj swój email — wyślemy jednorazowy link do ustawienia nowego hasła.",
@@ -180,6 +182,7 @@
     "signInFailedRedirecting": "Logowanie nie powiodło się. Przekierowuję…",
     "signInHeading": "Zaloguj się do <em>swojego workspace.</em>",
     "signUpWithGithub": "Załóż konto przez GitHub",
+    "signUpWithProvider": "Załóż konto przez {provider}",
     "signUpWithMicrosoft": "Załóż konto przez Microsoft",
     "somethingWentWrongPlease": "Coś poszło nie tak. Spróbuj ponownie.",
     "workspace": "workspace.",
@@ -270,6 +273,7 @@
     "forbidden": "Brak dostępu",
     "impersonationEnded": "Impersonacja została zakończona",
     "internalServerError": "Wewnętrzny błąd serwera",
+    "invitationNotFound": "To zaproszenie nie jest już dostępne",
     "loginFailed": "Logowanie nie powiodło się",
     "missingAuthorizationCode": "Brak kodu autoryzacji",
     "missingTokens": "Brak tokenów sesji",
@@ -416,6 +420,52 @@
     }
   },
   "pages": {
+    "retention": {
+      "title": "Retencja danych",
+      "description": "Jak długo ta organizacja trzyma każdą klasę danych i na co pozwala wdrożenie.",
+      "organizations": "Organizacje",
+      "members": "Członkowie",
+      "notYours": "Retencja to ustawienie administratora",
+      "askAnAdmin": "Jak długo ta organizacja trzyma swoje dane, ustawia Owner albo Admin. Poproś jedno z nich, jeśli trzeba to zmienić.",
+      "howLongEachClassLives": "Jak długo żyje każda klasa",
+      "dataClass": "Dane",
+      "keepForDays": "Trzymaj przez (dni)",
+      "whatSweeps": "Co się faktycznie dzieje",
+      "forEver": "na zawsze",
+      "keptForEver": "Trzymane, dopóki ktoś nie usunie",
+      "afterDays": "Usuwane po {days} dniach",
+      "atLeastDays": "Trzymane co najmniej {days} dni",
+      "cappedByDeployment": "Usuwane po {days} dniach — limit wdrożenia",
+      "conflictingBounds": "Własne granice tego wdrożenia są sprzeczne dla: {classes}. Administrator musi rozstrzygnąć, która obowiązuje, zanim te okresy cokolwiek znaczą.",
+      "hardDeleteNotice": "Sweep chodzi raz dziennie i usuwa na stałe. To, co wydał usunięty run, dalej liczy się do rachunku miesiąca.",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "saved": "Zapisano",
+      "classes": {
+        "conversations": "Rozmowy, ich wiadomości i pliki",
+        "runs": "Runy i ich manifesty",
+        "workspaces": "Workspace'y agentów",
+        "memory": "Pamięć agentów",
+        "knowledge_documents": "Wgrane dokumenty",
+        "audit": "Ślad audytowy"
+      }
+    },
+    "memory": {
+      "showing": "Pokazane {from}–{to} z {total}",
+      "newer": "Nowsze",
+      "older": "Starsze",
+      "title": "Twoja pamięć",
+      "description": "Co agenci tutaj zapisali o tobie i co możesz z tym zrobić.",
+      "nothingYet": "Nic jeszcze nie zapisano",
+      "nothingYetWhy": "Agent zapisuje notatkę, gdy nauczy się czegoś, co warto zachować między rozmowami. Pusto tutaj znaczy, że żaden tego nie zrobił.",
+      "externalStores": "Ci agenci trzymają pamięć również w zewnętrznej usłudze, której ta strona nie czyta: {agents}.",
+      "writtenBy": "Zapisał {agent} · {when}",
+      "anAgent": "agent",
+      "suppressed": "Wyłączona",
+      "suppress": "Przestań używać tej notatki",
+      "restore": "Używaj tej notatki znowu",
+      "delete": "Usuń tę notatkę"
+    },
     "kb": {
       "search": "Szukaj",
       "retry": "Spróbuj ponownie",
@@ -1220,11 +1270,14 @@
     "impersonationEndFailed": "Nie udało się zakończyć impersonacji. Spróbuj ponownie.",
     "impersonationEnded": "Impersonacja zakończona. Znów działasz jako Ty.",
     "impersonationEndsAt": "Kończy się o {time}",
+    "invitationNotStaged": "Nie udało się przygotować Twojego zaproszenia",
+    "invitationNotStagedHint": "Serwer był niedostępny albo poprosił o chwilę przerwy. Twój link z zaproszeniem nadal jest ważny.",
     "navigate": "Nawigacja",
     "noMatches": "Brak dopasowań.",
     "open": "Otwórz",
     "primary": "Główne",
     "quickActions": "Szybkie akcje",
+    "retryInvitation": "Spróbuj ponownie",
     "searchJump": "Szukaj lub przejdź do…"
   },
   "theme": {
@@ -1682,9 +1735,17 @@
         "title": "Nazwa i twarz",
         "body": "Nazwa i awatar organizacji, pokazywane wszędzie, gdzie się pojawia. Właściciele i administratorzy mogą je tu zmienić."
       },
+      "org-retention": {
+        "title": "Jak długo żyją tu dane",
+        "body": "Okres na klasę - rozmowy, runy, workspace'y, pamięć, wgrane pliki i ślad audytowy. Sweep chodzi codziennie i usuwa na stałe, w granicach ustawionych przez wdrożenie; ślad audytowy ma podłogę, którą można wydłużyć i nigdy skrócić."
+      },
       "org-roles": {
         "title": "Co może każda rola",
         "body": "Macierz uprawnień, rola po roli: czego każda może dotknąć i jak daleko sięga. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę, nigdy go nie zawęzi."
+      },
+      "my-memory": {
+        "title": "Co agenci pamiętają o tobie",
+        "body": "Agenci trzymają notatki między rozmowami. To są twoje: przeczytaj, co zapisano, przestań używać notatki bez jej niszczenia albo usuń ją zupełnie. Notatka w zewnętrznej usłudze pamięci jest tu nazwana, ale nie pokazana."
       },
       "orgs-new": {
         "title": "Twoje organizacje",
@@ -1754,7 +1815,7 @@
     "authNoCredentials": "Brak danych uwierzytelniających",
     "authNoneHint": "Serwer jest otwarty albo stoi w sieci, do której tylko Ty masz dostęp.",
     "authOauth": "OAuth",
-    "authOauthHint": "Zaloguj się u providera. Odkrywane z metadanych samego serwera — nie ma tu czego konfigurować.",
+    "authOauthHint": "Zaloguj się u providera. Odkrywane z metadanych samego serwera — zwykle nie ma tu czego konfigurować.",
     "authTokenHint": "Stałe dane uwierzytelniające, wysyłane jako `Authorization: Bearer`.",
     "authentication": "Uwierzytelnianie",
     "authentication2": "Uwierzytelnianie",
@@ -1763,6 +1824,7 @@
     "category": "Kategoria",
     "checkConnection": "Sprawdź połączenie",
     "checkFailed": "Sprawdzenie się nie powiodło",
+    "clientSecretNeedsId": "Client secret wymaga client ID, do którego należy.",
     "connect": "Podłącz dla",
     "connect2": "Podłącz dla",
     "connectAction": "Podłącz",
@@ -1795,6 +1857,13 @@
     "needsAuthorization": "Wymaga autoryzacji",
     "notCatalog": "poza katalogiem",
     "notConnected": "Niepodłączony",
+    "oauthClientId": "Client ID",
+    "oauthClientSecret": "Client secret",
+    "oauthClientSecretHint": "Zaszyfrowany razem z resztą logowania i nigdy więcej niepokazywany. Zostaw puste dla klienta publicznego.",
+    "oauthOwnClient": "Własny klient (opcjonalnie)",
+    "oauthOwnClientHint": "Większość serwerów rejestruje tę aplikację sama — zostaw te pola puste. Provider, który tego odmawia, np. HubSpot, wydaje dane tylko dla aplikacji założonej w jego własnym portalu: załóż ją tam, wpisz jej poniższy redirect URL i wklej tu jej dane.",
+    "oauthRedirectUrl": "Redirect URL",
+    "oauthRedirectUrlHint": "Wpisz u providera dokładnie w tej postaci.",
     "pasteHere": "Wklej go tutaj",
     "redirecting": "Przekierowywanie…",
     "removeStoredCredential": "Usuń zapisane dane uwierzytelniające",
@@ -2681,6 +2750,10 @@
     "seeEveryRunActivity": "Zobacz każdy run w Aktywności",
     "separateWithCommas": "Oddzielaj przecinkami",
     "separatesStagingTrafficFrom": "Oddziela ruch staging od prawdziwego w tym samym projekcie.",
+    "traceContent": "Zawartość trace'ów",
+    "traceContentFull": "Pełna — wiadomości, wyjście i wywołania narzędzi",
+    "traceContentNone": "Brak — tylko czas i koszt",
+    "traceContentHint": "„Brak\" zachowuje czas, tokeny, koszt i nazwy narzędzi, ale nie wysyła treści wiadomości ani argumentów narzędzi — dla projektu na danych medycznych, prawnych lub HR.",
     "serverCount": "{count, plural, =1 {1 serwer} few {# serwery} many {# serwerów} other {# serwera}}",
     "servesVersion": "obsługuje v{version}",
     "serviceName": "Nazwa usługi",

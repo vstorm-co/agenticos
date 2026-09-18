@@ -151,7 +151,7 @@ export function SyncSourceWizard({
   // a member of `config_schema`, and a refusal about a field nothing claims is a
   // refusal that becomes a toast (#937).
   const configFields = useMemo(
-    () => [...Object.keys(selectedConnector?.config_schema ?? {}), "secret_id"],
+    () => [...Object.keys(selectedConnector?.config_schema.properties ?? {}), "secret_id"],
     [selectedConnector],
   );
 
@@ -198,10 +198,8 @@ export function SyncSourceWizard({
     if (step === "source") return Boolean(form.connector_type) && Boolean(form.name.trim());
     if (step === "configure") {
       if (!selectedConnector) return false;
-      const required = Object.entries(selectedConnector.config_schema).filter(
-        ([, f]) => f.required,
-      );
-      return required.every(([key]) => {
+      const required = selectedConnector.config_schema.required ?? [];
+      return required.every((key) => {
         const v = form.config[key];
         return v !== undefined && v !== null && v !== "";
       });

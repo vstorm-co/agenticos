@@ -17,7 +17,9 @@ from app.db.models.channel_link_request import ChannelLinkRequest
 from app.db.models.channel_session import ChannelSession
 from app.db.models.organization import Invitation, Organization, OrganizationMember
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.local_service import LocalService
 from app.db.models.collection_teardown import CollectionTeardown
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.deployment_settings import DeploymentSettings
@@ -37,6 +39,8 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurf
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
 from app.db.models.run_manifest import RunManifest
 from app.db.models.ingestion_spend import IngestionSpend
+from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
+from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
@@ -66,6 +70,7 @@ __all__ = [
     "OrganizationMember",
     "Invitation",
     "AppAdminAuditLog",
+    "AppAdminAuditCheckpoint",
     "KnowledgeBase",
     "CollectionTeardown",
     "UserSlashCommand",
@@ -81,6 +86,7 @@ __all__ = [
     "AgentVersion",
     "AgentEnvironment",
     "AgentWorkspace",
+    "LocalService",
     "SandboxConnection",
     "SandboxOperation",
     "AgentExposure",
@@ -90,6 +96,9 @@ __all__ = [
     "AgentRun",
     "RunManifest",
     "IngestionSpend",
+    "MLServiceCall",
+    "MLCallStatus",
+    "PurgedRunSpend",
     "ToolApproval",
     "RunStatus",
     "RunSurface",

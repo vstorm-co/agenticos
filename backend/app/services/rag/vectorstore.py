@@ -1,5 +1,4 @@
 import logging
-import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -58,6 +57,16 @@ def _document_is_unaddressed(doc: DocumentInfo) -> bool:
 
 class BaseVectorStore(ABC):
     @abstractmethod
+    async def _ensure_collection(self, name: str) -> None:
+        """Create the collection's backing objects if they do not already exist.
+
+        `create_collection` below is the one concrete method every subclass
+        shares, and it calls this; declaring it abstract here is what makes a
+        subclass that forgets to implement it fail at class definition rather
+        than at the first `create_collection` call.
+        """
+
+    @abstractmethod
     async def insert_document(self, collection_name: str, document: Document) -> None:
         pass
 
@@ -67,7 +76,7 @@ class BaseVectorStore(ABC):
         collection_name: str,
         query: str,
         limit: int = 4,
-        filter_expr: str = "",
+        parent_doc_id: str | None = None,
         organization_id: UUID | None = None,
     ) -> list[SearchResult]:
         pass
@@ -235,7 +244,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.session import agent_vector_engine, vector_engine
-from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
+from app.services.embedding_resolution import (
+    EmbeddingKeySource,
+    ResolvedEmbeddings,
+    embeddings_for_collection,
+)
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 
@@ -308,8 +321,9 @@ class PgVectorStore(BaseVectorStore):
         # one construction that forgot it - the worker that ingests every
         # uploaded document - silently ignored every collection's chosen key
         # and model for as long as nobody read the bill (#306). A collection
-        # outside the KB table still gets the deployment defaults, but that is
-        # now the resolver answering None rather than nobody asking.
+        # outside the KB table gets this store's own keyless embedder, which
+        # refuses on first use - the resolver answering None rather than nobody
+        # asking.
         self._resolver = resolver
         self._services: dict[tuple[str, str, str, str], EmbeddingService] = {}
         self.async_session = async_sessionmaker(engine, expire_on_commit=False)
@@ -374,6 +388,7 @@ class PgVectorStore(BaseVectorStore):
                 # the key, because moving a collection to another provider must
                 # not be answered by a client already built for the old one.
                 base_url=resolved.base_url,
+                keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
             )
             self._services[cache_key] = service
         return service, resolved.dim
@@ -508,7 +523,7 @@ class PgVectorStore(BaseVectorStore):
         collection_name: str,
         query: str,
         limit: int = 4,
-        filter_expr: str = "",
+        parent_doc_id: str | None = None,
         organization_id: UUID | None = None,
     ) -> list[SearchResult]:
         """Nearest chunks in a collection, reporting an absent one as empty.
@@ -520,6 +535,10 @@ class PgVectorStore(BaseVectorStore):
         `UndefinedTableError` into a 500, and it is checked before embedding so
         an empty collection costs no embedding call either.
 
+        `parent_doc_id` restricts the search to one document's chunks, as a
+        parameterised `WHERE`; the retrieval service parses it out of the public
+        filter grammar before it reaches here.
+
         `organization_id` scopes which tenant's knowledge base the query embeds
         through, so a name shared across organizations does not embed on another
         tenant's credential (#913).
@@ -530,22 +549,13 @@ class PgVectorStore(BaseVectorStore):
         embedder, dim = await self._for_collection(collection_name, organization_id)
         query_vector = embedder.embed_query(query)
 
-        # Parse the shared `parent_doc_id == "<value>"` filter format and apply
-        # it as a parameterised WHERE clause to avoid returning results from
-        # unrelated documents (same behaviour as Qdrant/Chroma implementations).
-        doc_id_filter: str | None = None
-        if filter_expr and "parent_doc_id" in filter_expr:
-            m = re.search(r'parent_doc_id\s*==\s*"([^"]+)"', filter_expr)
-            if m:
-                doc_id_filter = m.group(1)
-
-        where_clause = "WHERE parent_doc_id = :doc_id" if doc_id_filter else ""
+        where_clause = "WHERE parent_doc_id = :doc_id" if parent_doc_id else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
         query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
         params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit}
-        if doc_id_filter:
-            params["doc_id"] = doc_id_filter
+        if parent_doc_id:
+            params["doc_id"] = parent_doc_id
 
         distance = self._distance_expr(dim)
         async with self.async_session() as session:

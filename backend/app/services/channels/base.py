@@ -201,7 +201,7 @@ class IncomingMessage:
     bot_id: str  # UUID str of the ChannelBot row
     platform_user_id: str
     platform_chat_id: str
-    chat_type: str  # "private" | "group" | "supergroup" | "channel"
+    chat_type: str  # "private" | "group" - every adapter normalises to these two
     text: str
     raw: dict[str, Any] = field(default_factory=dict)
     platform_username: str | None = None

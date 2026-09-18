@@ -12,6 +12,12 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  memory: {
+    /** Every page of one organization's notes, for invalidating after a write. */
+    all: (orgId: string) => ["memory", orgId] as const,
+    /** One page of what the agents in one organization have written about the caller. */
+    mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
+  },
   organizations: {
     all: () => ["organizations"] as const,
     list: () => ["organizations", "list"] as const,
@@ -19,6 +25,7 @@ export const qk = {
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
+    retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
   },
   agents: {
     all: () => ["agents"] as const,
@@ -384,6 +391,10 @@ export const qk = {
     // showing every decided proposal must not overwrite it in the cache.
     list: (status: string) => ["skill-changes", "list", status] as const,
   },
+  localServices: {
+    all: () => ["local-services"] as const,
+    list: () => ["local-services", "list"] as const,
+  },
   sandboxConnections: {
     all: () => ["sandbox-connections"] as const,
     list: () => ["sandbox-connections", "list"] as const,
@@ -449,6 +460,8 @@ export const qk = {
     // whatever it is narrowed to; under a bare key whichever mounted first
     // filled the cache and the other rendered its answer.
     organizations: (params: Record<string, string>) => ["admin", "organizations", params] as const,
+    // One tenant in full, for the per-tenant page the admin drawer links to (#1245).
+    organizationDetail: (orgId: string) => ["admin", "organizations", orgId, "detail"] as const,
     // This deployment's own identity and access policy, as its administrator
     // edits it. Distinct from `branding.notice()` below, which is the same row
     // read by everybody: invalidating one must not refetch the other, since the

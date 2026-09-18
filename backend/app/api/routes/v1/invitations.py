@@ -11,17 +11,20 @@ organization as the role offered to somebody else's address - so nothing reads
 it back, and listing invitations returns everything except it.
 """
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Header, Query, Request, status
 
-from app.api.deps import CurrentUser, InvitationSvc
+from app.api.deps import CurrentUser, InvitationStagingSvc, InvitationSvc, enforce_auth_limit
+from app.core.exceptions import NotFoundError
 from app.schemas.organization import (
     InvitationCreate,
     InvitationCreated,
     InvitationList,
     InvitationRead,
+    InvitationStaged,
+    InvitationStageRequest,
     InviteLinkCreate,
 )
 
@@ -154,6 +157,61 @@ async def revoke_invitation_by_id(
     browser history. An invitation belonging to another organization answers 404.
     """
     await service.revoke_by_id(org_id, invitation_id, requester_id=user.id)
+
+
+@token_router.post("/invitations/stage", response_model=InvitationStaged)
+async def stage_invitation(
+    request: Request,
+    body: InvitationStageRequest,
+    service: InvitationSvc,
+    staging: InvitationStagingSvc,
+) -> Any:
+    """Exchange an invitation token for an opaque, single-use handle (#1414).
+
+    The one endpoint here that takes no session: an invitee follows a deep link
+    while signed out, and this runs before they have one. It validates the token
+    and stores it server-side under a fresh handle, which the caller's server
+    layer sets as an `httpOnly` cookie - so the raw token never rides the sign-in
+    round trip through a `returnTo` query, browser history, or `sessionStorage`.
+
+    A forged, expired or spent token is one refusal that names nothing, because
+    the endpoint is public and "expired" versus "never existed" would let a
+    stranger probe which tokens are real. It is rate limited per IP, because a
+    caller holding one live token could otherwise mint handles into Redis without
+    bound - the staging store is not a ceiling the accept relies on, but it is
+    memory.
+    """
+    await enforce_auth_limit(request, surface="invitation_stage")
+    await service.ensure_stageable(body.token)
+    handle = await staging.stage(body.token)
+    return InvitationStaged(handle=handle)
+
+
+@token_router.post(
+    "/invitations/staged/accept", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
+async def accept_staged_invitation(
+    request: Request,
+    service: InvitationSvc,
+    staging: InvitationStagingSvc,
+    user: CurrentUser,
+    handle: Annotated[str, Header(alias="X-Invitation-Handle")],
+) -> None:
+    """Redeem a staged handle and accept the invitation as the signed-in user.
+
+    The other half of the exchange, once the round trip is over. The handle
+    arrives in a header the caller's server layer copies from the `httpOnly`
+    cookie; redeeming it is single-use, so a replayed or expired handle is a 404
+    that reveals nothing, the same as a forged one. The token it yields never
+    leaves the server - it goes straight into `accept`, which makes the same
+    membership decision a direct accept would. Rate limited per IP alongside the
+    staging endpoint it completes.
+    """
+    await enforce_auth_limit(request, surface="invitation_accept_staged")
+    token = await staging.redeem(handle)
+    if token is None:
+        raise NotFoundError(message="Invitation not found or already used")
+    await service.accept(token, accepting_user_id=user.id)
 
 
 @token_router.post(

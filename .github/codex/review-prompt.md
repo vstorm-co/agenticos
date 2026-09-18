@@ -8,7 +8,7 @@ has written down what correct means, and you are going to read it.
 
 Under *Run context* above there is a **standard directory**. It holds `CLAUDE.md`
 and every file from `.claude/rules/`, extracted from the **base branch**, not from
-this pull request. Read `CLAUDE.md` and then each rule whose `globs` header matches
+this pull request. Read `CLAUDE.md` and then each rule whose `paths` header matches
 a path this pull request touches.
 
 Those files are the definition of a defect here. A finding that cites one of them
@@ -37,7 +37,7 @@ reviewer that looked. Work in this order:
 
 1. Read the diff at the path under *Run context*. All of it.
 2. Read `CLAUDE.md` from the standard directory.
-3. Read each rule file whose `globs` header matches a path the diff touches.
+3. Read each rule file whose `paths` header matches a path the diff touches.
 4. For every changed file, open the code around it in the checkout — the service a
    route delegates to, the repository that service calls, the test that should have
    changed with it, the model whose column moved.

@@ -49,6 +49,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.vault import is_key_version_available
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -186,6 +187,16 @@ class McpConnection(Base, TimestampMixin):
     purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="mcp", index=True)
     # Which portal a `purpose = 'portal'` row holds the grant for. Null on an MCP row.
     portal_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The provider's own id for the account this grant is on, where the provider
+    # names one and a *delivery* has to be routed back to it. A GitHub App's
+    # installation id is the case that needs it: one App has one webhook URL, so
+    # the delivery cannot name a trigger and the installation in its payload is
+    # the only thing that says whose it is - which means the lookup has to be a
+    # query, not a field inside the encrypted grant (#1072). Indexed and
+    # deliberately not unique: two organizations could in principle install two
+    # different Apps that GitHub numbered the same, and the signature is what
+    # settles which grant the delivery belongs to.
+    portal_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     # Where a polled portal's reader has got to - Gmail's `historyId`, and whatever
     # the next polled portal needs. JSONB rather than a column per provider: the
     # shape is the adapter's business and nothing else reads inside it.
@@ -234,3 +245,25 @@ class McpConnection(Base, TimestampMixin):
             f"<McpConnection(name={self.name} scope={self.scope} "
             f"url={self.url} enabled={self.is_enabled})>"
         )
+
+    @property
+    def account_authorized(self) -> bool:
+        """Whether this connection's stored credential can be used right now.
+
+        The side-effect-free half of `_resolve_auth_headers`, and the single place
+        the answer is decided so a run and the rendered list cannot drift (#1443):
+        an OAuth or bearer credential is usable once its payload/token is written
+        and the master key that sealed it is still configured - the half
+        `_resolve_auth_headers` finds missing after a `SECRET_KEY` rotation. It
+        decrypts and refreshes nothing, so two failures it cannot see are left to
+        the run that actually unseals: a ciphertext tampered with under a still
+        configured key, and an OAuth grant the provider has revoked or expired past
+        its refresh - the sweep marks the latter `last_status="error"` beforehand.
+        """
+        if self.auth_type == "oauth":
+            return self.oauth_payload is not None and is_key_version_available(
+                self.secret_key_version
+            )
+        if self.auth_token is None:
+            return True
+        return is_key_version_available(self.secret_key_version)

@@ -280,6 +280,7 @@ class TestTheTwoTotals:
 
         assert (delegated, top_level_only) == (Decimal("0.40"), Decimal("0"))
 
+    @pytest.mark.security
     async def test_a_delegation_row_stays_inside_its_own_tenant(self, db):
         """The delegate's month is read against the caller's organization, so a
         row in another one is not in it however the ids line up."""
@@ -825,6 +826,7 @@ class TestWhatRunHistoryLists:
         assert [run.id for run in items] == [mine.id]
         assert total == 1
 
+    @pytest.mark.security
     async def test_another_tenants_run_delegates_nothing_to_this_caller(self, db):
         """A parent id is guessable; the organization filter is what refuses it."""
         mine, theirs = await _org(db), await _org(db)

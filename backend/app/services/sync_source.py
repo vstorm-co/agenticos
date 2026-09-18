@@ -13,6 +13,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
+from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
 from app.services.access import SECRET, resolve_access
@@ -54,7 +55,7 @@ async def _refuse_a_credential_in_the_config(config: dict, connector_type: str) 
     cls = CONNECTOR_REGISTRY.get(connector_type)
     if cls is None:
         return
-    known = set(cls.CONFIG_SCHEMA)
+    known = set(cls.CONFIG_MODEL.model_fields)
     offending = sorted(name for name in _RETIRED_CREDENTIAL_FIELDS if name in config)
     unknown = sorted(name for name in offending if name not in known)
     if not unknown:
@@ -448,7 +449,7 @@ class SyncSourceService:
         await sync_source_repo.delete(self.db, UUID(source_id))
         await self._record(source, "deleted", ctx=ctx)
 
-    async def trigger_sync(self, source_id: str) -> object:
+    async def trigger_sync(self, source_id: str) -> SyncLog:
         """Trigger a manual sync - persists a SyncLog and dispatches the task.
 
         Raises:
@@ -500,21 +501,24 @@ class SyncSourceService:
     def list_connectors() -> ConnectorList:
         """List available connector types, their config schemas and their credential.
 
+        `config_schema` is the JSON Schema of each connector's `CONFIG_MODEL`,
+        the same shape a capability publishes, so the wizard draws it with
+        `SchemaForm` unadapted (#1093).
+
         `secret_kind` is what the wizard needs to offer the organization's
         matching vault secrets and nothing else: a Drive source takes a service
         account, an S3 one an AWS key pair. It used to ask for the credential as
         a `secret: true` field in `config_schema`, which is the whole of what
         #937 removed.
         """
-        return ConnectorList(
-            items=[
-                ConnectorInfo(
-                    type=connector_cls.CONNECTOR_TYPE,
-                    name=connector_cls.DISPLAY_NAME,
-                    config_schema=dict(connector_cls.CONFIG_SCHEMA),
-                    secret_kind=connector_cls.SECRET_KIND.value,
-                    enabled=True,
-                )
-                for connector_cls in CONNECTOR_REGISTRY.values()
-            ]
-        )
+        items = [
+            ConnectorInfo(
+                type=connector_cls.CONNECTOR_TYPE,
+                name=connector_cls.DISPLAY_NAME,
+                config_schema=connector_cls.CONFIG_MODEL.model_json_schema(),
+                secret_kind=connector_cls.SECRET_KIND.value,
+                enabled=True,
+            )
+            for connector_cls in CONNECTOR_REGISTRY.values()
+        ]
+        return ConnectorList(items=items, total=len(items))

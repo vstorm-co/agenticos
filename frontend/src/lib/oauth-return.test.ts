@@ -28,6 +28,23 @@ describe("carrying a return path across the provider round trip", () => {
     expect(takeReturnTo()).toBeNull();
   });
 
+  it("never stores a raw invitation token, only its staged landing (#1414)", () => {
+    // The token is exchanged for an httpOnly handle before sign-in; a path still
+    // carrying one is replaced with the credential-free pending landing rather than
+    // written to a store a script can read.
+    rememberReturnTo("/invitations/a-live-bearer-token");
+
+    expect(takeReturnTo()).toBe("/invitations/pending");
+  });
+
+  it("keeps a pending landing's flow, which is no credential", () => {
+    // The flow names which staging's httpOnly cookie to redeem; without the cookie it
+    // names nothing, and dropping it would leave the tab unable to find its own.
+    rememberReturnTo("/invitations/pending?flow=0123456789abcdef0123456789abcdef");
+
+    expect(takeReturnTo()).toBe("/invitations/pending?flow=0123456789abcdef0123456789abcdef");
+  });
+
   it("forgets an earlier path when there is nothing to remember", () => {
     // A visitor who arrives at /login with a deep link, gives up, and comes
     // back plainly should land on the dashboard rather than where they were
@@ -78,31 +95,22 @@ describe("what an attempt started from this URL should remember", () => {
     expect(returnToForAttempt(url(""))).toBeNull();
   });
 
-  it("keeps the path across a retry, where the URL has lost it", () => {
-    // A failed provider attempt comes back to `/login?error=oauth_failed` with
-    // no `returnTo` on it. Clearing there drops a path nobody abandoned.
+  it("leaves the stored path in place across a retry, rather than rewriting it", () => {
+    // A failed provider attempt comes back to `/login?error=oauth_failed` with no
+    // `returnTo` on it. It answers `undefined` - leave the deep link written before
+    // the attempt alone - rather than reading it back out and storing it again, which
+    // is a clear-text round trip of what the store holds (#1414).
     rememberReturnTo("/agents/a-1");
 
-    expect(returnToForAttempt(url("error=oauth_failed"))).toBe("/agents/a-1");
+    expect(returnToForAttempt(url("error=oauth_failed"))).toBeUndefined();
+
+    rememberReturnTo(returnToForAttempt(url("error=oauth_failed")));
+    expect(takeReturnTo()).toBe("/agents/a-1");
   });
 
-  it("prefers the URL's own deep link over what is stored", () => {
-    rememberReturnTo("/agents/older");
-
+  it("prefers the URL's own deep link over leaving the stored one", () => {
     expect(returnToForAttempt(url("error=oauth_failed&returnTo=/agents/newer"))).toBe(
       "/agents/newer",
     );
-  });
-
-  it("answers with nothing on a retry that never carried one", () => {
-    expect(returnToForAttempt(url("error=oauth_failed"))).toBeNull();
-  });
-
-  it("survives a browser that refuses to be read", () => {
-    vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
-      throw new Error("denied");
-    });
-
-    expect(returnToForAttempt(url("error=oauth_failed"))).toBeNull();
   });
 });

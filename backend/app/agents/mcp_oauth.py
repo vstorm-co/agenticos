@@ -45,12 +45,13 @@ from mcp.client.auth.oauth2 import (
     resource_url_from_server_url,
 )
 from mcp.shared.auth import OAuthClientMetadata, OAuthMetadata, OAuthToken
-from pydantic import AnyUrl, BaseModel
+from pydantic import AnyUrl, BaseModel, ValidationError
 
 from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
 from app.core.config import settings
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import UrlRefusedError
+from app.core.secret_kinds import SealedStr
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +115,30 @@ def _flow_failed(exc: Exception, *, summary: str, advice: str) -> str:
     class of thing raised, and what the reader can do. The class still goes out:
     it separates a server we could not reach from one that refused us, and a
     class name has never carried an endpoint or a key.
+
+    The token-payload case is the exception: its text *is* the credential, so the
+    log beside that raise carries only :func:`_validation_detail` - the field
+    locations and error types, never the values (#1626).
     """
     return f"{summary} ({type(exc).__name__}) - {advice}. The server log has the full error."
+
+
+def _validation_detail(exc: ValueError) -> str:
+    """The shape of a rejected token payload, with the rejected values left out.
+
+    `OAuthToken.model_validate_json` raises `ValidationError`, whose `str()` and
+    traceback echo the input it rejected - and for a token response that input is
+    the token. So the log names the field that failed and how, never what was in
+    it: `include_input=False` drops the values, `include_url=False` the docs link.
+    A plain `ValueError` (never raised by the parse today, but the caller catches
+    the wider type) reports only its class.
+    """
+    if not isinstance(exc, ValidationError):
+        return type(exc).__name__
+    return "; ".join(
+        f"{'.'.join(str(part) for part in err['loc'])}: {err['type']}"
+        for err in exc.errors(include_url=False, include_input=False)
+    )
 
 
 def _client(transport: httpx.AsyncBaseTransport | None = None) -> PinnedAsyncClient:
@@ -173,6 +196,12 @@ class McpOAuthPayload(BaseModel):
     filled in. `expires_at` is epoch seconds (or None if the token doesn't
     expire).
 
+    The three credentials are :data:`SealedStr`, so a payload that reaches a log
+    line or a traceback whole masks them, and only `model_dump_json()` - the way
+    into the vault - carries the real values. `model_copy(update=...)` skips
+    validation, so a caller folding a fresh token in wraps it in a `SecretStr`
+    itself or the next `model_dump_json()` fails.
+
     `provider` names a non-discovery flow when one issued the payload - `"github"`
     for a GitHub OAuth App, whose endpoints are fixed and whose token exchange has
     its own quirks (see `app/services/portals/github_oauth.py`). `None` is the
@@ -185,13 +214,13 @@ class McpOAuthPayload(BaseModel):
     token_endpoint: str
     registration_endpoint: str | None = None
     client_id: str
-    client_secret: str | None = None
+    client_secret: SealedStr | None = None
     scope: str | None = None
     resource: str
     redirect_uri: str
     code_verifier: str | None = None
-    access_token: str | None = None
-    refresh_token: str | None = None
+    access_token: SealedStr | None = None
+    refresh_token: SealedStr | None = None
     expires_at: float | None = None
     provider: str | None = None
 
@@ -470,8 +499,14 @@ async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToke
     try:
         return OAuthToken.model_validate_json(response.content)
     except ValueError as exc:
-        logger.exception(
-            "MCP token endpoint %s returned an unreadable token response", token_endpoint
+        # A `ValidationError` over the token payload echoes the input it rejected,
+        # and here that input is the token - so its `str()` and its traceback both
+        # carry a live credential. Log the field locations and error types, never
+        # the values, and do not let `logger.exception` append the raw text.
+        logger.error(
+            "MCP token endpoint %s returned an unreadable token response: %s",
+            token_endpoint,
+            _validation_detail(exc),
         )
         raise OAuthError(
             _flow_failed(

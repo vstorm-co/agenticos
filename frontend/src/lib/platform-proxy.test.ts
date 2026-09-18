@@ -694,11 +694,7 @@ function calledPaths(): Set<string> {
  * ignored because "the client calls something that does not exist" is
  * otherwise exactly the thing this sweep is for.
  */
-const CALLED_WITHOUT_AN_ENDPOINT: ReadonlySet<string> = new Set([
-  // Settings → Account. The form is built; the backend endpoint is not, and the
-  // page says so in the toast it shows on the 404.
-  "/api/auth/password/change",
-]);
+const CALLED_WITHOUT_AN_ENDPOINT: ReadonlySet<string> = new Set([]);
 
 describe("every endpoint the client calls is proxied", () => {
   it("finds the calls it is supposed to be checking", () => {

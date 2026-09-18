@@ -187,6 +187,17 @@ connection may narrow further, and the two intersect.
     would put two servers under one prefix; Pydantic AI refuses the duplicate
     tool names and the turn aborts.
 
+!!! note "A collision that reaches a run is narrowed, not lost"
+
+    Publish is a point in time and a connection's name is editable afterwards, so
+    an agent published before this check or one whose connection was renamed to a
+    colliding name can still reach a run with two servers under one prefix. That
+    run keeps the first of them that answers its probe, drops the rest, and
+    tells the model which server is unavailable this turn - and, when both carry
+    one name, which binding it is speaking through - rather than losing it to a
+    log line nobody reads. Renaming one of the two connections is the author's
+    fix.
+
 One agent binds each service once, one way. An agent that needs the
 organization's handbook Notion *and* each person's own is two agents, or the
 same server connected twice under two names.
@@ -217,7 +228,11 @@ Three modes, which is the only thing that really varies between servers.
 
     1. **Discover** — probe the server, resolve its authorization server, fetch
        RFC 8414 metadata.
-    2. **Register** — RFC 7591 dynamic client registration.
+    2. **Register** — RFC 7591 dynamic client registration. A server that
+       publishes no registration endpoint — HubSpot's is one — refuses here, and
+       the only way past is a client you registered at the provider by hand:
+       the connect dialog takes its client ID and secret under *Your own
+       client*, and shows the redirect URL the provider has to hold exactly.
     3. **Consent** — a PKCE authorization URL with `state` and an RFC 8707
        resource indicator; the browser goes there.
     4. **Exchange** — the callback swaps the code for tokens, then redirects the

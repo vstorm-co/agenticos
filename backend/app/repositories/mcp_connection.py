@@ -9,6 +9,7 @@ put somebody's private token inside a published agent.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -75,6 +76,31 @@ async def get_org_scoped_by_id(
         )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def get_org_scoped_by_ids(
+    db: AsyncSession, *, connection_ids: Sequence[UUID], organization_id: UUID
+) -> dict[UUID, McpConnection]:
+    """Several organization-scoped connections at once, keyed by id.
+
+    The batch form of :func:`get_org_scoped_by_id`, for a caller resolving a
+    whole spec's bindings: one statement rather than a lookup per id. Carries the
+    same two filters - `organization_id` and `scope == "org"` - so a member's
+    personal connection or another tenant's row is absent from the map exactly as
+    it is absent from the single read. A missing or unreachable id is simply not a
+    key, and the caller validates each id against the map as it did per row.
+    """
+    if not connection_ids:
+        return {}
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.purpose == "mcp",
+            McpConnection.id.in_(list(connection_ids)),
+            McpConnection.organization_id == organization_id,
+            McpConnection.scope == "org",
+        )
+    )
+    return {connection.id: connection for connection in result.scalars().all()}
 
 
 async def list_org_scoped(
@@ -440,3 +466,36 @@ async def update(
 async def delete(db: AsyncSession, *, db_connection: McpConnection) -> None:
     await db.delete(db_connection)
     await db.flush()
+
+
+async def portal_grants_for_account(
+    db: AsyncSession, *, portal_key: str, portal_account_id: str
+) -> list[McpConnection]:
+    """Every grant of one portal on one provider-side account, across tenants.
+
+    Deliberately unscoped by organization, and the only read here that is: a
+    GitHub App delivery arrives at one shared URL carrying an installation id and
+    nothing else, so the grant has to be found before there is an organization to
+    scope to (#1072). What settles which grant a delivery belongs to is the HMAC
+    against that organization's own webhook secret, checked by the caller - this
+    only narrows the candidates.
+
+    A list rather than one row, because two organizations could in principle hold
+    grants the provider numbered the same, and answering the first would give one
+    of them the other's deliveries.
+
+    A disabled grant is not a candidate. Every other path that consumes one
+    filters on `is_enabled` - the polling claim and `webhook_access_token` both
+    do - and without it here, turning the integration off would leave deliveries
+    arriving, authenticating against the organization's own secret and firing its
+    triggers. The toggle has to be the kill switch it looks like.
+    """
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.purpose == "portal",
+            McpConnection.portal_key == portal_key,
+            McpConnection.portal_account_id == portal_account_id,
+            McpConnection.is_enabled.is_(True),
+        )
+    )
+    return list(result.scalars().all())

@@ -198,10 +198,10 @@ not define.
 !!! warning "Two ceilings, and the browser has its own copy of one"
 
     A chat attachment is refused by `CHAT_MAX_UPLOAD_SIZE_MB` (10 MB); a
-    knowledge-base document by `MAX_UPLOAD_SIZE_MB` (50 MB). Set
-    `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match the first: too high and the
-    composer accepts a file the API refuses, too low and it refuses one the API
-    would take.
+    knowledge-base document by `MAX_UPLOAD_SIZE_MB` (50 MB). The frontend
+    container reads the same `CHAT_MAX_UPLOAD_SIZE_MB` at runtime, so give both
+    containers one value: too high on the browser's side and the composer accepts
+    a file the API refuses, too low and it refuses one the API would take.
 
 - Maximum attachment size: `CHAT_MAX_UPLOAD_SIZE_MB` (default: **10 MB**). This is
   the section's own limit — a chat attachment is refused by this number, not by the
@@ -213,21 +213,51 @@ not define.
 - The whole request body is capped above both, at the larger of them plus a multipart
   allowance, so raising either ceiling raises that with it.
 - The limit is enforced server-side after reading the file content. The browser's own
-  check is `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB`, which should be set to match: too
-  high and the composer accepts a file the API refuses, too low and it refuses one the
-  API would take.
+  check reads the same `CHAT_MAX_UPLOAD_SIZE_MB` from the frontend container's
+  environment, so the two containers should be given one value: too high and the
+  composer accepts a file the API refuses, too low and it refuses one the API would
+  take.
 
 ### Storage
 
-Files are saved by `FileStorageService` to the `media/` directory:
+Every uploaded file — a chat attachment, an avatar, the deployment's mark, the
+original of a knowledge-base document — goes through one storage backend, chosen
+by `FILE_STORAGE_BACKEND` at deployment time and never per organization. Whatever
+the backend, a row records the same **storage path**: `{owner}/{uuid}_{filename}`.
+
+`local`, the default, writes them under `MEDIA_DIR`:
 
 ```
 media/
   {user_id}/
-    document.pdf
-    screenshot.png
+    a1b2c3d4e5f6_document.pdf
+    f6e5d4c3b2a1_screenshot.png
     ...
 ```
+
+`s3` writes the same paths as object keys in an S3-compatible bucket, under
+`FILE_STORAGE_S3_PREFIX`, and asks the store to encrypt every one of them —
+SSE-S3 by default, SSE-KMS with a key the deployment names. See
+[configuration](configuration.md#uploaded-files-at-rest) for the settings.
+
+!!! info "Which backend to run, and what each one asks of you"
+
+    Local is the honest answer for a single host: encrypt the volume, and the
+    files are as protected as the disk. It stops being one at the second API
+    replica — two containers, two disks, and a file uploaded to one is a 404 on
+    the other — and when a client wants their files under a key they control.
+
+    Switching backend does not move what the other one already holds, and
+    nothing here migrates it. It is a decision taken when the deployment is set
+    up; a later switch needs the files copied across by hand, and the paths are
+    the same on both sides so a copy is enough.
+
+    Agent workspaces are not in either backend. A `state` workspace lives in this
+    database and a `docker` one in the sandbox host's own storage, so an object
+    store does not change where they are — see [the sandbox](sandbox.md).
+
+`agenticos cmd doctor` prints which backend a running deployment uses and whether
+encryption is on.
 
 ### ChatFile model
 
@@ -335,7 +365,7 @@ collection's parser is. Beyond those, the set follows the parser:
 |--------|-----------|-------|
 | PyMuPDF | `.pdf` | nothing |
 | LiteParse | `.pdf`; images (`.png`, `.jpg`, `.tiff`, `.svg`, …); office formats (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **for office formats only** — images are converted natively |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | `LLAMAPARSE_API_KEY` |
+| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | A LlamaParse key in the organization's vault, named by the collection (`llamaparse_secret_id`). There is no deployment key |
 
 The backend Dockerfile installs LibreOffice and Tesseract, so office formats and
 OCR work out of the box in a container. Running the backend outside Docker, an
@@ -458,9 +488,9 @@ All three are decided **per collection**, not per deployment, by
 
 | | |
 |---|---|
-| **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
+| **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. A new collection chooses one of the models its provider serves; there is no deployment default. |
 | **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
-| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. A collection on the provider the deployment's own key belongs to may instead embed on `OPENROUTER_API_KEY`. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. There is no deployment-wide embedding key: a new personal or organization collection has to name one, and a collection without a usable key refuses to index or search until it has one. The `ollama` provider is **keyless** - an Ollama on the deployment's own network - so a collection on it names no key and is refused if it tries to; it names a **local service** instead (`embedding_endpoint_id`), a row under Knowledge → Integrations that carries the address, the organization's own or a deployment-wide one the app admin registered. An **app-scoped** collection belongs to no organization and so has no vault to name a key from; it may embed only through a keyless provider at a deployment-wide service, and choosing a keyed one for it is refused where the provider was chosen. |
 
 Which knowledge base a collection name resolves to is itself a tenant question.
 `collection_name` is indexed but **not unique** — two organizations can name a
@@ -508,24 +538,20 @@ a Member could bind another member's **private** key by supplying its UUID.
 A key they cannot view is refused as one the vault does not hold, so the refusal
 cannot enumerate somebody else's private secrets.
 
-At embed time nothing is refused: a chosen key that has since been deleted,
-cannot be unsealed, or does not hold an API key falls back to the deployment's,
-because *whose key pays* must never decide *whether documents can be found*.
+At embed time nothing is refused by the resolver: a chosen key that has since
+been deleted, cannot be unsealed, or does not hold an API key resolves to *no*
+key, because *whose key pays* must never decide *whether the collection's row can
+be read*. The embedding client then refuses the index or the search with a
+message naming the collection, its provider and which of those happened — there
+is no deployment-wide key to fall back to, so the refusal never advises a
+variable.
 
-**That fallback stops at the provider the deployment's key belongs to.** A
-collection embedding through anyone else resolves to *no* key rather than to
-somebody else's — the request would be refused at the far end anyway, having
-already carried the credential there — and the refusal then says which collection
-and which provider, rather than naming a variable that would not have helped.
-
-That fallback is announced rather than assumed. The resolution carries which of
-the five sources it landed on, ingestion writes the degraded ones into the
-Prefect run's log, and a deployment with no key of its own fails with a message
-naming the collection and which key it tried — not with advice to set a variable
-about a collection that already had a key. Before #306 the ingestion worker was
-the one caller that never asked the resolver at all, so every uploaded document
-was embedded with the deployment's model and key whatever its collection had
-chosen.
+That degradation is announced rather than assumed. The resolution carries which
+of the five sources it landed on, and ingestion writes every degraded one into
+the Prefect run's log, a collection that simply names no key included. Before
+issue #306 the ingestion worker was the one caller that never asked the resolver
+at all, so every uploaded document was embedded with the deployment's model and a
+deployment-wide key whatever its collection had chosen; that key is gone.
 
 ### Vector storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
@@ -1003,7 +1029,7 @@ been shared. The fallback is gone; the setting now serves only the
 
 ### The credential is a vault secret, not a config field
 
-!!! danger "A credential never goes in a connector's `CONFIG_SCHEMA`"
+!!! danger "A credential never goes in a connector's `CONFIG_MODEL`"
 
     `sync_sources.config` says how to *find* the documents. What authenticates is
     a vault secret the source names in `secret_id` - and there is no
@@ -1127,12 +1153,18 @@ above is what records it.
 
 ### What a new connector owes
 
-A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
-the cheap part. **An object store is less than that**: S3, Azure Blob and GCS are
-one connector with three clients, so `ObjectStoreConnector` holds the listing
-loop, the `<scheme>://<container>/<key>` address and the directory-marker skip,
-and a subclass supplies a client, a `SCHEME`, and which `CONFIG_SCHEMA` field
-names the container - `bucket` for S3 and GCS, `container` for Azure. `S3Connector`
+A connector is `list_files` + `_fetch` + a `CONFIG_MODEL`, and the API calls are
+the cheap part. `CONFIG_MODEL` is a Pydantic model of the config fields; the
+listing publishes its `model_json_schema()` as `config_schema`, so the wizard
+draws the form with `SchemaForm` - the same shape a capability publishes
+([#1093](https://github.com/vstorm-co/agenticos/issues/1093)).
+
+**An object store
+is less than that**: S3, Azure Blob and GCS are one connector with three clients,
+so `ObjectStoreConnector` holds the listing loop, the `<scheme>://<container>/<key>`
+address and the directory-marker skip, and a subclass supplies a client, a
+`SCHEME`, and which `CONFIG_MODEL` field names the container - `bucket` for S3 and
+GCS, `container` for Azure. `S3Connector`
 is that subclass ([#988](https://github.com/vstorm-co/agenticos/issues/988)); its
 two hooks are deliberately blocking, because all three SDKs are, and the shared
 class runs them on a worker thread.
@@ -1184,7 +1216,7 @@ integrations already put an agent *in* Slack.
 
 `validate_config` answers a `ConfigRefusal` — a sentence, and the field that
 sentence is about — or `None` when the config is acceptable. The connector names
-its own `CONFIG_SCHEMA` key; `SyncSourceService` roots that against the document
+its own `CONFIG_MODEL` field; `SyncSourceService` roots that against the document
 the wizard posted (`folder_id` → `config.folder_id`) and raises it with
 `refused_field`, so it reaches the browser as `details["fields"]` in the one
 shape a form reads (`app/core/field_errors.py`) and the configure step marks the

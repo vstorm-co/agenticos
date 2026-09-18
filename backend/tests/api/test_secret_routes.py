@@ -23,7 +23,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretKind
 from app.main import app
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _ORGANIZATION_ID = uuid.uuid4()
 _SECRET_ID = uuid.uuid4()
@@ -121,6 +121,7 @@ class TestListing:
             "aws_credentials",
             "gcp_service_account",
             "github_oauth_app",
+            "github_app",
             "google_oauth_app",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])

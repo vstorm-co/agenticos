@@ -20,7 +20,7 @@ UUID happened to hash the same way.
 from enum import IntEnum
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -37,6 +37,17 @@ class LockScope(IntEnum):
     #: unique index allows one, and the write is read-then-clear-then-set - so
     #: two nominations racing each found no sibling to clear and both set it.
     MCP_DEFAULT_ACCOUNT = 4
+    #: One organization's audit hash chain. `record_audit` reads the chain head
+    #: and appends under this lock, so two audited writes for the same org cannot
+    #: read the same head and fork the chain (#1622).
+    AUDIT_CHAIN_PER_ORG = 5
+    #: Everything held *about* one person, against their erasure. A note is keyed
+    #: by the string `person:<id>` with no foreign key, so a run writing one while
+    #: the account is being deleted commits after the purge has read the table and
+    #: recreates personal data about somebody who asked to be forgotten. The write
+    #: and the purge take this, so one waits for the other and the write that loses
+    #: finds no account to write about (#1421).
+    PERSONAL_DATA_PER_USER = 6
 
 
 def _key(subject: UUID) -> int:
@@ -55,8 +66,16 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     Blocks while another transaction holds the same one. Call it *before* reading
     the count it protects: taken afterwards it serializes nothing, because the
     count both callers read is already stale.
+
+    Both keys are cast to `Integer`, which is what selects the two-argument
+    `pg_advisory_xact_lock(int, int)` overload. Without it a key of exactly
+    `-2147483648` - the value `_key` returns for a subject whose low 32 bits are
+    zero, which the deployment-wide audit chain hits deterministically - binds as
+    `bigint`, and `(int, bigint)` matches no overload (#1622).
     """
-    await db.execute(select(func.pg_advisory_xact_lock(scope.value, _key(subject))))
+    await db.execute(
+        select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
 
 
 async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:

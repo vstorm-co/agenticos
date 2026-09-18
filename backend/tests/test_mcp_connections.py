@@ -1,8 +1,10 @@
 """Tests for MCP connections: agents/mcp toolset building + the service layer."""
 
 import contextlib
+import json
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -10,7 +12,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from mcp.shared.auth import OAuthMetadata, OAuthToken
-from pydantic import AnyUrl
+from pydantic import AnyUrl, SecretStr, ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
@@ -21,13 +23,19 @@ from app.agents.mcp import (
     _make_toolset,
     _mcp_transport,
     build_mcp_toolsets,
+    prefix_collisions,
     probe_mcp_server,
     tool_prefix,
 )
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.agents.spec import OrgMcpServerRef, PersonalMcpServerRef
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.pinned_http import PinnedAsyncClient
 from app.core.secret_kinds import GithubOAuthAppSecret
@@ -37,13 +45,17 @@ from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionRead,
     McpConnectionUpdate,
+    McpOAuthStart,
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
+from app.services import impersonation as impersonation_service
 from app.services import mcp_connection as mcp_connection_service
+from app.services.impersonation import ActiveImpersonation
 from app.services.mcp_connection import (
     McpConnectionService,
     UnavailablePersonalService,
+    UnavailablePrefixCollision,
     _apply_token,
     _resolve_auth_headers,
     connection_scope,
@@ -59,6 +71,23 @@ async def _acm(value):
     yield value
 
 
+@contextlib.contextmanager
+def _impersonating():
+    """Run the block as an administrator acting as another account (#1438)."""
+    token = impersonation_service._active.set(
+        ActiveImpersonation(
+            session_id=uuid4(),
+            user_id=uuid4(),
+            impersonator_id=uuid4(),
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+    )
+    try:
+        yield
+    finally:
+        impersonation_service._active.reset(token)
+
+
 def _allow_any_url(monkeypatch) -> None:
     """Skip SSRF validation for tests that are about something else (it resolves
     DNS, so it must not run against made-up hostnames)."""
@@ -67,6 +96,22 @@ def _allow_any_url(monkeypatch) -> None:
         return url
 
     monkeypatch.setattr(mcp_connection_service, "validate_mcp_url", _passthrough)
+
+
+class _AnyIdMap(dict):
+    """A `get_org_scoped_by_ids` result that answers `value` for any id (#954)."""
+
+    def __init__(self, value):
+        super().__init__()
+        self._value = value
+
+    def get(self, _key, _default=None):
+        return self._value
+
+
+def _batch(value):
+    """An `AsyncMock` for `get_org_scoped_by_ids`, returning `value` for any id."""
+    return AsyncMock(return_value=_AnyIdMap(value))
 
 
 def _connection(**overrides) -> McpConnection:
@@ -121,15 +166,35 @@ def _open_from(conn: McpConnection, ciphertext: str) -> str:
     return unseal(ciphertext, scope=connection_scope(conn), key_version=conn.secret_key_version)
 
 
+_PREFIX_CASES = json.loads(
+    (Path(__file__).resolve().parents[2] / "frontend/src/lib/mcp-tool-prefix.cases.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
 class TestToolPrefix:
-    def test_hyphens_become_underscores(self):
-        assert tool_prefix("github-work") == "github_work"
+    @pytest.mark.parametrize("case", _PREFIX_CASES, ids=lambda c: c["name"])
+    def test_it_matches_the_shared_parity_cases(self, case: dict[str, str]):
+        """The cases are shared with the frontend `mcpToolPrefix` test, so the two
+        normalisers cannot drift apart behind two hand-copied lists (#545). A
+        connection name reaches the client only as this prefix, so a mismatch draws
+        a step "Github Work Create Issue" where it means "GitHub - Create issue"."""
+        assert tool_prefix(case["name"]) == case["prefix"]
 
-    def test_uppercase_and_specials_are_sanitized(self):
-        assert tool_prefix("My Server!") == "my_server"
 
-    def test_empty_falls_back(self):
-        assert tool_prefix("!!!") == "mcp"
+class TestPrefixCollisions:
+    """The one arithmetic publish and the run share (#1442)."""
+
+    def test_names_that_reduce_to_one_prefix_are_grouped_winner_first(self):
+        # `github`, `GitHub` and `github-` all normalise to `github`; `notion-work`
+        # keeps its inner separator as `notion_work` and stands alone.
+        assert prefix_collisions(
+            [("github", "a"), ("GitHub", "b"), ("github-", "c"), ("notion-work", "d")]
+        ) == {"github": ["a", "b", "c"]}
+
+    def test_names_that_stay_distinct_collide_with_nobody(self):
+        assert prefix_collisions([("notion", "a"), ("linear", "b")]) == {}
 
 
 class TestTransportSelection:
@@ -308,14 +373,14 @@ class TestToolsetsForAgent:
 
     @staticmethod
     def _capture(monkeypatch) -> list[list[McpServerSpec]]:
-        """Replace the toolset build with a recorder of the specs it was given."""
+        """Replace the probe with a recorder of the specs it was given, every one reachable."""
         seen: list[list[McpServerSpec]] = []
 
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+        async def fake_probe(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, str]]:
             seen.append(specs)
-            return [spec.name for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
         return seen
 
     @pytest.mark.anyio
@@ -329,8 +394,8 @@ class TestToolsetsForAgent:
         bound = _connection(name="linear", url="https://mcp.linear.app/sse")
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=bound),
+            "get_org_scoped_by_ids",
+            _batch(bound),
         )
 
         toolsets = await mcp_connection_service.build_toolsets_for_agent(
@@ -341,15 +406,114 @@ class TestToolsetsForAgent:
         assert [spec.name for spec in seen[0]] == ["linear"]
 
     @pytest.mark.anyio
+    async def test_a_prefix_collision_drops_the_loser_and_reports_it(self, monkeypatch):
+        """The run-time half of the publish check (#1442). Two servers whose names
+        reduce to one prefix would make pydantic-ai raise on the duplicate tool
+        names; the first is attached and the second reported on `unavailable`, so
+        the model can say it is missing rather than a log line nobody reads. Both
+        are probed - the decision is taken among the servers that answered."""
+        seen = self._capture(monkeypatch)
+        first = _connection(name="github", url="https://ws.example/mcp")
+        second = _connection(name="GitHub", url="https://user.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={first.id: first, second.id: second}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=first.id),
+                OrgMcpServerRef(connection_id=second.id),
+            ],
+        )
+
+        assert [spec.name for spec in seen[0]] == ["github", "GitHub"]
+        assert resolved.toolsets == ["github"]
+        assert resolved.unavailable == [
+            UnavailablePrefixCollision(
+                server="GitHub",
+                prefix="github",
+                kept="github",
+                server_binding="the connection 'GitHub'",
+                kept_binding="the connection 'github'",
+            )
+        ]
+
+    @pytest.mark.anyio
+    async def test_an_unreachable_first_holder_neither_wins_nor_is_reported_as_attached(
+        self, monkeypatch
+    ):
+        """The winner is the first server that *answered*. Decided before the probe,
+        an unreachable first holder would lose the turn to its probe and still be
+        named as the one attached, while the reachable second was dropped for
+        colliding with it - a turn with neither, told it had one (#1442 review)."""
+        first = _connection(name="github", url="https://dead.example/mcp")
+        second = _connection(name="GitHub", url="https://live.example/mcp")
+
+        async def fake_probe(
+            specs: list[McpServerSpec],
+        ) -> list[tuple[McpServerSpec, str | None]]:
+            return [(spec, None if spec.url == first.url else spec.name) for spec in specs]
+
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={first.id: first, second.id: second}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=first.id),
+                OrgMcpServerRef(connection_id=second.id),
+            ],
+        )
+
+        assert resolved.toolsets == ["GitHub"]
+        assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    async def test_a_same_named_duplicate_is_dropped_but_not_reported(self, monkeypatch):
+        """One connection bound twice is a duplicate of a service the kept spec
+        still serves, so it is dropped to spare pydantic-ai the clash but reported
+        as nothing - saying that service is unavailable would be false, since its
+        tools are present (#1442 review)."""
+        seen = self._capture(monkeypatch)
+        conn = _connection(name="github", url="https://ws.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={conn.id: conn}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(connection_id=conn.id),
+                OrgMcpServerRef(connection_id=conn.id),
+            ],
+        )
+
+        assert [spec.name for spec in seen[0]] == ["github", "github"]
+        assert resolved.toolsets == ["github"]
+        assert resolved.unavailable == []
+
+    @pytest.mark.anyio
     async def test_every_id_is_resolved_inside_the_agents_own_organization(self, monkeypatch):
         """A spec is data and can name any UUID; the tenant it resolves in is not
         negotiable, and neither is the connection being an organization one."""
         self._capture(monkeypatch)
         organization_id = uuid4()
         connection_id = uuid4()
-        lookup = AsyncMock(return_value=_connection(id=connection_id))
+        lookup = _batch(_connection(id=connection_id))
         monkeypatch.setattr(
-            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_id", lookup
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", lookup
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -359,7 +523,7 @@ class TestToolsetsForAgent:
         )
 
         assert lookup.await_args.kwargs == {
-            "connection_id": connection_id,
+            "connection_ids": [connection_id],
             "organization_id": organization_id,
         }
 
@@ -370,8 +534,8 @@ class TestToolsetsForAgent:
         bound = _connection(name="github", allowed_tools=["search_issues"])
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=bound),
+            "get_org_scoped_by_ids",
+            _batch(bound),
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -397,8 +561,8 @@ class TestToolsetsForAgent:
         seen = self._capture(monkeypatch)
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=connection),
+            "get_org_scoped_by_ids",
+            _batch(connection),
         )
 
         toolsets = await mcp_connection_service.build_toolsets_for_agent(
@@ -419,8 +583,8 @@ class TestToolsetsForAgent:
         healthy = _connection(name="github")
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(side_effect=[broken, healthy]),
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={broken.id: broken, healthy.id: healthy}),
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -449,11 +613,11 @@ class TestWhichToolsABindingMayCall:
     def _capture(monkeypatch) -> list[list[McpServerSpec]]:
         seen: list[list[McpServerSpec]] = []
 
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+        async def fake_probe(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, str]]:
             seen.append(specs)
-            return [spec.name for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
         return seen
 
     async def _tools(self, monkeypatch, *, on_connection, on_binding) -> list[str] | None:
@@ -461,8 +625,8 @@ class TestWhichToolsABindingMayCall:
         bound = _connection(name="notion", allowed_tools=on_connection)
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=bound),
+            "get_org_scoped_by_ids",
+            _batch(bound),
         )
 
         await mcp_connection_service.build_toolsets_for_agent(
@@ -525,11 +689,11 @@ class TestEachPersonsOwnAccount:
     def _capture(monkeypatch) -> list[list[McpServerSpec]]:
         seen: list[list[McpServerSpec]] = []
 
-        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+        async def fake_probe(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, str]]:
             seen.append(specs)
-            return [spec.name for spec in specs]
+            return [(spec, spec.name) for spec in specs]
 
-        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        monkeypatch.setattr(mcp_connection_service, "probe_toolsets", fake_probe)
         return seen
 
     @staticmethod
@@ -570,6 +734,40 @@ class TestEachPersonsOwnAccount:
         assert seen[0][0].allowed_tools == ["search"]
         assert resolved.toolsets == ["notion"]
         assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    async def test_a_collision_between_same_named_bindings_names_the_binding(self, monkeypatch):
+        """An organization connection called `notion` and each person's own
+        `notion` present their tools under one name - two different servers, not a
+        duplicate - so the report has to say *which* binding was dropped: the
+        names alone would tell the model that `notion` is both attached and
+        unavailable, and dropping it silently would lose a person's own account
+        the way the log line used to (#1442 review)."""
+        seen = self._capture(monkeypatch)
+        shared = _connection(name="notion", url="https://org.example/mcp", scope="org")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", _batch(shared)
+        )
+        self._owns(monkeypatch, [_connection(name="my-notion", catalog_key="notion")])
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=shared.id), self._personal()],
+            sender_user_id=uuid4(),
+        )
+
+        assert [spec.name for spec in seen[0]] == ["notion", "notion"]
+        assert resolved.toolsets == ["notion"]
+        assert resolved.unavailable == [
+            UnavailablePrefixCollision(
+                server="notion",
+                prefix="notion",
+                kept="notion",
+                server_binding="each person's own notion",
+                kept_binding="the connection 'notion'",
+            )
+        ]
 
     @pytest.mark.anyio
     async def test_the_lookup_is_scoped_to_the_sender_and_the_service(self, monkeypatch):
@@ -722,8 +920,8 @@ class TestEachPersonsOwnAccount:
         org = _connection(name="linear", url="https://mcp.linear.app/sse", scope="org")
         monkeypatch.setattr(
             mcp_connection_service.mcp_connection_repo,
-            "get_org_scoped_by_id",
-            AsyncMock(return_value=org),
+            "get_org_scoped_by_ids",
+            _batch(org),
         )
         self._owns(monkeypatch, [])
 
@@ -818,6 +1016,46 @@ class TestAuthHeaders:
             connection_scope(conn)
 
 
+class TestAccountAuthorized:
+    """`account_authorized` is the one place a connection's usability is decided,
+    so the rendered list and the run cannot drift (#1443)."""
+
+    def test_a_bearer_connection_with_no_token_is_usable(self):
+        assert _connection().account_authorized is True
+
+    def test_a_token_on_a_configured_key_is_authorized(self):
+        conn = _connection()
+        conn.auth_token = _seal_into(conn, "secret-token")
+        assert conn.account_authorized is True
+
+    def test_a_token_whose_sealing_key_is_gone_is_not_authorized(self):
+        # A SECRET_KEY rotation leaves the row naming a version nothing can unwrap;
+        # the client had no way to know, so it read connected.
+        assert _connection(auth_token="sealed", secret_key_version=999).account_authorized is False
+
+    def test_an_oauth_connection_is_authorized_once_its_payload_is_written(self):
+        assert _connection(auth_type="oauth", oauth_payload='{"t":1}').account_authorized is True
+        assert _connection(auth_type="oauth", oauth_payload=None).account_authorized is False
+
+    def test_an_oauth_payload_sealed_under_a_dropped_key_is_not_authorized(self):
+        # The payload is present but unopenable after a rotation, the same way a
+        # bearer token is - the run finds `_oauth_access_token` returns None.
+        gone = _connection(auth_type="oauth", oauth_payload='{"t":1}', secret_key_version=999)
+        assert gone.account_authorized is False
+
+    @pytest.mark.anyio
+    async def test_resolve_auth_headers_refuses_a_token_whose_key_is_gone(self):
+        conn = _connection(auth_token="sealed", secret_key_version=999)
+        assert await _resolve_auth_headers(AsyncMock(), conn) is None
+
+    def test_the_read_carries_the_server_decided_authorized(self):
+        usable = _connection()
+        usable.auth_token = _seal_into(usable, "secret-token")
+        assert McpConnectionRead.from_model(usable).authorized is True
+        gone = _connection(auth_token="sealed", secret_key_version=999)
+        assert McpConnectionRead.from_model(gone).authorized is False
+
+
 def _oauth_connection(payload: McpOAuthPayload, **overrides) -> McpConnection:
     """A connection carrying a sealed OAuth payload."""
     conn = _connection(auth_type="oauth", **overrides)
@@ -846,8 +1084,8 @@ class TestOAuthTokens:
         payload = _base_payload(code_verifier="verifier", refresh_token="old-refresh")
         token = OAuthToken(access_token="AT", refresh_token="new-refresh", expires_in=3600)
         result = _apply_token(payload, token)
-        assert result.access_token == "AT"
-        assert result.refresh_token == "new-refresh"
+        assert result.access_token.get_secret_value() == "AT"
+        assert result.refresh_token.get_secret_value() == "new-refresh"
         assert result.code_verifier is None  # cleared once tokens arrive
         assert (
             result.expires_at is not None and result.expires_at > mcp_oauth.TOKEN_EXPIRY_SKEW_SECS
@@ -857,8 +1095,28 @@ class TestOAuthTokens:
         payload = _base_payload(refresh_token="keep-me")
         token = OAuthToken(access_token="AT", expires_in=None)
         result = _apply_token(payload, token)
-        assert result.refresh_token == "keep-me"
+        assert result.refresh_token.get_secret_value() == "keep-me"
         assert result.expires_at is None
+
+    def test_an_oauth_payload_does_not_print_its_tokens(self):
+        """The one reader that could log a payload whole catches `Exception` and
+        names only the connection; masking the credentials makes the guarantee
+        hold by construction rather than by that one clause."""
+        payload = _apply_token(
+            _base_payload(code_verifier="verifier"),
+            OAuthToken(access_token="at-do-not-print", refresh_token="rt-do-not-print"),
+        )
+        for shown in (repr(payload), str(payload), str(payload.model_dump())):
+            assert "csecret" not in shown
+            assert "at-do-not-print" not in shown
+            assert "rt-do-not-print" not in shown
+        # The vault is the one place that needs the real values - including after a
+        # `model_copy`, which skips validation and would otherwise hold a bare str.
+        sealed = payload.model_dump_json()
+        assert '"access_token":"at-do-not-print"' in sealed
+        assert '"refresh_token":"rt-do-not-print"' in sealed
+        assert '"client_secret":"csecret"' in sealed
+        assert McpOAuthPayload.model_validate_json(sealed) == payload
 
     @pytest.mark.anyio
     async def test_unauthorized_oauth_yields_none(self):
@@ -897,9 +1155,9 @@ class TestOAuthTokens:
         lock_mock.assert_awaited_once()
         # The refreshed token was persisted back (re-encrypted).
         stored = update_mock.call_args.kwargs["update_data"]["oauth_payload"]
-        assert McpOAuthPayload.model_validate_json(_open_from(conn, stored)).access_token == (
-            "fresh-token"
-        )
+        assert McpOAuthPayload.model_validate_json(
+            _open_from(conn, stored)
+        ).access_token.get_secret_value() == ("fresh-token")
 
     @pytest.mark.anyio
     async def test_concurrent_turn_reuses_the_token_the_winner_stored(self, monkeypatch):
@@ -1715,6 +1973,107 @@ class TestMcpConnectionService:
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """An administrator acting as B must not fasten their own OAuth grant to
+        B's account. Refused before any registration, so no pending row (#1438)."""
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start(user_id=uuid4(), name="linear", url="https://srv/mcp")
+        repo.create.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_org_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """The organization start binds a grant the same way, so it takes the same
+        refusal - before any discovery or row - the org half of #1438 (#1490)."""
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start_for_org(ctx, name="shared", url="https://srv/mcp")
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_org_github_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """The GitHub org start skips `_oauth_start`, so it carries its own guard -
+        refused before the org's OAuth-app credentials are even read (#1490)."""
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start_for_org_github(ctx, portal_key="any-portal")
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_polled_portal_oauth_start_is_refused_under_an_impersonation(self, service, repo):
+        """The polled-portal start skips `_oauth_start` too, so it carries its own
+        guard - the third org route #1438's single guard would have missed (#1490)."""
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.oauth_start_for_polled_portal(ctx, portal_key="any-portal")
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_create_with_a_token_is_refused_under_an_impersonation(
+        self, service, repo, monkeypatch
+    ):
+        """An administrator acting as B must not store their own bearer token as
+        B's personal connection - B's agents would then call the server as the
+        administrator's account after the hour-bounded impersonation ends, and
+        the credential would stand recorded against B (#1492)."""
+        _allow_any_url(monkeypatch)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.create(
+                user_id=uuid4(),
+                data=McpConnectionCreate(
+                    name="linear", url="https://srv/mcp", auth_token="admin-token"
+                ),
+            )
+        repo.create.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_create_without_a_token_is_allowed_under_an_impersonation(
+        self, service, repo, monkeypatch
+    ):
+        """Only a manually entered credential is refused - a tokenless connection
+        captures no identity, and configuring one as B is much of what
+        impersonation is for (#1492)."""
+        _allow_any_url(monkeypatch)
+        with _impersonating():
+            await service.create(
+                user_id=uuid4(),
+                data=McpConnectionCreate(name="linear", url="https://srv/mcp"),
+            )
+        repo.create.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_update_with_a_replacement_token_is_refused_under_an_impersonation(
+        self, service, repo
+    ):
+        """The same refusal as create, for a token pasted over an existing
+        connection. Refused before the write, so nothing is resealed (#1492)."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        repo.get_by_id.return_value = conn
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.update(
+                user_id=user_id,
+                connection_id=conn.id,
+                data=McpConnectionUpdate(auth_token="admin-token"),
+            )
+        repo.update.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_update_clearing_the_token_is_allowed_under_an_impersonation(self, service, repo):
+        """Removing a token stores no credential, so it is left alone - only a
+        non-empty replacement is refused (#1492)."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        conn.auth_token = _seal_into(conn, "old")
+        repo.get_by_id.return_value = conn
+        with _impersonating():
+            await service.update(
+                user_id=user_id,
+                connection_id=conn.id,
+                data=McpConnectionUpdate(auth_token=""),
+            )
+        assert repo.update.call_args.kwargs["update_data"]["auth_token"] is None
+
+    @pytest.mark.anyio
     async def test_oauth_start_registers_and_persists_pending(self, service, repo, monkeypatch):
         _allow_any_url(monkeypatch)
         discovered = mcp_oauth.DiscoveredServer(
@@ -1773,6 +2132,153 @@ class TestMcpConnectionService:
         assert update_data["oauth_pending_payload"]
         assert "oauth_payload" not in update_data  # the working tokens survive
         assert "url" not in update_data  # and so does the URL they belong to
+
+    @pytest.mark.anyio
+    async def test_oauth_start_uses_a_pre_registered_client_instead_of_registering(
+        self, service, repo, monkeypatch
+    ):
+        """HubSpot publishes no registration endpoint, so the operator brings the
+        client. Registration must not run, and the staged payload must hold the
+        credentials that were handed in rather than any of its own."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+                token_endpoint_auth_methods_supported=["client_secret_post"],
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+        register = AsyncMock(return_value=("registered", "registered-secret"))
+        monkeypatch.setattr(mcp_oauth, "register_client", register)
+
+        user_id = uuid4()
+        await service.oauth_start(
+            user_id=user_id,
+            name="hubspot",
+            url="https://srv/mcp",
+            client_id="operators-client",
+            client_secret=SecretStr("operators-secret"),
+        )
+
+        register.assert_not_awaited()
+        payload = McpOAuthPayload.model_validate_json(
+            unseal(
+                repo.create.call_args.kwargs["oauth_pending_payload"],
+                scope=VaultScope.user(user_id),
+            )
+        )
+        assert payload.client_id == "operators-client"
+        assert payload.client_secret is not None
+        assert payload.client_secret.get_secret_value() == "operators-secret"
+
+    @pytest.mark.anyio
+    async def test_a_pre_registered_public_client_needs_no_secret(self, service, repo, monkeypatch):
+        """A static client id with PKCE and no secret is a public client, which is
+        a legitimate registration - there is no secret for a server to refuse, so
+        the auth-method check does not apply."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+                token_endpoint_auth_methods_supported=["client_secret_basic"],
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+        register = AsyncMock()
+        monkeypatch.setattr(mcp_oauth, "register_client", register)
+
+        user_id = uuid4()
+        url = await service.oauth_start(
+            user_id=user_id, name="hubspot", url="https://srv/mcp", client_id="public-client"
+        )
+
+        register.assert_not_awaited()
+        assert "client_id=public-client" in url
+        payload = McpOAuthPayload.model_validate_json(
+            unseal(
+                repo.create.call_args.kwargs["oauth_pending_payload"],
+                scope=VaultScope.user(user_id),
+            )
+        )
+        assert payload.client_secret is None
+
+    @pytest.mark.anyio
+    async def test_oauth_start_refuses_a_client_the_server_will_not_authenticate(
+        self, service, monkeypatch
+    ):
+        """`exchange_code` and `refresh_tokens` only put the secret in the form
+        body. A server that does not allow that is refused at start, not after
+        the user has already consented."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+                token_endpoint_auth_methods_supported=["client_secret_basic"],
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+
+        with pytest.raises(mcp_oauth.OAuthError) as excinfo:
+            await service.oauth_start(
+                user_id=uuid4(),
+                name="hubspot",
+                url="https://srv/mcp",
+                client_id="operators-client",
+                client_secret=SecretStr("operators-secret"),
+            )
+        assert "client_secret_basic" in str(excinfo.value)
+
+    @pytest.mark.anyio
+    async def test_a_server_that_names_no_auth_method_takes_the_static_client(
+        self, service, repo, monkeypatch
+    ):
+        """RFC 8414 makes the list optional. Servers that omit it accept the body
+        form in practice, and refusing them would refuse the case this exists
+        for - so silence is consent."""
+        _allow_any_url(monkeypatch)
+        discovered = mcp_oauth.DiscoveredServer(
+            authorization_endpoint="https://srv/authorize",
+            token_endpoint="https://srv/token",
+            registration_endpoint=None,
+            resource="https://srv/mcp",
+            scope=None,
+            metadata=OAuthMetadata(
+                issuer=AnyUrl("https://srv"),
+                authorization_endpoint=AnyUrl("https://srv/authorize"),
+                token_endpoint=AnyUrl("https://srv/token"),
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "discover", AsyncMock(return_value=discovered))
+
+        url = await service.oauth_start(
+            user_id=uuid4(),
+            name="hubspot",
+            url="https://srv/mcp",
+            client_id="operators-client",
+            client_secret=SecretStr("operators-secret"),
+        )
+        assert "client_id=operators-client" in url
 
     @pytest.mark.anyio
     async def test_oauth_start_rejects_internal_urls(self, service, repo):
@@ -1864,8 +2370,8 @@ class TestMcpConnectionService:
         stored = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )
-        assert stored.access_token == "NEW-AT"
-        assert stored.refresh_token == "OLD-RT"
+        assert stored.access_token.get_secret_value() == "NEW-AT"
+        assert stored.refresh_token.get_secret_value() == "OLD-RT"
 
     @pytest.mark.anyio
     async def test_a_live_payload_with_no_refresh_token_has_nothing_to_carry(
@@ -2082,7 +2588,10 @@ class TestMcpConnectionService:
         payload = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )
-        assert payload.access_token == "AT" and payload.refresh_token == "RT"
+        assert (
+            payload.access_token.get_secret_value() == "AT"
+            and payload.refresh_token.get_secret_value() == "RT"
+        )
         assert payload.code_verifier is None
 
     @pytest.mark.anyio
@@ -2455,6 +2964,39 @@ class TestOrganizationConnections:
         }
         assert "ghp-secret-9876" not in str(recorded)
 
+    @pytest.mark.anyio
+    async def test_creating_with_a_token_is_refused_under_an_impersonation(
+        self, service, ctx, repo, audit, monkeypatch
+    ):
+        """An administrator acting as an org owner must not store their own bearer
+        token as the organization's shared credential: every org agent would then
+        call the server as the administrator's account after the hour-bounded
+        impersonation ends, and the token was entered by nobody the org can see
+        (#1521). Refused before the write, so nothing is sealed."""
+        _allow_any_url(monkeypatch)
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.create_for_org(
+                ctx,
+                OrgMcpConnectionCreate(
+                    name="github", url="https://example.com/mcp", auth_token="admin-token"
+                ),
+            )
+        repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_creating_without_a_token_is_allowed_under_an_impersonation(
+        self, service, ctx, repo, audit, monkeypatch
+    ):
+        """Only a manually entered credential is refused - a tokenless org server
+        captures no identity, and configuring one while acting as an owner is
+        ordinary administration (#1521)."""
+        _allow_any_url(monkeypatch)
+        with _impersonating():
+            await service.create_for_org(
+                ctx, OrgMcpConnectionCreate(name="docs", url="https://example.com/mcp")
+            )
+        repo.create_org_scoped.assert_called_once()
+
     # -- updating -------------------------------------------------------
 
     @pytest.mark.anyio
@@ -2527,6 +3069,75 @@ class TestOrganizationConnections:
         # No new envelope, so the version that sealed the old one is left alone
         # rather than rewritten to describe a token that no longer exists.
         assert "secret_key_version" not in update_data
+
+    @pytest.mark.anyio
+    async def test_updating_with_a_replacement_token_is_refused_under_an_impersonation(
+        self, service, ctx, repo, audit
+    ):
+        """The same refusal as creating, for a token pasted over an existing org
+        connection. Refused before the write, so nothing is resealed (#1521)."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+        with _impersonating(), pytest.raises(AuthorizationError):
+            await service.update_for_org(
+                ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(auth_token="admin-token")
+            )
+        repo.update.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_updating_clearing_the_token_is_allowed_under_an_impersonation(
+        self, service, ctx, repo, audit
+    ):
+        """Removing a token stores no credential, so it is left alone - only a
+        non-empty replacement is refused (#1521)."""
+        conn = self._org_connection(ctx, auth_token="envelope")
+        repo.get_org_scoped_by_id.return_value = conn
+        repo.update.return_value = conn
+        with _impersonating():
+            await service.update_for_org(
+                ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(auth_token="")
+            )
+        assert repo.update.call_args.kwargs["update_data"]["auth_token"] is None
+
+    @pytest.mark.anyio
+    async def test_an_update_records_who_changed_the_shared_credential(
+        self, service, ctx, repo, audit, monkeypatch
+    ):
+        """`create_for_org` records who added a shared credential; an update that
+        rotated or repointed one left no trail at all. It now records the change -
+        the fields, never their values or the staleness resets - so a token set
+        under an impersonation is attributable to the administrator behind it,
+        which `record_audit` stamps from the audit context (#1521)."""
+        _allow_any_url(monkeypatch)
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+        repo.update.return_value = conn
+
+        await service.update_for_org(
+            ctx,
+            connection_id=conn.id,
+            data=OrgMcpConnectionUpdate(auth_token="ghp-rotated-4321"),
+        )
+
+        recorded = audit.call_args.kwargs
+        assert recorded["action"] == "mcp_connection.updated"
+        assert recorded["organization_id"] == ctx.organization_id
+        assert recorded["target_id"] == str(conn.id)
+        assert recorded["details"] == {"fields": ["auth_token"]}
+        assert "ghp-rotated-4321" not in str(recorded)
+
+    @pytest.mark.anyio
+    async def test_a_no_op_update_writes_no_audit(self, service, ctx, repo, audit):
+        """An update that changes nothing returns early, so it neither writes the
+        row nor records an entry that says a shared credential changed when it
+        did not (#1521)."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        await service.update_for_org(ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate())
+
+        repo.update.assert_not_called()
+        audit.assert_not_called()
 
     @pytest.mark.anyio
     async def test_moving_the_url_somewhere_internal_is_refused_by_field(self, service, ctx, repo):
@@ -2821,6 +3432,35 @@ class TestOrgReadSchema:
         assert sealed.ciphertext not in rendered
 
 
+class TestAPreRegisteredClientIsRefusedBeforeItIsStaged:
+    """The two ways a hand-registered client arrives malformed, both refused by
+    the schema so the caller hears about it on submit rather than at consent."""
+
+    @pytest.mark.security
+    def test_a_secret_with_no_client_id_is_refused(self):
+        """`_oauth_start` would register dynamically and overwrite the secret, so
+        the caller would consent against a client they never named."""
+        with pytest.raises(ValidationError) as excinfo:
+            McpOAuthStart(name="hubspot", url="https://srv/mcp", client_secret="operators-secret")
+        assert "client_id" in str(excinfo.value)
+
+    @pytest.mark.security
+    def test_a_truncated_secret_is_refused_at_submission(self):
+        """The repository-wide credential floor: the secret is not used until the
+        callback, so without this a bad paste passes start, takes the operator
+        through consent, and fails the token exchange."""
+        with pytest.raises(ValidationError) as excinfo:
+            McpOAuthStart(
+                name="hubspot", url="https://srv/mcp", client_id="cid", client_secret="short"
+            )
+        assert "at least 8 characters" in str(excinfo.value)
+
+    def test_a_client_id_alone_is_a_public_client_and_is_accepted(self):
+        """PKCE without a secret is a legitimate static client."""
+        start = McpOAuthStart(name="hubspot", url="https://srv/mcp", client_id="cid")
+        assert (start.client_id, start.client_secret) == ("cid", None)
+
+
 class TestOAuthRequestSafety:
     """Discovery lets the remote server choose most of the URLs we call, so
     every hop - redirects included - is checked and then dialled at the address
@@ -3082,11 +3722,13 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         assert "ReadError" in shown
         assert vendor_text in caplog.text
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_unreadable_token_response_does_not_echo_its_input(self, monkeypatch, caplog):
         """A pydantic `ValidationError` echoes the input it rejected, and here
-        that input is the token payload - so a server that names the field
-        wrongly used to have its own tokens read back to the browser."""
+        that input is the token payload - so it reaches neither the browser nor
+        the log. The refusal names the class; the log names the failing field and
+        its error type, never the value (#1626)."""
 
         async def fake_send(client, request):
             return httpx.Response(200, json={"token": "at-secret-9f2c"}, request=request)
@@ -3103,7 +3745,22 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         shown = str(exc_info.value)
         assert "at-secret-9f2c" not in shown
         assert "ValidationError" in shown
-        assert "at-secret-9f2c" in caplog.text
+        # The token must not reach the log, but the failure is still described.
+        assert "at-secret-9f2c" not in caplog.text
+        assert "unreadable token response" in caplog.text
+
+    def test_validation_detail_names_the_field_not_the_value(self):
+        """The sanitized detail says which field failed and how, not what was in it."""
+        with pytest.raises(ValidationError) as exc_info:
+            mcp_oauth.OAuthToken.model_validate_json('{"token": "at-secret-9f2c"}')
+        detail = mcp_oauth._validation_detail(exc_info.value)
+        assert "at-secret-9f2c" not in detail
+        assert "access_token" in detail
+        assert "missing" in detail
+
+    def test_validation_detail_falls_back_to_the_class_for_a_plain_value_error(self):
+        """The caller catches the wider `ValueError`; a non-validation one names its class."""
+        assert mcp_oauth._validation_detail(ValueError("boom")) == "ValueError"
 
 
 class TestAUrlNoRequestCanBeBuiltFor:
@@ -3517,7 +4174,7 @@ class TestGithubPortalOAuth:
         assert payload.authorization_endpoint == github_oauth.AUTHORIZE_ENDPOINT
         assert payload.scope == "repo admin:repo_hook"
         # The secret is sealed in the pending payload, never in a plain column.
-        assert payload.client_secret == "ghsec-42"
+        assert payload.client_secret.get_secret_value() == "ghsec-42"
         assert payload.access_token is None
         assert payload.code_verifier is None  # no PKCE on this flow
 
@@ -3647,7 +4304,7 @@ class TestGithubPortalOAuth:
         payload = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )
-        assert payload.access_token == "gho_live"
+        assert payload.access_token.get_secret_value() == "gho_live"
         # A classic OAuth App token neither refreshes nor expires.
         assert payload.refresh_token is None
         assert payload.expires_at is None
@@ -3833,8 +4490,8 @@ class TestCompletingGooglesFlow:
 
         completed, granted = await _complete_google_flow(payload, "code")
 
-        assert completed.access_token == "at"
-        assert completed.refresh_token == "rt"
+        assert completed.access_token.get_secret_value() == "at"
+        assert completed.refresh_token.get_secret_value() == "rt"
         assert completed.expires_at is not None
         assert granted == ["https://www.googleapis.com/auth/gmail.readonly"]
 

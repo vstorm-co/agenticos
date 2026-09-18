@@ -96,13 +96,14 @@ class TestWhatMayBeStored:
         """
         ours = ConfigurationError(
             message="No embedding credential is configured for the collection's key",
-            details={"setting": "OPENROUTER_API_KEY"},
+            details={"key_origin": "collection 'handbook'"},
         )
 
         assert failure_summary(ours, stage=IngestionStage.INDEX) == (
             "No embedding credential is configured for the collection's key"
         )
 
+    @pytest.mark.security
     def test_a_budget_refusal_keeps_its_numbers(self):
         """`BudgetExceeded` is ours too, and the numbers are the organization's.
 

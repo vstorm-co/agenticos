@@ -104,35 +104,55 @@ def _db():
     db = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mock must await and answer the head read with an empty chain.
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
     return db
 
 
-class TestToolsetConstruction:
-    def test_no_skills_means_no_toolset(self):
-        """Three unusable tools would be context the model reads every turn."""
-        assert Skills(skills=[]).get_toolset() is None
+class TestCatalogConstruction:
+    """Each skill is a deferred capability; only its files are a tool."""
+
+    def test_each_skill_is_a_capability_of_its_own(self):
+        """The model reads the catalog in its own capability list, not in a tool."""
+        catalog = Skills(skills=[_skill(), _skill(name="tone-of-voice")])
+        assert catalog.skill_names == ["refunds", "tone-of-voice"]
+
+    def test_a_skill_carries_its_body_and_is_loaded_on_demand(self):
+        """Names and descriptions up front; the body only once it is asked for."""
+        leaves = []
+        Skills(skills=[_skill()]).apply(leaves.append)
+
+        (skill,) = [leaf for leaf in leaves if leaf.id == "refunds"]
+        assert skill.defer_loading is True
+        assert skill.get_description() == "How refunds are handled."
+        assert "Check the order first." in "".join(skill.get_instructions())
 
     def test_script_execution_is_not_exposed(self):
         """Without a sandbox, run_skill_script is remote code execution."""
-        toolset = Skills(skills=[_skill()]).get_toolset()
+        toolset = Skills(skills=[_skill(resources=[_resource()])]).get_toolset()
         assert toolset is not None
         assert "run_skill_script" not in toolset.tools
         assert set(SAFE_SKILL_TOOLS) == set(toolset.tools)
 
+    def test_skills_with_no_files_carry_no_tool(self):
+        """A tool that could only ever answer "nothing here" is context wasted."""
+        assert Skills(skills=[_skill()]).get_toolset() is None
+
     def test_skills_are_passed_in_memory(self):
         """No temp directory, so no cleanup, no race and no path surface."""
-        toolset = Skills(skills=[_skill(), _skill(name="tone-of-voice")]).get_toolset()
-        assert toolset is not None
-        assert set(toolset.skills) == {"refunds", "tone-of-voice"}
+        catalog = Skills(skills=[_skill(), _skill(name="tone-of-voice")])
+        assert catalog.directories == ()
+        assert catalog.registries == ()
 
     def test_resources_travel_with_their_skill(self):
         resource = MagicMock()
         resource.name = "template.md"
         resource.description = "Reply template"
         resource.content = "Dear {name},"
-        toolset = Skills(skills=[_skill(resources=[resource])]).get_toolset()
-        assert toolset is not None
-        assert toolset.skills["refunds"].resources[0].name == "template.md"
+        catalog = Skills(skills=[_skill(resources=[resource])])
+        assert [file.name for file in catalog.packages["refunds"].resources] == ["template.md"]
 
 
 class TestAgentBinding:
@@ -486,6 +506,21 @@ class TestSkillManagement:
 
         assert list_visible.call_args.kwargs["categories"] == ["devops", "data"]
         assert list_visible.call_args.kwargs["sort"] == "updated"
+
+    def test_a_skill_cannot_take_the_name_of_a_capability(self):
+        """A skill is a deferred capability, filed under its name in the same
+        namespace as `planning` and the rest - so this name could be created and
+        then made any agent that also had that capability unrunnable, refused by
+        the library before the first token (#1704 review)."""
+        import pytest as _pytest
+        from pydantic import ValidationError
+
+        from app.schemas.skill import SkillCreate
+
+        with _pytest.raises(ValidationError):
+            SkillCreate(name="planning", description="d")
+
+        assert SkillCreate(name="refunds", description="d").name == "refunds"
 
     def test_every_suggested_category_is_storable(self):
         """The pickers offer these before an organization invents its own; a

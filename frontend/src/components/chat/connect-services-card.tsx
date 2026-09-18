@@ -9,6 +9,8 @@ import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useMcpCatalog } from "@/hooks/use-mcp-servers";
+import { ROUTES } from "@/lib/constants";
+import { useRouter } from "@/lib/locale-navigation";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { ownAccountStatus } from "@/lib/mcp-servers";
 import type { PersonalServiceGap } from "@/types";
@@ -34,6 +36,7 @@ import type { McpCatalogEntry } from "@/types/mcp";
  */
 export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
   const t = useTranslations("chat.personalServices");
+  const router = useRouter();
   const { servers } = useMcpCatalog();
   const { connections } = useMcpConnections();
   const [dismissed, setDismissed] = useState(false);
@@ -87,12 +90,13 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
               ) : (
                 // A service the catalog no longer describes, or one the person
                 // already holds an account on: the servers page is where that is
-                // put right, and the frame carries the exact page.
+                // put right. Navigated to in the app, so it keeps the viewer's
+                // locale prefix rather than opening a bare path that 404s (#1444).
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => window.open(gap.url, "_blank", "noopener")}
+                  onClick={() => router.push(ROUTES.MCP_SERVERS)}
                 >
                   <ExternalLink className="mr-1 h-3.5 w-3.5" />
                   {t("openServers")}

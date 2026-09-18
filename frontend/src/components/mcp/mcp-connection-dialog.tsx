@@ -16,6 +16,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { McpOAuthClientFields } from "@/components/mcp/mcp-oauth-client-fields";
 import {
   SCOPE_LABEL,
   type ConnectionFormValues,
@@ -23,7 +24,8 @@ import {
   type DraftState,
   type Scope,
 } from "@/components/mcp/mcp-server-list-types";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { slugForPrefix } from "@/lib/mcp-servers";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = [
   { value: "none", labelKey: "authChoiceNone", hintKey: "authNoneHint" },
@@ -65,7 +67,10 @@ export function McpConnectionDialog({
 }: McpConnectionDialogProps) {
   return (
     <Dialog open={draft !== null} onOpenChange={(open) => !open && !submitting && onClose()}>
-      <DialogContent className={DIALOG_FORM}>
+      {/* Scrolls as one piece: with OAuth chosen the form carries a client
+          block under the auth choice, and on a laptop viewport a dialog with
+          no ceiling put "Connect & check" below the fold. */}
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
         {draft !== null && (
           <ConnectionForm
             key={draft.existing?.id ?? draft.row.key}
@@ -97,13 +102,15 @@ function ConnectionForm({
   const t = useTranslations("mcp");
   const [label, setLabel] = useState(draft.existing?.label ?? "");
   const [name, setName] = useState(
-    draft.existing?.name ?? draft.suggestedName ?? draft.row.entry?.key ?? "",
+    draft.existing?.name ?? draft.suggestedName ?? slugForPrefix(draft.row.entry?.key ?? ""),
   );
   const [url, setUrl] = useState(draft.existing?.url ?? draft.row.entry?.url ?? "");
   const [token, setToken] = useState("");
   const [auth, setAuth] = useState<DraftAuth>(() => initialAuth(draft));
   const [clearToken, setClearToken] = useState(false);
   const [scope, setScope] = useState<Scope>(draft.scope);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
 
   // The hint under the radio group. It used to be rendered as the *key* -
   // `authTokenHint` on screen, in every locale (#446).
@@ -244,6 +251,17 @@ function ConnectionForm({
           )}
         </div>
 
+        {auth === "oauth" && draft.existing === null && (
+          // Only for a connection being made: editing saves fields, it does not
+          // start a consent, so a client typed here would go nowhere.
+          <McpOAuthClientFields
+            clientId={clientId}
+            clientSecret={clientSecret}
+            onClientIdChange={setClientId}
+            onClientSecretChange={setClientSecret}
+          />
+        )}
+
         <div className={cn(auth !== "token" && "hidden")}>
           <Label htmlFor="mcp-token">{t("accessToken")}</Label>
           {/* The catalog's own advice for *this* server, which used to sit on
@@ -288,7 +306,9 @@ function ConnectionForm({
           {t("cancel")}
         </Button>
         <Button
-          onClick={() => onSubmit({ label, name, url, token, auth, clearToken, scope })}
+          onClick={() =>
+            onSubmit({ label, name, url, token, auth, clearToken, scope, clientId, clientSecret })
+          }
           disabled={submitting}
           data-tour="mcp-dialog-connect"
         >

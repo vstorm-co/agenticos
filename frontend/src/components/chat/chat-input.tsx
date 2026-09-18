@@ -6,7 +6,7 @@ import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
-import { CHAT_MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
@@ -101,6 +101,7 @@ export function ChatInput({
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
   const tCommands = useTranslations("chat.commands");
+  const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
@@ -271,8 +272,8 @@ export function ChatInput({
   const uploadFiles = useCallback(
     async (files: File[], { pasted = false }: { pasted?: boolean } = {}) => {
       const accepted = files.filter((file) => {
-        if (file.size <= CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024) return true;
-        toast.error(t("fileTooLarge", { file: file.name, max: CHAT_MAX_UPLOAD_SIZE_MB }));
+        if (file.size <= chatMaxUploadSizeMb * 1024 * 1024) return true;
+        toast.error(t("fileTooLarge", { file: file.name, max: chatMaxUploadSizeMb }));
         return false;
       });
       if (accepted.length === 0) return;
@@ -298,7 +299,7 @@ export function ChatInput({
         }
       }
     },
-    [t],
+    [chatMaxUploadSizeMb, t],
   );
 
   /**
@@ -351,7 +352,7 @@ export function ChatInput({
       <FileDropOverlay
         active={isDragging}
         title={t("dropFilesAttach")}
-        hint={t("dropMaxSize", { max: CHAT_MAX_UPLOAD_SIZE_MB })}
+        hint={t("dropMaxSize", { max: chatMaxUploadSizeMb })}
       />
       {showPalette && (
         <SlashCommandPalette

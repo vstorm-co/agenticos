@@ -311,7 +311,7 @@ describe("applyDelegationFrame - what a finished delegation reports", () => {
   it("closes the panel it names and writes what it cost", () => {
     const delegations = fold([
       start("t1"),
-      finished("t1", { cost_usd: 0.0042, input_tokens: 1200, output_tokens: 340 }),
+      finished("t1", { cost_usd: "0.0042", input_tokens: 1200, output_tokens: 340 }),
     ]);
 
     expect(named(delegations, "t1")).toMatchObject({
@@ -478,7 +478,7 @@ describe("resolveAwaitingOnResume - closing a panel the HTTP resume left waiting
   it("touches only panels that were waiting, leaving a finished sibling alone", () => {
     const delegations = fold([
       start("t1", { subagent: "researcher" }),
-      finished("t1", { status: "completed", cost_usd: 0.5 }),
+      finished("t1", { status: "completed", cost_usd: "0.5" }),
       start("t2", { subagent: "writer" }),
       awaiting("t2"),
     ]);

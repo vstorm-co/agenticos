@@ -7,15 +7,16 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
+import { secureCookies } from "@/lib/session-cookie";
 import type { User } from "@/types";
 
 const ACCESS_MAXAGE = 60 * 15; // 15 min
 const REFRESH_MAXAGE = 60 * 60 * 24 * 7; // 7 days
 
-const cookieOpts = (maxAge: number) =>
+const cookieOpts = (request: NextRequest, maxAge: number) =>
   ({
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookies(request),
     sameSite: "lax" as const,
     maxAge,
     path: "/",
@@ -69,9 +70,17 @@ export async function GET(request: NextRequest) {
     );
     const data = await fetchMe(refreshed.access_token, request);
     const response = bffJson({ ...data, access_token: refreshed.access_token });
-    response.cookies.set("access_token", refreshed.access_token, cookieOpts(ACCESS_MAXAGE));
+    response.cookies.set(
+      "access_token",
+      refreshed.access_token,
+      cookieOpts(request, ACCESS_MAXAGE),
+    );
     if (refreshed.refresh_token) {
-      response.cookies.set("refresh_token", refreshed.refresh_token, cookieOpts(REFRESH_MAXAGE));
+      response.cookies.set(
+        "refresh_token",
+        refreshed.refresh_token,
+        cookieOpts(request, REFRESH_MAXAGE),
+      );
     }
     return response;
   } catch (error) {
@@ -84,8 +93,8 @@ export async function GET(request: NextRequest) {
     }
     // Refresh failed → truly logged out. Clear cookies.
     const response = bffRefusal("NOT_AUTHENTICATED", 401);
-    response.cookies.set("access_token", "", cookieOpts(0));
-    response.cookies.set("refresh_token", "", cookieOpts(0));
+    response.cookies.set("access_token", "", cookieOpts(request, 0));
+    response.cookies.set("refresh_token", "", cookieOpts(request, 0));
     return response;
   }
 }

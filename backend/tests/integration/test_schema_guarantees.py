@@ -597,6 +597,7 @@ class TestRunAccounting:
         assert run.agent_version_id is None
         assert run.status == RunStatus.COMPLETED.value
 
+    @pytest.mark.security
     async def test_an_invalid_approval_status_is_rejected(self, db):
         org = await _org(db)
         agent = Agent(

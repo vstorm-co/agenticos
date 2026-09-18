@@ -1,0 +1,35 @@
+[package]
+name = "agenticos-desktop"
+version = "0.1.0"
+description = "The AgenticOS console in a window of its own"
+license = "Apache-2.0"
+repository = "https://github.com/vstorm-co/agenticos"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "agenticos_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri-plugin-deep-link = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-opener = "2"
+# The per-attempt nonce that binds a deep-linked sign-in to the window that
+# started it. Already in the tree through Tauri; declared because this code
+# calls it.
+uuid = { version = "1", features = ["v4"] }
+
+# Desktop only, which is what the plugin supports - and this shell is desktop
+# only anyway. On Windows and Linux a registered scheme starts the executable
+# again, so without this a sign-in callback builds a second console beside the
+# one that is waiting for it.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"

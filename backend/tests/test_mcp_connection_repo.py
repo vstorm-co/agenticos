@@ -198,6 +198,38 @@ class TestGetOrgScopedById:
         assert session.statements[-1].get_execution_options()["populate_existing"] is True
 
 
+class TestGetOrgScopedByIds:
+    async def test_it_keys_the_rows_by_id_under_the_same_two_filters(self):
+        """The batch form of the single read, so a spec resolves its bindings in
+        one query - and carries the same organization and org-scope filters, so a
+        member's personal row or another tenant's is absent from the map (#954)."""
+        organization_id = uuid.uuid4()
+        first, second = _connection(), _connection()
+        session = _RecordingSession(_Result(rows=[first, second]))
+
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            session, connection_ids=[first.id, second.id], organization_id=organization_id
+        )
+
+        assert found == {first.id: first, second.id: second}
+        params = list(_filters(session).values())
+        assert organization_id in params
+        assert "org" in params
+        assert "mcp" in params
+        sql = _sql(session).lower()
+        assert "mcp_connections.id in" in sql
+
+    async def test_an_empty_list_asks_the_database_nothing(self):
+        session = _RecordingSession()
+
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            session, connection_ids=[], organization_id=uuid.uuid4()
+        )
+
+        assert found == {}
+        assert session.statements == []
+
+
 class TestGetByCatalogKey:
     async def test_the_lookup_is_scoped_and_prefers_the_oldest_row(self):
         """The catalog key is the identity the frontend joins a portal to its

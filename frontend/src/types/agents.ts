@@ -63,6 +63,10 @@ export interface CapabilityBindingSpec {
   enabled: boolean;
 }
 
+/** How much of a run its spans carry. `full` is everything; `none` is timing,
+ * tokens, cost and tool names but no message text or tool arguments. */
+export type TraceContent = "full" | "none";
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -70,6 +74,8 @@ export interface ObservabilitySpec {
   /** What the agent is called in Logfire; falls back to the agent's name. */
   service_name?: string | null;
   environment?: string | null;
+  /** How much each span carries; falls back to `full`. */
+  content?: TraceContent | null;
 }
 
 /** The agent's half of the two budget levels; the organization's cap is the other. */
@@ -606,11 +612,10 @@ export interface JsonSchemaProperty {
    * Whether this string is a plain multi-line value - a raw textarea, not the
    * Markdown editor `x-multiline` gets.
    *
-   * The one field kind a capability's own JSON Schema never emits: it is how a
-   * connector's `textarea` config field crosses into this shape through
-   * `connectorConfigToJsonSchema`, so a connector's plain config box is not
-   * mistaken for prose and dressed with a Markdown toolbar. Exclusive with
-   * `x-multiline`.
+   * A connector marks it on its `CONFIG_MODEL` field through Pydantic's
+   * `json_schema_extra`, the way a capability marks a multiline prompt, so a
+   * connector's plain config box is not mistaken for prose and dressed with a
+   * Markdown toolbar. Exclusive with `x-multiline`.
    */
   "x-textarea"?: boolean;
   /**

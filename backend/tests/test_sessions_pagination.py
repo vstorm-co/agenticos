@@ -8,7 +8,7 @@ sitting on a page that no longer exists.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -16,7 +16,7 @@ from uuid import uuid4
 import pytest
 
 from app.repositories import session as session_repo
-from app.services.session import SessionService
+from app.services.session import SessionService, hash_token
 
 pytestmark = pytest.mark.anyio
 
@@ -110,3 +110,89 @@ class TestRepositoryQuery:
         statement = await self._statement()
 
         assert statement._limit_clause is None
+
+
+class TestRotate:
+    """In-place refresh rotation - the row keeps its id so a live token's `sid`
+    stays valid across a refresh (#1501)."""
+
+    async def test_rotate_session_rekeys_in_place_and_moves_provenance(self) -> None:
+        row = MagicMock()
+        with patch.object(session_repo, "rotate", AsyncMock(return_value=row)) as rotate:
+            result = await SessionService(MagicMock()).rotate_session(
+                row, "a-new-refresh-token", ip_address="203.0.113.9", user_agent="Firefox on Linux"
+            )
+
+        assert result is row
+        rotate.assert_awaited_once()
+        kwargs = rotate.await_args.kwargs
+        assert kwargs["session"] is row
+        assert kwargs["refresh_token_hash"] == hash_token("a-new-refresh-token")
+        assert kwargs["expires_at"] > datetime.now(UTC)
+        assert kwargs["ip_address"] == "203.0.113.9"
+        assert kwargs["user_agent"] == "Firefox on Linux"
+        assert kwargs["device_name"] == "Firefox"  # derived from the refreshing UA
+
+    async def test_the_repo_moves_the_hash_window_and_provenance_but_not_the_id(self) -> None:
+        db = MagicMock()
+        db.add = MagicMock()
+        db.flush = AsyncMock()
+        db.refresh = AsyncMock()
+        session_id = uuid4()
+        row = MagicMock(id=session_id)
+        new_expiry = datetime.now(UTC)
+
+        returned = await session_repo.rotate(
+            db,
+            session=row,
+            refresh_token_hash="deadbeef",
+            expires_at=new_expiry,
+            device_name="Chrome",
+            device_type="desktop",
+            ip_address="203.0.113.9",
+            user_agent="Chrome UA",
+        )
+
+        assert returned is row
+        assert row.id == session_id
+        assert row.refresh_token_hash == "deadbeef"
+        assert row.expires_at == new_expiry
+        assert row.ip_address == "203.0.113.9"
+        assert row.device_name == "Chrome"
+        db.flush.assert_awaited_once()
+        db.refresh.assert_awaited_once_with(row)
+
+    async def test_validate_locks_the_row_against_a_concurrent_refresh(self) -> None:
+        """A refresh takes the row `FOR UPDATE`, so a concurrent one bearing the
+        same token serializes behind it rather than both rotating (#1501 review)."""
+        row = MagicMock(impersonator_user_id=None, expires_at=datetime.now(UTC) + timedelta(days=1))
+        with (
+            patch.object(
+                session_repo, "get_by_refresh_token_hash", AsyncMock(return_value=row)
+            ) as get,
+            patch.object(session_repo, "update_last_used", AsyncMock()),
+        ):
+            result = await SessionService(MagicMock()).validate_refresh_token("a-token")
+
+        assert result is row
+        assert get.await_args.kwargs["for_update"] is True
+
+    async def test_the_locked_lookup_selects_for_update(self) -> None:
+        db = MagicMock()
+        result = MagicMock()
+        result.scalar_one_or_none = MagicMock(return_value=None)
+        db.execute = AsyncMock(return_value=result)
+
+        await session_repo.get_by_refresh_token_hash(db, "hash", for_update=True)
+
+        assert db.execute.await_args.args[0]._for_update_arg is not None
+
+    async def test_the_plain_lookup_does_not_lock(self) -> None:
+        db = MagicMock()
+        result = MagicMock()
+        result.scalar_one_or_none = MagicMock(return_value=None)
+        db.execute = AsyncMock(return_value=result)
+
+        await session_repo.get_by_refresh_token_hash(db, "hash")
+
+        assert db.execute.await_args.args[0]._for_update_arg is None

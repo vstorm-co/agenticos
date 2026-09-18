@@ -36,7 +36,6 @@ const PROFILE = {
   model: "gpt-5",
   secret_id: "s-openai",
   params: {},
-  allow_byo: false,
   fallback_profile_ids: [],
 };
 

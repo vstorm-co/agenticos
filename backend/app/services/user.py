@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -32,6 +33,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
     organization_secret_repo,
+    personal_data_repo,
     rag_document_repo,
     session_repo,
     user_repo,
@@ -45,8 +47,9 @@ from app.schemas.user import (
 )
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
-from app.services.file_storage import avatar_filename, get_file_storage
+from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
 from app.services.organization import OrganizationService
+from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
 
 if TYPE_CHECKING:
@@ -336,18 +339,41 @@ class UserService:
             raise AuthenticationError(message="User account is disabled")
         return user
 
-    async def update(self, user_id: UUID, user_in: UserUpdate) -> User:
+    async def update(
+        self, user_id: UUID, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> User:
         user = await self.get_by_id(user_id)
 
         update_data = writable(user_in, over=User)
-        if "password" in update_data:
+        # `password` has no column (the row stores `hashed_password`), so writable
+        # keeps an explicit null rather than dropping it. Popped unconditionally so
+        # a null is a no-op, not a hash of None that reaches bcrypt as a 500 (#1497).
+        new_password = update_data.pop("password", None)
+        password_changed = new_password is not None
+        if password_changed:
             update_data["hashed_password"] = await asyncio.to_thread(
-                get_password_hash, update_data.pop("password")
+                get_password_hash, new_password
             )
+            # Bump the credential version alongside the hash, so a refresh token
+            # minted before this change is refused even if it raced the session
+            # revocation below and its session row survived (#1517).
+            update_data["credential_version"] = user.credential_version + 1
 
-        return await user_repo.update(self.db, db_user=user, update_data=update_data)
+        updated = await user_repo.update(self.db, db_user=user, update_data=update_data)
+        if password_changed:
+            # A changed password revokes the account's other sessions so a stolen
+            # refresh token cannot outlive it (#1439). `current_session_id` spares
+            # the session that made the change; none given - an admin resetting
+            # another account - revokes them all, the safe reading of a change the
+            # holder did not make.
+            await session_repo.deactivate_all_user_sessions(
+                self.db, user_id, except_session_id=current_session_id
+            )
+        return updated
 
-    async def update_current(self, user: User, user_in: UserUpdate) -> User:
+    async def update_current(
+        self, user: User, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> User:
         """A user updating their own row through `/users/me`.
 
         `UserUpdate` carries `is_active`, and this route reaches the same column
@@ -357,12 +383,59 @@ class UserService:
         terminal). A non-admin deactivating their own account only affects
         themselves and an admin can restore it, so the guard is the app admin's
         alone.
+
+        A password is refused here rather than applied: this route proves nothing
+        about the current one, and honouring it would be the bypass the dedicated
+        `/auth/password/change` endpoint exists to close - a stolen access token
+        changing a password without the old one (#1517).
         """
+        if user_in.password is not None:
+            raise BadRequestError(
+                message="Change your password through /auth/password/change, which proves the current one."
+            )
         if user.is_app_admin and user_in.is_active is False:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
-        return await self.update(user.id, user_in)
+        return await self.update(user.id, user_in, current_session_id=current_session_id)
+
+    async def change_password(
+        self, user: User, *, current_password: str, new_password: str
+    ) -> User:
+        """Change a signed-in user's own password, proving they know the current one.
+
+        The proof is what `PATCH /users/me` cannot ask for, and the reason
+        self-service password change is its own endpoint rather than that route: a
+        stolen access token must not be able to change a password without the old
+        one (#1517). The change bumps the credential version and revokes *every*
+        session - the caller's own included, because the `cv` gate would refuse a
+        spared session's stale-version token at its next refresh anyway. The caller
+        keeps their access through the fresh session the route opens at the new
+        version, while every other device is logged out (#1439).
+
+        Returns the updated user so the route can mint that session at the new
+        `credential_version`.
+
+        The user row is locked for the whole change, so two overlapping requests
+        cannot both prove the same old hash and then have the later one overwrite
+        the first, nor both read the same version and lose one of the two bumps -
+        either would leave a session refreshable past a password change (#1517).
+
+        Raises:
+            AuthenticationError: the current password is wrong, or the account
+                signs in through OAuth alone and has no password to change.
+            NotFoundError: the account no longer exists.
+        """
+        locked = await user_repo.get_by_id_for_update(self.db, user.id)
+        if locked is None:
+            raise NotFoundError(message="User not found", details={"user_id": user.id})
+        stored = locked.hashed_password
+        ok = stored is not None and await asyncio.to_thread(
+            verify_password, current_password, stored
+        )
+        if not ok:
+            raise AuthenticationError(message="Current password is incorrect")
+        return await self.update(locked.id, UserUpdate(password=new_password))
 
     async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -389,14 +462,38 @@ class UserService:
             self.db, db_user=user, update_data={"avatar_url": storage_path}
         )
 
-    def get_avatar_path(self, avatar_url: str) -> str | None:
-        full_path = get_file_storage().get_full_path(avatar_url)
-        return str(full_path) if full_path is not None else None
-
     async def delete(self, user_id: UUID) -> User:
+        """Remove the account, what is about the person, and nothing the team owns.
+
+        Three steps, in this order and for reasons each has its own comment:
+        lock, hand on what the organization owns, and only then delete. The
+        purge between the second and the third is what no cascade reaches -
+        agent notes keyed by a string, platform identities the key merely
+        unlinks, and workspaces owned by a string reference (#1421). Inside the
+        same transaction, so a deletion that fails afterwards takes it with it.
+
+        The one thing that cannot be inside it is the files: the bytes under
+        `MEDIA_DIR` are unlinked after the commit, because an unlink a rollback
+        undoes leaves a restored row pointing at nothing.
+        """
         user, locked_heirs = await self._lock_for_delete(user_id)
         await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
+        # Read before the row goes. `chat_files` cascades from `users`, so the
+        # rows naming each upload disappear with the account and the bytes stay
+        # on disk - an erasure that leaves the person's documents where they
+        # were has not erased them, and nothing left can find them afterwards
+        # (#1421).
+        attachments = await personal_data_repo.attachment_paths_of(self.db, user_id)
+        await PersonalDataService(self.db).purge(user_id)
         await user_repo.delete(self.db, user_id)
+        if attachments:
+            # After the commit, for the reason #1293 gives: an unlink undone by
+            # a rollback leaves a restored row pointing at a file that is gone.
+            spawn_after_commit(
+                self.db,
+                delete_files_best_effort(attachments),
+                name="delete-account-attachments",
+            )
         return user
 
     async def _lock_for_delete(self, user_id: UUID) -> tuple[User, frozenset[UUID]]:
@@ -669,7 +766,11 @@ class UserService:
             self.db,
             db_user=user,
             update_data={
-                "hashed_password": await asyncio.to_thread(get_password_hash, new_password)
+                "hashed_password": await asyncio.to_thread(get_password_hash, new_password),
+                # Bumped for the same reason the self-service change bumps it: a
+                # refresh racing the revocation below must not rotate a token
+                # minted before the reset (#1517).
+                "credential_version": user.credential_version + 1,
             },
         )
         # Revoke any active sessions so a previously-issued refresh token cannot

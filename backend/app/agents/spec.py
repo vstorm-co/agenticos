@@ -39,7 +39,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.agents.capabilities import CapabilityBinding, ToolOverride
+from app.agents.capabilities import LOAD_CAPABILITY, CapabilityBinding, ToolOverride
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +66,47 @@ logger = logging.getLogger(__name__)
 # `use_personal_when_available` is withdrawn: it substituted a credential in
 # private conversations only, which left a personal account working in a direct
 # message and silently absent from the channel next to it.
-SPEC_VERSION = 11
+#
+# 12 withdraws two of the `skills` capability's tools. `pydantic-ai-skills` 2.0
+# makes each skill a deferred capability, so the catalog the model reads is its
+# own and `load_capability` opens a skill - which leaves `list_skills` and
+# `load_skill` as names for a mechanism nobody calls. A binding that gated or
+# renamed either is migrated by dropping that entry.
+SPEC_VERSION = 12
 
 ApprovalMode = Literal["default", "required", "never"]
+
+# What a run's traces are allowed to carry. `full` is the default so nothing
+# stored changes behaviour; `none` keeps timing, tokens, cost and tool names but
+# no message text or tool arguments. There is deliberately no `redacted` middle
+# ground: an export a PII filter has been over is a guarantee nobody can audit,
+# because the identifier it missed has already left (#1616).
+TraceContent = Literal["full", "none"]
+
+
+def trace_content_block(content: TraceContent) -> ObservabilitySpec | None:
+    """An observability block that carries a content mode and nothing else.
+
+    What a specialist gets, whether its author wrote it inline or the run's model
+    invented it mid-run. A specialist has no Logfire project of its own and must
+    never be handed the parent's write token, but `content` is not a destination -
+    it is a rule about what may be recorded anywhere, and the run being recorded
+    is the parent's.
+
+    `full` is `None` rather than an empty block: it changes nothing at
+    instrumentation, so writing one into every specialist ever built would be a
+    field that exists to be read as "somebody configured this".
+    """
+    return None if content == "full" else ObservabilitySpec(content=content)
+
 
 _WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
 _THINKING_CAPABILITY = "thinking"
+_SKILLS_CAPABILITY = "skills"
+_LOAD_SKILL = "load_skill"
+_WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
 _THINKING_SETTING = "thinking"
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
@@ -185,6 +218,55 @@ class CapabilityBindingSpec(BaseModel):
                 **(data.get("tool_overrides") or {}),
             },
         }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_the_skills_tools_version_12_withdrew(cls, data: Any) -> Any:
+        """Let a version-11 skills binding load without its withdrawn tools.
+
+        `list_skills` and `load_skill` were this platform's names for a
+        mechanism pydantic-ai now owns: each skill is a deferred capability, and
+        the model reads the catalog in its own capability list and opens one
+        with `load_capability`. Neither name is a tool any more, so a binding
+        that gated or renamed one is refused at publish - which would make every
+        stored spec that did so unpublishable, and a rename of a tool that no
+        longer exists is not a decision worth preserving.
+
+        Dropped rather than refused, and said out loud, for the reason
+        `_MODEL_SETTINGS_WITHDRAWN` is: `extra="forbid"` does not apply to these
+        keys, but publish validation does, and an agent nobody touched should
+        not stop republishing. `read_skill_resource` survives the move and is
+        left exactly as the binding states it.
+        """
+        if not isinstance(data, dict) or data.get("id") != _SKILLS_CAPABILITY:
+            return data
+        migrated = dict(data)
+        for key in ("tool_approval", "tool_overrides"):
+            stated = data.get(key)
+            if not isinstance(stated, dict):
+                continue
+            withdrawn = _WITHDRAWN_SKILL_TOOLS & stated.keys()
+            if not withdrawn:
+                continue
+            kept = {tool_id: value for tool_id, value in stated.items() if tool_id not in withdrawn}
+            # `load_skill`'s *approval* is not a name for a withdrawn mechanism,
+            # it is a decision about whether a person sees a skill being opened
+            # before it is - and `load_capability` opens one now. Dropping it
+            # ungated an agent whose publisher had deliberately gated it, on
+            # every surface including a public embed (#1704 review). The
+            # override is a different matter: it renames a tool that is gone.
+            carried = stated.get(_LOAD_SKILL)
+            if key == "tool_approval" and carried is not None:
+                kept.setdefault(LOAD_CAPABILITY, carried)
+            logger.warning(
+                "Migrating `%s` for skills tools this spec version no longer exposes: %s. "
+                "A skill is opened with `load_capability` now, which is what its approval "
+                "moves to.",
+                key,
+                ", ".join(sorted(withdrawn)),
+            )
+            migrated[key] = kept
+        return migrated
 
     def to_binding(self) -> CapabilityBinding:
         return CapabilityBinding(
@@ -343,7 +425,11 @@ class ObservabilitySpec(BaseModel):
 
     The token is a reference, never a value - like every other credential a spec
     names. A spec is exported as YAML into somebody's repository, and a write
-    token in a checked-in file is a token that has to be rotated.
+    token in a checked-in file is a token that has to be rotated. The reference
+    is checked at publish for existence, tenant and the `logfire` purpose the
+    same way `_check_logfire_secret` gates the environment path: an unusable or
+    wrong-service token there runs the agent untraced, which is far too late to
+    learn it was never reachable.
 
     `organization` and `project` are the other half of that redirection, and they
     are here rather than in deployment settings for the same reason the token is:
@@ -386,6 +472,17 @@ class ObservabilitySpec(BaseModel):
         default=None,
         max_length=64,
         description="Logfire environment - production, staging, a client's name",
+    )
+    content: TraceContent = Field(
+        default="full",
+        description=(
+            "How much of a run each span carries. 'full' records the message, the "
+            "model's output and every tool argument and result; 'none' records "
+            "timing, tokens, cost and tool names only. Default 'full', so an agent "
+            "that says nothing traces as it always did. For a deployment whose runs "
+            "touch health, legal or HR data, 'none' is what keeps a copy of the "
+            "protected content from leaving the machine to the Logfire project."
+        ),
     )
 
 
@@ -758,7 +855,12 @@ class SpecialistSpec(BaseModel):
         """The specialist's capabilities as the registry consumes them."""
         return [capability.to_binding() for capability in self.capabilities]
 
-    def to_agent_spec(self, *, fallback_model_profile_id: UUID | None) -> AgentSpec:
+    def to_agent_spec(
+        self,
+        *,
+        fallback_model_profile_id: UUID | None,
+        trace_content: TraceContent = "full",
+    ) -> AgentSpec:
         """This specialist as the spec the factory already knows how to build.
 
         The one method that keeps "one spec type, one validator, one builder" true
@@ -778,6 +880,17 @@ class SpecialistSpec(BaseModel):
         subagents - so they arrive at their `AgentSpec` defaults: no cap of its
         own (the run's caps bind), no alerts of its own, no Logfire project of its
         own, no connections, and no delegating further.
+
+        `trace_content` is the one part of the parent's observability block that
+        has to come with it, and the caller passes the parent's. A project is a
+        destination and a specialist has none of its own; `content` is a rule
+        about what may be recorded *anywhere*, and the run it is recorded in
+        belongs to the parent. Dropping it left an agent published with
+        `content="none"` exporting its specialist's prompts, outputs and tool
+        arguments to the deployment's own project through the global
+        instrumentation - the guarantee held for the agent and not for the run
+        (#1699). `full` is the default, so a caller with no parent to speak for -
+        promoting a specialist into a draft agent - converts as it always did.
         """
         return AgentSpec(
             name=self.name,
@@ -790,6 +903,7 @@ class SpecialistSpec(BaseModel):
             skill_ids=self.skill_ids,
             context_ids=self.context_ids,
             max_steps=self.max_steps,
+            observability=trace_content_block(trace_content),
         )
 
 
@@ -831,7 +945,14 @@ class AgentSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    spec_version: int = Field(default=SPEC_VERSION)
+    spec_version: int = Field(
+        default=SPEC_VERSION,
+        description=(
+            "Which spec format this document targets. Stamped to the "
+            "deployment's own version on publish, and refused by `from_yaml` "
+            "when it is newer than the deployment understands."
+        ),
+    )
 
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=1000)
@@ -925,6 +1046,18 @@ class AgentSpec(BaseModel):
         default=None,
         description="Send this agent's traces to a Logfire project of its own",
     )
+
+    @property
+    def trace_content(self) -> TraceContent:
+        """How much of a run this agent's spans may carry.
+
+        No block at all means `full`, which is what an agent published before the
+        mode existed asks for. Read here rather than at each call site because
+        every specialist this agent builds inherits it, and a caller that forgets
+        the `None` case silently hands the deployment's global instrumentation a
+        specialist with content on.
+        """
+        return self.observability.content if self.observability else "full"
 
     @model_validator(mode="before")
     @classmethod
@@ -1083,12 +1216,28 @@ class AgentSpec(BaseModel):
     def from_yaml(cls, text: str) -> AgentSpec:
         """Parse a spec written or edited by hand.
 
+        A `spec_version` newer than this deployment understands is refused here
+        rather than accepted because its fields happen to parse: a document from
+        a later deployment can carry constructs a `>`-guarded field cannot see
+        (a binding kind, a capability id) that this code would misread as an
+        older shape. Only imported text is checked - a stored spec is loaded
+        through `model_validate` and is never newer than the code that wrote it,
+        so this refusal cannot make an existing row unreadable.
+
         Raises:
-            ValueError: If the document is not a mapping. Pydantic reports field
+            ValueError: If the document is not a mapping, or targets a spec
+                version newer than `SPEC_VERSION`. Pydantic reports field
                 problems itself, but a list or a bare string reaches it as an
                 unhelpful type error.
         """
         loaded = yaml.safe_load(text)
         if not isinstance(loaded, dict):
             raise ValueError("An agent spec must be a YAML mapping")  # noqa: TRY004
-        return cls.model_validate(loaded)
+        spec = cls.model_validate(loaded)
+        if spec.spec_version > SPEC_VERSION:
+            raise ValueError(
+                f"This spec targets version {spec.spec_version}, newer than this "
+                f"deployment understands (spec version {SPEC_VERSION}). Export it "
+                "from a matching deployment, or upgrade this one."
+            )
+        return spec

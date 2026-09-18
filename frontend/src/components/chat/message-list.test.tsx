@@ -388,7 +388,7 @@ describe("where a turn's time and cost belong", () => {
   const USAGE = {
     input_tokens: 6603,
     output_tokens: 189,
-    cost_usd: 0.0133,
+    cost_usd: "0.0133",
     cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
@@ -422,7 +422,7 @@ describe("where a turn's time and cost belong", () => {
   });
 
   it("prefers the last figure in the turn, which is the run's total by then", () => {
-    const later = { ...USAGE, cost_usd: 0.0201 };
+    const later = { ...USAGE, cost_usd: "0.0201" };
     const messages = [
       message({ id: "a", runId: "r-9", usage: USAGE }),
       message({ id: "b", runId: "r-9", usage: later }),

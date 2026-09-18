@@ -34,6 +34,14 @@ async def test_smtp_is_selected_by_name(monkeypatch):
     assert isinstance(get_email_provider(), SMTPProvider)
 
 
+async def test_smtp_carries_the_configured_tls_mode(monkeypatch):
+    monkeypatch.setattr("app.services.email.settings.EMAIL_PROVIDER", "smtp")
+    monkeypatch.setattr("app.services.email.settings.SMTP_TLS_MODE", "implicit")
+    provider = get_email_provider()
+    assert isinstance(provider, SMTPProvider)
+    assert provider.tls_mode == "implicit"
+
+
 async def test_the_log_provider_honours_the_write_to_disk_setting(monkeypatch, tmp_path):
     monkeypatch.setattr("app.services.email.settings.EMAIL_PROVIDER", "log")
     monkeypatch.setattr("app.services.email.settings.LOG_PROVIDER_WRITE_TO_DISK", True)

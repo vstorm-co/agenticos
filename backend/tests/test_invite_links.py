@@ -144,6 +144,13 @@ class TestRoleOffered:
         assert InviteLinkCreate(role=role).role == role
         assert InvitationCreate(email="new@acme.com", role=role).role == role
 
+    def test_an_over_length_email_is_refused_at_the_schema_not_the_database(self):
+        """`InvitationCreate.email` carries the `max_length=255` its `UserCreate`
+        sibling does, so an over-length address is a 422, not a 500 the column
+        length raises after the row is on its way to the database (#545)."""
+        with pytest.raises(ValidationError):
+            InvitationCreate(email="a" * 250 + "@example.com")
+
 
 class TestAccepting:
     async def _accept(self, invite, user):

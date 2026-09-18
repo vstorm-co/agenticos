@@ -3,7 +3,7 @@
 The connectors decide what is wrong; what is asserted here is how the answer
 *arrives*. `validate_config` used to answer `tuple[bool, str | None]`, so a
 refusal that knew which field it was about lost that on the way out and the
-sync-source wizard - which draws one input per `CONFIG_SCHEMA` entry - marked
+sync-source wizard - which draws one input per `CONFIG_MODEL` field - marked
 none of them (#897).
 
 The sync-source service is the real one; only the session, Redis and the

@@ -38,7 +38,6 @@ listing, which is why the stream was not worth rebuilding.
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.api.deps import (
     Auth,
@@ -53,7 +52,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
-from app.core.config import settings
+from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.rag import (
@@ -95,18 +94,17 @@ async def list_embedding_models() -> Any:
     Deployment description, like `/supported-formats`: the list feeds the
     create-collection form and the one that moves an existing collection to
     another provider, and hardcoding it in the client is how the form and the
-    build drift apart. The defaults are named so the form can preselect what an
-    untouched deployment would use.
+    build drift apart. There is no deployment default in it: the model, the
+    provider and what pays - a vault key, or a local service for a keyless
+    provider - are the collection's own choice, every time.
     """
     return {
-        "default": settings.EMBEDDING_MODEL,
-        "default_provider": embedding_providers.deployment_provider().provider,
         "providers": [
             {
                 "provider": entry.provider,
                 "name": entry.name,
                 "models": [{"model": model.model, "dim": model.dim} for model in entry.models],
-                "deployment_key": entry.deployment_key,
+                "keyless": entry.keyless,
             }
             for entry in embedding_providers.providers()
         ],
@@ -143,7 +141,8 @@ async def list_collections(access: CollectionAccessSvc, ctx: Auth) -> Any:
     after the first document is ingested) still appears here, and dropping a
     collection here removes the KB too.
     """
-    return RAGCollectionList(items=await access.readable_names(ctx))
+    names = await access.readable_names(ctx)
+    return RAGCollectionList(items=names, total=len(names))
 
 
 @router.post(
@@ -386,16 +385,19 @@ async def download_rag_document(
 ) -> Any:
     """Download the original file for a tracked document."""
     doc = await access.readable_document(ctx, doc_id)
-    file_path, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
-    return FileResponse(
-        path=file_path,
-        filename=filename,
+    stored, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
+    response = await stored_file_response(
+        stored,
         media_type=mime_type,
+        attachment_name=filename,
         # The BFF forwards this rather than inventing one, which is why it is here:
         # a stored document does not change, and re-downloading it every time the
         # viewer is opened is a round trip for bytes the browser already has.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+    if response is None:
+        raise NotFoundError(message="File not found on disk")
+    return response
 
 
 @router.delete(

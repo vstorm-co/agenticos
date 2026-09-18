@@ -71,6 +71,7 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
     is_enabled: true,
     auth_type: "oauth",
     oauth_authorized: true,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
@@ -135,7 +136,9 @@ describe("YourConnections", () => {
   });
 
   it("says when the chosen account no longer authorizes", () => {
-    state.connections = [own({ oauth_authorized: false })];
+    // The server decides usability now; the client reads `authorized` rather than
+    // re-deriving it from OAuth consent alone (#1443).
+    state.connections = [own({ oauth_authorized: false, authorized: false })];
     render(<YourConnections />);
 
     expect(screen.getByText("Needs authorizing again")).toBeInTheDocument();

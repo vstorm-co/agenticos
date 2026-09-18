@@ -196,12 +196,12 @@ class StatsService:
         )
         total = current.total
 
-        day_rows = {
-            row[0]: row
-            for row in await agent_run_repo.runs_by_day(
-                self.db, organization_id=org, start=window.start, end=window.end, where=where
-            )
-        }
+        # Day, surface, status, model and provider grouped the same window's same
+        # rows five ways; one GROUPING SETS scan reads them together (#949).
+        breakdown = await agent_run_repo.window_breakdown(
+            self.db, organization_id=org, start=window.start, end=window.end, where=where
+        )
+        day_rows = {row[0]: row for row in breakdown.by_day}
         by_day = [
             DayCount(
                 date=day,
@@ -213,38 +213,12 @@ class StatsService:
         ]
 
         by_surface = [
-            SurfaceCount(surface=value or "", runs=runs)
-            for value, runs in await agent_run_repo.runs_by_dimension(
-                self.db,
-                organization_id=org,
-                start=window.start,
-                end=window.end,
-                dimension="surface",
-                where=where,
-            )
+            SurfaceCount(surface=value or "", runs=runs) for value, runs in breakdown.by_surface
         ]
         by_status = [
-            StatusCount(status=value or "", runs=runs)
-            for value, runs in await agent_run_repo.runs_by_dimension(
-                self.db,
-                organization_id=org,
-                start=window.start,
-                end=window.end,
-                dimension="status",
-                where=where,
-            )
+            StatusCount(status=value or "", runs=runs) for value, runs in breakdown.by_status
         ]
-        by_model = [
-            ModelCount(model_label=value, runs=runs)
-            for value, runs in await agent_run_repo.runs_by_dimension(
-                self.db,
-                organization_id=org,
-                start=window.start,
-                end=window.end,
-                dimension="model",
-                where=where,
-            )
-        ]
+        by_model = [ModelCount(model_label=value, runs=runs) for value, runs in breakdown.by_model]
         by_agent = [
             AgentCount(agent_id=agent_id, name=name, runs=runs)
             for agent_id, name, runs in await agent_run_repo.runs_by_agent(
@@ -285,13 +259,7 @@ class StatsService:
             ingestion_usd=ingestion_usd,
             by_provider=[
                 ProviderCost(provider=provider, cost_usd=cost_usd)
-                for provider, cost_usd in await agent_run_repo.cost_by_provider_window(
-                    self.db,
-                    organization_id=org,
-                    start=window.start,
-                    end=window.end,
-                    where=where,
-                )
+                for provider, cost_usd in breakdown.by_provider
             ],
         )
 

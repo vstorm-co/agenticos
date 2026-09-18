@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgenticOS pet</title>
+    <link rel="stylesheet" href="pet.css" />
+  </head>
+  <body>
+    <div id="head">
+      <button id="new-chat" type="button" title="Open the console on a new chat">+ New chat</button>
+      <div id="bubble" role="status"></div>
+    </div>
+    <canvas
+      id="pet"
+      aria-label="Your AgenticOS pet. Drag to move, click to wave, double-click to open the console, right-click for its menu."
+    ></canvas>
+    <script type="module" src="pet.js"></script>
+  </body>
+</html>

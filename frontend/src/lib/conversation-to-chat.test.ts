@@ -183,6 +183,31 @@ describe("a replayed turn that stopped to ask the person a question", () => {
       ["text", "Deploying to eu-west-1."],
     ]);
   });
+
+  it("carries which delegate asked, where one did (#1042)", () => {
+    const message = conversationMessageToChatMessage(
+      raw({
+        parts: [
+          {
+            type: "ask_user",
+            question: "Which region?",
+            answer: "eu-west-1",
+            asked_by: "deployer",
+          },
+        ],
+      }),
+    );
+
+    expect(message.parts?.[0]?.askedBy).toBe("deployer");
+  });
+
+  it("leaves it unset for a question the main agent asked itself", () => {
+    const message = conversationMessageToChatMessage(
+      raw({ parts: [{ type: "ask_user", question: "Which region?", answer: "eu-west-1" }] }),
+    );
+
+    expect(message.parts?.[0]?.askedBy).toBeUndefined();
+  });
 });
 
 describe("conversationMessagesToChatMessages", () => {
@@ -212,7 +237,7 @@ describe("what a stored message says it cost", () => {
     expect(message.usage).toMatchObject({
       input_tokens: 4055,
       output_tokens: 24,
-      cost_usd: 0.0012,
+      cost_usd: "0.001200",
     });
   });
 

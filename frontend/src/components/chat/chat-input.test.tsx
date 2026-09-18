@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { ChatInput } from "./chat-input";
+import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import type { FileUploadResponse } from "@/lib/file-api";
-import { CHAT_MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
 
 const state = vi.hoisted(() => ({
   upload: vi.fn<(file: File) => Promise<FileUploadResponse>>(),
@@ -37,6 +38,7 @@ function uploaded(overrides: Partial<FileUploadResponse> = {}): FileUploadRespon
 }
 
 const LONG = "x".repeat(50_000);
+const CHAT_MAX_UPLOAD_SIZE_MB = DEFAULT_PUBLIC_CONFIG.chatMaxUploadSizeMb;
 
 beforeEach(() => {
   state.upload.mockReset();
@@ -197,5 +199,24 @@ describe("ChatInput attachments", () => {
 
     expect(await screen.findByText("atlimit.csv")).toBeVisible();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("takes the ceiling from the deployment, not from the build (#1544)", async () => {
+    // One published image serves every deployment, so the number the composer
+    // refuses at is the running server's `CHAT_MAX_UPLOAD_SIZE_MB`, handed down
+    // through the public-config context rather than inlined at build time.
+    const { container } = render(
+      <PublicConfigProvider config={{ ...DEFAULT_PUBLIC_CONFIG, chatMaxUploadSizeMb: 1 }}>
+        <ChatInput onSend={vi.fn()} />
+      </PublicConfigProvider>,
+    );
+
+    await userEvent.upload(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File([new Uint8Array(1024 * 1024 + 1)], "export.csv", { type: "text/csv" }),
+    );
+
+    expect(toast.error).toHaveBeenCalledWith("export.csv: File too large. Maximum 1MB.");
+    expect(state.upload).not.toHaveBeenCalled();
   });
 });

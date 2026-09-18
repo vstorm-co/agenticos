@@ -23,7 +23,7 @@ from app.db.models.agent_run import ApprovalStatus, RunStatus
 from app.services.approvals import ApprovalService
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def _db() -> MagicMock:

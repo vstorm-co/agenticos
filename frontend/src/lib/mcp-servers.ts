@@ -107,8 +107,11 @@ export function entryForConnection(
  */
 export function connectionState(connection: McpConnectionRecord | null): McpConnectionState {
   if (!connection) return "not-connected";
-  if (connection.auth_type === "oauth" && !connection.oauth_authorized)
-    return "needs-authorization";
+  // The server's own answer to whether the credential can be used, so every
+  // surface that renders a connection agrees with `ownAccountStatus` and the run
+  // rather than re-deriving it from OAuth consent alone - a bearer token a key
+  // rotation orphaned needs authorizing again too, not only an OAuth grant (#1443).
+  if (!connection.authorized) return "needs-authorization";
   if (!connection.is_enabled) return "disabled";
   if (connection.last_status === "error") return "error";
   return "connected";
@@ -161,6 +164,28 @@ export const CUSTOM_CATEGORY = "custom";
 /** Whether this row is one somebody here vouched for. */
 export function isReviewed(row: McpServerRow): boolean {
   return row.entry?.reviewed !== false;
+}
+
+/**
+ * A valid tool-prefix seed from a catalog key.
+ *
+ * The prefilled prefix becomes the tool name the model reads, and the backend's
+ * `NAME_PATTERN` (`^[a-z0-9][a-z0-9-]{0,31}$`) refuses a namespace - so seeding
+ * the field with a key like `com.snitcher/snitcher` made a submit that could
+ * never pass, while `hubspot` happened to be its own name and worked (#1628).
+ * Take the segment after the last `/` - the name, not the namespace it lives in -
+ * lower-case it, reduce every other run of characters to a single hyphen, and
+ * bound it to the pattern's 32. A key with nothing usable in it seeds the empty
+ * string, which leaves the field blank rather than prefilling a refusal.
+ */
+export function slugForPrefix(key: string): string {
+  const name = key.slice(key.lastIndexOf("/") + 1);
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, 32)
+    .replace(/-+$/, "");
 }
 
 /**
@@ -329,12 +354,14 @@ export function mergeServers(
  * Whether this person can speak to a catalog service through an account of
  * their own, as a binding to each person's own account would find it.
  *
- * The same rule the run applies (`_nominated` on the backend): one enabled
- * connection needs no choosing, several answer only the one marked default, and
- * several with none marked are `undecided` rather than guessed between. A chosen
- * OAuth connection whose grant is gone is `unauthorized` - the account exists,
- * the credential behind it does not. A failed health check is not that: the
- * run still sends the token it holds, so the row reads connected.
+ * Which connection answers is a pure reading of the list, the same choice
+ * `_nominated` makes on the backend: one enabled connection needs no choosing,
+ * several answer only the one marked default, and several with none marked are
+ * `undecided`. Whether that connection's credential is usable is **not** re-derived
+ * here - it is the server's `authorized`, so a chosen connection reads the same
+ * `connected`/`unauthorized` the run reports. A bearer token the deployment can no
+ * longer unseal used to read connected because the client only knew about OAuth
+ * consent (#1443).
  */
 export function ownAccountStatus(
   catalogKey: string,
@@ -346,5 +373,5 @@ export function ownAccountStatus(
   if (mine.length === 0) return "not_connected";
   const chosen = mine.length === 1 ? mine[0] : mine.find((one) => one.is_default);
   if (chosen === undefined) return "undecided";
-  return connectionState(chosen) === "needs-authorization" ? "unauthorized" : "connected";
+  return chosen.authorized ? "connected" : "unauthorized";
 }

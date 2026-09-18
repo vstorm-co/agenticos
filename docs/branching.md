@@ -10,6 +10,14 @@ feat/… fix/… ──pull request──▶ main
 Everything reaching it does so as a squashed commit from a short-lived branch,
 after CI has run on the pull request.
 
+A push to `main` and a `v*` tag each also publish the two container images -
+`ghcr.io/vstorm-co/agenticos-backend` and `-frontend`, `edge` and `sha-<short>`
+from the branch, the version and `latest` from the tag - through
+`.github/workflows/images.yml`. It has no pull-request trigger, so a fork cannot
+publish under the organization's name, and it refuses a commit that is not on
+`main`, so a tag pushed from a branch cannot move `latest` either;
+[Deploy](deploy.md#the-images) says what pulls them.
+
 There is no `dev`. There was, briefly: work landed there and reached `main` in
 release pull requests. At this size it bought a staging branch nobody needed and
 cost a second place for every change to sit, so it was removed.
@@ -20,6 +28,7 @@ cost a second place for every change to sit, so it was removed.
 |---|---|
 | No direct push to `main` | Ruleset — a pull request is required |
 | CI green before merge | Required status checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| No new code-scanning alert merged | Code-scanning merge protection on the ruleset. **Not** the `analyze` jobs' own status, which is green whatever the analysis found — see [CodeQL](#codeql-runs-on-the-pull-request) below |
 | Squash on merge | Ruleset — the only allowed merge method |
 | Conversations resolved | Ruleset |
 | Stale approvals dismissed on a new push | Ruleset |
@@ -125,12 +134,36 @@ produces no evidence that it did not, so nothing about a run can reveal the
 regression. The same file asserts the other property no run can show — that every
 job bounds its own runtime, below.
 
-Two limits worth stating plainly. **A green stacked pull request was checked against
+One limit worth stating plainly: **a green stacked pull request was checked against
 its parent, not against `main`** — checks belong to a head commit, so retargeting
 carries the old result forward unchanged; that is inherent to stacking rather than
-something a trigger can fix, and it is a reason to keep stacks short. And **CodeQL is
-not configured here**: it runs from GitHub's default setup, whose triggers are not in
-this repository, so whether it reads a stacked pull request is not ours to decide.
+something a trigger can fix, and it is a reason to keep stacks short.
+
+### CodeQL runs on the pull request
+
+CodeQL used to be the second limit here. It ran from GitHub's default setup on a weekly
+schedule, whose triggers were not in this repository, so a finding arrived on `main`
+after the merge that introduced it. `.github/workflows/codeql.yml` replaces that
+([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): the analysis runs on
+the pull request, on the same trigger as everything else here, and the weekly full
+run is kept for the query packs that update between merges.
+
+Two repository settings go with the workflow, and it can make neither. The first is
+that default setup has to be switched off — GitHub refuses an advanced upload while
+it is configured, so the two cannot coexist:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
+
+The second is what actually refuses a merge. **A green `analyze` job means the
+analysis ran, not that it found nothing**: `codeql-action/analyze` uploads its
+results and exits 0 whatever is in them. Blocking the pull request is
+[code scanning merge protection](https://docs.github.com/en/code-security/code-scanning/managing-code-scanning-alerts/about-code-scanning-alerts),
+a rule on `main`'s ruleset beside the six required status checks, configured with a
+tool and a severity threshold. Without it the alert is visible on the pull request
+and in the Security tab, and nothing stops the merge — which is where this repository
+was before, only slower.
 
 ### Every job bounds its own runtime
 

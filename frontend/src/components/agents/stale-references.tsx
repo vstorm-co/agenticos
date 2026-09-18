@@ -19,6 +19,13 @@ interface StaleReferencesProps {
   skillTotal: number;
   connections: Row[];
   catalog: { key: string }[];
+  /**
+   * Whether every list the check consults has answered. Each of them defaults to
+   * `[]` while its query loads, and an absent list is indistinguishable from an
+   * empty one - so a reference is checked against the whole set only once it is
+   * whole, never against a list that is merely still loading.
+   */
+  loaded: boolean;
   /** The spec with the stale references taken out, for the caller to save. */
   onRemove: (changes: Partial<AgentSpec>) => void;
   disabled?: boolean;
@@ -45,6 +52,9 @@ export function staleReferences(
   spec: AgentSpec,
   known: Omit<StaleReferencesProps, "spec" | "onRemove" | "disabled">,
 ): StaleReferenceSet {
+  if (!known.loaded) {
+    return { collection_ids: [], context_ids: [], skill_ids: [], mcp_servers: [] };
+  }
   const collections = new Set(known.collections.map((one) => one.id));
   const contextFiles = new Set(known.contextFiles.map((one) => one.id));
   const skills = new Set(known.skills.map((one) => one.id));

@@ -13,6 +13,8 @@ from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_mcp_connections
 from app.api.routes.v1 import org_mcp_connections
+from app.api.routes.v1 import local_services
+from app.api.routes.v1 import ml as ml_services
 from app.api.routes.v1 import sandbox_connections
 from app.api.routes.v1 import agent
 from app.api.routes.v1 import rag
@@ -47,6 +49,7 @@ from app.api.routes.v1.invitations import (
 from app.api.routes.v1 import knowledge_bases
 from app.api.routes.v1 import me_slash_commands
 from app.api.routes.v1 import me_dashboard_layout
+from app.api.routes.v1 import me_personal_data
 from app.api.routes.v1 import admin_stats
 from app.api.routes.v1 import admin_deployment_settings
 from app.api.routes.v1 import branding
@@ -64,6 +67,7 @@ v1_router.include_router(audit.router, tags=["audit"])
 v1_router.include_router(model_providers.router, prefix="/providers", tags=["providers"])
 v1_router.include_router(catalog_icons.router, prefix="/catalog", tags=["catalog"])
 v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])
+v1_router.include_router(ml_services.router, prefix="/ml", tags=["ml-services"])
 v1_router.include_router(agent_registry.router, prefix="/agents", tags=["agents"])
 v1_router.include_router(agent_environments.router, prefix="/agents", tags=["agents:environments"])
 v1_router.include_router(agent_exposures.router, prefix="/agents", tags=["agents:exposures"])
@@ -102,6 +106,7 @@ v1_router.include_router(
 v1_router.include_router(
     sandbox_connections.router, prefix="/sandbox-connections", tags=["sandbox-connections"]
 )
+v1_router.include_router(local_services.router, prefix="/local-services", tags=["local-services"])
 v1_router.include_router(
     agent_workspaces.router, prefix="/sandbox-workspaces", tags=["sandbox-workspaces"]
 )
@@ -145,6 +150,7 @@ v1_router.include_router(knowledge_bases.router, prefix="/kb", tags=["knowledge-
 v1_router.include_router(
     me_slash_commands.router, prefix="/me/slash-commands", tags=["me:slash-commands"]
 )
+v1_router.include_router(me_personal_data.router, prefix="/me/data", tags=["me:data"])
 v1_router.include_router(
     me_dashboard_layout.router, prefix="/me/dashboard-layout", tags=["me:dashboard-layout"]
 )

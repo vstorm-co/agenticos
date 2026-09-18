@@ -1,43 +1,45 @@
 "use client";
 
-import { BACKEND_URL } from "@/lib/constants";
+import { INVITATION_FLOW_PARAM, invitationFlowFrom } from "@/lib/invitation-links";
 import { rememberReturnTo } from "@/lib/oauth-return";
 
+import { KeyRound } from "lucide-react";
+
 import { GlyphIcon } from "@/components/icons/glyph";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { AUTH_GLYPHS, type AuthProvider } from "@/lib/auth-glyphs.generated";
+import type { SignInProvider } from "@/lib/public-config";
 
 import { useTranslations } from "next-intl";
-type Provider = AuthProvider;
 
-/** Catalog keys, per provider and per variant. */
-const PROVIDER_WORDS: Record<Provider, string> = {
-  google: "Google",
-  github: "Github",
-  microsoft: "Microsoft",
+type Variant = "signin" | "signup";
+
+/**
+ * Catalog keys, per provider and per variant.
+ *
+ * Written out rather than built from the provider name: "Continue with Google"
+ * is a sentence somebody wrote, and a key assembled at runtime is a key the i18n
+ * guard cannot see anybody reading.
+ */
+const PROVIDER_KEYS: Record<AuthProvider, Record<Variant, string>> = {
+  google: { signin: "continueWithGoogle", signup: "signUpWithGoogle" },
+  github: { signin: "continueWithGithub", signup: "signUpWithGithub" },
+  microsoft: { signin: "continueWithMicrosoft", signup: "signUpWithMicrosoft" },
 };
 
-function readProviders(): Provider[] {
-  const raw = process.env.NEXT_PUBLIC_OAUTH_PROVIDERS;
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((p) => p.trim().toLowerCase())
-    .filter((p): p is Provider => p === "google" || p === "github" || p === "microsoft");
+/** The generic provider's, which take its name as a parameter. */
+const GENERIC_KEYS: Record<Variant, string> = {
+  signin: "continueWithProvider",
+  signup: "signUpWithProvider",
+};
+
+function isBranded(provider: SignInProvider): provider is AuthProvider {
+  return provider !== "oidc";
 }
 
 interface OAuthButtonsProps {
   /** Override label suffix when used in register page. */
-  variant?: "signin" | "signup";
-  /**
-   * The invitation this page was reached with, carried to the provider.
-   *
-   * On an `invite_only` deployment the token is what admits an address nothing else
-   * recognises - a shareable link constraining neither an address nor a domain -
-   * and without it the provider button refused exactly the people the link was
-   * posted for, while the password form beside it accepted them. The backend takes
-   * it off the query here and holds it in the session across the round trip.
-   */
-  invitation?: string | null;
+  variant?: Variant;
   /**
    * Where the visitor was headed. Written to `sessionStorage` as the button is
    * clicked rather than sent to the provider: the trip starts and ends in this
@@ -46,23 +48,31 @@ interface OAuthButtonsProps {
   returnTo?: string | null;
 }
 
-function OAuthButtons({ variant = "signin", invitation, returnTo }: OAuthButtonsProps) {
+function OAuthButtons({ variant = "signin", returnTo }: OAuthButtonsProps) {
   const t = useTranslations("auth");
-  const providers = readProviders();
-  if (providers.length === 0) return null;
-
-  const query = new URLSearchParams();
-  if (invitation) query.set("invitation", invitation);
-  const search = query.size > 0 ? `?${query.toString()}` : "";
+  const { oauthProviders: providers, oidcDisplayName, oidcIcon } = usePublicConfig();
+  // A same-origin start, so a staged invitation's httpOnly handle is attached
+  // server-side before the cross-origin hop to the provider (#1414): the token is
+  // never in this URL, only the flow naming which staging's cookie to attach, and
+  // an `invite_only` link still admits its holder.
+  const flow = invitationFlowFrom(returnTo);
 
   return (
     <div className="space-y-2.5">
       {providers.map((provider) => {
-        const url = `${BACKEND_URL}/api/v1/oauth/${provider}/login${search}`;
-        const label =
-          variant === "signup"
-            ? t(`signUpWith${PROVIDER_WORDS[provider]}`)
-            : t(`continueWith${PROVIDER_WORDS[provider]}`);
+        const url = flow
+          ? `/api/oauth/${provider}/login?${INVITATION_FLOW_PARAM}=${flow}`
+          : `/api/oauth/${provider}/login`;
+        // A generic provider has no name of its own, so the deployment supplies
+        // one and the label is built around it. The branded three keep their own
+        // catalog entries: "Continue with Google" is a sentence somebody wrote,
+        // not a template that happened to produce the same words.
+        const label = isBranded(provider)
+          ? t(PROVIDER_KEYS[provider][variant])
+          : t(GENERIC_KEYS[variant], { provider: oidcDisplayName });
+        const glyph = isBranded(provider)
+          ? AUTH_GLYPHS[provider]
+          : oidcIcon && AUTH_GLYPHS[oidcIcon];
         return (
           <a
             key={provider}
@@ -72,7 +82,11 @@ function OAuthButtons({ variant = "signin", invitation, returnTo }: OAuthButtons
             onClick={() => rememberReturnTo(returnTo)}
             className="border-foreground/15 hover:border-foreground/40 hover:bg-foreground/[0.03] text-foreground inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border px-5 text-sm font-medium transition-colors"
           >
-            <GlyphIcon glyph={AUTH_GLYPHS[provider]} className="h-4 w-4" aria-hidden />
+            {glyph ? (
+              <GlyphIcon glyph={glyph} className="h-4 w-4" aria-hidden />
+            ) : (
+              <KeyRound className="h-4 w-4" aria-hidden />
+            )}
             {label}
           </a>
         );
@@ -84,19 +98,18 @@ function OAuthButtons({ variant = "signin", invitation, returnTo }: OAuthButtons
 export function OAuthBlock({
   label,
   variant,
-  invitation,
   returnTo,
 }: {
   label: string;
-  variant?: "signin" | "signup";
-  invitation?: string | null;
+  variant?: Variant;
   returnTo?: string | null;
 }) {
-  if (!process.env.NEXT_PUBLIC_OAUTH_PROVIDERS) return null;
+  const { oauthProviders } = usePublicConfig();
+  if (oauthProviders.length === 0) return null;
   return (
     <div className="space-y-5">
       <OAuthDivider label={label} />
-      <OAuthButtons variant={variant} invitation={invitation} returnTo={returnTo} />
+      <OAuthButtons variant={variant} returnTo={returnTo} />
     </div>
   );
 }

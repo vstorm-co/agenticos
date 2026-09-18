@@ -119,6 +119,11 @@ export interface MessagePart {
   question?: string;
   /** What the person answered, for an "ask_user" part. */
   answer?: string;
+  /**
+   * Which delegate asked, for an "ask_user" part. Absent where the main agent
+   * asked it itself, and on every question stored before the field existed.
+   */
+  askedBy?: string;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -218,7 +223,8 @@ export type WSEventType =
 export interface TurnUsage {
   input_tokens: number;
   output_tokens: number;
-  cost_usd: number;
+  /** The turn's cost as a Decimal string, the shape every REST surface uses. */
+  cost_usd: string;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
@@ -463,8 +469,8 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
   status: "completed" | "failed" | "cancelled";
   /** Present for a delegation to a published agent, which gets a run row. */
   run_id: string | null;
-  /** What this delegation added to the parent run's ledger, as a number. */
-  cost_usd: number | null;
+  /** What this delegation added to the parent run's ledger, as a Decimal string. */
+  cost_usd: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
   error: string | null;
@@ -584,15 +590,14 @@ export type PersonalServiceGapKind =
  * One of the agent's personal MCP services this person cannot reach yet.
  *
  * Sent once per turn, before the model answers, as `personal_services_unavailable`.
- * `url` is the servers page with `?connect=<key>` for a service they have not
- * connected, and the bare page for one they have - several accounts with no
- * default, or a grant that no longer authorizes. Not persisted: it is true of this
- * person at this moment, not of the transcript.
+ * The catalog key rather than a built URL: the card resolves the catalog entry
+ * itself and navigates in the app, so the link keeps the viewer's locale prefix
+ * instead of quoting a path a runner had no way to build. Not persisted: it is
+ * true of this person at this moment, not of the transcript.
  */
 export interface PersonalServiceGap {
   catalog_key: string;
   /** As the catalog names it; the key where the catalog no longer holds it. */
   name: string;
   gap: PersonalServiceGapKind;
-  url: string;
 }

@@ -29,14 +29,20 @@ from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
+from app.agents.capabilities import (
+    FRAMEWORK_TOOL_NAMES,
+    TOOL_NAME_PATTERN,
+    CapabilityDef,
+    all_capabilities,
+)
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.mcp import tool_prefix
+from app.agents.mcp import prefix_collisions
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     BudgetSpec,
     CapabilityBindingSpec,
@@ -283,6 +289,22 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
     if clashing:
         problems.append(
             f"Capability '{binding.id}' would offer two tools called {', '.join(clashing)}"
+        )
+
+    # The count above only sees this capability's own tools, and the framework
+    # adds its own beside them: a run with any deferred capability carries
+    # `load_capability`, so a *rename* onto that name is a duplicate Pydantic AI
+    # refuses mid-turn rather than a collision this loop can see. Renames only -
+    # `skills` declares `load_capability` itself, because that call is where an
+    # approval on opening a skill has to sit.
+    taken = sorted(
+        {override.name for override in binding.tool_overrides.values() if override.name is not None}
+        & FRAMEWORK_TOOL_NAMES
+    )
+    if taken:
+        problems.append(
+            f"Capability '{binding.id}' renames a tool to {', '.join(taken)}, which the "
+            "framework provides itself - two tools of that name abort the turn"
         )
 
     return problems
@@ -1185,6 +1207,7 @@ class AgentRegistryService:
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
+        problems.add(await self._observability_problems(ctx, spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1266,9 +1289,12 @@ class AgentRegistryService:
         a refusal that reads differently would map the organization's private
         collections one guess at a time.
         """
+        if not collection_ids:
+            return []
+        found = await knowledge_base_repo.get_by_ids(self.db, collection_ids)
         problems: list[str] = []
         for collection_id in collection_ids:
-            collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
+            collection = found.get(collection_id)
             reachable = collection is not None and await resolve_access(
                 self.db, ctx, collection, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
             )
@@ -1302,6 +1328,7 @@ class AgentRegistryService:
             self.db, list(skill_ids), organization_id=ctx.organization_id
         )
         problems: list[str] = []
+        registered = {definition.id for definition in all_capabilities()}
         for skill_id in skill_ids:
             skill = found.get(skill_id)
             reachable = skill is not None and await resolve_access(
@@ -1309,6 +1336,17 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
+                continue
+            # Each skill is a deferred capability now, filed under its own name,
+            # and the platform's capabilities are filed under theirs - in one
+            # namespace. A skill called `planning` on an agent that also has the
+            # `planning` capability is a duplicate id Pydantic AI refuses before
+            # the first token, so the agent would publish and never run.
+            if skill is not None and skill.name in registered:
+                problems.append(
+                    f"Skill '{skill.name}' has the name of a capability this platform "
+                    "offers, and each skill is a capability now - rename the skill"
+                )
         return problems
 
     async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
@@ -1324,10 +1362,18 @@ class AgentRegistryService:
         time where the only options are to guess or to quietly drop a server.
         """
         problems: list[str] = []
-        # What each binding would call its tools, as the toolset builder derives
-        # it - `notion-` and `notion` are one prefix - so a collision is caught
-        # here rather than by `_dedupe_by_prefix` dropping a server at run time.
-        claimed: dict[str, list[str]] = {}
+        # What each binding would call its tools by, as the toolset builder derives
+        # it - `notion-` and `notion` are one prefix. Paired with a label so the
+        # same `prefix_collisions` the run uses catches a clash here, where somebody
+        # can still fix it, rather than a server being dropped mid-turn (#1442).
+        prefixed: list[tuple[str, str]] = []
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db,
+            connection_ids=[
+                ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
+            ],
+            organization_id=ctx.organization_id,
+        )
         for ref in refs:
             if isinstance(ref, PersonalMcpServerRef):
                 if mcp_catalog.get_entry(ref.catalog_key) is None:
@@ -1337,13 +1383,9 @@ class AgentRegistryService:
                         "be matched to it."
                     )
                     continue
-                claimed.setdefault(tool_prefix(ref.catalog_key), []).append(
-                    f"each person's own {ref.catalog_key}"
-                )
+                prefixed.append((ref.catalog_key, f"each person's own {ref.catalog_key}"))
                 continue
-            connection = await mcp_connection_repo.get_org_scoped_by_id(
-                self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
-            )
+            connection = found.get(ref.connection_id)
             if connection is None:
                 # Says which of the two ways it can fail applies, because the
                 # likely one - a personal connection picked in the Builder - is
@@ -1356,16 +1398,13 @@ class AgentRegistryService:
                     "account instead if that is what you want."
                 )
                 continue
-            claimed.setdefault(tool_prefix(connection.name), []).append(
-                f"the connection {connection.name!r}"
+            prefixed.append((connection.name, f"the connection {connection.name!r}"))
+        for prefix, holders in prefix_collisions(prefixed).items():
+            problems.append(
+                f"Two bindings would present their tools under the prefix {prefix!r}: "
+                f"{' and '.join(holders)}. The model would see every tool twice, which "
+                "aborts the turn - bind one of them, or rename the connection."
             )
-        for prefix, holders in claimed.items():
-            if len(holders) > 1:
-                problems.append(
-                    f"Two bindings would present their tools under the prefix {prefix!r}: "
-                    f"{' and '.join(holders)}. The model would see every tool twice, which "
-                    "aborts the turn - bind one of them, or rename the connection."
-                )
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:
@@ -1462,6 +1501,41 @@ class AgentRegistryService:
             return [
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
+            ]
+        return []
+
+    async def _observability_problems(self, ctx: AuthContext, spec: AgentSpec) -> list[str]:
+        """Whether the token an agent redirects its traces with is publishable.
+
+        `factory._instrument` says publishing is where a missing tracing secret
+        is refused because a run is far too late: an unusable token there logs
+        `agent_logfire_token_unavailable` and the agent runs untraced. So the
+        token reference gets the same existence and tenant checks a capability's
+        secret does, plus the `logfire` purpose gate `_check_logfire_secret`
+        already applies on the environment path - a Tavily or OpenAI key passes
+        a kind-only check (all three are `api_key`) and is then handed to Logfire
+        as its token, exposing the credential to the wrong service. The purpose
+        subsumes the kind: `_check_purpose` refuses a `logfire` secret that is
+        not an `api_key` at creation. Miss and refusal read alike, so an id
+        cannot enumerate the vault.
+        """
+        observability = spec.observability
+        if observability is None or observability.token_secret_id is None:
+            return []
+        secret = await organization_secret_repo.get(
+            self.db, observability.token_secret_id, organization_id=ctx.organization_id
+        )
+        if secret is None or not await resolve_access(
+            self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            return [
+                "The tracing token points at a secret this organization does not have: "
+                f"{observability.token_secret_id}"
+            ]
+        if secret.purpose != "logfire":
+            return [
+                "The tracing token must be a Logfire key, but "
+                f"'{secret.name}' is for {secret.purpose}"
             ]
         return []
 
@@ -1580,10 +1654,11 @@ class AgentRegistryService:
         delegates: list[_PinnedDelegate] = []
         handles: list[str] = []
         problems: list[str] = []
+        found = await agent_repo.get_many(
+            self.db, [ref.agent_id for ref in refs], organization_id=ctx.organization_id
+        )
         for ref in refs:
-            delegate = await agent_repo.get(
-                self.db, ref.agent_id, organization_id=ctx.organization_id
-            )
+            delegate = found.get(ref.agent_id)
             if delegate is None or not await resolve_access(
                 self.db, ctx, delegate, Perm.AGENTS_RUN, resource_type=AGENT
             ):
@@ -1699,6 +1774,13 @@ class AgentRegistryService:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
+
+        # Publish is where the spec is confirmed against this deployment's own
+        # registry and models, so the frozen copy carries this deployment's spec
+        # version - not whatever an imported draft claimed. Otherwise the number
+        # is write-only: a `spec_version: 3` YAML publishes carrying constructs
+        # this code understands and stays labelled 3.
+        spec.spec_version = SPEC_VERSION
 
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
         version = await agent_repo.create_version(
@@ -1963,7 +2045,11 @@ class AgentRegistryService:
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_color": color})
 
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
-        """Where the agent's picture is on disk, for the route that streams it.
+        """The storage path of the agent's picture, for the route that streams it.
+
+        The path the storage backend wrote, not a path on this host: an object
+        store has no second kind, and the route hands this to the one place that
+        knows how to turn either into a response (#1423).
 
         Reading the picture goes through the same access check as reading the
         agent: an avatar is not public just because it is an image, and an
@@ -1974,12 +2060,11 @@ class AgentRegistryService:
                 gone - indistinguishable to a caller, and deliberately so.
         """
         agent = await self.get(ctx, agent_id)
-        path = get_file_storage().get_full_path(agent.avatar_url) if agent.avatar_url else None
-        if path is None or not path.exists():
+        if not agent.avatar_url or not await get_file_storage().exists(agent.avatar_url):
             raise NotFoundError(
                 message="This agent has no avatar", details={"agent_id": str(agent_id)}
             )
-        return str(path)
+        return agent.avatar_url
 
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Permanently remove an agent, its versions and its shares."""

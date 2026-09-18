@@ -21,6 +21,7 @@ from app.core.vault import (
     VaultScopeKind,
     current_key_version,
     generate_master_key,
+    is_key_version_available,
     needs_rotation,
     rewrap,
     seal,
@@ -35,6 +36,16 @@ KEY_C = "vault-master-key-c-" + "c" * 32
 
 def _org() -> VaultScope:
     return VaultScope.organization(uuid.uuid4())
+
+
+class TestKeyVersionAvailability:
+    def test_a_configured_version_is_available(self, three_master_keys):
+        assert is_key_version_available(current_key_version()) is True
+
+    def test_a_dropped_version_is_not(self, three_master_keys):
+        # The version a row was sealed under, removed from VAULT_MASTER_KEYS before
+        # rotation finished moving every row off it - `unseal` would fail on it.
+        assert is_key_version_available(99) is False
 
 
 @pytest.fixture
@@ -115,6 +126,7 @@ class TestSealUnseal:
         sealed = seal("sk-live-abcd1234", scope=_org())
         assert sealed.hint == "1234"
 
+    @pytest.mark.security
     def test_ciphertext_never_contains_the_plaintext(self):
         secret = "sk-live-abcd1234"
         sealed = seal(secret, scope=_org())
@@ -127,6 +139,7 @@ class TestSealUnseal:
         second = seal("same-secret", scope=scope)
         assert first.ciphertext != second.ciphertext
 
+    @pytest.mark.security
     def test_empty_secret_is_refused(self):
         """A credential that genuinely has no value is stored as no envelope at all.
 
@@ -278,6 +291,7 @@ class TestRotation:
                 to_version=2,
             )
 
+    @pytest.mark.security
     def test_rotating_from_the_wrong_version_fails_instead_of_writing_an_unreadable_secret(
         self, three_master_keys
     ):

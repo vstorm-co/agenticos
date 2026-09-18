@@ -1,6 +1,6 @@
 ---
 description: Layered architecture patterns — Routes, Services, Repositories, DI
-globs: ["backend/app/**/*.py"]
+paths: ["backend/app/**/*.py"]
 ---
 
 # Architecture
@@ -41,7 +41,7 @@ async def delete(db: AsyncSession, entity_id: UUID) -> Entity | None:
 ```
 
 Rules:
-- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — the request's session commits once, after the route returns and *before* the response is written (`docs/architecture.md#the-requests-transaction`). The one sanctioned exception is the agent run path: `AgentRunnerService._run` and `ChatAgentRunner.run` commit before the model call and again in the terminal `finally` (#12, #3)
+- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — the request's session commits once, after the route returns and *before* the response is written (`docs/architecture.md#the-requests-transaction`). Two sanctioned exceptions: the agent run path (`AgentRunnerService._run` and `ChatAgentRunner.run` commit before the model call and again in the terminal `finally`, #12, #3), and `SessionService.detect_refresh_reuse`, whose caller raises a 401 immediately afterwards — uncommitted, the rollback would undo the revocation and the audit entry the refusal exists to record (#1519)
 - Use keyword-only args after `db`: `create(db, *, email: str, name: str)`
 - Return the entity (or None for get/delete), never return IDs or dicts
 - Functions are async (PostgreSQL via asyncpg)

@@ -93,7 +93,8 @@ in any response, log or audit entry · channel mentions running as the sender ·
 what a parser claims it reads vs what the pipeline routes · narrowing a rule on a
 field already stored as JSONB.
 
-The last two have bitten this repository. `CLAUDE.md` explains both.
+For parser/routing changes, read the `rag-knowledge` skill; for stored JSONB
+validation changes, read `agent-spec` and `alembic-migration`.
 
 ## Depth
 

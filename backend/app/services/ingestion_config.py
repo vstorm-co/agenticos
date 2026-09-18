@@ -51,16 +51,15 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from pydantic_ai.settings import ModelSettings, ThinkingEffort
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.exceptions import BadRequestError
-from app.core.field_errors import field_problems
+from app.core.field_errors import field_problems, refused_field
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
-from app.repositories import organization_secret_repo
+from app.db.models.local_service import LocalService, LocalServiceKind
+from app.repositories import local_service_repo, organization_secret_repo
 from app.services.model_profile import ModelProfileService
 from app.services.rag.config import (
     EMBEDDING_DIMENSIONS,
-    EmbeddingsConfig,
     PdfParser,
     RAGSettings,
 )
@@ -82,7 +81,6 @@ __all__ = [
     "LlamaParseTier",
     "PdfParserName",
     "deployment_defaults",
-    "deployment_embedding",
     "parse_override",
 ]
 
@@ -209,8 +207,17 @@ class IngestionConfig(BaseModel):
     llamaparse_secret_id: UUID | None = Field(
         default=None,
         description=(
-            "The organization vault key LlamaParse calls are billed to. Omit "
-            "for the deployment's key. Ignored by the other parsers."
+            "The organization vault key LlamaParse calls are billed to. Required "
+            "when the parser is LlamaParse - there is no deployment key. Ignored "
+            "by the other parsers."
+        ),
+    )
+    ocr_endpoint_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The OCR server LiteParse sends pages to: a local service of kind "
+            "`ocr`, the organization's own or the deployment's. Omit to run the "
+            "Tesseract bundled with the worker. Ignored by the other parsers."
         ),
     )
     auto_ocr: bool = Field(
@@ -432,76 +439,55 @@ def deployment_defaults() -> IngestionConfig:
 def chosen_embedding(model: str | None) -> tuple[str, int]:
     """The embedding model a new collection will index with, and its width.
 
-    `None` is the deployment default; a named model must be one this build
-    knows the width of, because the vector column is created at that number
-    and a wrong guess poisons the collection from its first insert.
+    A named model must be one this build knows the width of, because the vector
+    column is created at that number and a wrong guess poisons the collection
+    from its first insert. There is no deployment default to fall back to: the
+    form offers the models the chosen provider serves, and one of them has to
+    be chosen.
 
     Raises:
-        BadRequestError: If the named model has no known dimension.
+        BadRequestError: If no model was named, or the named one has no known
+            dimension - on the `embedding_model` field either way.
     """
     if model is None:
-        return deployment_embedding()
-    if model not in EMBEDDING_DIMENSIONS:
-        raise BadRequestError(
-            message=(
-                f"'{model}' is not an embedding model this build knows. "
-                f"Choose one of: {', '.join(sorted(EMBEDDING_DIMENSIONS))}."
-            ),
-            details={"model": model, "known": sorted(EMBEDDING_DIMENSIONS)},
+        raise refused_field(
+            "embedding_model",
+            "Choose the embedding model this collection indexes with; there is no "
+            "deployment-wide default.",
         )
-    return model, EMBEDDING_DIMENSIONS[model]
-
-
-def deployment_embedding() -> tuple[str, int]:
-    """The embedding model this deployment indexes with, and its dimension.
-
-    Recorded on every collection at creation. The dimension travels with the
-    name because `EMBEDDING_DIMENSIONS` is a lookup table that can gain
-    entries: a collection built today must keep the number its table was
-    actually created with, not the one a later release would derive.
-
-    Raises:
-        BadRequestError: If the configured model has no known dimension. The
-            vector column would otherwise be created at the default width and
-            every insert into it would fail on a mismatch nobody could trace
-            back to a typo in an environment variable.
-    """
-    model = settings.EMBEDDING_MODEL
     if model not in EMBEDDING_DIMENSIONS:
-        raise BadRequestError(
-            message=(
-                f"EMBEDDING_MODEL is set to '{model}', whose vector width this build does "
-                "not know. Collections would be created at the default width and every "
-                "document indexed into them would be rejected."
-            ),
-            details={"model": model, "known": sorted(EMBEDDING_DIMENSIONS)},
+        raise refused_field(
+            "embedding_model",
+            f"'{model}' is not an embedding model this build knows. "
+            f"Choose one of: {', '.join(sorted(EMBEDDING_DIMENSIONS))}.",
         )
     return model, EMBEDDING_DIMENSIONS[model]
 
 
 def rag_settings_for(
-    config: IngestionConfig, *, llamaparse_api_key: str | None = None
+    config: IngestionConfig,
+    *,
+    llamaparse_api_key: str | None = None,
+    ocr_server_url: str | None = None,
 ) -> RAGSettings:
     """Turn a collection's choices into the settings object the pipeline takes.
 
-    `llamaparse_api_key` is the resolved credential when the configuration
-    names one of the organization's vault keys; absent, the deployment's key
-    applies. The LiteParse OCR server URL stays deliberately out of the
-    configuration: it is an address on the deployment's own network, and
-    letting a tenant choose one is the request forgery this platform refuses
-    everywhere else (:func:`app.core.sanitize.validate_webhook_url`).
+    `llamaparse_api_key` is the resolved credential of the vault key the
+    configuration names; `ocr_server_url` the address of the local service it
+    names. Both arrive resolved because the configuration holds ids, not values:
+    a credential must not sit in a stored row, and an address is a row an
+    operator may edit or turn off between two parses.
     """
     return RAGSettings(
         chunk_size=config.chunk_size,
         chunk_overlap=config.chunk_overlap,
         chunking_strategy=config.chunking_strategy.value,
         enable_ocr=config.ocr,
-        embeddings_config=EmbeddingsConfig(model=settings.EMBEDDING_MODEL),
         pdf_parser=PdfParser(
             method=config.pdf_parser.value,
-            api_key=llamaparse_api_key or settings.LLAMAPARSE_API_KEY,
+            api_key=llamaparse_api_key or "",
             tier=config.llamaparse_tier.value,
-            liteparse_ocr_server_url=settings.LITEPARSE_OCR_SERVER_URL or None,
+            liteparse_ocr_server_url=ocr_server_url,
             liteparse_ocr_language=config.ocr_language,
             liteparse_timeout_seconds=config.parse_timeout_seconds,
             liteparse_auto_ocr=config.auto_ocr,
@@ -552,9 +538,9 @@ class IngestionConfigService:
         """Refuse to index into a collection whose model this build cannot run.
 
         The store embeds each collection with the model recorded on its row,
-        so a deployment changing `EMBEDDING_MODEL` no longer strands existing
-        collections - they keep embedding with what they were built with. What
-        still has to be refused is a model this build has *no width for*: the
+        so a collection keeps embedding with what it was built with whatever a
+        later catalog offers. What still has to be refused is a model this
+        build has *no width for*: the
         vectors could not be produced at all, and the upload would otherwise be
         accepted and die in a worker with nothing on screen.
 
@@ -617,6 +603,7 @@ class IngestionConfigService:
             settings=rag_settings_for(
                 config,
                 llamaparse_api_key=await self._llamaparse_key(organization_id, config),
+                ocr_server_url=await self._ocr_server_url(organization_id, config),
             ),
             image_describer=await self.build_describer(organization_id, config),
         )
@@ -624,54 +611,94 @@ class IngestionConfigService:
     async def check_llamaparse_secret(
         self, organization_id: UUID | None, config: IngestionConfig
     ) -> None:
-        """Refuse a key the organization does not hold, while the form is open.
+        """Refuse a LlamaParse collection with no key, or with one it may not use.
 
-        The resolver deliberately degrades to the deployment key at parse time,
-        so this is the only moment a wrong choice is visible to the person who
-        made it.
+        Checked while the form is open, because the parse itself refuses too:
+        there is no deployment key to fall back to, so a collection on LlamaParse
+        with no vault key is one whose first document fails, and the person who
+        can fix that is the one filling in this form.
 
         Raises:
-            BadRequestError: If the named key is missing from the vault, or is
-                for something other than LlamaParse.
+            BadRequestError: If the parser is LlamaParse and no key is named, the
+                named key is missing from the vault, or is for something other
+                than LlamaParse - each on the field that was wrong.
         """
-        if config.llamaparse_secret_id is None:
+        if config.pdf_parser is not PdfParserName.LLAMAPARSE:
             return
         if organization_id is None:
-            raise BadRequestError(
-                message="Only an organization collection can carry a vault key",
-                details={"llamaparse_secret_id": str(config.llamaparse_secret_id)},
+            raise refused_field(
+                "pdf_parser",
+                "LlamaParse needs a vault key, and an app-scoped collection has no vault. "
+                "Choose a parser that runs in the worker.",
+            )
+        if config.llamaparse_secret_id is None:
+            raise refused_field(
+                "llamaparse_secret_id",
+                "Choose the vault key LlamaParse bills; there is no deployment-wide key.",
             )
         row = await organization_secret_repo.get(
             self.db, config.llamaparse_secret_id, organization_id=organization_id
         )
         if row is None:
-            raise BadRequestError(
-                message="That key is not in this organization's vault",
-                details={"llamaparse_secret_id": str(config.llamaparse_secret_id)},
+            raise refused_field(
+                "llamaparse_secret_id", "That key is not in this organization's vault."
             )
         if row.purpose != "llamaparse":
-            raise BadRequestError(
-                message=f"That key is for {row.purpose}, not LlamaParse",
-                details={"purpose": row.purpose},
+            raise refused_field(
+                "llamaparse_secret_id", f"That key is for {row.purpose}, not LlamaParse."
             )
+
+    async def check_ocr_endpoint(
+        self, organization_id: UUID | None, config: IngestionConfig
+    ) -> None:
+        """Refuse an OCR server this collection may not name, while the form is open.
+
+        Raises:
+            BadRequestError: If the named local service is not visible to this
+                collection, is not an OCR server, or is turned off.
+        """
+        if config.ocr_endpoint_id is None:
+            return
+        await self._ocr_service(organization_id, config.ocr_endpoint_id)
 
     async def _llamaparse_key(
         self, organization_id: UUID | None, config: IngestionConfig
     ) -> str | None:
-        """The organization's chosen LlamaParse key, or None for the deployment's.
+        """The key a LlamaParse parse is billed to, or None for the other parsers.
 
-        Every failure path degrades to the deployment key with a log line, the
-        same bargain the embedding resolver makes: whose key *pays* for a parse
-        must never decide whether a document can be read.
+        Raises rather than degrades: there is no deployment key to fall back to,
+        so a missing or unusable key is a parse that cannot happen, and the
+        refusal - our own, so it reaches the document row whole - has to say
+        which key and why.
+
+        Raises:
+            BadRequestError: If the collection parses with LlamaParse and its key
+                is unnamed, gone from the vault, cannot be unsealed or is not an
+                API key.
         """
-        if config.llamaparse_secret_id is None or organization_id is None:
+        if config.pdf_parser is not PdfParserName.LLAMAPARSE:
             return None
+        if config.llamaparse_secret_id is None or organization_id is None:
+            raise BadRequestError(
+                message=(
+                    "This collection parses with LlamaParse but names no vault key to bill, "
+                    "and there is no deployment-wide key. Choose one under the collection's "
+                    "parsing settings."
+                ),
+                details={"llamaparse_secret_id": config.llamaparse_secret_id},
+            )
         row = await organization_secret_repo.get(
             self.db, config.llamaparse_secret_id, organization_id=organization_id
         )
         if row is None:
-            logger.warning("llamaparse_secret_missing", extra={"org": str(organization_id)})
-            return None
+            raise BadRequestError(
+                message=(
+                    "The vault key this collection bills LlamaParse to is no longer in the "
+                    "organization's vault. Choose another under the collection's parsing "
+                    "settings."
+                ),
+                details={"llamaparse_secret_id": config.llamaparse_secret_id},
+            )
         try:
             secret = unseal_secret(
                 row.sealed_secret,
@@ -679,10 +706,48 @@ class IngestionConfigService:
                 scope=VaultScope.organization(organization_id),
                 key_version=row.key_version,
             )
-        except Exception:
-            logger.warning("llamaparse_secret_unusable", extra={"org": str(organization_id)})
-            return None
+        except Exception as exc:
+            logger.exception("llamaparse_secret_unusable", extra={"org": str(organization_id)})
+            raise BadRequestError(
+                message=(
+                    "The vault key this collection bills LlamaParse to could not be unsealed. "
+                    "Store it again, or choose another."
+                ),
+                details={"llamaparse_secret_id": config.llamaparse_secret_id},
+            ) from exc
         if not isinstance(secret, ApiKeySecret):
-            logger.warning("llamaparse_secret_wrong_kind", extra={"org": str(organization_id)})
-            return None
+            raise BadRequestError(
+                message=(
+                    "The vault entry this collection bills LlamaParse to does not hold an "
+                    "API key. Choose one that does."
+                ),
+                details={"llamaparse_secret_id": config.llamaparse_secret_id},
+            )
         return secret.api_key.get_secret_value()
+
+    async def _ocr_server_url(
+        self, organization_id: UUID | None, config: IngestionConfig
+    ) -> str | None:
+        """Where LiteParse sends pages for OCR, or None for the worker's own Tesseract."""
+        if config.ocr_endpoint_id is None:
+            return None
+        return (await self._ocr_service(organization_id, config.ocr_endpoint_id)).base_url
+
+    async def _ocr_service(self, organization_id: UUID | None, service_id: UUID) -> LocalService:
+        row = await local_service_repo.get_visible(
+            self.db, service_id, organization_id=organization_id
+        )
+        if row is None:
+            raise refused_field(
+                "ocr_endpoint_id", "That local service is not one this collection may name."
+            )
+        if row.kind != LocalServiceKind.OCR.value:
+            raise refused_field(
+                "ocr_endpoint_id", f"'{row.name}' is a {row.kind} service, not an OCR server."
+            )
+        if not row.is_active:
+            raise refused_field(
+                "ocr_endpoint_id",
+                f"'{row.name}' is turned off. Turn it on under Knowledge, or choose another.",
+            )
+        return row

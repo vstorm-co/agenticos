@@ -758,6 +758,16 @@ the database.
 | `GET /runs/export` | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
 | `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view` |
+| `GET /audit/export` | The audit trail over a window, CSV or JSONL (`?fmt=`). `audit:read` |
+
+The audit export is the one that also offers **JSONL** (`?fmt=jsonl`), one JSON
+object per line, because an audit trail is as often ingested by a log pipeline as
+opened in a spreadsheet; the two describe the same entries, with `details`
+flattened to a JSON string in the CSV cell and kept as a nested object in the
+lines. It ships exactly the fields the `GET /audit` read model exposes — the stored
+`ip_address` is not on that tab, so it is not in the export either — and, like every
+export here, it records its own read in the trail (`audit.export`, naming the window,
+the format and the row count).
 
 The spend export carries only the window figures — `cost_usd`, `run_count` and
 `partial_run_count`. The Spend tab's `month_to_date_usd` and `monthly_cap_usd` are
@@ -1283,6 +1293,44 @@ privileged mutation land unaudited.
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.
 
+The trail keeps itself honest, too. Every entry joins a per-organization hash
+chain — each carries a hash over its own contents with the previous entry's hash
+folded in — so editing, reordering or inserting an entry, or deleting one from the
+middle, diverges every hash after it.
+
+`agenticos cmd audit-verify` walks each chain, recomputes the hashes, and names
+the first entry that no longer matches; with no argument it checks every chain,
+including the deployment-wide one that holds tenant-less actions — a deployment
+settings change, an impersonation, app-admin user management — and exits non-zero
+if any chain fails. This is **detection, not
+prevention** — an operator with the database can still rewrite a row and recompute
+every hash after it — so a clean run is evidence of no tampering by anyone who did
+not also re-forge the chain, not proof the rows are immutable.
+
+Two deletions the chain cannot catch on its own, because the surviving rows stay
+internally consistent: dropping the newest entries from a chain, and deleting an
+organization's chain outright. These are caught instead by a **checkpoint** — a
+per-organization high-water mark `record_audit` advances beside every entry, under
+a database trigger that refuses it moving backwards or being deleted.
+`audit-verify` flags a chain whose head is behind its checkpoint, or a checkpoint
+whose chain is gone.
+
+Be precise about what that trigger covers, because it is easy to read as more. It
+closes the ordinary write path — an app admin acting through the product, and a bug
+in this codebase — which is the threat model the trail is written against.
+
+It is not a control against anybody holding the database's own credentials. The
+application and its migrations connect as the same role, and that role owns the
+checkpoint table: it can drop the trigger, and a `TRUNCATE` empties the table
+without firing a row-level delete trigger at all. A superuser can do both. Closing
+that needs the high-water mark kept where this database's roles cannot reach it —
+an append-only or object-locked store outside it — which remains a planned
+follow-up.
+
+Two audited writes for one organization cannot fork the chain: each appends under
+a per-organization lock, so they serialize into a single line rather than both
+extending the same head.
+
 An **impersonated** action names both. When an app admin acts as another account,
 the access token carries the administrator as an `act` claim; every entry that
 request records keeps `actor_user_id` as the account being acted as and adds
@@ -1302,6 +1350,146 @@ impersonation through `DELETE /sessions` the way it ends any other session.
 Whether the person is *told* is the deployment's `notify_impersonated_users`
 setting ([The deployment](deployment.md#acting-as-another-account)); off, which
 is the default, this trail is the only record.
+
+An impersonation cannot **bind an external identity** to the account it acts as.
+Confirming a chat-account link and completing an integration's OAuth both fasten
+an identity to whoever the request is, and under an impersonation that is the
+target — so the administrator's own Telegram account or OAuth grant would attach
+to somebody else's account and outlive the hour the impersonation is bounded to.
+Both are refused with a 403 while impersonating, because an administrator
+repairing a member's connection is not a flow this platform has. The member
+links their own accounts, as themselves.
+
+The line is any credential fastened to the member, not only an identity: beyond
+the chat account and the OAuth grant above, a bearer token typed onto the
+member's connection is refused too. Such a token is not the administrator's own
+identity, but sealed under the member's vault scope it speaks as whoever's
+account it belongs to for every one of the member's agents, outlives the hour
+the impersonation is bounded to, and stands recorded against the member. What an
+administrator still does on the member's behalf is configuration that stores no
+secret — a name, a URL, a tool allowlist — and clearing a stored token, which
+keeps nothing.
+
+An **organization's** shared connection is the same, though it is meant to be
+admin-entered: a bearer token typed onto one under an impersonation is refused
+too, because sealed under the organization's vault scope it speaks as the
+administrator's own account for every agent the organization binds, past the
+hour the impersonation ends. Creating an org connection already recorded the
+administrator behind it; updating one recorded nothing at all, so a token
+rotated onto an existing connection now leaves the same trail (#1521).
+
+## Retention
+
+Nothing was deleted on a schedule until #1420. Conversations, their files, run
+rows and manifests, workspaces, agent memory, uploaded documents and audit
+entries lived until somebody deleted the organization. That is a
+data-protection problem in one direction and, for audit, a compliance problem
+in the other: HIPAA §164.316(b)(2) wants an audit record kept six years, and
+GDPR wants everything else minimised. So the period is **per class**, and both
+obligations get a setting.
+
+Set it at **Organizations → a workspace → Members → Retention**, gated on
+`org:settings`. A sweep runs once a day and **hard-deletes**: a policy that kept
+the rows would not be a policy.
+
+The deployment's own three numbers - `retention_defaults`, `retention_max_days`
+and `audit_retention_floor_days` - are fields on the deployment settings, written
+by an app admin through `PATCH /admin/deployment-settings` like every other
+setting there. There is no console form for them yet; the organization's page is
+where the per-tenant periods are set.
+
+### The classes
+
+| Class | What leaves with it | Measured from |
+|---|---|---|
+| Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes **before** the rows, so a file that could not be unlinked keeps its row for the next pass rather than outliving it unfindable | The thread's last activity, so one somebody is still returning to is not old |
+| Runs | The run row, its manifest and its tool approvals | When the run started |
+| Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL | Last use |
+| Memory | An agent's memory files | Last write, because a note is written once and read for months |
+| Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
+| Audit | Entries on this organization's trail | When the entry was recorded |
+
+**A document still being ingested is not swept either.** A worker is holding
+it, and taking its row and its stored original out from under an ingestion that
+then writes vectors leaves searchable content no later sweep can name. Only
+finished and failed rows are retired.
+
+**A document a connector synced is not swept.** Its lifetime belongs to the
+source that put it there: purging it here would delete a row the next `new_only`
+sync recreates from the same unchanged file, burning embedding spend to no
+effect. What is swept is what somebody uploaded, whose lifetime nothing else
+owns.
+
+### Which number wins
+
+Three layers, resolved in `app/core/retention.py` and nowhere else:
+
+1. **The deployment's default**, for an organization that has said nothing.
+   Absent means for ever - a platform that started deleting an existing
+   installation's history on upgrade would be one nobody could trust with the
+   next upgrade either.
+2. **The organization's own period**, shorter or longer.
+3. **The deployment's ceiling**: nothing of this class lives longer than N days
+   here, and an organization cannot raise it.
+
+Audit runs the other way. The deployment sets a **floor** - the shortest an
+entry may live, six years unless an operator changes it - and an organization
+may lengthen it and never shorten it. **Nothing sweeps audit yet**: the period
+resolves and is reported and an organization is held to the floor, but no entry
+is deleted, because the hash chain and its append-only checkpoint are built on
+entries not going anywhere and a bare delete makes `audit-verify` report the
+retirement as tampering. Retiring a chain verifiably is
+[#1622](https://github.com/vstorm-co/agenticos/issues/1622).
+
+A ceiling still applies to audit where the two do not contradict each other. Where
+they do, the floor wins and the contradiction is reported. A trail an administrator can shorten is
+not a trail, so a period below the floor is **refused** rather than quietly
+raised to it: silently keeping entries longer than the number on the screen is
+its own kind of wrong.
+
+A floor above a ceiling is a contradiction, and it is reported rather than
+resolved. The settings page names the class; an administrator settles which
+applies. Picking one would leave a deployment behaving unlike its own settings
+page.
+
+### What survives a purge
+
+**The bill.** A month's spend is a sum over `agent_runs`, so hard-deleting them
+would drop an organization's month-to-date figure to zero as the window passed
+and a cap metered on that figure would stop enforcing for the rest of the month.
+The sweep reads what the expiring runs cost before it deletes them and keeps a
+total per organization per month on `purged_run_spend` - a number and a count,
+no agent, no model, nobody's name. `app/services/spend.py` adds it to the live
+sum, which is the only place the two meet.
+
+**The trail of the sweep itself.** One entry per organization per sweep, naming
+the class and the count and nothing else: an audit entry that quoted what it
+deleted would keep the content past the retention that removed it.
+
+### When it fails
+
+Per class, not per sweep. A vector store that is down must not stop
+conversations being purged, so each class is attempted, its failure logged and
+named in the audit entry, and the sweep goes on. The next pass retries it,
+because a batch that removed nothing simply comes round again.
+
+Deletes go in batches of 500, up to forty passes per class per sweep. An
+organization arriving at a ninety-day policy after two years works its backlog
+off over several days rather than in one sweep that holds a lock for an hour
+with every other periodic flow queued behind it.
+
+### What this does not reach
+
+- **Backups.** A purge removes rows and files from the live deployment. Whatever
+  your backup schedule holds is yours to expire, and a restore brings back
+  whatever the snapshot contained.
+- **What you sent elsewhere.** Logs shipped to an external collector, traces in
+  a hosted observability project, and anything a model provider retains are
+  governed by those services' own settings, not by this one.
+- **Per-entry memory controls**, which are [#1594](https://github.com/vstorm-co/agenticos/issues/1594),
+  and erasing one person across an organization, which is
+  [#1421](https://github.com/vstorm-co/agenticos/issues/1421). This page is
+  about age; those are about a subject.
 
 ## What none of this covers
 

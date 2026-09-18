@@ -21,10 +21,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.schemas.channel_bot import LinkedPlace
+from app.services import impersonation as impersonation_service
 from app.services.channel_link import REQUEST_TTL, ChannelLinkService
 from app.services.channels.base import IncomingMessage
 from app.services.channels.router import ChannelMessageRouter, _as_command
+from app.services.impersonation import ActiveImpersonation
 
 pytestmark = pytest.mark.anyio
 
@@ -261,6 +264,36 @@ class TestConfirming:
         assert self.resolved.call_count == 0
         assert self.updated.call_count == 0
 
+    async def test_confirm_is_refused_under_an_impersonation(self):
+        """An administrator acting as B must not attach their own chat account to
+        B's. Refused before the request is even read, so the token is neither read
+        nor spent and nothing is linked (#1438)."""
+        with (
+            patch(
+                "app.services.channel_link.channel_link_request_repo.get_valid",
+                new=AsyncMock(),
+            ) as read,
+            patch(
+                "app.services.channel_link.channel_link_request_repo.delete_by_id",
+                new=AsyncMock(),
+            ) as spent,
+        ):
+            active = impersonation_service._active.set(
+                ActiveImpersonation(
+                    session_id=uuid.uuid4(),
+                    user_id=uuid.uuid4(),
+                    impersonator_id=uuid.uuid4(),
+                    expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+                )
+            )
+            try:
+                with pytest.raises(AuthorizationError):
+                    await ChannelLinkService(MagicMock()).confirm("tok", self.user_id)
+            finally:
+                impersonation_service._active.reset(active)
+        read.assert_not_awaited()
+        spent.assert_not_awaited()
+
 
 class TestWhatTheBotSaysToAStranger:
     async def test_a_direct_message_gets_the_link(self):
@@ -415,6 +448,78 @@ class TestWhereTheInvitationIsPosted:
 
         sent.assert_awaited_once()
         assert sent.await_args.args[2] == "link first"
+
+
+class TestARefusedSenderCannotChurnTheInvitation:
+    """A sender refused at the admission gate mints a link request and sends an
+    invitation on every message. Before #1516 the per-sender allowance was
+    consulted only on the path that ran a turn, so a refused sender could churn
+    that path as fast as they could type. The allowance is consumed here too:
+    the first message still gets its invitation, one past the allowance mints
+    nothing."""
+
+    async def _route(self, *, rate_limited: bool) -> tuple[AsyncMock, AsyncMock]:
+        router = ChannelMessageRouter()
+        bot = MagicMock(is_active=True, access_policy={"mode": "jwt_linked"})
+        invite = AsyncMock(return_value="link first")
+        sent = AsyncMock()
+        check = AsyncMock(
+            side_effect=BadRequestError(message="Rate limit exceeded. Please slow down.")
+            if rate_limited
+            else None
+        )
+        with (
+            patch(
+                "app.services.channels.router.channel_bot_repo.get_for_inbound",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch.object(ChannelMessageRouter, "_handle_command", new=AsyncMock(return_value=None)),
+            patch.object(
+                ChannelMessageRouter,
+                "_resolve_identity",
+                new=AsyncMock(return_value=MagicMock(user_id=None)),
+            ),
+            patch.object(ChannelMessageRouter, "_check_rate_limit", new=check),
+            patch.object(ChannelMessageRouter, "_invite_to_link", new=invite),
+            patch.object(ChannelMessageRouter, "_send_reply", new=sent),
+        ):
+            await router._route_inner(_incoming(), MagicMock())
+        return invite, sent
+
+    async def test_a_first_message_still_gets_its_invitation(self):
+        invite, sent = await self._route(rate_limited=False)
+
+        invite.assert_awaited_once()
+        assert sent.await_args.args[2] == "link first"
+
+    async def test_a_message_past_the_allowance_mints_no_invitation(self):
+        invite, sent = await self._route(rate_limited=True)
+
+        invite.assert_not_awaited()
+        assert "slow down" in sent.await_args.args[2]
+
+    async def test_the_link_command_consumes_the_allowance_too(self):
+        """`/link` is the other door onto the invite, handled before the
+        admission gate consults the allowance - so a refused sender could churn
+        link requests through the command where the plain message is throttled.
+        It consumes the same per-sender allowance in a direct message."""
+        router = ChannelMessageRouter()
+        bot = MagicMock(access_policy={})
+        invite = AsyncMock(return_value="link first")
+        check = AsyncMock(
+            side_effect=[None, BadRequestError(message="Rate limit exceeded. Please slow down.")]
+        )
+        identity = MagicMock(id=uuid.uuid4(), user_id=None)
+        with (
+            patch.object(ChannelMessageRouter, "_check_rate_limit", new=check),
+            patch.object(ChannelMessageRouter, "_invite_to_link", new=invite),
+        ):
+            first = await router._handle_command("/link", _incoming(), bot, _db(), identity, False)
+            second = await router._handle_command("/link", _incoming(), bot, _db(), identity, False)
+
+        assert first == "link first"
+        assert invite.await_count == 1
+        assert "slow down" in second
 
 
 class TestASlashAPlatformAte:
@@ -671,3 +776,170 @@ class TestTheListingRoute:
 
         assert service.linked.await_count == 1
         assert service.places.await_args.args[1] == []
+
+
+class TestCommandsGateOnLinkAdmission:
+    """`/new` and `/unlink` change shared state, so a sender a link-required room
+    would refuse cannot run them either; `/start`, `/help` and `/link` stay open
+    so an unlinked sender still has a way in (#1455).
+    """
+
+    @staticmethod
+    async def _run(
+        cmd: str,
+        *,
+        identity: MagicMock,
+        admit_unlinked: bool,
+        chat_type: str = "group",
+        active_member: bool = True,
+    ):
+        router = ChannelMessageRouter()
+        bot = MagicMock(organization_id=uuid.uuid4())
+        bot.name = "Support"
+        incoming = _incoming(chat_type)
+        # The admission reads the link's membership, not the bare link: a linked
+        # account whose member was deactivated is `active_member=False`.
+        membership = MagicMock() if active_member else None
+        with patch(
+            "app.services.channels.router.member_repo.get_active",
+            AsyncMock(return_value=membership),
+        ):
+            return await router._handle_command(
+                cmd, incoming, bot, MagicMock(), identity, admit_unlinked
+            )
+
+    async def test_an_unlinked_sender_cannot_reset_a_room_that_requires_a_link(self):
+        with (
+            patch(
+                "app.services.channels.router.channel_session_repo.get_by_bot_and_chat",
+                AsyncMock(),
+            ) as get_session,
+            patch(
+                "app.services.channels.router.channel_session_repo.update", AsyncMock()
+            ) as update_session,
+        ):
+            reply = await self._run("/new", identity=MagicMock(user_id=None), admit_unlinked=False)
+
+        assert "connect your account" in reply.lower()
+        get_session.assert_not_awaited()
+        update_session.assert_not_awaited()
+
+    async def test_an_unlinked_sender_cannot_unlink_in_a_room_that_requires_a_link(self):
+        with patch(
+            "app.services.channels.router.channel_identity_repo.update", AsyncMock()
+        ) as update_identity:
+            reply = await self._run(
+                "/unlink", identity=MagicMock(user_id=None), admit_unlinked=False
+            )
+
+        assert "connect your account" in reply.lower()
+        update_identity.assert_not_awaited()
+
+    async def test_link_help_and_start_still_answer_an_unlinked_sender(self):
+        unlinked = MagicMock(user_id=None)
+        help_reply = await self._run("/help", identity=unlinked, admit_unlinked=False)
+        start_reply = await self._run("/start", identity=unlinked, admit_unlinked=False)
+        link_reply = await self._run("/link", identity=unlinked, admit_unlinked=False)
+
+        assert "Available commands" in help_reply
+        assert "Welcome" in start_reply
+        # /link is the way back, so it answers even the unlinked sender the gate
+        # would refuse a state-changing command from.
+        assert "connect your account" in link_reply.lower()
+
+    async def test_new_attributes_the_conversation_to_the_issuer(self):
+        """An admitted issuer's new conversation is theirs, not the first speaker's."""
+        issuer = uuid.uuid4()
+        session = MagicMock(identity_id=uuid.uuid4())
+        with (
+            patch(
+                "app.services.channels.router.channel_session_repo.get_by_bot_and_chat",
+                AsyncMock(return_value=session),
+            ),
+            patch(
+                "app.services.channels.router.conversation_repo.create_conversation",
+                AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_conv,
+            patch("app.services.channels.router.channel_session_repo.update", AsyncMock()),
+        ):
+            reply = await self._run("/new", identity=MagicMock(user_id=issuer), admit_unlinked=True)
+
+        assert "New conversation started" in reply
+        assert create_conv.await_args.kwargs["user_id"] == issuer
+
+    async def test_a_linked_member_may_still_reset_the_room(self):
+        """The gate refuses only the unadmitted - a linked member's `/new` runs."""
+        session = MagicMock(identity_id=uuid.uuid4())
+        with (
+            patch(
+                "app.services.channels.router.channel_session_repo.get_by_bot_and_chat",
+                AsyncMock(return_value=session),
+            ) as get_session,
+            patch(
+                "app.services.channels.router.conversation_repo.create_conversation",
+                AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.channels.router.channel_session_repo.update", AsyncMock()),
+        ):
+            reply = await self._run(
+                "/new", identity=MagicMock(user_id=uuid.uuid4()), admit_unlinked=False
+            )
+
+        assert "New conversation started" in reply
+        get_session.assert_awaited_once()
+
+    async def test_a_linked_member_may_unlink_their_own_account(self):
+        """The gate refuses only the unadmitted; a linked member's `/unlink` clears
+        their link."""
+        identity = MagicMock(user_id=uuid.uuid4())
+        with patch(
+            "app.services.channels.router.channel_identity_repo.update", AsyncMock()
+        ) as update_identity:
+            reply = await self._run("/unlink", identity=identity, admit_unlinked=False)
+
+        assert "unlinked" in reply.lower()
+        assert update_identity.await_args.kwargs["update_data"] == {"user_id": None}
+
+    async def test_a_deactivated_member_cannot_reset_a_link_required_room(self):
+        """The link outlives the membership, so a still-linked but deactivated
+        account is refused `/new` exactly as a turn refuses it - admission is the
+        active membership, not the bare `user_id` (#1455)."""
+        with patch(
+            "app.services.channels.router.channel_session_repo.get_by_bot_and_chat",
+            AsyncMock(),
+        ) as get_session:
+            reply = await self._run(
+                "/new",
+                identity=MagicMock(user_id=uuid.uuid4()),
+                admit_unlinked=False,
+                active_member=False,
+            )
+
+        assert "connect your account" in reply.lower()
+        get_session.assert_not_awaited()
+
+    async def test_new_in_an_open_room_does_not_deed_the_room_to_a_former_member(self):
+        """An open room admits the sender, but a stale link must not make an
+        offboarded account the conversation's owner - the new conversation is
+        anonymous, so participant management can still reach it (#1455)."""
+        session = MagicMock(identity_id=uuid.uuid4())
+        with (
+            patch(
+                "app.services.channels.router.channel_session_repo.get_by_bot_and_chat",
+                AsyncMock(return_value=session),
+            ),
+            patch(
+                "app.services.channels.router.conversation_repo.create_conversation",
+                AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_conv,
+            patch("app.services.channels.router.channel_session_repo.update", AsyncMock()),
+        ):
+            reply = await self._run(
+                "/new",
+                identity=MagicMock(user_id=uuid.uuid4()),
+                admit_unlinked=True,
+                active_member=False,
+            )
+
+        assert "New conversation started" in reply
+        assert create_conv.await_args.kwargs["user_id"] is None

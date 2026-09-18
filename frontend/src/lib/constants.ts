@@ -4,6 +4,9 @@ export const ROUTES = {
   HOME: "/",
   LOGIN: "/login",
   REGISTER: "/register",
+  // Where a staged invitation lands after sign-in: the token was exchanged for an
+  // httpOnly-cookie handle before login, so this path carries no credential (#1414).
+  INVITATION_PENDING: "/invitations/pending",
   FORGOT_PASSWORD: "/forgot-password",
   DASHBOARD: "/dashboard",
   CHAT: "/chat",
@@ -13,6 +16,7 @@ export const ROUTES = {
   SETTINGS_ACCOUNT: "/settings/account",
   SETTINGS_NOTIFICATIONS: "/settings/notifications",
   SETTINGS_SLASH_COMMANDS: "/settings/slash-commands",
+  SETTINGS_MEMORY: "/settings/memory",
   MCP_SERVERS: "/mcp-servers",
   CHANNELS: "/channels",
   RAG: "/rag",
@@ -27,6 +31,7 @@ export const ROUTES = {
   ORGS_CREATE: "/orgs?create=1",
   ORG_MEMBERS: (id: string) => `/orgs/${id}/members`,
   ORG_ROLES: (id: string) => `/orgs/${id}/roles`,
+  ORG_RETENTION: (id: string) => `/orgs/${id}/retention`,
   AGENTS: "/agents",
   AGENT_DETAIL: (id: string) => `/agents/${id}`,
   RUNS: "/runs",
@@ -49,12 +54,6 @@ export const ROUTES = {
   LEGAL_PRIVACY: "/legal/privacy",
   LEGAL_COOKIES: "/legal/cookies",
 } as const;
-
-// WebSocket URL (for chat - direct to backend, use wss:// in production)
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
-
-// Backend API URL (public, for direct links like API docs)
-export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // The published documentation. A self-hosted deployment can serve its own copy
 // with `make docs`, but a panel cannot know whether one is running - so the

@@ -68,10 +68,67 @@ last changed; the `?v=` built from that is the only reason a replacement ever
 appears. A URL would also be one every client had to rewrite, since in any real
 deployment the API is not on the same origin as the pages.
 
+## A deployment inside a compliant environment
+
+`deploy/profiles/hipaa/` is an opinionated configuration for running this where
+HIPAA's technical safeguards apply - a compose overlay that refuses to start
+without the settings it cannot default, and an annotated env file - plus
+`agenticos cmd doctor --profile hipaa`, which checks a running deployment against
+it and exits non-zero on any unmet control.
+
+It is evidence, not a certification, and it answers §164.312 only: the
+administrative and physical safeguards are the operator's. See
+[The HIPAA profile](security.md#the-hipaa-profile-and-what-it-does-not-claim)
+for the sheet and for the line about who the business associate is.
+
+## Security headers
+
+Every console page carries a Content-Security-Policy and the usual hardening
+headers, defined in `frontend/src/lib/csp.ts` and
+`frontend/src/lib/security-headers.ts`, both asserted by tests. The policy is
+`default-src 'self'` with a `connect-src` naming exactly this origin,
+`PUBLIC_API_URL` and `PUBLIC_WS_URL`, `img-src` allowing `data:` for the brand
+glyphs and avatars, `frame-src 'self' blob:` for document previews, `object-src
+'none'`, `base-uri 'self'` and `frame-ancestors 'none'`.
+
+`script-src` carries no `'unsafe-inline'`. The middleware mints a per-request
+nonce, writes `'nonce-…' 'strict-dynamic'` into the directive, and Next stamps
+that nonce onto its own inline scripts — so a script injected into the page has
+no nonce and does not run. `'unsafe-eval'` remains, because Next's development
+runtime needs it.
+
+The policy is stamped per request by the frontend's middleware, because the two
+public URLs are read from the server's environment at runtime and a header set
+at build could only name `localhost`. The other headers are constants and are
+set by Next's configuration. Change the public URLs and the policy follows on
+the next request; nothing is rebuilt.
+
+Alongside it sit `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy`
+that denies camera and geolocation and allows the microphone only on this
+origin, for the chat's speech-to-text.
+
+!!! warning "A reverse proxy must not add its own copies of these"
+
+    Nginx, Traefik or an ALB in front of the app passes these through unchanged
+    rather than setting its own. Two `Content-Security-Policy` headers on one
+    response are combined by the browser into their intersection, so a proxy that
+    adds a second — even a laxer one — only tightens the policy into something
+    that blocks a pane nobody meant to block; and a second `X-Frame-Options` lets
+    the browser pick either value. The bundled `nginx/nginx.conf` sets only
+    `Strict-Transport-Security`, which belongs to whatever terminates TLS; an
+    existing proxy configuration that adds the others should drop them.
+
 ## Who may register
 
 `signup_mode`, applied in `app/services/signup_policy.py` — the one place, and it
-gates **both** paths that mint an account.
+gates **every** path that mints an account: the registration form, and a sign-in
+through an identity provider. Nothing about an OAuth or OIDC callback looks like
+a registration, and a deployment with single sign-on and a closed sign-up form
+would not be closed at all if that branch were ungated, so
+`get_or_create_oauth_user` asks the same policy before it creates the account.
+A refused SSO sign-in lands back on the sign-in page carrying the policy's own
+sentence, which is the same one the registration form shows.
 
 | Mode | Effect |
 |---|---|
@@ -115,7 +172,7 @@ token**, and the two answers cover different shapes:
 
 | Arrives with | Recognised by | Which shapes it admits |
 |---|---|---|
-| A token (`invitation_token` on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
+| A token (resolved from the staged invitation, never on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
 | No token | `invitation_repo.first_pending_admitting` | An email invitation for that address, or a link scoped to its domain |
 
 The token is the only proof available for a shareable link with neither an address
@@ -133,12 +190,29 @@ and nothing else; joining the organization is still `InvitationService.accept`, 
 the client calls once it has a session. A token in an unauthenticated sign-up body
 that also granted membership would be a membership grant on a public route.
 
-The console carries it across the redirect that used to lose it. An invitee with no
-account opens `/invitations/<token>`, `AuthGuard` bounces them to
-`/login?returnTo=/invitations/<token>`, and `src/lib/invitation-links.ts` reads the
-token back out of that `returnTo` so "create an account" points at
-`/register?invitation=<token>`. Before that, the only route onward was a plain link
-to `/register`, and the form then refused somebody holding a valid invitation.
+The console never carries the token across the sign-in round trip. An invitee with
+no account opens `/invitations/<token>`; `AuthGuard` exchanges the token server-side
+for an opaque handle it keeps in an `httpOnly` cookie the browser cannot read, then
+sends them to `/login?returnTo=/invitations/pending?flow=…` — a landing with no
+credential in it, so the token is not in the `returnTo`, in browser history, or in
+session storage. If the exchange fails — the server unreachable, a rate limit — the
+guard stays on the invitation link and offers to try again rather than leaving with
+nothing staged, because the link is the only credential the invitee holds.
+
+The `flow` is a random id the exchange mints per staging, and the cookie is named
+for it. It is not a credential: without the cookie it names nothing. It is there
+because one fixed cookie name is one slot — two invitation links opened side by side
+while signed out overwrote each other, and both pending tabs then redeemed the second.
+Each tab now redeems exactly the cookie its own flow names.
+
+"Create an account" carries that credential-free landing on, and the register proxy
+forwards the named flow's staged handle as a header, so the sign-up admission still
+has the token it needs without the token ever being in a URL or the body. After
+sign-in the pending page redeems the handle and accepts — the same shape as the OAuth
+code exchange, an opaque single-use expiring stand-in for a credential so the
+credential never rides a URL. The cookie is cleared once the redeem has run; a 401, a
+429 or a server failure leaves it, because the handle may still be unspent and a
+retry needs it.
 
 **A link with a `max_uses` bounds accounts, not only joins.**
 
@@ -159,12 +233,14 @@ A reservation nobody accepts stays spent (`max_uses` is how many people a link
 admits, and an account created with it was admitted), and it dies with the
 invitation.
 
-**Signing in with a provider carries the invitation too.** The token is put on
-`/oauth/google/login?invitation=…` and held in the session across the round trip,
-because the provider redirect is not ours to add a parameter to. Without it,
-`invite_only` refused the Google button for exactly the links that need a token —
-one constraining neither an address nor a domain — while the password form beside it
-accepted the same person.
+**Signing in with a provider carries the invitation too, as its handle.** The
+provider login starts same-origin, at `/api/oauth/<provider>/login`, so the staged
+`httpOnly` handle can be attached to the cross-origin hop the browser then makes —
+`/oauth/google/login?invitation_handle=…`, which the backend peeks into the token it
+holds in the session across the round trip. The token is never in that URL. Without
+this, `invite_only` refused the Google button for exactly the links that need a
+token — one constraining neither an address nor a domain — while the password form
+beside it accepted the same person.
 
 **Signing in with a provider is a registration too.** `get_or_create_oauth_user`
 is the second path that creates an account, and nothing about a Google callback
@@ -263,10 +339,17 @@ An impersonation is a **session**, not a bare credential. The token names a row
 in `sessions` with `impersonator_user_id` set, and the API refuses it the moment
 that row is ended or has expired, or the administrator behind it is no longer an
 active app admin — so it stops when you press **End impersonation**, when the
-person signs out everywhere or resets their password by email, when the hour is
+person signs out everywhere or changes their password, when the hour is
 up, or when the administrator is suspended, demoted or deleted, whichever is
 first. It cannot be refreshed: the window is the access token's own, and the hour
 is the ceiling rather than a renewable lease.
+
+!!! note "An open chat conversation ends with it"
+
+    A chat conversation runs over a WebSocket that authenticates once, at the
+    handshake. It now re-runs that check on every message, so ending an
+    impersonation — or suspending the account — closes an open chat too, rather
+    than only refusing the next HTTP request while the socket keeps answering.
 
 !!! note "The person's own devices list does not show it"
 

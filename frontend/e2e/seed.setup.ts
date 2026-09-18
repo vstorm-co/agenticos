@@ -15,7 +15,11 @@ import {
   DRAFT_AGENT_NAME,
   FAKE_KEY_LABEL,
   FAKE_KEY_SECRET,
+  SEEDED_EMBEDDING_KEY_LABEL,
+  SEEDED_EMBEDDING_KEY_SECRET,
   SEEDED_KB_NAME,
+  SEEDED_LLAMAPARSE_KEY_LABEL,
+  SEEDED_LLAMAPARSE_KEY_SECRET,
   SEEDED_AWS_SECRET_NAME,
   SEEDED_SECRET_NAME,
   SEEDED_SECRET_VALUE,
@@ -25,7 +29,11 @@ import {
   SEEDED_SKILL_CONTENT,
   SEEDED_SKILL_DESCRIPTION,
   SEEDED_SKILL_NAME,
+  chooseEmbeddingKey,
+  json,
+  nowListed,
   pageHeading,
+  rowsAt,
   submitDialog,
 } from "./helpers";
 
@@ -125,6 +133,21 @@ setup("a skill exists", async ({ page }) => {
   await nowThere(page, "/api/skills", "name", SEEDED_SKILL_NAME);
 });
 
+setup("an embedding key is stored", async ({ page }) => {
+  if (await alreadyThere(page.request, "/api/secrets", "name", SEEDED_EMBEDDING_KEY_LABEL)) return;
+
+  // OpenRouter, because that is the provider the create dialog preselects. A
+  // new collection is refused until it names a vault key for its provider -
+  // there is no deployment-wide embedding key - so this runs before the
+  // knowledge base below, and every spec that creates a collection picks it.
+  await storeSecret(page, {
+    group: "Model provider",
+    service: "OpenRouter",
+    name: SEEDED_EMBEDDING_KEY_LABEL,
+    value: SEEDED_EMBEDDING_KEY_SECRET,
+  });
+});
+
 setup("a knowledge base exists", async ({ page }) => {
   if (await alreadyThere(page.request, "/api/kb", "name", SEEDED_KB_NAME)) return;
 
@@ -134,6 +157,7 @@ setup("a knowledge base exists", async ({ page }) => {
   await page.getByRole("button", { name: "New knowledge base" }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_KB_NAME);
+  await chooseEmbeddingKey(page, dialog, SEEDED_EMBEDDING_KEY_LABEL);
   // The one site of this shape that has never flaked — because `getByText` does
   // not consult the accessibility tree, so an open dialog does not hide the row
   // from it. The refusal it cannot report is the same one, so it goes through
@@ -224,6 +248,20 @@ setup("a provider key is stored", async ({ page }) => {
     service: "OpenAI",
     name: FAKE_KEY_LABEL,
     value: FAKE_KEY_SECRET,
+  });
+});
+
+setup("a LlamaParse key is stored", async ({ page }) => {
+  if (await alreadyThere(page.request, "/api/secrets", "name", SEEDED_LLAMAPARSE_KEY_LABEL)) return;
+
+  // The family alone: "Something else" with no service chosen falls through to
+  // the first service in it, which is LlamaParse - the purpose the ingestion
+  // spec's LlamaParse collection has to be billed to, now that there is no
+  // deployment-wide key it could fall back on.
+  await storeSecret(page, {
+    group: "Something else",
+    name: SEEDED_LLAMAPARSE_KEY_LABEL,
+    value: SEEDED_LLAMAPARSE_KEY_SECRET,
   });
 });
 
@@ -333,8 +371,7 @@ async function valuesAt(
   path: string,
   field: string,
 ): Promise<unknown[]> {
-  const list = await json<{ items: Record<string, unknown>[] }>(request, path);
-  return list.items.map((item) => item[field]);
+  return (await rowsAt(request, path)).map((item) => item[field]);
 }
 
 /**
@@ -385,18 +422,7 @@ async function alreadyThere(
  * a race and a write that never happened.
  */
 async function nowThere(page: Page, path: string, field: string, value: string): Promise<void> {
-  await expect
-    .poll(() => valuesAt(page.request, path, field), {
-      message: `the write was accepted, but ${path} never listed a row whose ${field} is ${value}`,
-    })
-    .toContain(value);
-}
-
-/** A JSON GET that fails loudly, so a broken fixture reads as a broken fixture. */
-async function json<T>(request: APIRequestContext, path: string): Promise<T> {
-  const response = await request.get(path);
-  expect(response.ok(), `${path} answered ${response.status()}`).toBe(true);
-  return (await response.json()) as T;
+  await nowListed(page.request, path, field, value);
 }
 
 /** The organization the seeded owner works in — bootstrap reuses their personal one. */

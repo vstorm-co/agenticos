@@ -9,6 +9,7 @@ import {
   matchingCustomRows,
   mergeServers,
   narrowedSelection,
+  slugForPrefix,
 } from "./mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 
@@ -47,6 +48,7 @@ function personal(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRe
     is_enabled: true,
     auth_type: "bearer",
     oauth_authorized: false,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
@@ -177,10 +179,18 @@ describe("connectionState", () => {
     expect(connectionState(null)).toBe("not-connected");
   });
 
-  it("says an unauthorized OAuth server needs authorization, before anything else", () => {
+  it("says a server the server cannot authorize needs authorization, before anything else", () => {
     expect(
-      connectionState(personal({ auth_type: "oauth", oauth_authorized: false, is_enabled: false })),
+      connectionState(personal({ auth_type: "oauth", authorized: false, is_enabled: false })),
     ).toBe("needs-authorization");
+  });
+
+  it("says a bearer token a key rotation orphaned needs authorization too", () => {
+    // The drift #1443 closed on this path as well: the client only knew about
+    // OAuth consent, so an unsealed bearer token read connected here.
+    expect(connectionState(personal({ auth_type: "bearer", authorized: false }))).toBe(
+      "needs-authorization",
+    );
   });
 
   it("says a switched-off server is disabled, whatever its last check said", () => {
@@ -331,6 +341,7 @@ describe("ownAccountStatus", () => {
       is_enabled: true,
       auth_type: "oauth",
       oauth_authorized: true,
+      authorized: true,
       last_status: "ok",
       last_error: null,
       last_checked_at: null,
@@ -369,7 +380,18 @@ describe("ownAccountStatus", () => {
   });
 
   it("is unauthorized when the chosen grant no longer stands", () => {
-    expect(ownAccountStatus("notion", [own({ oauth_authorized: false })])).toBe("unauthorized");
+    expect(ownAccountStatus("notion", [own({ oauth_authorized: false, authorized: false })])).toBe(
+      "unauthorized",
+    );
+  });
+
+  it("is unauthorized when the server can no longer unseal the stored token", () => {
+    // The drift #1443 closed: a bearer token the deployment can no longer open
+    // read connected, because the client only knew about OAuth consent and the
+    // server is the one that finds a rotated key. It now reads the server's answer.
+    expect(ownAccountStatus("notion", [own({ auth_type: "bearer", authorized: false })])).toBe(
+      "unauthorized",
+    );
   });
 });
 
@@ -384,6 +406,7 @@ describe("ownAccountStatus and a failed health check", () => {
       is_enabled: true,
       auth_type: "bearer",
       oauth_authorized: false,
+      authorized: true,
       last_status: "error",
       last_error: "timed out",
       last_checked_at: null,
@@ -396,5 +419,34 @@ describe("ownAccountStatus and a failed health check", () => {
     };
 
     expect(ownAccountStatus("github", [failing])).toBe("connected");
+  });
+});
+
+describe("slugForPrefix", () => {
+  const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+  it("takes the name after the namespace so a dotted key becomes a valid prefix", () => {
+    expect(slugForPrefix("com.snitcher/snitcher")).toBe("snitcher");
+    expect(NAME_PATTERN.test(slugForPrefix("com.snitcher/snitcher"))).toBe(true);
+  });
+
+  it("leaves a key that is already its own name unchanged", () => {
+    expect(slugForPrefix("hubspot")).toBe("hubspot");
+  });
+
+  it("reduces any other punctuation to single hyphens", () => {
+    expect(slugForPrefix("com.example.foo")).toBe("com-example-foo");
+    expect(slugForPrefix("Weird Name!!")).toBe("weird-name");
+  });
+
+  it("bounds the slug to the pattern's 32 characters", () => {
+    const slug = slugForPrefix("a".repeat(50));
+    expect(slug).toHaveLength(32);
+    expect(NAME_PATTERN.test(slug)).toBe(true);
+  });
+
+  it("returns an empty string when nothing usable remains, so the field stays blank", () => {
+    expect(slugForPrefix("///")).toBe("");
+    expect(slugForPrefix("...")).toBe("");
   });
 });

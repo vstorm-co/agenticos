@@ -18,10 +18,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.audit import chain_hash
 from app.core.permissions import AuthContext, OrgRoleName
 from app.services.audit import AuditService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def _ctx(org_id: uuid.UUID | None = None) -> AuthContext:
@@ -134,3 +135,306 @@ async def test_an_organization_with_no_entries_answers_empty() -> None:
 
     assert page.items == []
     assert page.total == 0
+
+
+class TestExport:
+    """The trail an auditor takes away, and the record that it was taken."""
+
+    _WINDOW = (datetime(2026, 8, 1, tzinfo=UTC), datetime(2026, 8, 31, tzinfo=UTC))
+
+    async def _export(self, entry: MagicMock, *, fmt: str, total: int = 1):
+        with (
+            patch(
+                "app.services.audit.audit_log_repo.list_in_window_for_org",
+                new=AsyncMock(return_value=([entry], total)),
+            ) as listed,
+            patch("app.services.audit.record_audit", new=AsyncMock()) as audited,
+        ):
+            result = await AuditService(MagicMock()).export(
+                _ctx(), since=self._WINDOW[0], until=self._WINDOW[1], fmt=fmt
+            )
+        return result, listed, audited
+
+    async def test_csv_carries_the_header_and_the_entry(self) -> None:
+        entry = _entry(action="agent.deleted")
+        result, _listed, _audited = await self._export(entry, fmt="csv")
+
+        lines = result.content.splitlines()
+        assert lines[0].startswith("entry_id,created_at,actor_user_id")
+        assert "agent.deleted" in lines[1]
+        assert result.filename.endswith(".csv")
+        assert result.row_count == 1
+
+    async def test_csv_flattens_details_to_a_json_string(self) -> None:
+        entry = _entry()
+        result, _listed, _audited = await self._export(entry, fmt="csv")
+
+        # `details` is one CSV cell holding JSON, not spread across columns.
+        assert '{""version"": 3}' in result.content
+
+    async def test_jsonl_keeps_details_a_nested_object(self) -> None:
+        entry = _entry()
+        result, _listed, _audited = await self._export(entry, fmt="jsonl")
+
+        assert result.filename.endswith(".jsonl")
+        assert '"details": {"version": 3}' in result.content
+        assert result.content.endswith("\n")
+
+    async def test_the_export_is_itself_audited(self) -> None:
+        """Reading a whole trail is a privileged act; the record of who took it
+        away names the window and the count, never a row."""
+        _result, _listed, audited = await self._export(_entry(), fmt="csv")
+
+        assert audited.await_args.kwargs["action"] == "audit.export"
+        details = audited.await_args.kwargs["details"]
+        assert details["format"] == "csv"
+        assert details["row_count"] == 1
+        assert "actor_user_id" not in details
+
+    async def test_the_window_read_is_the_callers_own_organization(self) -> None:
+        ctx = _ctx()
+        with (
+            patch(
+                "app.services.audit.audit_log_repo.list_in_window_for_org",
+                new=AsyncMock(return_value=([], 0)),
+            ) as listed,
+            patch("app.services.audit.record_audit", new=AsyncMock()),
+        ):
+            await AuditService(MagicMock()).export(
+                ctx, since=self._WINDOW[0], until=self._WINDOW[1], fmt="csv"
+            )
+
+        assert listed.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    async def test_a_missing_date_range_is_refused(self) -> None:
+        from app.core.exceptions import ValidationError
+
+        with pytest.raises(ValidationError):
+            await AuditService(MagicMock()).export(_ctx(), since=None, until=None, fmt="csv")
+
+    async def test_a_match_over_the_cap_is_refused(self) -> None:
+        from app.core.exceptions import ExportTooLargeError
+        from app.services.exporting import MAX_EXPORT_ROWS
+
+        with (
+            patch(
+                "app.services.audit.audit_log_repo.list_in_window_for_org",
+                new=AsyncMock(return_value=([], MAX_EXPORT_ROWS + 1)),
+            ),
+            patch("app.services.audit.record_audit", new=AsyncMock()) as audited,
+            pytest.raises(ExportTooLargeError),
+        ):
+            await AuditService(MagicMock()).export(
+                _ctx(), since=self._WINDOW[0], until=self._WINDOW[1], fmt="csv"
+            )
+
+        # Refused before it read the whole table or recorded a bulk read that did
+        # not happen.
+        audited.assert_not_called()
+
+
+def _linked_chain(organization_id: uuid.UUID | None, count: int) -> list[MagicMock]:
+    """A correctly linked chain of `count` entries, hashed the way `record_audit`
+    would have hashed them - so an untouched one verifies and a test can then break
+    exactly one entry."""
+    entries: list[MagicMock] = []
+    created_at = datetime(2026, 1, 1, tzinfo=UTC)
+    prev_hash: str | None = None
+    for index in range(count):
+        entry = MagicMock()
+        entry.id = uuid.uuid4()
+        entry.seq = index + 1
+        entry.actor_user_id = uuid.uuid4()
+        entry.impersonator_user_id = None
+        entry.organization_id = organization_id
+        entry.action = f"action.{index}"
+        entry.target_type = None
+        entry.target_id = None
+        entry.details = None
+        entry.ip_address = None
+        entry.created_at = created_at
+        entry.prev_hash = prev_hash
+        entry.entry_hash = chain_hash(
+            prev_hash=prev_hash,
+            actor_user_id=entry.actor_user_id,
+            impersonator_user_id=None,
+            organization_id=organization_id,
+            action=entry.action,
+            target_type=None,
+            target_id=None,
+            details=None,
+            ip_address=None,
+            created_at=created_at,
+        )
+        prev_hash = entry.entry_hash
+        entries.append(entry)
+    return entries
+
+
+def _checkpoint(*, max_seq: int, entry_count: int) -> MagicMock:
+    checkpoint = MagicMock()
+    checkpoint.max_seq = max_seq
+    checkpoint.entry_count = entry_count
+    return checkpoint
+
+
+async def test_an_intact_chain_verifies_with_no_break() -> None:
+    org = uuid.uuid4()
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org",
+            new=AsyncMock(return_value=_linked_chain(org, 4)),
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=_checkpoint(max_seq=4, entry_count=4)),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is None
+    assert result.entries_checked == 4
+    assert result.organization_id == org
+
+
+async def test_an_empty_chain_with_no_checkpoint_verifies() -> None:
+    with (
+        patch("app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=[])),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(uuid.uuid4())
+
+    assert result.first_break is None
+    assert result.entries_checked == 0
+
+
+async def test_a_truncated_chain_is_caught_by_the_checkpoint() -> None:
+    """The surviving prefix hashes cleanly, so only the checkpoint - recording a
+    head the chain no longer reaches - reveals the tail was dropped."""
+    org = uuid.uuid4()
+    entries = _linked_chain(org, 3)  # entries[-1].seq == 3
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=_checkpoint(max_seq=5, entry_count=5)),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.entry_id is None
+    assert result.first_break.seq == 5
+    assert "truncated" in result.first_break.reason.lower()
+    assert result.entries_checked == 3
+
+
+async def test_a_whole_chain_deletion_is_caught_by_its_checkpoint() -> None:
+    org = uuid.uuid4()
+    with (
+        patch("app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=[])),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=_checkpoint(max_seq=7, entry_count=7)),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.entry_id is None
+    assert "missing" in result.first_break.reason.lower()
+    assert result.entries_checked == 0
+
+
+async def test_a_rewritten_entry_is_caught_by_its_own_hash() -> None:
+    """Editing a field leaves the stored `entry_hash` describing the old contents,
+    so recomputing over the new contents diverges - and the walk names that row."""
+    org = uuid.uuid4()
+    entries = _linked_chain(org, 4)
+    entries[2].action = "action.tampered"
+
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.seq == entries[2].seq
+    assert result.first_break.entry_id == entries[2].id
+    assert "entry_hash" in result.first_break.reason
+    assert result.entries_checked == 3
+
+
+async def test_a_broken_link_is_caught_by_prev_hash() -> None:
+    """A deleted or reordered entry leaves the next one's `prev_hash` pointing at a
+    hash the walk never arrives with."""
+    org = uuid.uuid4()
+    entries = _linked_chain(org, 4)
+    entries[2].prev_hash = "0" * 64
+
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.chain_for_org", new=AsyncMock(return_value=entries)
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.checkpoint_for_org",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        result = await AuditService(MagicMock()).verify_chain(org)
+
+    assert result.first_break is not None
+    assert result.first_break.seq == entries[2].seq
+    assert "prev_hash" in result.first_break.reason
+    assert result.entries_checked == 3
+
+
+async def test_verify_all_walks_every_chain_with_the_deployment_chain_first() -> None:
+    org_a, org_b = uuid.uuid4(), uuid.uuid4()
+    # org_b has a checkpoint but no entries left: a chain deleted whole, surfaced
+    # only because the checkpoint set is unioned in.
+    chains = {None: _linked_chain(None, 1), org_a: _linked_chain(org_a, 2), org_b: []}
+    checkpoints = {
+        None: _checkpoint(max_seq=1, entry_count=1),
+        org_a: _checkpoint(max_seq=2, entry_count=2),
+        org_b: _checkpoint(max_seq=3, entry_count=3),
+    }
+
+    async def _chain_for_org(_db: object, *, organization_id: uuid.UUID | None) -> list[MagicMock]:
+        return chains[organization_id]
+
+    async def _checkpoint_for_org(_db: object, *, organization_id: uuid.UUID | None) -> MagicMock:
+        return checkpoints[organization_id]
+
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.distinct_organization_ids",
+            new=AsyncMock(return_value=[org_a, None]),
+        ),
+        patch(
+            "app.services.audit.audit_log_repo.distinct_checkpoint_organization_ids",
+            new=AsyncMock(return_value=[org_a, None, org_b]),
+        ),
+        patch("app.services.audit.audit_log_repo.chain_for_org", new=_chain_for_org),
+        patch("app.services.audit.audit_log_repo.checkpoint_for_org", new=_checkpoint_for_org),
+    ):
+        results = await AuditService(MagicMock()).verify_all_chains()
+
+    by_org = {r.organization_id: r for r in results}
+    assert [r.organization_id for r in results] == [None, *sorted([org_a, org_b], key=str)]
+    assert by_org[None].first_break is None
+    assert by_org[org_a].first_break is None
+    # The deleted chain is surfaced from its checkpoint and flagged.
+    assert by_org[org_b].first_break is not None
+    assert "missing" in by_org[org_b].first_break.reason.lower()

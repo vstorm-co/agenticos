@@ -320,9 +320,15 @@ const GDRIVE: ConnectorInfo = {
   type: "gdrive",
   name: "Google Drive",
   enabled: true,
+  // The JSON Schema the connector's `CONFIG_MODEL` publishes, drawn by
+  // `SchemaForm` unadapted (#1093): `title` is the label, `required` the list.
   config_schema: {
-    folder_id: { type: "string", required: true, label: "Google Drive Folder ID" },
-    include_subfolders: { type: "boolean", required: false, label: "Include subfolders" },
+    type: "object",
+    properties: {
+      folder_id: { type: "string", title: "Google Drive Folder ID" },
+      include_subfolders: { type: "boolean", title: "Include subfolders" },
+    },
+    required: ["folder_id"],
   },
   // The credential is a vault secret this source references, not a field it
   // carries - so it is not in `config_schema` any more (#937).

@@ -68,7 +68,6 @@ class ModelProfileCreate(BaseSchema):
         ),
     )
     params: dict[str, Any] = Field(default_factory=dict)
-    allow_byo: bool = False
     fallback_profile_ids: list[UUID] = Field(default_factory=list)
 
 
@@ -87,7 +86,6 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     #: most of them.
     base_url: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
-    allow_byo: bool
     fallback_profile_ids: list[str] = Field(default_factory=list)
     context_length: int | None = Field(
         default=None,

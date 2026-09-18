@@ -3,7 +3,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import String
+from sqlalchemy import BigInteger, Identity, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,10 @@ class AppAdminAuditLog(Base, TimestampMixin):
     """Records privileged actions performed by app admins or org owners."""
 
     __tablename__ = "app_admin_audit_logs"
+    # The chain is read and verified per organization in `seq` order, so that pair
+    # is the index the head-read (`ORDER BY seq DESC LIMIT 1`) and `audit-verify`
+    # both walk.
+    __table_args__ = (Index("app_admin_audit_logs_org_seq_idx", "organization_id", "seq"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # Null is "no session behind it", which two writers can mean: the approval
@@ -40,6 +44,25 @@ class AppAdminAuditLog(Base, TimestampMixin):
     target_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    # A deployment-wide monotonic ordinal, so the chain has a deterministic order
+    # even for two entries one transaction writes on the same `created_at`
+    # (Postgres `now()` is transaction-stable and a uuid4 `id` cannot break the
+    # tie). Mirrors `messages.ordinal`, the same problem #0027 solved.
+    seq: Mapped[int] = mapped_column(
+        BigInteger, Identity(always=False, start=1, increment=1), nullable=False, unique=True
+    )
+    # Tamper evidence (#1622): each entry stores the previous entry's hash for its
+    # organization, and its own hash over `prev_hash` concatenated with its
+    # canonical fields. `prev_hash` is null for the first entry in an
+    # organization's chain; a break is what `agenticos cmd audit-verify` reports.
+    # A detection control, not a prevention one - an operator with the database
+    # can still rewrite a row, but not without the recomputed hash diverging.
+    # The chain catches an edited, reordered, inserted or interior-deleted entry;
+    # the newest entries being dropped or a whole chain deleted leave the survivors
+    # internally consistent, so those are caught instead by comparing against
+    # `app_admin_audit_checkpoints`, the per-organization high-water mark (#1648).
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entry_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     def __repr__(self) -> str:
         return f"<AppAdminAuditLog(id={self.id}, action={self.action}, actor={self.actor_user_id})>"

@@ -69,6 +69,7 @@ from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserCon
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
+from pydantic_ai.toolsets import AbstractToolset
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience, derive_audience
@@ -94,6 +95,7 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import offloaded_history
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
     dump_plan,
@@ -105,7 +107,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, Workspac
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
-from app.agents.deps import AgentDeps
+from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
@@ -117,6 +119,8 @@ from app.agents.spec import (
     ObservabilitySpec,
     SpecialistSpec,
     SubagentRef,
+    TraceContent,
+    trace_content_block,
 )
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -171,6 +175,7 @@ from app.services.agent_registry import (
 )
 from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
+from app.services.channel_link import mcp_servers_link
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
@@ -179,7 +184,9 @@ from app.services.conversation import ConversationService
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
     PersonalServiceGapKind,
+    UnavailableBinding,
     UnavailablePersonalService,
+    UnavailablePrefixCollision,
     build_toolsets_for_agent,
 )
 from app.services.model_profile import ModelProfileService
@@ -192,7 +199,7 @@ from app.services.sandbox_workspace import (
     SandboxWorkspaceService,
 )
 from app.services.skill_proposal import SkillProposalService
-from app.services.skill_workspace import MaterialisedSkills, collect_changes
+from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
@@ -529,6 +536,17 @@ class AdmittedAs(BaseModel):
             "`agent_runs` records no chat type, so a resumed run read a direct "
             "message and a channel alike and would have lost the room's memory on "
             "the way back (#788)."
+        ),
+    )
+    subject_is_publisher_fallback: bool = Field(
+        default=False,
+        description=(
+            "Whether `user_id` is a publisher standing in for an unidentified "
+            "visitor rather than a real subject. Kept so a resume does not lend "
+            "the publisher's own MCP credentials to an anonymous guest, which the "
+            "approver's context cannot tell it (#1469): `agent_runs.user_id` is the "
+            "publisher either way. Defaults false, so a run parked before this was "
+            "recorded resumes as it always did."
         ),
     )
 
@@ -1272,15 +1290,37 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
 _CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
 
 
+_SKILLS_BRIEFING = (
+    f"Your skills are also files, under `{SKILLS_ROOT}/<name>/` - `SKILL.md` and each "
+    "of the skill's resources beside it. Read and run them there. A skill whose own "
+    "text names a different directory is out of date; this is where the files are."
+)
+
+
+def _with_skills_briefing(spec: AgentSpec) -> AgentSpec:
+    """The spec told where this run's skills were written.
+
+    Nothing else tells it. The path was only ever discoverable from a skill's own
+    body, which made every skill authored against the old root the model's sole
+    authority for a location the platform had since changed - and a body that
+    still names it sends the model to a directory that is not there. Said once,
+    by the side that chooses the path, that text is merely stale.
+
+    Appended like the workspace briefing, and only when something was actually
+    materialised: a run whose every write was refused has no files to point at.
+    """
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{_SKILLS_BRIEFING}"})
+
+
 class PersonalServiceGap(BaseModel):
     """One personal MCP service a turn cannot reach, as a surface draws it.
 
     The same fact the model is briefed with, carried to the person: which
-    service, why, and the one link that fixes it. `url` is the servers page
-    with `?connect=<key>` for a service they have not connected, and the bare
-    page for one they have - several accounts with no default, or a grant that
-    no longer authorizes - because `?connect=` always makes a *new* connection
-    and an expired Notion followed there becomes a second Notion.
+    service, and why. The catalog key rather than a built URL, because the surface
+    owns where the remedy lives - the chat resolves the catalog entry and
+    navigates in the app, and a channel builds the absolute link beside its other
+    URLs. A runner that built `{FRONTEND_URL}/mcp-servers` quoted a path the
+    console no longer serves under a locale prefix (#1444).
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1290,50 +1330,92 @@ class PersonalServiceGap(BaseModel):
         description="As the catalog names it; the key where the catalog no longer holds it"
     )
     gap: PersonalServiceGapKind
-    url: str
 
 
 def personal_service_gap(unavailable: UnavailablePersonalService) -> PersonalServiceGap:
     """One gap as the model is briefed with it and the surface draws it.
 
-    Named after the catalog entry where there is one, and pointed at the connect
-    link only for a service the person has not connected at all: the other gaps
-    are about an account they already hold, and `?connect=` would make another.
+    Named after the catalog entry where there is one, so the person reads
+    "Notion" rather than the key. Where the remedy is reached from is the
+    surface's to decide, not this function's.
     """
     entry = mcp_catalog_entry(unavailable.catalog_key)
-    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
     return PersonalServiceGap(
         catalog_key=unavailable.catalog_key,
         name=unavailable.catalog_key if entry is None else entry.name,
         gap=unavailable.gap,
-        url=(
-            f"{servers}?connect={unavailable.catalog_key}"
-            if unavailable.gap == "not_connected"
-            else servers
-        ),
     )
 
 
 def _with_personal_service_gaps(
-    spec: AgentSpec, gaps: Sequence[UnavailablePersonalService], surface: RunSurface
+    spec: AgentSpec,
+    gaps: Sequence[UnavailableBinding],
+    surface: RunSurface,
+    *,
+    sender_present: bool = False,
 ) -> AgentSpec:
-    """The spec told which personal services this turn cannot reach, and why.
+    """The spec told which of its bound servers this turn cannot reach, and why.
 
-    A personal binding with nothing to speak through is skipped, and a skipped
-    server is invisible to the model: it answers as though the agent never had
-    Notion, and the person asking concludes the agent is broken. One paragraph
-    per gap turns that into an answer they can act on - connect the account,
-    mark one as default, link the chat account - with the link that does it.
-    Appended per run with `model_copy`, like a binding's prompt, because it is
-    true of this message and not of the published version.
+    A binding with nothing to speak through, or one dropped for a prefix
+    collision, is skipped, and a skipped server is invisible to the model: it
+    answers as though the agent never had Notion, and the person asking concludes
+    the agent is broken. One paragraph per gap turns that into an answer they can
+    act on. Appended per run with `model_copy`, like a binding's prompt, because
+    it is true of this message and not of the published version.
     """
     if not gaps:
         return spec
-    added = "\n\n".join(_personal_gap_briefing(personal_service_gap(gap), surface) for gap in gaps)
+    added = "\n\n".join(
+        _binding_gap_briefing(gap, surface, sender_present=sender_present) for gap in gaps
+    )
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
-def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
+def _binding_gap_briefing(
+    gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool
+) -> str:
+    """One paragraph for a binding this turn could not honour, model-facing."""
+    if isinstance(gap, UnavailablePrefixCollision):
+        if gap.server == gap.kept:
+            # Same name on both sides - an organization connection and a personal
+            # binding both called `notion` - so naming the server would tell the
+            # model that what it holds is both attached and unavailable.
+            return (
+                f"Two of this agent's bindings are both called {gap.server} - "
+                f"{gap.server_binding} and {gap.kept_binding} - and reduce to one tool prefix "
+                f"{gap.prefix!r}, which two servers cannot share, so only {gap.kept_binding} is "
+                f"attached this turn. The {gap.server} tools you have are that one's. If asked "
+                f"for something only the other could do, say that the agent's other {gap.server} "
+                "binding is not attached because two of its servers collide under one name, "
+                "which the agent's author resolves by renaming one connection."
+            )
+        return (
+            f"The {gap.server} server ({gap.server_binding}) is not available this turn: it and "
+            f"{gap.kept} ({gap.kept_binding}) both reduce to the tool prefix {gap.prefix!r}, and "
+            f"two servers cannot share one - so only {gap.kept} is attached. If asked for anything "
+            f"in {gap.server}, say it is not available because two of this agent's servers collide "
+            "under one name, which the agent's author resolves by renaming one connection."
+        )
+    return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
+
+
+def _servers_pointer(surface: RunSurface, *, connect_key: str | None = None) -> str:
+    """Where to send the person to fix a personal-service gap, phrased for the surface.
+
+    A channel reader is in Slack with no session, so the pointer is the absolute
+    link, built beside the other channel URLs; a console reader is already in the
+    app, so the page is named in words. Only a service nobody has connected takes
+    `?connect=`, which opens the connect flow - the other gaps are about an account
+    already held, where it would mint a second one.
+    """
+    if surface in _CHANNEL_SURFACES:
+        return f"point them at {mcp_servers_link(connect_key)}"
+    return "send them to the MCP servers page"
+
+
+def _personal_gap_briefing(
+    gap: PersonalServiceGap, surface: RunSurface, *, sender_present: bool
+) -> str:
     bound = f"{gap.name} is bound to the account of whoever is talking to you"
     if gap.gap == "nobody_to_speak_as":
         if surface in _CHANNEL_SURFACES:
@@ -1342,6 +1424,12 @@ def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
                 f"person here, so the {gap.name} tools are not available for it. If asked for "
                 f"anything in {gap.name}, say so and tell them to send /link to this bot first, "
                 "then ask again."
+            )
+        if sender_present:
+            return (
+                f"{bound}, and although they are signed in, this run does not act as their "
+                f"account, so the {gap.name} tools are not available here. If asked for anything "
+                f"in {gap.name}, say so plainly rather than attempting a workaround."
             )
         return (
             f"{bound}, and nobody is signed in on this surface, so the {gap.name} tools are not "
@@ -1352,19 +1440,20 @@ def _personal_gap_briefing(gap: PersonalServiceGap, surface: RunSurface) -> str:
         return (
             f"{bound}, and this person holds several {gap.name} connections with none marked as "
             f"the one agents use, so its tools are not available for this message. If asked "
-            f"for anything in {gap.name}, say so and point them at {gap.url} to mark one of their "
-            f"{gap.name} connections as default, under You."
+            f"for anything in {gap.name}, say so and {_servers_pointer(surface)} to mark one of "
+            f"their {gap.name} connections as default, under You."
         )
     if gap.gap == "unauthorized":
         return (
             f"{bound}, and this person's own {gap.name} connection no longer authorizes, so its "
             f"tools are not available for this message. If asked for anything in {gap.name}, say "
-            f"so and point them at {gap.url} to authorize their {gap.name} connection again, under You."
+            f"so and {_servers_pointer(surface)} to authorize their {gap.name} connection again, "
+            "under You."
         )
     return (
         f"{bound}, and this person has not connected their own {gap.name} yet, so its tools are "
-        f"not available for this message. If asked for anything in {gap.name}, say so and give "
-        f"them this link to connect it: {gap.url} - once connected, they ask again."
+        f"not available for this message. If asked for anything in {gap.name}, say so and "
+        f"{_servers_pointer(surface, connect_key=gap.catalog_key)} to connect it, then ask again."
     )
 
 
@@ -1441,6 +1530,15 @@ class _Delegation:
     The person who wrote the message, and `None` where nobody did. Here rather
     than derived per delegate because it is a fact about the *run*: a delegate
     answers the same person its parent does, at every level of the tree.
+    """
+
+    sender_present: bool
+    """Whether a signed-in person is behind the run though it may not act as them.
+
+    A fact about the run, like `personal_mcp_user_id`: it separates an API call a
+    person made with their own token from a surface with nobody on it, so a
+    delegate's gap briefing does not tell a signed-in caller that nobody is
+    signed in (#1445).
     """
 
     approvals: ApprovalChannel
@@ -1531,7 +1629,7 @@ def _delegate_builder(
     agent_id: UUID,
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
-    extra_toolsets: list[Any],
+    extra_toolsets: list[AbstractToolset[Any]],
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -1554,6 +1652,7 @@ def _delegate_builder(
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
             run_id=delegation.run.id,
+            conversation_id=delegation.run.conversation_id,
             user_id=delegation.user_id,
             user_name=delegation.user_name,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
@@ -1575,7 +1674,10 @@ def _delegate_builder(
 
 
 def _dynamic_builder(
-    delegation: _Delegation, *, profiles: Mapping[str, ModelRequestSpec]
+    delegation: _Delegation,
+    *,
+    profiles: Mapping[str, ModelRequestSpec],
+    trace_content: TraceContent,
 ) -> DynamicSpecialistBuilder:
     """How a specialist a run's model invents becomes an agent of this platform's.
 
@@ -1609,9 +1711,14 @@ def _dynamic_builder(
             # capabilities, no collections, no skills, no MCP connections and no
             # delegates - so a specialist a model wrote cannot reach anything the
             # organization granted the agent that invented it, and cannot delegate
-            # a level further.
+            # a level further. The one thing it does inherit is what may be
+            # recorded about it: a specialist nobody reviewed is the last place a
+            # run's prompts should start leaving from.
             spec=AgentSpec(
-                name=name, instructions=instructions, model_profile_id=profiles[model].profile_id
+                name=name,
+                instructions=instructions,
+                model_profile_id=profiles[model].profile_id,
+                observability=trace_content_block(trace_content),
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
@@ -1785,11 +1892,12 @@ class AgentRunnerService:
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
         acts_for_sender: bool = False,
-        extra_toolsets: list[Any] | None = None,
+        extra_toolsets: list[AbstractToolset[Any]] | None = None,
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        on_compaction: CompactionSink | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -1819,6 +1927,12 @@ class AgentRunnerService:
                 The run row records the model that actually ran, so a cheaper or
                 stronger model chosen for one conversation stays attributable
                 and stays inside the same budget.
+            on_compaction: Where to tell a live surface that a summary is
+                running. A compaction takes tens of seconds and says nothing, so
+                a surface that streams and does not attach this simply stops for
+                the length of it - which is the failure `CompactionSink`'s own
+                docstring was written for, and which the widget's socket had
+                because only the dashboard's chat passed one (#936).
             environment_id: Run the version this environment pins instead of
                 the default. Falls back to the exposure's environment - a bot
                 bound to `dev` serves dev without every caller re-deriving it -
@@ -1839,7 +1953,7 @@ class AgentRunnerService:
         )
         spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
-        return await self._assemble(
+        prepared = await self._assemble(
             ctx,
             agent=agent,
             spec=spec,
@@ -1862,6 +1976,12 @@ class AgentRunnerService:
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
         )
+        if on_compaction is not None:
+            # Set on the built deps rather than passed into `_assemble`: it is a
+            # property of the *surface*, not of the run, and `_assemble` already
+            # takes fourteen arguments about the run.
+            prepared.built.deps.on_compaction = on_compaction
+        return prepared
 
     async def _allowed_approval_mode(
         self, ctx: AuthContext, requested: ApprovalMode, *, surface: RunSurface
@@ -1928,7 +2048,8 @@ class AgentRunnerService:
         owner_user_id: UUID | None = None,
         memory_room_key: str | None = None,
         restored_audience: RunAudience | None = None,
-        extra_toolsets: list[Any] | None,
+        restored_publisher_fallback: bool | None = None,
+        extra_toolsets: list[AbstractToolset[Any]] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
         resuming: dict[str, ResumedDelegation],
@@ -2042,7 +2163,35 @@ class AgentRunnerService:
         # so deriving this from `ctx` alone read *their* personal account inside
         # somebody else's conversation - the resume path passes the recorded
         # owner and this falls back to the caller only for a run being started.
-        personal_mcp_user_id = (owner_user_id or ctx.user_id) if acts_for_sender else None
+        #
+        # But a publisher standing in for an unidentified visitor is not a person
+        # whose own account may be reached for, even though `acts_for_sender` is
+        # set on that surface too: resolving one here would speak to a third-party
+        # MCP server with the owner/publisher's own connected-account credentials
+        # on behalf of an anonymous guest (#1469). Read from the request on a fresh
+        # run and from the parked terms on a resume, where the approver's context
+        # is not the run's - the same reason `owner_user_id` is passed rather than
+        # taken from `ctx` (#788). It defaults false, so a run parked before this
+        # was recorded resolves as it always did rather than losing its tools.
+        subject_is_publisher_fallback = (
+            restored_publisher_fallback
+            if restored_publisher_fallback is not None
+            else ctx.subject_is_publisher_fallback
+        )
+        personal_mcp_user_id = (
+            (owner_user_id or ctx.user_id)
+            if acts_for_sender and not subject_is_publisher_fallback
+            else None
+        )
+        # Whether a signed-in person is behind this run even where a personal
+        # binding may not speak through their account - true on the API, where a
+        # bearer token identifies the caller but their own connections are
+        # deliberately out of reach, and false where nobody wrote the message at
+        # all. It is what tells the gap briefing to explain the refusal rather
+        # than tell a signed-in caller that nobody is signed in (#1445).
+        sender_present = (
+            owner_user_id or ctx.user_id
+        ) is not None and not subject_is_publisher_fallback
 
         # The MCP servers the spec binds, resolved here rather than by each
         # surface. A surface that forgot would produce an agent missing half its
@@ -2055,7 +2204,9 @@ class AgentRunnerService:
             sender_user_id=personal_mcp_user_id,
         )
         spec_toolsets = resolved.toolsets
-        spec = _with_personal_service_gaps(spec, resolved.unavailable, surface)
+        spec = _with_personal_service_gaps(
+            spec, resolved.unavailable, surface, sender_present=sender_present
+        )
 
         run = existing_run
         if run is None:
@@ -2162,6 +2313,8 @@ class AgentRunnerService:
             # an agent is keeping *for a person*. `browsable` is where they are
             # dropped instead (#1064).
             materialised = await materialise_skills(workspace.backend, resources["skills"])
+            if materialised.written:
+                spec = _with_skills_briefing(spec)
             # After the skills are written, so materialising them does not read as
             # the turn's own output.
             started_with = await workspace_snapshot(workspace.backend)
@@ -2200,6 +2353,7 @@ class AgentRunnerService:
             surface=surface,
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
+            sender_present=sender_present,
             resources=resources,
             approvals=channel,
             budget=run_budget,
@@ -2229,6 +2383,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
+            conversation_id=run.conversation_id,
             # The guard keeps a subject-less context stringifying to None, never "None".
             user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
@@ -2270,7 +2425,14 @@ class AgentRunnerService:
             workspace=workspace,
             materialised_skills=materialised,
             workspace_at_start=started_with,
-            personal_service_gaps=[personal_service_gap(gap) for gap in resolved.unavailable],
+            # Only personal gaps reach the chat's connect card - a prefix collision
+            # is the agent author's to fix by renaming a connection, not something
+            # the person talking connects an account for (#1442).
+            personal_service_gaps=[
+                personal_service_gap(gap)
+                for gap in resolved.unavailable
+                if isinstance(gap, UnavailablePersonalService)
+            ],
             delegations=delegations,
             stash=stash,
             ctx=ctx,
@@ -2281,6 +2443,7 @@ class AgentRunnerService:
                 acts_for_sender=acts_for_sender,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
+                subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
 
@@ -2294,6 +2457,7 @@ class AgentRunnerService:
         surface: RunSurface,
         user_name: str | None,
         personal_mcp_user_id: UUID | None,
+        sender_present: bool,
         resources: dict[str, Any],
         approvals: ApprovalChannel,
         budget: _RunBudget,
@@ -2350,6 +2514,7 @@ class AgentRunnerService:
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
+            sender_present=sender_present,
             approvals=approvals,
             budget=budget,
             record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
@@ -2382,11 +2547,13 @@ class AgentRunnerService:
             subagents,
             depth_remaining=depth_remaining,
             depth=0,
-            dynamic=await self._dynamic_specialists(delegation, config),
+            dynamic=await self._dynamic_specialists(
+                delegation, config, trace_content=spec.trace_content
+            ),
         )
 
     async def _dynamic_specialists(
-        self, delegation: _Delegation, config: SubagentsConfig
+        self, delegation: _Delegation, config: SubagentsConfig, *, trace_content: TraceContent
     ) -> DynamicSpecialists | None:
         """Whether one agent in the tree may invent specialists, and how it builds one.
 
@@ -2404,7 +2571,7 @@ class AgentRunnerService:
             return None
         profiles = await self._model_catalog(delegation)
         return DynamicSpecialists(
-            build=_dynamic_builder(delegation, profiles=profiles),
+            build=_dynamic_builder(delegation, profiles=profiles, trace_content=trace_content),
             allowed_models=tuple(profiles),
         )
 
@@ -2544,11 +2711,20 @@ class AgentRunnerService:
         `agent_id` and `agent_version_id` are left unset, which is what tells the
         recorder there is no agent to attribute a run row to. Its cost is the
         parent's, and the tool call in the transcript is the record.
+
+        The parent's trace-content mode comes with it. A specialist has no Logfire
+        project of its own and gains none here, but `content="none"` is a promise
+        about the run rather than about one agent in it, and a specialist whose
+        spec carried no observability block at all was instrumented by the
+        deployment's global default with content on (#1699).
         """
         ctx = delegation.ctx
         spec = _without_delegation(
             _with_shared(
-                specialist.to_agent_spec(fallback_model_profile_id=parent.model_profile_id),
+                specialist.to_agent_spec(
+                    fallback_model_profile_id=parent.model_profile_id,
+                    trace_content=parent.trace_content,
+                ),
                 shared,
             )
         )
@@ -2710,7 +2886,13 @@ class AgentRunnerService:
                     # the one capability `_resolve_delegates` will not share.
                     # Shared, the parent's binding would land on a delegate that
                     # binds none and be read here as the delegate's own.
-                    dynamic=await self._dynamic_specialists(delegation, nested_config),
+                    # And its own trace-content mode, for the same reason: a
+                    # published delegate carries an observability block of its
+                    # own, so what a specialist it invents may record is its
+                    # author's answer rather than its caller's.
+                    dynamic=await self._dynamic_specialists(
+                        delegation, nested_config, trace_content=pinned.trace_content
+                    ),
                 )
             else:
                 # The bound. Built without the capability rather than with one
@@ -2733,7 +2915,12 @@ class AgentRunnerService:
         # Briefed like the parent: a delegate may bind a service the parent does
         # not, and one that lost it silently would report failure where the
         # parent could have relayed "connect your Notion" instead.
-        runnable = _with_personal_service_gaps(runnable, resolved.unavailable, delegation.surface)
+        runnable = _with_personal_service_gaps(
+            runnable,
+            resolved.unavailable,
+            delegation.surface,
+            sender_present=delegation.sender_present,
+        )
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
         return ResolvedSubagent(
             name=delegate.slug,
@@ -3338,7 +3525,7 @@ class AgentRunnerService:
         memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         acts_for_sender: bool = False,
-        message_history: list[Any] | None = None,
+        message_history: Sequence[ModelMessage] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
         attachments: list[ChatFile] | None = None,
@@ -3346,6 +3533,7 @@ class AgentRunnerService:
         outbound_refused: list[str] | None = None,
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
+        on_compaction: CompactionSink | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3390,6 +3578,7 @@ class AgentRunnerService:
             acts_for_sender=acts_for_sender,
             exposure=exposure,
             environment_id=environment_id,
+            on_compaction=on_compaction,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
@@ -3563,6 +3752,10 @@ class AgentRunnerService:
                 user_id=state.admitted_as.audience_user_id,
                 room_key=state.admitted_as.audience_room_key,
             ),
+            # The run's own terms, not the approver's context: whether user_id was
+            # a publisher stand-in is gone with the request that carried it, so a
+            # resume would otherwise lend the publisher's MCP to a guest (#1469).
+            restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to
@@ -3725,6 +3918,7 @@ class AgentRunnerService:
             token_secret_id=token_secret_id,
             service_name=environment.service_name or (base.service_name if base else None),
             environment=environment.name,
+            content=base.content if base else "full",
         )
         return spec.model_copy(update={"observability": merged})
 
@@ -3755,7 +3949,7 @@ class AgentRunnerService:
         prepared: PreparedRun,
         *,
         user_prompt: str | list[Any] | None,
-        message_history: list[Any] | None,
+        message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None,
     ) -> AgentRunResult[Any]:
@@ -3789,7 +3983,7 @@ class AgentRunnerService:
         user_prompt: str | list[Any] | None,
         said: str | None,
         attachments: Sequence[ChatFile] = (),
-        message_history: list[Any] | None,
+        message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
     ) -> RunSegment:
@@ -3871,8 +4065,13 @@ class AgentRunnerService:
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
             if prepared.built.context.summarized:
-                summarized = ModelMessagesTypeAdapter.dump_python(
-                    result.all_messages(), mode="json"
+                # Offloaded before it is stored, if the agent asked for it. The
+                # chat runner does the same with the same helper: hooking one of
+                # the two gave the capability to the WebSocket chat and to
+                # nothing else (#55).
+                summarized = await offloaded_history(
+                    prepared.built.capabilities,
+                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
             new_messages = result.new_messages()
             called = tool_calls_in(new_messages)

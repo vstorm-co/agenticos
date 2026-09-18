@@ -37,7 +37,7 @@ import {
   resumeFailureStatus,
 } from "@/lib/delegations";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
-import { WS_URL } from "@/lib/constants";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
@@ -617,10 +617,11 @@ export function useChat(options: UseChatOptions = {}) {
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const tenantId = useTenantId();
+  const { wsUrl: wsOrigin } = usePublicConfig();
   const wsUrl = useMemo(() => {
-    const base = `${WS_URL}/api/v1/ws/agent`;
+    const base = `${wsOrigin}/api/v1/ws/agent`;
     return activeOrgId ? `${base}?organization_id=${encodeURIComponent(activeOrgId)}` : base;
-  }, [activeOrgId]);
+  }, [wsOrigin, activeOrgId]);
   // Read from the store when a socket is actually opened, so a reconnect
   // authenticates with the freshest token without a refresh being able to
   // provoke one. Stable, so `connect` keeps its identity.
@@ -1047,7 +1048,7 @@ export function useChat(options: UseChatOptions = {}) {
             usage: {
               input_tokens: resumed.input_tokens,
               output_tokens: resumed.output_tokens,
-              cost_usd: Number(resumed.cost_usd),
+              cost_usd: resumed.cost_usd ?? "0",
               cost_is_partial: resumed.cost_is_partial,
               // A resume is not told where the run stands against its budget, and
               // an invented percentage is worse than a bar that is not drawn.

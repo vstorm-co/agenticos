@@ -1,0 +1,95 @@
+# Local development, on a laptop. `make dev`, or a bare `docker compose up` in
+# a checkout - Compose merges this file over `docker-compose.yml` on its own
+# whenever both are in the directory, which is what makes the same base file
+# pull published images in an empty directory and build from source in a clone.
+#
+# What it changes, and nothing else:
+#
+#   - the backend image is built from this tree rather than pulled, and tagged
+#     `agenticos_backend:dev` so `migrate` and `prefect-runner` run the same build;
+#   - the source is bind-mounted and the API runs under the reload supervisor, so
+#     an edit is live without a rebuild;
+#   - the console is built from `frontend/` and put behind the `console`
+#     profile, so `make dev` does not fight `bun dev` on the host for :3000 -
+#     `make dev-frontend` starts it;
+#   - Postgres, Redis and the Prefect server publish their ports, so psql, a GUI
+#     client and the test suite can reach them from the host.
+#
+# There used to be a `docker-compose.dev.yml` whose header claimed it was
+# identical to the local file. It was not: it had drifted and lost
+# `--ws websockets-sansio`, and it was the file `make dev` used - so the chat
+# websocket 500'd on handshake for anyone developing locally. This file cannot
+# drift that way, because it does not repeat anything: what it does not name, it
+# inherits.
+
+services:
+  migrate:
+    image: agenticos_backend:dev
+    pull_policy: never
+
+  app:
+    # The repository root, not `backend/`, so `emails/compiled/` is in the image
+    # - backend/Dockerfile says why. `make dev-rebuild` forces this build.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: agenticos_backend:dev
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/cli:/app/cli:ro
+      - ./emails:/app/emails:ro
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=local
+    # Not `uvicorn --reload` directly. Its reloader is a file watcher, not a
+    # process supervisor: when the kernel kills the worker - an OOM kill is the
+    # realistic way - it neither reaps it nor replaces it, so PID 1 stays alive,
+    # this container stays `Up`, `restart:` has nothing to act on, and nothing is
+    # listening. `cli/reload_supervisor.py` is the same reloader with a worker the
+    # kernel killed replaced within about five seconds.
+    #
+    # It also replaces a worker that is alive but whose event loop has stopped
+    # turning - deadlocked, spinning, or stopped - which has no exit code and so
+    # looks healthy to everything else here. The worker beats from its own event
+    # loop and the supervisor replaces it after fifteen silent seconds. Set
+    # `EVENT_LOOP_WEDGED_AFTER` in `backend/.env` to change that, or to `0` to
+    # switch it off, which is what a breakpoint needs: a stopped event loop is
+    # exactly what the check is looking for.
+    #
+    # The same variable switches off `app/core/watchdog.py`, which judges the
+    # same loop from inside the worker and is what covers the stacks with no
+    # supervisor. Here it is the faster of the two judges; the supervisor is
+    # still the only one that can see a worker stopped outright, which cannot
+    # run a watchdog of its own.
+    #
+    # It, and not `cli.commands server run --reload`, because that entrypoint
+    # imports `app.main` and would put the whole application - 464 MB against
+    # 28 MB - inside a reloader that never serves a request.
+    command: python -m cli.reload_supervisor --host 0.0.0.0 --port 8000
+
+  prefect-runner:
+    image: agenticos_backend:dev
+    pull_policy: never
+    volumes:
+      - ./backend/app:/app/app:ro
+    environment:
+      - DEBUG=true
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: agenticos_frontend:dev
+    profiles: [console]
+
+  db:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  prefect-server:
+    ports:
+      - "4200:4200"

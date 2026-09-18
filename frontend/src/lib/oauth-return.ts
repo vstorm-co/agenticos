@@ -22,18 +22,32 @@
  * of that rule is a second answer to it.
  */
 
+import { ROUTES } from "@/lib/constants";
+import { invitationTokenFrom } from "@/lib/invitation-links";
+
 const KEY = "oauthReturnTo";
 
 /**
- * Remember where to land, or forget a path from an earlier attempt.
+ * Remember a path, forget one, or leave the store as it is.
  *
- * Always one or the other. Leaving a stale value in place is how a second
- * sign-in with no deep link resumes the first one's.
+ * A string is remembered, `null` forgets a stale one (a second sign-in with no
+ * deep link must not resume the first one's), and `undefined` touches nothing -
+ * which is what a retry passes, so the deep link it wrote before the failed attempt
+ * stays without being read back out and written again.
+ *
+ * A credential-bearing invitation deep link is never what gets stored: the token is
+ * exchanged for an `httpOnly` handle before sign-in (#1414), so a path still carrying
+ * one is replaced with its credential-free landing rather than written to a store a
+ * script can read. By the time a value reaches here it should already be
+ * `/invitations/pending`; this guarantees a raw token cannot land in `sessionStorage`
+ * even if one does not.
  */
 export function rememberReturnTo(path: string | null | undefined): void {
+  if (path === undefined) return;
   try {
-    if (path) {
-      window.sessionStorage.setItem(KEY, path);
+    const safe = path && invitationTokenFrom(path) ? ROUTES.INVITATION_PENDING : path;
+    if (safe) {
+      window.sessionStorage.setItem(KEY, safe);
     } else {
       window.sessionStorage.removeItem(KEY);
     }
@@ -44,30 +58,22 @@ export function rememberReturnTo(path: string | null | undefined): void {
 }
 
 /**
- * What an attempt started from this URL should remember.
+ * What an attempt started from this URL should do with the remembered path.
  *
- * `?returnTo=` when the visitor arrived with one. Otherwise nothing - *except*
- * on a retry: a failed provider attempt comes back to `/login?error=…` with the
- * deep link gone from the URL and the one written before the attempt still in
- * storage, so clearing there would drop a path nobody abandoned. Only the OAuth
- * callback and the provider redirect mint that `error`, which is what makes it
- * a reliable "this is the second attempt at the same thing".
+ * `?returnTo=` when the visitor arrived with one - store it. Otherwise clear a
+ * stale one, *except* on a retry: a failed provider attempt comes back to
+ * `/login?error=…` with the deep link gone from the URL and the one written before
+ * the attempt still in storage, so it answers `undefined` there - leave it in place
+ * rather than read it back out and rewrite it. Only the OAuth callback and the
+ * provider redirect mint that `error`, which is what makes it a reliable "this is
+ * the second attempt at the same thing".
  */
 export function returnToForAttempt(search: {
   get: (name: string) => string | null;
-}): string | null {
+}): string | null | undefined {
   const named = search.get("returnTo");
   if (named) return named;
-  return search.get("error") ? peek() : null;
-}
-
-/** Read without consuming - only {@link returnToForAttempt} needs this. */
-function peek(): string | null {
-  try {
-    return window.sessionStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
+  return search.get("error") ? undefined : null;
 }
 
 /** The remembered path, removed as it is read. */

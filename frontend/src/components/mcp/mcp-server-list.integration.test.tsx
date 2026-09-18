@@ -64,6 +64,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     is_enabled: true,
     auth_type: "bearer",
     oauth_authorized: false,
+    authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
@@ -266,6 +267,61 @@ describe("McpServerList", () => {
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
     expect(apiClient.post).not.toHaveBeenCalledWith("/me/mcp-connections", expect.anything());
+  });
+
+  it("offers the client fields only once OAuth is chosen, and only for a new connection", async () => {
+    await mount();
+
+    const row = within(githubRow());
+    await userEvent.click(row.getByRole("button", { name: "Connect" }));
+    expect(screen.queryByLabelText("Client ID")).toBeNull();
+
+    await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
+    expect(screen.getByLabelText("Client ID")).toBeInTheDocument();
+    expect(screen.getByLabelText("Client secret")).toBeInTheDocument();
+  });
+
+  it("starts the consent with a client registered by hand, for a server that registers none", async () => {
+    // HubSpot's remote server publishes no registration endpoint, so the start
+    // used to end at "This server rejected the client registration request"
+    // with no field anywhere to say which client to use instead (#1620 added the
+    // backend half; this is the dialog's).
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
+    await mount();
+
+    const row = within(githubRow());
+    await userEvent.click(row.getByRole("button", { name: "Connect" }));
+    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
+    await userEvent.type(screen.getByLabelText("Client ID"), "app-1");
+    await userEvent.type(screen.getByLabelText("Client secret"), "shh");
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections/oauth/start", {
+        name: "github",
+        url: "https://api.githubcopilot.com/mcp/",
+        catalog_key: "github",
+        client_id: "app-1",
+        client_secret: "shh",
+      }),
+    );
+  });
+
+  it("refuses a client secret with no client ID before any request", async () => {
+    await mount();
+
+    const row = within(githubRow());
+    await userEvent.click(row.getByRole("button", { name: "Connect" }));
+    await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
+    await userEvent.type(screen.getByLabelText("Client secret"), "shh");
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+
+    expect(apiClient.post).not.toHaveBeenCalled();
+    const { toast } = await import("sonner");
+    expect(toast.error).toHaveBeenCalledWith("A client secret needs the client ID it belongs to.");
+    // The dialog stays open, with what was typed still in it.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("sends a personal connection to the personal endpoint, with its catalog key", async () => {
@@ -493,6 +549,18 @@ describe("several accounts on one server", () => {
     await userEvent.click(dialog.getByRole("button", { name: "Connect another" }));
 
     expect(await screen.findByLabelText("Tool prefix")).toHaveValue("github-2");
+  });
+
+  it("seeds the tool prefix with a slug, never a namespaced registry key", async () => {
+    // `com.example/thing` is not a valid prefix, so seeding the field with it
+    // made a submit that could never pass while `hubspot` happened to work (#1628).
+    registryResults = [registryEntry()];
+    await mount();
+
+    const row = within(screen.getByRole("group", { name: "Some Thing" }));
+    await userEvent.click(row.getByRole("button", { name: "Connect" }));
+
+    expect(await screen.findByLabelText("Tool prefix")).toHaveValue("thing");
   });
 
   it("says where each owner's accounts can be used, which is the whole distinction", async () => {

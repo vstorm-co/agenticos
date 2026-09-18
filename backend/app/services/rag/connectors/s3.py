@@ -22,15 +22,41 @@ from typing import Any, ClassVar
 import boto3
 from botocore.client import BaseClient
 from botocore.config import Config
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, SecretKind, StorableSecret
-from app.schemas.sync_source import ConnectorConfigField
 from app.services.rag.connectors import ConnectorConfig
 from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
 
 logger = logging.getLogger(__name__)
+
+
+class S3Config(BaseModel):
+    """Where an S3-compatible source's documents live.
+
+    The key pair is not here - it is an `AwsCredentialsSecret` the source names
+    in `secret_id` (#937). Only `bucket` is required; `endpoint_url` and `region`
+    fall back to the `S3_RAG_*` settings server-side, so their config default is a
+    placeholder rather than an authoritative value and rides on `x-placeholder`,
+    which `SchemaForm` shows as a grey hint instead of the field's value.
+    """
+
+    bucket: str = Field(title="Bucket Name")
+    prefix: str | None = Field(
+        default=None,
+        title="Path Prefix",
+        description="e.g. 'documents/legal/' - leave empty for entire bucket",
+    )
+    endpoint_url: str | None = Field(
+        default=None,
+        title="Custom Endpoint URL",
+        description="For MinIO or compatible services (e.g., http://minio:9000). Leave empty for AWS S3.",
+    )
+    region: str | None = Field(
+        default=None, title="Region", json_schema_extra={"x-placeholder": "us-east-1"}
+    )
 
 
 class S3Connector(ObjectStoreConnector):
@@ -50,21 +76,7 @@ class S3Connector(ObjectStoreConnector):
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.AWS_CREDENTIALS
     SCHEME: ClassVar[str] = "s3"
     CONTAINER_FIELD: ClassVar[str] = "bucket"
-    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
-        "bucket": ConnectorConfigField(type="string", label="Bucket Name", required=True),
-        "prefix": ConnectorConfigField(
-            type="string",
-            label="Path Prefix",
-            help="e.g. 'documents/legal/' - leave empty for entire bucket",
-            default="",
-        ),
-        "endpoint_url": ConnectorConfigField(
-            type="string",
-            label="Custom Endpoint URL",
-            help="For MinIO or compatible services (e.g., http://minio:9000). Leave empty for AWS S3.",
-        ),
-        "region": ConnectorConfigField(type="string", label="Region", default="us-east-1"),
-    }
+    CONFIG_MODEL: ClassVar[type[BaseModel]] = S3Config
 
     def _get_s3_client(
         self, config: ConnectorConfig, credential: StorableSecret | None

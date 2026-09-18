@@ -54,6 +54,31 @@ def admits(invite: Invitation, *, email: str) -> bool:
     return True
 
 
+def admits_anyone(invite: Invitation) -> bool:
+    """Whether `invite` is live enough to stage before an invitee has signed in (#1414).
+
+    The email-less question, because there is no signed-in user yet: a pending,
+    unexpired invitation, and for a capped link one whose acceptances have not run
+    out. The address-bound checks - the email an invitation names, the domain a
+    link restricts to - are the acceptance's to make once the person is known.
+
+    Reservations are deliberately *not* counted. A registrant holds a reservation
+    on the slot they are completing, and both `accept` and `reserve_use` exclude a
+    caller's own reservation from the ceiling for exactly that reason; counting it
+    here - where there is no caller to exclude - would refuse the very person the
+    slot is reserved for on a re-stage. Staging enforces no ceiling of its own
+    anyway: `reserve_use` at registration and `accept` at acceptance are the atomic
+    guards, so this only needs to turn away a link already spent by acceptances.
+    """
+    if invite.status != InvitationStatus.PENDING.value:
+        return False
+    if invite.expires_at is not None and invite.expires_at < datetime.now(UTC):
+        return False
+    if invite.email is None and invite.max_uses is not None:
+        return invite.used_count < invite.max_uses
+    return True
+
+
 def _spent(invite: Invitation, email: str) -> int:
     """How much of a link's capacity is gone, from this address's point of view.
 

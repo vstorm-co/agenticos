@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import { secureCookies } from "@/lib/session-cookie";
 
 /**
  * Refusals that mean the impersonation is over already, whatever ended it.
@@ -42,7 +43,7 @@ export async function DELETE(request: NextRequest) {
   const response = bffJson({ ok: true });
   response.cookies.set("access_token", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookies(request),
     sameSite: "lax",
     maxAge: 0,
     path: "/",

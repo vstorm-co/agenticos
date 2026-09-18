@@ -1,31 +1,25 @@
-.PHONY: install format lint lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build presentation
+.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
-# Three, one compose file each, with a matching frontend file beside it:
+# Three. The images are published to GHCR by `.github/workflows/images.yml`
+# (`ghcr.io/vstorm-co/agenticos-backend` and `-frontend`); every environment but
+# the laptop pulls them, and the laptop builds the same Dockerfiles from the tree:
 #
 #   make dev         local, on a laptop    docker-compose.yml
-#                                          docker-compose.frontend.yml
+#                                          + docker-compose.override.yml (source)
 #   make dev-server  the dev server        docker-compose-dev.yml
 #                                          docker-compose-dev.frontend.yml
 #   make prod        production            docker-compose-prod.yml
 #                                          docker-compose-prod.frontend.yml
 #
-# Local bind-mounts the source and reloads. The other two build images, publish
-# no database port, and want a reverse proxy in front (nginx/nginx.conf).
-# Each has matching -down / -logs / -frontend siblings.
-
-# Wait for postgres to accept connections. Polls pg_isready instead of a
-# fixed sleep — handles slow startups and cold-start image pulls.
-define _wait_for_db
-	@echo "Waiting for PostgreSQL ($(1))..."
-	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
-		if docker compose -f $(1) exec -T db pg_isready -U postgres >/dev/null 2>&1; then \
-			echo "  ✅ DB ready"; exit 0; \
-		fi; \
-		printf '.'; sleep 2; \
-	done; \
-	echo "  ❌ DB not ready after 30s — check 'make dev-logs'"; exit 1
-endef
+# `docker-compose.yml` on its own - in an empty directory, no clone - is the
+# product from the published images, console included. In a clone Compose merges
+# the override over it by itself, which bind-mounts the source and reloads; the
+# console goes behind the `console` profile there so `bun dev` keeps :3000.
+# The other two publish no database port and want a reverse proxy in front
+# (nginx/nginx.conf). Each has matching -down / -logs / -frontend siblings, and
+# every one runs the migrations itself through the `migrate` service.
+COMPOSE_LOCAL := -f docker-compose.yml -f docker-compose.override.yml
 
 # Which optional compose profiles `make dev` brings up. The sandbox service is
 # on by default so an agent can be given a container without anybody reading a
@@ -65,19 +59,14 @@ sandbox-runtimes:
 # admin seeding is a separate target (`make seed`) so re-running `make dev`
 # doesn't keep retrying user creation.
 dev: sandbox-token
-	@echo "▶ Building backend image…"
-	docker compose -f docker-compose.yml build app
-	@echo "▶ Starting services…"
-	@if ! docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) up -d; then \
+	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
+	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
 		echo ""; \
 		echo "⚠ First start failed. Tearing down stale containers and retrying once…"; \
-		echo "  (volumes preserved — DB data is safe; use 'make clean' for a full wipe)"; \
-		docker compose -f docker-compose.yml down --remove-orphans; \
-		docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) up -d; \
+		echo "  (volumes preserved — DB data is safe; use 'make docker-clean' for a full wipe)"; \
+		docker compose $(COMPOSE_LOCAL) down --remove-orphans; \
+		docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; \
 	fi
-	$(call _wait_for_db,docker-compose.yml)
-	@echo "▶ Applying migrations…"
-	docker compose -f docker-compose.yml exec -T app agenticos db upgrade
 	@echo ""
 	@echo "🚀 Dev stack ready:"
 	@echo "   API:      http://localhost:8000"
@@ -94,12 +83,12 @@ dev: sandbox-token
 # clean either way. Replace email/password before deploying anywhere real.
 seed:
 	@echo "▶ Seeding admin user (admin@example.com / admin123)…"
-	@if docker compose -f docker-compose.yml exec -T app \
+	@if docker compose $(COMPOSE_LOCAL) exec -T app \
 		agenticos user list 2>/dev/null \
 		| grep -q "admin@example.com"; then \
 		echo "  (admin@example.com already exists — nothing to do)"; \
 	else \
-		docker compose -f docker-compose.yml exec -T app \
+		docker compose $(COMPOSE_LOCAL) exec -T app \
 			agenticos user create \
 				--email admin@example.com --password admin123 --superuser \
 		&& echo "  ✅ Admin created. Login at http://localhost:8000/admin"; \
@@ -110,49 +99,53 @@ seed:
 # Pass a key to make the demo agent actually answerable:
 #   make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 platform-bootstrap:
-	docker compose -f docker-compose.yml exec -T \
+	docker compose $(COMPOSE_LOCAL) exec -T \
 		-e BOOTSTRAP_API_KEY=$(BOOTSTRAP_API_KEY) app \
 		agenticos cmd bootstrap
 
 bootstrap: dev seed
 
 dev-down:
-	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) down
+	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console down
 
 # Full wipe — containers, networks, AND volumes. Use after a corrupted state
 # (e.g. detached networks, port conflicts that left orphans). DESTROYS DB data.
 docker-clean:
 	@echo "▶ Removing containers, networks, AND volumes for the dev stack…"
 	@echo "  ⚠️  This deletes all local DB data and uploaded files."
-	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) down -v --remove-orphans
+	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console down -v --remove-orphans
 	@echo "✅ Cleaned. Run 'make dev' to start fresh."
 
 dev-logs:
-	docker compose -f docker-compose.yml $(COMPOSE_DEV_PROFILES) logs -f
+	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console logs -f
 
 dev-rebuild:
-	docker compose -f docker-compose.yml build --no-cache app
-	docker compose -f docker-compose.yml up -d --force-recreate app
+	docker compose $(COMPOSE_LOCAL) build --no-cache app
+	docker compose $(COMPOSE_LOCAL) up -d --force-recreate app
+
+# Naming the service enables its `console` profile; `--no-deps` keeps `--build`
+# from rebuilding the backend image on the way, since `make dev` owns that.
 dev-frontend:
-	docker compose -f docker-compose.frontend.yml up -d
+	docker compose $(COMPOSE_LOCAL) up -d --build --no-deps frontend
 	@echo ""
 	@echo "✅ Frontend at http://localhost:3000  (backend must be up — 'make dev')"
 
-# === Dev server: a deployed environment, built images, no bind mounts ===
+# === Dev server: a deployed environment, published images, no bind mounts ===
 # Not a laptop. Needs backend/.env with POSTGRES_PASSWORD and REDIS_PASSWORD;
 # neither has a default here, because a shared environment reachable with
-# `postgres/postgres` is not one you want.
+# `postgres/postgres` is not one you want. Pulls `edge` - whatever `main` last
+# published - unless backend/.env pins `AGENTICOS_VERSION`.
 dev-server:
 	@test -f backend/.env || (echo "❌ backend/.env missing — cp backend/.env.example backend/.env and fill it in" && exit 1)
-	docker compose --env-file backend/.env -f docker-compose-dev.yml up -d --build
-	$(call _wait_for_db,docker-compose-dev.yml)
-	docker compose --env-file backend/.env -f docker-compose-dev.yml exec -T app agenticos db upgrade
+	docker compose --env-file backend/.env -f docker-compose-dev.yml pull
+	docker compose --env-file backend/.env -f docker-compose-dev.yml up -d
 	@echo "✅ Dev-server stack up on :8000 — put a reverse proxy in front of it"
 
 dev-server-frontend:
 	@test -f backend/.env || (echo "❌ backend/.env missing" && exit 1)
-	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml up -d --build
-	@echo "✅ Dev-server frontend on :3000 (PUBLIC_* vars are baked in at build time)"
+	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml pull
+	docker compose --env-file backend/.env -f docker-compose-dev.frontend.yml up -d
+	@echo "✅ Dev-server frontend on :3000 (PUBLIC_* are read at start — a change is a restart)"
 
 dev-server-down:
 	docker compose --env-file backend/.env -f docker-compose-dev.yml down
@@ -183,17 +176,18 @@ PROD_FILES := -f docker-compose-prod.yml $(if $(filter traefik,$(PROXY)),-f dock
 PROD_FRONTEND_FILES := -p agenticos-frontend -f docker-compose-prod.frontend.yml $(if $(filter traefik,$(PROXY)),-f docker-compose-prod.frontend.traefik.yml)
 PROD_PROXY_NOTE := $(if $(filter traefik,$(PROXY)),Traefik routes it once the certificate is issued,configure your nginx host with nginx/nginx.conf)
 
+# Pulls `latest` unless backend/.env pins `AGENTICOS_VERSION` - pin it on a host
+# you care about. The migrations are the `migrate` service the API waits on.
 prod:
 	@test -f backend/.env || (echo "❌ backend/.env missing — run 'cp backend/.env.example backend/.env' and fill in real secrets" && exit 1)
-	docker compose --env-file backend/.env $(PROD_FILES) up -d --build
-	@echo "▶ Waiting for DB then running migrations…"
-	@sleep 5
-	docker compose --env-file backend/.env $(PROD_FILES) exec -T app agenticos db upgrade
+	docker compose --env-file backend/.env $(PROD_FILES) pull
+	docker compose --env-file backend/.env $(PROD_FILES) up -d
 	@echo "✅ Production stack up — $(PROD_PROXY_NOTE)"
 
 prod-frontend:
 	@test -f backend/.env || (echo "❌ backend/.env missing" && exit 1)
-	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) up -d --build
+	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) pull
+	docker compose --env-file backend/.env $(PROD_FRONTEND_FILES) up -d
 	@echo "✅ Production frontend up"
 
 prod-down:
@@ -244,7 +238,7 @@ install:
 		echo "   Run 'git init && make install' to set up pre-commit hooks"; \
 	fi
 	cd frontend && bun install --frozen-lockfile
-	cd frontend && bun install --frozen-lockfile
+	cd desktop && bun install --frozen-lockfile
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""
@@ -323,10 +317,16 @@ lint-backend:
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
-	python3 scripts/check_backticks.py
-	python3 scripts/check_routes.py
-	python3 scripts/check_comments.py
-	python3 scripts/check_docs_paragraphs.py
+	# Through the pinned interpreter for all five, not whatever `python3`
+	# resolves to on the host: `check_routes.py`'s isinstance union check
+	# needs 3.10+, and a system Python older than the backend's own pin
+	# crashed it with a bare TypeError while the others happened to
+	# still work - until the next one written this way needs 3.10+ too.
+	uv run --directory backend python3 ../scripts/check_backticks.py
+	uv run --directory backend python3 ../scripts/check_routes.py
+	uv run --directory backend python3 ../scripts/check_comments.py
+	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
+	uv run --directory backend python3 ../scripts/check_docs_i18n.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -437,6 +437,31 @@ test-cov:
 	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
 	@echo "Open backend/htmlcov/index.html"
 
+# Just the refusal tests, by the `security` marker. This is a report, not a gate:
+# `make check` still runs everything. `--no-cov` because a subset never meets the
+# 100% bar, and `-p no:randomly` so the printed list is stable to read and diff.
+# The CI security-report step runs this same selection with `--collect-only`.
+test-security:
+	uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
+
+# The list of refusal tests written to backend/security-tests.txt, and appended to
+# the CI job summary when one is present. Collection only - no database, no run -
+# so it is the cheap step CI calls with `if: always()`. Informational: it lists,
+# it does not gate, which is why `check` never reaches it and test_ci_parity.py
+# names it in CI_ONLY_TARGETS.
+security-report:
+	cd backend && uv run pytest tests/ -m security -p no:randomly -p no:cacheprovider --no-cov --collect-only -q > $${TMPDIR:-/tmp}/security-collect.txt 2>&1 || { echo "security-marker collection failed:"; cat $${TMPDIR:-/tmp}/security-collect.txt; exit 1; }
+	grep '::' $${TMPDIR:-/tmp}/security-collect.txt | sort > backend/security-tests.txt || true
+	@count=$$(wc -l < backend/security-tests.txt | tr -d ' '); \
+	echo "$$count tests carry the security marker -> backend/security-tests.txt"; \
+	if [ -n "$$GITHUB_STEP_SUMMARY" ]; then \
+	  { echo "## Security refusal tests"; echo; \
+	    echo "$$count tests carry the security marker. Run them with: make test-security"; echo; \
+	    echo '<details><summary>The list</summary>'; echo; echo '```'; \
+	    cat backend/security-tests.txt; echo '```'; echo; echo '</details>'; \
+	  } >> "$$GITHUB_STEP_SUMMARY"; \
+	fi
+
 # Everything, including template-inherited subsystems. Informational: those are
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
@@ -459,6 +484,22 @@ test-frontend-cov:
 # every pull request and why `check` has to.
 build-frontend:
 	cd frontend && bun run build
+
+# The desktop shell is a window around a deployment's console, not a build of
+# the frontend: `desktop/ui` is the one page it carries itself, so none of these
+# needs `frontend/`. Rust comes from rustup; the Tauri CLI is pinned in
+# `desktop/package.json`. `desktop-check` is not in `lint` or `check`, because CI
+# has no Rust toolchain yet and `tests/test_ci_parity.py` would refuse the
+# difference (docs/desktop.md).
+desktop-dev:
+	cd desktop && bun run dev
+
+desktop-build:
+	cd desktop && bun run build
+
+desktop-check:
+	cd desktop && bun test
+	cd desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 
 # CI's `security` job. Audits what the lockfile resolves to - which is what a
 # deployment installs - rather than whatever this machine happens to have in its
@@ -483,8 +524,69 @@ AUDIT_TIMEOUT ?= 30
 
 audit:
 	cd backend && uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
-	python3 scripts/audit_dependencies.py backend/requirements-audit.txt \
+	uv run --directory backend python3 ../scripts/audit_dependencies.py requirements-audit.txt \
 		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
+
+# The frontend half of the same job. `make audit` reads `backend/uv.lock`; this
+# reads `frontend/bun.lock`, which nothing checked until #1415 - `bun audit` was
+# a line on the `SECURITY.md` checklist and in no job, so a console dependency
+# advisory was something somebody found by running it by hand.
+#
+# `bun audit` exits 1 on a finding and 0 on none, so unlike `audit` it needs no
+# verdict-line contract: make's own exit status carries the answer. The level is
+# `high`, which is the line this repository gates on - a `moderate` advisory in a
+# build-time dependency is worth knowing and is not worth a red required check.
+#
+# A finding here is fixed by raising the range in `package.json`, or - when the
+# vulnerable package is a transitive dependency whose parent has not moved yet -
+# by an entry in `overrides` there. Both are in the tree at the moment this
+# target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
+# forward through their parents.
+AUDIT_LEVEL ?= high
+
+audit-frontend:
+	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL)
+
+# A CycloneDX inventory of what the *source tree* declares, written to `sbom/`.
+#
+# **It is not the release SBOM and is named so it cannot be mistaken for one.**
+# The release documents come from `images.yml`, which scans the published
+# manifest per architecture: they carry the base image's Debian packages, the
+# built artifacts, and nothing from a development environment. A `dir:` scan
+# carries the opposite - the dev and docs dependency groups and
+# `devDependencies` if they are installed, and none of the layers underneath -
+# so the two answer different questions and only one of them answers "what is in
+# the image".
+#
+# What this is for: reading a dependency set without pulling two images, and
+# diffing one branch's declared components against another's.
+#
+# Not in `check`: it needs `syft`, which is not part of the documented setup,
+# and it gates nothing.
+SBOM_DIR ?= sbom
+
+sbom:
+	@command -v syft >/dev/null || { echo "syft not installed - https://github.com/anchore/syft"; exit 1; }
+	mkdir -p $(SBOM_DIR)
+	syft scan dir:backend --output cyclonedx-json=$(SBOM_DIR)/sbom-source-api.cdx.json
+	syft scan dir:frontend --output cyclonedx-json=$(SBOM_DIR)/sbom-source-frontend.cdx.json
+	@echo "SBOM: source-dependency inventories written to $(SBOM_DIR)/ - not the release documents"
+
+# The other half of the `security` job: what the two images ship and under which
+# licences. `licenses` regenerates THIRD_PARTY_NOTICES.md from the lockfiles;
+# `licenses-check` regenerates it in memory and fails when the committed file is
+# stale, when a component's metadata names no licence, or when one under a
+# copyleft or share-alike licence has no decision in `licenses/policy.toml`. It
+# runs under the backend virtualenv because that is where the wheels' metadata
+# is, and it needs `frontend/node_modules` for the same reason. A platform build
+# this machine does not have is read from the package index - the one place
+# this needs the network - and a lookup that fails is a failure, never a pass.
+# Same last-line contract as `audit`: `LICENSES: REVIEWED|FAILED - detail`.
+licenses:
+	uv run --directory backend python ../scripts/license_inventory.py write
+
+licenses-check:
+	uv run --directory backend python ../scripts/license_inventory.py check
 
 # Playwright starts the frontend itself; the backend and its seed are on you.
 # Checked rather than assumed: against a backend that is not there the suite
@@ -508,6 +610,36 @@ test-e2e:
 	fi
 	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
 	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
+
+# The load and resilience suite (NFA-004). Not part of `make check` and never in
+# CI: a load result is a measurement of one machine, and a number produced on a
+# shared runner under whatever else it was doing is worse than no number.
+# `docs/load-testing.md` has the prerequisites and how to read the report.
+LOAD_STUB_PORT ?= 4020
+LOAD_DOCUMENTS ?= 40
+# Where the stub listens, and the address the *API* reaches it on. They differ
+# whenever the API is not on this host: `make dev` runs it in a container, where
+# loopback is the container itself, so that topology needs
+# `LOAD_STUB_BIND=0.0.0.0 LOAD_STUB_URL=http://host.docker.internal:4020`.
+# docs/load-testing.md states both, because seeding the wrong one fails preflight
+# with a message about an empty collection rather than about an address.
+LOAD_STUB_BIND ?= 127.0.0.1
+LOAD_STUB_URL ?= http://127.0.0.1:$(LOAD_STUB_PORT)
+
+load-stub-model:
+	uv run --directory backend python ../loadtest/stub_model.py \
+		--host $(LOAD_STUB_BIND) --port $(LOAD_STUB_PORT)
+
+load-seed:
+	uv run --directory backend python ../loadtest/seed.py \
+		--stub-url $(LOAD_STUB_URL) --documents $(LOAD_DOCUMENTS)
+
+# `API_PID` and `DATABASE_URL` are optional; without them the run measures
+# requests and says which probes it could not take.
+load-test:
+	uv run --directory backend python ../loadtest/run.py \
+		$(if $(API_PID),--api-pid $(API_PID),) \
+		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),)
 
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
@@ -533,13 +665,14 @@ test-e2e:
 #
 #   - `e2e`, which needs a migrated database, a seeded organization and a running
 #     backend: `make dev && make platform-bootstrap && make test-e2e`.
-#   - the image build and Trivy scan, which CI runs only on a push to `main`.
+#   - the image build, publish and Trivy scan, which `images.yml` runs on a push
+#     to `main` and on a `v*` tag.
 #   - `test-migrations`. CI cycles the chain against a throwaway database; here
 #     `alembic downgrade base` points at whatever `backend/.env` says, which on a
 #     laptop is the database with your own work in it.
 CHECK_DB_PORT ?= 5432
 
-check: lint test db-check test-frontend-cov build-frontend docs-build audit
+check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit audit-frontend licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
 	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
@@ -564,6 +697,16 @@ docs:
 # would otherwise ship.
 docs-build:
 	uv run --directory backend --group docs mkdocs build -f ../mkdocs.yml --strict
+
+# The translation guard carries its own copy of the `toc` extension's slug rule,
+# because it runs under the system interpreter with no virtualenv. A copy that
+# has drifted fails silently: the gate then compares anchors the build never
+# emits. Checking that needs the renderer, which only the `docs` group installs -
+# under `make test` the check skips for want of `pymdownx`, so it runs here,
+# beside the build that shares the group.
+docs-slug-check:
+	uv run --directory backend --group docs pytest -q \
+		tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
 
 # The client presentation is `docs/presentation/index.html` - a published page,
 # and the only copy. This renders the same file to a PDF for sending, and checks
@@ -666,8 +809,7 @@ docker-up:
 	@echo "   Redis: localhost:6379"
 
 docker-down:
-	docker compose down
-	docker compose -f docker-compose.frontend.yml down 2>/dev/null || true
+	docker compose --profile console down
 
 docker-logs:
 	docker compose logs -f
@@ -680,7 +822,7 @@ docker-shell:
 
 # === Docker: Frontend (Development) ===
 docker-frontend:
-	docker compose -f docker-compose.frontend.yml up -d
+	docker compose up -d --build --no-deps frontend
 	@echo ""
 	@echo "✅ Frontend started!"
 	@echo "   URL: http://localhost:3000"
@@ -688,13 +830,13 @@ docker-frontend:
 	@echo "Note: Backend must be running (make docker-up)"
 
 docker-frontend-down:
-	docker compose -f docker-compose.frontend.yml down
+	docker compose --profile console stop frontend
 
 docker-frontend-logs:
-	docker compose -f docker-compose.frontend.yml logs -f
+	docker compose --profile console logs -f frontend
 
 docker-frontend-build:
-	docker compose -f docker-compose.frontend.yml build
+	docker compose build frontend
 
 # === Docker: Production (with Traefik) ===
 docker-prod:
@@ -713,9 +855,6 @@ docker-prod-down:
 docker-prod-logs:
 	docker compose -f docker-compose-prod.yml logs -f
 
-docker-prod-build:
-	docker compose -f docker-compose-prod.yml build
-
 
 # === Docker: Individual Services ===
 docker-db:
@@ -726,6 +865,12 @@ docker-db:
 
 docker-db-stop:
 	docker compose stop db
+
+docker-minio:
+	docker compose --profile objectstore up -d minio
+	@echo ""
+	@echo "✅ MinIO started on port 9000 (console :9001, minioadmin / minioadmin)"
+	@echo "   FILE_STORAGE_BACKEND=s3 needs a bucket; the integration suite makes its own."
 
 docker-redis:
 	docker compose up -d redis
@@ -740,16 +885,14 @@ vercel-deploy:
 	cd frontend && npx vercel --prod
 	@echo ""
 	@echo "✅ Frontend deployed to Vercel!"
-	@echo "   Set these in the Vercel dashboard. Every NEXT_PUBLIC_* is a BUILD"
-	@echo "   variable: set it at runtime only and the browser bundle keeps"
-	@echo "   whatever was baked in, while server rendering carries on working."
+	@echo "   Set these in the Vercel dashboard. All are read at runtime, so a"
+	@echo "   change is a redeploy of the same build, not a rebuild."
 	@echo "   BACKEND_URL=https://api.your-domain.com"
-	@echo "   NEXT_PUBLIC_API_URL=https://api.your-domain.com"
-	@echo "   NEXT_PUBLIC_WS_URL=wss://api.your-domain.com"
-	@echo "   NEXT_PUBLIC_SITE_URL=https://app.your-domain.com"
-	@echo "   NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=10"
-	@echo "   NEXT_PUBLIC_OAUTH_PROVIDERS=google"
-	@echo "   NEXT_PUBLIC_RAG_ENABLED=true"
+	@echo "   PUBLIC_API_URL=https://api.your-domain.com"
+	@echo "   PUBLIC_WS_URL=wss://api.your-domain.com"
+	@echo "   PUBLIC_SITE_URL=https://app.your-domain.com"
+	@echo "   CHAT_MAX_UPLOAD_SIZE_MB=10"
+	@echo "   OAUTH_PROVIDERS=google"
 
 # === Cleanup ===
 clean:
@@ -769,7 +912,7 @@ help:
 	@echo "  make bootstrap      'make dev' + 'make seed' — full setup from a fresh clone"
 	@echo ""
 	@echo "Day-to-day dev:"
-	@echo "  make dev            Build + start dev stack + apply migrations (idempotent)"
+	@echo "  make dev            Build + start dev stack; migrations run as a service (idempotent)"
 	@echo "  make seed           One-shot admin seed (admin@example.com / admin123)"
 	@echo "  make dev-down       Stop dev stack"
 	@echo "  make dev-logs       Tail dev container logs"
@@ -788,12 +931,20 @@ help:
 	@echo "  make run           Start dev server (with hot reload)"
 	@echo "  make test          Run tests"
 	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
+	@echo "  make desktop-dev   Open the desktop shell against a console you name"
+	@echo "  make desktop-build Package the desktop shell for this machine"
+	@echo "  make desktop-check bun test, rustfmt, clippy and the shell's Rust tests"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"
 	@echo "  make lint-precommit yamlfmt, zizmor and the pre-commit basics, over every tracked file"
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
+	@echo ""
+	@echo "Load and resilience (NFA-004, never in CI - see docs/load-testing.md):"
+	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
+	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
+	@echo "  make load-test        Offer the workload and print the report"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"
@@ -820,7 +971,7 @@ help:
 	@echo "  make docker-down          Stop all services"
 	@echo "  make docker-logs          View backend logs"
 	@echo "  make docker-build         Build backend images"
-	@echo "  make docker-frontend      Start frontend (separate)"
+	@echo "  make docker-frontend      Start the console (its 'console' profile)"
 	@echo "  make docker-frontend-down Stop frontend"
 	@echo "  make docker-db            Start only PostgreSQL"
 	@echo "  make docker-redis         Start only Redis"

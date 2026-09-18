@@ -12,6 +12,10 @@ of capabilities, a budget — no Python, no pull request, no release. The spec i
 a document, so it versions on publish and exports as YAML into your own git
 repository.
 
+A browser is all the console needs. The [desktop app](desktop.md) wraps the same
+console for whoever wants it on the dock - with a pet and a screenshot shortcut -
+and is an add-on, not a second way of running the platform.
+
 **Engineers extend what there is to compose.** A capability is typed, tested
 Python in this repository: a tool the model can call, a guardrail, a compaction
 strategy, a connector. You add one, and from that moment it is a switch in

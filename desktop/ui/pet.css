@@ -1,0 +1,101 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  align-items: end;
+  padding-bottom: 8px;
+  box-sizing: border-box;
+  font: 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+#head {
+  position: relative;
+  width: 100%;
+  height: 50px;
+  margin-bottom: 4px;
+}
+
+#new-chat,
+#bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+#new-chat {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #171717;
+  color: #fafafa;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#new-chat:hover {
+  background: #2f4f86;
+}
+
+body:hover:not(.talking) #new-chat {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+#bubble {
+  max-width: calc(100% - 8px);
+  max-height: 46px;
+  overflow: hidden;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #171717;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 30%);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+#bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  border: 5px solid transparent;
+  border-top-color: #fafafa;
+  border-bottom: 0;
+  transform: translateX(-50%);
+}
+
+body.talking #bubble {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+#pet {
+  display: block;
+  image-rendering: pixelated;
+  cursor: grab;
+  touch-action: none;
+}
+
+#pet:active {
+  cursor: grabbing;
+}

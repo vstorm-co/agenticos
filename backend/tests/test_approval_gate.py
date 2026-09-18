@@ -64,6 +64,8 @@ from app.services.agent_chat import requested_approval_mode
 from app.services.agent_runner import AgentRunnerService, ApprovalChannel
 from app.services.approvals import ApprovalService
 
+pytestmark = pytest.mark.security
+
 # Tool names now, not capability ids: the gate matches what the model called,
 # so a capability with a write tool and a read tool can gate one of them.
 GATED = frozenset({"send_email"})
@@ -217,6 +219,27 @@ class TestGate:
         )
 
         assert tool.calls == [{}]
+
+    @pytest.mark.anyio
+    async def test_the_frameworks_own_tool_is_gated_when_the_spec_names_it(self):
+        """`load_capability` carries no capability id - Pydantic AI contributes
+        it - and it is how a skill is opened, so a spec asking for approval
+        before a skill is loaded has nowhere else to put it. Without this an
+        agent whose publisher gated `load_skill` was ungated by the migration
+        that replaced the mechanism (#1704 review)."""
+        tool = _Recorder()
+        gate = ApprovalGate(required_tool_names=frozenset({"load_capability"}))
+
+        with pytest.raises(ApprovalRequired):
+            await gate.wrap_tool_execute(
+                _ctx(ApprovalPending()),
+                call=_call({"capability": "refunds"}),
+                tool_def=_tool_def(capability_id=None, name="load_capability"),
+                args={"capability": "refunds"},
+                handler=tool,
+            )
+
+        assert tool.calls == []
 
 
 class TestAskingAboutEverything:

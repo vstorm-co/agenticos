@@ -4,13 +4,14 @@
  *  sitemap, robots, manifest, OG image generator) pull from here. Edit one
  *  file to retheme the site's identity.
  *
- *  ENV: NEXT_PUBLIC_SITE_URL = canonical https origin (no trailing slash).
- *  Falls back to a sensible localhost default in dev.
+ *  The canonical origin is not in `SITE`: it is `PUBLIC_SITE_URL`, a runtime
+ *  setting of the deployment, and `siteOrigin()` reads it when asked.
  */
 
 import type { Metadata } from "next";
 
 import { APP_NAME } from "@/lib/constants";
+import { readPublicConfig } from "@/lib/public-config";
 import { defaultLocale, locales } from "@/i18n";
 
 export const SITE = {
@@ -27,10 +28,6 @@ export const SITE = {
   description:
     // i18n-exempt: the tagline's reason, one line up - metadata read above `[locale]`.
     "Self-hosted, open source, and yours: agents are configuration you own, running on your infrastructure, against your keys.",
-  /** Canonical absolute origin. NO trailing slash. */
-  url:
-    (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") as string | undefined) ??
-    "http://localhost:3000",
   /** Twitter handle for `twitter:site` (with @). Empty string disables. */
   twitter: "",
   /** Theme color used in PWA manifest + browser chrome. */
@@ -50,6 +47,19 @@ export const SITE = {
   defaultLocale,
   locales: [...locales],
 } as const;
+
+/**
+ * The deployment's canonical origin, without a trailing slash.
+ *
+ * A function rather than a field of `SITE`, and read at call time rather than at
+ * import: the value is `PUBLIC_SITE_URL` in the server's environment, and one
+ * published image serves every deployment (#1544). Evaluated at import it would
+ * be whatever the build machine had set, baked into every canonical the site
+ * emits.
+ */
+export function siteOrigin(): string {
+  return readPublicConfig(process.env).siteUrl;
+}
 
 /** Map our locale codes → BCP-47 / Open Graph locale strings. */
 export const OG_LOCALE: Record<(typeof locales)[number], string> = {
@@ -84,7 +94,8 @@ export function pageMetadata(input: PageMetaInput): Metadata {
   const locale = input.locale ?? SITE.defaultLocale;
   const path = normalizePath(input.path ?? "/");
   const localizedPath = path === "/" ? `/${locale}` : `/${locale}${path}`;
-  const canonical = `${SITE.url}${localizedPath}`;
+  const origin = siteOrigin();
+  const canonical = `${origin}${localizedPath}`;
   const brand = input.brand ?? SITE.name;
   // Bare, because the root layout's `title.template` is `%s | <brand>` and Next
   // applies it to whatever a page returns. Appending the brand here as well is how
@@ -94,7 +105,7 @@ export function pageMetadata(input: PageMetaInput): Metadata {
   const title = input.title === brand ? { absolute: brand } : input.title;
   // OG and Twitter titles go through no template, so they carry the brand here.
   const socialTitle = input.title === brand ? brand : `${input.title} | ${brand}`;
-  const ogImageUrl = input.ogImage ?? `${SITE.url}/opengraph-image`;
+  const ogImageUrl = input.ogImage ?? `${origin}/opengraph-image`;
 
   return {
     title,
@@ -103,10 +114,7 @@ export function pageMetadata(input: PageMetaInput): Metadata {
     alternates: {
       canonical,
       languages: Object.fromEntries(
-        SITE.locales.map((loc) => [
-          loc,
-          `${SITE.url}${path === "/" ? `/${loc}` : `/${loc}${path}`}`,
-        ]),
+        SITE.locales.map((loc) => [loc, `${origin}${path === "/" ? `/${loc}` : `/${loc}${path}`}`]),
       ),
     },
     openGraph: {

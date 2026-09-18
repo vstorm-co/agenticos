@@ -9,7 +9,7 @@ function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
   return {
     input_tokens: 1200,
     output_tokens: 300,
-    cost_usd: 0.0125,
+    cost_usd: "0.0125",
     cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,

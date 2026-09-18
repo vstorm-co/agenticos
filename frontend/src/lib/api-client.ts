@@ -21,6 +21,12 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
 // The proxy route that mints a fresh access token from the refresh cookie.
 const REFRESH_ENDPOINT = "/auth/refresh";
 
+// Endpoints where a 401 is the answer, not an expired access token, so a refresh
+// and retry would be wrong: the refresh route itself (would loop), and a
+// password change, whose 401 means the current password was wrong - retrying
+// resubmits it and burns the rate limit twice (#1517).
+const NO_REFRESH_RETRY: ReadonlySet<string> = new Set([REFRESH_ENDPOINT, "/auth/password/change"]);
+
 // Shared in-flight refresh promise so a burst of concurrent 401s triggers only
 // ONE refresh round-trip. Reset once the refresh settles.
 let refreshPromise: Promise<boolean> | null = null;
@@ -116,9 +122,9 @@ class ApiClient {
     let response = await doFetch();
 
     // Transparent 401 recovery: refresh once, then retry the request once.
-    // Never recurse into the refresh endpoint itself (would loop), and only
-    // attempt this a single time per call.
-    if (response.status === 401 && endpoint !== REFRESH_ENDPOINT) {
+    // Never on an endpoint whose 401 is the answer rather than an expired token,
+    // and only a single time per call.
+    if (response.status === 401 && !NO_REFRESH_RETRY.has(endpoint)) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         response = await doFetch();

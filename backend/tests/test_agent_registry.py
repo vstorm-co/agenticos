@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     CapabilityBindingSpec,
     OrgMcpServerRef,
@@ -93,7 +94,32 @@ def _db():
     db.add = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mount must await and answer the head read with an empty chain.
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
     return db
+
+
+class _AnyIdMap(dict):
+    """A batch-lookup result that answers `value` for any id it is asked for.
+
+    The reference resolvers now read a `get_by_ids` map rather than one row at a
+    time (#954); a test that used to stub the per-id read with one return value
+    keeps that shape without having to know which id the spec names.
+    """
+
+    def __init__(self, value):
+        super().__init__()
+        self._value = value
+
+    def get(self, _key, _default=None):
+        return self._value
+
+
+def _batch(value):
+    """An `AsyncMock` standing in for a `get_by_ids`, returning `value` for any id."""
+    return AsyncMock(return_value=_AnyIdMap(value))
 
 
 def _spec(name: str = "Support", **overrides) -> AgentSpec:
@@ -1123,9 +1149,7 @@ class TestValidateSpec:
 
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=None)),
-            patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=None)
-            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(None)),
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(ctx, spec)
@@ -1243,8 +1267,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=foreign),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(foreign),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1275,8 +1299,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=private),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(private),
             ),
             patch(
                 "app.services.access.resource_grant_repo.get_level",
@@ -1309,8 +1333,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=None),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(None),
             ) as lookup,
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1326,7 +1350,7 @@ class TestValidateSpec:
         assert str(connection_id) in problem
         assert "personal" in problem
         assert lookup.await_args.kwargs == {
-            "connection_id": connection_id,
+            "connection_ids": [connection_id],
             "organization_id": ctx.organization_id,
         }
 
@@ -1402,8 +1426,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=connection),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(connection),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -1435,8 +1459,8 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=connection),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(connection),
             ),
         ):
             await AgentRegistryService(_db()).validate_spec(
@@ -1462,12 +1486,12 @@ class TestValidateSpec:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
+                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids",
+                new=_batch(MagicMock(organization_id=ctx.organization_id)),
             ),
             patch(
-                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
-                new=AsyncMock(return_value=_named_connection("linear")),
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids",
+                new=_batch(_named_connection("linear")),
             ),
             patch(
                 f"{REGISTRY_PATH}.skill_repo.get_many",
@@ -1526,6 +1550,28 @@ class TestSkillValidation:
         )
 
         assert problems == [f"Skill not found: {skill_id}"]
+
+    @pytest.mark.anyio
+    async def test_a_skill_named_after_a_capability_is_refused(self):
+        """Each skill is a deferred capability filed under its own name, in the
+        same namespace as the platform's own - so a skill called `planning` on an
+        agent that also has the planning capability is a duplicate id Pydantic AI
+        refuses before the first token. The agent would publish and never run
+        (#1704 review)."""
+        ctx = _ctx()
+        clashing = _skill(ctx)
+        clashing.name = "planning"
+
+        problems = await self._problems(
+            ctx,
+            _spec(skill_ids=[clashing.id], model_profile_id=uuid.uuid4()),
+            return_value={clashing.id: clashing},
+        )
+
+        assert problems == [
+            "Skill 'planning' has the name of a capability this platform offers, "
+            "and each skill is a capability now - rename the skill"
+        ]
 
     @pytest.mark.anyio
     async def test_a_private_skill_the_publisher_cannot_reach_is_not_found(self):
@@ -1646,6 +1692,7 @@ class TestContextValidation:
 
 
 class TestToolApprovalValidation:
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_approval_for_a_tool_the_capability_does_not_have_is_refused(
         self, ungranted_capability
@@ -1741,14 +1788,14 @@ class TestToolOverrideValidation:
             _spec(
                 capabilities=[
                     {
-                        "id": "skills",
-                        "tool_overrides": {"load_skill": {"name": "list_skills"}},
+                        "id": "context",
+                        "tool_overrides": {"read_context": {"name": "list_context"}},
                     }
                 ]
             )
         )
 
-        assert any("two tools called list_skills" in problem for problem in problems)
+        assert any("two tools called list_context" in problem for problem in problems)
 
     @pytest.mark.anyio
     async def test_a_rename_a_model_can_call_is_accepted(self):
@@ -1760,7 +1807,7 @@ class TestToolOverrideValidation:
                 {
                     "id": "skills",
                     "tool_overrides": {
-                        "load_skill": {
+                        "read_skill_resource": {
                             "name": "load-playbook_2",
                             "description": "Load one of the team's playbooks.",
                         }
@@ -1825,6 +1872,43 @@ class TestPublish:
             {"status": AgentStatus.PUBLISHED.value},
             {"current_version_id": version.id},
         ]
+
+    @pytest.mark.anyio
+    async def test_publishing_stamps_the_deployments_spec_version_onto_the_frozen_copy(self):
+        """The number a stored version carries is this deployment's, not one a
+        client's imported draft claimed: publish is where the spec is confirmed
+        against the current registry, so `spec_version: 2` on a draft freezes as
+        SPEC_VERSION rather than staying write-only and wrong."""
+        ctx = _ctx()
+        draft = _spec("Support", instructions="Be brief", model_profile_id=uuid.uuid4()).model_dump(
+            mode="json"
+        )
+        draft["spec_version"] = 2
+        agent = _agent(ctx, draft_spec=draft)
+        version = _version(agent.id, number=3)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create_version",
+                new=AsyncMock(return_value=version),
+            ) as create_version,
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
+            patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            environments.get_default_for_agent = AsyncMock(return_value=None)
+            environments.create = AsyncMock(
+                return_value=MagicMock(id=uuid.uuid4(), version_id=version.id)
+            )
+            await AgentRegistryService(_db()).publish(ctx, agent.id)
+
+        assert create_version.call_args.kwargs["spec"]["spec_version"] == SPEC_VERSION
 
     @pytest.mark.anyio
     async def test_a_default_that_follows_latest_takes_the_agents_pointer_with_it(self):
@@ -2032,9 +2116,7 @@ class TestRollback:
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch(
-                f"{REGISTRY_PATH}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=None)
-            ),
+            patch(f"{REGISTRY_PATH}.knowledge_base_repo.get_by_ids", new=_batch(None)),
             patch(f"{REGISTRY_PATH}.agent_repo.create_version", new=AsyncMock()) as create_version,
             pytest.raises(BadRequestError),
         ):
@@ -2638,10 +2720,7 @@ class TestAvatar:
         """Same answer as having none. A caller cannot act on the difference, and
         the alternative is a 500 from a missing file."""
         ctx = _ctx()
-        storage = MagicMock()
-        missing = MagicMock()
-        missing.exists.return_value = False
-        storage.get_full_path.return_value = missing
+        storage = MagicMock(exists=AsyncMock(return_value=False))
 
         with (
             patch(
@@ -2654,13 +2733,11 @@ class TestAvatar:
             await AgentRegistryService(_db()).avatar_path(ctx, uuid.uuid4())
 
     @pytest.mark.anyio
-    async def test_a_stored_avatar_is_answered_with_the_file_on_disk(self):
+    async def test_a_stored_avatar_is_answered_with_its_storage_path(self):
+        """The path the backend wrote, not a path on this host: the route resolves
+        it through the backend, which may be an object store (#1423)."""
         ctx = _ctx()
-        storage = MagicMock()
-        stored = MagicMock()
-        stored.exists.return_value = True
-        stored.__str__ = lambda _self: "/data/avatars/agents/x/logo.png"
-        storage.get_full_path.return_value = stored
+        storage = MagicMock(exists=AsyncMock(return_value=True))
 
         with (
             patch(
@@ -2671,8 +2748,8 @@ class TestAvatar:
         ):
             path = await AgentRegistryService(_db()).avatar_path(ctx, uuid.uuid4())
 
-        assert path == "/data/avatars/agents/x/logo.png"
-        assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
+        assert path == "avatars/agents/x/logo.png"
+        storage.exists.assert_awaited_once_with("avatars/agents/x/logo.png")
 
     @pytest.mark.anyio
     async def test_choosing_a_colour_writes_the_slot(self):
@@ -3009,6 +3086,7 @@ class TestAFetchTheApprovalGateCouldNotHold:
     def _spec_with(config: dict, **approval: object):
         return _bound("web_fetch", config, **approval)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_native_fetch_with_approval_required_is_refused(self):
         problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))
@@ -3046,6 +3124,7 @@ class TestASearchTheApprovalGateCouldNotHold:
     def _spec_with(config: dict, **approval: object):
         return _bound("web_research", config, **approval)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_native_search_with_approval_required_is_refused(self):
         problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))
@@ -3399,15 +3478,15 @@ class TestOneToolPrefixPerBinding:
     async def _problems(self, refs, *, connections: dict) -> list[str]:
         ctx = _ctx()
 
-        async def lookup(_db, *, connection_id, organization_id):
-            return connections.get(connection_id)
+        async def lookup(_db, *, connection_ids, organization_id):
+            return {cid: connections[cid] for cid in connection_ids if cid in connections}
 
         with (
             patch(
                 f"{REGISTRY_PATH}.credential_repo.get_profile",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id", new=lookup),
+            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids", new=lookup),
         ):
             try:
                 await AgentRegistryService(_db()).validate_spec(

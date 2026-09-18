@@ -54,9 +54,11 @@ concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.run_id || 'pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Least privilege for every job. Nothing in this workflow writes anything back:
-# the docker job builds with `push: false`, and Codecov uses its own token. A
-# job that later needs more should declare it on itself, not here.
+# Least privilege for every job. Nothing in this workflow writes anything back -
+# Codecov uses its own token - and a job that later needs more should declare it
+# on itself, not here. The image build and its Trivy scan used to live here as a
+# `docker` job with `push: false`; they are `images.yml` now, which publishes what
+# it builds (#1545).
 permissions:
   contents: read
 
@@ -70,7 +72,8 @@ permissions:
 # The bound exists to end a stall, and a timeout tight enough to trim a legitimately
 # cold cache is a red build for a reason unrelated to the diff. Measured on run
 # 31116003994, a full matrix on `main`: changes 7s, lint 22s, Security Scan 14s,
-# docker 2m30s, docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s.
+# docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s (and the image build,
+# since moved to `images.yml`, 2m30s).
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -147,6 +150,17 @@ jobs:
     # while something still looks at the whole tree.
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `ty check` exits 0 on a warning-level diagnostic by design - template-inherited
+    # code is reported, not gated (`docs/testing.md`) - and its default output is
+    # plain text on stdout, so a run with 61 of them looked identical to one with
+    # zero: green check, no annotation, nothing to click. `ty` reads this env var
+    # itself and switches to GitHub's own `::warning file=…,line=…::` syntax, so the
+    # exact same `make lint-backend` call - unchanged, still zero-gating - surfaces
+    # every diagnostic as an inline annotation on the run and the diff. Unset
+    # locally, where the same command still prints the verbose, human-readable
+    # `full` format `make lint-backend` has always used.
+    env:
+      TY_OUTPUT_FORMAT: github
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -237,11 +251,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:7-alpine
+        image: valkey/valkey:8-alpine
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -294,6 +308,15 @@ jobs:
         # `make check` too, where `test-migrations` is not.
         run: make db-check
 
+      # The object store the S3 file-storage backend is exercised against
+      # (#1423). A compose profile rather than a service container, because a
+      # service container cannot be given a command and MinIO's image needs one.
+      # Without it `tests/integration/test_s3_file_storage.py` skips itself, the
+      # same bargain the database fixtures make on a laptop - and a suite that
+      # silently skipped that backend in CI is how it would rot.
+      - name: Start the object store
+        run: make docker-minio
+
       - name: Run tests with the coverage gate
         # --cov with no argument uses the include list in pyproject.toml: the
         # platform layer, held at 100%. Template-inherited subsystems are
@@ -314,6 +337,27 @@ jobs:
         with:
           files: ./backend/coverage.xml
           fail_ci_if_error: false
+
+      - name: Report the security refusal tests
+        # The `security` marker names the refusal tests as a set (#1417). The
+        # target writes the count and the list to the job summary and to
+        # `backend/security-tests.txt`, which the next step uploads, so a security
+        # review can read which refusals the suite holds rather than take the
+        # claim on faith. A report, not a gate - it only lists, and `always()` so
+        # it still runs when a test above failed. `test_ci_parity.py` exempts it.
+        if: always()
+        run: make security-report
+
+      - name: Upload the security refusal-test list
+        # Downloadable per build, and the file a release attaches as its evidence
+        # that the refusals are held - the repository cuts releases by hand, so
+        # the attachment is a release-time step rather than an automated one.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-tests
+          path: backend/security-tests.txt
+          retention-days: 90
 
   test-frontend:
     needs: changes
@@ -407,11 +451,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:7-alpine
+        image: valkey/valkey:8-alpine
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -426,9 +470,10 @@ jobs:
       REDIS_PORT: 6379
       # The browser talks to Next, Next proxies to FastAPI, and the chat
       # websocket goes to FastAPI directly — so the backend port has to match
-      # what the client bundle was built with. 8000 is the default for both.
+      # what the console tells the browser (read at runtime, #1544). 8000 is
+      # the default for both.
       BACKEND_URL: http://localhost:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+      PUBLIC_WS_URL: ws://localhost:8000
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -581,6 +626,21 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
+      # The raw per-test output beside the report: the screenshot at the moment
+      # of failure, the video, the trace `retain-on-failure` kept, and the
+      # `error-context.md` Playwright writes naming the page as it stood. The
+      # report embeds most of it, but only for the runs it managed to finish -
+      # a suite the runner killed leaves `test-results/` and no report at all,
+      # which is the case #162 was diagnosed without.
+      - name: Upload the raw Playwright output when a journey fails
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-results
+          path: frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Show the backend log when a journey fails
         # Half of an E2E failure is on the other side of the proxy.
         if: failure()
@@ -620,6 +680,38 @@ jobs:
       - name: Audit the locked dependency set for known vulnerabilities
         run: make audit
 
+      # The frontend half of the licence inventory reads `node_modules`, so this
+      # job installs it the way `test-frontend` does. Same pin, same cache.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Cache the bun install cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+        working-directory: frontend
+
+      # Stale notices, a component with no readable licence, or a copyleft one
+      # with no recorded decision. Open findings that are tracked pass; the
+      # verdict line counts them.
+      - name: Check the third-party notices against the lockfiles
+        run: make licenses-check
+
+      # The console's own lockfile, which nothing here read until #1415: `bun
+      # audit` was on the `SECURITY.md` checklist and in no job, so the two
+      # unauthenticated-RCE advisories against the pinned `next` were sitting in
+      # a green build. Gates at `high`, and exits non-zero on its own, so it
+      # needs none of the verdict-line machinery `make audit` carries.
+      - name: Audit the frontend lockfile for known vulnerabilities
+        run: make audit-frontend
+
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -649,33 +741,10 @@ jobs:
         # ships.
         run: make docs-build
 
-  docker:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [lint, test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-
-      - name: Build Docker image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: ./backend
-          push: false
-          load: true
-          tags: agenticos:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: agenticos:latest
-          format: table
-          exit-code: 0
-          severity: CRITICAL,HIGH
+      # The translation guard carries its own copy of the `toc` extension's slug
+      # rule, because it runs under the system interpreter with no virtualenv. A
+      # copy that has drifted fails silently: the gate then compares anchors the
+      # build never emits. Checking it needs the renderer, which only this job
+      # installs - in the `test` job it skips for want of `pymdownx`.
+      - name: Check the slug rule against the real renderer
+        run: make docs-slug-check

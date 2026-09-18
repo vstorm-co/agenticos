@@ -36,6 +36,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -288,6 +289,32 @@ class TestKeepingASummary:
 
         assert turn.summarized_history is not None
         assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+
+    async def test_an_agent_bound_to_media_offload_stores_the_offloaded_history(self):
+        """The one place media piles up is this blob, so the capability that
+        empties it is read off the built agent here rather than passed down -
+        the same way the context gauge is (#55)."""
+        prepared = _prepared()
+        prepared.built.context.summarized = True
+        offload: MediaOffload[object] = MediaOffload(organization_id=None, conversation_id=None)
+        offload.externalize = AsyncMock(return_value=[{"kind": "request", "parts": []}])
+        # A real list, because `built` is a MagicMock: `.capabilities` on one is
+        # another mock, and iterating it yields nothing rather than the entry.
+        prepared.built.capabilities = [offload]
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(
+                _agent_run(
+                    "the refund window is 30 days",
+                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                )
+            )
+        )
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.summarized_history == [{"kind": "request", "parts": []}]
+        offload.externalize.assert_awaited_once()
 
     async def test_the_overhead_the_turn_measured_leaves_with_it(self):
         """A one-request turn never measures one of its own before it decides, so
@@ -629,6 +656,7 @@ class TestRecordingTheRun:
         assert finished["error"] is None
         assert db.commit.await_count == 2
 
+    @pytest.mark.security
     async def test_a_budget_stop_is_recorded_as_a_budget_stop_not_a_failure(self):
         """An operator filtering run history for problems should not wade through it."""
         stopped = BudgetExceeded(limit_usd=1, spent_usd=2, scope=BudgetScope.AGENT)
@@ -1026,12 +1054,7 @@ class TestTellingTheChatWhatThePersonCannotReach:
 
     async def test_the_gaps_reach_the_sink_before_the_run(self):
         prepared = _prepared()
-        gap = PersonalServiceGap(
-            catalog_key="notion",
-            name="Notion",
-            gap="not_connected",
-            url="http://localhost:3000/mcp-servers?connect=notion",
-        )
+        gap = PersonalServiceGap(catalog_key="notion", name="Notion", gap="not_connected")
         prepared.personal_service_gaps = [gap]
         sink = AsyncMock()
 

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import { secureCookies } from "@/lib/session-cookie";
 
 interface OAuthCallbackBody {
   code: string;
@@ -31,18 +32,16 @@ export async function POST(request: NextRequest) {
       user,
       access_token: tokens.access_token,
     });
-
-    const isProd = process.env.NODE_ENV === "production";
     response.cookies.set("access_token", tokens.access_token, {
       httpOnly: true,
-      secure: isProd,
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 15,
       path: "/",
     });
     response.cookies.set("refresh_token", tokens.refresh_token, {
       httpOnly: true,
-      secure: isProd,
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",

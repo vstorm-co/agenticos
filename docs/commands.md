@@ -30,6 +30,8 @@ Run these from the project root directory.
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
 | `make lint-precommit` | yamlfmt, zizmor and the `pre-commit-hooks` basics over every tracked file. Same reason as `lint-spelling` — those hooks are per-file, so a `rev:` bump that brings a new rule breaks the tree with nothing noticing. `SKIP` drops the hooks `lint-backend`/`lint-frontend`/`lint-spelling` already gate, so it neither doubles their time nor lets a fixer rewrite a file mid-check |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
+| `make desktop-dev` / `make desktop-build` | Open, or package, the desktop shell - a Tauri window around a console you name by address. Needs Rust and the platform webview; `docs/desktop.md` has the rest |
+| `make desktop-check` | `bun test` over the pet, then rustfmt, clippy with warnings denied and the shell's Rust tests. Not in `lint` or `check`, because CI has no Rust toolchain yet |
 | `make audit` | Audit the locked dependency set for known vulnerabilities. Needs the network — one request per locked distribution — so its last line says which of four states it ended in rather than leaving a red run ambiguous. See below |
 | `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
@@ -55,7 +57,7 @@ About five minutes, serial, on a warm cache. What it deliberately leaves out:
 | Not in `check` | Why, and what to run instead |
 |---|---|
 | `e2e` | Needs a migrated database, a seeded organization and a running backend: `make dev && make platform-bootstrap && make test-e2e` |
-| The image build and Trivy scan | CI runs those only on a push to `main` |
+| The image build, publish and Trivy scan | `.github/workflows/images.yml` runs those on a push to `main` and on a `v*` tag, and publishes to GHCR |
 | `make test-migrations` | CI cycles the chain against a throwaway `test_db`. On a laptop `alembic downgrade base` points at whatever `backend/.env` says, which is usually the database with your own work in it — `uv run pytest tests/test_migrations.py` asks the same question against a database of its own, and `make test` already runs it |
 
 !!! warning "One gap no command can close"
@@ -163,7 +165,7 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-logs` | Follow backend logs |
 | `make docker-build` | Build backend images |
 | `make docker-shell` | Open shell in app container |
-| `make docker-frontend` | Start frontend (separate compose) |
+| `make docker-frontend` | Start the console (behind the `console` profile in a clone) |
 | `make docker-frontend-down` | Stop frontend |
 | `make docker-frontend-logs` | Follow frontend logs |
 | `make docker-frontend-build` | Build frontend image |
@@ -179,7 +181,6 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-prod` | Start production stack |
 | `make docker-prod-down` | Stop production stack |
 | `make docker-prod-logs` | Follow production logs |
-| `make docker-prod-build` | Build production images |
 
 ### Vercel (frontend deployment)
 
@@ -320,6 +321,14 @@ uv run agenticos cmd bootstrap --org "Acme"
 # holding the wrong token.
 uv run agenticos cmd doctor
 
+# The same, plus a second sheet: one row per control of a security profile,
+# naming the setting that satisfies it or the one that does not. `--` marks a
+# control that is genuinely the operator's - volume encryption - which is named
+# rather than quietly passed and does not fail the command. Exits non-zero on any
+# unmet control, so a client's own CI can gate on it. Evidence, not a
+# certification: the HIPAA profile answers §164.312 and nothing else.
+uv run agenticos cmd doctor --profile hipaa
+
 # Find published agents that lend a skill their publisher could not reach. The
 # publish-time check on skill_ids only guards new publishes; this is the offline
 # half, naming versions frozen before it that still hand a private skill to a run.
@@ -330,6 +339,29 @@ uv run agenticos cmd doctor
 # Report-only - a spec is exported into a client's own git, so unbinding is a person's
 # call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
+
+# Recompute the app-admin audit trail's tamper-evidence hash chain and report any
+# break. Each entry links to the previous one's hash, so editing, reordering,
+# inserting or interior-deleting a row diverges every hash after it; a per-org
+# checkpoint catches the newest entries or a whole chain being dropped, which the
+# hash walk cannot see. With no --org it checks every chain, including the
+# deployment-wide one. Detection, not prevention - a Postgres superuser can drop the
+# checkpoint's guard and delete both entries and checkpoint - so a clean run is
+# evidence, not proof. Exits non-zero when any chain fails, so a cron can gate on it.
+uv run agenticos cmd audit-verify
+uv run agenticos cmd audit-verify --org <org-id>
+
+# Print the configuration a data-protection review of this deployment asks for:
+# the settings that decide what leaves, every provider and endpoint an agent can
+# reach, the credentials held by purpose, the collections and who embeds them,
+# the servers on your own network, the MCP servers, sync sources and channel
+# bots, where runs are traced and how much content a span carries, how much of
+# each store a retention period would reach, and the files under MEDIA_DIR no row
+# points at any more. Configuration and counts only - no message text, no
+# document, no secret value and no hint of one, so the output is attachable as it
+# stands. --older-than is the retention period under consideration, in days.
+uv run agenticos cmd data-protection-report
+uv run agenticos cmd data-protection-report --older-than 90
 
 # Re-wrap every stored secret under the current master key - the staged rotation
 # docs/secrets.md describes. Configure the old and new key side by side in
@@ -378,7 +410,7 @@ fresh environment — it is faster than reading logs.
 ### Getting a deployment up
 
 ```bash
-# Prerequisites, a clone, four questions, and a running agent.
+# Docker, one downloaded compose file, four questions, and a running agent.
 curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
 # Only report what this machine is missing.
 ./scripts/quickstart.sh --check
@@ -388,8 +420,9 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 ./scripts/quickstart.sh --yes --provider anthropic --api-key sk-ant-... --org Acme
 ```
 
-It is a wrapper around `make dev`, `make dev-frontend`, `agenticos cmd bootstrap`
-and `agenticos cmd mcp-registry-sync` — nothing it does is unavailable by hand.
+It is a wrapper around `docker compose up` on the published images (`make dev` in
+a clone), `agenticos cmd bootstrap` and `agenticos cmd mcp-registry-sync` —
+nothing it does is unavailable by hand, and Docker is the only thing it needs.
 
 ### The MCP registry mirror
 

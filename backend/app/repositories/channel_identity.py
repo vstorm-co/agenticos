@@ -1,5 +1,6 @@
 """ChannelIdentity repository (PostgreSQL async)."""
 
+from collections.abc import Collection
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,6 +8,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.organization import OrganizationMember
+from app.db.models.user import User
 
 
 async def get_by_id(db: AsyncSession, identity_id: UUID) -> ChannelIdentity | None:
@@ -139,3 +142,35 @@ async def update(
     await db.flush()
     await db.refresh(db_identity)
     return db_identity
+
+
+async def linked_active_platform_user_ids(
+    db: AsyncSession,
+    *,
+    platform: str,
+    platform_user_ids: Collection[str],
+    organization_id: UUID,
+) -> set[str]:
+    """Which of these platform accounts are linked to an active member of the org.
+
+    The batch question the thread backfill asks under a link-required policy: an
+    author it cannot tie to a member who can still sign in must not be quoted into
+    the prompt, the same rule the whitelist filter already keeps (#1457). Joined
+    through `User.is_active` like `member_repo.get_active`, so a linked account
+    whose member is deactivated is absent from the set, not admitted.
+    """
+    if not platform_user_ids:
+        return set()
+    result = await db.execute(
+        select(ChannelIdentity.platform_user_id)
+        .join(OrganizationMember, OrganizationMember.user_id == ChannelIdentity.user_id)
+        .join(User, User.id == ChannelIdentity.user_id)
+        .where(
+            ChannelIdentity.platform == platform,
+            ChannelIdentity.platform_user_id.in_(list(platform_user_ids)),
+            ChannelIdentity.user_id.is_not(None),
+            OrganizationMember.organization_id == organization_id,
+            User.is_active.is_(True),
+        )
+    )
+    return set(result.scalars().all())

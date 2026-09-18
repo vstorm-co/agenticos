@@ -7,6 +7,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
+import { secureCookies } from "@/lib/session-cookie";
 
 export async function POST(request: NextRequest) {
   const refreshToken = request.cookies.get("refresh_token")?.value;
@@ -41,14 +42,14 @@ export async function POST(request: NextRequest) {
 
   response.cookies.set("access_token", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookies(request),
     sameSite: "lax",
     maxAge: 0,
     path: "/",
   });
   response.cookies.set("refresh_token", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookies(request),
     sameSite: "lax",
     maxAge: 0,
     path: "/",

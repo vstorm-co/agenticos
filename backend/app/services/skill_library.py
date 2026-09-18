@@ -191,9 +191,19 @@ def _read(folder: Path, *, key: str | None = None) -> LibrarySkill:
 def split_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """The YAML header and the body below it.
 
+    This deployment's one reader of `SKILL.md`. It is also what parses a skill an
+    agent wrote back into its workspace (`app.services.skill_workspace`), and one
+    parser for one format is what keeps a skill from meaning two things in two
+    places - `pydantic-ai-skills` stopped publishing its own at 2.0.
+
     A manifest with no frontmatter is not an error: the folder name and the
     first paragraph are enough to install from, and refusing would turn a
     missing header into a missing skill.
+
+    Raises:
+        ValueError: If the header is not parsable YAML, or is not a mapping.
+            One class for both, because the caller that recovers from a
+            malformed manifest recovers from them identically.
     """
     if not text.startswith(_FRONTMATTER):
         return {}, text
@@ -203,7 +213,13 @@ def split_frontmatter(text: str) -> tuple[dict[str, object], str]:
     if not separator:
         return {}, text
 
-    parsed = yaml.safe_load(header) or {}
+    try:
+        parsed = yaml.safe_load(header) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Frontmatter is not valid YAML: {exc}") from exc
     if not isinstance(parsed, dict):
-        raise TypeError("Frontmatter must be a mapping of keys to values")
+        # `ValueError`, not the `TypeError` ruff suggests: the caller that recovers
+        # from a manifest an agent wrote catches one class for "this header is not
+        # readable", and catching `TypeError` there would mean catching a bug.
+        raise ValueError("Frontmatter must be a mapping of keys to values")  # noqa: TRY004
     return parsed, body

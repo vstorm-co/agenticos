@@ -329,15 +329,17 @@ def usage_frame(report: UsageReport | None) -> dict[str, Any] | None:
 
     Numbers rather than the sentence a channel gets: a chat draws a bar and a
     tooltip, and a pre-formatted string would force it to parse ours back apart.
-    `None` stays `None` so a client can tell "nothing was measured" from "zero",
-    which are different things to draw.
+    `cost_usd` is the one exception - the Decimal string REST reports a cost as,
+    so money crosses every surface in one shape and the client `Number()`s it the
+    same way here as there (#545). `None` stays `None` so a client can tell
+    "nothing was measured" from "zero", which are different things to draw.
     """
     if report is None:
         return None
     frame: dict[str, Any] = {
         "input_tokens": report.input_tokens,
         "output_tokens": report.output_tokens,
-        "cost_usd": float(report.cost_usd),
+        "cost_usd": str(report.cost_usd),
         "cost_is_partial": report.cost_is_partial,
         "budget_percent": report.budget_percent,
         "agent_budget_percent": report.agent_budget_percent,

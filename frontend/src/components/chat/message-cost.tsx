@@ -28,7 +28,7 @@ interface MessageCostProps {
  */
 export function MessageCost({ usage }: MessageCostProps) {
   const t = useTranslations("chat");
-  const cost = `$${usage.cost_usd.toFixed(4)}`;
+  const cost = `$${Number(usage.cost_usd).toFixed(4)}`;
   return (
     <span
       className="text-muted-foreground font-mono text-[10px]"

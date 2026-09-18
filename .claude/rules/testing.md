@@ -1,6 +1,6 @@
 ---
 description: Testing standards, the four layers, anyio patterns, the 100% platform gate
-globs:
+paths:
   [
     "backend/tests/**/*.py",
     "tests/**/*.py",
@@ -8,6 +8,7 @@ globs:
     "**/conftest.py",
     "frontend/src/**/*.test.ts",
     "frontend/src/**/*.test.tsx",
+    "frontend/e2e/**/*.ts",
   ]
 ---
 
@@ -48,7 +49,7 @@ fails if a gating job grows a step `check` does not run - or if `check` grows on
 CI does not. It has drifted four times, all four found by #143.
 
 Three things `check` leaves out, on purpose: `e2e` (needs a seeded backend), the
-image scan (push to `main` only), and `make test-migrations` - CI cycles the chain
+image build and scan (`images.yml`, on a push to `main` or a `v*` tag), and `make test-migrations` - CI cycles the chain
 against a throwaway database, and `alembic downgrade base` on a laptop points at
 the one with your own work in it. `check` also says at the end when
 `tests/integration/` skipped itself for want of a database, because CI's `test`
@@ -84,7 +85,10 @@ Traps, each of which has cost a red job here:
   of that is fixed - a 2xx now means the write is readable, because the commit lands
   before the response goes out (#353) - but #230 is a browser-side staleness nobody has
   closed, so the polling stays until it is. One step read once instead and took all 87
-  specs down three times in a day (#335).
+  specs down three times in a day (#335). A **product spec** that made the write does
+  the same, through `nowListed` / `nowMatching` in `e2e/helpers.ts` (#162): every bare
+  `toBeVisible()` on a just-created row is a wait that says `element(s) not found` and
+  nothing about which of five steps did not happen.
 - **A frontend spec that times out is usually the machine, and the deadlines are set
   for that.** `testTimeout` is 15s in `vitest.config.ts` and `asyncUtilTimeout` 5s in
   `vitest.setup.ts`, both raised from defaults sized for a quiet machine: measured over

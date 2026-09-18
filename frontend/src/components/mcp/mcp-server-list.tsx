@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
+import { type McpOAuthClient, mcpOAuthClient, secretWithoutClientId } from "@/lib/mcp-oauth";
 import {
   connectionState,
   CUSTOM_CATEGORY,
@@ -44,6 +45,7 @@ import {
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
   rowsForEntries,
+  slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
 import { useTranslations } from "next-intl";
@@ -76,17 +78,21 @@ function categoryLabel(category: string): string {
 /**
  * A name nothing in this scope holds yet, for a second account on one server.
  *
- * The entry's own key first, because that is the ordinary case and reads
- * best; then `-2`, `-3` and so on. A name is unique per organization and
- * becomes the tool prefix, so seeding one already taken made the form's first
- * submit a guaranteed conflict.
+ * A slug of the entry's key first (the name, not the namespace it lives in - so
+ * `com.snitcher/snitcher` seeds `snitcher`, which the tool-prefix pattern accepts,
+ * #1628); then `-2`, `-3` and so on. A name is unique per organization and becomes
+ * the tool prefix, so seeding one already taken made the form's first submit a
+ * guaranteed conflict, and each suffixed candidate stays within the pattern's 32.
  */
 function freeName(row: McpServerRow, taken: Set<string>): string | undefined {
-  const base = row.entry?.key;
-  if (base === undefined) return undefined;
+  const key = row.entry?.key;
+  if (key === undefined) return undefined;
+  const base = slugForPrefix(key);
+  if (base === "") return undefined;
   if (!taken.has(base)) return base;
   for (let n = 2; ; n += 1) {
-    const candidate = `${base}-${n}`;
+    const suffix = `-${n}`;
+    const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
     if (!taken.has(candidate)) return candidate;
   }
 }
@@ -277,11 +283,16 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     });
   };
 
-  const handleOAuth = async (row: McpServerRow, name: string, scope: Scope = "personal") => {
+  const handleOAuth = async (
+    row: McpServerRow,
+    name: string,
+    scope: Scope = "personal",
+    client?: McpOAuthClient,
+  ) => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
-        { name, url: row.url ?? "", catalog_key: row.entry?.key },
+        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client },
         scope,
       );
       // `assign`, not a write to `href`: the React compiler reads a property
@@ -347,7 +358,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     }
     if (requestedRow.auth !== "oauth") return;
     const taken = new Set(personal.connections.map((connection) => connection.name));
-    const name = freeName(requestedRow, taken) ?? connectKey;
+    const name = freeName(requestedRow, taken) ?? slugForPrefix(connectKey);
     startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
       .then(({ authorization_url }) => window.location.assign(authorization_url))
       .catch((caught: unknown) =>
@@ -379,8 +390,17 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // Sending the form would make an unauthorized bearer connection that then
     // has to be repaired.
     if (values.auth === "oauth" && existing === null) {
+      if (secretWithoutClientId(values.clientId, values.clientSecret)) {
+        toast.error(t("clientSecretNeedsId"));
+        return;
+      }
       closeDraft();
-      await handleOAuth({ ...row, url }, name, scope);
+      await handleOAuth(
+        { ...row, url },
+        name,
+        scope,
+        mcpOAuthClient(values.clientId, values.clientSecret),
+      );
       return;
     }
 

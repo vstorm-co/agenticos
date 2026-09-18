@@ -8,12 +8,12 @@ from uuid import UUID
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.messages import ModelMessage
 
-from app.agents.ask_user import QuestionItem, render_answer
+from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.subagent_events import SubagentEvent
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, AuthenticationError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -39,6 +39,7 @@ from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
+from app.services.ws_auth import authenticate_socket_token
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,13 @@ logger = logging.getLogger(__name__)
 # the general assistant the template shipped is gone, and guessing an agent on
 # the user's behalf would mean something they never picked answering them.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
+
+# Closed with the same 4001 the handshake uses for a bad credential: the client
+# treats it as a no-retry auth close rather than a dropped connection to
+# reconnect (`use-websocket.ts` NO_RETRY_CLOSE_CODES), which is what a revoked
+# session should get (#1437).
+_REVOKED_CLOSE_CODE = 4001
+_REVOKED_CLOSE_REASON = "Session revoked"
 
 HISTORY_MESSAGES = 200
 """How many of a thread's turns the model is reminded of.
@@ -112,10 +120,16 @@ class AgentSession:
         websocket: WebSocket,
         user: User,
         organization: Organization,
+        auth_token: str | None = None,
     ) -> None:
         self.websocket = websocket
         self.user = user
         self.organization_id = organization.id
+        # The credential the socket was opened with, re-checked before every
+        # frame so a revoked session cannot keep running (#1437). None only when
+        # the socket carried no token to re-check - which the handshake refuses,
+        # so it happens in tests alone; such a session is left to run.
+        self._auth_token = auth_token
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
@@ -127,6 +141,11 @@ class AgentSession:
         # answered pair the moment it arrives - before a `stop` frame behind it
         # can cancel the turn and lose it (#502). One at a time, under `_ask_lock`.
         self._pending_question: str | None = None
+        # Which delegate that question came from, read where the question is put
+        # rather than where its answer lands: the delegation's state is bound for
+        # the duration of the delegation, so it is bound inside `_ask_one` and
+        # gone by the time the answer arrives on the receive loop (#1042).
+        self._pending_asked_by: str | None = None
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -142,28 +161,46 @@ class AgentSession:
         A `stop` cancels the running turn; an `ask_user_response` unblocks a
         paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
+
+        A frame that will *act* on the session is refused first if that session
+        has been revoked (#1437), so nothing - not a new turn, not the answer
+        that resumes a parked one, not cancelling a turn that is still running -
+        happens on a dead credential. A frame that would do nothing - an unknown
+        control type, or a message arriving while a turn is already in progress -
+        is dropped before that check, so it costs no credential query: an
+        authenticated client cannot turn a stream of no-op frames into a stream
+        of database reads (found reviewing #1437).
         """
         msg_type = data.get("type")
 
         if msg_type == "stop":
+            if self._turn_task is None or self._turn_task.done():
+                return
+            if not await self._reauthorize():
+                return
             await self._cancel_turn()
             return
 
         if msg_type == "ask_user_response":
             fut = self._ask_user_future
-            if fut is not None and not fut.done():
-                raw = data.get("answers")
-                answers = raw if isinstance(raw, list) else []
-                fut.set_result(answers)
-                # Recorded here, in the receive loop, rather than after the run
-                # resumes past its await: a `stop` sent right behind the answer is
-                # the next frame, so completing the pair now is what keeps a turn
-                # cancelled a microtask later from losing the answered question
-                # (#502).
-                if self._pending_question is not None and self._current_timeline is not None:
-                    self._current_timeline.add_ask_user(
-                        self._pending_question, render_answer(answers[0] if answers else None)
-                    )
+            if fut is None or fut.done():
+                return
+            if not await self._reauthorize():
+                return
+            raw = data.get("answers")
+            answers = raw if isinstance(raw, list) else []
+            fut.set_result(answers)
+            # Recorded here, in the receive loop, rather than after the run
+            # resumes past its await: a `stop` sent right behind the answer is
+            # the next frame, so completing the pair now is what keeps a turn
+            # cancelled a microtask later from losing the answered question
+            # (#502).
+            if self._pending_question is not None and self._current_timeline is not None:
+                self._current_timeline.add_ask_user(
+                    self._pending_question,
+                    render_answer(answers[0] if answers else None),
+                    asked_by=self._pending_asked_by,
+                )
             return
 
         if msg_type is not None:
@@ -172,9 +209,54 @@ class AgentSession:
         if self._turn_task is not None and not self._turn_task.done():
             logger.warning("Ignoring message received while a turn is already in progress")
             return
+
+        if not await self._reauthorize():
+            return
         task = asyncio.create_task(self._run_turn(data))
         self._turn_task = task
         task.add_done_callback(self._on_turn_done)
+
+    async def _reauthorize(self) -> bool:
+        """Re-check the socket's credential before acting on a frame.
+
+        The handshake authenticates once and the socket is then held open for
+        its whole life, so a session revoked afterwards - an impersonation ended
+        (#1044), an account suspended, a signed-out administrator behind an
+        impersonation - would keep being served turn after turn if nothing
+        re-checked it (#1437). Re-run the handshake's own check
+        (`authenticate_socket_token`) on each inbound frame: on refusal, cancel
+        any running turn and close the socket, so the next turn is never served
+        on a dead session.
+
+        The check is at the frame boundary, not mid-turn: a turn already
+        streaming is left to finish, and the revocation lands on the next frame
+        the client sends - which is what stops a legitimate long turn being cut
+        off by it.
+
+        `allow_expired=True`: the socket is authenticated once, at the handshake,
+        and then held open past its access token's 30-minute lifetime - the
+        connection outlives the token, and the client re-credentials by
+        reconnecting, not per frame. So a token that has merely aged out is not a
+        revocation and must not close a live socket; what closes it is a session
+        or account state that says the access is gone, which this still reads.
+
+        A session opened without a token has nothing to re-check (the handshake
+        refuses a tokenless socket, so this is a test-only construction) and is
+        left to run.
+        """
+        if self._auth_token is None:
+            return True
+        async with get_db_context() as db:
+            try:
+                await authenticate_socket_token(db, self._auth_token, allow_expired=True)
+            except AuthenticationError:
+                await self._cancel_turn()
+                with contextlib.suppress(RuntimeError):
+                    await self.websocket.close(
+                        code=_REVOKED_CLOSE_CODE, reason=_REVOKED_CLOSE_REASON
+                    )
+                return False
+        return True
 
     def _on_turn_done(self, task: asyncio.Task[None]) -> None:
         """Clear the turn slot and surface unexpected crashes."""
@@ -532,17 +614,31 @@ class AgentSession:
         calls. It adapts the one-question protocol to this surface's batch channel -
         a list of one - so the WebSocket keeps a single wire format for one question
         and several, and the delegate reads back the rendered answer.
+
+        **Which delegate asked is read here and nowhere else.** `ask_parent` hands
+        over the question and nothing else, but the delegation's state is bound for
+        the duration of the delegation - so it is bound in this call, made from
+        inside it, and unbound again by the time the answer comes back on the
+        receive loop. `None` is the main agent asking the question itself (#1042).
         """
         item = QuestionItem(question=question, options=options)
-        # The frame handler records the answered pair onto the turn's timeline the
-        # moment the answer arrives (#502), so this only marks which question is
-        # open and clears it however the wait ends - answered, unanswered, or the
-        # turn cancelled out from under it.
-        self._pending_question = question
-        try:
-            answers = await self._ask_user([item.model_dump()])
-        finally:
-            self._pending_question = None
+        asked_by = asking_delegate()
+        # **Under the lock, with the round it belongs to.** The frame handler
+        # records the answered pair onto the turn's timeline the moment the
+        # answer arrives (#502), reading whichever question is marked open - so
+        # marking one outside the lock let a second delegate reaching here while
+        # the first was still waiting overwrite both fields, and the first
+        # delegate's answer was then persisted as the second's question, asked by
+        # the second's name. The lock already held the wire round; it holds what
+        # names it now too.
+        async with self._ask_lock:
+            self._pending_question = question
+            self._pending_asked_by = asked_by
+            try:
+                answers = await self._send_and_wait([item.model_dump()])
+            finally:
+                self._pending_question = None
+                self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -556,14 +652,23 @@ class AgentSession:
         waits for this one's answer rather than overwriting its future.
         """
         async with self._ask_lock:
-            loop = asyncio.get_running_loop()
-            fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
-            self._ask_user_future = fut
-            try:
-                await send_event(self.websocket, "ask_user", {"questions": questions})
-                return await fut
-            finally:
-                self._ask_user_future = None
+            return await self._send_and_wait(questions)
+
+    async def _send_and_wait(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """One round on the wire, with `_ask_lock` already held by the caller.
+
+        Split from `_ask_user` so `_ask_one` can take the lock itself and mark
+        which question is open *inside* it - the attribution has to be
+        serialized with the round it names, and a nested acquire would deadlock.
+        """
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
+        self._ask_user_future = fut
+        try:
+            await send_event(self.websocket, "ask_user", {"questions": questions})
+            return await fut
+        finally:
+            self._ask_user_future = None
 
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.
@@ -576,20 +681,16 @@ class AgentSession:
         object it already parsed instead of re-deriving the discriminator from the
         envelope.
 
-        `cost_usd` is sent as a JSON number. Pydantic serialises a `Decimal` as a
-        string in JSON mode, and this wire already reports a turn's cost as a
-        number (see `usage_report.usage_frame`) - a delegation's share of that cost
-        is the same quantity and must not arrive in a different shape.
+        `cost_usd` crosses as the Decimal string Pydantic serialises it to in JSON
+        mode - the same shape `usage_report.usage_frame` and every REST surface
+        report a cost in, so a delegation's share arrives in the shape the client
+        already parses everywhere else (#545).
 
         Nothing is awaited on the client's behalf: `send_event` answers `False` on
         a closed socket rather than raising, so a background delegation whose
         frames outlive the tab does not take the run down with it.
         """
-        frame = event.model_dump(mode="json")
-        cost = frame.get("cost_usd")
-        if cost is not None:
-            frame["cost_usd"] = float(cost)
-        await send_event(self.websocket, event.kind, frame)
+        await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
 
     async def _compaction_event(self, event: CompactionEvent) -> None:
         """Forward one frame from a summary in progress, under the frame's own name.

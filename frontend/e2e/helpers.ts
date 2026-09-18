@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 /**
  * Shared vocabulary for the E2E suite.
@@ -93,6 +93,29 @@ export const COLLEAGUE_PASSWORD = "ColleaguePassword123!";
 export const FAKE_KEY_LABEL = "e2e-vault-probe";
 export const FAKE_KEY_SECRET = "sk-e2eFAKEnotarealkeyatall9XZ7";
 export const FAKE_KEY_HINT = "9XZ7";
+
+/**
+ * The OpenRouter key the seeded knowledge base pays for its embeddings with.
+ *
+ * There is no deployment-wide embedding key: a new collection is refused until
+ * it names a vault key for its provider, and the create dialog preselects the
+ * first catalogued provider, OpenRouter. So the seed stores this one before it
+ * creates its collection, and every spec that creates a collection chooses it
+ * through `chooseEmbeddingKey`, so the dialog's shape is written down once.
+ */
+export const SEEDED_EMBEDDING_KEY_LABEL = "e2e-embeddings-key";
+export const SEEDED_EMBEDDING_KEY_SECRET = "sk-e2eEMBEDnotarealkeyatallQ3M8";
+
+/**
+ * The LlamaParse key a collection parsing with LlamaParse is billed to.
+ *
+ * There is no deployment-wide LlamaParse key: a collection whose parser is
+ * LlamaParse is refused until it names a vault key for it, so the ingestion spec
+ * - which chooses that parser to prove the choice survives the round trip -
+ * needs one in the vault first.
+ */
+export const SEEDED_LLAMAPARSE_KEY_LABEL = "e2e-llamaparse-key";
+export const SEEDED_LLAMAPARSE_KEY_SECRET = "llx-e2eLLAMAnotarealkeyatallV6R2";
 
 /**
  * A stored secret, which is the other half of the vault and not a provider key.
@@ -436,4 +459,139 @@ export async function selectSavedModel(page: Page, label: string): Promise<void>
   await expect(radio).toBeVisible();
   if ((await radio.getAttribute("aria-checked")) !== "true") await radio.click();
   await expect(radio).toHaveAttribute("aria-checked", "true");
+}
+
+/**
+ * Choose the vault key a new collection embeds with, in the create dialog.
+ *
+ * The Embeddings section is folded away - creating a collection is a two-field
+ * job - so it is opened first. The key select is empty until a key is chosen,
+ * and the server refuses a collection that names none: there is no
+ * deployment-wide embedding key to fall back to. Asserted on the trigger rather
+ * than on the click, because a Radix select swallows a click on an option that
+ * was still mounting.
+ */
+/**
+ * Choose the LlamaParse key a collection is billed to, in the parsing section of
+ * the create dialog. The section has to be open and the parser set to LlamaParse
+ * already; the select is empty until a key is chosen and the server refuses a
+ * LlamaParse collection that names none.
+ */
+export async function chooseLlamaParseKey(
+  page: Page,
+  dialog: Locator,
+  name: string,
+): Promise<void> {
+  const key = dialog.getByRole("combobox", { name: "LlamaParse key" });
+  await key.click();
+  await page.getByRole("option", { name: new RegExp(name) }).click();
+  await expect(key).toHaveText(new RegExp(name));
+}
+
+export async function chooseEmbeddingKey(page: Page, dialog: Locator, name: string): Promise<void> {
+  await dialog.locator("summary", { hasText: "Embeddings" }).click();
+  const key = dialog.getByRole("combobox", { name: "Key" });
+  await key.click();
+  await page.getByRole("option", { name: new RegExp(name) }).click();
+  await expect(key).toHaveText(new RegExp(name));
+}
+
+/**
+ * A JSON GET that fails loudly, so a broken read reads as a broken read.
+ *
+ * `expect(response.ok(), ...)` rather than a bare parse: a 500 answered as
+ * `{"detail": ...}` parses perfectly well and then fails three lines later on a
+ * missing `items`, naming the wrong thing.
+ */
+export async function json<T>(request: APIRequestContext, path: string): Promise<T> {
+  const response = await request.get(path);
+  expect(response.ok(), `${path} answered ${response.status()}`).toBe(true);
+  return (await response.json()) as T;
+}
+
+/** Every row of a collection, as the API answers it. */
+export async function rowsAt(
+  request: APIRequestContext,
+  path: string,
+): Promise<Record<string, unknown>[]> {
+  const list = await json<{ items: Record<string, unknown>[] }>(request, path);
+  return list.items;
+}
+
+/**
+ * Wait until a write this test made is readable, before asking the page about it.
+ *
+ * **This is the shared "the mutation has landed" step, and #162 is why it is
+ * shared.** Four specs have flaked the same way - `toBeVisible()` on a row that
+ * was just created, `element(s) not found`, and nothing saying which locator or
+ * why. Individually each reads as bad luck; together they are one shape:
+ * asserting on a screen that has not finished settling. The refetch after a
+ * write is sometimes answered with the pre-write list (#230), which a reload
+ * narrows rather than closes.
+ *
+ * So the order is: the API says the row is there, *then* the page is asked to
+ * draw it. A failure before the page is involved says the write never landed; a
+ * failure after says the page did not draw a row the API was serving, which are
+ * two different defects and used to be the same message.
+ *
+ * It was `nowThere` in `seed.setup.ts`, private to the fixtures. Product specs
+ * need it for the same reason the fixtures do, and a second copy would be a
+ * second thing to fix.
+ *
+ * Polled on the *list* rather than on a boolean, so a failure prints the values
+ * that were there: "never listed a row whose label is e2e-model-x" says the wait
+ * lost, `Received array: [...]` says what it lost to.
+ *
+ * @param request The test's own `page.request` or an `APIRequestContext`.
+ * @param path The collection to read.
+ * @param field The field to match on.
+ * @param value What it has to read.
+ */
+export async function nowListed(
+  request: APIRequestContext,
+  path: string,
+  field: string,
+  value: unknown,
+): Promise<void> {
+  await expect
+    .poll(async () => (await rowsAt(request, path)).map((row) => row[field]), {
+      message: `the write was accepted, but ${path} never listed a row whose ${field} is ${String(value)}`,
+    })
+    .toContain(value);
+}
+
+/**
+ * Wait until some row of a collection satisfies `matches`, and answer with it.
+ *
+ * `nowListed`'s sibling, for a wait that is not one field equalling one value -
+ * a run that has been *priced*, say, where the row appears before its cost is
+ * recorded and the assertion on screen is about the cost rather than the row.
+ *
+ * @param describe What is being waited for, in the failure message. Write it as
+ *   the thing that did not happen: "a run billed against e2e-model-x, with a
+ *   cost".
+ */
+export async function nowMatching(
+  request: APIRequestContext,
+  path: string,
+  matches: (row: Record<string, unknown>) => boolean,
+  describe: string,
+): Promise<Record<string, unknown>> {
+  let found: Record<string, unknown> | undefined;
+  await expect
+    .poll(
+      async () => {
+        const rows = await rowsAt(request, path);
+        found = rows.find(matches);
+        // Empty means matched; anything else is what was there instead, which
+        // Playwright prints as `Received array: [ … ]`. Polling a boolean would
+        // report `Received: false` and throw the rows away - and "no run at
+        // all" and "a run that is not priced yet" are the two answers this step
+        // exists to tell apart.
+        return found === undefined ? rows : [];
+      },
+      { message: `${path} never listed ${describe}` },
+    )
+    .toHaveLength(0);
+  return found!;
 }

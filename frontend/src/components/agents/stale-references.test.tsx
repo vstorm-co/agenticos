@@ -33,6 +33,7 @@ const KNOWN = {
   skillTotal: 1,
   connections: [CONNECTION],
   catalog: [NOTION],
+  loaded: true,
 };
 
 describe("staleReferences", () => {
@@ -74,6 +75,35 @@ describe("staleReferences", () => {
     });
   });
 
+  it("declares nothing stale before the lists it checks have answered", () => {
+    // Every list defaults to [] while its query loads, so a reference checked
+    // against one then reads as deleted; the notice flashed on every page load.
+    const stale = spec({
+      collection_ids: ["kb-gone"],
+      context_ids: ["ctx-gone"],
+      skill_ids: ["sk-gone"],
+      mcp_servers: [{ account: "organization", connection_id: "c-gone", allowed_tools: null }],
+    });
+
+    expect(
+      staleReferences(stale, {
+        collections: [],
+        contextFiles: [],
+        contextTotal: 0,
+        skills: [],
+        skillTotal: 0,
+        connections: [],
+        catalog: [],
+        loaded: false,
+      }),
+    ).toEqual({
+      collection_ids: [],
+      context_ids: [],
+      skill_ids: [],
+      mcp_servers: [],
+    });
+  });
+
   it("declares nothing stale from one page of a longer list", () => {
     // The Builder loads a hundred context files and skills; an organization with
     // more than that has ids this page cannot see, and "not on this page" is not
@@ -93,6 +123,25 @@ describe("StaleReferences", () => {
   it("renders nothing for a draft whose references all resolve", () => {
     const { container } = render(
       <StaleReferences spec={spec({ collection_ids: ["kb-1"] })} onRemove={vi.fn()} {...KNOWN} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders nothing while the lists are still loading", () => {
+    const { container } = render(
+      <StaleReferences
+        spec={spec({ collection_ids: ["kb-gone"] })}
+        onRemove={vi.fn()}
+        collections={[]}
+        contextFiles={[]}
+        contextTotal={0}
+        skills={[]}
+        skillTotal={0}
+        connections={[]}
+        catalog={[]}
+        loaded={false}
+      />,
     );
 
     expect(container).toBeEmptyDOMElement();

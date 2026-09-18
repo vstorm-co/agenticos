@@ -212,13 +212,14 @@ class TestProviderCatalog:
 
     def test_unknown_provider_fails_loudly(self):
         credential = ResolvedCredential(
-            provider="myprovider", secret=ApiKeySecret(api_key="sk-test")
+            provider="myprovider", secret=ApiKeySecret(api_key="sk-test-key")
         )
         with pytest.raises(BadRequestError) as exc:
             build_model(credential, "some-model")
         assert exc.value.details is not None
         assert "supported" in exc.value.details
 
+    @pytest.mark.security
     def test_a_secret_that_is_not_a_provider_credential_is_refused(self):
         """A GitHub OAuth App credential cannot authenticate a model provider.
 

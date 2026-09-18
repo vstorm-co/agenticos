@@ -18,13 +18,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.audit import current_impersonator, set_impersonator
-from app.core.exceptions import AuthenticationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.security import create_access_token, verify_token
 from app.db.models.audit_log import AppAdminAuditLog
 from app.repositories import session as session_repo
 from app.services import impersonation as module
 from app.services.email.service import EmailKey
-from app.services.impersonation import WINDOW, ImpersonationService, current_impersonation
+from app.services.impersonation import (
+    WINDOW,
+    ActiveImpersonation,
+    ImpersonationService,
+    current_impersonation,
+    refuse_binding_while_impersonating,
+)
 from app.services.session import SessionService, hash_token
 
 pytestmark = pytest.mark.anyio
@@ -50,9 +61,15 @@ def _user(*, email: str, is_active: bool = True) -> MagicMock:
 
 
 def _db() -> MagicMock:
-    """A session whose `add` is a plain call, so the audit entry can be read back."""
+    """A session whose `add` is a plain call, so the audit entry can be read back.
+
+    `execute` answers the audit chain's head read with nothing - these are the first
+    entries in their chains - and the advisory-lock take ignores its result.
+    """
     db = MagicMock()
     db.flush = AsyncMock()
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
     return db
 
 
@@ -617,3 +634,29 @@ class TestTheSessionMachinery:
         )
 
         assert "impersonator_user_id" not in revoke
+
+
+class TestRefuseBindingWhileImpersonating:
+    """The guard the identity-binding routes call: a chat link and an OAuth grant
+    fasten an identity to whoever the request acts as, so both refuse under an
+    impersonation rather than binding the administrator's own to the target (#1438).
+    """
+
+    def test_an_ordinary_request_binds(self) -> None:
+        """No impersonation set, so the guard is a no-op and the caller proceeds."""
+        module._active.set(None)
+        assert refuse_binding_while_impersonating("Linking a chat account") is None
+
+    def test_an_impersonated_request_is_refused(self) -> None:
+        module._active.set(
+            ActiveImpersonation(
+                session_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                impersonator_id=uuid.uuid4(),
+                expires_at=datetime.now(UTC) + WINDOW,
+            )
+        )
+        with pytest.raises(AuthorizationError) as exc:
+            refuse_binding_while_impersonating("Linking a chat account")
+        assert "Linking a chat account" in exc.value.message
+        assert "impersonating" in exc.value.message

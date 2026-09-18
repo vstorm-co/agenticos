@@ -41,6 +41,7 @@ from app.repositories import (
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
 from app.services.access import AGENT, resolve_access
 from app.services.channels.base import IncomingMessage
+from app.services.impersonation import refuse_binding_while_impersonating
 
 REQUEST_TTL = timedelta(minutes=15)
 """How long a link URL lives.
@@ -49,6 +50,21 @@ It is a bearer credential: whoever opens it claims that chat account. Fifteen
 minutes is long enough to switch to a browser and sign in if you were signed out,
 and short enough that a URL left in a chat history is not a way in.
 """
+
+
+def mcp_servers_link(catalog_key: str | None = None) -> str:
+    """The absolute MCP servers page URL, for a reader who is not in the app.
+
+    A channel reply reaches somebody in Slack or Telegram, with no session to
+    navigate from, so a link it quotes has to be absolute - built here beside the
+    other channel URLs rather than in the runner, which does not own the console's
+    routes. `?connect=<key>` opens the connect flow for a service nobody has
+    connected yet; the bare page is where an account already held is put right,
+    because `?connect=` always mints a new connection. In the console the page is
+    named in words instead, because the reader is already in it.
+    """
+    servers = f"{settings.FRONTEND_URL.rstrip('/')}/mcp-servers"
+    return f"{servers}?connect={catalog_key}" if catalog_key else servers
 
 
 def _host_of(api_base_url: str | None) -> str | None:
@@ -130,7 +146,13 @@ class ChannelLinkService:
         Returns the request that was spent, or None if the token is unknown or
         expired - the two answer the same way, because the difference is not
         something the person clicking can act on differently.
+
+        Raises:
+            AuthorizationError: When the request runs under an impersonation. The
+                link would bind the administrator's own chat account to the
+                target's (#1438); refused, not audited.
         """
+        refuse_binding_while_impersonating("Linking a chat account")
         request = await self.pending(token)
         if request is None:
             return None

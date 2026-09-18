@@ -129,7 +129,7 @@ async def list_visible(
         visible = or_(
             Agent.owner_user_id == user_id,
             Agent.visibility == Visibility.ORG.value,
-            Agent.id.in_(shared_ids) if shared_ids else False,
+            Agent.id.in_(shared_ids) if shared_ids else false(),
         )
         query = query.where(visible)
         count_query = count_query.where(visible)
@@ -436,6 +436,26 @@ async def get_version(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_versions_by_ids(
+    db: AsyncSession, version_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, AgentVersion]:
+    """Several versions at once, by id, inside one organization.
+
+    One statement rather than a lookup per id, for a listing that needs the
+    number behind each of a page of pins. A missing id is absent from the map,
+    the same answer the per-id read gave.
+    """
+    if not version_ids:
+        return {}
+    result = await db.execute(
+        select(AgentVersion).where(
+            AgentVersion.id.in_(list(version_ids)),
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return {version.id: version for version in result.scalars().all()}
 
 
 async def list_versions(

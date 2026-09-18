@@ -40,6 +40,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import (
     AgentSpec,
+    ObservabilitySpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
     SpecialistSpec,
@@ -383,6 +384,7 @@ class TestTheRuntimeARunIsHanded:
 
         assert prepared.build.call_count == 2
 
+    @pytest.mark.security
     async def test_a_delegate_runs_on_the_runs_own_budget_guard(self):
         """Sharing the guard is what makes a delegation's spend visible to the
         parent's cap before the next request. Without it a delegate meters
@@ -392,6 +394,7 @@ class TestTheRuntimeARunIsHanded:
 
         assert prepared.built("summariser")["shared_budget"] is prepared.build.return_value.budget
 
+    @pytest.mark.security
     async def test_a_delegate_reaches_the_approval_queue_the_parent_is_waiting_on(self):
         """A specialist that needs a person needs the person already waiting."""
         prepared = await _prepare(_delegating(inline=[_specialist()]))
@@ -465,6 +468,37 @@ class TestWhatAnInlineSpecialistCanReach:
         prepared = await _prepare(_delegating(inline=[_specialist()]))
 
         assert prepared.built("summariser")["extra_toolsets"] == []
+
+    async def test_a_specialist_inherits_the_parents_refusal_to_trace_content(self):
+        """The parent's `content="none"` is a promise about the run, not about one
+        agent in it. A specialist's spec carried no observability block at all, so
+        the deployment's global instrumentation traced it with content on and the
+        run's prompts left anyway (#1699)."""
+        spec = _delegating(
+            inline=[_specialist()],
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+        )
+
+        prepared = await _prepare(spec)
+
+        built = prepared.built("summariser")["spec"]
+        assert built.observability is not None
+        assert built.observability.content == "none"
+        # The mode travels; the destination does not. A specialist has no project
+        # of its own and must not be handed the parent's write token.
+        assert built.observability.token_secret_id is None
+
+    async def test_a_specialist_of_a_parent_that_traces_in_full_carries_no_block(self):
+        """`full` changes nothing, so it stays absent rather than writing an empty
+        observability block into every specialist ever built."""
+        spec = _delegating(
+            inline=[_specialist()],
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4()),
+        )
+
+        prepared = await _prepare(spec)
+
+        assert prepared.built("summariser")["spec"].observability is None
 
 
 class TestSharingACapabilityWithADelegate:
@@ -920,6 +954,51 @@ class TestASpecialistTheModelInvents:
         assert dynamic is not None
         assert dynamic.allowed_models == ("fast",)
 
+    async def test_one_the_model_invents_inherits_the_refusal_to_trace_content(self):
+        """A specialist nobody reviewed is the last place a run's prompts should
+        start leaving from. `_dynamic_builder` assembles a bare `AgentSpec`, so
+        without the mode it arrived at `_instrument` asking for nothing and the
+        deployment's global instrumentation traced it with content on (#1699)."""
+        prepared = await _prepare(
+            _delegating(
+                allow_dynamic=True,
+                observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+            ),
+            profiles=[_profile("fast")],
+        )
+
+        spec = prepared.invented(model="fast")["spec"]
+        assert spec.observability is not None
+        assert spec.observability.content == "none"
+        assert spec.observability.token_secret_id is None
+
+    async def test_one_invented_by_a_delegate_follows_that_delegates_own_mode(self):
+        """A published delegate is reviewed on its own spec, so what a specialist
+        it invents may record is its author's answer and not its caller's."""
+        child_id = uuid.uuid4()
+        child = _version(
+            child_id,
+            _delegating(
+                name="Research Bot",
+                allow_dynamic=True,
+                observability=ObservabilitySpec(content="none"),
+            ),
+        )
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            max_depth=2,
+        )
+
+        prepared = await _prepare(parent, versions={child.id: child}, profiles=[_profile("fast")])
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert nested.dynamic is not None
+        with patch(f"{RUNNER}.build_agent", new=prepared.build):
+            nested.dynamic.build(name="skimmer", instructions="Be brief.", model="fast")
+        spec = prepared.build.call_args_list[-1].args[0]
+        assert spec.observability is not None
+        assert spec.observability.content == "none"
+
     async def test_the_catalog_is_read_once_for_the_whole_tree(self):
         """It is a fact about the organization, not about a level, and reading it
         costs a query and a vault unseal per profile. Two nested levels that both
@@ -985,6 +1064,7 @@ class TestASpecialistTheModelInvents:
         assert [binding.id for binding in built["spec"].capabilities] == []
         assert SUBAGENT_RUNTIME_RESOURCE not in built["resources"]
 
+    @pytest.mark.security
     async def test_one_is_built_through_the_factory_with_the_runs_budget(self):
         """The property the whole phase exists for, at the seam the runner owns.
 
@@ -1673,6 +1753,12 @@ class TestWhoseMonthADelegationCountsTowards:
             ) as total,
             patch(
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
                 new=AsyncMock(return_value=Decimal("0")),
             ),
         ):

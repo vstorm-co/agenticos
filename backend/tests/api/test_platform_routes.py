@@ -38,7 +38,7 @@ from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
-from app.repositories.agent_run import WindowAggregates
+from app.repositories.agent_run import WindowAggregates, WindowBreakdown
 from app.schemas.agent import ParkedCall
 from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
@@ -142,6 +142,7 @@ _SERVICE_DEPS = (
     deps.get_sync_source_service,
     deps.get_rag_document_service,
     deps.get_stats_service,
+    deps.get_ml_service,
 )
 
 Provider = Callable[[], object]
@@ -198,8 +199,29 @@ class Call:
     """Appended verbatim, so it carries its own `?` - there is no route here that
     needs one twice and no reason for this to guess."""
 
+    upload: bool = False
+    """A multipart route, which is sent a token file rather than a JSON body.
+
+    Without it the sweep posts JSON to a route declaring `UploadFile` and the
+    request is refused as malformed. That is not a passing gate test: the
+    admitted-caller assertion excludes 422 on purpose, so the route would fail
+    for a reason that has nothing to do with the permission it demands.
+    """
+
     def __str__(self) -> str:
         return f"{self.method} {self.path}"
+
+
+async def _send(client: AsyncClient, call: Call) -> Any:
+    """Make one call's request, as JSON or as a multipart upload."""
+    if call.upload:
+        return await client.request(
+            call.method,
+            _url(call.path, call.query),
+            files={"file": ("probe.pdf", b"%PDF-1.4", "application/pdf")},
+            data=call.body or {},
+        )
+    return await client.request(call.method, _url(call.path, call.query), json=call.body)
 
 
 _SPEC: dict[str, Any] = {"name": "Support"}
@@ -332,6 +354,12 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("DELETE", "/providers/model-profiles/{profile_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/audit", Perm.AUDIT_READ),
+    Call(
+        "GET",
+        "/audit/export",
+        Perm.AUDIT_READ,
+        query="?created_from=2020-01-01T00:00:00&created_to=2020-01-02T00:00:00",
+    ),
     # The organization's MCP servers, per-resource routes included. That is the
     # same rule the agent routes follow, not an exception to it: a role gate is
     # wrong where a resource grant could widen the answer, and a connection has
@@ -362,6 +390,15 @@ CALLS: tuple[Call, ...] = (
         "/mcp-connections/oauth/start/portal",
         Perm.MCP_MANAGE,
         body={"portal_key": "google"},
+    ),
+    Call(
+        # The App variant, which is not an OAuth start at all: an App has no
+        # consent flow, so connecting it is recording which installation this
+        # organization's triggers belong to. Same permission for the same reason.
+        "POST",
+        "/mcp-connections/portals/github-app",
+        Perm.MCP_MANAGE,
+        body={"installation_id": "42"},
     ),
     Call(
         "POST",
@@ -423,6 +460,30 @@ CALLS: tuple[Call, ...] = (
     # containers there. Every route including the per-resource ones: a connection
     # has no grants, so a gate here cannot refuse somebody a grant would have
     # admitted.
+    Call("GET", "/local-services", Perm.CONNECTIONS_VIEW),
+    Call(
+        "POST",
+        "/local-services",
+        Perm.CONNECTIONS_MANAGE,
+        body={
+            "name": "GPU box",
+            "kind": "embedding",
+            "provider": "ollama",
+            "base_url": "http://ollama:11434/v1",
+        },
+    ),
+    Call("PATCH", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    # The standalone ML services, all on one permission. `ml:invoke` is separate
+    # from `agents:run` so that an integration which parses documents cannot also
+    # spend the organization's model budget.
+    Call("GET", "/ml/services", Perm.ML_INVOKE),
+    Call("POST", "/ml/documents/analyze", Perm.ML_INVOKE, upload=True),
+    Call("POST", "/ml/documents/ocr", Perm.ML_INVOKE, upload=True),
+    Call("POST", "/ml/audio/transcriptions", Perm.ML_INVOKE, upload=True),
+    Call("POST", "/ml/privacy/pii", Perm.ML_INVOKE, body={"text": "hello"}),
+    Call("GET", "/ml/calls", Perm.ML_INVOKE),
+    Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
+    Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",
@@ -487,20 +548,20 @@ class TestEachRouteDemandsItsOwnPermission:
     more permissions than the route needs.
     """
 
+    @pytest.mark.security
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_missing_only_that_permission_is_refused(
         self, call: Call, as_role: ClientFactory
     ) -> None:
         async with as_role(all_but(call.permission)) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code == 403, (
             f"{call} admitted a caller holding every permission except {call.permission.value}"
         )
 
+    @pytest.mark.security
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_holding_only_that_permission_gets_through(
@@ -512,9 +573,7 @@ class TestEachRouteDemandsItsOwnPermission:
         reached the gate, and would make this test pass for the wrong reason.
         """
         async with as_role(only(call.permission)) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code not in (403, 422), (
             f"{call} refused a caller holding {call.permission.value}"
@@ -531,9 +590,7 @@ class TestViewersCannotWrite:
         platform must be closed to it.
         """
         async with as_role(OrgRoleName.VIEWER) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code == 403
 
@@ -589,9 +646,7 @@ class TestOperatorCanWatchSandboxesButNotManageThem:
     async def test_an_operator_reaches_the_read(self, call: Call, as_role: ClientFactory) -> None:
         """Past the gate the service is stubbed, so anything but 403/422 is a pass."""
         async with as_role(OrgRoleName.OPERATOR) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code not in (403, 422), (
             f"{call} refused an operator holding connections:view"
@@ -602,9 +657,7 @@ class TestOperatorCanWatchSandboxesButNotManageThem:
         self, call: Call, as_role: ClientFactory
     ) -> None:
         async with as_role(OrgRoleName.OPERATOR) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code == 403, (
             f"{call} admitted an operator holding only connections:view"
@@ -622,9 +675,7 @@ class TestBuilderStillReachesEverySandboxRoute:
     @pytest.mark.parametrize("call", _OPERATOR_MAY_READ + _OPERATOR_MAY_NOT_WRITE, ids=str)
     async def test_a_builder_reaches_it(self, call: Call, as_role: ClientFactory) -> None:
         async with as_role(OrgRoleName.BUILDER) as client:
-            response = await client.request(
-                call.method, _url(call.path, call.query), json=call.body
-            )
+            response = await _send(client, call)
 
         assert response.status_code not in (403, 422), (
             f"{call} refused a builder after the connections split"
@@ -716,6 +767,13 @@ _PLATFORM_PREFIXES = (
     # The trigger-templates catalog, the prompt counterpart of the portals
     # catalog above, gated the same way and needing its own prefix entry too.
     "/trigger-templates",
+    # Where an organization's embedding and OCR servers are, on the deployment's
+    # own network - the rows a collection names instead of a vault key.
+    "/local-services",
+    # The standalone ML services. Reached by another component holding a key
+    # rather than by a person in a browser, which is precisely why the sweep has
+    # to see them: nobody would notice an ungated one from the console.
+    "/ml",
 )
 
 
@@ -859,6 +917,7 @@ class TestEveryPlatformRouteIsGuarded:
     can notice a route that nobody remembered to name.
     """
 
+    @pytest.mark.security
     def test_no_platform_route_decides_nothing(self) -> None:
         """Authorization happens at the gate, or inside the sharing service.
 
@@ -1158,12 +1217,9 @@ class TestStatsScopeIsDecidedInTheService:
         """Every aggregate answers zero, so a 200 is a statement about the gate."""
         for name, value in (
             ("count_runs", 0),
-            ("runs_by_day", []),
-            ("runs_by_dimension", []),
             ("runs_by_agent", []),
             ("latency_percentiles_ms", (None, None)),
             ("sum_cost_window", Decimal(0)),
-            ("cost_by_provider_window", []),
             ("count_distinct_users", 0),
             ("count_pending_approval_runs", 0),
             ("usage_by_user", []),
@@ -1174,6 +1230,12 @@ class TestStatsScopeIsDecidedInTheService:
                 ),
             ),
             ("window_totals", (0, Decimal(0))),
+            (
+                "window_breakdown",
+                WindowBreakdown(
+                    by_day=[], by_surface=[], by_status=[], by_model=[], by_provider=[]
+                ),
+            ),
         ):
             monkeypatch.setattr(
                 f"app.services.stats.agent_run_repo.{name}", AsyncMock(return_value=value)
@@ -1377,8 +1439,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
-        ("GET", f"{V1}/oauth/google/login"),
-        ("GET", f"{V1}/oauth/google/callback"),
+        # One pair for every identity provider: `google`, and the deployment's
+        # own `oidc` (#1419). A provider it does not offer is a 404 from
+        # `sign_in_client`, not an authenticated route.
+        ("GET", f"{V1}/oauth/{{provider}}/login"),
+        ("GET", f"{V1}/oauth/{{provider}}/callback"),
         # The sign-in code exchange (#14). The callback redirects the browser
         # with a single-use, one-minute code instead of the tokens; the frontend
         # swaps it here server to server. There is no session yet - the code is
@@ -1388,6 +1453,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # code, and it cannot be asked to carry our session while doing so; the
         # code itself is the credential.
         ("POST", f"{V1}/me/mcp-connections/oauth/callback"),
+        # Staging an invitation deep link (#1414). An invitee follows the link
+        # while signed out, so this runs before they have a session; the token
+        # they hold is the credential, and it is exchanged here for an opaque
+        # httpOnly-cookie handle so it never rides the sign-in round trip. It
+        # returns nothing but the handle and refuses a forged token uniformly.
+        ("POST", f"{V1}/invitations/stage"),
         # Bearer-token surfaces where the token is in the URL, not a header.
         # A share link is a capability: whoever holds the token is the audience,
         # which is the whole point of being able to send it to somebody.
@@ -1428,6 +1499,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # service verifies that HMAC against the trigger named in the path. A
         # session here would mean the integration could never deliver.
         ("POST", f"{V1}/webhooks/triggers/{{source}}/{{trigger_id}}"),
+        # A GitHub App's single delivery URL. The same arrangement with the routing
+        # moved into the body: an App has one URL and one signing secret per
+        # installation, so the path names nothing and the installation id in the
+        # payload selects the grant whose secret verifies the HMAC (#1072).
+        ("POST", f"{V1}/webhooks/github-app"),
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser

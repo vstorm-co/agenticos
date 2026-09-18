@@ -53,6 +53,10 @@ from cli.reload_supervisor import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_COMPOSE = REPO_ROOT / "docker-compose.yml"
+# The local stack is the base file plus this one, which Compose merges in a clone;
+# the base file runs the published image under plain uvicorn, and the reloading
+# command is the override's (#1545).
+LOCAL_OVERRIDE = REPO_ROOT / "docker-compose.override.yml"
 
 # Long enough that no scheduling hiccup on a loaded CI runner reads as a wedge,
 # short enough that the test spends a fraction of a second proving one.
@@ -375,8 +379,8 @@ def test_the_local_stack_runs_the_supervisor_and_not_uvicorns_own_reloader() -> 
     a reloader that never serves a request - on a fix about surviving an
     out-of-memory kill.
     """
-    compose: dict[str, Any] = yaml.safe_load(LOCAL_COMPOSE.read_text())
-    command = compose["services"]["app"]["command"]
+    override: dict[str, Any] = yaml.safe_load(LOCAL_OVERRIDE.read_text())
+    command = override["services"]["app"]["command"]
 
     assert command.split() == [
         "python",

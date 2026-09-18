@@ -25,6 +25,7 @@ from app.agents.mcp_oauth import OAuthError
 from app.api.deps import Auth, McpConnectionSvc, require
 from app.core.permissions import Perm
 from app.schemas.mcp_connection import (
+    GithubAppInstall,
     GithubOAuthStart,
     McpConnectionRead,
     McpConnectionTestResult,
@@ -86,7 +87,12 @@ async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ct
     """
     try:
         authorization_url = await service.oauth_start_for_org(
-            ctx, name=data.name, url=data.url, catalog_key=data.catalog_key
+            ctx,
+            name=data.name,
+            url=data.url,
+            catalog_key=data.catalog_key,
+            client_id=data.client_id,
+            client_secret=data.client_secret,
         )
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -117,6 +123,31 @@ async def start_org_github_oauth(
     """
     authorization_url = await service.oauth_start_for_org_github(ctx, portal_key=data.portal_key)
     return McpOAuthStartResult(authorization_url=authorization_url)
+
+
+@router.post(
+    "/portals/github-app",
+    response_model=McpConnectionRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def connect_github_app_portal(
+    data: GithubAppInstall, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Record which GitHub App installation this organization's triggers belong to.
+
+    The App portal's Connect action, and it is not an OAuth start: an App has no
+    consent flow to begin. The organization stores the App's own credentials in
+    the vault, installs the App on the repositories it chose, and this binds the
+    installation id GitHub assigned - which is what an inbound delivery carries
+    and what selects the grant it belongs to.
+
+    Answers 201 with the grant, the same `mcp:manage` gate its OAuth siblings
+    carry, and the same refusals: no App secret is a 404 the card shows as a
+    prerequisite, and an installation GitHub will not mint a token for is a 503
+    naming what to check rather than a grant that matches no delivery.
+    """
+    return await service.connect_github_app(ctx, installation_id=data.installation_id)
 
 
 @router.post(

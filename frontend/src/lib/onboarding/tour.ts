@@ -23,6 +23,15 @@ export const ORG_MEMBERS = "org-members-detail";
 export const ORG_ROLES = "org-roles-detail";
 
 /**
+ * `/orgs/<id>/retention` — how long this organization keeps each class of data.
+ * Its own identity rather than a third stop on the members walk, because it is
+ * the one of the three an ordinary member never sees: the page is gated on
+ * `org:settings` and an ungated step would wait four seconds for a card the
+ * refusal never mounts.
+ */
+export const ORG_RETENTION = "org-retention-detail";
+
+/**
  * The Settings section, `/settings/*`. Its four pages — profile, account,
  * notifications, slash-commands — share one tabbed layout, so one identity stands
  * in for all of them and a single "?" stop points at the tabs on whichever page
@@ -354,6 +363,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsManage,
     optional: true,
   },
+  // The servers on the deployment's own network a collection may embed through
+  // or OCR with. Same tab and same gate as the integrations above: the section
+  // renders only for `connections:manage`, and its header always does once it
+  // renders, so the stop is not optional.
+  {
+    id: "knowledge-local-services",
+    page: ROUTES.RAG,
+    target: "knowledge-local-services",
+    activate: "knowledge-tab-integrations",
+    permission: Perm.connectionsManage,
+  },
 
   // The collection detail, entered from the Knowledge list. Three tabs since
   // #939, so each stop selects its own: the header and the stats strip are above
@@ -390,6 +410,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
+  {
+    id: "org-retention",
+    page: ORG_RETENTION,
+    target: "org-retention",
+    permission: Perm.orgSettings,
+  },
 
   {
     id: "vault-new",
@@ -485,6 +511,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  // Optional, because the card it anchors on renders only where an agent has
+  // written something - and an unmarked step waits four seconds for an element
+  // an empty store never mounts (#1594).
+  { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
 
   { id: "finish", inTour: true },
 ];
@@ -507,7 +537,11 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
-  if (path.startsWith(`${ROUTES.ORGS}/`)) return path.endsWith("/roles") ? ORG_ROLES : ORG_MEMBERS;
+  if (path.startsWith(`${ROUTES.ORGS}/`)) {
+    if (path.endsWith("/roles")) return ORG_ROLES;
+    if (path.endsWith("/retention")) return ORG_RETENTION;
+    return ORG_MEMBERS;
+  }
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
   return path;
