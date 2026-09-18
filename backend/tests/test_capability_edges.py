@@ -147,6 +147,7 @@ class TestKnowledgeSearchGuards:
     @pytest.mark.anyio
     async def test_one_collection_uses_the_single_collection_path(self):
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve = AsyncMock(return_value=[])
         with patch(
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
@@ -160,6 +161,7 @@ class TestKnowledgeSearchGuards:
     @pytest.mark.anyio
     async def test_several_collections_use_the_multi_path(self):
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve_multi = AsyncMock(return_value=[])
         with patch(
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
@@ -174,6 +176,7 @@ class TestKnowledgeSearchGuards:
     async def test_a_retrieval_failure_surfaces_as_an_external_service_error(self):
         """Not a silent empty result: an agent must not answer as if it searched."""
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve = AsyncMock(side_effect=RuntimeError("pgvector down"))
         with (
             patch(
@@ -195,6 +198,7 @@ class TestKnowledgeSearchGuards:
         base search failed" leaves an operator with a symptom and no next step.
         """
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve = AsyncMock(
             side_effect=ConfigurationError(
                 message="No embedding credential is configured",

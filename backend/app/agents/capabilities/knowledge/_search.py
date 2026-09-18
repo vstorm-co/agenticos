@@ -162,9 +162,7 @@ async def search_knowledge_base(
                 limit=top_k,
             )
         else:
-            scopes = {
-                name: await service.resolve_scope(name, organization_id) for name in resolved
-            }
+            scopes = {name: await service.resolve_scope(name, organization_id) for name in resolved}
             results = await service.retrieve_multi(
                 query=query,
                 collection_names=resolved,

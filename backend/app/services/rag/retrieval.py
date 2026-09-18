@@ -54,7 +54,9 @@ class RetrievalService(BaseRetrievalService):
         self.settings = settings
         self._hybrid_enabled = settings.enable_hybrid_search
 
-    async def resolve_scope(self, collection_name: str, organization_id: UUID | None) -> RetrievalScope:
+    async def resolve_scope(
+        self, collection_name: str, organization_id: UUID | None
+    ) -> RetrievalScope:
         """The scope a search of this collection should carry, resolved by name.
 
         For a caller that holds only a collection name and its own organization -

@@ -299,17 +299,26 @@ class BaseVectorStore(ABC):
             "image_count": len(getattr(chunk, "images", [])),
             **document.metadata.model_dump(),
         }
-        # The tenant tag, injected here at the store boundary rather than carried
-        # on `Document`/`DocumentMetadata`: those flow from the parser and the
-        # uploader, and a tenant key that could be set from parsed content or an
-        # uploaded field is a tenant key an attacker chooses. It is resolved from
-        # the collection's knowledge base, not taken from the caller (#1684).
-        # Stored as text so `metadata->>'organization_id'` - what every scoped
-        # query reads and what the hash index is built on - compares against it
-        # directly. Left off entirely for a deployment-wide collection, so the
-        # `IS NULL` scope matches it.
+        # The tenant tag, injected here at the store boundary rather than trusted
+        # from `document.metadata.organization_id`: `DocumentMetadata` also carries
+        # a same-named field FA-039's ingestion sets to the *paying* organization
+        # (`ingest_file(organization_id=...)`, #913) - not this collection's own
+        # vector tenant, which is `None` for an app-scoped base even when the
+        # upload is billed to a real organization. Left in the spread above, that
+        # value would reach storage untouched whenever `tenant` is `None`, tagging
+        # an app-scoped base's rows with whichever organization happened to upload
+        # first and permanently excluding them from both the `IS NULL` scope that
+        # is supposed to match them and every organization's own equality scope
+        # (#1684). So it is always resolved from `tenant` - the collection's
+        # knowledge base, not the caller - overwriting or clearing whatever the
+        # spread contributed. Stored as text so `metadata->>'organization_id'` -
+        # what every scoped query reads and what the hash index is built on -
+        # compares against it directly. Left off entirely for a deployment-wide
+        # collection, so the `IS NULL` scope matches it.
         if tenant is not None:
             metadata["organization_id"] = str(tenant)
+        else:
+            metadata.pop("organization_id", None)
         return metadata
 
     def _sanitize_id(self, document_id: str) -> str:

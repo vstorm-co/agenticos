@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -254,18 +256,27 @@ class TestResolveTenantForASearch:
         assert await store.resolve_tenant("kb", ORG_B) is None
 
 
+@asynccontextmanager
+async def _noop_savepoint() -> AsyncIterator[None]:
+    yield
+
+
 class TestPgVectorStoreScopesEveryRowOp:
     """Each statement carries the tenant conjunct and binds the value (#1684)."""
 
     @staticmethod
     def _store_over(execute: AsyncMock) -> PgVectorStore:
         session = MagicMock(execute=execute, commit=AsyncMock())
+        # `search` tunes HNSW recall inside a savepoint (FA-039 H1); a mocked
+        # session has to satisfy that context manager too.
+        session.begin_nested = MagicMock(side_effect=_noop_savepoint)
         session_ctx = MagicMock()
         session_ctx.__aenter__ = AsyncMock(return_value=session)
         session_ctx.__aexit__ = AsyncMock(return_value=False)
         embedder = MagicMock(embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]))
         store = PgVectorStore.__new__(PgVectorStore)
         store.async_session = MagicMock(return_value=session_ctx)
+        store.settings = MagicMock(hnsw_iterative_scan=False, hnsw_ef_search=100)
         store._collection_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
         store._table = MagicMock(return_value="rag_kb")  # type: ignore[method-assign]
         store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
